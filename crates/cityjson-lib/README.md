@@ -31,8 +31,8 @@ Alternatively, the bindings can be created directly from the Rust library, inste
 There are good Rust libraries that already do this.
 
 So then the bindings for each language is stored in a separate crate.
-The core implementation is written in Rust, in the crate **cjlib_rs**.
-The bindings use **cjlib_rs** and wrap the required structures around it.
+The core implementation is written in Rust, in the crate **cjlib**.
+The bindings use **cjlib** and wrap the required structures around it.
 
 + The C++ crate is either [cxx](https://cxx.rs/index.html) or [cbindgen]() in **cjlib_cpp**
 + The python crate is with [PyO3](https://github.com/PyO3/pyo3) in **cjlib_py**
