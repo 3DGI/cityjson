@@ -10,7 +10,7 @@
 
 ## Scope
 
-+ Maps the complete core CityJSON objects to their equivalent language-specifi structure.
++ Maps the complete core CityJSON objects to their equivalent language-specific structure.
 + Provides structures for the CityJSON geometric primitives. This means de/referencing the geometries when reading/writing to CityJSON files.
 + Implements getters and setters for CityModel and each object in CityJSON.
 + Does not provide operations on the CityObjects and their geometries (eg. intersect, volume, compare, validate etc.).
@@ -34,14 +34,6 @@ So then the bindings for each language is stored in a separate crate.
 The core implementation is written in Rust, in the crate **cjlib**.
 The bindings use **cjlib** and wrap the required structures around it.
 
-+ The C++ crate is either [cxx](https://cxx.rs/index.html) or [cbindgen]() in **cjlib_cpp**
-+ The python crate is with [PyO3](https://github.com/PyO3/pyo3) in **cjlib_py**
-+ The WASM crate is [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen) in **cjlib_wasm**
-
-## C++
-
-### [cxx](https://cxx.rs/index.html)
-
-However, cxx doesn't allow to get the Rust types from another crate or package, which makes it impossible to set up separate crates for the language bindings, as described above.
-
-*"For now, types used as extern Rust types are required to be defined by the same crate that contains the bridge using them. This restriction may be lifted in the future."* [ref](https://cxx.rs/extern-rust.html#opaque-rust-types)
++ The C++ crate is either [cxx](https://cxx.rs/index.html) or [cbindgen]() in [**cjlib_cpp**](https://github.com/balazsdukai/cjlib_cpp)
++ The python crate is with [PyO3](https://github.com/PyO3/pyo3) in [**cjlib_py**](https://github.com/balazsdukai/cjlib_py)
++ The WASM crate is [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen) in [**cjlib_wasm**](https://github.com/balazsdukai/cjlib_wasm)
