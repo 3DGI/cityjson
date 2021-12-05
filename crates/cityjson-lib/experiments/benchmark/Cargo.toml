@@ -1,0 +1,18 @@
+[package]
+name = "benchmark"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "benchmark"
+path = "src/main.rs"
+
+[[bin]]
+name = "prepare"
+path = "src/prepare.rs"
+
+[dependencies]
+serde_json = "1.0.69"
+clap = "2"

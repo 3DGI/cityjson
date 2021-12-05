@@ -1,5 +1,7 @@
 # cjlib
 
+One of the principles of this library is that CityJSON is an **exchange format**.
+
 ## Goal setting
 
 1. A software library with a public API for reading and creating city models from/to CityJSON.
