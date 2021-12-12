@@ -1,3 +1,4 @@
+use std::any::{Any, TypeId};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -64,6 +65,89 @@ fn direct_geometry(path_in: PathBuf) {
     )
 }
 
+/// Get the boundary coordinates of a given semantic surface
+fn direct_semantics(path_in: PathBuf) {
+    let semantic_type = "RoofSurface";
+    println!("extracting the geometry of {}", semantic_type);
+    let mut containter: Vec<[f64; 3]> = Vec::new();
+    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
+    let re: Result<Value, _> = serde_json::from_str(&str_dataset);
+    let cm = re.expect("Could not deserialize the CityJSON file");
+    let cos = cm["CityObjects"].as_object().unwrap();
+    let vertices = cm["vertices"].as_array().unwrap();
+    for coval in cos.values() {
+        let geometry = coval
+            .as_object()
+            .unwrap()
+            .get("geometry")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        for geom in geometry {
+            if !geom["semantics"].is_null() {
+                let mut si: Option<usize> = None;
+                for (i, semsrf) in geom["semantics"]["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                {
+                    if semsrf["type"].as_str().unwrap() == semantic_type {
+                        si = Some(i);
+                    }
+                }
+                if let Some(semsrf_idx) = si {
+                    // Really need to be careful with the data types in the file
+                    println!("LoD: {}", geom["lod"].as_f64().unwrap());
+                    let shells = geom["boundaries"].as_array().unwrap();
+                    if geom["type"].as_str().unwrap() == "Solid" {
+                        for (shell_i, sem_shell) in geom["semantics"]["values"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .enumerate()
+                        {
+                            let shell: &Value = &geom["boundaries"].as_array().unwrap()[shell_i];
+                            for (srf_i, sem_surface) in
+                                sem_shell.as_array().unwrap().iter().enumerate()
+                            {
+                                let surface: &Value = &shell[&srf_i];
+                                if sem_surface.as_i64().unwrap() == semsrf_idx as i64 {
+                                    for ring in surface.as_array().unwrap() {
+                                        for vtx_idx in ring.as_array().unwrap() {
+                                            let v = vertices[vtx_idx.as_u64().unwrap() as usize]
+                                                .as_array()
+                                                .unwrap();
+                                            let point: [f64; 3] = [
+                                                v[0].as_f64().unwrap().clone(),
+                                                v[1].as_f64().unwrap().clone(),
+                                                v[2].as_f64().unwrap().clone(),
+                                            ];
+                                            containter.push(point);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        println!("Not a Solid geometry")
+                    }
+                } else {
+                    println!(
+                        "The requested semantic surface type, {}, is not found on the geometry.",
+                        semantic_type
+                    )
+                }
+            }
+        }
+    }
+    println!(
+        "In total there are {} points in the citymodel and {} vertices",
+        containter.len(),
+        vertices.len()
+    )
+}
+
 static USECASES: [&str; 5] = [
     "deserialize",
     "serialize",
@@ -112,7 +196,7 @@ impl Architectures {
     }
     fn semantics(&self, path_in: PathBuf) {
         match self {
-            Architectures::DirectJson => {}
+            Architectures::DirectJson => direct_semantics(path_in),
             Architectures::VertexIndex => {}
             Architectures::Dereference => {}
         }
