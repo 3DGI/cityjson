@@ -62,6 +62,7 @@ fn main() -> std::io::Result<()> {
 
     // Remove metadata
     cm.as_object_mut().unwrap().remove("metadata");
+    cm.as_object_mut().unwrap().remove("+metadata-extended");
 
     // Write to file
     let str_dataset = serde_json::to_string(&cm).unwrap();

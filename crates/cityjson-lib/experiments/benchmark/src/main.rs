@@ -524,6 +524,60 @@ fn direct_create(path_in: PathBuf) {
     println!("{}", cityjson.to_string());
 }
 
+// Dereference -----------------
+
+// CityJSON structures
+#[derive(Serialize, Deserialize)]
+struct SemanticSurface {
+    #[serde(rename = "type")]
+    semtype: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Semantics {
+    surfaces: Vec<SemanticSurface>,
+    values: Vec<Vec<i32>>,
+}
+#[derive(Serialize, Deserialize)]
+struct Geometry {
+    #[serde(rename = "type")]
+    geomtype: String,
+    lod: String,
+    boundaries: Vec<Vec<[[i32; 3]; 1]>>,
+    semantics: Semantics,
+}
+#[derive(Serialize, Deserialize)]
+struct CityObject {
+    #[serde(rename = "type")]
+    cotype: String,
+    geometry: Vec<Geometry>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Transform {
+    scale: [f64; 3],
+    translate: [f64; 3],
+}
+
+#[derive(Serialize, Deserialize)]
+struct CityModel {
+    #[serde(rename = "type")]
+    cmtype: String,
+    version: String,
+    transform: Transform,
+    #[serde(rename = "CityObjects")]
+    cityobjects: HashMap<String, CityObject>,
+    vertices: Vec<[f64; 3]>,
+}
+
+fn deref_deserialize(path_in: PathBuf) {
+    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
+    let re: Result<CityModel, _> = serde_json::from_str(&str_dataset);
+    let cm = re.expect("Could not deserialize the CityJSON file");
+}
+
+// CLI -------------------------
+
 static USECASES: [&str; 5] = [
     "deserialize",
     "serialize",
@@ -552,36 +606,56 @@ impl Architectures {
     fn deserialize(&self, path_in: PathBuf) {
         match self {
             Architectures::DirectJson => direct_deserialize(path_in),
-            Architectures::VertexIndex => {}
-            Architectures::Dereference => {}
+            Architectures::VertexIndex => {
+                println!("Not implemented")
+            }
+            Architectures::Dereference => deref_deserialize(path_in),
         }
     }
     fn serialize(&self, path_in: PathBuf) {
         match self {
-            Architectures::DirectJson => {}
-            Architectures::VertexIndex => {}
-            Architectures::Dereference => {}
+            Architectures::DirectJson => {
+                println!("Not implemented")
+            }
+            Architectures::VertexIndex => {
+                println!("Not implemented")
+            }
+            Architectures::Dereference => {
+                println!("Not implemented")
+            }
         }
     }
     fn geometry(&self, path_in: PathBuf) {
         match self {
             Architectures::DirectJson => direct_geometry(path_in),
-            Architectures::VertexIndex => {}
-            Architectures::Dereference => {}
+            Architectures::VertexIndex => {
+                println!("Not implemented")
+            }
+            Architectures::Dereference => {
+                println!("Not implemented")
+            }
         }
     }
     fn semantics(&self, path_in: PathBuf) {
         match self {
             Architectures::DirectJson => direct_semantics(path_in),
-            Architectures::VertexIndex => {}
-            Architectures::Dereference => {}
+            Architectures::VertexIndex => {
+                println!("Not implemented")
+            }
+            Architectures::Dereference => {
+                println!("Not implemented")
+            }
         }
     }
     fn create(&self, path_in: PathBuf) {
         match self {
             Architectures::DirectJson => direct_create(path_in),
-            Architectures::VertexIndex => {}
-            Architectures::Dereference => {}
+            Architectures::VertexIndex => {
+                println!("Not implemented")
+            }
+            Architectures::Dereference => {
+                println!("Not implemented")
+            }
         }
     }
 }
