@@ -25,7 +25,8 @@ fn direct_geometry(path_in: PathBuf) {
     let cm = re.expect("Could not deserialize the CityJSON file");
     let cos = cm["CityObjects"].as_object().unwrap();
     let vertices = cm["vertices"].as_array().unwrap();
-    for coval in cos.values() {
+    for (coid, coval) in cos {
+        println!("Processing CityObject {}", coid);
         let geometry = coval
             .as_object()
             .unwrap()
@@ -35,7 +36,7 @@ fn direct_geometry(path_in: PathBuf) {
             .unwrap();
         for geom in geometry {
             // Really need to be careful with the data types in the file
-            println!("LoD: {}", geom["lod"].as_f64().unwrap());
+            println!("LoD: {}", geom["lod"].as_str().unwrap());
             if geom["type"].as_str().unwrap() == "Solid" {
                 for shell in geom["boundaries"].as_array().unwrap() {
                     for surface in shell.as_array().unwrap() {
@@ -99,7 +100,7 @@ fn direct_semantics(path_in: PathBuf) {
                 }
                 if let Some(semsrf_idx) = si {
                     // Really need to be careful with the data types in the file
-                    println!("LoD: {}", geom["lod"].as_f64().unwrap());
+                    println!("LoD: {}", geom["lod"].as_str().unwrap());
                     let shells = geom["boundaries"].as_array().unwrap();
                     if geom["type"].as_str().unwrap() == "Solid" {
                         for (shell_i, sem_shell) in geom["semantics"]["values"]
@@ -536,14 +537,14 @@ struct SemanticSurface {
 #[derive(Serialize, Deserialize)]
 struct Semantics {
     surfaces: Vec<SemanticSurface>,
-    values: Vec<Vec<i32>>,
+    values: Vec<Vec<usize>>,
 }
 #[derive(Serialize, Deserialize)]
 struct Geometry {
     #[serde(rename = "type")]
     geomtype: String,
     lod: String,
-    boundaries: Vec<Vec<[[i32; 3]; 1]>>,
+    boundaries: Vec<Vec<[[usize; 3]; 1]>>,
     semantics: Semantics,
 }
 #[derive(Serialize, Deserialize)]
@@ -574,6 +575,37 @@ fn deref_deserialize(path_in: PathBuf) {
     let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
     let re: Result<CityModel, _> = serde_json::from_str(&str_dataset);
     let cm = re.expect("Could not deserialize the CityJSON file");
+}
+
+fn deref_geometry(path_in: PathBuf) {
+    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
+    let re: Result<CityModel, _> = serde_json::from_str(&str_dataset);
+    let cm = re.expect("Could not deserialize the CityJSON file");
+    let mut containter: Vec<[f64; 3]> = Vec::new();
+    for (coid, co) in cm.cityobjects {
+        println!("Processing CityObject {}", coid);
+        for geom in co.geometry {
+            if geom.geomtype == "Solid" {
+                for shell in geom.boundaries {
+                    for surface in shell {
+                        for ring in surface {
+                            for vtx_idx in ring {
+                                let point = cm.vertices[vtx_idx as usize];
+                                containter.push(point);
+                            }
+                        }
+                    }
+                }
+            } else {
+                println!("Not a Solid geometry")
+            }
+        }
+    }
+    println!(
+        "In total there are {} points in the citymodel and {} vertices",
+        containter.len(),
+        cm.vertices.len()
+    )
 }
 
 // CLI -------------------------
@@ -631,9 +663,7 @@ impl Architectures {
             Architectures::VertexIndex => {
                 println!("Not implemented")
             }
-            Architectures::Dereference => {
-                println!("Not implemented")
-            }
+            Architectures::Dereference => deref_geometry(path_in),
         }
     }
     fn semantics(&self, path_in: PathBuf) {
@@ -720,6 +750,12 @@ mod tests {
     fn test_direct_geometry() {
         let path_in = get_data();
         direct_geometry(path_in)
+    }
+
+    #[test]
+    fn test_deref_deserialize() {
+        let path_in = get_data();
+        deref_deserialize(path_in)
     }
 }
 
