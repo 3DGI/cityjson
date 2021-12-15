@@ -58,6 +58,15 @@ fn main() -> std::io::Result<()> {
     let cos = cm["CityObjects"].as_object_mut().unwrap();
     for coval in cos.values_mut() {
         coval.as_object_mut().unwrap().remove("attributes");
+        let mut to_del: Vec<usize> = Vec::new();
+        for (gi, geom) in coval["geometry"].as_array().unwrap().iter().enumerate() {
+            if geom["type"].as_str().unwrap() == "MultiSurface" {
+                to_del.push(gi);
+            }
+        }
+        for gi in to_del {
+            coval["geometry"].as_array_mut().unwrap().remove(gi);
+        }
     }
 
     // Remove metadata

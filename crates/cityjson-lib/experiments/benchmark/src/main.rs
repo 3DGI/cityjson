@@ -26,7 +26,7 @@ fn direct_geometry(path_in: PathBuf) {
     let cos = cm["CityObjects"].as_object().unwrap();
     let vertices = cm["vertices"].as_array().unwrap();
     for (coid, coval) in cos {
-        println!("Processing CityObject {}", coid);
+        // println!("Processing CityObject {}", coid);
         let geometry = coval
             .as_object()
             .unwrap()
@@ -36,7 +36,7 @@ fn direct_geometry(path_in: PathBuf) {
             .unwrap();
         for geom in geometry {
             // Really need to be careful with the data types in the file
-            println!("LoD: {}", geom["lod"].as_str().unwrap());
+            // println!("LoD: {}", geom["lod"].as_str().unwrap());
             if geom["type"].as_str().unwrap() == "Solid" {
                 for shell in geom["boundaries"].as_array().unwrap() {
                     for surface in shell.as_array().unwrap() {
@@ -100,7 +100,7 @@ fn direct_semantics(path_in: PathBuf) {
                 }
                 if let Some(semsrf_idx) = si {
                     // Really need to be careful with the data types in the file
-                    println!("LoD: {}", geom["lod"].as_str().unwrap());
+                    // println!("LoD: {}", geom["lod"].as_str().unwrap());
                     let shells = geom["boundaries"].as_array().unwrap();
                     if geom["type"].as_str().unwrap() == "Solid" {
                         for (shell_i, sem_shell) in geom["semantics"]["values"]
@@ -553,6 +553,7 @@ type IVertex = usize;
 type IRing = Vec<IVertex>;
 type ISurface = Vec<IRing>;
 type IShell = Vec<ISurface>;
+type IMultiSurface = Vec<ISurface>;
 type ISolid = Vec<IShell>;
 
 #[derive(Deserialize)]
@@ -560,7 +561,7 @@ struct IGeometry {
     #[serde(rename = "type")]
     geomtype: String,
     lod: String,
-    boundaries: ISolid,
+    boundaries: Option<ISolid>,
     semantics: ISemantics,
 }
 
@@ -569,6 +570,7 @@ type Vertex = [f64; 3];
 type Ring = Vec<Vertex>;
 type Surface = Vec<Ring>;
 type Shell = Vec<Surface>;
+type MultiSurface = Vec<Surface>;
 type Solid = Vec<Shell>;
 
 #[derive(Serialize)]
@@ -600,6 +602,23 @@ fn dereference_boundary(vertices: &Vertices, boundary: &ISolid) -> Solid {
         new_solid.push(new_shell);
     }
     return new_solid;
+}
+
+fn dereference_boundary_msrf(vertices: &Vertices, boundary: &IMultiSurface) -> MultiSurface {
+    let mut new_msrf: MultiSurface = Vec::new();
+    for surface in boundary {
+        let mut new_surface: Surface = Vec::new();
+        for ring in surface {
+            let mut new_ring: Ring = Vec::new();
+            for vtx_idx in ring {
+                let new_vertex: [f64; 3] = vertices[*vtx_idx];
+                new_ring.push(new_vertex);
+            }
+            new_surface.push(new_ring);
+        }
+        new_msrf.push(new_surface);
+    }
+    return new_msrf;
 }
 
 #[derive(Deserialize)]
@@ -650,22 +669,29 @@ fn parse(path_in: PathBuf) -> CityModel {
 
     let mut new_cos: HashMap<String, CityObject> = HashMap::new();
     for (coid, co) in icm.cityobjects {
-        println!("Processing CityObject {}", coid);
+        // println!("Processing CityObject {}", coid);
         let mut new_geoms: Vec<Geometry> = Vec::new();
         for geom in co.geometry {
             if geom.geomtype == "Solid" {
-                let solid = dereference_boundary(&icm.vertices, &geom.boundaries);
-                new_geoms.push(Geometry {
-                    geomtype: geom.geomtype,
-                    lod: geom.lod,
-                    boundaries: solid,
-                    semantics: Semantics {
-                        surfaces: vec![],
-                        values: vec![],
-                    },
-                });
+                if let Some(bdry) = geom.boundaries {
+                    let solid = dereference_boundary(&icm.vertices, &bdry);
+                    new_geoms.push(Geometry {
+                        geomtype: geom.geomtype,
+                        lod: geom.lod,
+                        boundaries: solid,
+                        semantics: Semantics {
+                            surfaces: vec![],
+                            values: vec![],
+                        },
+                    });
+                }
+            } else if geom.geomtype == "MultiSurface" {
+                if let Some(bdry) = geom.boundaries {
+                    println!("Not Implemented for MultiSurface")
+                    // let msrf = dereference_boundary_msrf(&icm.vertices, &bdry);
+                }
             } else {
-                println!("Not a Solid geometry")
+                println!("Not a Solid or MultiSurface geometry")
             }
         }
         let new_co = CityObject {

@@ -18,6 +18,18 @@ Therefore, there are two aspects to consider about the performance of a CityJSON
    When updating or extending a city model, new points are created with real coordinates. How to integrate the new points into the original, transformed model and make sure that the transformation matrix is still appropriate for the extent of the updated model?
 2. The **speed** of execution of operations with respect to the speed of execution of operations on the raw deserialized json. Thus, the baseline for benchmarking speed is the _direct-json_ approach.
 
+## How to measure?
+
+### Size
+
+```shell
+$ /usr/bin/time -v target/release/benchmark ../data/3dbag_v210908_fd2cee53_5786_bench.city.json -a direct-json -c geometry
+```
+
+Ref.:
++ https://users.rust-lang.org/t/how-to-calculate-memory-usage/51240
++ https://stackoverflow.com/questions/774556/peak-memory-usage-of-a-linux-unix-process
+
 ## Focus on geometry and semantics
 
 The benchmark is focusing on the geometry and semantics of the city model.
