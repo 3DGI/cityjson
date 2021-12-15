@@ -1,6 +1,6 @@
-use std::any::{Any, TypeId};
-use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use clap::{crate_version, App, Arg};
@@ -534,77 +534,176 @@ struct SemanticSurface {
     semtype: String,
 }
 
+#[derive(Deserialize)]
+struct ISemantics {
+    surfaces: Vec<SemanticSurface>,
+    values: Vec<Vec<usize>>,
+}
+
 #[derive(Serialize, Deserialize)]
 struct Semantics {
     surfaces: Vec<SemanticSurface>,
     values: Vec<Vec<usize>>,
 }
-#[derive(Serialize, Deserialize)]
+
+type Vertices = Vec<[f64; 3]>;
+
+// Indexed geometry
+type IVertex = usize;
+type IRing = Vec<IVertex>;
+type ISurface = Vec<IRing>;
+type IShell = Vec<ISurface>;
+type ISolid = Vec<IShell>;
+
+#[derive(Deserialize)]
+struct IGeometry {
+    #[serde(rename = "type")]
+    geomtype: String,
+    lod: String,
+    boundaries: ISolid,
+    semantics: ISemantics,
+}
+
+// Dereferenced geometry
+type Vertex = [f64; 3];
+type Ring = Vec<Vertex>;
+type Surface = Vec<Ring>;
+type Shell = Vec<Surface>;
+type Solid = Vec<Shell>;
+
+#[derive(Serialize)]
 struct Geometry {
     #[serde(rename = "type")]
     geomtype: String,
     lod: String,
-    boundaries: Vec<Vec<[[usize; 3]; 1]>>,
+    boundaries: Solid,
     semantics: Semantics,
 }
-#[derive(Serialize, Deserialize)]
+
+// Dereference a Solid
+fn dereference_boundary(vertices: &Vertices, boundary: &ISolid) -> Solid {
+    let mut new_solid: Solid = Vec::new();
+    for (i, shell) in boundary.iter().enumerate() {
+        let mut new_shell: Shell = Vec::new();
+        for surface in shell {
+            let mut new_surface: Surface = Vec::new();
+            for ring in surface {
+                let mut new_ring: Ring = Vec::new();
+                for vtx_idx in ring {
+                    let new_vertex: [f64; 3] = vertices[*vtx_idx];
+                    new_ring.push(new_vertex);
+                }
+                new_surface.push(new_ring);
+            }
+            new_shell.push(new_surface);
+        }
+        new_solid.push(new_shell);
+    }
+    return new_solid;
+}
+
+#[derive(Deserialize)]
+struct ICityObject {
+    #[serde(rename = "type")]
+    cotype: String,
+    geometry: Vec<IGeometry>,
+}
+
+#[derive(Serialize)]
 struct CityObject {
     #[serde(rename = "type")]
     cotype: String,
     geometry: Vec<Geometry>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct Transform {
     scale: [f64; 3],
     translate: [f64; 3],
 }
 
-#[derive(Serialize, Deserialize)]
-struct CityModel {
+#[derive(Deserialize)]
+struct ICityModel {
     #[serde(rename = "type")]
     cmtype: String,
     version: String,
     transform: Transform,
     #[serde(rename = "CityObjects")]
+    cityobjects: HashMap<String, ICityObject>,
+    vertices: Vertices,
+}
+
+#[derive(Serialize)]
+struct CityModel {
+    #[serde(rename = "type")]
+    cmtype: String,
+    version: String,
+    #[serde(rename = "CityObjects")]
     cityobjects: HashMap<String, CityObject>,
-    vertices: Vec<[f64; 3]>,
 }
 
-fn deref_deserialize(path_in: PathBuf) {
-    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
-    let re: Result<CityModel, _> = serde_json::from_str(&str_dataset);
-    let cm = re.expect("Could not deserialize the CityJSON file");
-}
+fn parse(path_in: PathBuf) -> CityModel {
+    let file = File::open(path_in).expect("Couldn't read CityJSON file");
+    let reader = BufReader::new(file);
+    let icm: ICityModel =
+        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
 
-fn deref_geometry(path_in: PathBuf) {
-    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
-    let re: Result<CityModel, _> = serde_json::from_str(&str_dataset);
-    let cm = re.expect("Could not deserialize the CityJSON file");
-    let mut containter: Vec<[f64; 3]> = Vec::new();
-    for (coid, co) in cm.cityobjects {
+    let mut new_cos: HashMap<String, CityObject> = HashMap::new();
+    for (coid, co) in icm.cityobjects {
         println!("Processing CityObject {}", coid);
+        let mut new_geoms: Vec<Geometry> = Vec::new();
         for geom in co.geometry {
             if geom.geomtype == "Solid" {
-                for shell in geom.boundaries {
-                    for surface in shell {
-                        for ring in surface {
-                            for vtx_idx in ring {
-                                let point = cm.vertices[vtx_idx as usize];
-                                containter.push(point);
-                            }
-                        }
-                    }
-                }
+                let solid = dereference_boundary(&icm.vertices, &geom.boundaries);
+                new_geoms.push(Geometry {
+                    geomtype: geom.geomtype,
+                    lod: geom.lod,
+                    boundaries: solid,
+                    semantics: Semantics {
+                        surfaces: vec![],
+                        values: vec![],
+                    },
+                });
             } else {
                 println!("Not a Solid geometry")
             }
         }
+        let new_co = CityObject {
+            cotype: co.cotype,
+            geometry: new_geoms,
+        };
+        new_cos.insert(coid, new_co);
+    }
+    CityModel {
+        cmtype: icm.cmtype,
+        version: icm.version,
+        cityobjects: new_cos,
+    }
+}
+
+fn deref_deserialize(path_in: PathBuf) {
+    let cm = parse(path_in);
+}
+
+fn deref_geometry(path_in: PathBuf) {
+    let mut containter: Vec<[f64; 3]> = Vec::new();
+    let cm = parse(path_in);
+    for (coid, co) in cm.cityobjects {
+        for geom in co.geometry {
+            for shell in geom.boundaries {
+                for surface in shell {
+                    for ring in surface {
+                        for vtx in ring {
+                            containter.push(vtx);
+                        }
+                    }
+                }
+            }
+        }
     }
     println!(
-        "In total there are {} points in the citymodel and {} vertices",
-        containter.len(),
-        cm.vertices.len()
+        "In total there are {} points in the citymodel",
+        containter.len()
     )
 }
 
@@ -757,21 +856,10 @@ mod tests {
         let path_in = get_data();
         deref_deserialize(path_in)
     }
-}
 
-// fn main() -> Result<(), serde_json::Error> {
-//     let file_path = "../data/cluster.city.json";
-//     let filesize = fs::metadata(file_path).unwrap().len();
-//     println!("size of citjson file: {}", filesize);
-//     let str_dataset = fs::read_to_string(&file_path)
-//         .expect("Couldn't read CityJSON file");
-//     println!("str_dataset alignment: {}, size: {}", mem::size_of_val(&str_dataset), mem::size_of_val(&*str_dataset));
-//     let j: serde_json::Value = serde_json::from_str(&str_dataset)?;
-//     println!("j alignment: {}, size: {}", mem::size_of_val(&j), mem::size_of_val(&j));
-//     let cos = j.get("CityObjects").unwrap().as_object().unwrap();
-//     println!("cos alignment: {}, size: {}", mem::size_of_val(&cos), mem::size_of_val(&cos));
-//     for coid in cos.keys() {
-//         println!("CityObject {} is of type {}", coid, j["CityObjects"][coid]["type"])
-//     }
-//     Ok(())
-// }
+    #[test]
+    fn test_deref_geometry() {
+        let path_in = get_data();
+        deref_geometry(path_in)
+    }
+}
