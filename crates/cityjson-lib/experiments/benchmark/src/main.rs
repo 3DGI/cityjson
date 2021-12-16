@@ -7,22 +7,25 @@ use clap::{crate_version, App, Arg};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+fn parse_direct(path_in: PathBuf) -> serde_json::Value {
+    let file = File::open(path_in).expect("Couldn't read CityJSON file");
+    let reader = BufReader::new(file);
+    let cm: Value = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+    return cm;
+}
+
 /// Parse a CityJSON file as-is, just by using serde_json's generic Value type.
 /// Not using any CityJSON specific structure.
 /// This is the quickest to get started, but requires lots of code later on in order to unwrap the
 /// individual JSON members.
 fn direct_deserialize(path_in: PathBuf) {
-    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
-    let re: Result<Value, _> = serde_json::from_str(&str_dataset);
-    let cm = re.expect("Could not deserialize the CityJSON file");
+    let cm = parse_direct(path_in);
 }
 
 /// Get the boundary coordinates of each surface.
 fn direct_geometry(path_in: PathBuf) {
     let mut containter: Vec<[f64; 3]> = Vec::new();
-    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
-    let re: Result<Value, _> = serde_json::from_str(&str_dataset);
-    let cm = re.expect("Could not deserialize the CityJSON file");
+    let cm = parse_direct(path_in);
     let cos = cm["CityObjects"].as_object().unwrap();
     let vertices = cm["vertices"].as_array().unwrap();
     for (coid, coval) in cos {
@@ -72,9 +75,7 @@ fn direct_semantics(path_in: PathBuf) {
     let semantic_type = "RoofSurface";
     println!("extracting the geometry of {}", semantic_type);
     let mut containter: Vec<[f64; 3]> = Vec::new();
-    let str_dataset = std::fs::read_to_string(path_in).expect("Couldn't read CityJSON file");
-    let re: Result<Value, _> = serde_json::from_str(&str_dataset);
-    let cm = re.expect("Could not deserialize the CityJSON file");
+    let cm = parse_direct(path_in);
     let cos = cm["CityObjects"].as_object().unwrap();
     let vertices = cm["vertices"].as_array().unwrap();
     for coval in cos.values() {
@@ -661,7 +662,7 @@ struct CityModel {
     cityobjects: HashMap<String, CityObject>,
 }
 
-fn parse(path_in: PathBuf) -> CityModel {
+fn parse_dereferece(path_in: PathBuf) -> CityModel {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
     let reader = BufReader::new(file);
     let icm: ICityModel =
@@ -708,12 +709,12 @@ fn parse(path_in: PathBuf) -> CityModel {
 }
 
 fn deref_deserialize(path_in: PathBuf) {
-    let cm = parse(path_in);
+    let cm = parse_dereferece(path_in);
 }
 
 fn deref_geometry(path_in: PathBuf) {
     let mut containter: Vec<[f64; 3]> = Vec::new();
-    let cm = parse(path_in);
+    let cm = parse_dereferece(path_in);
     for (coid, co) in cm.cityobjects {
         for geom in co.geometry {
             for shell in geom.boundaries {
