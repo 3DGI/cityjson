@@ -17,6 +17,10 @@ path = "src/prepare.rs"
 name = "geom_deref_dyn"
 path = "src/geom_deref_dyn.rs"
 
+[[bin]]
+name = "geom_deref_static"
+path = "src/geom_deref_static.rs"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
