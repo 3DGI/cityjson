@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use clap::{crate_version, App, Arg};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 
 fn parse_direct(path_in: PathBuf) -> serde_json::Value {
@@ -528,180 +528,166 @@ fn direct_create(path_in: PathBuf) {
 
 // Dereference -----------------
 
-// CityJSON structures
-#[derive(Serialize, Deserialize)]
-struct SemanticSurface {
-    #[serde(rename = "type")]
-    semtype: String,
-}
+mod geom_deref_static;
+use crate::geom_deref_static::geom_static;
+use crate::geom_static::Geometry;
 
-#[derive(Deserialize)]
-struct ISemantics {
-    surfaces: Vec<SemanticSurface>,
-    values: Vec<Vec<usize>>,
-}
+mod deserialize {
+    use serde::Deserialize;
+    use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
-struct Semantics {
-    surfaces: Vec<SemanticSurface>,
-    values: Vec<Vec<usize>>,
-}
-
-type Vertices = Vec<[f64; 3]>;
-
-// Indexed geometry
-type IVertex = usize;
-type IRing = Vec<IVertex>;
-type ISurface = Vec<IRing>;
-type IShell = Vec<ISurface>;
-type IMultiSurface = Vec<ISurface>;
-type ISolid = Vec<IShell>;
-
-#[derive(Deserialize)]
-struct IGeometry {
-    #[serde(rename = "type")]
-    geomtype: String,
-    lod: String,
-    boundaries: Option<ISolid>,
-    semantics: ISemantics,
-}
-
-// Dereferenced geometry
-type Vertex = [f64; 3];
-type Ring = Vec<Vertex>;
-type Surface = Vec<Ring>;
-type Shell = Vec<Surface>;
-type MultiSurface = Vec<Surface>;
-type Solid = Vec<Shell>;
-
-#[derive(Serialize)]
-struct Geometry {
-    #[serde(rename = "type")]
-    geomtype: String,
-    lod: String,
-    boundaries: Solid,
-    semantics: Semantics,
-}
-
-// Dereference a Solid
-fn dereference_boundary(vertices: &Vertices, boundary: &ISolid) -> Solid {
-    let mut new_solid: Solid = Vec::new();
-    for (i, shell) in boundary.iter().enumerate() {
-        let mut new_shell: Shell = Vec::new();
-        for surface in shell {
-            let mut new_surface: Surface = Vec::new();
-            for ring in surface {
-                let mut new_ring: Ring = Vec::new();
-                for vtx_idx in ring {
-                    let new_vertex: [f64; 3] = vertices[*vtx_idx];
-                    new_ring.push(new_vertex);
-                }
-                new_surface.push(new_ring);
-            }
-            new_shell.push(new_surface);
-        }
-        new_solid.push(new_shell);
+    // Deserialize into indexed CityJSON-like structures with serde
+    #[derive(Deserialize)]
+    struct SemanticSurface {
+        #[serde(rename = "type")]
+        semtype: String,
     }
-    return new_solid;
-}
 
-fn dereference_boundary_msrf(vertices: &Vertices, boundary: &IMultiSurface) -> MultiSurface {
-    let mut new_msrf: MultiSurface = Vec::new();
-    for surface in boundary {
-        let mut new_surface: Surface = Vec::new();
-        for ring in surface {
-            let mut new_ring: Ring = Vec::new();
-            for vtx_idx in ring {
-                let new_vertex: [f64; 3] = vertices[*vtx_idx];
-                new_ring.push(new_vertex);
-            }
-            new_surface.push(new_ring);
-        }
-        new_msrf.push(new_surface);
+    #[derive(Deserialize)]
+    pub struct ISemantics {
+        surfaces: Vec<SemanticSurface>,
+        values: Vec<Vec<usize>>,
     }
-    return new_msrf;
+
+    #[derive(Deserialize)]
+    struct Semantics {
+        surfaces: Vec<SemanticSurface>,
+        values: Vec<Vec<usize>>,
+    }
+
+    pub type Vertices = Vec<[f64; 3]>;
+
+    // Indexed geometry
+    pub type IVertex = usize;
+    pub type IRing = Vec<IVertex>;
+    pub type ISurface = Vec<IRing>;
+    pub type IShell = Vec<ISurface>;
+    pub type IMultiSurface = Vec<ISurface>;
+    pub type ISolid = Vec<IShell>;
+
+    #[derive(Deserialize)]
+    pub struct IGeometry {
+        #[serde(rename = "type")]
+        pub(crate) geomtype: String,
+        pub(crate) lod: String,
+        pub(crate) boundaries: Option<serde_json::Value>,
+        pub(crate) semantics: Option<ISemantics>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ICityObject {
+        #[serde(rename = "type")]
+        pub(crate) cotype: String,
+        pub(crate) geometry: Vec<IGeometry>,
+    }
+
+    #[derive(Deserialize)]
+    struct Transform {
+        scale: [f64; 3],
+        translate: [f64; 3],
+    }
+
+    #[derive(Deserialize)]
+    pub(crate) struct ICityModel {
+        #[serde(rename = "type")]
+        pub(crate) cmtype: String,
+        pub(crate) version: String,
+        transform: Transform,
+        #[serde(rename = "CityObjects")]
+        pub(crate) cityobjects: HashMap<String, ICityObject>,
+        pub(crate) vertices: Vertices,
+    }
 }
 
-#[derive(Deserialize)]
-struct ICityObject {
-    #[serde(rename = "type")]
-    cotype: String,
-    geometry: Vec<IGeometry>,
-}
-
-#[derive(Serialize)]
-struct CityObject {
-    #[serde(rename = "type")]
-    cotype: String,
-    geometry: Vec<Geometry>,
-}
-
-#[derive(Deserialize)]
-struct Transform {
-    scale: [f64; 3],
-    translate: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct ICityModel {
-    #[serde(rename = "type")]
-    cmtype: String,
-    version: String,
-    transform: Transform,
-    #[serde(rename = "CityObjects")]
-    cityobjects: HashMap<String, ICityObject>,
-    vertices: Vertices,
-}
-
-#[derive(Serialize)]
-struct CityModel {
-    #[serde(rename = "type")]
-    cmtype: String,
-    version: String,
-    #[serde(rename = "CityObjects")]
-    cityobjects: HashMap<String, CityObject>,
-}
-
-fn parse_dereferece(path_in: PathBuf) -> CityModel {
-    let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let reader = BufReader::new(file);
-    let icm: ICityModel =
-        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
-
-    let mut new_cos: HashMap<String, CityObject> = HashMap::new();
-    for (coid, co) in icm.cityobjects {
-        // println!("Processing CityObject {}", coid);
-        let mut new_geoms: Vec<Geometry> = Vec::new();
-        for geom in co.geometry {
-            if geom.geomtype == "Solid" {
-                if let Some(bdry) = geom.boundaries {
-                    let solid = dereference_boundary(&icm.vertices, &bdry);
-                    new_geoms.push(Geometry {
-                        geomtype: geom.geomtype,
-                        lod: geom.lod,
-                        boundaries: solid,
-                        semantics: Semantics {
-                            surfaces: vec![],
-                            values: vec![],
-                        },
+fn boundary_dereference_solid(
+    vertices: &geom_static::Vertices,
+    boundary: &serde_json::Value,
+    lod: &str,
+    geomtype: &str,
+) -> Option<geom_static::Geometry> {
+    match geomtype {
+        "Solid" => {
+            let mut new_solid_bdry = Vec::new();
+            for shell in boundary.as_array().unwrap() {
+                let mut new_shell = Vec::new();
+                for surface in shell.as_array().unwrap() {
+                    let mut surface_bdry = Vec::new();
+                    for ring in surface.as_array().unwrap() {
+                        let mut new_ring = Vec::new();
+                        for vtx_idx in ring.as_array().unwrap() {
+                            let new_vertex: [f64; 3] = vertices[vtx_idx.as_u64().unwrap() as usize];
+                            new_ring.push(new_vertex);
+                        }
+                        surface_bdry.push(new_ring);
+                    }
+                    new_shell.push(geom_static::Surface {
+                        boundaries: surface_bdry,
+                        semantics: None,
+                        material: None,
+                        texture: None,
                     });
                 }
-            } else if geom.geomtype == "MultiSurface" {
-                if let Some(bdry) = geom.boundaries {
-                    println!("Not Implemented for MultiSurface")
-                    // let msrf = dereference_boundary_msrf(&icm.vertices, &bdry);
+                new_solid_bdry.push(new_shell);
+            }
+            Some(geom_static::Geometry::Solid {
+                lod: lod.to_string(),
+                boundaries: new_solid_bdry,
+            })
+        }
+        "MultiSurface" => {
+            let mut new_msrf_bdry = Vec::new();
+            for surface in boundary.as_array().unwrap() {
+                let mut surface_bdry = Vec::new();
+                for ring in surface.as_array().unwrap() {
+                    let mut new_ring = Vec::new();
+                    for vtx_idx in ring.as_array().unwrap() {
+                        let new_vertex: [f64; 3] = vertices[vtx_idx.as_u64().unwrap() as usize];
+                        new_ring.push(new_vertex);
+                    }
+                    surface_bdry.push(new_ring);
                 }
-            } else {
-                println!("Not a Solid or MultiSurface geometry")
+                new_msrf_bdry.push(geom_static::Surface {
+                    boundaries: surface_bdry,
+                    semantics: None,
+                    material: None,
+                    texture: None,
+                });
+            }
+            Some(geom_static::Geometry::MultiSurface {
+                lod: lod.to_string(),
+                boundaries: new_msrf_bdry,
+            })
+        }
+        _ => {
+            println!("Geometry type {} not implemented", geomtype);
+            None
+        }
+    }
+}
+
+fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
+    let file = File::open(path_in).expect("Couldn't read CityJSON file");
+    let reader = BufReader::new(file);
+    let icm: deserialize::ICityModel =
+        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+
+    let mut new_cos: HashMap<String, geom_static::CityObject> = HashMap::new();
+    for (coid, co) in icm.cityobjects {
+        // println!("Processing CityObject {}", coid);
+        let mut new_geoms: Vec<geom_static::Geometry> = Vec::new();
+        for geom in co.geometry {
+            if let Some(bdry) = geom.boundaries {
+                let g = boundary_dereference_solid(&icm.vertices, &bdry, &geom.lod, &geom.geomtype);
+                new_geoms.push(g.expect("Error in converting geometry"));
             }
         }
-        let new_co = CityObject {
+        let new_co = geom_static::CityObject {
             cotype: co.cotype,
             geometry: new_geoms,
         };
         new_cos.insert(coid, new_co);
     }
-    CityModel {
+    geom_static::CityModel {
         cmtype: icm.cmtype,
         version: icm.version,
         cityobjects: new_cos,
@@ -717,14 +703,32 @@ fn deref_geometry(path_in: PathBuf) {
     let cm = parse_dereferece(path_in);
     for (coid, co) in cm.cityobjects {
         for geom in co.geometry {
-            for shell in geom.boundaries {
-                for surface in shell {
-                    for ring in surface {
-                        for vtx in ring {
-                            containter.push(vtx);
+            match geom {
+                Geometry::MultiPoint { .. } => {}
+                Geometry::MultiLineString { .. } => {}
+                Geometry::MultiSurface { boundaries, .. } => {
+                    for surface in boundaries {
+                        for ring in surface.boundaries {
+                            for vtx in ring {
+                                containter.push(vtx);
+                            }
                         }
                     }
                 }
+                Geometry::CompositeSurface { .. } => {}
+                Geometry::Solid { boundaries, .. } => {
+                    for shell in boundaries {
+                        for surface in shell {
+                            for ring in surface.boundaries {
+                                for vtx in ring {
+                                    containter.push(vtx);
+                                }
+                            }
+                        }
+                    }
+                }
+                Geometry::MultiSolid { .. } => {}
+                Geometry::CompositeSolid { .. } => {}
             }
         }
     }

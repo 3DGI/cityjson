@@ -1,6 +1,7 @@
 #![feature(path_file_prefix)]
 
 use clap::{crate_version, App, Arg};
+use serde::de::Unexpected::Option;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -19,15 +20,34 @@ fn deserialize_cityjson(str_dataset: &String) -> serde_json::Value {
     re.unwrap()
 }
 
+/// Prepare a CityJSON file for benchmarking.
+///
+/// 1. un-transforming its vertices,
+/// 2. removing its attributes,
+/// 3. removing its metadata,
+/// 4. removing all whitespace and newline characters,
+/// 5. removing the geometries with the specified type.
+///
+/// The results are written to INPUT_bench.city.json
+/// Run it as `$ prepare my_file.json`, or `$ prepare -g MultiSurface my_file.json` to remove the
+/// MultiSurface geometries from the CityObjects.
 fn main() -> std::io::Result<()> {
     // Copied from: https://github.com/cityjson/cjval
     let app = App::new("prepare")
-        .about("Prepare a CityJSON file for benchmarking by:\n1) un-transforming its vertices,\n2) removing its attributes,\n3) removing its metadata,\n4) removing all whitespace and newline characters.\nThe results are written to INPUT_bench.city.json")
+        .about("Prepare a CityJSON file for benchmarking.")
         .version(crate_version!())
         .arg(
             Arg::with_name("INPUT")
                 .required(true)
                 .help("CityJSON file (<myfile>.city.json) to prepare for benchmarking. "),
+        )
+        .arg(
+            Arg::with_name("GEOMETRY TYPE")
+                .short("g")
+                .long("geometry_type")
+                .required(false)
+                .help("The geometry type to delete from the CityObjects")
+                .takes_value(true),
         );
     let matches = app.get_matches();
 
@@ -54,18 +74,23 @@ fn main() -> std::io::Result<()> {
     }
     cm["vertices"] = Value::from(new_vertices);
 
+    let del_geomtype = matches.value_of("GEOMETRY TYPE");
     // Remove attributes
     let cos = cm["CityObjects"].as_object_mut().unwrap();
     for coval in cos.values_mut() {
         coval.as_object_mut().unwrap().remove("attributes");
-        let mut to_del: Vec<usize> = Vec::new();
-        for (gi, geom) in coval["geometry"].as_array().unwrap().iter().enumerate() {
-            if geom["type"].as_str().unwrap() == "MultiSurface" {
-                to_del.push(gi);
+
+        if let Some(gtype) = del_geomtype {
+            println!("Deleting geometries with type {}", gtype);
+            let mut to_del: Vec<usize> = Vec::new();
+            for (gi, geom) in coval["geometry"].as_array().unwrap().iter().enumerate() {
+                if geom["type"].as_str().unwrap() == gtype {
+                    to_del.push(gi);
+                }
             }
-        }
-        for gi in to_del {
-            coval["geometry"].as_array_mut().unwrap().remove(gi);
+            for gi in to_del {
+                coval["geometry"].as_array_mut().unwrap().remove(gi);
+            }
         }
     }
 

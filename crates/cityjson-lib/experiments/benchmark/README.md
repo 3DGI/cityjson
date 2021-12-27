@@ -47,5 +47,46 @@ There are four use cases that are considered common and used for benchmarking sp
 4. **semantics**: Get the boundary coordinates of a given semantic surface.
 5. **create**: Create a new city model from scratch.
 
+# Build and run the tools
+
+Prepare the input cityjson files first so that they comply with the requirements stated above.
+Build the `prepare` executable with the nightly release of rust.
+
+```shell
+cargo +nightly build --release --bin prepare
+```
+
+Run the tool to strip the unnecessary parts from the input files. 
+The tool will write the result into the same directory as the input (`my_file.city.json`) and append `_bench` to the name 
+of the input file (`my_file_bench.city.json`).
+
+```shell
+prepare my_file.city.json
+```
+
+The `benchmark` tool will run the benchmarks.
+Build the `benchmark` executable as:
+
+```shell
+cargo build --release --bin benchmark
+```
+
+The `benchmark` tool takes the selected architecture and use case as argument.
+For instance to run the use case *geometry* on the *dereference* architecture:
+
+```shell
+benchmark my_file_bench.city.json -a dereference -c geometry
+```
+
+# Structures for storing Geometry Objects
+
+**Dynamic dispatch**
+
+geom_deref_dyn
+
+**Static dispatch**
+
+geom_deref_static
+
 # Acknowledgement
 
