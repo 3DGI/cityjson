@@ -2,3 +2,4 @@
 target
 experiments/notes.md
 Cargo.lock
+/experiments/.ipynb_checkpoints/

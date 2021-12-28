@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
+use crate::deserialize::ISemantics;
 use clap::{crate_version, App, Arg};
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -538,21 +539,15 @@ mod deserialize {
 
     // Deserialize into indexed CityJSON-like structures with serde
     #[derive(Deserialize)]
-    struct SemanticSurface {
+    pub struct SemanticSurface {
         #[serde(rename = "type")]
-        semtype: String,
+        pub semtype: String,
     }
 
     #[derive(Deserialize)]
     pub struct ISemantics {
-        surfaces: Vec<SemanticSurface>,
-        values: Vec<Vec<usize>>,
-    }
-
-    #[derive(Deserialize)]
-    struct Semantics {
-        surfaces: Vec<SemanticSurface>,
-        values: Vec<Vec<usize>>,
+        pub surfaces: Vec<SemanticSurface>,
+        pub values: Vec<Vec<usize>>,
     }
 
     pub type Vertices = Vec<[f64; 3]>;
@@ -602,15 +597,16 @@ mod deserialize {
 fn boundary_dereference_solid(
     vertices: &geom_static::Vertices,
     boundary: &serde_json::Value,
+    semantics: &Option<ISemantics>,
     lod: &str,
     geomtype: &str,
 ) -> Option<geom_static::Geometry> {
     match geomtype {
         "Solid" => {
             let mut new_solid_bdry = Vec::new();
-            for shell in boundary.as_array().unwrap() {
+            for (shi, shell) in boundary.as_array().unwrap().iter().enumerate() {
                 let mut new_shell = Vec::new();
-                for surface in shell.as_array().unwrap() {
+                for (sui, surface) in shell.as_array().unwrap().iter().enumerate() {
                     let mut surface_bdry = Vec::new();
                     for ring in surface.as_array().unwrap() {
                         let mut new_ring = Vec::new();
@@ -620,9 +616,27 @@ fn boundary_dereference_solid(
                         }
                         surface_bdry.push(new_ring);
                     }
+                    let mut semsurf: Option<geom_static::SemanticSurface> = None;
+                    if let Some(sem) = semantics {
+                        let sem_i = &sem.values[shi][sui];
+                        match sem.surfaces[*sem_i].semtype.as_str() {
+                            "GroundSurface" => {
+                                semsurf = Some(geom_static::SemanticSurface::GroundSurface);
+                            }
+                            "WallSurface" => {
+                                semsurf = Some(geom_static::SemanticSurface::WallSurface);
+                            }
+                            "RoofSurface" => {
+                                semsurf = Some(geom_static::SemanticSurface::RoofSurface);
+                            }
+                            &_ => {
+                                println!("Semantic Surface type not implemented")
+                            }
+                        }
+                    }
                     new_shell.push(geom_static::Surface {
                         boundaries: surface_bdry,
-                        semantics: None,
+                        semantics: semsurf,
                         material: None,
                         texture: None,
                     });
@@ -636,7 +650,7 @@ fn boundary_dereference_solid(
         }
         "MultiSurface" => {
             let mut new_msrf_bdry = Vec::new();
-            for surface in boundary.as_array().unwrap() {
+            for (sui, surface) in boundary.as_array().unwrap().iter().enumerate() {
                 let mut surface_bdry = Vec::new();
                 for ring in surface.as_array().unwrap() {
                     let mut new_ring = Vec::new();
@@ -646,9 +660,25 @@ fn boundary_dereference_solid(
                     }
                     surface_bdry.push(new_ring);
                 }
+                let mut semsurf: Option<geom_static::SemanticSurface> = None;
+                //                 This needs can only be done after the IGeometry is implemented for MultiSurfaces too
+                /*                if let Some(sem) = semantics {
+                    let sem_i = &sem.values[shi][sui];
+                    match &sem.surfaces[*sem_i].semtype {
+                        String::from("GroundSurface") => {
+                            semsurf = Some(geom_static::SemanticSurface::GroundSurface);
+                        }
+                        String::from("WallSurface") => {
+                            semsurf = Some(geom_static::SemanticSurface::WallSurface);
+                        }
+                        String::from("RoofSurface") => {
+                            semsurf = Some(geom_static::SemanticSurface::RoofSurface);
+                        }
+                    }
+                }*/
                 new_msrf_bdry.push(geom_static::Surface {
                     boundaries: surface_bdry,
-                    semantics: None,
+                    semantics: semsurf,
                     material: None,
                     texture: None,
                 });
@@ -677,7 +707,13 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
         let mut new_geoms: Vec<geom_static::Geometry> = Vec::new();
         for geom in co.geometry {
             if let Some(bdry) = geom.boundaries {
-                let g = boundary_dereference_solid(&icm.vertices, &bdry, &geom.lod, &geom.geomtype);
+                let g = boundary_dereference_solid(
+                    &icm.vertices,
+                    &bdry,
+                    &geom.semantics,
+                    &geom.lod,
+                    &geom.geomtype,
+                );
                 new_geoms.push(g.expect("Error in converting geometry"));
             }
         }
@@ -722,6 +758,62 @@ fn deref_geometry(path_in: PathBuf) {
                             for ring in surface.boundaries {
                                 for vtx in ring {
                                     containter.push(vtx);
+                                }
+                            }
+                        }
+                    }
+                }
+                Geometry::MultiSolid { .. } => {}
+                Geometry::CompositeSolid { .. } => {}
+            }
+        }
+    }
+    println!(
+        "In total there are {} points in the citymodel",
+        containter.len()
+    )
+}
+
+fn deref_semantics(path_in: PathBuf) {
+    let semantic_type = "RoofSurface";
+    println!("extracting the geometry of {}", semantic_type);
+    let mut containter: Vec<[f64; 3]> = Vec::new();
+    let cm = parse_dereferece(path_in);
+    for (coid, co) in cm.cityobjects {
+        for geom in co.geometry {
+            match geom {
+                Geometry::MultiPoint { .. } => {}
+                Geometry::MultiLineString { .. } => {}
+                Geometry::MultiSurface { boundaries, .. } => {
+                    for surface in boundaries {
+                        if let Some(semsrf) = surface.semantics {
+                            match semsrf {
+                                geom_static::SemanticSurface::RoofSurface => {
+                                    for ring in surface.boundaries {
+                                        for vtx in ring {
+                                            containter.push(vtx);
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Geometry::CompositeSurface { .. } => {}
+                Geometry::Solid { boundaries, .. } => {
+                    for shell in boundaries {
+                        for surface in shell {
+                            if let Some(semsrf) = surface.semantics {
+                                match semsrf {
+                                    geom_static::SemanticSurface::RoofSurface => {
+                                        for ring in surface.boundaries {
+                                            for vtx in ring {
+                                                containter.push(vtx);
+                                            }
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
@@ -802,9 +894,7 @@ impl Architectures {
             Architectures::VertexIndex => {
                 println!("Not implemented")
             }
-            Architectures::Dereference => {
-                println!("Not implemented")
-            }
+            Architectures::Dereference => deref_semantics(path_in),
         }
     }
     fn create(&self, path_in: PathBuf) {
