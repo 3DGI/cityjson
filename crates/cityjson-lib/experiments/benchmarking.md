@@ -92,7 +92,7 @@ benchmark my_file_bench.city.json -a dereference -c geometry
 
 # Results
 
-The benchmark is run in the jupyter notebook `experiments/benchmark.ipynb`.
+The benchmark is run in the jupyter notebook [benchmark.ipynb](https://github.com/balazsdukai/cjlib/blob/master/experiments/benchmark.ipynb).
 This notebook contains the scripts and detailed results.
 
 ## Commit dcd842bd – 2022-01-02
