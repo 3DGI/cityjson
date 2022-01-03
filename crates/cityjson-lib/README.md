@@ -1,6 +1,6 @@
 # cjlib
 
-One of the principles of this library is that CityJSON is an **exchange format**.
+A software library for working with semantic 3D city models, based on the [CityJSON](https://cityjson.org) data model.
 
 ## Goal setting
 
@@ -16,13 +16,14 @@ One of the principles of this library is that CityJSON is an **exchange format**
 + Provides structures for the CityJSON geometric primitives. This means de/referencing the geometries when reading/writing to CityJSON files.
 + Implements getters and setters for CityModel and each object in CityJSON.
 + Does not provide operations on the CityObjects and their geometries (eg. intersect, volume, compare, validate etc.).
-+ Does not handle extensions.
 
 ## Extensions
 
-Extension handling is not part of cjlib. 
+Extension handling is currently not part of cjlib. 
 But a reference implementation of the Noise Extension needs to be written.
 This implementation builds on cjlib and extends its structures with those from the Extension.
+
+However, cjlib *should* be able to handle Extensions, hopefully automagically, since the ADE-implementation topic is one of the arguments that we use when comparing CityGML and CityJSON.
 
 ## Source of truth in Rust
 
@@ -39,3 +40,15 @@ The bindings use **cjlib** and wrap the required structures around it.
 + The C++ crate is either [cxx](https://cxx.rs/index.html) or [cbindgen]() in [**cjlib_cpp**](https://github.com/balazsdukai/cjlib_cpp)
 + The python crate is with [PyO3](https://github.com/PyO3/pyo3) in [**cjlib_py**](https://github.com/balazsdukai/cjlib_py)
 + The WASM crate is [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen) in [**cjlib_wasm**](https://github.com/balazsdukai/cjlib_wasm)
+
+Currently, the bindings-libraries are separated into repositories as listed above, but they are going to be integrated into this repository.
+
+## Architecture and implementation
+
+The idea is to map the CityJSON data model to rust data structures almost one-to-one.
+Except for how the geometry boundaries are represented.
+While CityJSON uses arrays of indices, cjlib intends to use arrays of coordinates (akin to Simple Features).
+This is to reduce the complexity of the code for creating city models.
+
+Nevertheless, there are three alternative architectures in consideration.
+Read [the document that outlines them](https://github.com/balazsdukai/cjlib/blob/master/experiments/direct-json-vs-api.md) for more details.
