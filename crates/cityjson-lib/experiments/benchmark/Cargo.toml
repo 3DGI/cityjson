@@ -21,6 +21,10 @@ path = "src/geom_deref_dyn.rs"
 name = "geom_deref_static"
 path = "src/geom_deref_static.rs"
 
+[[bin]]
+name = "deser"
+path = "src/deserialize.rs"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

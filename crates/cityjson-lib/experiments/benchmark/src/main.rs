@@ -271,12 +271,18 @@ mod deserialize {
     pub type ISolid = Vec<IShell>;
 
     #[derive(Deserialize)]
-    pub struct IGeometry {
-        #[serde(rename = "type")]
-        pub(crate) geomtype: String,
-        pub(crate) lod: String,
-        pub(crate) boundaries: Option<serde_json::Value>,
-        pub(crate) semantics: Option<ISemantics>,
+    #[serde(tag = "type")]
+    pub enum IGeometry {
+        MultiSurface {
+            lod: String,
+            boundaries: Vec<Vec<Vec<usize>>>,
+            semantics: Option<ISemantics>,
+        },
+        Solid {
+            lod: String,
+            boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+            semantics: Option<ISemantics>,
+        },
     }
 
     #[derive(Deserialize)]
@@ -304,24 +310,25 @@ mod deserialize {
     }
 }
 
-fn boundary_dereference_solid(
+fn boundary_dereference(
     vertices: &geom_static::Vertices,
-    boundary: &serde_json::Value,
-    semantics: &Option<deserialize::ISemantics>,
-    lod: &str,
-    geomtype: &str,
+    geom: &deserialize::IGeometry,
 ) -> Option<geom_static::Geometry> {
-    match geomtype {
-        "Solid" => {
+    match geom {
+        deserialize::IGeometry::Solid {
+            lod,
+            boundaries,
+            semantics,
+        } => {
             let mut new_solid_bdry = Vec::new();
-            for (shi, shell) in boundary.as_array().unwrap().iter().enumerate() {
+            for (shi, shell) in boundaries.iter().enumerate() {
                 let mut new_shell = Vec::new();
-                for (sui, surface) in shell.as_array().unwrap().iter().enumerate() {
+                for (sui, surface) in shell.iter().enumerate() {
                     let mut surface_bdry = Vec::new();
-                    for ring in surface.as_array().unwrap() {
+                    for ring in surface {
                         let mut new_ring = Vec::new();
-                        for vtx_idx in ring.as_array().unwrap() {
-                            let new_vertex: [f64; 3] = vertices[vtx_idx.as_u64().unwrap() as usize];
+                        for vtx_idx in ring {
+                            let new_vertex: [f64; 3] = vertices[*vtx_idx];
                             new_ring.push(new_vertex);
                         }
                         surface_bdry.push(new_ring);
@@ -358,14 +365,18 @@ fn boundary_dereference_solid(
                 boundaries: new_solid_bdry,
             })
         }
-        "MultiSurface" => {
+        deserialize::IGeometry::MultiSurface {
+            lod,
+            boundaries,
+            semantics,
+        } => {
             let mut new_msrf_bdry = Vec::new();
-            for (sui, surface) in boundary.as_array().unwrap().iter().enumerate() {
+            for (sui, surface) in boundaries.iter().enumerate() {
                 let mut surface_bdry = Vec::new();
-                for ring in surface.as_array().unwrap() {
+                for ring in surface {
                     let mut new_ring = Vec::new();
-                    for vtx_idx in ring.as_array().unwrap() {
-                        let new_vertex: [f64; 3] = vertices[vtx_idx.as_u64().unwrap() as usize];
+                    for vtx_idx in ring {
+                        let new_vertex: [f64; 3] = vertices[*vtx_idx];
                         new_ring.push(new_vertex);
                     }
                     surface_bdry.push(new_ring);
@@ -399,7 +410,7 @@ fn boundary_dereference_solid(
             })
         }
         _ => {
-            println!("Geometry type {} not implemented", geomtype);
+            println!("Geometry type not implemented");
             None
         }
     }
@@ -416,16 +427,8 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
         // println!("Processing CityObject {}", coid);
         let mut new_geoms: Vec<geom_static::Geometry> = Vec::new();
         for geom in co.geometry {
-            if let Some(bdry) = geom.boundaries {
-                let g = boundary_dereference_solid(
-                    &icm.vertices,
-                    &bdry,
-                    &geom.semantics,
-                    &geom.lod,
-                    &geom.geomtype,
-                );
-                new_geoms.push(g.expect("Error in converting geometry"));
-            }
+            let g = boundary_dereference(&icm.vertices, &geom);
+            new_geoms.push(g.expect("Error in converting geometry"));
         }
         let new_co = geom_static::CityObject {
             cotype: co.cotype,
