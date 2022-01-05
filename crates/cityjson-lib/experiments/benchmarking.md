@@ -142,3 +142,8 @@ The [ijson](https://crates.io/crates/ijson) rust library has an `IString` type w
 By iterative (streaming) deserialization, instead of loading the whole file contents into memory.
 A generic streaming array deserialization example is [here](https://github.com/serde-rs/json/issues/160#issuecomment-841344394).
 Or for instance the [ijson](https://pypi.org/project/ijson/) python library.
+
+## Commit 96f67d82 – 2022-01-04
+
+Implemented the deserialization of Geometry types into their specific structures, instead of using the generic `serde_json::Value`.
+This reduced the memory use of *dereference* by about 300Mb on the *32cz1_04* triangulated model, so that it has the same memory footprint as *direct-json* on this file, 7.8x the file size, 4.6GB.
