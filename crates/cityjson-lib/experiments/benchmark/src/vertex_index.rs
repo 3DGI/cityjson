@@ -1,3 +1,4 @@
+use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
@@ -69,7 +70,6 @@ struct CityModel {
 
 pub fn vindex_deserialize(path_in: PathBuf) {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let reader = BufReader::new(file);
-    let cm: CityModel =
-        serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
+    let mmap = unsafe { memmap2::Mmap::map(&file) }.unwrap();
+    let cm: CityModel = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CityModel");
 }
