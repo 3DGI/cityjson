@@ -147,3 +147,9 @@ Or for instance the [ijson](https://pypi.org/project/ijson/) python library.
 
 Implemented the deserialization of Geometry types into their specific structures, instead of using the generic `serde_json::Value`.
 This reduced the memory use of *dereference* by about 300Mb on the *32cz1_04* triangulated model, so that it has the same memory footprint as *direct-json* on this file, 7.8x the file size, 4.6GB.
+
+## Commit e24772fb – 2022-01-27
+
+Implemented the deserialization for the *vertex-index* architecture (in `vertex_index.rs`).
+It only uses 2.1x the file size with is a very significant reduction compared to the other approaches.
+It doesn't do anything special, just parses the file into a CityJSON data structure, which is an exact copy of the schema.
