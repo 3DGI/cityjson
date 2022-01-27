@@ -10,6 +10,9 @@ use crate::direct_json::*;
 mod dereference;
 use crate::dereference::*;
 
+mod vertex_index;
+use crate::vertex_index::*;
+
 // CLI -------------------------
 
 static USECASES: [&str; 5] = [
@@ -39,10 +42,8 @@ impl Architectures {
     }
     fn deserialize(&self, path_in: PathBuf) {
         match self {
-            Architectures::DirectJson => deref_deserialize(path_in),
-            Architectures::VertexIndex => {
-                println!("Not implemented")
-            }
+            Architectures::DirectJson => direct_deserialize(path_in),
+            Architectures::VertexIndex => vindex_deserialize(path_in),
             Architectures::Dereference => deref_deserialize(path_in),
         }
     }
