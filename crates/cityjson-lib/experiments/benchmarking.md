@@ -153,3 +153,17 @@ This reduced the memory use of *dereference* by about 300Mb on the *32cz1_04* tr
 Implemented the deserialization for the *vertex-index* architecture (in `vertex_index.rs`).
 It only uses 2.1x the file size with is a very significant reduction compared to the other approaches.
 It doesn't do anything special, just parses the file into a CityJSON data structure, which is an exact copy of the schema.
+
+## Commit 95f01517 – 2022-01-27 – Memory map
+
+Implemented that the input files are memory mapped instead of reading them with from a buffered reader.
+The important parts for memmapping with serde are the `Mmap::map` unsafe method and that serde reads from slice.
+
+```rust
+let file = File::open(path_in).expect("Couldn't read CityJSON file");
+let mmap = unsafe { memmap2::Mmap::map(&file) }.unwrap();
+let cm: CityModel = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CityModel");
+```
+
+However, the memmap actually increased the memory footprint from the previous implementation at `e24772fb` by about a 100%. 
+For instance in case of the vertex-index architecture the memory footprint went from 2.1x to 3.1x.
