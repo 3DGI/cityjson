@@ -9,8 +9,8 @@ use serde_json::{json, Value};
 
 fn parse_direct(path_in: PathBuf) -> serde_json::Value {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let mmap = unsafe { memmap2::Mmap::map(&file) }.unwrap();
-    let cm: Value = serde_json::from_slice(&mmap).expect("Couldn't deserialize into ICityModel");
+    let reader = BufReader::new(file);
+    let cm: Value = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
     return cm;
 }
 
@@ -240,7 +240,6 @@ pub fn direct_create(path_in: PathBuf) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     fn get_data() -> PathBuf {
         Path::new("../data/cluster_bench.city.json")

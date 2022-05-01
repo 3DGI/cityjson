@@ -297,9 +297,9 @@ fn boundary_dereference(
 
 fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let mmap = unsafe { memmap2::Mmap::map(&file) }.unwrap();
+    let reader = BufReader::new(file);
     let icm: deserialize::ICityModel =
-        serde_json::from_slice(&mmap).expect("Couldn't deserialize into ICityModel");
+        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
 
     let mut new_cos: HashMap<String, geom_static::CityObject> = HashMap::new();
     for (coid, co) in icm.cityobjects {

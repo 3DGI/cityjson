@@ -71,6 +71,7 @@ struct CityModel {
 
 pub fn vindex_deserialize(path_in: PathBuf) {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let mmap = unsafe { memmap2::Mmap::map(&file) }.unwrap();
-    let cm: CityModel = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CityModel");
+    let reader = BufReader::new(file);
+    let cm: CityModel =
+        serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
 }
