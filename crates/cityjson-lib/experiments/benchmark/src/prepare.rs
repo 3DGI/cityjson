@@ -1,3 +1,4 @@
+//! Crate for preparing a CityJSON file for the benchmark.
 #![feature(path_file_prefix)]
 
 use clap::{crate_version, App, Arg};

@@ -1,3 +1,4 @@
+//! Dereference architecture with dynamic dispatch.
 #![feature(type_name_of_val)]
 use std::collections::HashMap;
 

@@ -1,3 +1,4 @@
+//! Test implementation of a custom Deserialize into a CityJSON structure.
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fs::File;

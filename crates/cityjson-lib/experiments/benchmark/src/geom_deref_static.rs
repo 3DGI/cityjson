@@ -1,3 +1,4 @@
+//! Dereference architecture with static dispatch.
 use crate::geom_static::{Geometry, Surface};
 use std::collections::HashMap;
 
