@@ -289,10 +289,11 @@ fn main() {
 
     // let cm: indexed::ICityModel = serde_json::from_str(cj).unwrap();
 
-    let path_in =
-        Path::new("/data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json")
-            .canonicalize()
-            .expect("Could not find the INPUT file.");
+    // let inpath = "/data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json";
+    let inpath = "/home/balazs/Development/cjlib/experiments/data/3dbag_v210908_fd2cee53_5786_bench.city.json";
+    let path_in = Path::new(inpath)
+        .canonicalize()
+        .expect("Could not find the INPUT file.");
 
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
     let reader = BufReader::new(file);

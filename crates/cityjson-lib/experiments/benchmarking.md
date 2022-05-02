@@ -179,3 +179,11 @@ However, the vertex-index architecture's memory usage is still only about 2.1x t
 However, I also incorporated the `ijson::IString` and `ijson::IArray` types into parts of the vertex-index architecture and it shows a different picture.
 Using `ijson::IString` leads to a lower memory usage, which I expect will be more significant when the city model attributes are also read.
 On the other hand, using `ijson::IArray` leads to a significantly higher memory usage compared to a `Vec` of a specific type, eg `Vec<i64>`.
+
+## Streaming array deserialization
+
+Implemented a test for counting the number of vertices without reading the whole file into memory.
+It is in the `streaming-array` crate.
+The memory profiler show very promising results for this, as the peak memory use stays way below the file size.
+Tried `memmap`-ing again, which has an even lower footprint in general and is faster. 
+However, it shows a strange high peak when the file is opened and when is closed. I'm not sure yet why that happens.

@@ -34,12 +34,12 @@ type Solid = Vec<Shell>;
 enum Geometry {
     MultiSurface {
         lod: String,
-        boundaries: Vec<Vec<Vec<usize>>>,
+        boundaries: MultiSurface,
         semantics: Option<Semantics>,
     },
     Solid {
         lod: String,
-        boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+        boundaries: Solid,
         semantics: Option<Semantics>,
     },
 }
@@ -73,4 +73,21 @@ pub fn vindex_deserialize(path_in: PathBuf) {
     let reader = BufReader::new(file);
     let cm: CityModel =
         serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_data() -> PathBuf {
+        Path::new("../data/3dbag_v210908_fd2cee53_5786_bench.city.json")
+            .canonicalize()
+            .expect("Could not find the INPUT file.")
+    }
+
+    #[test]
+    fn test_vindex_deserialize() {
+        let path_in = get_data();
+        vindex_deserialize(path_in)
+    }
 }
