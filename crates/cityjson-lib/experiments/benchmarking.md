@@ -167,3 +167,15 @@ let cm: CityModel = serde_json::from_slice(&mmap).expect("Couldn't deserialize i
 
 However, the memmap actually increased the memory footprint from the previous implementation at `e24772fb` by about a 100%. 
 For instance in case of the vertex-index architecture the memory footprint went from 2.1x to 3.1x.
+
+## Commit da646456 – 2022-05-02 – ijson
+
+Implemented the [ijson](https://crates.io/crates/ijson) library for the direct-json architecture, as a direct replacement of `serde_json`.
+In case of the of the direct-json architecture, using `ijson` indeed leads to a lower memory footprint, at around 6.5x of the file size.
+This makes it an interesting option for deserialization, esp. because in case of the *32cz1_04* model, the reduction from `serde_json` to `ijson` is about 1.8x, which means 1GB(!) of allocated memory.
+This also means that with `json`, the direct-json architecture uses 1.8x less memory than the dereference architecture.
+However, the vertex-index architecture's memory usage is still only about 2.1x the file size and this architecture at least gives the CityJSON specific data structures.
+
+However, I also incorporated the `ijson::IString` and `ijson::IArray` types into parts of the vertex-index architecture and it shows a different picture.
+Using `ijson::IString` leads to a lower memory usage, which I expect will be more significant when the city model attributes are also read.
+On the other hand, using `ijson::IArray` leads to a significantly higher memory usage compared to a `Vec` of a specific type, eg `Vec<i64>`.
