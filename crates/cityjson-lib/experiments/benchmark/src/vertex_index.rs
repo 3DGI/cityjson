@@ -1,5 +1,4 @@
 //! Vertex-index architecture.
-use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;

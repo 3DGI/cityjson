@@ -2,15 +2,17 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use ijson::IValue;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-fn parse_direct(path_in: PathBuf) -> serde_json::Value {
+fn parse_direct(path_in: PathBuf) -> ijson::IValue {
     let file = File::open(path_in).expect("Couldn't read CityJSON file");
     let reader = BufReader::new(file);
-    let cm: Value = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+    let cm: ijson::IValue =
+        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
     return cm;
 }
 
@@ -40,18 +42,18 @@ pub fn direct_geometry(path_in: PathBuf) {
         for geom in geometry {
             // Really need to be careful with the data types in the file
             // println!("LoD: {}", geom["lod"].as_str().unwrap());
-            if geom["type"].as_str().unwrap() == "Solid" {
+            if geom["type"].as_string().unwrap() == "Solid" {
                 for shell in geom["boundaries"].as_array().unwrap() {
                     for surface in shell.as_array().unwrap() {
                         for ring in surface.as_array().unwrap() {
                             for vtx_idx in ring.as_array().unwrap() {
-                                let v = vertices[vtx_idx.as_u64().unwrap() as usize]
+                                let v = vertices[vtx_idx.to_u64().unwrap() as usize]
                                     .as_array()
                                     .unwrap();
                                 let point: [f64; 3] = [
-                                    v[0].as_f64().unwrap().clone(),
-                                    v[1].as_f64().unwrap().clone(),
-                                    v[2].as_f64().unwrap().clone(),
+                                    v[0].to_f64().unwrap().clone(),
+                                    v[1].to_f64().unwrap().clone(),
+                                    v[2].to_f64().unwrap().clone(),
                                 ];
                                 containter.push(point);
                             }
@@ -95,7 +97,7 @@ pub fn direct_semantics(path_in: PathBuf) {
                     .iter()
                     .enumerate()
                 {
-                    if semsrf["type"].as_str().unwrap() == semantic_type {
+                    if semsrf["type"].as_string().unwrap() == semantic_type {
                         si = Some(i);
                     }
                 }
@@ -103,28 +105,28 @@ pub fn direct_semantics(path_in: PathBuf) {
                     // Really need to be careful with the data types in the file
                     // println!("LoD: {}", geom["lod"].as_str().unwrap());
                     let shells = geom["boundaries"].as_array().unwrap();
-                    if geom["type"].as_str().unwrap() == "Solid" {
+                    if geom["type"].as_string().unwrap() == "Solid" {
                         for (shell_i, sem_shell) in geom["semantics"]["values"]
                             .as_array()
                             .unwrap()
                             .iter()
                             .enumerate()
                         {
-                            let shell: &Value = &geom["boundaries"].as_array().unwrap()[shell_i];
+                            let shell: &IValue = &geom["boundaries"].as_array().unwrap()[shell_i];
                             for (srf_i, sem_surface) in
                                 sem_shell.as_array().unwrap().iter().enumerate()
                             {
-                                let surface: &Value = &shell[&srf_i];
-                                if sem_surface.as_i64().unwrap() == semsrf_idx as i64 {
+                                let surface: &IValue = &shell[&srf_i];
+                                if sem_surface.to_i64().unwrap() == semsrf_idx as i64 {
                                     for ring in surface.as_array().unwrap() {
                                         for vtx_idx in ring.as_array().unwrap() {
-                                            let v = vertices[vtx_idx.as_u64().unwrap() as usize]
+                                            let v = vertices[vtx_idx.to_u64().unwrap() as usize]
                                                 .as_array()
                                                 .unwrap();
                                             let point: [f64; 3] = [
-                                                v[0].as_f64().unwrap().clone(),
-                                                v[1].as_f64().unwrap().clone(),
-                                                v[2].as_f64().unwrap().clone(),
+                                                v[0].to_f64().unwrap().clone(),
+                                                v[1].to_f64().unwrap().clone(),
+                                                v[2].to_f64().unwrap().clone(),
                                             ];
                                             containter.push(point);
                                         }
