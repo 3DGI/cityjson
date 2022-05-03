@@ -17,31 +17,37 @@ use serde::{Deserialize, Deserializer};
 struct CityJSON {
     version: String,
     #[serde(deserialize_with = "deserialize_vertices")]
-    vertices: i32,
+    vertices: Vec<[f64; 3]>,
 }
 
-fn deserialize_vertices<'de, D>(deserializer: D) -> Result<i32, D::Error>
+fn deserialize_vertices<'de, D>(deserializer: D) -> Result<Vec<[f64; 3]>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    struct SeqVisitor(PhantomData<fn() -> i32>);
+    struct SeqVisitor(PhantomData<fn() -> Vec<[f64; 3]>>);
 
     impl<'de> Visitor<'de> for SeqVisitor {
-        type Value = i32;
+        type Value = Vec<[f64; 3]>;
 
         fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
             formatter.write_str("the 'vertices' array of a CityJSON file")
         }
 
-        fn visit_seq<S>(mut self, mut seq: S) -> Result<i32, S::Error>
+        fn visit_seq<S>(mut self, mut seq: S) -> Result<Vec<[f64; 3]>, S::Error>
         where
             S: SeqAccess<'de>,
         {
-            let mut len: i32 = 0;
-            while let Some(value) = seq.next_element::<[f64; 3]>()? {
-                len += 1;
+            let mut v: Vec<[f64; 3]>;
+            if let Some(vsize) = seq.size_hint() {
+                v = Vec::with_capacity(vsize);
+            } else {
+                v = Vec::new();
             }
-            Ok(len)
+            while let Some(value) = seq.next_element::<[f64; 3]>()? {
+                v.push(value);
+            }
+            v.shrink_to_fit();
+            Ok(v)
         }
     }
     let visitor = SeqVisitor(PhantomData);
@@ -70,7 +76,6 @@ fn main() {
 
     let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
     let _cm: CityJSON = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CityModel");
-    // deserialize_vertices(&mut deserializer, |obj: CityJSON| todo!()).unwrap();
 
-    println!("number of vertices: {}", _cm.vertices);
+    println!("number of vertices: {}", _cm.vertices.len());
 }

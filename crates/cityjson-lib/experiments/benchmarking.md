@@ -187,3 +187,39 @@ It is in the `streaming-array` crate.
 The memory profiler show very promising results for this, as the peak memory use stays way below the file size.
 Tried `memmap`-ing again, which has an even lower footprint in general and is faster. 
 However, it shows a strange high peak when the file is opened and when is closed. I'm not sure yet why that happens.
+
+## Memory-mapped files
+
+*"A memory-mapped file is a segment of virtual memory that has been assigned a direct byte-for-byte correlation with some portion of a file or file-like resource. This resource is typically a file that is physically present on disk, but can also be a device, shared memory object, or other resource that the operating system can reference through a file descriptor. Once present, this correlation between the file and the memory space permits applications to treat the mapped portion as if it were primary memory."* [Ref](https://en.wikipedia.org/wiki/Memory-mapped_file)
+
+**Benefits**
+
+- increased I/O, esp. in large files
+- lazy loading, so only load the portion of the file that is needed
+
+**Drawbacks**
+
+- more page faults, and Linux has a cap on the nr. of cores handling page faults, which on fast systems (eg NVME) can be a real concern, which impacts the scalability of the application
+- if the file is modified or goes out of process that results in Undefined Behaviour (with `memmap2`)
+
+**Types of memory mapping**
+
+- *persisted*: large files on disk
+- *non-persisted*: inter-process communication (IPC)
+
+### Strategies
+
+I've been thinking that it could be interesting to memmap the file and locate the *vertices* array and the *transform* object.
+They would be deserialized first (and brought into main memory).
+Subsequently, the *CityObjects* can be deserialized and their geometries dereferenced by using the *vertices*.
+However, locating the *vertices* in the memmapped file seems like a brittle and cumbersome approach, because what if there is a custom attribute, `vertices: some value`? It would easily give a false positve in seeking the byte-array of the file.
+
+Alternatively, in an ideal case this would be possible:
+
+1) Memory-map the file, so that it is not in read into memory.
+2) Deserialize the memory-map byte-array into an indexed-json structure using zero-copy deserialization, so that the deserialized structures are just references of the byte-array slices, which are themselves references of the file on disk.
+3) Parse the indexed-json structure into the target CityJSON structure by doing a full-copy. 
+
+The strategy above, in theory, allows to parse a CityJSON file into a dereferenced CityJSON structure without replicating the file contents more than once in memory.
+That one replication is the target CityJSON structure itself.
+But the intermediary steps are executed fully on the memory-mapped file only.
