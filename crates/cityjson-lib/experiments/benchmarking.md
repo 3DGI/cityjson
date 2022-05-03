@@ -223,3 +223,15 @@ Alternatively, in an ideal case this would be possible:
 The strategy above, in theory, allows to parse a CityJSON file into a dereferenced CityJSON structure without replicating the file contents more than once in memory.
 That one replication is the target CityJSON structure itself.
 But the intermediary steps are executed fully on the memory-mapped file only.
+
+However, it turns out that I cannot just reference a memory buffer when deserializing types other than `&str` and `&[u8]`.
+The types `&str` and `&[u8]` are just streams of bytes, therefore they can be deserialized as references into the buffer.
+But this requires that these Rust types are laid out exactly as they exist in the buffer I'm deserializing.
+While this is true for the two types above, it is not true for other types like `f64` for instance.
+Especially that a text format like JSON only know a single *number* type, but what does that number represent in Rust?
+Is it `u32` or `u64`?
+Since the incoming layout does not match the target layout, some kind of parsing needs to happen from such a format and *someone needs to own the resulting data*.
+
+They types `Vec`, `HashMap` and `String` require allocations.
+
+The [zerovec](https://docs.rs/zerovec/0.6.0/zerovec/) package does provide zero-copy vector abstractions, except that in case of text formats (*json*) the referenced data will be owned (copied). 

@@ -24,9 +24,9 @@ fn main() {
         .expect("Could not find the INPUT file.");
 
     let mut file = File::open(path_in).expect("Couldn't read CityJSON file");
-    // let mut buffer = Vec::new();
-    // file.read_to_end(&mut buffer)
-    //     .expect("Couldn't read CityJSON file");
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)
+        .expect("Couldn't read CityJSON file");
 
-    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
+    // let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
 }
