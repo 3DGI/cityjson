@@ -1,4 +1,7 @@
 //! Dereference architecture.
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
