@@ -6,57 +6,50 @@ use std::path::{Path, PathBuf};
 
 use memmap2::MmapOptions;
 use serde::Deserialize;
-use zerovec::*;
 
 // Deserialize into indexed CityJSON-like structures with serde
 #[derive(Deserialize)]
-struct SemanticSurface<'a> {
+struct SemanticSurface {
     #[serde(rename = "type")]
-    semtype: &'a str,
+    semtype: String,
 }
 
 #[derive(Deserialize)]
-struct Semantics<'a> {
-    #[serde(borrow)]
-    surfaces: Vec<SemanticSurface<'a>>,
-    #[serde(borrow)]
-    values: Vec<ZeroVec<'a, u32>>,
+struct Semantics {
+    surfaces: Vec<SemanticSurface>,
+    values: Vec<Vec<usize>>,
 }
 
 type Vertices = Vec<[f64; 3]>;
 
 // Indexed geometry
 type Vertex = usize;
-type Ring<'a> = ZeroVec<'a, u32>;
-type Surface<'a> = Vec<Ring<'a>>;
-type Shell<'a> = Vec<Surface<'a>>;
-type MultiSurface<'a> = Vec<Surface<'a>>;
-type Solid<'a> = Vec<Shell<'a>>;
+type Ring = Vec<Vertex>;
+type Surface = Vec<Ring>;
+type Shell = Vec<Surface>;
+type MultiSurface = Vec<Surface>;
+type Solid = Vec<Shell>;
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
-enum Geometry<'a> {
+enum Geometry {
     MultiSurface {
-        lod: &'a str,
-        #[serde(borrow)]
-        boundaries: MultiSurface<'a>,
-        #[serde(borrow)]
-        semantics: Option<Semantics<'a>>,
+        lod: String,
+        boundaries: MultiSurface,
+        semantics: Option<Semantics>,
     },
     Solid {
-        lod: &'a str,
-        #[serde(borrow)]
-        boundaries: Solid<'a>,
-        semantics: Option<Semantics<'a>>,
+        lod: String,
+        boundaries: Solid,
+        semantics: Option<Semantics>,
     },
 }
 
 #[derive(Deserialize)]
-struct CityObject<'a> {
+struct CityObject {
     #[serde(rename = "type")]
-    cotype: &'a str,
-    #[serde(borrow)]
-    geometry: Vec<Geometry<'a>>,
+    cotype: String,
+    geometry: Vec<Geometry>,
 }
 
 #[derive(Deserialize)]
@@ -66,26 +59,21 @@ struct Transform {
 }
 
 #[derive(Deserialize)]
-struct CityModel<'a> {
+struct CityModel {
     #[serde(rename = "type")]
-    cmtype: &'a str,
-    version: &'a str,
+    cmtype: String,
+    version: String,
     transform: Transform,
-    #[serde(borrow)]
     #[serde(rename = "CityObjects")]
-    cityobjects: HashMap<&'a str, CityObject<'a>>,
+    cityobjects: HashMap<String, CityObject>,
     vertices: Vertices,
 }
 
 pub fn vindex_deserialize(path_in: PathBuf) {
     let mut file = File::open(path_in).expect("Couldn't open CityJSON file");
-    // let mut buffer = Vec::new();
-    // file.read_to_end(&mut buffer)
-    //     .expect("Couldn't read CityJSON file contents");
-    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
-    let cm: CityModel = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CityModel");
-    // let reader = BufReader::new(file);
-    // let cm: CityModel = serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
+    let reader = BufReader::new(file);
+    let cm: CityModel =
+        serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
 }
 
 #[cfg(test)]

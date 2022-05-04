@@ -122,17 +122,19 @@ pub mod geom_static {
 }
 
 mod deserialize {
-    use serde::Deserialize;
-    use std::collections::HashMap;
+    use serde::de::{MapAccess, Visitor};
+    use serde::{Deserialize, Deserializer};
+    use std::fmt;
+    use std::marker::PhantomData;
 
     // Deserialize into indexed CityJSON-like structures with serde
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct SemanticSurface {
         #[serde(rename = "type")]
         pub semtype: String,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct ISemantics {
         pub surfaces: Vec<SemanticSurface>,
         pub values: Vec<Vec<usize>>,
@@ -148,7 +150,7 @@ mod deserialize {
     pub type IMultiSurface = Vec<ISurface>;
     pub type ISolid = Vec<IShell>;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     #[serde(tag = "type")]
     pub enum IGeometry {
         MultiSurface {
@@ -163,28 +165,61 @@ mod deserialize {
         },
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct ICityObject {
         #[serde(rename = "type")]
         pub cotype: String,
         pub geometry: Vec<IGeometry>,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     struct Transform {
         scale: [f64; 3],
         translate: [f64; 3],
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct ICityModel {
         #[serde(rename = "type")]
         pub cmtype: String,
         pub version: String,
         transform: Transform,
         #[serde(rename = "CityObjects")]
-        pub cityobjects: HashMap<String, ICityObject>,
+        #[serde(deserialize_with = "deserialize_cityobjects")]
+        pub cityobjects: Vec<(String, ICityObject)>,
         pub vertices: Vertices,
+    }
+
+    fn deserialize_cityobjects<'de, D>(
+        deserializer: D,
+    ) -> Result<Vec<(String, ICityObject)>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct MapVisitor(PhantomData<fn() -> Vec<(String, ICityObject)>>);
+
+        impl<'de> Visitor<'de> for MapVisitor {
+            type Value = Vec<(String, ICityObject)>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("the 'CityObjects' Object of a CityJSON file")
+            }
+
+            fn visit_map<M>(self, mut data: M) -> Result<Vec<(String, ICityObject)>, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut co_vec: Vec<(String, ICityObject)> =
+                    Vec::with_capacity(data.size_hint().unwrap_or(0));
+                while let Some((coid, co)) = data.next_entry()? {
+                    co_vec.push((coid, co));
+                }
+                co_vec.shrink_to_fit();
+                Ok(co_vec)
+            }
+        }
+        let visitor = MapVisitor(PhantomData);
+        deserializer.deserialize_map(visitor)
     }
 }
 
@@ -295,25 +330,30 @@ fn boundary_dereference(
 }
 
 fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
-    let file = File::open(path_in).expect("Couldn't read CityJSON file");
-    let reader = BufReader::new(file);
-    let icm: deserialize::ICityModel =
-        serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+    let mut icm: deserialize::ICityModel;
+
+    {
+        let file = File::open(path_in).expect("Couldn't read CityJSON file");
+        let reader = BufReader::new(file);
+        icm = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+    }
 
     let mut new_cos: HashMap<String, geom_static::CityObject> = HashMap::new();
-    for (coid, co) in icm.cityobjects {
+    while let Some((coid, co)) = icm.cityobjects.pop() {
         // println!("Processing CityObject {}", coid);
         let mut new_geoms: Vec<geom_static::Geometry> = Vec::new();
-        for geom in co.geometry {
+        for geom in &co.geometry {
             let g = boundary_dereference(&icm.vertices, &geom);
             new_geoms.push(g.expect("Error in converting geometry"));
         }
+        new_geoms.shrink_to_fit();
         let new_co = geom_static::CityObject {
-            cotype: co.cotype,
+            cotype: co.cotype.to_string(),
             geometry: new_geoms,
         };
-        new_cos.insert(coid, new_co);
+        new_cos.insert(coid.to_string(), new_co);
     }
+    new_cos.shrink_to_fit();
     geom_static::CityModel {
         cmtype: icm.cmtype,
         version: icm.version,
