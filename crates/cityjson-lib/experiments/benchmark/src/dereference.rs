@@ -4,21 +4,23 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
+use datasize::data_size;
 use serde::Serialize;
 use serde_json::{json, Value};
 
 pub mod geom_static {
+    use datasize::DataSize;
     use serde::Serialize;
     use std::collections::HashMap;
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, DataSize)]
     pub enum SemanticSurface {
         RoofSurface,
         GroundSurface,
         WallSurface,
     }
 
-    #[derive(Serialize)]
+    #[derive(Serialize, DataSize)]
     pub struct Material {
         pub name: String,
         pub ambient_intensity: Option<f32>,
@@ -30,7 +32,7 @@ pub mod geom_static {
         pub is_smooth: Option<bool>,
     }
 
-    #[derive(Serialize)]
+    #[derive(Serialize, DataSize)]
     pub struct Texture {
         image: String,
     }
@@ -40,7 +42,7 @@ pub mod geom_static {
     type Point = [f64; 3];
     type LineString = Vec<Point>;
 
-    #[derive(Serialize)]
+    #[derive(Serialize, DataSize)]
     pub struct Surface {
         pub boundaries: Vec<LineString>,
         pub semantics: Option<SemanticSurface>,
@@ -64,7 +66,7 @@ pub mod geom_static {
         },
     }
 
-    #[derive(Serialize)]
+    #[derive(Serialize, DataSize)]
     pub enum Geometry {
         MultiPoint {
             lod: String,
@@ -96,6 +98,7 @@ pub mod geom_static {
         },
     }
 
+    #[derive(DataSize)]
     pub struct CityObject {
         pub cotype: String,
         pub geometry: Vec<Geometry>,
@@ -107,6 +110,7 @@ pub mod geom_static {
         pub geometry: Vec<String>,
     }
 
+    #[derive(DataSize)]
     pub struct CityModel {
         pub cmtype: String,
         pub version: String,
@@ -122,19 +126,20 @@ pub mod geom_static {
 }
 
 mod deserialize {
+    use datasize::DataSize;
     use serde::de::{MapAccess, Visitor};
     use serde::{Deserialize, Deserializer};
     use std::fmt;
     use std::marker::PhantomData;
 
     // Deserialize into indexed CityJSON-like structures with serde
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     pub struct SemanticSurface {
         #[serde(rename = "type")]
         pub semtype: String,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     pub struct ISemantics {
         pub surfaces: Vec<SemanticSurface>,
         pub values: Vec<Vec<usize>>,
@@ -150,7 +155,7 @@ mod deserialize {
     pub type IMultiSurface = Vec<ISurface>;
     pub type ISolid = Vec<IShell>;
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     #[serde(tag = "type")]
     pub enum IGeometry {
         MultiSurface {
@@ -165,20 +170,20 @@ mod deserialize {
         },
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     pub struct ICityObject {
         #[serde(rename = "type")]
         pub cotype: String,
         pub geometry: Vec<IGeometry>,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     struct Transform {
         scale: [f64; 3],
         translate: [f64; 3],
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, DataSize)]
     pub struct ICityModel {
         #[serde(rename = "type")]
         pub cmtype: String,
@@ -233,13 +238,13 @@ fn boundary_dereference(
             boundaries,
             semantics,
         } => {
-            let mut new_solid_bdry = Vec::new();
+            let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
             for (shi, shell) in boundaries.iter().enumerate() {
-                let mut new_shell = Vec::new();
+                let mut new_shell = Vec::with_capacity(shell.len());
                 for (sui, surface) in shell.iter().enumerate() {
-                    let mut surface_bdry = Vec::new();
+                    let mut surface_bdry = Vec::with_capacity(surface.len());
                     for ring in surface {
-                        let mut new_ring = Vec::new();
+                        let mut new_ring = Vec::with_capacity(ring.len());
                         for vtx_idx in ring {
                             let new_vertex: [f64; 3] = vertices[*vtx_idx];
                             new_ring.push(new_vertex);
@@ -283,11 +288,11 @@ fn boundary_dereference(
             boundaries,
             semantics,
         } => {
-            let mut new_msrf_bdry = Vec::new();
+            let mut new_msrf_bdry = Vec::with_capacity(boundaries.len());
             for (sui, surface) in boundaries.iter().enumerate() {
-                let mut surface_bdry = Vec::new();
+                let mut surface_bdry = Vec::with_capacity(surface.len());
                 for ring in surface {
-                    let mut new_ring = Vec::new();
+                    let mut new_ring = Vec::with_capacity(ring.len());
                     for vtx_idx in ring {
                         let new_vertex: [f64; 3] = vertices[*vtx_idx];
                         new_ring.push(new_vertex);
@@ -338,12 +343,33 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
         icm = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
     }
 
-    let mut new_cos: HashMap<String, geom_static::CityObject> = HashMap::new();
-    while let Some((coid, co)) = icm.cityobjects.pop() {
+    let mut new_cos: HashMap<String, geom_static::CityObject> =
+        HashMap::with_capacity(icm.cityobjects.len());
+    println!("nr cityobjects {}", icm.cityobjects.len());
+    println!(
+        "estimated heap allocation of empty cityobjects [Mb]: {}",
+        483 as f32 * icm.cityobjects.len() as f32 / 1e+6
+    );
+    println!(
+        "estimated heap allocation of indexed-cityobjects [Mb]: {}",
+        data_size(&icm.cityobjects) as f32 / 1e+6
+    );
+    println!(
+        "estimated heap allocation of indexed-citymodel [Mb]: {}",
+        data_size(&icm) as f32 / 1e+6
+    );
+
+    let colen: usize = icm.cityobjects.len();
+    for i in (0..colen).rev() {
+        let (coid, co) = &icm.cityobjects[i];
         // println!("Processing CityObject {}", coid);
-        let mut new_geoms: Vec<geom_static::Geometry> = Vec::new();
+        let mut new_geoms: Vec<geom_static::Geometry> = Vec::with_capacity(co.geometry.len());
         for geom in &co.geometry {
-            let g = boundary_dereference(&icm.vertices, &geom);
+            let g = boundary_dereference(&icm.vertices, geom);
+            // let g = Some(geom_static::Geometry::Solid {
+            //     lod: "1".to_string(),
+            //     boundaries: vec![],
+            // });
             new_geoms.push(g.expect("Error in converting geometry"));
         }
         new_geoms.shrink_to_fit();
@@ -352,8 +378,13 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
             geometry: new_geoms,
         };
         new_cos.insert(coid.to_string(), new_co);
+        icm.cityobjects.swap_remove(i);
     }
-    new_cos.shrink_to_fit();
+
+    println!(
+        "estimated heap allocation of target cityobjects [Mb]: {}",
+        data_size(&new_cos) as f32 / 1e+6
+    );
     geom_static::CityModel {
         cmtype: icm.cmtype,
         version: icm.version,
@@ -580,7 +611,7 @@ mod tests {
     use super::*;
 
     fn get_data() -> PathBuf {
-        Path::new("../data/cluster_bench.city.json")
+        Path::new("../data/3dbag_v210908_fd2cee53_5786_bench.city.json")
             .canonicalize()
             .expect("Could not find the INPUT file.")
     }
