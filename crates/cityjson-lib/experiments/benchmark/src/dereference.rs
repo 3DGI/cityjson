@@ -1,6 +1,4 @@
 //! Dereference architecture.
-#[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -8,6 +6,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use datasize::data_size;
+use memmap2::Mmap;
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -129,6 +128,7 @@ pub mod geom_static {
 }
 
 mod deserialize {
+    use super::*;
     use datasize::DataSize;
     use serde::de::{MapAccess, Visitor};
     use serde::{Deserialize, Deserializer};
@@ -180,20 +180,34 @@ mod deserialize {
         pub geometry: Vec<IGeometry>,
     }
 
-    #[derive(Deserialize, Debug, DataSize)]
+    #[derive(Deserialize, Debug, DataSize, Default)]
     struct Transform {
         scale: [f64; 3],
         translate: [f64; 3],
     }
 
     #[derive(Deserialize, Debug, DataSize)]
-    pub struct ICityModel {
+    pub struct ICMCObjects {
+        #[serde(skip)]
+        pub cmtype: String,
+        #[serde(skip)]
+        pub version: String,
+        #[serde(skip)]
+        transform: Transform,
+        #[serde(rename = "CityObjects")]
+        #[serde(deserialize_with = "deserialize_cityobjects")]
+        pub cityobjects: Vec<(String, ICityObject)>,
+        #[serde(skip)]
+        pub vertices: Vertices,
+    }
+
+    #[derive(Deserialize, Debug, DataSize)]
+    pub struct CMVertices {
         #[serde(rename = "type")]
         pub cmtype: String,
         pub version: String,
         transform: Transform,
-        #[serde(rename = "CityObjects")]
-        #[serde(deserialize_with = "deserialize_cityobjects")]
+        #[serde(skip)]
         pub cityobjects: Vec<(String, ICityObject)>,
         pub vertices: Vertices,
     }
@@ -229,6 +243,53 @@ mod deserialize {
         let visitor = MapVisitor(PhantomData);
         deserializer.deserialize_map(visitor)
     }
+
+    //     fn deserialize_cityobjects_direct<'de, D, T>(
+    //         deserializer: D,
+    //         vertices: T,
+    //     ) -> Result<Vec<(String, geom_static::CityObject)>, D::Error>
+    //     where
+    //         D: Deserializer<'de>,
+    //         T: Deserialize<'de>,
+    //     {
+    //         struct MapVisitor<T>(PhantomData<fn(T) -> Vec<(String, geom_static::CityObject)>>);
+    //
+    //         impl<'de, T> Visitor<'de> for MapVisitor<T> {
+    //             type Value = Vec<(String, geom_static::CityObject)>;
+    //
+    //             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    //                 formatter.write_str("the 'CityObjects' Object of a CityJSON file")
+    //             }
+    //
+    //             fn visit_map<M>(
+    //                 self,
+    //                 mut data: M,
+    //             ) -> Result<Vec<(String, geom_static::CityObject)>, M::Error>
+    //             where
+    //                 M: MapAccess<'de>,
+    //             {
+    //                 let mut co_vec: Vec<(String, geom_static::CityObject)> =
+    //                     Vec::with_capacity(data.size_hint().unwrap_or(0));
+    //                 while let Some((coid, co)) = data.next_entry::<&str, ICityObject>()? {
+    //                     let mut new_geoms: Vec<geom_static::Geometry> =
+    //                         Vec::with_capacity(co.geometry.len());
+    //                     for geom in &co.geometry {
+    //                         let g = boundary_dereference(T, geom);
+    //                         new_geoms.push(g.expect("Error in converting geometry"));
+    //                     }
+    //                     let new_co = geom_static::CityObject {
+    //                         cotype: co.cotype.to_string(),
+    //                         geometry: new_geoms,
+    //                     };
+    //                     co_vec.push((coid.to_string(), new_co));
+    //                 }
+    //                 co_vec.shrink_to_fit();
+    //                 Ok(co_vec)
+    //             }
+    //         }
+    //         let visitor = MapVisitor(PhantomData);
+    //         deserializer.deserialize_map(visitor)
+    //     }
 }
 
 fn boundary_dereference(
@@ -338,37 +399,42 @@ fn boundary_dereference(
 }
 
 fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
-    let mut icm: deserialize::ICityModel;
-
+    let mut cm_vertices: deserialize::CMVertices;
+    let mut icm_cos: deserialize::ICMCObjects;
     {
-        let file = File::open(path_in).expect("Couldn't read CityJSON file");
-        let reader = BufReader::new(file);
-        icm = serde_json::from_reader(reader).expect("Couldn't deserialize into ICityModel");
+        let mut file = File::open(&path_in).expect("Couldn't open CityJSON file");
+        let mmap = unsafe { Mmap::map(&file).expect("Cannot memmap the file") };
+        cm_vertices = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CMVertices");
+    }
+    {
+        let file = File::open(&path_in).expect("Couldn't open CityJSON file");
+        let reader = BufReader::new(&file);
+        icm_cos = serde_json::from_reader(reader).expect("Couldn't deserialize into ICMCObjects");
     }
 
     let mut new_cos: HashMap<String, geom_static::CityObject> =
-        HashMap::with_capacity(icm.cityobjects.len());
-    println!("nr cityobjects {}", icm.cityobjects.len());
+        HashMap::with_capacity(icm_cos.cityobjects.len());
+    println!("nr cityobjects {}", icm_cos.cityobjects.len());
     println!(
         "estimated heap allocation of empty cityobjects [Mb]: {}",
-        483 as f32 * icm.cityobjects.len() as f32 / 1e+6
+        483 as f32 * icm_cos.cityobjects.len() as f32 / 1e+6
     );
     println!(
         "estimated heap allocation of indexed-cityobjects [Mb]: {}",
-        data_size(&icm.cityobjects) as f32 / 1e+6
+        data_size(&icm_cos.cityobjects) as f32 / 1e+6
     );
     println!(
         "estimated heap allocation of indexed-citymodel [Mb]: {}",
-        data_size(&icm) as f32 / 1e+6
+        data_size(&icm_cos) as f32 / 1e+6 + data_size(&cm_vertices) as f32 / 1e+6
     );
 
-    let colen: usize = icm.cityobjects.len();
+    let colen: usize = icm_cos.cityobjects.len();
     for i in (0..colen).rev() {
-        let (coid, co) = &icm.cityobjects[i];
+        let (coid, co) = &icm_cos.cityobjects[i];
         // println!("Processing CityObject {}", coid);
         let mut new_geoms: Vec<geom_static::Geometry> = Vec::with_capacity(co.geometry.len());
         for geom in &co.geometry {
-            let g = boundary_dereference(&icm.vertices, geom);
+            let g = boundary_dereference(&cm_vertices.vertices, geom);
             // let g = Some(geom_static::Geometry::Solid {
             //     lod: "1".to_string(),
             //     boundaries: vec![],
@@ -381,7 +447,7 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
             geometry: new_geoms,
         };
         new_cos.insert(coid.to_string(), new_co);
-        icm.cityobjects.swap_remove(i);
+        icm_cos.cityobjects.swap_remove(i);
     }
 
     println!(
@@ -389,8 +455,8 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
         data_size(&new_cos) as f32 / 1e+6
     );
     geom_static::CityModel {
-        cmtype: icm.cmtype,
-        version: icm.version,
+        cmtype: cm_vertices.cmtype,
+        version: cm_vertices.version,
         cityobjects: new_cos,
     }
 }

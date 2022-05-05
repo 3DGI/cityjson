@@ -235,3 +235,9 @@ Since the incoming layout does not match the target layout, some kind of parsing
 They types `Vec`, `HashMap` and `String` require allocations.
 
 The [zerovec](https://docs.rs/zerovec/0.6.0/zerovec/) package does provide zero-copy vector abstractions, except that in case of text formats (*json*) the referenced data will be owned (copied). 
+
+### Type sizes
+
+I think it is reasonable to use an `i32` for the transformed vertices.
+An `i32` can store signed integers in the range from *-2147483648* to *2147483647*.
+I haven't checked if after transformation this is still within the range of the world CRS stuff, but seems sufficient.
