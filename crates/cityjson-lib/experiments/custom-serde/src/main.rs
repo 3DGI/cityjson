@@ -1,9 +1,10 @@
 #![allow(dead_code, unused_variables, unused_must_use)]
+
 use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
 
-use serde::de::{Error, IgnoredAny, MapAccess, Visitor};
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 type Point = [f64; 2];
@@ -77,21 +78,80 @@ where
     deserializer.deserialize_map(visitor)
 }
 
+struct SourceGeometryMap<'a>(&'a mut HashMap<String, TargetGeometry>, &'a SourceVertices);
+
+impl<'de, 'a> DeserializeSeed<'de> for SourceGeometryMap<'a> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SourceGeometryMapVisitor<'a>(
+            &'a mut HashMap<String, TargetGeometry>,
+            &'a SourceVertices,
+        );
+
+        impl<'de, 'a> Visitor<'de> for SourceGeometryMapVisitor<'a> {
+            type Value = ();
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a CityObject")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<(), A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                while let Some((coid, co)) = map.next_entry::<String, SourceGeometry>()? {
+                    println!("parsing Geometry {} in SourceGeometryMapVisitor", coid);
+                    let mut target_boundary: Vec<Point> = Vec::with_capacity(co.boundary.len());
+                    for vertex in co.boundary {
+                        let true_point: Point = [
+                            self.1.vertices[vertex][0] as f64 * self.1.transform.scale[0],
+                            self.1.vertices[vertex][1] as f64 * self.1.transform.scale[1],
+                        ];
+                        target_boundary.push(true_point);
+                    }
+                    self.0.insert(
+                        coid,
+                        TargetGeometry {
+                            type_geom: co.type_geom,
+                            boundary: vec![[1.0, 2.0], [1.0, 2.0]],
+                        },
+                    );
+                }
+                Ok(())
+            }
+        }
+        deserializer.deserialize_map(SourceGeometryMapVisitor(self.0, self.1))
+    }
+}
+
 // Custom Visitor for doing the second pass over the data and getting to the entries of the
 // "geometries" object.
 struct TargetStructVisitor;
 
 impl<'de> Visitor<'de> for TargetStructVisitor {
-    type Value = ();
+    type Value = HashMap<String, TargetGeometry>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "a valid file")
     }
 
-    fn visit_map<A>(self, mut map: A) -> Result<(), A::Error>
+    fn visit_map<A>(self, mut map: A) -> Result<HashMap<String, TargetGeometry>, A::Error>
     where
         A: MapAccess<'de>,
     {
+        let mut geometries: HashMap<String, TargetGeometry> = HashMap::new();
+        let source_vertices = SourceVertices {
+            version: "".to_string(),
+            geometries: Default::default(),
+            transform: Transform {
+                scale: [0.001, 0.001],
+            },
+            vertices: vec![[1000, 1000], [2000, 1000], [2000, 2000], [2000, 1000]],
+        };
         while let Some(key) = map.next_key::<String>()? {
             println!("{:#?}", key);
             if key == "geometries" {
@@ -104,20 +164,15 @@ impl<'de> Visitor<'de> for TargetStructVisitor {
                 //
                 // Essentially, I think need to incorporate the 'for_each' Visitor with its own
                 // deserializer here.
+                let a =
+                    map.next_value_seed(SourceGeometryMap(&mut geometries, &source_vertices))?;
+                geometries.shrink_to_fit();
             } else {
-                println!("--> do nothing")
+                println!("--> do nothing");
+                let ignore_value: IgnoredAny = map.next_value::<IgnoredAny>()?;
             }
-            let ignore_value: IgnoredAny = map.next_value::<IgnoredAny>()?;
         }
-        Ok(())
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<(), E>
-    where
-        E: Error,
-    {
-        println!("str: {:#?}", v);
-        Ok(())
+        Ok(geometries)
     }
 }
 
@@ -126,10 +181,9 @@ impl<'de> Deserialize<'de> for TargetStruct {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(TargetStructVisitor);
         Ok(TargetStruct {
             version: "".to_string(),
-            geometries: Default::default(),
+            geometries: deserializer.deserialize_map(TargetStructVisitor).unwrap(),
         })
     }
 }
@@ -169,6 +223,7 @@ fn main() {
     // In the second pass through the data, deserialize the "geometries" by using the values from
     // the "vertices" of a SourceVertices.
     let cm: TargetStruct = serde_json::from_str(DATA).unwrap();
+    println!("geometries from second pass:\n{:#?}", cm.geometries);
     println!("Done second pass.");
 
     // -- The streaming part
