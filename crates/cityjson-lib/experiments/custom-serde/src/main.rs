@@ -99,8 +99,6 @@ impl<'de, 'a> DeserializeSeed<'de> for TargetStructMap<'a> {
     where
         D: Deserializer<'de>,
     {
-        // Custom Visitor for doing the second pass over the data and getting to the entries of the
-        // "geometries" object.
         struct TargetStructVisitor<'a>(&'a mut TargetStruct, &'a SourceVertices);
 
         impl<'de, 'a> Visitor<'de> for TargetStructVisitor<'a> {
