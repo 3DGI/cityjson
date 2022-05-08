@@ -241,3 +241,37 @@ The [zerovec](https://docs.rs/zerovec/0.6.0/zerovec/) package does provide zero-
 I think it is reasonable to use an `i32` for the transformed vertices.
 An `i32` can store signed integers in the range from *-2147483648* to *2147483647*.
 I haven't checked if after transformation this is still within the range of the world CRS stuff, but seems sufficient.
+
+## Commit fb50fd77 – 2022-05-04 – Boundary vectors with capacity
+
+Creating the geometry boundary vectors `Vec::with_capacity()` makes a significant reduction in the peak memory usage.
+Creating the vector *with capacity* reserves for the vector so that *capacity* number of elements can be added to it [without reallocation](https://doc.rust-lang.org/std/vec/struct.Vec.html#capacity-and-reallocation).
+Since at the point of creating the final boundary vectors I already know their exact size from the deserialized data, I can create the target vectors with exact capacity.
+
+## Commit 8d82ab55 – 2022-05-04 – Alternative memory allocators
+
+I tried an alternative allocator, [tikv-jemallocator](https://crates.io/crates/tikv-jemallocator), just because it was recommended in the [Rust Performance book](https://nnethercote.github.io/perf-book/heap-allocations.html#using-an-alternative-allocator).
+However, there was a slight increase in memory use.
+Also, probably much greater improvements can be achieved by changes in the parsing/deserialize code itself before looking into alternative allocators.
+
+## Commit 83af8196 – Revisit the streaming deserialize with two passes over the data
+
+A major milestone.
+I think I nailed down the parsing strategy.
+It is done in two passes over the data.
+First, everything is deserialized except the CityObjects.
+In this pass, I memory-map the file, because that is the fastest and even though serde pulls the whole content in the memory, it still skips the CityObjects.
+This is not a problem, because the vertices and the rest of the properties are not too large.
+This gives me the *vertices* in memory.
+In the second pass, I go through the CityObjects and for each CityObject I first deserialize it into an indexed-structure, but then in the same iteration I parse it to the dereferenced structure.
+So like this I avoid having to store the whole CityObjects twice in memory.
+With `serde::de::DeserializeSeed` I can pass in external data, a 'seed', to the deserializer, which is the vertices array in my case.
+It is in the `custom-serde` crate that demonstrates how this works and also my [question on the Rust users forum](https://users.rust-lang.org/t/serde-memory-efficient-parsing-strategy-for-object-that-depends-on-other-object/75287). 
+With this strategy I reduced the peak memory usage by ~2x compared to, which is 6.2x --> 4.3x on the 3D BAG, and 7.8x --> 5.4x on the 3D Basisbestand.
+
+Considering that the dereferenced data structure itself takes up about 3.3x (3D BAG) and 4.9x (triangulated 3D Basisbestand) memory on the heap, I am happy with these results.
+Heap memory allocation is estimated with [datasize](https://github.com/casperlabs/datasize-rs).
+
+But 5.4x of file size is still quite a lot, especially when considering that attribute data is not even included in the benchmarks yet.
+And especially when considering that the plain vertex-index architecture has only 2-2.5x peak memory use.
+With 5.4x of file size, the 3D Basisbestand requires 3.2GB RAM, thus loading four of them to merge or get a subset of the four corners needs 12.8GB, so it needs a machine with at least 16GB RAM.
