@@ -5,6 +5,21 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "dereference"           # The name of the target.
+path = "src/dereference.rs"    # The source file of the target.
+test = false            # Is tested by default.
+doctest = false         # Documentation examples are tested by default.
+bench = false           # Is benchmarked by default.
+doc = false             # Is documented by default.
+plugin = false         # Used as a compiler plugin (deprecated).
+proc-macro = false     # Set to `true` for a proc-macro library.
+harness = false         # Use libtest harness.
+edition = "2021"       # The edition of the target.
+crate-type = ["lib"]   # The crate types to generate.
+required-features = [] # Features required to build this target (N/A for lib).
+
+
 [[bin]]
 name = "benchmark"
 path = "src/main.rs"

@@ -400,7 +400,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityModelMap<'a> {
     }
 }
 
-fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
+pub fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
     let mut cm_vertices: deserialize::CMVertices;
     {
         let mut file = File::open(&path_in).expect("Couldn't open CityJSON file");
@@ -417,8 +417,10 @@ fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
     let cm_map = CityModelMap(&mut cm, &cm_vertices);
 
     let file = File::open(&path_in).expect("Couldn't open CityJSON file");
-    let reader = BufReader::new(&file);
-    let mut deserializer = serde_json::Deserializer::from_reader(reader);
+    // let reader = BufReader::new(&file);
+    // let mut deserializer = serde_json::Deserializer::from_reader(reader);
+    let mmap = unsafe { Mmap::map(&file).expect("Cannot memmap the file") };
+    let mut deserializer = serde_json::Deserializer::from_slice(&mmap);
     cm_map.deserialize(&mut deserializer);
 
     println!("nr cityobjects {}", cm.cityobjects.len());

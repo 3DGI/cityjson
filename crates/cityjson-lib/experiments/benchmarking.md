@@ -275,3 +275,7 @@ Heap memory allocation is estimated with [datasize](https://github.com/casperlab
 But 5.4x of file size is still quite a lot, especially when considering that attribute data is not even included in the benchmarks yet.
 And especially when considering that the plain vertex-index architecture has only 2-2.5x peak memory use.
 With 5.4x of file size, the 3D Basisbestand requires 3.2GB RAM, thus loading four of them to merge or get a subset of the four corners needs 12.8GB, so it needs a machine with at least 16GB RAM.
+
+Memory-mapping the file in also in the second pass significantly reduces the parsing time.
+In case of the 3D Basisbestaand, 14s --> 8s.
+However, it increases the peak memory use by exactly 1x compared to a BuffReader, since the whole file is pulled into memory because of the `deserialize::from_slice` (I think).
