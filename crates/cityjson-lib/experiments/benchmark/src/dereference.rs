@@ -43,8 +43,8 @@ pub mod geom_static {
 
     pub type Vertices = Vec<[f64; 3]>;
 
-    type Point = [f64; 3];
-    type LineString = Vec<Point>;
+    pub type Point = [f64; 3];
+    pub type LineString = Vec<Point>;
 
     #[derive(Serialize, DataSize)]
     pub struct Surface {
@@ -334,12 +334,81 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
             where
                 A: MapAccess<'de>,
             {
+                let mut nr_geometries: usize = 0;
+                let mut boundaries_sizes: usize = 0;
+                let mut nr_surfaces: usize = 0;
+                let mut surfaces_sizes: usize = 0;
+                let mut srf_size_boundary: usize = 0;
+                let mut srf_size_sem: usize = 0;
+                let mut srf_size_mat: usize = 0;
+                let mut srf_size_text: usize = 0;
+                let mut nr_surfaces_per_geom: usize = 0;
+                let mut nr_points: usize = 0;
+                let mut empty_allocation: usize = 0;
                 while let Some((coid, co)) = map.next_entry::<String, deserialize::ICityObject>()? {
                     let mut new_geoms: Vec<geom_static::Geometry> =
                         Vec::with_capacity(co.geometry.len());
                     for geom in &co.geometry {
-                        let g = boundary_dereference(&self.1.vertices, geom);
-                        new_geoms.push(g.expect("Error in converting geometry"));
+                        if let Some(g) = boundary_dereference(&self.1.vertices, geom) {
+                            nr_geometries += 1;
+                            let mut geomsrf: usize = 0;
+                            match &g {
+                                geom_static::Geometry::Solid { lod, boundaries } => {
+                                    boundaries_sizes += data_size(boundaries);
+                                    empty_allocation += boundaries.capacity() - boundaries.len();
+                                    for shell in boundaries {
+                                        empty_allocation += shell.capacity() - shell.len();
+                                        for srf in shell {
+                                            nr_surfaces += 1;
+                                            surfaces_sizes +=
+                                                data_size(srf) + std::mem::size_of_val(srf);
+                                            srf_size_boundary += data_size(&srf.boundaries)
+                                                + std::mem::size_of_val(&srf.boundaries);
+                                            srf_size_mat += data_size(&srf.material)
+                                                + std::mem::size_of_val(&srf.material);
+                                            srf_size_sem += data_size(&srf.semantics)
+                                                + std::mem::size_of_val(&srf.semantics);
+                                            srf_size_text += data_size(&srf.texture)
+                                                + std::mem::size_of_val(&srf.texture);
+                                            geomsrf += 1;
+                                            empty_allocation += srf.boundaries.capacity()
+                                                - srf.boundaries.capacity();
+                                            for ring in &srf.boundaries {
+                                                nr_points += ring.len();
+                                                empty_allocation += ring.capacity() - ring.len();
+                                            }
+                                        }
+                                    }
+                                }
+                                geom_static::Geometry::MultiSurface { lod, boundaries } => {
+                                    boundaries_sizes += data_size(boundaries);
+                                    empty_allocation += boundaries.capacity() - boundaries.len();
+                                    for srf in boundaries {
+                                        nr_surfaces += 1;
+                                        surfaces_sizes +=
+                                            data_size(srf) + std::mem::size_of_val(srf);
+                                        srf_size_boundary += data_size(&srf.boundaries)
+                                            + std::mem::size_of_val(&srf.boundaries);
+                                        srf_size_mat += data_size(&srf.material)
+                                            + std::mem::size_of_val(&srf.material);
+                                        srf_size_sem += data_size(&srf.semantics)
+                                            + std::mem::size_of_val(&srf.semantics);
+                                        srf_size_text += data_size(&srf.texture)
+                                            + std::mem::size_of_val(&srf.texture);
+                                        geomsrf += 1;
+                                        empty_allocation +=
+                                            srf.boundaries.capacity() - srf.boundaries.capacity();
+                                        for ring in &srf.boundaries {
+                                            nr_points += ring.len();
+                                            empty_allocation += ring.capacity() - ring.len();
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                            nr_surfaces_per_geom += geomsrf;
+                            new_geoms.push(g);
+                        }
                     }
                     new_geoms.shrink_to_fit();
                     self.0.insert(
@@ -350,6 +419,51 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                         },
                     );
                 }
+                println!(
+                    "size of a Surface [b] {}",
+                    std::mem::size_of::<geom_static::Surface>()
+                );
+                println!(
+                    "size of a Surface.boundaries [b] {}",
+                    std::mem::size_of::<Vec<geom_static::LineString>>()
+                );
+                println!(
+                    "size of a Surface.semantics [b] {}",
+                    std::mem::size_of::<geom_static::SemanticSurface>()
+                );
+                println!(
+                    "size of a Surface.textures [b] {}",
+                    std::mem::size_of::<geom_static::Texture>()
+                );
+                println!(
+                    "size of a Surface.materials [b] {}",
+                    std::mem::size_of::<geom_static::Material>()
+                );
+                println!("nr. of points in boundaries {}", nr_points);
+                println!(
+                    "total size of point allocations [Mb] {}",
+                    (nr_points * 24) as f32 / 1e+6
+                );
+                println!("nr. surfaces {}", nr_surfaces);
+                println!("surfaces sizes [Mb] {}", surfaces_sizes as f32 / 1e+6);
+                println!(
+                    "avg. surfaces size [b] {}",
+                    surfaces_sizes as f32 / nr_surfaces as f32
+                );
+                println!("srf boundary [Mb] {}", srf_size_boundary as f32 / 1e+6);
+                println!("srf semantics [Mb] {}", srf_size_sem as f32 / 1e+6);
+                println!("srf texture [Mb] {}", srf_size_text as f32 / 1e+6);
+                println!("srf material [Mb] {}", srf_size_mat as f32 / 1e+6);
+                println!("nr. geometries {}", nr_geometries);
+                println!(
+                    "total boundary (Geometry) size [Mb] {}",
+                    boundaries_sizes as f32 / 1e+6
+                );
+                println!(
+                    "avg. boundary (Geometry) size [b] {}",
+                    boundaries_sizes as f32 / nr_geometries as f32
+                );
+                println!("empty allocation in boundary vectors {}", empty_allocation);
                 Ok(())
             }
         }
@@ -424,6 +538,10 @@ pub fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
     cm_map.deserialize(&mut deserializer);
 
     println!("nr cityobjects {}", cm.cityobjects.len());
+    println!(
+        "avg. cityobject heap allocation [b] {}",
+        data_size(&cm_vertices) as f32 / cm.cityobjects.len() as f32
+    );
     println!(
         "estimated heap allocation of indexed-citymodel [Mb]: {}",
         data_size(&cm_vertices) as f32 / 1e+6

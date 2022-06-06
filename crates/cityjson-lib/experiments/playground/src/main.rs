@@ -38,15 +38,21 @@ fn main() {
     //     let p1 = co.geometry[0];
     //     println!("{}", p1[0] * 2.0);
     // }
-
-    fn get_data() -> PathBuf {
-        Path::new("/data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json")
-            .canonicalize()
-            .expect("Could not find the INPUT file.")
-    }
-
-    let cm1 = dereference::parse_dereferece(get_data());
-    let cm2 = dereference::parse_dereferece(get_data());
-    let cm3 = dereference::parse_dereferece(get_data());
-    let cm4 = dereference::parse_dereferece(get_data());
+    // ----------------------
+    // fn get_data() -> PathBuf {
+    //     Path::new("/data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json")
+    //         .canonicalize()
+    //         .expect("Could not find the INPUT file.")
+    // }
+    //
+    // let cm1 = dereference::parse_dereferece(get_data());
+    // let cm2 = dereference::parse_dereferece(get_data());
+    // let cm3 = dereference::parse_dereferece(get_data());
+    // let cm4 = dereference::parse_dereferece(get_data());
+    // -----------------------
+    let mut a: usize = 0;
+    a += 2;
+    println!("{}", a.to_string());
+    a += 2;
+    println!("{}", a.to_string());
 }
