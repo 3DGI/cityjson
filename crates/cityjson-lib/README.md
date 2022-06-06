@@ -10,6 +10,42 @@ A software library for working with semantic 3D city models, based on the [CityJ
 4. The Rust implementation is the "source of truth" and other languages are implemented through FFI-s on it. The single source of truth implementation reduces code duplication, thus allows us to maintain the library in several languages with little effort.
 5. Other languages: C++, Python, WASM. The API for each language feels natural and idiomatic to use.
 
+Detailed functionality:
+
++ Store the complete data that can be represented by the CityJSON specs, including,
+    + Geometry templates,
+    + CityJSONFeatures,
+    + Extensions.
++ Allow the creation of FFI-s in
+    + C++,
+    + Python,
+    + WASM.
++ Create new CityModels from scratch.
++ Modify an existing CityModel.
+    + Modify root property values (eg. `version`).
+    + Modify/add/remove `Metadata`.
+    + Modify CityObjects in an existing CityModel.
+        + Modify the geometry.
+            + Modify the boundary
+                + Change the coordinates of a vertex.
+                + Add a vertex.
+                + Remove a vertex.
+            + Modify the `texture/material`.
+                + Change the texture/material of a surface.
+                + Add a new texture/material of a surface.
+                + Remove the texture/material of a surface.
+            + Modify the `semantics`.
+                + Change the semantics value of a surface.
+                + Add new semantics to a surface.
+                + Remove the semantics from a surface.
+        + Modify the attributes.
+            + Change the attribute value.
+            + Add a new attribute.
+            + Remove an attribute.
+        + Add a new CityObject.
+        + Drop a CityObject.
++ Drop a CityModel.
+
 ## Scope
 
 + Maps the complete core CityJSON objects to their equivalent language-specific structure.

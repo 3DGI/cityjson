@@ -279,3 +279,102 @@ With 5.4x of file size, the 3D Basisbestand requires 3.2GB RAM, thus loading fou
 Memory-mapping the file in also in the second pass significantly reduces the parsing time.
 In case of the 3D Basisbestaand, 14s --> 8s.
 However, it increases the peak memory use by exactly 1x compared to a BuffReader, since the whole file is pulled into memory because of the `deserialize::from_slice` (I think).
+
+## Revisiting the data structure
+
+For a while now, I was focused on getting an memory-efficient deserialization strategy.
+Since the beginning I had the idea that probably a multi-pass approach would work the best for the *dereference* architecture.
+A multi-pass approach allows me to deserialize the vertices in the first pass and then deserialize and flush the CityObjects one-by-one, by using the in-memory vertices.
+It is because for the *dereference* approach I need to deserialize the CityObject into some intermediary structure.
+Commit `83af8196` is the culmination of my efforts in getting the deserialization right.
+
+Thus, my deserialization strategy is as efficient as I can get it I think, yet the memory footprint is till pretty high, up to 5.4x the file size.
+So the next period is dedicated to optimizing the data structure.
+Beginning with understanding [why does my data structure allocate so much memory?](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819?u=balazsdukai).
+From the fantastic replies to my question I learned that,
++ I need to also include the `std::mem::size_of_val()` in the structure size calculation [link](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819/2?u=balazsdukai)
++ the `Option` takes just as much space as its largest variant (`Some`) [link](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819/4?u=balazsdukai)
++ The `Box`, `Rc` and `Arc` types can provide memory-optimizations [link](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819/6?u=balazsdukai)
++ there are several possibilities for reducing the data structure size through deduplication [link](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819/9?u=balazsdukai)
++ my suspicion that an Entity Component System could be the way to go is confirmed [link](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819/13?u=balazsdukai)
+
+Before I would jump into optimizing the data structure, I have to review my goals, as in, what operations should the data structure support?
+
++ Store the complete data that can be represented by the CityJSON specs, including,
+  + Geometry templates,
+  + CityJSONFeatures,
+  + Extensions.
++ Allow the creation of FFI-s in 
+  + C++, 
+  + Python,
+  + WASM.
++ Create new CityModels from scratch.
++ Modify an existing CityModel.
+  + Modify root property values (eg. `version`).
+  + Modify/add/remove `Metadata`.
+  + Modify CityObjects in an existing CityModel.
+    + Modify the geometry.
+      + Modify the boundary
+        + Change the coordinates of a vertex.
+        + Add a vertex.
+        + Remove a vertex.
+      + Modify the `texture/material`.
+        + Change the texture/material of a surface.
+        + Add a new texture/material of a surface.
+        + Remove the texture/material of a surface.
+      + Modify the `semantics`.
+        + Change the semantics value of a surface.
+        + Add new semantics to a surface.
+        + Remove the semantics from a surface.
+    + Modify the attributes.
+      + Change the attribute value.
+      + Add a new attribute.
+      + Remove an attribute.
+    + Add a new CityObject.
+    + Drop a CityObject.
++ Drop a CityModel.
+
+After thinking more about it, I realized that the *vertex-index* architecture is not suitable for supporting all the operations.
+At least, using this architecture makes it overly complicated to drop vertices and geometries without leaking memory.
+
+The tricky part with the vertex-index architecture is the removal of Geometries from CityObjects.
+When I remove a Geometry, it is not enough to simply drop the Geometry object.
+I need to also remove all the vertices from the vertex buffer that are not needed anymore.
+As in, they are not referenced by any other Geometry object.
+If I keep the unnecessary vertices, then I'm leaking memory.
+
+### Commit 7b7a4eab – 2022-05-16
+Implemented the most naive approach, which in fact doesn't work. See the crate `vertex-index`.
+
+```rust
+    fn drop_geometry(&mut self, i: usize) {
+        if self.geometries.len() - 1 < i {
+            println!("geometry index out of bounds")
+        } else {
+            let geom_removed = self.geometries.remove(i);
+            let mut vtx_to_keep: Vec<usize> = Vec::new();
+            for g in &self.geometries {
+                for v in &g.boundary {
+                    if geom_removed.boundary.contains(v) {
+                        vtx_to_keep.push(v.clone())
+                    }
+                }
+            }
+            for v in &geom_removed.boundary {
+                if !vtx_to_keep.contains(v) {
+                    self.vertices.remove(*v);
+                }
+            }
+        }
+    }
+```
+
+There are two major issues with this function.
+1. When dropping a geometry, I need to iterate over each other geometry and each of their boundaries.
+2. The vertex removal is not even working, since Vec::remove() shifts all remaining elements to the left, which messes up the vertex-indices in all the remaining Geometries. In a naive approach for solving this would require iterating over boundaries and shifting the vertex-indices for each removed vertex, which is crazy.
+
+Additionally, the size increase that comes from the vertex duplication is negligable compared to the duplication of some structures (eg. Material).
+Additionally additionally, the memory benefit of *vertex-index* architecture only appears when parsing an already compressed/deduplicated CityJSON file.
+When creating a new citymodel, the vertices are just added to the model as-is, duplicates and all and the duplicates are only removed in a post-process, if at all.
+
+Long story short, I continue with the *dereference* architecture and focus on making it as efficient as possible.
