@@ -1,68 +1,67 @@
 use std::collections::{BTreeMap, HashMap};
 
 type Point = [f64; 3];
-type LineString = Vec<Point>;
 
-enum Geometry {
-    Surface(LineString),
+enum Boundary {
+    MultiPoint(Vec<Point>),
 }
 
-struct Material {
+struct Semantic {
     name: String,
 }
 
-struct CityModel {
-    boundary_components: Vec<Option<Geometry>>,
-    material_components: Vec<Option<Material>>,
+struct Geometry {
+    boundary_components: Vec<Option<Boundary>>,
+    semantic_components: Vec<Option<Semantic>>,
 }
 
-impl CityModel {
+impl Geometry {
     fn new() -> Self {
         Self {
             boundary_components: Vec::new(),
-            material_components: Vec::new(),
+            semantic_components: Vec::new(),
         }
     }
 
-    fn new_entity(&mut self, boundary: Option<Geometry>, material: Option<Material>) {
+    fn new_entity(&mut self, boundary: Option<Boundary>, semantic: Option<Semantic>) {
         self.boundary_components.push(boundary);
-        self.material_components.push(material);
+        self.semantic_components.push(semantic);
     }
 }
 
 fn main() {
-    let mut cm = CityModel::new();
-    cm.new_entity(
-        Some(Geometry::Surface(vec![[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
-        Some(Material {
-            name: "mat1".to_string(),
+    let mut g = Geometry::new();
+    g.new_entity(
+        Some(Boundary::MultiPoint(vec![[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
+        Some(Semantic {
+            name: "TransportationMarking".to_string(),
         }),
     );
-    cm.new_entity(
-        Some(Geometry::Surface(vec![[3.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
-        Some(Material {
-            name: "mat1".to_string(),
+    g.new_entity(
+        Some(Boundary::MultiPoint(vec![[3.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
+        Some(Semantic {
+            name: "TransportationHole".to_string(),
         }),
     );
-    cm.new_entity(
-        Some(Geometry::Surface(vec![[4.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
+    g.new_entity(
+        Some(Boundary::MultiPoint(vec![[4.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
         None,
     );
 
-    let zip = cm
+    let zip = g
         .boundary_components
         .iter()
-        .zip(cm.material_components.iter());
-    let with_boundary_and_material = zip.filter_map(
-        |(boundary, material): (&Option<Geometry>, &Option<Material>)| {
-            Some((boundary.as_ref()?, material.as_ref()?))
+        .zip(g.semantic_components.iter());
+    let with_boundary_and_semantic = zip.filter_map(
+        |(boundary, semantic): (&Option<Boundary>, &Option<Semantic>)| {
+            Some((boundary.as_ref()?, semantic.as_ref()?))
         },
     );
 
-    for (boundary, material) in with_boundary_and_material {
+    for (boundary, semantic) in with_boundary_and_semantic {
         match boundary {
-            Geometry::Surface(b) => {
-                println!("{:#?}, {}", b, material.name)
+            Boundary::MultiPoint(b) => {
+                println!("{:#?}, {}", b, semantic.name)
             }
         }
     }
