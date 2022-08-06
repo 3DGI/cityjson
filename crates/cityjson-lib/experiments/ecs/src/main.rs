@@ -1,37 +1,67 @@
 use std::collections::{BTreeMap, HashMap};
 
-type Point = [f64; 3];
+// But this is still not optimal, because let's say we have 10 Geometries, each of them referencing
+// the same location (the same Point), but each of them assigns a different meaning to it
+// (semantic). With the current setup, we need to duplicate the coordinates 10 times, just that each
+// can store the semantic of the respective Geometry.
+struct Point {
+    x: f64,
+    y: f64,
+    z: f64,
+    semantic: Option<u16>,
+}
+
+struct LineString {
+    start: u32,
+    end: u32,
+    semantic: Option<u16>,
+}
+
+struct Surface {
+    boundary: Vec<LineString>,
+    semantic: Option<u16>,
+    material: Option<u16>,
+    texture: Option<u16>,
+}
 
 enum Boundary {
     MultiPoint(Vec<Point>),
+    MultiLineString(Vec<LineString>),
 }
 
-struct Semantic {
-    name: String,
+enum Semantic {
+    TransportationHole,
+    TransportationMarking,
+}
+
+enum LoD {
+    LoD0,
+    LoD1,
+    LoD2_2,
 }
 
 struct Geometry {
-    boundary_components: Vec<Option<Boundary>>,
-    semantic_components: Vec<Option<Semantic>>,
+    lod: Option<LoD>,
+    boundary: Option<Boundary>,
 }
 
 impl Geometry {
     fn new() -> Self {
         Self {
-            boundary_components: Vec::new(),
-            semantic_components: Vec::new(),
+            lod: None,
+            boundary: None,
         }
     }
 
-    fn new_entity(&mut self, boundary: Option<Boundary>, semantic: Option<Semantic>) {
+    /*    fn new_entity(&mut self, boundary: Option<Boundary>, semantic: Option<Semantic>) {
         self.boundary_components.push(boundary);
         self.semantic_components.push(semantic);
-    }
+    }*/
 }
 
 fn main() {
     let mut g = Geometry::new();
-    g.new_entity(
+    /*    g.new_entity(
         Some(Boundary::MultiPoint(vec![[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])),
         Some(Semantic {
             name: "TransportationMarking".to_string(),
@@ -64,5 +94,5 @@ fn main() {
                 println!("{:#?}, {}", b, semantic.name)
             }
         }
-    }
+    }*/
 }
