@@ -6,206 +6,214 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use datasize::data_size;
+use datasize::{data_size, DataSize};
 use memmap2::Mmap;
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 
-pub mod geom_static {
-    use datasize::DataSize;
-    use serde::Serialize;
-    use std::collections::HashMap;
-
-    #[derive(Debug, Serialize, DataSize)]
-    pub enum SemanticSurface {
-        RoofSurface,
-        GroundSurface,
-        WallSurface,
-    }
-
-    #[derive(Serialize, DataSize)]
-    pub struct Material {
-        pub name: String,
-        pub ambient_intensity: Option<f32>,
-        pub diffuse_color: Option<[f32; 3]>,
-        pub emissive_color: Option<[f32; 3]>,
-        pub specular_color: Option<[f32; 3]>,
-        pub shininess: Option<f32>,
-        pub transparency: Option<f32>,
-        pub is_smooth: Option<bool>,
-    }
-
-    #[derive(Serialize, DataSize)]
-    pub struct Texture {
-        image: String,
-    }
-
-    pub type Vertices = Vec<[f64; 3]>;
-
-    pub type Point = [f64; 3];
-    pub type LineString = Vec<Point>;
-
-    #[derive(Serialize, DataSize)]
-    pub struct Surface {
-        pub boundaries: Vec<LineString>,
-        pub semantics: Option<SemanticSurface>,
-        pub material: Option<Material>,
-        pub texture: Option<Texture>,
-    }
-
-    type Shell = Vec<Surface>;
-
-    pub(crate) enum GeomStructSeparate {
-        Surface(Surface),
-    }
-
-    // Named fields in the variant so that we attach the data directly to the variant
-    pub(crate) enum GeomStructEmbed {
-        Surface {
-            boundaries: Vec<LineString>,
-            semantics: Option<SemanticSurface>,
-            material: Option<Material>,
-            texture: Option<Texture>,
-        },
-    }
-
-    #[derive(Serialize, DataSize)]
-    pub enum Geometry {
-        MultiPoint {
-            lod: String,
-            boundaries: Vec<Point>,
-        },
-        MultiLineString {
-            lod: String,
-            boundaries: Vec<LineString>,
-        },
-        MultiSurface {
-            lod: String,
-            boundaries: Vec<Surface>,
-        },
-        CompositeSurface {
-            lod: String,
-            boundaries: Vec<Surface>,
-        },
-        Solid {
-            lod: String,
-            boundaries: Vec<Shell>,
-        },
-        MultiSolid {
-            lod: String,
-            boundaries: Vec<Geometry>, // This is not good here. I want to constrain this to a Solid.
-        },
-        CompositeSolid {
-            lod: String,
-            boundaries: Vec<Geometry>,
-        },
-    }
-
-    #[derive(DataSize)]
-    pub struct CityObject {
-        pub cotype: String,
-        pub geometry: Vec<Geometry>,
-    }
-
-    #[derive(Serialize)]
-    pub struct CityObjectSer {
-        pub cotype: String,
-        pub geometry: Vec<String>,
-    }
-
-    #[derive(DataSize)]
-    pub struct CityModel {
-        pub cmtype: String,
-        pub version: String,
-        pub cityobjects: HashMap<String, CityObject>,
-    }
-
-    #[derive(Serialize)]
-    pub struct CityModelSer {
-        pub cmtype: String,
-        pub version: String,
-        pub cityobjects: HashMap<String, CityObjectSer>,
-    }
+/*
+    Static geometry
+*/
+#[derive(Debug, DataSize)]
+struct Point {
+    x: f32,
+    y: f32,
+    z: f32,
+    semantic: Option<u8>,
 }
 
-mod deserialize {
-    use super::*;
-    use datasize::DataSize;
-    use serde::de::{MapAccess, Visitor};
-    use serde::{Deserialize, Deserializer};
-    use std::fmt;
-    use std::marker::PhantomData;
-
-    // Deserialize into indexed CityJSON-like structures with serde
-    #[derive(Deserialize, Debug, DataSize)]
-    pub struct SemanticSurface {
-        #[serde(rename = "type")]
-        pub semtype: String,
-    }
-
-    #[derive(Deserialize, Debug, DataSize)]
-    pub struct ISemantics {
-        pub surfaces: Vec<SemanticSurface>,
-        pub values: Vec<Vec<usize>>,
-    }
-
-    pub type Vertices = Vec<[f64; 3]>;
-
-    // Indexed geometry
-    pub type IVertex = usize;
-    pub type IRing = Vec<IVertex>;
-    pub type ISurface = Vec<IRing>;
-    pub type IShell = Vec<ISurface>;
-    pub type IMultiSurface = Vec<ISurface>;
-    pub type ISolid = Vec<IShell>;
-
-    #[derive(Deserialize, Debug, DataSize)]
-    #[serde(tag = "type")]
-    pub enum IGeometry {
-        MultiSurface {
-            lod: String,
-            boundaries: Vec<Vec<Vec<usize>>>,
-            semantics: Option<ISemantics>,
-        },
-        Solid {
-            lod: String,
-            boundaries: Vec<Vec<Vec<Vec<usize>>>>,
-            semantics: Option<ISemantics>,
-        },
-    }
-
-    #[derive(Deserialize, Debug, DataSize)]
-    pub struct ICityObject {
-        #[serde(rename = "type")]
-        pub cotype: String,
-        pub geometry: Vec<IGeometry>,
-    }
-
-    #[derive(Deserialize, Debug, DataSize, Default)]
-    struct Transform {
-        scale: [f64; 3],
-        translate: [f64; 3],
-    }
-
-    #[derive(Deserialize, Debug, DataSize)]
-    pub struct CMVertices {
-        #[serde(rename = "type")]
-        pub cmtype: String,
-        pub version: String,
-        transform: Transform,
-        #[serde(skip)]
-        pub cityobjects: Vec<(String, ICityObject)>,
-        pub vertices: Vertices,
-    }
+#[derive(Debug, DataSize)]
+struct LineString {
+    start: Point,
+    end: Point,
+    semantic: Option<u8>,
 }
 
-fn boundary_dereference(
-    vertices: &geom_static::Vertices,
-    geom: &deserialize::IGeometry,
-) -> Option<geom_static::Geometry> {
+// Even though it is not stated explicitly, in CityJSON we don't allow adding semantics to the
+// points or lines of a MultiSurface for instance. A MultiSurface can have semantics on its
+// Surfaces and that's it. If somebody wants to put semantics on the vertices of the Surfaces of a
+// MultiSurface, then they need to store these labelled points separately as a MultiPoint geometry.
+#[derive(Debug, DataSize)]
+struct Surface {
+    boundaries: Vec<Vec<[f32; 3]>>,
+    semantic: Option<u8>,
+    material: Option<u8>,
+    texture: Option<u8>,
+}
+
+enum Semantic {
+    TransportationHole,
+    TransportationMarking,
+    RoofSurface,
+    GroundSurface,
+    WallSurface,
+}
+
+#[derive(Debug, DataSize)]
+enum LoD {
+    LoD0,
+    LoD1,
+    LoD2_2,
+}
+
+#[derive(Debug, DataSize)]
+enum Geometry {
+    MultiPoint {
+        lod: Option<LoD>,
+        boundaries: Vec<Point>,
+    },
+    MultiLineString {
+        lod: Option<LoD>,
+        boundaries: Vec<LineString>,
+    },
+    MultiSurface {
+        lod: Option<LoD>,
+        boundaries: Vec<Surface>,
+    },
+    Solid {
+        lod: Option<LoD>,
+        boundaries: Vec<Vec<Surface>>,
+    },
+}
+
+#[derive(Default, Debug, DataSize)]
+struct Material {
+    name: String,
+    ambient_intensity: Option<f32>,
+    diffuse_color: Option<[f32; 3]>,
+    emissive_color: Option<[f32; 3]>,
+    specular_color: Option<[f32; 3]>,
+    shininess: Option<f32>,
+    transparency: Option<f32>,
+    is_smooth: Option<bool>,
+}
+
+#[derive(Debug, DataSize)]
+enum ImageType {
+    Png,
+    Jpg,
+}
+impl Default for ImageType {
+    fn default() -> Self {
+        ImageType::Png
+    }
+}
+#[derive(Debug, DataSize)]
+enum WrapMode {
+    Wrap,
+    Mirror,
+    Clamp,
+    Border,
+}
+#[derive(Debug, DataSize)]
+enum TextureType {
+    Unknown,
+    Specific,
+    Typical,
+}
+
+#[derive(Default, Debug, DataSize)]
+struct Texture {
+    image_type: ImageType,
+    image: String,
+    wrap_mode: Option<WrapMode>,
+    texture_type: Option<TextureType>,
+    border_color: Option<[f32; 4]>,
+}
+
+#[derive(Default, Debug, DataSize)]
+struct Appearance {
+    materials: Option<Vec<Material>>,
+    textures: Option<Vec<Texture>>,
+    default_theme_texture: Option<String>,
+    default_theme_material: Option<String>,
+}
+
+#[derive(Default, Debug, DataSize)]
+struct CityObject {
+    cotype: String,
+    geometry: Option<Vec<Geometry>>,
+    children: Option<Vec<String>>,
+    parents: Option<Vec<String>>,
+    appearance: Option<Appearance>,
+}
+
+#[derive(Debug, DataSize)]
+pub struct CityModel {
+    pub cmtype: String,
+    pub version: String,
+    cityobjects: HashMap<String, CityObject>,
+}
+
+/*
+    Deserializes from CityJSON
+*/
+// Deserialize into indexed CityJSON-like structures with serde
+#[derive(Deserialize, Debug, DataSize)]
+pub struct SemanticSurface {
+    #[serde(rename = "type")]
+    pub semtype: String,
+}
+
+#[derive(Deserialize, Debug, DataSize)]
+pub struct ISemantics {
+    pub surfaces: Vec<SemanticSurface>,
+    pub values: Vec<Vec<usize>>,
+}
+
+pub type Vertices = Vec<[f32; 3]>;
+
+// Indexed geometry
+pub type IVertex = usize;
+pub type IRing = Vec<IVertex>;
+pub type ISurface = Vec<IRing>;
+pub type IShell = Vec<ISurface>;
+pub type IMultiSurface = Vec<ISurface>;
+pub type ISolid = Vec<IShell>;
+
+#[derive(Deserialize, Debug, DataSize)]
+#[serde(tag = "type")]
+pub enum IGeometry {
+    MultiSurface {
+        lod: String,
+        boundaries: Vec<Vec<Vec<usize>>>,
+        semantics: Option<ISemantics>,
+    },
+    Solid {
+        lod: String,
+        boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+        semantics: Option<ISemantics>,
+    },
+}
+
+#[derive(Deserialize, Debug, DataSize)]
+pub struct ICityObject {
+    #[serde(rename = "type")]
+    pub cotype: String,
+    pub geometry: Vec<IGeometry>,
+}
+
+#[derive(Deserialize, Debug, DataSize, Default)]
+struct Transform {
+    scale: [f64; 3],
+    translate: [f64; 3],
+}
+
+#[derive(Deserialize, Debug, DataSize)]
+pub struct CMVertices {
+    #[serde(rename = "type")]
+    pub cmtype: String,
+    pub version: String,
+    transform: Transform,
+    #[serde(skip)]
+    pub cityobjects: Vec<(String, ICityObject)>,
+    pub vertices: Vertices,
+}
+
+fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometry> {
     match geom {
-        deserialize::IGeometry::Solid {
+        IGeometry::Solid {
             lod,
             boundaries,
             semantics,
@@ -218,44 +226,50 @@ fn boundary_dereference(
                     for ring in surface {
                         let mut new_ring = Vec::with_capacity(ring.len());
                         for vtx_idx in ring {
-                            let new_vertex: [f64; 3] = vertices[*vtx_idx];
+                            let new_vertex: [f32; 3] = vertices[*vtx_idx];
                             new_ring.push(new_vertex);
+                            // new_ring.push(Point {
+                            //     x: vertices[*vtx_idx][0],
+                            //     y: vertices[*vtx_idx][1],
+                            //     z: vertices[*vtx_idx][2],
+                            //     semantic: None,
+                            // });
                         }
                         surface_bdry.push(new_ring);
                     }
-                    let mut semsurf: Option<geom_static::SemanticSurface> = None;
+                    let mut semsurf: Option<Semantic> = None;
                     if let Some(sem) = semantics {
                         let sem_i = &sem.values[shi][sui];
                         match sem.surfaces[*sem_i].semtype.as_str() {
                             "GroundSurface" => {
-                                semsurf = Some(geom_static::SemanticSurface::GroundSurface);
+                                semsurf = Some(Semantic::GroundSurface);
                             }
                             "WallSurface" => {
-                                semsurf = Some(geom_static::SemanticSurface::WallSurface);
+                                semsurf = Some(Semantic::WallSurface);
                             }
                             "RoofSurface" => {
-                                semsurf = Some(geom_static::SemanticSurface::RoofSurface);
+                                semsurf = Some(Semantic::RoofSurface);
                             }
                             &_ => {
                                 println!("Semantic Surface type not implemented")
                             }
                         }
                     }
-                    new_shell.push(geom_static::Surface {
+                    new_shell.push(Surface {
                         boundaries: surface_bdry,
-                        semantics: semsurf,
                         material: None,
                         texture: None,
+                        semantic: None,
                     });
                 }
                 new_solid_bdry.push(new_shell);
             }
-            Some(geom_static::Geometry::Solid {
-                lod: lod.to_string(),
+            Some(Geometry::Solid {
+                lod: Some(LoD::LoD2_2),
                 boundaries: new_solid_bdry,
             })
         }
-        deserialize::IGeometry::MultiSurface {
+        IGeometry::MultiSurface {
             lod,
             boundaries,
             semantics,
@@ -266,36 +280,42 @@ fn boundary_dereference(
                 for ring in surface {
                     let mut new_ring = Vec::with_capacity(ring.len());
                     for vtx_idx in ring {
-                        let new_vertex: [f64; 3] = vertices[*vtx_idx];
+                        let new_vertex: [f32; 3] = vertices[*vtx_idx];
                         new_ring.push(new_vertex);
+                        // new_ring.push(Point {
+                        //     x: vertices[*vtx_idx][0],
+                        //     y: vertices[*vtx_idx][1],
+                        //     z: vertices[*vtx_idx][2],
+                        //     semantic: None,
+                        // });
                     }
                     surface_bdry.push(new_ring);
                 }
-                let mut semsurf: Option<geom_static::SemanticSurface> = None;
+                let mut semsurf: Option<SemanticSurface> = None;
                 //                 This needs can only be done after the IGeometry is implemented for MultiSurfaces too
                 /*                if let Some(sem) = semantics {
                     let sem_i = &sem.values[shi][sui];
                     match &sem.surfaces[*sem_i].semtype {
                         String::from("GroundSurface") => {
-                            semsurf = Some(geom_static::SemanticSurface::GroundSurface);
+                            semsurf = Some(SemanticSurface::GroundSurface);
                         }
                         String::from("WallSurface") => {
-                            semsurf = Some(geom_static::SemanticSurface::WallSurface);
+                            semsurf = Some(SemanticSurface::WallSurface);
                         }
                         String::from("RoofSurface") => {
-                            semsurf = Some(geom_static::SemanticSurface::RoofSurface);
+                            semsurf = Some(SemanticSurface::RoofSurface);
                         }
                     }
                 }*/
-                new_msrf_bdry.push(geom_static::Surface {
+                new_msrf_bdry.push(Surface {
                     boundaries: surface_bdry,
-                    semantics: semsurf,
                     material: None,
                     texture: None,
+                    semantic: None,
                 });
             }
-            Some(geom_static::Geometry::MultiSurface {
-                lod: lod.to_string(),
+            Some(Geometry::MultiSurface {
+                lod: Some(LoD::LoD2_2),
                 boundaries: new_msrf_bdry,
             })
         }
@@ -306,10 +326,7 @@ fn boundary_dereference(
     }
 }
 
-struct CityObjectsMap<'a>(
-    &'a mut HashMap<String, geom_static::CityObject>,
-    &'a deserialize::CMVertices,
-);
+struct CityObjectsMap<'a>(&'a mut HashMap<String, CityObject>, &'a CMVertices);
 
 impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
     type Value = ();
@@ -318,10 +335,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
     where
         D: Deserializer<'de>,
     {
-        struct CityObjectsMapVisitor<'a>(
-            &'a mut HashMap<String, geom_static::CityObject>,
-            &'a deserialize::CMVertices,
-        );
+        struct CityObjectsMapVisitor<'a>(&'a mut HashMap<String, CityObject>, &'a CMVertices);
 
         impl<'de, 'a> Visitor<'de> for CityObjectsMapVisitor<'a> {
             type Value = ();
@@ -345,15 +359,14 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 let mut nr_surfaces_per_geom: usize = 0;
                 let mut nr_points: usize = 0;
                 let mut empty_allocation: usize = 0;
-                while let Some((coid, co)) = map.next_entry::<String, deserialize::ICityObject>()? {
-                    let mut new_geoms: Vec<geom_static::Geometry> =
-                        Vec::with_capacity(co.geometry.len());
+                while let Some((coid, co)) = map.next_entry::<String, ICityObject>()? {
+                    let mut new_geoms: Vec<Geometry> = Vec::with_capacity(co.geometry.len());
                     for geom in &co.geometry {
                         if let Some(g) = boundary_dereference(&self.1.vertices, geom) {
                             nr_geometries += 1;
                             let mut geomsrf: usize = 0;
                             match &g {
-                                geom_static::Geometry::Solid { lod, boundaries } => {
+                                Geometry::Solid { lod, boundaries } => {
                                     boundaries_sizes += data_size(boundaries);
                                     empty_allocation += boundaries.capacity() - boundaries.len();
                                     for shell in boundaries {
@@ -366,8 +379,8 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                                                 + std::mem::size_of_val(&srf.boundaries);
                                             srf_size_mat += data_size(&srf.material)
                                                 + std::mem::size_of_val(&srf.material);
-                                            srf_size_sem += data_size(&srf.semantics)
-                                                + std::mem::size_of_val(&srf.semantics);
+                                            // srf_size_sem += data_size(&srf.semantics)
+                                            //     + std::mem::size_of_val(&srf.semantics);
                                             srf_size_text += data_size(&srf.texture)
                                                 + std::mem::size_of_val(&srf.texture);
                                             geomsrf += 1;
@@ -380,7 +393,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                                         }
                                     }
                                 }
-                                geom_static::Geometry::MultiSurface { lod, boundaries } => {
+                                Geometry::MultiSurface { lod, boundaries } => {
                                     boundaries_sizes += data_size(boundaries);
                                     empty_allocation += boundaries.capacity() - boundaries.len();
                                     for srf in boundaries {
@@ -391,8 +404,8 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                                             + std::mem::size_of_val(&srf.boundaries);
                                         srf_size_mat += data_size(&srf.material)
                                             + std::mem::size_of_val(&srf.material);
-                                        srf_size_sem += data_size(&srf.semantics)
-                                            + std::mem::size_of_val(&srf.semantics);
+                                        // srf_size_sem += data_size(&srf.semantics)
+                                        //     + std::mem::size_of_val(&srf.semantics);
                                         srf_size_text += data_size(&srf.texture)
                                             + std::mem::size_of_val(&srf.texture);
                                         geomsrf += 1;
@@ -413,31 +426,31 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                     new_geoms.shrink_to_fit();
                     self.0.insert(
                         coid,
-                        geom_static::CityObject {
+                        CityObject {
                             cotype: co.cotype,
-                            geometry: new_geoms,
+                            geometry: Some(new_geoms),
+                            children: None,
+                            parents: None,
+                            appearance: None,
                         },
                     );
                 }
-                println!(
-                    "size of a Surface [b] {}",
-                    std::mem::size_of::<geom_static::Surface>()
-                );
+                println!("size of a Surface [b] {}", std::mem::size_of::<Surface>());
                 println!(
                     "size of a Surface.boundaries [b] {}",
-                    std::mem::size_of::<Vec<geom_static::LineString>>()
+                    std::mem::size_of::<Vec<LineString>>()
                 );
                 println!(
                     "size of a Surface.semantics [b] {}",
-                    std::mem::size_of::<geom_static::SemanticSurface>()
+                    std::mem::size_of::<Semantic>()
                 );
                 println!(
                     "size of a Surface.textures [b] {}",
-                    std::mem::size_of::<geom_static::Texture>()
+                    std::mem::size_of::<Texture>()
                 );
                 println!(
                     "size of a Surface.materials [b] {}",
-                    std::mem::size_of::<geom_static::Material>()
+                    std::mem::size_of::<Material>()
                 );
                 println!("nr. of points in boundaries {}", nr_points);
                 println!(
@@ -471,7 +484,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
     }
 }
 
-struct CityModelMap<'a>(&'a mut geom_static::CityModel, &'a deserialize::CMVertices);
+struct CityModelMap<'a>(&'a mut CityModel, &'a CMVertices);
 
 impl<'de, 'a> DeserializeSeed<'de> for CityModelMap<'a> {
     type Value = ();
@@ -482,7 +495,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityModelMap<'a> {
     {
         // Custom Visitor for doing the second pass over the data and getting to the entries of the
         // "geometries" object.
-        struct CityModelMapVisitor<'a>(&'a mut geom_static::CityModel, &'a deserialize::CMVertices);
+        struct CityModelMapVisitor<'a>(&'a mut CityModel, &'a CMVertices);
 
         impl<'de, 'a> Visitor<'de> for CityModelMapVisitor<'a> {
             type Value = ();
@@ -514,15 +527,15 @@ impl<'de, 'a> DeserializeSeed<'de> for CityModelMap<'a> {
     }
 }
 
-pub fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
-    let mut cm_vertices: deserialize::CMVertices;
+pub fn parse_dereferece(path_in: PathBuf) -> CityModel {
+    let mut cm_vertices: CMVertices;
     {
         let mut file = File::open(&path_in).expect("Couldn't open CityJSON file");
         let mmap = unsafe { Mmap::map(&file).expect("Cannot memmap the file") };
         cm_vertices = serde_json::from_slice(&mmap).expect("Couldn't deserialize into CMVertices");
     }
 
-    let mut cm = geom_static::CityModel {
+    let mut cm = CityModel {
         cmtype: Default::default(),
         version: Default::default(),
         cityobjects: HashMap::new(),
@@ -539,16 +552,16 @@ pub fn parse_dereferece(path_in: PathBuf) -> geom_static::CityModel {
 
     println!("nr cityobjects {}", cm.cityobjects.len());
     println!(
-        "avg. cityobject heap allocation [b] {}",
-        data_size(&cm_vertices) as f32 / cm.cityobjects.len() as f32
-    );
-    println!(
         "estimated heap allocation of indexed-citymodel [Mb]: {}",
         data_size(&cm_vertices) as f32 / 1e+6
     );
     println!(
         "estimated heap allocation of target citymodel [Mb]: {}",
         data_size(&cm) as f32 / 1e+6
+    );
+    println!(
+        "avg. cityobject heap allocation [b] {}",
+        data_size(&cm.cityobjects) as f32 / cm.cityobjects.len() as f32
     );
 
     cm
@@ -559,7 +572,7 @@ pub fn deref_deserialize(path_in: PathBuf) {
 }
 
 pub fn deref_geometry(path_in: PathBuf) {
-    let mut containter: Vec<[f64; 3]> = Vec::new();
+    /*    let mut containter: Vec<[f64; 3]> = Vec::new();
     let cm = parse_dereferece(path_in);
     for (coid, co) in cm.cityobjects {
         for geom in co.geometry {
@@ -595,11 +608,11 @@ pub fn deref_geometry(path_in: PathBuf) {
     println!(
         "In total there are {} points in the citymodel",
         containter.len()
-    )
+    )*/
 }
 
 pub fn deref_semantics(path_in: PathBuf) {
-    let semantic_type = "RoofSurface";
+    /*   let semantic_type = "RoofSurface";
     println!("extracting the geometry of {}", semantic_type);
     let mut containter: Vec<[f64; 3]> = Vec::new();
     let cm = parse_dereferece(path_in);
@@ -651,17 +664,17 @@ pub fn deref_semantics(path_in: PathBuf) {
     println!(
         "In total there are {} points in the citymodel",
         containter.len()
-    )
+    )*/
 }
 
 /// Creates an indexed boundary representation (as in CityJSON) from the dereferenced,
 /// Simple Feature-like boundary.
-fn index_boundaries(
-    geometry: &geom_static::Geometry,
+/*fn index_boundaries(
+    geometry: &Geometry,
     vtx_lookup: &mut HashMap<String, usize>,
     vtx_idx: &mut usize,
 ) -> serde_json::Result<String> {
-    match geometry {
+        match geometry {
         geom_static::Geometry::MultiSurface { boundaries, .. } => {
             let mut imsurface = Vec::new();
             for surface in boundaries {
@@ -716,56 +729,57 @@ fn index_boundaries(
         }
         _ => serde_json::to_string("not implemented"),
     }
-}
+}*/
 
 pub fn deref_create(path_in: PathBuf) {
-    let mut vtx_lookup: HashMap<String, usize> = HashMap::new();
-    let mut vtx_idx: usize = 0;
-    let mut vertices: geom_static::Vertices = Vec::new();
+    /*    let mut vtx_lookup: HashMap<String, usize> = HashMap::new();
+        let mut vtx_idx: usize = 0;
+        let mut vertices: geom_static::Vertices = Vec::new();
 
-    let g = geom_static::Geometry::Solid {
-        lod: "1.2".to_string(),
-        boundaries: vec![vec![geom_static::Surface {
-            #[rustfmt::skip]
-            boundaries: vec![vec![
-                [557299.0, 477667.0, 10693.0], [55799.0, 477667.0, 10693.0], [57299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 1063.0],[557299.0, 47767.0, 10693.0], [55799.0, 477667.0, 10693.0], [55799.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 1693.0], [557299.0, 477667.0, 1069.0],[557299.0, 47767.0, 10693.0], [57299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0]
-            ]],
-            semantics: Some(geom_static::SemanticSurface::RoofSurface),
-            material: Some(geom_static::Material {
-                name: "SomeMaterial".to_string(),
-                ambient_intensity: Some(3.0),
-                diffuse_color: None,
-                emissive_color: None,
-                specular_color: None,
-                shininess: None,
-                transparency: None,
-                is_smooth: Some(true),
-            }),
-            texture: None,
-        }]],
-    };
-    let res = index_boundaries(&g, &mut vtx_lookup, &mut vtx_idx);
-    for vtx in vtx_lookup.keys() {
-        let mut v: [f64; 3] = [0.0, 0.0, 0.0];
-        for (i, c) in vtx.split_whitespace().enumerate() {
-            v[i] = c.parse::<f64>().unwrap();
+        let g = geom_static::Geometry::Solid {
+            lod: "1.2".to_string(),
+            boundaries: vec![vec![geom_static::Surface {
+                #[rustfmt::skip]
+                boundaries: vec![vec![
+                    [557299.0, 477667.0, 10693.0], [55799.0, 477667.0, 10693.0], [57299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 1063.0],[557299.0, 47767.0, 10693.0], [55799.0, 477667.0, 10693.0], [55799.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 1693.0], [557299.0, 477667.0, 1069.0],[557299.0, 47767.0, 10693.0], [57299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0],[557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0], [557299.0, 477667.0, 10693.0]
+                ]],
+                semantics: Some(geom_static::SemanticSurface::RoofSurface),
+                material: Some(geom_static::Material {
+                    name: "SomeMaterial".to_string(),
+                    ambient_intensity: Some(3.0),
+                    diffuse_color: None,
+                    emissive_color: None,
+                    specular_color: None,
+                    shininess: None,
+                    transparency: None,
+                    is_smooth: Some(true),
+                }),
+                texture: None,
+            }]],
+        };
+        let res = index_boundaries(&g, &mut vtx_lookup, &mut vtx_idx);
+        for vtx in vtx_lookup.keys() {
+            let mut v: [f64; 3] = [0.0, 0.0, 0.0];
+            for (i, c) in vtx.split_whitespace().enumerate() {
+                v[i] = c.parse::<f64>().unwrap();
+            }
+            vertices.push(v);
         }
-        vertices.push(v);
-    }
-    let co = geom_static::CityObjectSer {
-        cotype: "Building".to_string(),
-        geometry: vec![res.unwrap()],
-    };
-    let mut cos: HashMap<String, geom_static::CityObjectSer> = HashMap::new();
-    cos.insert("id-1".to_string(), co);
-    let mut cityjson = json!({
-      "type": "CityJSON",
-      "version": "1.1",
-      "CityObjects": cos,
-      "vertices": vertices
-    });
+        let co = geom_static::CityObjectSer {
+            cotype: "Building".to_string(),
+            geometry: vec![res.unwrap()],
+        };
+        let mut cos: HashMap<String, geom_static::CityObjectSer> = HashMap::new();
+        cos.insert("id-1".to_string(), co);
+        let mut cityjson = json!({
+          "type": "CityJSON",
+          "version": "1.1",
+          "CityObjects": cos,
+          "vertices": vertices
+        });
 
-    println!("{}", cityjson.to_string());
+        println!("{}", cityjson.to_string());
+    */
 }
 
 #[cfg(test)]
@@ -784,9 +798,9 @@ mod tests {
         deref_deserialize(path_in)
     }
 
-    #[test]
+    /*    #[test]
     fn test_deref_geometry() {
         let path_in = get_data();
         deref_geometry(path_in)
-    }
+    }*/
 }
