@@ -378,3 +378,9 @@ Additionally additionally, the memory benefit of *vertex-index* architecture onl
 When creating a new citymodel, the vertices are just added to the model as-is, duplicates and all and the duplicates are only removed in a post-process, if at all.
 
 Long story short, I continue with the *dereference* architecture and focus on making it as efficient as possible.
+
+## Floating point precision
+
+A single precision number is enough to [point out Waldo in a global geographic CRS](https://xkcd.com/2170), since it 
+can represent up to [7 decimal digits](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
+In a projected, metric CRS we only need 3 decimal digits.

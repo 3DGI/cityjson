@@ -4,24 +4,25 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use datasize::{data_size, DataSize};
 use memmap2::MmapOptions;
 use serde::Deserialize;
 use slotmap::{new_key_type, SecondaryMap, SlotMap};
 
 // Deserialize into indexed CityJSON-like structures with serde
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, DataSize)]
 struct SemanticSurface {
     #[serde(rename = "type")]
     semtype: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, DataSize)]
 struct Semantics {
     surfaces: Vec<SemanticSurface>,
     values: Vec<Vec<usize>>,
 }
 
-type Vertices = Vec<[f64; 3]>;
+type Vertices = Vec<[f32; 3]>;
 
 // Indexed geometry
 type Vertex = usize;
@@ -31,7 +32,7 @@ type Shell = Vec<Surface>;
 type MultiSurface = Vec<Surface>;
 type Solid = Vec<Shell>;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, DataSize)]
 #[serde(tag = "type")]
 enum Geometry {
     MultiSurface {
@@ -46,20 +47,20 @@ enum Geometry {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, DataSize)]
 struct CityObject {
     #[serde(rename = "type")]
     cotype: String,
     geometry: Vec<Geometry>,
 }
 
-#[derive(Deserialize, Copy, Clone)]
+#[derive(Deserialize, Copy, Clone, Debug, DataSize)]
 struct Transform {
     scale: [f64; 3],
     translate: [f64; 3],
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, DataSize)]
 struct CityModel {
     #[serde(rename = "type")]
     cmtype: String,
@@ -102,12 +103,12 @@ struct CityModelSlot {
     version: String,
     transform: Transform,
     cityobjects: HashMap<String, CityObjectSlot>,
-    vertex_map: SlotMap<VertexKey, [f64; 3]>,
+    vertex_map: SlotMap<VertexKey, [f32; 3]>,
     vertex_geometries_map: SecondaryMap<VertexKey, Vec<(String, usize)>>,
 }
 
 fn parse_to_slotmap(cm: &CityModel) -> CityModelSlot {
-    let mut vertex_map: SlotMap<VertexKey, [f64; 3]> = SlotMap::with_key();
+    let mut vertex_map: SlotMap<VertexKey, [f32; 3]> = SlotMap::with_key();
     let mut vertex_index_map: HashMap<usize, VertexKey> = HashMap::new();
 
     // parse the vertices
@@ -219,9 +220,12 @@ pub fn vindex_deserialize(path_in: PathBuf) {
     let reader = BufReader::new(file);
     let cm: CityModel =
         serde_json::from_reader(reader).expect("Couldn't deserialize into CityModel");
-    let cm_slot = parse_to_slotmap(&cm);
-    drop(cm);
-    println!("done par")
+    // let cm_slot = parse_to_slotmap(&cm);
+    // drop(cm);
+    println!(
+        "estimated heap allocation of indexed-citymodel [Mb]: {}",
+        data_size(&cm) as f32 / 1e+6
+    );
 }
 
 #[cfg(test)]
