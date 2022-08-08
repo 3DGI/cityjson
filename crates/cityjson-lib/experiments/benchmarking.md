@@ -384,3 +384,62 @@ Long story short, I continue with the *dereference* architecture and focus on ma
 A single precision number is enough to [point out Waldo in a global geographic CRS](https://xkcd.com/2170), since it 
 can represent up to [7 decimal digits](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
 In a projected, metric CRS we only need 3 decimal digits.
+
+## Commit 015e70b99 – 2022-08-08
+
+Following the CityJSONFeature object with the data structure. 
+Such that each CityObject stores its own vertices and appearance containers.
+This seems sensible for multiple reasons,
+
+- the experiment results and smaller filesizes gave the idea (https://github.com/cityjson/specs/discussions/122#discussion-4279462), although duplicating the Appearance object might give surprises in memory usage,
+- this data structure seems better aligned with using the API for streaming (read/write), which is the most urgent use case for now, because of the 3D BAG API,
+- could translate well to database storage, although columnar storage of an ECS surely sounds intriguing.
+
+I implemented something in-between the CityJSONFeature data structure and the previous dereferenced (OO) data structure, where the geometry primitives keep pointers to the relevant pieces of data.
+
+```rust
+struct Point {
+    x: f32,
+    y: f32,
+    z: f32,
+    semantic: Option<u8>,
+}
+
+struct LineString {
+    start: Point,
+    end: Point,
+    semantic: Option<u8>,
+}
+
+struct Surface {
+    boundaries: Vec<Vec<[f32; 3]>>,
+    semantic: Option<u8>,
+    material: Option<u8>,
+    texture: Option<u8>,
+}
+```
+
+However, as you notice, the `Surface` boundary is in fact not a collection of `Point` and `LineString`, but just a collection vertices. 
+Just as in the file.
+
+This is because having the pointer to the semantic object attached to the `Point` and `LineString` simply occupies too much space.
+Thus, I'm paying for what I'm not even using.
+Even though it is not stated explicitly, in CityJSON we don't allow adding semantics to the points or lines of a MultiSurface for instance. 
+A MultiSurface can have semantics on its Surfaces and that's it. 
+If somebody wants to put semantics on the vertices of the Surfaces of a MultiSurface, then they need to store these labelled points separately as a MultiPoint geometry.
+
+I added the semantics pointer to the `Point` and `LineString`, because in theory we can have semantics on these primitives as well, but only for MultiPoint and MultiLineString geometries.
+
+Better if the geometry primitives don't know anything about their semantic and appearance components.
+But instead the semantic components know which geometry primitive they belong to, because then I only pay for what I use, since semantic components cannot stand on their own, they always belong to a geometry.
+But geometries are often without semantics.
+This is precisely the CityJSON data model.
+
+Still, I think it makes sense to have the boundaries dereferenced, because it speeds up the geometry processing and actually doesn't make a big difference in memory footprint.
+
+In terms of performance, I am at about 2GB max rss for a 590Mb file, where the actually CityModel in memory is only 1GB.
+Interestingly, I get nearly identical CityModel size for the `vertex-index` architecture as well, but lower (~1.3GB) max rss.
+
+Even though I don't have the semantics and appearances correctly implemented, I think I know enough already and I have made up my mind.
+I will implement the data structure just as the CityJSONFeatures, except that I will have the geometry boundaries dereferenced.
+But the semantics and appearances stay as they are in the file, pointing to the geometry primitives.
