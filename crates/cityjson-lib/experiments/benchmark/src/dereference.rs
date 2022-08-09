@@ -15,40 +15,9 @@ use serde_json::{json, Value};
 /*
     Static geometry
 */
-#[derive(Debug, DataSize)]
-struct Point {
-    x: f32,
-    y: f32,
-    z: f32,
-    semantic: Option<u8>,
-}
-
-#[derive(Debug, DataSize)]
-struct LineString {
-    start: Point,
-    end: Point,
-    semantic: Option<u8>,
-}
-
-// Even though it is not stated explicitly, in CityJSON we don't allow adding semantics to the
-// points or lines of a MultiSurface for instance. A MultiSurface can have semantics on its
-// Surfaces and that's it. If somebody wants to put semantics on the vertices of the Surfaces of a
-// MultiSurface, then they need to store these labelled points separately as a MultiPoint geometry.
-#[derive(Debug, DataSize)]
-struct Surface {
-    boundaries: Vec<Vec<[f32; 3]>>,
-    semantic: Option<u8>,
-    material: Option<u8>,
-    texture: Option<u8>,
-}
-
-enum Semantic {
-    TransportationHole,
-    TransportationMarking,
-    RoofSurface,
-    GroundSurface,
-    WallSurface,
-}
+type Point = [f32; 3];
+type LineString = Vec<Point>;
+type Surface = Vec<LineString>;
 
 #[derive(Debug, DataSize)]
 enum LoD {
@@ -57,6 +26,7 @@ enum LoD {
     LoD2_2,
 }
 
+// TODO: How to represent 'null' values in the semantics/appearance values arrays?
 #[derive(Debug, DataSize)]
 enum Geometry {
     MultiPoint {
@@ -70,11 +40,25 @@ enum Geometry {
     MultiSurface {
         lod: Option<LoD>,
         boundaries: Vec<Surface>,
+        semantics_values: Option<Vec<Option<u16>>>,
+        semantics_surfaces: Option<Vec<Semantic>>,
     },
     Solid {
         lod: Option<LoD>,
         boundaries: Vec<Vec<Surface>>,
+        semantics_values: Option<Vec<Vec<Option<u16>>>>,
+        semantics_surfaces: Option<Vec<Semantic>>,
     },
+}
+
+#[derive(Debug, DataSize)]
+enum Semantic {
+    TransportationHole,
+    TransportationMarking,
+    RoofSurface,
+    GroundSurface,
+    WallSurface,
+    Unknown,
 }
 
 #[derive(Default, Debug, DataSize)]
@@ -133,9 +117,9 @@ struct Appearance {
 #[derive(Default, Debug, DataSize)]
 struct CityObject {
     cotype: String,
-    geometry: Option<Vec<Geometry>>,
     children: Option<Vec<String>>,
     parents: Option<Vec<String>>,
+    geometry: Option<Vec<Geometry>>,
     appearance: Option<Appearance>,
 }
 
@@ -218,55 +202,61 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
             boundaries,
             semantics,
         } => {
+            let mut semsurf: Option<Vec<Semantic>> = None;
+            let mut semval: Option<Vec<Vec<Option<u16>>>> = None;
             let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
             for (shi, shell) in boundaries.iter().enumerate() {
                 let mut new_shell = Vec::with_capacity(shell.len());
                 for (sui, surface) in shell.iter().enumerate() {
-                    let mut surface_bdry = Vec::with_capacity(surface.len());
+                    let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
                     for ring in surface {
-                        let mut new_ring = Vec::with_capacity(ring.len());
+                        let mut new_ring: LineString = Vec::with_capacity(ring.len());
                         for vtx_idx in ring {
-                            let new_vertex: [f32; 3] = vertices[*vtx_idx];
+                            let new_vertex: Point = vertices[*vtx_idx];
                             new_ring.push(new_vertex);
-                            // new_ring.push(Point {
-                            //     x: vertices[*vtx_idx][0],
-                            //     y: vertices[*vtx_idx][1],
-                            //     z: vertices[*vtx_idx][2],
-                            //     semantic: None,
-                            // });
                         }
                         surface_bdry.push(new_ring);
                     }
-                    let mut semsurf: Option<Semantic> = None;
-                    if let Some(sem) = semantics {
-                        let sem_i = &sem.values[shi][sui];
-                        match sem.surfaces[*sem_i].semtype.as_str() {
-                            "GroundSurface" => {
-                                semsurf = Some(Semantic::GroundSurface);
-                            }
-                            "WallSurface" => {
-                                semsurf = Some(Semantic::WallSurface);
-                            }
-                            "RoofSurface" => {
-                                semsurf = Some(Semantic::RoofSurface);
-                            }
-                            &_ => {
-                                println!("Semantic Surface type not implemented")
-                            }
-                        }
-                    }
-                    new_shell.push(Surface {
-                        boundaries: surface_bdry,
-                        material: None,
-                        texture: None,
-                        semantic: None,
-                    });
+                    new_shell.push(surface_bdry);
                 }
                 new_solid_bdry.push(new_shell);
+            }
+            // This could be moved inside the boundary loop, but having it here outside makes the
+            // code more simple.
+            if let Some(sem) = semantics {
+                semsurf = Some(
+                    sem.surfaces
+                        .iter()
+                        .map(|ss| {
+                            match ss.semtype.as_str() {
+                                "GroundSurface" => Semantic::GroundSurface,
+                                "WallSurface" => Semantic::WallSurface,
+                                "RoofSurface" => Semantic::RoofSurface,
+                                &_ => {
+                                    // This is a hack of sorts, because we must return a Semantic, or
+                                    // use Option<Semantic>
+                                    Semantic::Unknown
+                                }
+                            }
+                        })
+                        .collect(),
+                );
+                // TODO: How to handle null values?
+                let mut _sv: Vec<Vec<Option<u16>>> = Vec::new();
+                for shi in &sem.values {
+                    let mut _suv: Vec<Option<u16>> = Vec::new();
+                    for sui in shi {
+                        _suv.push(Some(*sui as u16));
+                    }
+                    _sv.push(_suv)
+                }
+                semval = Some(_sv);
             }
             Some(Geometry::Solid {
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_solid_bdry,
+                semantics_values: semval,
+                semantics_surfaces: semsurf,
             })
         }
         IGeometry::MultiSurface {
@@ -276,47 +266,22 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
         } => {
             let mut new_msrf_bdry = Vec::with_capacity(boundaries.len());
             for (sui, surface) in boundaries.iter().enumerate() {
-                let mut surface_bdry = Vec::with_capacity(surface.len());
+                let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
                 for ring in surface {
-                    let mut new_ring = Vec::with_capacity(ring.len());
+                    let mut new_ring: LineString = Vec::with_capacity(ring.len());
                     for vtx_idx in ring {
-                        let new_vertex: [f32; 3] = vertices[*vtx_idx];
+                        let new_vertex: Point = vertices[*vtx_idx];
                         new_ring.push(new_vertex);
-                        // new_ring.push(Point {
-                        //     x: vertices[*vtx_idx][0],
-                        //     y: vertices[*vtx_idx][1],
-                        //     z: vertices[*vtx_idx][2],
-                        //     semantic: None,
-                        // });
                     }
                     surface_bdry.push(new_ring);
                 }
-                let mut semsurf: Option<SemanticSurface> = None;
-                //                 This needs can only be done after the IGeometry is implemented for MultiSurfaces too
-                /*                if let Some(sem) = semantics {
-                    let sem_i = &sem.values[shi][sui];
-                    match &sem.surfaces[*sem_i].semtype {
-                        String::from("GroundSurface") => {
-                            semsurf = Some(SemanticSurface::GroundSurface);
-                        }
-                        String::from("WallSurface") => {
-                            semsurf = Some(SemanticSurface::WallSurface);
-                        }
-                        String::from("RoofSurface") => {
-                            semsurf = Some(SemanticSurface::RoofSurface);
-                        }
-                    }
-                }*/
-                new_msrf_bdry.push(Surface {
-                    boundaries: surface_bdry,
-                    material: None,
-                    texture: None,
-                    semantic: None,
-                });
+                new_msrf_bdry.push(surface_bdry);
             }
             Some(Geometry::MultiSurface {
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_msrf_bdry,
+                semantics_values: None,
+                semantics_surfaces: None,
             })
         }
         _ => {
@@ -353,9 +318,6 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 let mut nr_surfaces: usize = 0;
                 let mut surfaces_sizes: usize = 0;
                 let mut srf_size_boundary: usize = 0;
-                let mut srf_size_sem: usize = 0;
-                let mut srf_size_mat: usize = 0;
-                let mut srf_size_text: usize = 0;
                 let mut nr_surfaces_per_geom: usize = 0;
                 let mut nr_points: usize = 0;
                 let mut empty_allocation: usize = 0;
@@ -366,7 +328,9 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                             nr_geometries += 1;
                             let mut geomsrf: usize = 0;
                             match &g {
-                                Geometry::Solid { lod, boundaries } => {
+                                Geometry::Solid {
+                                    lod, boundaries, ..
+                                } => {
                                     boundaries_sizes += data_size(boundaries);
                                     empty_allocation += boundaries.capacity() - boundaries.len();
                                     for shell in boundaries {
@@ -375,43 +339,31 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                                             nr_surfaces += 1;
                                             surfaces_sizes +=
                                                 data_size(srf) + std::mem::size_of_val(srf);
-                                            srf_size_boundary += data_size(&srf.boundaries)
-                                                + std::mem::size_of_val(&srf.boundaries);
-                                            srf_size_mat += data_size(&srf.material)
-                                                + std::mem::size_of_val(&srf.material);
-                                            // srf_size_sem += data_size(&srf.semantics)
-                                            //     + std::mem::size_of_val(&srf.semantics);
-                                            srf_size_text += data_size(&srf.texture)
-                                                + std::mem::size_of_val(&srf.texture);
+                                            srf_size_boundary +=
+                                                data_size(&srf) + std::mem::size_of_val(&srf);
                                             geomsrf += 1;
-                                            empty_allocation += srf.boundaries.capacity()
-                                                - srf.boundaries.capacity();
-                                            for ring in &srf.boundaries {
+                                            empty_allocation += srf.capacity() - srf.capacity();
+                                            for ring in srf {
                                                 nr_points += ring.len();
                                                 empty_allocation += ring.capacity() - ring.len();
                                             }
                                         }
                                     }
                                 }
-                                Geometry::MultiSurface { lod, boundaries } => {
+                                Geometry::MultiSurface {
+                                    lod, boundaries, ..
+                                } => {
                                     boundaries_sizes += data_size(boundaries);
                                     empty_allocation += boundaries.capacity() - boundaries.len();
                                     for srf in boundaries {
                                         nr_surfaces += 1;
                                         surfaces_sizes +=
                                             data_size(srf) + std::mem::size_of_val(srf);
-                                        srf_size_boundary += data_size(&srf.boundaries)
-                                            + std::mem::size_of_val(&srf.boundaries);
-                                        srf_size_mat += data_size(&srf.material)
-                                            + std::mem::size_of_val(&srf.material);
-                                        // srf_size_sem += data_size(&srf.semantics)
-                                        //     + std::mem::size_of_val(&srf.semantics);
-                                        srf_size_text += data_size(&srf.texture)
-                                            + std::mem::size_of_val(&srf.texture);
+                                        srf_size_boundary +=
+                                            data_size(&srf) + std::mem::size_of_val(&srf);
                                         geomsrf += 1;
-                                        empty_allocation +=
-                                            srf.boundaries.capacity() - srf.boundaries.capacity();
-                                        for ring in &srf.boundaries {
+                                        empty_allocation += srf.capacity() - srf.capacity();
+                                        for ring in srf {
                                             nr_points += ring.len();
                                             empty_allocation += ring.capacity() - ring.len();
                                         }
@@ -464,9 +416,6 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                     surfaces_sizes as f32 / nr_surfaces as f32
                 );
                 println!("srf boundary [Mb] {}", srf_size_boundary as f32 / 1e+6);
-                println!("srf semantics [Mb] {}", srf_size_sem as f32 / 1e+6);
-                println!("srf texture [Mb] {}", srf_size_text as f32 / 1e+6);
-                println!("srf material [Mb] {}", srf_size_mat as f32 / 1e+6);
                 println!("nr. geometries {}", nr_geometries);
                 println!(
                     "total boundary (Geometry) size [Mb] {}",
