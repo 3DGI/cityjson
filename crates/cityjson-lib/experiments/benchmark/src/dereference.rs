@@ -41,13 +41,21 @@ enum Geometry {
         lod: Option<LoD>,
         boundaries: Vec<Surface>,
         semantics_values: Option<Vec<Option<u16>>>,
-        semantics_surfaces: Option<Vec<Semantic>>,
+        semantics: Option<Vec<Semantic>>,
+        textures_values: Option<Vec<Option<u16>>>,
+        textures: Option<Vec<Texture>>,
+        materials_values: Option<Vec<Option<u16>>>,
+        materials: Option<Vec<Material>>,
     },
     Solid {
         lod: Option<LoD>,
         boundaries: Vec<Vec<Surface>>,
         semantics_values: Option<Vec<Vec<Option<u16>>>>,
-        semantics_surfaces: Option<Vec<Semantic>>,
+        semantics: Option<Vec<Semantic>>,
+        textures_values: Option<Vec<Vec<Option<u16>>>>,
+        textures: Option<Vec<Texture>>,
+        materials_values: Option<Vec<Vec<Option<u16>>>>,
+        materials: Option<Vec<Material>>,
     },
 }
 
@@ -256,7 +264,11 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_solid_bdry,
                 semantics_values: semval,
-                semantics_surfaces: semsurf,
+                semantics: semsurf,
+                textures_values: None,
+                textures: None,
+                materials_values: None,
+                materials: None,
             })
         }
         IGeometry::MultiSurface {
@@ -264,6 +276,8 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
             boundaries,
             semantics,
         } => {
+            let mut semsurf: Option<Vec<Semantic>> = None;
+            let mut semval: Option<Vec<Option<u16>>> = None;
             let mut new_msrf_bdry = Vec::with_capacity(boundaries.len());
             for (sui, surface) in boundaries.iter().enumerate() {
                 let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
@@ -280,8 +294,12 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
             Some(Geometry::MultiSurface {
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_msrf_bdry,
-                semantics_values: None,
-                semantics_surfaces: None,
+                semantics_values: semval,
+                semantics: semsurf,
+                textures_values: None,
+                textures: None,
+                materials_values: None,
+                materials: None,
             })
         }
         _ => {
