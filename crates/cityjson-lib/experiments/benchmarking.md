@@ -443,3 +443,23 @@ Interestingly, I get nearly identical CityModel size for the `vertex-index` arch
 Even though I don't have the semantics and appearances correctly implemented, I think I know enough already and I have made up my mind.
 I will implement the data structure just as the CityJSONFeatures, except that I will have the geometry boundaries dereferenced.
 But the semantics and appearances stay as they are in the file, pointing to the geometry primitives.
+
+## Commit e19f40af – 2022-08-10
+
+Implemented the data structure akin to the CityJSONFeatures, except that all the pointers and surfaces are stored on the Geometry instead of the CityObject.
+Performance is just as good as previously.
+
+```rust
+enum Geometry {
+    Solid {
+        lod: Option<LoD>,
+        boundaries: Vec<Vec<Surface>>,
+        semantics_values: Option<Vec<Vec<Option<u16>>>>,
+        semantics: Option<Vec<Semantic>>,
+        textures_values: Option<Vec<Vec<Option<u16>>>>,
+        textures: Option<Vec<Texture>>,
+        materials_values: Option<Vec<Vec<Option<u16>>>>,
+        materials: Option<Vec<Material>>,
+    },
+}
+```
