@@ -19,6 +19,8 @@ struct CityModel<'vertices> {
     vertices: Vertices<'vertices>,
 }
 
+type OptionalContainer = Option<Vec<Option<Point>>>;
+
 fn main() {
     // let mut cm = CityModel {
     //     cityobjects: HashMap::new(),
@@ -50,9 +52,25 @@ fn main() {
     // let cm3 = dereference::parse_dereferece(get_data());
     // let cm4 = dereference::parse_dereferece(get_data());
     // -----------------------
-    let mut a: usize = 0;
-    a += 2;
-    println!("{}", a.to_string());
-    a += 2;
-    println!("{}", a.to_string());
+    // let mut a: usize = 0;
+    // a += 2;
+    // println!("{}", a.to_string());
+    // a += 2;
+    // println!("{}", a.to_string());
+    // ----------------------------
+    let mut oc: OptionalContainer = Some(Vec::new());
+    if let Some(ref mut _oc) = oc {
+        _oc.push(Some([1.0, 1.0, 1.0]));
+    }
+    if let Some(ref mut _oc) = oc {
+        _oc.push(Some([2.0, 2.0, 2.0]));
+    }
+    if let Some(ref mut _oc) = oc {
+        _oc.push(None);
+    }
+    if let Some(ref _oc) = oc {
+        for v in _oc {
+            println!("{:#?}", v);
+        }
+    }
 }
