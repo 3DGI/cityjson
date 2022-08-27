@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables)]
+
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-
-use dereference::*;
 
 type Point = [f64; 3];
 
@@ -73,4 +73,7 @@ fn main() {
             println!("{:#?}", v);
         }
     }
+
+    
+    ()
 }

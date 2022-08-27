@@ -5,6 +5,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use datasize::{data_size, DataSize};
 use memmap2::Mmap;
@@ -40,26 +41,20 @@ enum Geometry {
     MultiSurface {
         lod: Option<LoD>,
         boundaries: Vec<Surface>,
-        semantics_values: Option<Vec<Option<u16>>>,
-        semantics: Option<Vec<Semantic>>,
-        textures_values: Option<Vec<Option<u16>>>,
-        textures: Option<Vec<Texture>>,
-        materials_values: Option<Vec<Option<u16>>>,
-        materials: Option<Vec<Material>>,
+        semantics_values: Option<Vec<Option<Rc<Semantic>>>>,
+        textures_values: Option<Vec<Option<Rc<Texture>>>>,
+        materials_values: Option<Vec<Option<Rc<Material>>>>,
     },
     Solid {
         lod: Option<LoD>,
         boundaries: Vec<Vec<Surface>>,
-        semantics_values: Option<Vec<Vec<Option<u16>>>>,
-        semantics: Option<Vec<Semantic>>,
-        textures_values: Option<Vec<Vec<Option<u16>>>>,
-        textures: Option<Vec<Texture>>,
-        materials_values: Option<Vec<Vec<Option<u16>>>>,
-        materials: Option<Vec<Material>>,
+        semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>>,
+        textures_values: Option<Vec<Vec<Option<Rc<Texture>>>>>,
+        materials_values: Option<Vec<Vec<Option<Rc<Material>>>>>,
     },
 }
 
-#[derive(Debug, DataSize)]
+#[derive(Debug, DataSize, PartialEq, Eq)]
 enum Semantic {
     TransportationHole,
     TransportationMarking,
@@ -115,20 +110,11 @@ struct Texture {
 }
 
 #[derive(Default, Debug, DataSize)]
-struct Appearance {
-    materials: Option<Vec<Material>>,
-    textures: Option<Vec<Texture>>,
-    default_theme_texture: Option<String>,
-    default_theme_material: Option<String>,
-}
-
-#[derive(Default, Debug, DataSize)]
 struct CityObject {
     cotype: String,
     children: Option<Vec<String>>,
     parents: Option<Vec<String>>,
     geometry: Option<Vec<Geometry>>,
-    appearance: Option<Appearance>,
 }
 
 #[derive(Debug, DataSize)]
@@ -136,6 +122,11 @@ pub struct CityModel {
     pub cmtype: String,
     pub version: String,
     cityobjects: HashMap<String, CityObject>,
+    semantics: Option<Vec<Rc<Semantic>>>,
+    textures: Option<Vec<Rc<Texture>>>,
+    materials: Option<Vec<Rc<Material>>>,
+    default_theme_texture: Option<String>,
+    default_theme_material: Option<String>,
 }
 
 /*
@@ -203,15 +194,18 @@ pub struct CMVertices {
     pub vertices: Vertices,
 }
 
-fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometry> {
+fn boundary_dereference(
+    vertices: &Vertices,
+    geom: &IGeometry,
+    cmsemantics: &mut Option<Vec<Rc<Semantic>>>,
+) -> Option<Geometry> {
     match geom {
         IGeometry::Solid {
             lod,
             boundaries,
             semantics,
         } => {
-            let mut semsurf: Option<Vec<Semantic>> = None;
-            let mut semval: Option<Vec<Vec<Option<u16>>>> = None;
+            let mut semval: Option<Vec<Vec<Option<Rc<Semantic>>>>> = None;
             let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
             for (shi, shell) in boundaries.iter().enumerate() {
                 let mut new_shell = Vec::with_capacity(shell.len());
@@ -231,44 +225,54 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
             }
             // This could be moved inside the boundary loop, but having it here outside makes the
             // code more simple.
+            let mut local_global_semantics_idx: Vec<usize> = Vec::new();
             if let Some(sem) = semantics {
-                semsurf = Some(
-                    sem.surfaces
-                        .iter()
-                        .map(|ss| {
-                            match ss.semtype.as_str() {
-                                "GroundSurface" => Semantic::GroundSurface,
-                                "WallSurface" => Semantic::WallSurface,
-                                "RoofSurface" => Semantic::RoofSurface,
-                                &_ => {
-                                    // This is a hack of sorts, because we must return a Semantic, or
-                                    // use Option<Semantic>
-                                    Semantic::Unknown
-                                }
-                            }
-                        })
-                        .collect(),
-                );
-                // TODO: How to handle null values?
-                let mut _sv: Vec<Vec<Option<u16>>> = Vec::new();
-                for shi in &sem.values {
-                    let mut _suv: Vec<Option<u16>> = Vec::new();
-                    for sui in shi {
-                        _suv.push(Some(*sui as u16));
+                for (si, ss) in sem.surfaces.iter().enumerate() {
+                    let _sem: Rc<Semantic> = Rc::new(match ss.semtype.as_str() {
+                        "GroundSurface" => Semantic::GroundSurface,
+                        "WallSurface" => Semantic::WallSurface,
+                        "RoofSurface" => Semantic::RoofSurface,
+                        &_ => {
+                            // This is a hack of sorts, because we must return a Semantic, or
+                            // use Option<Semantic>
+                            Semantic::Unknown
+                        }
+                    });
+                    let mut _cmsemantics_idx: usize;
+                    if let Some(ref mut _csm) = cmsemantics {
+                        if let Some(sidx) = _csm.iter().position(|r| r == &_sem) {
+                            _cmsemantics_idx = sidx.clone();
+                        } else {
+                            _csm.push(_sem);
+                            _cmsemantics_idx = _csm.len() - 1;
+                        }
+                    } else {
+                        *cmsemantics = Some(vec![_sem]);
+                        _cmsemantics_idx = 0;
                     }
-                    _sv.push(_suv)
+                    local_global_semantics_idx.push(_cmsemantics_idx);
                 }
-                semval = Some(_sv);
+                // TODO: How to handle null values?
+                if let Some(ref _csm) = cmsemantics {
+                    let mut _sv: Vec<Vec<Option<Rc<Semantic>>>> = Vec::new();
+                    for shi in &sem.values {
+                        let mut _suv: Vec<Option<Rc<Semantic>>> = Vec::new();
+                        for sui in shi {
+                            _suv.push(Some(
+                                _csm[local_global_semantics_idx[sui.to_owned()]].clone(),
+                            ));
+                        }
+                        _sv.push(_suv)
+                    }
+                    semval = Some(_sv);
+                }
             }
             Some(Geometry::Solid {
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_solid_bdry,
                 semantics_values: semval,
-                semantics: semsurf,
                 textures_values: None,
-                textures: None,
                 materials_values: None,
-                materials: None,
             })
         }
         IGeometry::MultiSurface {
@@ -276,8 +280,7 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
             boundaries,
             semantics,
         } => {
-            let mut semsurf: Option<Vec<Semantic>> = None;
-            let mut semval: Option<Vec<Option<u16>>> = None;
+            let mut semval: Option<Vec<Option<Rc<Semantic>>>> = None;
             let mut new_msrf_bdry = Vec::with_capacity(boundaries.len());
             for (sui, surface) in boundaries.iter().enumerate() {
                 let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
@@ -295,11 +298,8 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
                 lod: Some(LoD::LoD2_2),
                 boundaries: new_msrf_bdry,
                 semantics_values: semval,
-                semantics: semsurf,
                 textures_values: None,
-                textures: None,
                 materials_values: None,
-                materials: None,
             })
         }
         _ => {
@@ -309,7 +309,11 @@ fn boundary_dereference(vertices: &Vertices, geom: &IGeometry) -> Option<Geometr
     }
 }
 
-struct CityObjectsMap<'a>(&'a mut HashMap<String, CityObject>, &'a CMVertices);
+struct CityObjectsMap<'a>(
+    &'a mut HashMap<String, CityObject>,
+    &'a CMVertices,
+    &'a mut Option<Vec<Rc<Semantic>>>,
+);
 
 impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
     type Value = ();
@@ -318,7 +322,11 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
     where
         D: Deserializer<'de>,
     {
-        struct CityObjectsMapVisitor<'a>(&'a mut HashMap<String, CityObject>, &'a CMVertices);
+        struct CityObjectsMapVisitor<'a>(
+            &'a mut HashMap<String, CityObject>,
+            &'a CMVertices,
+            &'a mut Option<Vec<Rc<Semantic>>>,
+        );
 
         impl<'de, 'a> Visitor<'de> for CityObjectsMapVisitor<'a> {
             type Value = ();
@@ -327,7 +335,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 write!(formatter, "a Geometry object")
             }
 
-            fn visit_map<A>(self, mut map: A) -> Result<(), A::Error>
+            fn visit_map<A>(mut self, mut map: A) -> Result<(), A::Error>
             where
                 A: MapAccess<'de>,
             {
@@ -342,7 +350,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 while let Some((coid, co)) = map.next_entry::<String, ICityObject>()? {
                     let mut new_geoms: Vec<Geometry> = Vec::with_capacity(co.geometry.len());
                     for geom in &co.geometry {
-                        if let Some(g) = boundary_dereference(&self.1.vertices, geom) {
+                        if let Some(g) = boundary_dereference(&self.1.vertices, geom, &mut self.2) {
                             nr_geometries += 1;
                             let mut geomsrf: usize = 0;
                             match &g {
@@ -401,7 +409,6 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                             geometry: Some(new_geoms),
                             children: None,
                             parents: None,
-                            appearance: None,
                         },
                     );
                 }
@@ -447,7 +454,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 Ok(())
             }
         }
-        deserializer.deserialize_map(CityObjectsMapVisitor(self.0, self.1))
+        deserializer.deserialize_map(CityObjectsMapVisitor(self.0, self.1, self.2))
     }
 }
 
@@ -477,8 +484,11 @@ impl<'de, 'a> DeserializeSeed<'de> for CityModelMap<'a> {
             {
                 while let Some(key) = map.next_key::<String>()? {
                     if key == "CityObjects" {
-                        let a =
-                            map.next_value_seed(CityObjectsMap(&mut self.0.cityobjects, &self.1))?;
+                        let a = map.next_value_seed(CityObjectsMap(
+                            &mut self.0.cityobjects,
+                            &self.1,
+                            &mut self.0.semantics,
+                        ))?;
                         self.0.cityobjects.shrink_to_fit();
                     } else {
                         let ignore_value: IgnoredAny = map.next_value::<IgnoredAny>()?;
@@ -506,6 +516,11 @@ pub fn parse_dereferece(path_in: PathBuf) -> CityModel {
         cmtype: Default::default(),
         version: Default::default(),
         cityobjects: HashMap::new(),
+        semantics: None,
+        textures: None,
+        materials: None,
+        default_theme_material: None,
+        default_theme_texture: None,
     };
 
     let cm_map = CityModelMap(&mut cm, &cm_vertices);
@@ -530,6 +545,11 @@ pub fn parse_dereferece(path_in: PathBuf) -> CityModel {
         "avg. cityobject heap allocation [b] {}",
         data_size(&cm.cityobjects) as f32 / cm.cityobjects.len() as f32
     );
+    if let Some(ref _s) = cm.semantics {
+        for i in _s.iter() {
+            println!("{:?}", i);
+        }
+    }
 
     cm
 }
