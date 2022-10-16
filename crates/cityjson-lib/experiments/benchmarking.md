@@ -32,6 +32,18 @@ Since we are doing file I/O, the benchmark results can be heavily influenced by 
 Thus, for precise run time measurements the benchmarks need to be run on a warm cache.
 The `time` command cannot do warmup runs, but [hyperfine](https://github.com/sharkdp/hyperfine) can.
 
+### Memory usage
+
+```bash
+/opt/valgrind-3.19.0/install/bin/valgrind --tool=massif  benchmark/target/release/benchmark /data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json -a dereference -c deserialize
+```
+
+### Cache performance
+
+```bash
+perf stat -e task-clock,cycles,instructions,cache-references,cache-misses target/release/benchmark -a dereference -c deserialize /data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json
+```
+
 ## Focus on geometry and semantics
 
 The benchmark is focusing on the geometry and semantics of the city model.
@@ -463,3 +475,60 @@ enum Geometry {
     },
 }
 ```
+
+## Commit 4112819f – 2022-08-27
+
+Implemented the data structure with reference counted pointers (`Rc`).
+
+
+```rust
+struct CityModel {
+    cmtype: String,
+    version: String,
+    cityobjects: HashMap<String, CityObject>,
+    semantics: Option<Vec<Rc<Semantic>>>,
+    textures: Option<Vec<Rc<Texture>>>,
+    materials: Option<Vec<Rc<Material>>>,
+    default_theme_texture: Option<String>,
+    default_theme_material: Option<String>,
+}
+
+enum Geometry {
+  Solid {
+    lod: Option<LoD>,
+    boundaries: Vec<Vec<Surface>>,
+    semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>>,
+    textures_values: Option<Vec<Vec<Option<Rc<Texture>>>>>,
+    materials_values: Option<Vec<Vec<Option<Rc<Material>>>>>,
+  }
+}
+```
+
+Run `perf` as:
+
+```bash
+perf stat -e task-clock,cycles,instructions,cache-references,cache-misses target/release/benchmark -a dereference -c deserialize /data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json
+```
+
+```
+Performance counter stats for 'target/release/benchmark -a dereference -c deserialize /data/3D_basisvoorziening/32cz1_2020_volledig/32cz1_04_bench.city.json':
+
+        8.419,39 msec task-clock                #    1,000 CPUs utilized          
+  29.866.867.058      cycles                    #    3,547 GHz                    
+  74.878.762.309      instructions              #    2,51  insn per cycle         
+     718.756.542      cache-references          #   85,369 M/sec                  
+     391.427.065      cache-misses              #   54,459 % of all cache refs    
+
+     8,422295059 seconds time elapsed
+
+     7,751887000 seconds user
+     0,667990000 seconds sys
+```
+
+The cache is working pretty efficiently, since there are only 0,5% cache misses (cache-miss/instruction ratio).
+But this is only for simple deserialization, not for iterating over the data.
+
+The test implementation for serializing a `CityModel` proves that it is fairly straightforward to do it.
+Although, `benchmark::dereference::deref_serialize` and `benchmark::dereference::index_boundaries` and `benchmark::dereference::index_semantics` uses the generic `serde_json::Value` type, which causes the memory use to go through the roof.
+About ~120Mb max RSS for the 7.5Mb 3D BAG test file.
+This for sure can be improved, because I've just written a quick proof of concept implementation.

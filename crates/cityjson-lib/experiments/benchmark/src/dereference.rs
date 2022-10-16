@@ -24,6 +24,8 @@ type Surface = Vec<LineString>;
 enum LoD {
     LoD0,
     LoD1,
+    LoD1_2,
+    LoD1_3,
     LoD2_2,
 }
 
@@ -267,8 +269,15 @@ fn boundary_dereference(
                     semval = Some(_sv);
                 }
             }
+            let lod_enum = match lod.as_str() {
+                "0" => LoD::LoD0,
+                "2.2" => LoD::LoD2_2,
+                "1.2" => LoD::LoD1_2,
+                "1.3" => LoD::LoD1_3,
+                _ => LoD::LoD0,
+            };
             Some(Geometry::Solid {
-                lod: Some(LoD::LoD2_2),
+                lod: Some(lod_enum),
                 boundaries: new_solid_bdry,
                 semantics_values: semval,
                 textures_values: None,
@@ -335,6 +344,7 @@ impl<'de, 'a> DeserializeSeed<'de> for CityObjectsMap<'a> {
                 write!(formatter, "a Geometry object")
             }
 
+            //noinspection RsMainFunctionNotFound
             fn visit_map<A>(mut self, mut map: A) -> Result<(), A::Error>
             where
                 A: MapAccess<'de>,
@@ -656,17 +666,18 @@ pub fn deref_semantics(path_in: PathBuf) {
 
 /// Creates an indexed boundary representation (as in CityJSON) from the dereferenced,
 /// Simple Feature-like boundary.
-/*fn index_boundaries(
+fn index_boundaries(
     geometry: &Geometry,
     vtx_lookup: &mut HashMap<String, usize>,
     vtx_idx: &mut usize,
-) -> serde_json::Result<String> {
-        match geometry {
-        geom_static::Geometry::MultiSurface { boundaries, .. } => {
+) -> Option<serde_json::Result<Value>> {
+    match geometry {
+        Geometry::MultiSurface { boundaries, .. } => {
+            // indexed multisurface
             let mut imsurface = Vec::new();
-            for surface in boundaries {
+            for (srfi, surface) in boundaries.iter().enumerate() {
                 let mut isurface = Vec::new();
-                for ring in &surface.boundaries {
+                for ring in surface {
                     let mut iring: Vec<usize> = Vec::new();
                     for vtx in ring {
                         let coord_str: String =
@@ -684,15 +695,16 @@ pub fn deref_semantics(path_in: PathBuf) {
                 }
                 imsurface.push(isurface);
             }
-            serde_json::to_string(&imsurface)
+            // serde_json::to_string(&imsurface)
+            Some(Ok(Value::from(imsurface)))
         }
-        geom_static::Geometry::Solid { boundaries, .. } => {
+        Geometry::Solid { boundaries, .. } => {
             let mut isolid = Vec::new();
             for shell in boundaries {
                 let mut ishell = Vec::new();
                 for surface in shell {
                     let mut isurface = Vec::new();
-                    for ring in &surface.boundaries {
+                    for ring in surface {
                         let mut iring: Vec<usize> = Vec::new();
                         for vtx in ring {
                             let coord_str: String =
@@ -712,11 +724,191 @@ pub fn deref_semantics(path_in: PathBuf) {
                 }
                 isolid.push(ishell);
             }
-            serde_json::to_string(&isolid)
+            // serde_json::to_string(&isolid)
+            Some(Ok(Value::from(isolid)))
         }
-        _ => serde_json::to_string("not implemented"),
+        _ => None,
     }
-}*/
+}
+
+/// Creates a CityJSON Semantic Object from a dereferenced Geometry
+fn index_semantics(geometry: &Geometry) -> Option<serde_json::Result<serde_json::Value>> {
+    match geometry {
+        Geometry::MultiSurface {
+            semantics_values, ..
+        } => {
+            if let Some(ref semval) = semantics_values {
+                let mut surfaces: Vec<serde_json::Value> = Vec::new();
+                let mut values: Vec<Option<usize>> = Vec::new();
+                let mut sem_idx: HashMap<String, usize> = HashMap::new();
+                let mut sem_idx_ctr: usize = 0;
+                for (srfi, semop) in semval.iter().enumerate() {
+                    if let Some(sem) = semop {
+                        let semstr = format!("{:?}", sem);
+                        if let Some(_sidx) = sem_idx.get(&semstr) {
+                            values.push(Some(*_sidx));
+                        } else {
+                            sem_idx.insert(semstr.clone(), sem_idx_ctr);
+                            values.push(Some(sem_idx_ctr));
+                            surfaces.push(json!({
+                                "type": semstr.clone()
+                            }));
+                            sem_idx_ctr += 1;
+                        }
+                    } else {
+                        values.push(None);
+                    }
+                }
+                let a = json!({
+                    "surfaces": surfaces,
+                    "values": values
+                });
+                Some(Ok(a))
+            } else {
+                None
+            }
+        }
+        Geometry::Solid {
+            semantics_values, ..
+        } => {
+            if let Some(ref semval) = semantics_values {
+                let mut surfaces: Vec<serde_json::Value> = Vec::new();
+                let mut values: Vec<Vec<Option<usize>>> = Vec::new();
+                let mut sem_idx: HashMap<String, usize> = HashMap::new();
+                let mut sem_idx_ctr: usize = 0;
+                for (shi, shell_vec) in semval.iter().enumerate() {
+                    let mut surface_values: Vec<Option<usize>> = Vec::new();
+                    for (srfi, semop) in shell_vec.iter().enumerate() {
+                        if let Some(sem) = semop {
+                            let semstr = format!("{:?}", sem);
+                            if let Some(_sidx) = sem_idx.get(&semstr) {
+                                surface_values.push(Some(*_sidx));
+                            } else {
+                                sem_idx.insert(semstr.clone(), sem_idx_ctr);
+                                surface_values.push(Some(sem_idx_ctr));
+                                surfaces.push(json!({
+                                    "type": semstr.clone()
+                                }));
+                                sem_idx_ctr += 1;
+                            }
+                        } else {
+                            surface_values.push(None);
+                        }
+                    }
+                    values.push(surface_values);
+                }
+                let a = json!({
+                    "surfaces": surfaces,
+                    "values": values
+                });
+                Some(Ok(a))
+            } else {
+                None
+            }
+        }
+        // Not implemented
+        _ => None,
+    }
+}
+
+pub fn deref_serialize(path_in: PathBuf) {
+    let cm = parse_dereferece(path_in);
+
+    let mut vtx_lookup: HashMap<String, usize> = HashMap::new();
+    let mut vtx_idx: usize = 0;
+    let mut vertices: Vertices = Vec::new();
+
+    let mut cityobjects_val: HashMap<String, Value> = HashMap::new();
+    for (coid, co) in cm.cityobjects.iter() {
+        let mut cityobject_val: Value = json!({
+            "type": co.cotype.clone()
+        });
+        if co.cotype == "BuildingPart" {
+            cityobject_val["parents"] = json!([]);
+        }
+        if let Some(ref geometry) = co.geometry {
+            let mut geometry_val: Vec<Value> = Vec::new();
+            for geometry_variant in geometry.iter() {
+                let boundary = index_boundaries(geometry_variant, &mut vtx_lookup, &mut vtx_idx);
+                let semantics = index_semantics(geometry_variant);
+                let geomlod: String;
+                let geomtype: String;
+                match geometry_variant {
+                    Geometry::MultiSurface { lod, .. } => {
+                        geomtype = String::from("MultiSurface");
+                        if let Some(lod) = lod {
+                            match lod {
+                                LoD::LoD0 => geomlod = String::from("0"),
+                                LoD::LoD1 => geomlod = String::from("1"),
+                                LoD::LoD1_2 => geomlod = String::from("1.2"),
+                                LoD::LoD1_3 => geomlod = String::from("1.3"),
+                                LoD::LoD2_2 => geomlod = String::from("2.2"),
+                                _ => todo!(),
+                            }
+                        } else {
+                            geomlod = String::from("");
+                        }
+                    }
+                    Geometry::Solid { lod, .. } => {
+                        geomtype = String::from("Solid");
+                        if let Some(lod) = lod {
+                            match lod {
+                                LoD::LoD0 => geomlod = String::from("0"),
+                                LoD::LoD1 => geomlod = String::from("1"),
+                                LoD::LoD1_2 => geomlod = String::from("1.2"),
+                                LoD::LoD1_3 => geomlod = String::from("1.3"),
+                                LoD::LoD2_2 => geomlod = String::from("2.2"),
+                                _ => todo!(),
+                            }
+                        } else {
+                            geomlod = String::from("");
+                        }
+                    }
+                    _ => {
+                        geomtype = String::from("Not implemented");
+                        geomlod = String::from("Unknown");
+                    }
+                };
+                let mut g = json!({
+                    "type": geomtype,
+                    "lod": geomlod,
+                });
+                if let Some(boundary) = boundary {
+                    g["boundaries"] = boundary.unwrap_or(json!([]));
+                }
+                if let Some(semantics) = semantics {
+                    g["semantics"] = semantics.unwrap_or(json!({}));
+                }
+                geometry_val.push(g);
+            }
+            cityobject_val["geometry"] = Value::from(geometry_val);
+        }
+        cityobjects_val.insert(coid.clone(), cityobject_val);
+    }
+
+    for vtx in vtx_lookup.keys() {
+        let mut v: [f32; 3] = [0.0, 0.0, 0.0];
+        for (i, c) in vtx.split_whitespace().enumerate() {
+            v[i] = c.parse::<f32>().unwrap();
+        }
+        vertices.push(v);
+    }
+
+    let citymodel_val = json!({
+        "type": cm.cmtype.clone(),
+        "version": cm.version.clone(),
+        "CityObjects": cityobjects_val,
+        "transform": {
+            "scale": [1.0, 1.0, 1.0],
+            "translate": [0.0, 0.0, 0.0]
+        },
+        "vertices": vertices,
+    });
+
+    let mut file_out =
+        File::create("outfile.city.json").expect("Couldn't create file outfile.city.json");
+    let res = serde_json::to_writer(&file_out, &citymodel_val);
+}
 
 pub fn deref_create(path_in: PathBuf) {
     /*    let mut vtx_lookup: HashMap<String, usize> = HashMap::new();

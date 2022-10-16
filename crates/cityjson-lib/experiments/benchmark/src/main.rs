@@ -55,9 +55,7 @@ impl Architectures {
             Architectures::VertexIndex => {
                 println!("Not implemented")
             }
-            Architectures::Dereference => {
-                println!("Not implemented")
-            }
+            Architectures::Dereference => deref_serialize(path_in),
         }
     }
     fn geometry(&self, path_in: PathBuf) {

@@ -1,5 +1,11 @@
-.idea
-target
-experiments/notes.md
+# IDE  config
+/.run/
+.idea/
+
+# Build directories
+/target/
 Cargo.lock
 /experiments/.ipynb_checkpoints/
+
+# Notes
+experiments/notes.md
