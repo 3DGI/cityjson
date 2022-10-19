@@ -6,6 +6,14 @@
 /target/
 Cargo.lock
 /experiments/.ipynb_checkpoints/
+/experiments/*/target/
+
+# Profiling
+/experiments/profiling/massif*
+/experiments/profiling/xtmemory*
+
+# Virtual environment
+/venv/
 
 # Notes
 experiments/notes.md

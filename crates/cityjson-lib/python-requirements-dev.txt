@@ -1,0 +1,6 @@
+# Benchmarking
+pandas
+matplotlib
+pysimdjson
+# Documentation
+mkdocs-material
