@@ -11,7 +11,7 @@
 
 ## Creating CityModels
 
-Instantiate a new, empty `CityModel`.
+Create a new, empty instance of a `CityModel`.
 
 === "Rust"
 
@@ -41,7 +41,7 @@ Create a `CityModel` from a CityJSON string.
         },
         "CityObjects": {},
         "vertices": []
-    }"
+    }"#
     let cm = CityModel::from_str(&cityjson_str);
     ```
 
@@ -80,20 +80,31 @@ Create a `CityModel` from a CityJSON file.
     cm = CityModel.from_file("myfile.city.json")
     ```
 
+### Reading a stream of CityJSONFeatures
+
 Parse a stream of text sequence into [`CityJSONFeature`s](https://www.cityjson.org/specs/1.1.2/#text-sequences-and-streaming-with-cityjsonfeature).
+While this approach does not need access to `CityModel`, we only recommend it in the case when you process and discard the features one by one, because the semantic and appearance objects are duplicated across the features.
 
 === "Rust"
 
     ```rust
     use serde_json::Deserializer;
 
-    let features_sequence = r#"{"type":"CityJSONFeature"}{"type":"CityJSONFeature"}";
+    let features_sequence = r#"
+        {"type":"CityJSONFeature"}
+        {"type":"CityJSONFeature"}
+    "#;
     let stream = Deserializer::from_str(features_sequence).into_iter::<CityFeature>();
+    let transform_properties = Transform::new()
+        .scale(1.0, 1.0, 1.0)
+        .translate(0.0, 0.0, 0.0);
 
-    for feature in stream {
+    while let Some(feature) = stream.next() {
         let parent_cityobject: String = feature.id;
-        for (coid, co) in feature.cityobjects.iter() {
+        for (coid, co) in feature.cityobjects.iter_mut() {
             println!("CityObject id: {}", coid);
+            co.transform(&transform_properties);
+            // process the CityObject
         }
     }
     ```
@@ -101,11 +112,104 @@ Parse a stream of text sequence into [`CityJSONFeature`s](https://www.cityjson.o
 === "Python"
 
     ```python
+    from io import StringIO
 
-    features_sequence = ["{\"type\":\"CityJSONFeature\"}, {\"type\":\"CityJSONFeature\"}"]
-    for feature in feature_sequence:
-        cityfeature = cjlib.readline(feature)
+    features_sequence = """
+        {"type":"CityJSONFeature"}
+        {"type":"CityJSONFeature"}
+    """.strip("\n").strip()
+    stream = StringIO(features_sequence)
+    
+    transform_properties = Transform(
+        scale=(1.0, 1.0, 1.0),
+        translate=(0.0, 0.0, 0.0)
+    )
+
+    for cityjsonfeature_str in stream:
+        if cityjsonfeature_str is None or cityjsonfeature_str == "":
+            break
+        else:
+            cityfeature = CityFeature.from_str(cityjsonfeature_str)
+        for (coid, co) in cityfeature.cityobjects:
+            print(f"CityObject id: {coid}")
+            co.transform(transform_properties)
+            # process the CityObject
     ```
+
+Normally, a `CityJSONFeature` stream will contain a single `CityJSON` object as the first item.
+This `CityJSON` object contains metadata about the city model, but also the transformation properties that are required for converting the compressed `CityObject` vertices into real-world coordinates.
+We expect that the first item is a `CityJSON` object.
+If this is not the case, you can also create an empty `CityModel` and set the transformation properties for the `CityJSONFeature`s in the stream.
+
+
+=== "Rust"
+
+    ```rust
+    use std::io::BufReader;
+
+    let features_sequence = r#"
+        {"type":"CityJSON"}
+        {"type":"CityJSONFeature"}
+        {"type":"CityJSONFeature"}
+    "#;
+    let stream_iter = BufReader::new(&features_sequence).lines();
+
+    let mut cm: CityModel; // (1)
+    if let Some(cityjson_str) = stream.next() // (2) {
+        cm = CityModel::from_str(&cityjson_str);
+    }
+
+    while let Some(cityjsonfeature_str) = stream.next() {
+
+        let cf: CityFeature = CityFeature::from_str(&cityjsonfeature_str)
+            .with(&mut cm); // (3)
+
+        for (coid, co) in cf.cityobjects.iter() {
+            println!("CityObject id: {}", coid);
+        }
+
+        // Additionally, you can the CityFeature to the CityModel.
+        // The CityObjects from the CityFeature are added to the 
+        // CityObjects of the CityModel.
+        cm.cityobjects.insert(cf);
+    }
+    ```
+    
+    1. We need a `mut`able `CityModel`, because its semantics and appearances will be populated from the `CityJSONFeature`s.
+    
+    2. We expect that the first item in the stream is a `CityJSON` object.
+        This first `CityJSON` object is converted to a `CityModel`, which is then used for parsing the `CityJSONFeature`.
+    
+    3. Parse the `CityJSONFeature` into a `CityFeature`, with the information from the CityModel `cm` (transformation properties etc.). 
+        Since the appearance and semantic objects of the `CityObject`s are stored on the `CityModel`, we need a mutable reference to it.
+
+=== "Python"
+
+    ```python
+    from io import StringIO
+
+    features_sequence = """
+        {"type":"CityJSON"}
+        {"type":"CityJSONFeature"}
+        {"type":"CityJSONFeature"}
+    """.strip("\n").strip()
+    stream = StringIO(features_sequence)
+
+    citymodel_str = stream.readline()
+    cm = CityModel.from_str(citymodel_str)
+    
+    for cityjsonfeature_str in stream:
+        if cityjsonfeature_str is None or cityjsonfeature_str == "":
+            break
+        else:
+            cf = CityFeature.from_str(cityjsonfeature_str, citymodel=cm)
+
+        # Additionally, you can the CityFeature to the CityModel.
+        # The CityObjects from the CityFeature are added to the
+        # CityObjects of the CityModel.
+        cm.cityobjects.insert(cf)
+    ```
+
 
 ## Writing a CityJSON document
 
@@ -218,7 +322,7 @@ Currently, only the `http(s)://` and `file://` protocols are supported for loadi
         },
         "CityObjects": {},
         "vertices": []
-    }"
+    }"#
     let cm = CityModel::from_str(&cityjson_with_extension);
     ```
 
