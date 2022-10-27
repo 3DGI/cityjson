@@ -3,7 +3,7 @@ use serde_json::{error, from_reader, from_str, to_string};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 ///```rust
@@ -14,6 +14,7 @@ pub struct CityModel {
     type_cm: CityModelType,
     version: CityJSONVersion,
     transform: Option<Transform>,
+    cityobjects: CityObjects,
 }
 
 impl CityModel {
@@ -22,6 +23,7 @@ impl CityModel {
             type_cm: CityModelType::CityJSON,
             version: CityJSONVersion::V1_1,
             transform: None,
+            cityobjects: Default::default(),
         }
     }
 
@@ -33,6 +35,7 @@ impl CityModel {
                 type_cm: icm.type_cm,
                 version: icm.version.unwrap(),
                 transform: icm.transform,
+                cityobjects: Default::default(),
             },
             CityModelType::CityJSONFeature => {
                 todo!()
@@ -41,10 +44,43 @@ impl CityModel {
         }
     }
 
+    /// Read from a file, either a regular JSON file or [JSON Lines text](https://jsonlines.org/).
     pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
         let file = File::open(path.as_ref()).expect("Couldn't open CityJSON file");
         let reader = BufReader::new(&file);
-        Self::from_reader(reader)
+        match path.as_ref().to_str().unwrap() {
+            "json" | "cityjson" => Self::from_reader(reader),
+            "jsonl" => Self::from_stream(reader),
+            _ => {
+                // let's try parsing as a regular CityJSON file
+                Self::from_reader(reader)
+            }
+        }
+    }
+
+    /// Create a CityModel from a stream of CityJSONFeatures, aggregating them into the CityModel's
+    /// CityObjects. Assumes that the first item in the stream is a CityJSON.
+    pub fn from_stream<R>(cursor: R) -> Self
+    where
+        R: BufRead,
+    {
+        let mut stream_iter = cursor.lines();
+
+        let mut cm: CityModel;
+        if let Some(res) = stream_iter.next() {
+            let cityjson_str = res.expect("Failed to read item from the stream.");
+            cm = CityModel::from_str(&cityjson_str);
+        } else {
+            // TODO: need to return an error from here
+            cm = Self::default()
+        }
+
+        for res in stream_iter {
+            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
+            let cf = CityFeature::from_str(&cityjsonfeature_str);
+            cm.cityobjects.insert(cf.id, CityObject);
+        }
+        cm
     }
 
     pub fn from_reader<R>(reader: R) -> Self
@@ -57,6 +93,7 @@ impl CityModel {
             type_cm: icm.type_cm,
             version: icm.version.unwrap(),
             transform: icm.transform,
+            cityobjects: Default::default(),
         }
     }
 
@@ -108,6 +145,7 @@ impl fmt::Debug for CityModel {
             .field("version", &self.version)
             .field("type_cm", &self.type_cm)
             .field("transform", &self.transform)
+            .field("cityobjects", &self.cityobjects)
             .finish()
     }
 }
@@ -116,8 +154,10 @@ impl fmt::Display for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(\n\tversion: {}\n\ttype: {}\n)",
-            &self.version, &self.type_cm,
+            "(\n\tversion: {}\n\ttype: {}\n\tnr. cityobjects: {})",
+            &self.version,
+            &self.type_cm,
+            &self.cityobjects.len()
         )
     }
 }
@@ -276,6 +316,11 @@ impl Default for Transform {
         Self::new()
     }
 }
+
+type CityObjects = HashMap<String, CityObject>;
+
+#[derive(Default, Debug)]
+struct CityObject;
 
 /// Indexed-structures.
 /// Parsing a CityJSON document is (internally) a two-step process with cjlib.
@@ -445,19 +490,15 @@ mod tests {
         let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-        let mut stream_iter = Cursor::new(feature_sequence).lines();
+        let mut stream = Cursor::new(feature_sequence.clone());
+        let cm = CityModel::from_stream(stream);
+        println!("From stream: {:?}", cm);
+    }
 
-        let cm: CityModel;
-        if let Some(res) = stream_iter.next() {
-            let cityjson_str = res.expect("Failed to read item from the stream.");
-            cm = CityModel::from_str(&cityjson_str);
-            println!("{}", cm);
-        }
-
-        for res in stream_iter {
-            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
-            let cf = CityFeature::from_str(&cityjsonfeature_str);
-            println!("{}", cf);
-        }
+    #[test]
+    fn features_sequence_file() {
+        let pb: PathBuf = test_data_dir().join("minimal_valid.city.jsonl");
+        let cm = CityModel::from_file(&pb);
+        println!("From jsonl: {:?}", cm);
     }
 }
