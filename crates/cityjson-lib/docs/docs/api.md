@@ -212,17 +212,16 @@ If this is not the case, you can also create an empty `CityModel` and set the tr
 === "Rust"
 
     ```rust
-    use std::io::BufReader;
+    use std::io::{BufRead, Cursor};
 
-    let features_sequence = r#"
-        {"type":"CityJSON"}
-        {"type":"CityJSONFeature"}
-        {"type":"CityJSONFeature"}
-    "#;
-    let stream_iter = BufReader::new(&features_sequence).lines();
+    let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
+        {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+        {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
+    let mut stream_iter = Cursor::new(feature_sequence).lines();
 
     let mut cm: CityModel; // (1)
-    if let Some(cityjson_str) = stream.next() // (2) {
+    if let Some(res) = stream_iter.next() // (2) {
+        let cityjson_str = res.expect("Failed to read object from the sequence.");
         cm = CityModel::from_str(&cityjson_str);
     }
 

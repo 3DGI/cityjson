@@ -28,10 +28,16 @@ impl CityModel {
     /// Parse a string of CityJSON text.
     pub fn from_str(cityjson: &str) -> Self {
         let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
-        Self {
-            type_cm: icm.type_cm,
-            version: icm.version,
-            transform: Some(icm.transform),
+        match icm.type_cm {
+            CityModelType::CityJSON => Self {
+                type_cm: icm.type_cm,
+                version: icm.version.unwrap(),
+                transform: icm.transform,
+            },
+            CityModelType::CityJSONFeature => {
+                todo!()
+                // TODO: add error Not a CityJSON
+            }
         }
     }
 
@@ -45,11 +51,12 @@ impl CityModel {
     where
         R: Read,
     {
+        // TODO: handle .jsonl
         let icm: ICityModel = from_reader(reader).expect("Could not deserialize into ICityModel.");
         Self {
             type_cm: icm.type_cm,
-            version: icm.version,
-            transform: Some(icm.transform),
+            version: icm.version.unwrap(),
+            transform: icm.transform,
         }
     }
 
@@ -112,6 +119,56 @@ impl fmt::Display for CityModel {
             "(\n\tversion: {}\n\ttype: {}\n)",
             &self.version, &self.type_cm,
         )
+    }
+}
+
+pub struct CityFeature {
+    id: String,
+    type_cm: CityModelType,
+}
+
+impl CityFeature {
+    pub fn new(id: String) -> Self {
+        Self {
+            type_cm: CityModelType::CityJSONFeature,
+            id,
+        }
+    }
+
+    /// Parse a string of CityJSON text.
+    pub fn from_str(cityjson: &str) -> Self {
+        let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
+        match icm.type_cm {
+            CityModelType::CityJSON => {
+                todo!()
+                // TODO: need error Not CityJSONFeature
+            }
+            CityModelType::CityJSONFeature => Self {
+                type_cm: icm.type_cm,
+                id: icm.id.unwrap(),
+            },
+        }
+    }
+}
+
+impl Default for CityFeature {
+    fn default() -> Self {
+        Self::new(String::from(""))
+    }
+}
+
+impl fmt::Debug for CityFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CityModel")
+            .field("type_cm", &self.type_cm)
+            .field("id", &self.id)
+            .finish()
+    }
+}
+
+impl fmt::Display for CityFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(\n\ttype: {}\n\tid: {}\n)", &self.type_cm, &self.id)
     }
 }
 
@@ -205,6 +262,7 @@ impl fmt::Display for Transform {
 
 impl Transform {
     pub fn new() -> Self {
+        // NOTE: consider ::new(scale: &[f32;3], translate: &[f32;3])
         // NOTE: maybe use scale: [0.001, 0.001, 0.001] as default
         Self {
             scale: [1.0, 1.0, 1.0],
@@ -231,10 +289,15 @@ impl Default for Transform {
 /// document and converted to a CityModel.
 #[derive(Deserialize, Serialize)]
 struct ICityModel {
+    // NOTE: consider https://docs.rs/serde_with/latest/serde_with/index.html#skip_serializing_none
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
     #[serde(rename = "type")]
     type_cm: CityModelType,
-    version: CityJSONVersion,
-    transform: Transform,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<CityJSONVersion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transform: Option<Transform>,
     #[serde(skip_deserializing)]
     cityobjects: ICityObjects,
     vertices: IVertices,
@@ -242,16 +305,11 @@ struct ICityModel {
 
 impl From<&CityModel> for ICityModel {
     fn from(cm: &CityModel) -> ICityModel {
-        let transform: Transform;
-        if let Some(t) = cm.transform {
-            transform = t;
-        } else {
-            transform = Transform::new();
-        }
         ICityModel {
+            id: None,
             type_cm: cm.type_cm,
-            version: cm.version,
-            transform,
+            version: Some(cm.version),
+            transform: Some(cm.transform.unwrap_or(Transform::new())),
             cityobjects: ICityObjects::new(),
             vertices: IVertices::new(),
         }
@@ -268,6 +326,7 @@ type IVertices = Vec<[i32; 3]>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{BufRead, Cursor};
     use std::path::PathBuf;
 
     fn test_data_dir() -> PathBuf {
@@ -367,5 +426,38 @@ mod tests {
         );
         let v2 = CityJSONVersion::try_from("1.0");
         v2.expect_err("Unsupported CityJSON version.");
+    }
+
+    /// Can we deserialize a CityJSONFeature into an ICityModel?
+    #[test]
+    fn cityjsonfeautre() {
+        let cityjsonfeature_str = r#"{
+            "type": "CityJSONFeature",
+            "id": "id-1",
+            "CityObjects": {},
+            "vertices": []
+        }"#;
+        let _: ICityModel = from_str(cityjsonfeature_str).unwrap();
+    }
+
+    #[test]
+    fn features_sequence() {
+        let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
+            {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+            {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
+        let mut stream_iter = Cursor::new(feature_sequence).lines();
+
+        let cm: CityModel;
+        if let Some(res) = stream_iter.next() {
+            let cityjson_str = res.expect("Failed to read item from the stream.");
+            cm = CityModel::from_str(&cityjson_str);
+            println!("{}", cm);
+        }
+
+        for res in stream_iter {
+            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
+            let cf = CityFeature::from_str(&cityjsonfeature_str);
+            println!("{}", cf);
+        }
     }
 }
