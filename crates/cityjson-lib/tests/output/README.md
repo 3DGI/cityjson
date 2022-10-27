@@ -1,0 +1,1 @@
+Stores the temporary files that are generated from the tests.

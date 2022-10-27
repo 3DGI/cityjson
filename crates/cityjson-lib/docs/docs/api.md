@@ -138,12 +138,7 @@ Create a `CityModel` from a CityJSON file.
 === "Rust"
     
     ```rust
-    use std::fs::File;
-    use std::io::BufReader;
-
-    let file = File::open("myfile.city.json").expect("Couldn't open CityJSON file");
-    let reader = BufReader::new(&file);
-    let cm = CityModel::from_file(reader);
+    let cm = CityModel::from_file("myfile.city.json");
     ```
 
 === "Python"
@@ -291,7 +286,7 @@ Convert a `CityModel` to a CityJSON string.
 
     ```rust
     let cm = CityModel::new();
-    let cityjson = cm.to_string(&cm)?;
+    let cityjson = cm.to_string()?;
     ```
 
 === "Python"
@@ -307,16 +302,13 @@ Convert a `CityModel` to a CityJSON file.
 
     ```rust
     let cm = CityModel::new();
-
-    let mut new_file = File::create("mynew.city.json")?;
-    let cityjson = cm.to_writer(&new_file)?;
+    let cityjson = cm.to_file("mynew.city.json")?;
     ```
 
 === "Python"
 
     ```python
     cm = CityModel()
-
     cityjson = cm.to_file("mynew.city.json")
     ```
 
@@ -345,22 +337,24 @@ Set new transformation properties for the CityJSON document.
 
     ```rust
     let cm = CityModel::new();
-
-    cm.set_transform(Transform());
-
-    let mut new_file = File::create("mynew.city.json")?;
-    let cityjson = cm.to_writer(&new_file)?;
+    cm.set_transform(Transform::default());
+    let cityjson = cm.to_file("mynew.city.json")?;
     ```
 
 === "Python"
 
     ```python
     cm = CityModel()
-
     cm.set_transform(Transform())
-
     cityjson = cm.to_file("mynew.city.json")
     ```
+
+!!! note "Dev note"
+
+    The default transformation is `scale: [1.0, 1.0, 1.0]`.
+    Maybe it could be `scale: [0.001, 0.001, 0.001]`, which is a sensible default for projected CRS-es with meters as units?
+    And probably most citymodels are like that.
+    Or, we could just set `scale: [0.001, 0.001, 0.001]` as default only when writing a CityJSON and keep `scale: [1.0, 1.0, 1.0]` as default in the Transform constructor..
 
 ## CityJSON Extensions
 

@@ -17,3 +17,6 @@ Cargo.lock
 
 # Notes
 experiments/notes.md
+
+# Data
+/tests/output/*.json
