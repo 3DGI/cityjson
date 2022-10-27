@@ -11,7 +11,7 @@
 
 ## Creating CityModels
 
-Create a new, empty instance of a `CityModel`.
+Create a new blank instance of a `CityModel`.
 
 === "Rust"
 
@@ -19,7 +19,7 @@ Create a new, empty instance of a `CityModel`.
     let cm = CityModel::new(); // (1)
     ```
 
-    1. Although, most likely you'll want to create `cm` as `mut`able and fill it up with content later.
+    1. Although, most likely you'll want to create `cm` as `mut`able and fill it up with content later, using the `set_*` methods.
 
 === "Python"
 
@@ -27,7 +27,79 @@ Create a new, empty instance of a `CityModel`.
     cm = CityModel()
     ```
 
+!!! note "Dev note"
+
+    Build a `CityModel` with parameters. 
+    In Rust this makes sense, however, in Python we can just keyword parameters.
+
+    === "Rust"
+
+        ```rust
+        let cm = CityModel::builder()
+            .transform()
+            .title()
+            .cityobjects()
+            .identifier()
+            .extension("A", Extension)
+            .extension("B", Extension)
+            .version()
+            .build()
+            .unwrap();
+        ```
+
+    === "Python"
+    
+        ```python
+        cm = CityModel(
+            transform=None, 
+            title=None, 
+            cityobjects=None, 
+            *others
+        )
+        ```
+
+    I'm still debating if a builder is necessary. The user can still configure a blank 
+    CityModel by calling the constructor and any of the setters afterwards. For instance,
+
+    ```rust
+    let mut cm = CityModel::new();
+    cm.set_extension("A", Extension);
+    cm.set_extension("B", Extension);
+    cm.set_title();
+    cm.set_transform();
+    cm.set_identifier();
+    cm.set_cityobjects();
+    cm.set_version();
+    ```
+    Also, because calling at least one of the setters might be inevitable, because we only 
+    have the information later on.
+
+    ```rust
+    let mut cm = CityModel::builder()
+        .title()
+        .identifier("id_1")
+        .extension("A", Extension)
+        .extension("B", Extension)
+        .version()
+        .build()
+        .unwrap();
+    // do some processing here
+    let cityobjects = SomeData;
+    cm.set_cityobjects(cityobjects);
+    // change the id on the model
+    cm.set_identifier("id_2");
+    // set the transform for writing out the citymodel
+    cm.set_transform();
+    ```
+
 Create a `CityModel` from a CityJSON string.
+
+!!! note "Dev note"
+
+    Consider merging the `from_str` and `from_reader` functions into a `from_document`, that accepts any string and path.
+    See [video/article/slides](https://www.youtube.com/watch?v=6-8-9ZV-2WQ&list=WL&index=1) on how to do this.
+    Or maybe at least make `from_reader` --> `from_file`.
+    Although, maybe all this is too much abstraction.
 
 === "Rust"
 
@@ -41,7 +113,7 @@ Create a `CityModel` from a CityJSON string.
         },
         "CityObjects": {},
         "vertices": []
-    }"#
+    }"#;
     let cm = CityModel::from_str(&cityjson_str);
     ```
 
@@ -71,7 +143,7 @@ Create a `CityModel` from a CityJSON file.
 
     let file = File::open("myfile.city.json").expect("Couldn't open CityJSON file");
     let reader = BufReader::new(&file);
-    let cm = CityModel::from_reader(reader);
+    let cm = CityModel::from_file(reader);
     ```
 
 === "Python"
