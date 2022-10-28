@@ -11,7 +11,6 @@ use std::path::Path;
 ///let cm2 = cjlib::CityModel::default();
 /// ```
 pub struct CityModel {
-    type_cm: CityModelType,
     version: CityJSONVersion,
     transform: Option<Transform>,
     cityobjects: CityObjects,
@@ -20,7 +19,6 @@ pub struct CityModel {
 impl CityModel {
     pub fn new() -> Self {
         Self {
-            type_cm: CityModelType::CityJSON,
             version: CityJSONVersion::V1_1,
             transform: None,
             cityobjects: Default::default(),
@@ -32,7 +30,6 @@ impl CityModel {
         let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
         match icm.type_cm {
             CityModelType::CityJSON => Self {
-                type_cm: icm.type_cm,
                 version: icm.version.unwrap(),
                 transform: icm.transform,
                 cityobjects: Default::default(),
@@ -48,13 +45,20 @@ impl CityModel {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
         let file = File::open(path.as_ref()).expect("Couldn't open CityJSON file");
         let reader = BufReader::new(&file);
-        match path.as_ref().to_str().unwrap() {
-            "json" | "cityjson" => Self::from_reader(reader),
-            "jsonl" => Self::from_stream(reader),
-            _ => {
-                // let's try parsing as a regular CityJSON file
-                Self::from_reader(reader)
+        let ext = path.as_ref().extension();
+        if let Some(extension) = path.as_ref().extension() {
+            match extension.to_str().unwrap() {
+                "json" | "cityjson" => Self::from_reader(reader),
+                "jsonl" => Self::from_stream(reader),
+                _ => {
+                    // let's try parsing as a regular CityJSON file
+                    Self::from_reader(reader)
+                }
             }
+        } else {
+            // TODO: error here
+            // Self::from_reader(reader)
+            todo!()
         }
     }
 
@@ -90,7 +94,6 @@ impl CityModel {
         // TODO: handle .jsonl
         let icm: ICityModel = from_reader(reader).expect("Could not deserialize into ICityModel.");
         Self {
-            type_cm: icm.type_cm,
             version: icm.version.unwrap(),
             transform: icm.transform,
             cityobjects: Default::default(),
@@ -106,14 +109,6 @@ impl CityModel {
         let file_out = File::create(path.as_ref())
             .unwrap_or_else(|_| panic!("Could not open the file {} for writing.", ps));
         serde_json::to_writer(&file_out, &ICityModel::from(self))
-    }
-
-    pub fn type_cm(&self) -> &CityModelType {
-        &self.type_cm
-    }
-
-    fn set_type(&mut self, type_cm: CityModelType) {
-        self.type_cm = type_cm;
     }
 
     pub fn version(&self) -> &CityJSONVersion {
@@ -143,7 +138,6 @@ impl fmt::Debug for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CityModel")
             .field("version", &self.version)
-            .field("type_cm", &self.type_cm)
             .field("transform", &self.transform)
             .field("cityobjects", &self.cityobjects)
             .finish()
@@ -154,9 +148,8 @@ impl fmt::Display for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(\n\tversion: {}\n\ttype: {}\n\tnr. cityobjects: {})",
+            "(\n\tversion: {}\n\tnr. cityobjects: {})",
             &self.version,
-            &self.type_cm,
             &self.cityobjects.len()
         )
     }
@@ -250,7 +243,9 @@ impl TryFrom<String> for CityJSONVersion {
     }
 }
 
-/// This implementation is only meant for serializing the CityJSON version.
+/// This implementation is only used for serializing the CityJSON version, because serde cannot
+/// serialize from 'try_into' (which is provided by the 'try_from' implementations).
+/// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
 impl Into<String> for CityJSONVersion {
     fn into(self) -> String {
         match self {
@@ -352,7 +347,7 @@ impl From<&CityModel> for ICityModel {
     fn from(cm: &CityModel) -> ICityModel {
         ICityModel {
             id: None,
-            type_cm: cm.type_cm,
+            type_cm: CityModelType::CityJSON,
             version: Some(cm.version),
             transform: Some(cm.transform.unwrap_or_default()),
             cityobjects: ICityObjects::new(),
