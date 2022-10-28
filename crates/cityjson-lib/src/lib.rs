@@ -35,8 +35,7 @@ impl CityModel {
                 cityobjects: Default::default(),
             },
             CityModelType::CityJSONFeature => {
-                todo!()
-                // TODO: add error Not a CityJSON
+                todo!() // add error Not a CityJSON
             }
         }
     }
@@ -45,7 +44,6 @@ impl CityModel {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
         let file = File::open(path.as_ref()).expect("Couldn't open CityJSON file");
         let reader = BufReader::new(&file);
-        let ext = path.as_ref().extension();
         if let Some(extension) = path.as_ref().extension() {
             match extension.to_str().unwrap() {
                 "json" | "cityjson" => Self::from_reader(reader),
@@ -56,9 +54,7 @@ impl CityModel {
                 }
             }
         } else {
-            // TODO: error here
-            // Self::from_reader(reader)
-            todo!()
+            todo!() // error here
         }
     }
 
@@ -75,8 +71,7 @@ impl CityModel {
             let cityjson_str = res.expect("Failed to read item from the stream.");
             cm = CityModel::from_str(&cityjson_str);
         } else {
-            // TODO: need to return an error from here
-            cm = Self::default()
+            todo!() // return an error from here
         }
 
         for res in stream_iter {
@@ -91,7 +86,6 @@ impl CityModel {
     where
         R: Read,
     {
-        // TODO: handle .jsonl
         let icm: ICityModel = from_reader(reader).expect("Could not deserialize into ICityModel.");
         Self {
             version: icm.version.unwrap(),
@@ -157,15 +151,11 @@ impl fmt::Display for CityModel {
 
 pub struct CityFeature {
     id: String,
-    type_cm: CityModelType,
 }
 
 impl CityFeature {
     pub fn new(id: String) -> Self {
-        Self {
-            type_cm: CityModelType::CityJSONFeature,
-            id,
-        }
+        Self { id }
     }
 
     /// Parse a string of CityJSON text.
@@ -173,11 +163,9 @@ impl CityFeature {
         let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
         match icm.type_cm {
             CityModelType::CityJSON => {
-                todo!()
-                // TODO: need error Not CityJSONFeature
+                todo!() // need error Not CityJSONFeature
             }
             CityModelType::CityJSONFeature => Self {
-                type_cm: icm.type_cm,
                 id: icm.id.unwrap(),
             },
         }
@@ -192,16 +180,13 @@ impl Default for CityFeature {
 
 impl fmt::Debug for CityFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CityModel")
-            .field("type_cm", &self.type_cm)
-            .field("id", &self.id)
-            .finish()
+        f.debug_struct("CityFeature").field("id", &self.id).finish()
     }
 }
 
 impl fmt::Display for CityFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(\n\ttype: {}\n\tid: {}\n)", &self.type_cm, &self.id)
+        write!(f, "(\n\tid: {}\n)", &self.id)
     }
 }
 
