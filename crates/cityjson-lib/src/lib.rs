@@ -104,7 +104,7 @@ impl CityModel {
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> error::Result<()> {
         let ps = path.as_ref().to_str().expect("Invalid path.");
         let file_out = File::create(path.as_ref())
-            .expect(format!("Could not open the file {} for writing.", ps).as_str());
+            .unwrap_or_else(|_| panic!("Could not open the file {} for writing.", ps));
         serde_json::to_writer(&file_out, &ICityModel::from(self))
     }
 
@@ -129,7 +129,7 @@ impl CityModel {
     }
 
     pub fn set_transform(&mut self, transform: &Transform) {
-        self.transform = Some(transform.clone());
+        self.transform = Some(*transform);
     }
 }
 
@@ -212,7 +212,7 @@ impl fmt::Display for CityFeature {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
 #[serde(tag = "version", try_from = "String", into = "String")]
 pub enum CityJSONVersion {
     V1_1,
@@ -328,7 +328,7 @@ struct CityObject;
 /// CityJSON schema, and use indexed-vertices. These structures are private and they are
 /// prefixed with an `I`, eg. `ICityModel`.
 /// In the second step, the indexed-structures are transformed to a `CityModel`, through
-/// dereferencing the vertices and other operations.
+/// de-referencing the vertices and other operations.
 
 /// Indexed-CityModel, which is an intermediary struct that is directly deserialized from CityJSON
 /// document and converted to a CityModel.
@@ -354,7 +354,7 @@ impl From<&CityModel> for ICityModel {
             id: None,
             type_cm: cm.type_cm,
             version: Some(cm.version),
-            transform: Some(cm.transform.unwrap_or(Transform::new())),
+            transform: Some(cm.transform.unwrap_or_default()),
             cityobjects: ICityObjects::new(),
             vertices: IVertices::new(),
         }
@@ -371,7 +371,7 @@ type IVertices = Vec<[i32; 3]>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{BufRead, Cursor};
+    use std::io::Cursor;
     use std::path::PathBuf;
 
     fn test_data_dir() -> PathBuf {
@@ -404,7 +404,7 @@ mod tests {
             "CityObjects": {},
             "vertices": []
         }"#;
-        let cm = CityModel::from_str(&cityjson_str);
+        let cm = CityModel::from_str(cityjson_str);
         println!("{:?}", cm);
     }
 
@@ -475,7 +475,7 @@ mod tests {
 
     /// Can we deserialize a CityJSONFeature into an ICityModel?
     #[test]
-    fn cityjsonfeautre() {
+    fn cityjsonfeature() {
         let cityjsonfeature_str = r#"{
             "type": "CityJSONFeature",
             "id": "id-1",
@@ -490,7 +490,7 @@ mod tests {
         let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-        let mut stream = Cursor::new(feature_sequence.clone());
+        let stream = Cursor::new(feature_sequence);
         let cm = CityModel::from_stream(stream);
         println!("From stream: {:?}", cm);
     }
