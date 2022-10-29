@@ -20,3 +20,4 @@ experiments/notes.md
 
 # Data
 /tests/output/*.json
+/tests/output/*.jsonl

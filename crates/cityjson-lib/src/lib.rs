@@ -3,7 +3,8 @@ use serde_json::{error, from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
 use std::fmt;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::prelude::*;
+use std::io::{BufRead, BufReader, LineWriter, Read};
 use std::path::Path;
 
 ///```rust
@@ -95,7 +96,7 @@ impl CityModel {
         }
     }
 
-    /// Convert a CityModel to a CityJSON document string.
+    /// Convert the CityModel to a CityJSON document string.
     pub fn to_string(&self) -> error::Result<String> {
         to_string(&ICityModel::from(self))
     }
@@ -107,7 +108,22 @@ impl CityModel {
         if let Some(extension) = path.as_ref().extension() {
             match extension.to_str().unwrap() {
                 "json" | "cityjson" => serde_json::to_writer(&file_out, &ICityModel::from(self)),
-                "jsonl" => todo!(),
+                "jsonl" => {
+                    // TODO: error handling
+                    let cityjson = self.to_features_cityjson().unwrap();
+                    let cityjsonfeatures = self
+                        .to_features()
+                        .map(|cityfeature| cityfeature.to_string())
+                        .flatten();
+                    let mut file = LineWriter::new(file_out);
+                    write!(file, "{}\n", cityjson)
+                        .expect("Cannot write CityJSON to JSON Lines text file.");
+                    for cf in cityjsonfeatures {
+                        write!(file, "{}\n", cf)
+                            .expect("Cannot write CityJSONFeature to JSON Lines text file.");
+                    }
+                    Ok(())
+                }
                 _ => {
                     todo!() // error with unknown extension
                 }
@@ -115,6 +131,20 @@ impl CityModel {
         } else {
             todo!() // error here
         }
+    }
+
+    /// Convert the CityModel to a CityJSON object string, for passing as the first item in a
+    /// CityJSONFeature stream. The new CityJSON object has empty "CityObjects" and "vertices"
+    /// members, because these are supposed to be passed in subsequent CityJSONFeatures.
+    pub fn to_features_cityjson(&self) -> error::Result<String> {
+        to_string(&ICityModel {
+            id: None,
+            type_cm: CityModelType::CityJSON,
+            version: Some(self.version),
+            transform: Some(self.transform.unwrap_or_default()),
+            cityobjects: ICityObjects::new(),
+            vertices: IVertices::new(),
+        })
     }
 
     pub fn to_features(&self) -> CityFeatureIterator {
@@ -369,7 +399,7 @@ struct ICityModel {
     version: Option<CityJSONVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     transform: Option<Transform>,
-    #[serde(skip_deserializing)]
+    #[serde(skip_deserializing, rename = "CityObjects")]
     cityobjects: ICityObjects,
     vertices: IVertices,
 }
@@ -568,5 +598,21 @@ mod tests {
         for cityjsonfeature in cityjsonfeature_iter.flatten() {
             println!("{}", cityjsonfeature);
         }
+    }
+
+    #[test]
+    fn features_to_file() {
+        let mut cityobjects = CityObjects::new();
+        cityobjects.insert("id-1".to_string(), CityObject);
+        cityobjects.insert("id-2".to_string(), CityObject);
+        cityobjects.insert("id-3".to_string(), CityObject);
+        let cm = CityModel {
+            version: CityJSONVersion::V1_1,
+            transform: None,
+            cityobjects,
+        };
+
+        let pb: PathBuf = test_output_dir().join(".test_out.city.jsonl");
+        let _ = cm.to_file(pb);
     }
 }

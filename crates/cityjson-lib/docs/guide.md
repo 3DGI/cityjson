@@ -482,6 +482,33 @@ Note that the `CityFeatureIterator` returned from `to_features` does not give yo
     And probably most citymodels are like that.
     Or, we could just set `scale: [0.001, 0.001, 0.001]` as default only when writing a CityJSON and keep `scale: [1.0, 1.0, 1.0]` as default in the Transform constructor..
 
+### Writing a CityJSON Lines file
+
+- [x] You can convert a `CityModel` to CityJSONFeatures and write them to a newline-delimited JSON Lines text file.
+To write the `CityModel` as JSON Lines file, set the file extension to `.city.jsonl` (instead of `.city.json`).
+When you write a CityJSON file in this way, the first JSON object is a `CityJSON` object, followed by `CityJSONFeature` objects.
+
+=== "Rust"
+
+    ```rust
+    let mut cityobjects = CityObjects::new();
+    cityobjects.insert("id-1".to_string(), CityObject);
+    cityobjects.insert("id-2".to_string(), CityObject);
+    cityobjects.insert("id-3".to_string(), CityObject);
+    let cm = CityModel {
+        version: CityJSONVersion::V1_1,
+        transform: None,
+        cityobjects,
+    };
+
+    cm.to_file("mynew_features.city.jsonl");
+    ```
+
+=== "Python"
+
+    ```python
+    ```
+
 ## CityJSON Extensions
 
 [CityJSON Extensions](https://www.cityjson.org/specs/1.1.2/#extensions) are first-class citizen in cjlib.
