@@ -1,7 +1,7 @@
 site_name: cjlib
 nav:
   - Home: index.md
-  - Reference: api.md
+  - Guide: guide.md
   - Examples: examples.md
 theme:
   name: material

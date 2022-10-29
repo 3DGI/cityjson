@@ -1,4 +1,4 @@
-# Using cjlib
+# Guide to using cjlib
 
 ## Differences between the CityJSON and cjlib data model
 
@@ -361,6 +361,46 @@ If this is not the case, you can also create an empty `CityModel` and set the tr
         # Additionally, you can insert the CityObjects from 
         # the CityFeature to the CityModel.
         cm.cityobjects.insert(cf)
+    ```
+
+### Writing a stream of CityJSONFeatures
+
+- [x] Send `CityFeature`s and `CityJSONFeature`s from a `CityModel`.
+
+The `to_features` method returns an iterator over the `CityFeature`s that are generated from the `CityModel` on the fly.
+Expanding on this method, you can `map` the `CityFeature`s with `to_string` to generate `CityJSONFeature` strings.
+Note that the `CityFeatureIterator` returned from `to_features` does not give you a `CityModel` as its first item, only `CityFeature`s are returned.
+
+=== "Rust"
+
+    ```rust
+    let mut cityobjects = CityObjects::new();
+    cityobjects.insert("id-1".to_string(), CityObject);
+    cityobjects.insert("id-2".to_string(), CityObject);
+    cityobjects.insert("id-3".to_string(), CityObject);
+    let cm = CityModel {
+        version: CityJSONVersion::V1_1,
+        transform: None,
+        cityobjects,
+    };
+
+    // Get an iterator over CityFeatures from the CityModel
+    let cityfeature_iter: CityFeatureIterator = cm.to_features();
+    for cf in cityfeature_iter {
+        println!("{:?}", cf)
+    }
+
+    // Write CityJSONFeature-strings from a CityModel
+    let cityfeature_iter: CityFeatureIterator = cm.to_features();
+    let cityjsonfeature_iter = cityfeature_iter.map(|cityfeature| cityfeature.to_string());
+    for cityjsonfeature in cityjsonfeature_iter.flatten() {
+        println!("{}", cityjsonfeature);
+    }
+    ```
+
+=== "Python"
+
+    ```python
     ```
 
 

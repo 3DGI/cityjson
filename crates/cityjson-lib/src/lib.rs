@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{error, from_reader, from_str, to_string};
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -95,6 +95,7 @@ impl CityModel {
         }
     }
 
+    /// Convert a CityModel to a CityJSON document string.
     pub fn to_string(&self) -> error::Result<String> {
         to_string(&ICityModel::from(self))
     }
@@ -116,8 +117,10 @@ impl CityModel {
         }
     }
 
-    pub fn to_features(&self) {
-        todo!()
+    pub fn to_features(&self) -> CityFeatureIterator {
+        CityFeatureIterator {
+            cityobjects_iter: self.cityobjects.iter(),
+        }
     }
 
     pub fn version(&self) -> &CityJSONVersion {
@@ -164,6 +167,24 @@ impl fmt::Display for CityModel {
     }
 }
 
+pub struct CityFeatureIterator<'cityobjects> {
+    // We borrow the CityObjects from the CityModel for this struct, because the CityObjects values
+    // are cloned into the CityFeature-s.
+    cityobjects_iter: hash_map::Iter<'cityobjects, String, CityObject>,
+}
+
+impl<'cityobjects> Iterator for CityFeatureIterator<'cityobjects> {
+    type Item = CityFeature;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((coid, _)) = self.cityobjects_iter.next() {
+            Some(CityFeature::new(coid.to_string()))
+        } else {
+            None
+        }
+    }
+}
+
 pub struct CityFeature {
     id: String,
 }
@@ -185,6 +206,11 @@ impl CityFeature {
             },
         }
     }
+
+    /// Convert a CityFeature to a CityJSONFeature object string.
+    pub fn to_string(&self) -> error::Result<String> {
+        to_string(&ICityModel::from(self))
+    }
 }
 
 impl Default for CityFeature {
@@ -201,7 +227,7 @@ impl fmt::Debug for CityFeature {
 
 impl fmt::Display for CityFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(\n\tid: {}\n)", &self.id)
+        write!(f, "City(\n\tid: {}\n)", &self.id)
     }
 }
 
@@ -312,8 +338,13 @@ impl Default for Transform {
     }
 }
 
+// NOTE: Not sure HashMap is the best choice in terms of performance.
+// I've seen BTreeMap used in many places.
+// Would there be any advantage of a custom type for the CityObject Id, instead of String?
 type CityObjects = HashMap<String, CityObject>;
 
+// NOTE: I think a CityObject should know its own Id. That would make it much simpler to send
+// around CityObjects, eg. when converting to CityFeatures.
 #[derive(Default, Debug)]
 struct CityObject;
 
@@ -344,12 +375,25 @@ struct ICityModel {
 }
 
 impl From<&CityModel> for ICityModel {
-    fn from(cm: &CityModel) -> ICityModel {
-        ICityModel {
+    fn from(cm: &CityModel) -> Self {
+        Self {
             id: None,
             type_cm: CityModelType::CityJSON,
             version: Some(cm.version),
             transform: Some(cm.transform.unwrap_or_default()),
+            cityobjects: ICityObjects::new(),
+            vertices: IVertices::new(),
+        }
+    }
+}
+
+impl From<&CityFeature> for ICityModel {
+    fn from(cf: &CityFeature) -> Self {
+        Self {
+            id: Some(cf.id.clone()),
+            type_cm: CityModelType::CityJSONFeature,
+            version: None,
+            transform: None,
             cityobjects: ICityObjects::new(),
             vertices: IVertices::new(),
         }
@@ -502,6 +546,27 @@ mod tests {
 
     #[test]
     fn citymodel_to_features_iter() {
-        let cm = CityModel::new();
+        let mut cityobjects = CityObjects::new();
+        cityobjects.insert("id-1".to_string(), CityObject);
+        cityobjects.insert("id-2".to_string(), CityObject);
+        cityobjects.insert("id-3".to_string(), CityObject);
+        let cm = CityModel {
+            version: CityJSONVersion::V1_1,
+            transform: None,
+            cityobjects,
+        };
+        let cityfeature_iter: CityFeatureIterator = cm.to_features();
+        for cf in cityfeature_iter {
+            println!("{:?}", cf)
+        }
+        // The CityModel should still own its CityObject-s
+        assert_eq!(cm.cityobjects.len(), 3);
+        println!("{:?}", cm.cityobjects["id-1"]);
+
+        let cityfeature_iter: CityFeatureIterator = cm.to_features();
+        let cityjsonfeature_iter = cityfeature_iter.map(|cityfeature| cityfeature.to_string());
+        for cityjsonfeature in cityjsonfeature_iter.flatten() {
+            println!("{}", cityjsonfeature);
+        }
     }
 }
