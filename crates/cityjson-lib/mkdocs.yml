@@ -2,6 +2,7 @@ site_name: cjlib
 nav:
   - Home: index.md
   - Reference: api.md
+  - Examples: examples.md
 theme:
   name: material
   features:

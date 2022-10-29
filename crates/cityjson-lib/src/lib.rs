@@ -499,4 +499,9 @@ mod tests {
         let cm = CityModel::from_file(&pb);
         println!("From jsonl: {:?}", cm);
     }
+
+    #[test]
+    fn citymodel_to_features_iter() {
+        let cm = CityModel::new();
+    }
 }
