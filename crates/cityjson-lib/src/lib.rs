@@ -25,7 +25,7 @@ impl CityModel {
         }
     }
 
-    /// Parse a string of CityJSON text.
+    /// Parse a CityJSON document from a string.
     pub fn from_str(cityjson: &str) -> Self {
         let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
         match icm.type_cm {
@@ -41,6 +41,7 @@ impl CityModel {
     }
 
     /// Read from a file, either a regular JSON file or [JSON Lines text](https://jsonlines.org/).
+    /// The parsing strategy is based on the file extension.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
         let file = File::open(path.as_ref()).expect("Couldn't open CityJSON file");
         let reader = BufReader::new(&file);
@@ -102,7 +103,21 @@ impl CityModel {
         let ps = path.as_ref().to_str().expect("Invalid path.");
         let file_out = File::create(path.as_ref())
             .unwrap_or_else(|_| panic!("Could not open the file {} for writing.", ps));
-        serde_json::to_writer(&file_out, &ICityModel::from(self))
+        if let Some(extension) = path.as_ref().extension() {
+            match extension.to_str().unwrap() {
+                "json" | "cityjson" => serde_json::to_writer(&file_out, &ICityModel::from(self)),
+                "jsonl" => todo!(),
+                _ => {
+                    todo!() // error with unknown extension
+                }
+            }
+        } else {
+            todo!() // error here
+        }
+    }
+
+    pub fn to_features(&self) {
+        todo!()
     }
 
     pub fn version(&self) -> &CityJSONVersion {
@@ -341,7 +356,10 @@ impl From<&CityModel> for ICityModel {
     }
 }
 
-type ICityObjects = HashMap<String, String>;
+type ICityObjects = HashMap<String, ICityObject>;
+
+#[derive(Serialize)]
+struct ICityObject;
 
 /// Vertex coordinates, deserialized from a CityJSON document.
 /// Uses i32, which is way too much, but i16 not enough, because a CityModel can easily have
@@ -466,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn features_sequence() {
+    fn features_from_stream() {
         let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
@@ -476,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn features_sequence_file() {
+    fn features_from_file() {
         let pb: PathBuf = test_data_dir().join("minimal_valid.city.jsonl");
         let cm = CityModel::from_file(&pb);
         println!("From jsonl: {:?}", cm);

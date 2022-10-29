@@ -7,10 +7,18 @@ theme:
   features:
     - navigation.tabs
 markdown_extensions:
+  # admonitions
   - pymdownx.superfences
   - admonition
   - pymdownx.details
+  # content tabs
   - pymdownx.tabbed:
       alternate_style: true
+  # tasklists
   - pymdownx.tasklist:
       custom_checkbox: true
+  # emojis
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
