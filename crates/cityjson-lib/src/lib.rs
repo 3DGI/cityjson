@@ -1,3 +1,7 @@
+mod errors;
+
+use crate::errors::{Error, Result};
+
 use serde::{Deserialize, Serialize};
 use serde_json::{error, from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
@@ -26,25 +30,10 @@ impl CityModel {
         }
     }
 
-    /// Parse a CityJSON document from a string.
-    pub fn from_str(cityjson: &str) -> Self {
-        let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
-        match icm.type_cm {
-            CityModelType::CityJSON => Self {
-                version: icm.version.unwrap(),
-                transform: icm.transform,
-                cityobjects: Default::default(),
-            },
-            CityModelType::CityJSONFeature => {
-                todo!() // add error Not a CityJSON
-            }
-        }
-    }
-
     /// Read from a file, either a regular JSON file or [JSON Lines text](https://jsonlines.org/).
     /// The parsing strategy is based on the file extension.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        let file = File::open(path.as_ref()).expect("Couldn't open CityJSON file");
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = File::open(path.as_ref())?;
         let reader = BufReader::new(&file);
         if let Some(extension) = path.as_ref().extension() {
             match extension.to_str().unwrap() {
@@ -56,13 +45,14 @@ impl CityModel {
                 }
             }
         } else {
-            todo!() // error here
+            let e = path.as_ref().as_os_str().to_str().unwrap().to_string();
+            Err(Error::InvalidExtension(e))
         }
     }
 
     /// Create a CityModel from a stream of CityJSONFeatures, aggregating them into the CityModel's
     /// CityObjects. Assumes that the first item in the stream is a CityJSON.
-    pub fn from_stream<R>(cursor: R) -> Self
+    pub fn from_stream<R>(cursor: R) -> Result<Self>
     where
         R: BufRead,
     {
@@ -71,65 +61,79 @@ impl CityModel {
         let mut cm: CityModel;
         if let Some(res) = stream_iter.next() {
             let cityjson_str = res.expect("Failed to read item from the stream.");
-            cm = CityModel::from_str(&cityjson_str);
+            cm = CityModel::from_str(&cityjson_str)?;
         } else {
-            todo!() // return an error from here
+            return Err(Error::StreamingError(String::from("Empty stream")));
         }
 
         for res in stream_iter {
             let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
-            let cf = CityFeature::from_str(&cityjsonfeature_str);
+            let cf = CityFeature::from_str(&cityjsonfeature_str)?;
             cm.cityobjects.insert(cf.id, CityObject);
         }
-        cm
+        Ok(cm)
     }
 
-    pub fn from_reader<R>(reader: R) -> Self
+    pub fn from_reader<R>(reader: R) -> Result<Self>
     where
         R: Read,
     {
         let icm: ICityModel = from_reader(reader).expect("Could not deserialize into ICityModel.");
-        Self {
+        Ok(Self {
             version: icm.version.unwrap(),
             transform: icm.transform,
             cityobjects: Default::default(),
+        })
+    }
+
+    /// Parse a CityJSON document from a string.
+    pub fn from_str(cityjson: &str) -> Result<Self> {
+        // let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
+        let icm: ICityModel = from_str(cityjson)?;
+        match icm.type_cm {
+            CityModelType::CityJSON => Ok(Self {
+                version: icm.version.unwrap(),
+                transform: icm.transform,
+                cityobjects: Default::default(),
+            }),
+            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
         }
     }
 
     /// Convert the CityModel to a CityJSON document string.
-    pub fn to_string(&self) -> error::Result<String> {
-        to_string(&ICityModel::from(self))
+    pub fn to_string(&self) -> Result<String> {
+        Ok(to_string(&ICityModel::from(self))?)
     }
 
-    pub fn to_file<P: AsRef<Path>>(&self, path: P) -> error::Result<()> {
+    pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let ps = path.as_ref().to_str().expect("Invalid path.");
-        let file_out = File::create(path.as_ref())
-            .unwrap_or_else(|_| panic!("Could not open the file {} for writing.", ps));
+        let file_out = File::create(path.as_ref())?;
         if let Some(extension) = path.as_ref().extension() {
-            match extension.to_str().unwrap() {
-                "json" | "cityjson" => serde_json::to_writer(&file_out, &ICityModel::from(self)),
+            let ext = extension.to_str().unwrap();
+            match ext {
+                "json" | "cityjson" => {
+                    Ok(serde_json::to_writer(&file_out, &ICityModel::from(self))?)
+                }
                 "jsonl" => {
-                    // TODO: error handling
                     let cityjson = self.to_features_cityjson().unwrap();
                     let cityjsonfeatures = self
                         .to_features()
-                        .map(|cityfeature| cityfeature.to_string())
-                        .flatten();
+                        .flat_map(|cityfeature| cityfeature.to_string());
                     let mut file = LineWriter::new(file_out);
-                    write!(file, "{}\n", cityjson)
+                    writeln!(file, "{}", cityjson)
                         .expect("Cannot write CityJSON to JSON Lines text file.");
                     for cf in cityjsonfeatures {
-                        write!(file, "{}\n", cf)
-                            .expect("Cannot write CityJSONFeature to JSON Lines text file.");
+                        if let Err(res) = writeln!(file, "{}", cf) {
+                            todo!() // log error message here and skip the feature
+                        }
                     }
                     Ok(())
                 }
-                _ => {
-                    todo!() // error with unknown extension
-                }
+                _ => Err(Error::InvalidExtension(ext.to_string())),
             }
         } else {
-            todo!() // error here
+            let e = path.as_ref().as_os_str().to_str().unwrap().to_string();
+            Err(Error::InvalidExtension(e))
         }
     }
 
@@ -225,15 +229,13 @@ impl CityFeature {
     }
 
     /// Parse a string of CityJSON text.
-    pub fn from_str(cityjson: &str) -> Self {
-        let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
+    pub fn from_str(cityjson: &str) -> Result<Self> {
+        let icm: ICityModel = from_str(cityjson)?;
         match icm.type_cm {
-            CityModelType::CityJSON => {
-                todo!() // need error Not CityJSONFeature
-            }
-            CityModelType::CityJSONFeature => Self {
+            CityModelType::CityJSON => Err(Error::ExpectedCityJSONFeature(icm.type_cm)),
+            CityModelType::CityJSONFeature => Ok(Self {
                 id: icm.id.unwrap(),
-            },
+            }),
         }
     }
 
@@ -278,23 +280,29 @@ impl fmt::Display for CityJSONVersion {
 }
 
 impl TryFrom<&str> for CityJSONVersion {
-    type Error = &'static str;
+    type Error = Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "1.1" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
-            _ => Err("Unsupported CityJSON version. Versions supported: 1.1, 1.1.1, 1.1.2, 1.1.3"),
-        }
+    fn try_from(value: &str) -> Result<Self> {
+        CityJSONVersion::_from_str(value)
     }
 }
 
 impl TryFrom<String> for CityJSONVersion {
-    type Error = &'static str;
+    type Error = Error;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_ref() {
+    fn try_from(value: String) -> Result<Self> {
+        CityJSONVersion::_from_str(value.as_ref())
+    }
+}
+
+impl CityJSONVersion {
+    fn _from_str(value: &str) -> Result<CityJSONVersion> {
+        match value {
             "1.1" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
-            _ => Err("Unsupported CityJSON version. Versions supported: 1.1, 1.1.1, 1.1.2, 1.1.3"),
+            _ => Err(Error::UnsupportedVersion(
+                value.to_string(),
+                "1.1, 1.1.1, 1.1.2, 1.1.3".to_string(),
+            )),
         }
     }
 }
@@ -476,7 +484,7 @@ mod tests {
             "CityObjects": {},
             "vertices": []
         }"#;
-        let cm = CityModel::from_str(cityjson_str);
+        let cm = CityModel::from_str(cityjson_str).unwrap();
         println!("{:?}", cm);
     }
 

@@ -92,6 +92,11 @@ This is to reduce the complexity of the code for creating city models.
 Nevertheless, there are three alternative architectures in consideration.
 Read [the document that outlines them](https://github.com/balazsdukai/cjlib/blob/master/experiments/direct-json-vs-api.md) for more details.
 
+## Other libraries
+
+### Inspiration
+
+GeoJSON rust
 
 ## Contributing
 

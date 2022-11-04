@@ -73,7 +73,11 @@ fn main() {
             println!("{:#?}", v);
         }
     }
+    static SUPPORTED_CITYJSON_VERSIONS: [&str; 4] = ["1.1", "1.1.1", "1.1.2", "1.1.3"];
+    println!("{}", SUPPORTED_CITYJSON_VERSIONS.contains(&"1.1"));
+    let a = "1.1.1";
+    println!("{}", &a[0..3]);
+    let a = ["1.1" | "1.1.1" | "1.1.2" | "1.1.3"];
 
-    
     ()
 }
