@@ -1,10 +1,14 @@
+//! A software library for working with semantic 3D city models, based on the
+//! [CityJSON](https://cityjson.org) data model.
+
 mod errors;
 
 use crate::errors::{Error, Result};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{error, from_reader, from_str, to_string};
+use serde_json::{from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
@@ -31,23 +35,28 @@ impl CityModel {
     }
 
     /// Read from a file, either a regular JSON file or [JSON Lines text](https://jsonlines.org/).
-    /// The parsing strategy is based on the file extension.
+    /// The parsing strategy is based on the file extension. Uses [`io::BufReader`](std::io::BufReader)
+    /// for reading.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path.as_ref())?;
         let reader = BufReader::new(&file);
-        if let Some(extension) = path.as_ref().extension() {
-            match extension.to_str().unwrap() {
-                "json" | "cityjson" => Self::from_reader(reader),
-                "jsonl" => Self::from_stream(reader),
-                _ => {
+        return match path.as_ref().extension() {
+            None => Err(Error::InvalidExtension(path.as_ref().to_path_buf())),
+            Some(extension_os_str) => {
+                // todo: Make sure that when reading jsonl file, the reader reads a whole line at
+                //  once (until the \n). Otherwise use the default bufreader.
+                if SupportedExtensions::Json == extension_os_str
+                    || SupportedExtensions::CityJson == extension_os_str
+                {
+                    Self::from_reader(reader)
+                } else if SupportedExtensions::Jsonl == extension_os_str {
+                    Self::from_stream(reader)
+                } else {
                     // let's try parsing as a regular CityJSON file
                     Self::from_reader(reader)
                 }
             }
-        } else {
-            let e = path.as_ref().as_os_str().to_str().unwrap().to_string();
-            Err(Error::InvalidExtension(e))
-        }
+        };
     }
 
     /// Create a CityModel from a stream of CityJSONFeatures, aggregating them into the CityModel's
@@ -59,26 +68,34 @@ impl CityModel {
         let mut stream_iter = cursor.lines();
 
         let mut cm: CityModel;
+        // Do return an error if we cannot process the first item of the stream into a CityModel,
+        // because the subsequent steps depend on it.
         if let Some(res) = stream_iter.next() {
-            let cityjson_str = res.expect("Failed to read item from the stream.");
+            let cityjson_str = res?;
             cm = CityModel::from_str(&cityjson_str)?;
         } else {
             return Err(Error::StreamingError(String::from("Empty stream")));
         }
 
         for res in stream_iter {
-            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
-            let cf = CityFeature::from_str(&cityjsonfeature_str)?;
-            cm.cityobjects.insert(cf.id, CityObject);
+            // Don't break if for some reason we cannot process one feature from the stream,
+            // but do notify about it.
+            if let Ok(cityjsonfeature_str) = res {
+                let cf = CityFeature::from_str(&cityjsonfeature_str)?;
+                cm.cityobjects.insert(cf.id, CityObject);
+            } else {
+                // todo: log error
+            }
         }
         Ok(cm)
     }
 
+    /// Create a CityModel from an IO stream of CityJSON, by calling [`serde_json::from_reader`](serde_json::from_reader).
     pub fn from_reader<R>(reader: R) -> Result<Self>
     where
         R: Read,
     {
-        let icm: ICityModel = from_reader(reader).expect("Could not deserialize into ICityModel.");
+        let icm: ICityModel = from_reader(reader)?;
         Ok(Self {
             version: icm.version.unwrap(),
             transform: icm.transform,
@@ -86,9 +103,8 @@ impl CityModel {
         })
     }
 
-    /// Parse a CityJSON document from a string.
+    /// Parse a CityJSON document from a string, by calling [`serde_json::from_str`](serde_json::from_str).
     pub fn from_str(cityjson: &str) -> Result<Self> {
-        // let icm: ICityModel = from_str(cityjson).expect("Could not deserialize into ICityModel.");
         let icm: ICityModel = from_str(cityjson)?;
         match icm.type_cm {
             CityModelType::CityJSON => Ok(Self {
@@ -105,50 +121,49 @@ impl CityModel {
         Ok(to_string(&ICityModel::from(self))?)
     }
 
+    /// Write the CityModel to a CityJSON file.
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let ps = path.as_ref().to_str().expect("Invalid path.");
         let file_out = File::create(path.as_ref())?;
-        if let Some(extension) = path.as_ref().extension() {
-            let ext = extension.to_str().unwrap();
-            match ext {
-                "json" | "cityjson" => {
+        return match path.as_ref().extension() {
+            None => Err(Error::InvalidExtension(path.as_ref().to_path_buf())),
+            Some(extension_os_str) => {
+                if SupportedExtensions::Json == extension_os_str
+                    || SupportedExtensions::CityJson == extension_os_str
+                {
                     Ok(serde_json::to_writer(&file_out, &ICityModel::from(self))?)
-                }
-                "jsonl" => {
+                } else if SupportedExtensions::Jsonl == extension_os_str {
                     let cityjson = self.to_features_cityjson().unwrap();
                     let cityjsonfeatures = self
                         .to_features()
                         .flat_map(|cityfeature| cityfeature.to_string());
                     let mut file = LineWriter::new(file_out);
-                    writeln!(file, "{}", cityjson)
-                        .expect("Cannot write CityJSON to JSON Lines text file.");
+                    // The file must contain at least the first CityJSON object.
+                    writeln!(file, "{}", cityjson)?;
                     for cf in cityjsonfeatures {
-                        if let Err(res) = writeln!(file, "{}", cf) {
+                        if writeln!(file, "{}", cf).is_err() {
                             todo!() // log error message here and skip the feature
                         }
                     }
                     Ok(())
+                } else {
+                    Err(Error::UnsupportedExtension)
                 }
-                _ => Err(Error::InvalidExtension(ext.to_string())),
             }
-        } else {
-            let e = path.as_ref().as_os_str().to_str().unwrap().to_string();
-            Err(Error::InvalidExtension(e))
-        }
+        };
     }
 
     /// Convert the CityModel to a CityJSON object string, for passing as the first item in a
     /// CityJSONFeature stream. The new CityJSON object has empty "CityObjects" and "vertices"
     /// members, because these are supposed to be passed in subsequent CityJSONFeatures.
-    pub fn to_features_cityjson(&self) -> error::Result<String> {
-        to_string(&ICityModel {
+    pub fn to_features_cityjson(&self) -> Result<String> {
+        Ok(to_string(&ICityModel {
             id: None,
             type_cm: CityModelType::CityJSON,
             version: Some(self.version),
             transform: Some(self.transform.unwrap_or_default()),
             cityobjects: ICityObjects::new(),
             vertices: IVertices::new(),
-        })
+        })?)
     }
 
     pub fn to_features(&self) -> CityFeatureIterator {
@@ -240,8 +255,8 @@ impl CityFeature {
     }
 
     /// Convert a CityFeature to a CityJSONFeature object string.
-    pub fn to_string(&self) -> error::Result<String> {
-        to_string(&ICityModel::from(self))
+    pub fn to_string(&self) -> Result<String> {
+        Ok(to_string(&ICityModel::from(self))?)
     }
 }
 
@@ -260,6 +275,37 @@ impl fmt::Debug for CityFeature {
 impl fmt::Display for CityFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "City(\n\tid: {}\n)", &self.id)
+    }
+}
+
+/// A central register of what file extensions are supported.
+#[derive(Debug, Copy, Clone)]
+enum SupportedExtensions {
+    Json,
+    CityJson,
+    Jsonl,
+}
+
+impl From<&SupportedExtensions> for &str {
+    fn from(value: &SupportedExtensions) -> Self {
+        match value {
+            SupportedExtensions::Json => "json",
+            SupportedExtensions::CityJson => "cityjson",
+            SupportedExtensions::Jsonl => "jsonl",
+        }
+    }
+}
+
+impl SupportedExtensions {
+    fn print_all() -> String {
+        format!("{:?}, {:?}, {:?}", Self::Json, Self::CityJson, Self::Jsonl).to_lowercase()
+    }
+}
+
+impl PartialEq<&OsStr> for SupportedExtensions {
+    fn eq(&self, other: &&OsStr) -> bool {
+        let a: &str = self.into();
+        *other == a
     }
 }
 

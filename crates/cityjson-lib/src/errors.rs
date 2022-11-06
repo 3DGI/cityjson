@@ -1,13 +1,15 @@
 //! When operations on city models go wrong.
-use crate::{CityJSONVersion, CityModelType};
+use crate::{CityModelType, SupportedExtensions};
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
+use std::path::PathBuf;
 
 pub enum Error {
     ExpectedCityJSON(CityModelType),
     ExpectedCityJSONFeature(CityModelType),
     UnsupportedVersion(String, String),
-    InvalidExtension(String),
+    UnsupportedExtension,
+    InvalidExtension(PathBuf),
     StreamingError(String),
     Io(std::io::Error),
     MalformedCityJSON(serde_json::Error),
@@ -38,8 +40,15 @@ impl Display for Error {
                     v, supported
                 )
             }
-            Error::InvalidExtension(e) => {
-                write!(f, "Could not find a file extension in {}", e)
+            Error::UnsupportedExtension => {
+                write!(
+                    f,
+                    "Not a supported extension. Extensions supported: {}",
+                    SupportedExtensions::print_all()
+                )
+            }
+            Error::InvalidExtension(pb) => {
+                write!(f, "Could not find a file extension in {}", pb.display())
             }
             Error::Io(e) => {
                 write!(f, "IO Error: {}", e)

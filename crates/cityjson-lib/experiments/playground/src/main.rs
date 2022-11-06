@@ -2,6 +2,7 @@
 
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 type Point = [f64; 3];
@@ -20,6 +21,43 @@ struct CityModel<'vertices> {
 }
 
 type OptionalContainer = Option<Vec<Option<Point>>>;
+
+#[derive(Copy, Clone)]
+enum SupportedExtensions {
+    Json,
+    CityJson,
+    Jsonl,
+    Unsupported,
+}
+
+impl From<&SupportedExtensions> for &str {
+    fn from(value: &SupportedExtensions) -> Self {
+        match value {
+            SupportedExtensions::Json => "json",
+            SupportedExtensions::CityJson => "cityjson",
+            SupportedExtensions::Jsonl => "jsonl",
+            SupportedExtensions::Unsupported => "",
+        }
+    }
+}
+
+// impl From<&str> for SupportedExtensions {
+//     fn from(value: &str) -> Self {
+//         match value {
+//             "json" => Self::Json,
+//             "cityjson" => Self::CityJson,
+//             "jsonl" => Self::Jsonl,
+//             _ => Self::Unsupported,
+//         }
+//     }
+// }
+
+impl PartialEq<OsStr> for SupportedExtensions {
+    fn eq(&self, other: &OsStr) -> bool {
+        let a: &str = self.into();
+        other == a
+    }
+}
 
 fn main() {
     // let mut cm = CityModel {
@@ -58,26 +96,23 @@ fn main() {
     // a += 2;
     // println!("{}", a.to_string());
     // ----------------------------
-    let mut oc: OptionalContainer = Some(Vec::new());
-    if let Some(ref mut _oc) = oc {
-        _oc.push(Some([1.0, 1.0, 1.0]));
-    }
-    if let Some(ref mut _oc) = oc {
-        _oc.push(Some([2.0, 2.0, 2.0]));
-    }
-    if let Some(ref mut _oc) = oc {
-        _oc.push(None);
-    }
-    if let Some(ref _oc) = oc {
-        for v in _oc {
-            println!("{:#?}", v);
-        }
-    }
-    static SUPPORTED_CITYJSON_VERSIONS: [&str; 4] = ["1.1", "1.1.1", "1.1.2", "1.1.3"];
-    println!("{}", SUPPORTED_CITYJSON_VERSIONS.contains(&"1.1"));
-    let a = "1.1.1";
-    println!("{}", &a[0..3]);
-    let a = ["1.1" | "1.1.1" | "1.1.2" | "1.1.3"];
-
+    // let mut oc: OptionalContainer = Some(Vec::new());
+    // if let Some(ref mut _oc) = oc {
+    //     _oc.push(Some([1.0, 1.0, 1.0]));
+    // }
+    // if let Some(ref mut _oc) = oc {
+    //     _oc.push(Some([2.0, 2.0, 2.0]));
+    // }
+    // if let Some(ref mut _oc) = oc {
+    //     _oc.push(None);
+    // }
+    // if let Some(ref _oc) = oc {
+    //     for v in _oc {
+    //         println!("{:#?}", v);
+    //     }
+    // }
+    // -------------------
+    let a: SupportedExtensions = SupportedExtensions::Json;
+    let b: &str = a.into();
     ()
 }
