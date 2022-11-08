@@ -74,7 +74,7 @@ impl CityModel {
             let cityjson_str = res?;
             cm = CityModel::from_str(&cityjson_str)?;
         } else {
-            return Err(Error::StreamingError(String::from("Empty stream")));
+            return Err(Error::StreamingError(String::from("empty stream")));
         }
 
         for res in stream_iter {
@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn cityjsonversion() {
-        let vr = CityJSONVersion::try_from("1.1");
+        let vr = CityJSONVersion::try_from("1.2");
         assert_eq!(vr.unwrap(), CityJSONVersion::V1_1);
         let s: String = CityJSONVersion::V1_1.into();
         println!("CityJSONVersion.into(): {}", s);

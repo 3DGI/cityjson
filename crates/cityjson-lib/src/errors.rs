@@ -24,37 +24,41 @@ impl Display for Error {
                 write!(f, "{}", s)
             }
             Error::ExpectedCityJSON(t) => {
-                write!(f, "Expected a CityModel type of CityJSON, but got {}", t)
+                write!(f, "the CityModel type should be CityJSON, but got {}", t)
             }
             Error::ExpectedCityJSONFeature(t) => {
                 write!(
                     f,
-                    "Expected a CityModel type of CityJSONFeature, but got {}",
+                    "the CityModel type should be CityJSONFeature, but got {}",
                     t
                 )
             }
             Error::UnsupportedVersion(v, supported) => {
                 write!(
                     f,
-                    "Unsupported CityJSON version: {}. Versions supported: {}",
-                    v, supported
+                    "the CityJSON version should be {}, but got {}",
+                    supported, v
                 )
             }
             Error::UnsupportedExtension => {
                 write!(
                     f,
-                    "Not a supported extension. Extensions supported: {}",
+                    "the file extension should be one of {}",
                     SupportedFileExtension
                 )
             }
             Error::InvalidExtension(pb) => {
-                write!(f, "Could not find a file extension in {}", pb.display())
+                write!(
+                    f,
+                    "the Path.extension method should have returned the file extension from {}",
+                    pb.display()
+                )
             }
             Error::Io(e) => {
-                write!(f, "IO Error: {}", e)
+                write!(f, "IO error: {}", e)
             }
             Error::MalformedCityJSON(e) => {
-                write!(f, "Error while deserializing the JSON document: {}", e)
+                write!(f, "error while deserializing the JSON document: {}", e)
             }
         }
     }
