@@ -215,8 +215,7 @@ While this approach does not need access to `CityModel`, we only recommend it in
     ```rust
     use serde_json::Deserializer;
 
-    let features_sequence = r#"
-        {"type":"CityJSONFeature"}
+    let features_sequence = r#"{"type":"CityJSONFeature"}
         {"type":"CityJSONFeature"}
     "#;
     let stream = Deserializer::from_str(features_sequence).into_iter::<CityFeature>();
@@ -295,73 +294,82 @@ If this is not the case, you can also create an empty `CityModel` and set the tr
     cm = CityModel.from_stream(stream)
     ```
 
-- [ ] You can also process and discard the features as you iterate over the stream, instead of collecting them into a `CityModel`.
+??? failure "Rejected"
+
+    The idea of accessing a CityModel while parsing features (and thus using the semantics, appearance containers of 
+    the CityModel) was rejected, because we don't want to accumulate data when iterating over features.
+    When a feature goes out of scope, all its data should be discarded.
+
+    The information that is needed for using the feature geometry (e.g. transformation and CRS) can be accessed in the 
+    feature processing loop, as it is shown in the example above.
+
+    - [ ] You can also create the features with accessing a CityModel as you iterate over the stream by using the `with()` method.
 
 
-=== "Rust"
+    === "Rust"
 
-    ```rust
-    use std::io::{BufRead, Cursor};
-
-    let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-        {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
-        {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-    let mut stream_iter = Cursor::new(feature_sequence).lines();
-
-    let mut cm: CityModel; // (1)
-    if let Some(res) = stream_iter.next() // (2) {
-        let cityjson_str = res.expect("Failed to read object from the sequence.");
-        cm = CityModel::from_str(&cityjson_str);
-    }
-
-    for res in stream_iter {
-        let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
-
-        let cf = CityFeature::from_str(&cityjsonfeature_str).with(&mut cm); // (3)
-
-        for (coid, co) in cf.cityobjects.iter() {
-            println!("CityObject id: {}", coid);
+        ```rust
+        use std::io::{BufRead, Cursor};
+    
+        let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
+            {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+            {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
+        let mut stream_iter = Cursor::new(feature_sequence).lines();
+    
+        let mut cm: CityModel; // (1)
+        if let Some(res) = stream_iter.next() // (2) {
+            let cityjson_str = res.expect("Failed to read object from the sequence.");
+            cm = CityModel::from_str(&cityjson_str);
         }
-
-        // Additionally, you can insert the CityObjects from 
-        // the CityFeature to the CityModel.
-        cm.cityobjects.insert(cf);
-    }
-    ```
     
-    1. We need a `mut`able `CityModel`, because its semantics and appearances will be populated from the `CityJSONFeature`s.
+        for res in stream_iter {
+            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
     
-    2. We expect that the first item in the stream is a `CityJSON` object.
-        This first `CityJSON` object is converted to a `CityModel`, which is then used for parsing the `CityJSONFeature`.
+            let cf = CityFeature::from_str(&cityjsonfeature_str).with(&mut cm); // (3)
     
-    3. Parse the `CityJSONFeature` into a `CityFeature`, with the information from the CityModel `cm` (transformation properties etc.). 
-        Since the appearance and semantic objects of the `CityObject`s are stored on the `CityModel`, we need a mutable reference to it.
-
-=== "Python"
-
-    ```python
-    from io import StringIO
-
-    features_sequence = """
-        {"type":"CityJSON"}
-        {"type":"CityJSONFeature"}
-        {"type":"CityJSONFeature"}
-    """.strip("\n").strip()
-    stream = StringIO(features_sequence)
-
-    citymodel_str = stream.readline()
-    cm = CityModel.from_str(citymodel_str)
+            for (coid, co) in cf.cityobjects.iter() {
+                println!("CityObject id: {}", coid);
+            }
     
-    for cityjsonfeature_str in stream:
-        if cityjsonfeature_str is None or cityjsonfeature_str == "":
-            break
-        else:
-            cf = CityFeature.from_str(cityjsonfeature_str, citymodel=cm)
+            // Additionally, you can insert the CityObjects from 
+            // the CityFeature to the CityModel.
+            cm.cityobjects.insert(cf);
+        }
+        ```
+        
+        1. We need a `mut`able `CityModel`, because its semantics and appearances will be populated from the `CityJSONFeature`s.
+        
+        2. We expect that the first item in the stream is a `CityJSON` object.
+            This first `CityJSON` object is converted to a `CityModel`, which is then used for parsing the `CityJSONFeature`.
+        
+        3. Parse the `CityJSONFeature` into a `CityFeature`, with the information from the CityModel `cm` (transformation properties etc.). 
+            Since the appearance and semantic objects of the `CityObject`s are stored on the `CityModel`, we need a mutable reference to it.
 
-        # Additionally, you can insert the CityObjects from 
-        # the CityFeature to the CityModel.
-        cm.cityobjects.insert(cf)
-    ```
+    === "Python"
+    
+        ```python
+        from io import StringIO
+    
+        features_sequence = """
+            {"type":"CityJSON"}
+            {"type":"CityJSONFeature"}
+            {"type":"CityJSONFeature"}
+        """.strip("\n").strip()
+        stream = StringIO(features_sequence)
+    
+        citymodel_str = stream.readline()
+        cm = CityModel.from_str(citymodel_str)
+        
+        for cityjsonfeature_str in stream:
+            if cityjsonfeature_str is None or cityjsonfeature_str == "":
+                break
+            else:
+                cf = CityFeature.from_str(cityjsonfeature_str, citymodel=cm)
+    
+            # Additionally, you can insert the CityObjects from 
+            # the CityFeature to the CityModel.
+            cm.cityobjects.insert(cf)
+        ```
 
 ### Writing a stream of CityJSONFeatures
 

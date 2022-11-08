@@ -549,6 +549,7 @@ type IVertices = Vec<[i32; 3]>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Deserializer;
     use std::io::Cursor;
     use std::path::PathBuf;
 
@@ -671,6 +672,33 @@ mod tests {
         let stream = Cursor::new(feature_sequence);
         let cm = CityModel::from_stream(stream);
         println!("From stream: {:?}", cm);
+    }
+
+    #[test]
+    fn features_streamdeserializer() {
+        let feature_sequence = r#"{"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+            {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
+        let stream = Cursor::new(feature_sequence);
+        let a = stream
+            .lines()
+            .map(|res| CityFeature::from_str(res.as_ref().unwrap()))
+            .map(|feature| feature.unwrap());
+        for f in a {
+            println!("{:?}", f);
+        }
+        // let stream = Deserializer::from_str(&feature_sequence).into_iter::<CityFeature>();
+        // // let transform_properties = Transform::new()
+        // //     .scale(1.0, 1.0, 1.0)
+        // //     .translate(0.0, 0.0, 0.0);
+        //
+        // while let Some(feature) = stream.next() {
+        //     let parent_cityobject: String = feature.id;
+        //     for (coid, co) in feature.cityobjects.iter_mut() {
+        //         println!("CityObject id: {}", coid);
+        //         // co.transform(&transform_properties);
+        //         // process the CityObject
+        //     }
+        // }
     }
 
     #[test]
