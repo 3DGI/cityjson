@@ -8,12 +8,12 @@ use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
-use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, LineWriter, Read};
 use std::path::Path;
+use std::str::FromStr;
 
 ///```rust
 ///let cm = cjlib::CityModel::new();
@@ -45,11 +45,11 @@ impl CityModel {
             Some(extension_os_str) => {
                 // todo: Make sure that when reading jsonl file, the reader reads a whole line at
                 //  once (until the \n). Otherwise use the default bufreader.
-                if SupportedExtensions::Json == extension_os_str
-                    || SupportedExtensions::CityJson == extension_os_str
+                if extension_os_str == SupportedFileExtension::JSON
+                    || extension_os_str == SupportedFileExtension::CITYJSON
                 {
                     Self::from_reader(reader)
-                } else if SupportedExtensions::Jsonl == extension_os_str {
+                } else if extension_os_str == SupportedFileExtension::JSONL {
                     Self::from_stream(reader)
                 } else {
                     // let's try parsing as a regular CityJSON file
@@ -103,19 +103,6 @@ impl CityModel {
         })
     }
 
-    /// Parse a CityJSON document from a string, by calling [`serde_json::from_str`](serde_json::from_str).
-    pub fn from_str(cityjson: &str) -> Result<Self> {
-        let icm: ICityModel = from_str(cityjson)?;
-        match icm.type_cm {
-            CityModelType::CityJSON => Ok(Self {
-                version: icm.version.unwrap(),
-                transform: icm.transform,
-                cityobjects: Default::default(),
-            }),
-            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
-        }
-    }
-
     /// Convert the CityModel to a CityJSON document string.
     pub fn to_string(&self) -> Result<String> {
         Ok(to_string(&ICityModel::from(self))?)
@@ -127,11 +114,11 @@ impl CityModel {
         return match path.as_ref().extension() {
             None => Err(Error::InvalidExtension(path.as_ref().to_path_buf())),
             Some(extension_os_str) => {
-                if SupportedExtensions::Json == extension_os_str
-                    || SupportedExtensions::CityJson == extension_os_str
+                if extension_os_str == SupportedFileExtension::JSON
+                    || extension_os_str == SupportedFileExtension::CITYJSON
                 {
                     Ok(serde_json::to_writer(&file_out, &ICityModel::from(self))?)
-                } else if SupportedExtensions::Jsonl == extension_os_str {
+                } else if extension_os_str == SupportedFileExtension::JSONL {
                     let cityjson = self.to_features_cityjson().unwrap();
                     let cityjsonfeatures = self
                         .to_features()
@@ -216,6 +203,23 @@ impl fmt::Display for CityModel {
     }
 }
 
+impl FromStr for CityModel {
+    type Err = Error;
+
+    /// Parse a CityJSON document from a string, by calling [`serde_json::from_str`](serde_json::from_str).
+    fn from_str(cityjson: &str) -> Result<Self> {
+        let icm: ICityModel = from_str(cityjson)?;
+        match icm.type_cm {
+            CityModelType::CityJSON => Ok(Self {
+                version: icm.version.unwrap(),
+                transform: icm.transform,
+                cityobjects: Default::default(),
+            }),
+            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
+        }
+    }
+}
+
 pub struct CityFeatureIterator<'cityobjects> {
     // We borrow the CityObjects from the CityModel for this struct, because the CityObjects values
     // are cloned into the CityFeature-s.
@@ -243,17 +247,6 @@ impl CityFeature {
         Self { id }
     }
 
-    /// Parse a string of CityJSON text.
-    pub fn from_str(cityjson: &str) -> Result<Self> {
-        let icm: ICityModel = from_str(cityjson)?;
-        match icm.type_cm {
-            CityModelType::CityJSON => Err(Error::ExpectedCityJSONFeature(icm.type_cm)),
-            CityModelType::CityJSONFeature => Ok(Self {
-                id: icm.id.unwrap(),
-            }),
-        }
-    }
-
     /// Convert a CityFeature to a CityJSONFeature object string.
     pub fn to_string(&self) -> Result<String> {
         Ok(to_string(&ICityModel::from(self))?)
@@ -278,34 +271,93 @@ impl fmt::Display for CityFeature {
     }
 }
 
-/// A central register of what file extensions are supported.
-#[derive(Debug, Copy, Clone)]
-enum SupportedExtensions {
-    Json,
-    CityJson,
-    Jsonl,
-}
+impl FromStr for CityFeature {
+    type Err = Error;
 
-impl From<&SupportedExtensions> for &str {
-    fn from(value: &SupportedExtensions) -> Self {
-        match value {
-            SupportedExtensions::Json => "json",
-            SupportedExtensions::CityJson => "cityjson",
-            SupportedExtensions::Jsonl => "jsonl",
+    /// Deserialize a string of CityJSON text.
+    fn from_str(cityjson: &str) -> Result<Self> {
+        let icm: ICityModel = from_str(cityjson)?;
+        match icm.type_cm {
+            CityModelType::CityJSON => Err(Error::ExpectedCityJSONFeature(icm.type_cm)),
+            CityModelType::CityJSONFeature => Ok(Self {
+                id: icm.id.unwrap(),
+            }),
         }
     }
 }
 
-impl SupportedExtensions {
-    fn print_all() -> String {
-        format!("{:?}, {:?}, {:?}", Self::Json, Self::CityJson, Self::Jsonl).to_lowercase()
-    }
+/// A register of what file extensions are supported.
+/// It allows comparison for equality with an [`std::ffi::OsStr`](std::ffi::OsStr), which we get when working with
+/// [`std::path::Path`](std::path::Path)s.
+/// There are two concepts that are important in this implementation,
+/// [associated constants](https://doc.rust-lang.org/reference/items/associated-items.html#associated-constants)
+/// and the [non_exhaustive attribute](https://doc.rust-lang.org/reference/attributes/type_system.html#the-non_exhaustive-attribute)
+/// which indicates that this type may have more fields or variants added in the future.
+///
+///
+/// Alternative implementations that I considered:
+///
+/// The array of strings. However, I need to distinguish between 'json' and 'jsonl' and probably
+/// other extensions in the future too. Thus, a simple containment test is not enough.
+/// ```
+/// static SUPPORTED_FILE_EXTENSION: [&str; 3] = [ "json", "cityjson", "jsonl" ];
+/// let extension_of_input_file = "json";
+/// let does_contain = SUPPORTED_FILE_EXTENSION.contains(&extension_of_input_file);
+/// ```
+///
+/// An enum. While it achieves the same purpose as the struct implementation, it is much more
+/// verbose.
+/// ```
+/// use std::ffi::OsStr;
+///
+/// #[derive(Debug, Copy, Clone)]
+/// enum SupportedFileExtension {
+///     Json,
+///     CityJson,
+///     Jsonl,
+/// }
+///
+/// impl From<&SupportedFileExtension> for &str {
+///     fn from(value: &SupportedFileExtension) -> Self {
+///         match value {
+///             SupportedFileExtension::Json => "json",
+///             SupportedFileExtension::CityJson => "cityjson",
+///             SupportedFileExtension::Jsonl => "jsonl",
+///         }
+///     }
+/// }
+///
+/// impl SupportedFileExtension {
+///     fn print_all() -> String {
+///         format!("{:?}, {:?}, {:?}", Self::Json, Self::CityJson, Self::Jsonl).to_lowercase()
+///     }
+/// }
+///
+/// impl PartialEq<&OsStr> for SupportedFileExtension {
+///     fn eq(&self, other: &&OsStr) -> bool {
+///         let a: &str = self.into();
+///         *other == a
+///     }
+/// }
+/// ```
+#[non_exhaustive]
+#[derive(Debug)]
+struct SupportedFileExtension;
+impl SupportedFileExtension {
+    pub const JSON: &'static str = "json";
+    pub const CITYJSON: &'static str = "cityjson";
+    pub const JSONL: &'static str = "jsonl";
 }
 
-impl PartialEq<&OsStr> for SupportedExtensions {
-    fn eq(&self, other: &&OsStr) -> bool {
-        let a: &str = self.into();
-        *other == a
+impl fmt::Display for SupportedFileExtension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?}, {:?}, {:?}",
+            Self::JSON,
+            Self::CITYJSON,
+            Self::JSONL
+        )
     }
 }
 

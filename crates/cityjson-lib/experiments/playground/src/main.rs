@@ -3,6 +3,7 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 
 type Point = [f64; 3];
@@ -30,16 +31,16 @@ enum SupportedExtensions {
     Unsupported,
 }
 
-impl From<&SupportedExtensions> for &str {
-    fn from(value: &SupportedExtensions) -> Self {
-        match value {
-            SupportedExtensions::Json => "json",
-            SupportedExtensions::CityJson => "cityjson",
-            SupportedExtensions::Jsonl => "jsonl",
-            SupportedExtensions::Unsupported => "",
-        }
-    }
-}
+// impl From<&SupportedExtensions> for &str {
+//     fn from(value: &SupportedExtensions) -> Self {
+//         match value {
+//             SupportedExtensions::Json => "json",
+//             SupportedExtensions::CityJson => "cityjson",
+//             SupportedExtensions::Jsonl => "jsonl",
+//             SupportedExtensions::Unsupported => "",
+//         }
+//     }
+// }
 
 // impl From<&str> for SupportedExtensions {
 //     fn from(value: &str) -> Self {
@@ -52,10 +53,31 @@ impl From<&SupportedExtensions> for &str {
 //     }
 // }
 
-impl PartialEq<OsStr> for SupportedExtensions {
-    fn eq(&self, other: &OsStr) -> bool {
-        let a: &str = self.into();
-        other == a
+// impl PartialEq<OsStr> for SupportedExtensions {
+//     fn eq(&self, other: &OsStr) -> bool {
+//         let a: &str = self.into();
+//         other == a
+//     }
+// }
+
+#[non_exhaustive]
+#[derive(Debug)]
+struct SupportedFileExtension;
+impl SupportedFileExtension {
+    pub const JSON: &'static str = "json";
+    pub const CITYJSON: &'static str = "cityjson";
+    pub const JSONL: &'static str = "jsonl";
+}
+
+impl Display for SupportedFileExtension {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}, {:?}, {:?}",
+            Self::JSON,
+            Self::CITYJSON,
+            Self::JSONL
+        )
     }
 }
 
@@ -112,7 +134,52 @@ fn main() {
     //     }
     // }
     // -------------------
-    let a: SupportedExtensions = SupportedExtensions::Json;
-    let b: &str = a.into();
-    ()
+    // let a: SupportedExtensions = SupportedExtensions::Json;
+    // let b: &str = a.into();
+    // ----------------------
+    let path = Path::new("./foo/bar.json");
+    match path.extension() {
+        None => {}
+        Some(extension_os_str) => {
+            if extension_os_str == SupportedFileExtension::JSON
+                || extension_os_str == SupportedFileExtension::CITYJSON
+            {
+                println!("json")
+            } else if extension_os_str == SupportedFileExtension::JSONL {
+                println!("jsonl")
+            }
+        }
+    }
+    println!("{}", SupportedFileExtension)
 }
+
+
+/// #[derive(Debug, Copy, Clone)]
+/// enum SupportedFileExtension {
+///     Json,
+///     CityJson,
+///     Jsonl,
+/// }
+///
+/// impl From<&SupportedFileExtension> for &str {
+///     fn from(value: &SupportedFileExtension) -> Self {
+///         match value {
+///             SupportedFileExtension::Json => "json",
+///             SupportedFileExtension::CityJson => "cityjson",
+///             SupportedFileExtension::Jsonl => "jsonl",
+///         }
+///     }
+/// }
+///
+/// impl SupportedFileExtension {
+///     fn print_all() -> String {
+///         format!("{:?}, {:?}, {:?}", Self::Json, Self::CityJson, Self::Jsonl).to_lowercase()
+///     }
+/// }
+///
+/// impl PartialEq<&OsStr> for SupportedFileExtension {
+///     fn eq(&self, other: &&OsStr) -> bool {
+///         let a: &str = self.into();
+///         *other == a
+///     }
+/// }

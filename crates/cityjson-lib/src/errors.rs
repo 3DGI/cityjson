@@ -1,5 +1,5 @@
 //! When operations on city models go wrong.
-use crate::{CityModelType, SupportedExtensions};
+use crate::{CityModelType, SupportedFileExtension};
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ impl Display for Error {
                 write!(
                     f,
                     "Not a supported extension. Extensions supported: {}",
-                    SupportedExtensions::print_all()
+                    SupportedFileExtension
                 )
             }
             Error::InvalidExtension(pb) => {
