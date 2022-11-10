@@ -1,6 +1,7 @@
 site_name: cjlib
 nav:
   - Home: index.md
+  - Engineering choices: engineering.md
   - Guide: guide.md
   - Examples: examples.md
   - FAQ: faq.md
@@ -24,3 +25,5 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
+  # footnotes
+  - footnotes
