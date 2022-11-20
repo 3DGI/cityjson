@@ -12,7 +12,7 @@ pub enum Error {
     InvalidExtension(PathBuf),
     StreamingError(String),
     Io(std::io::Error),
-    MalformedCityJSON(serde_json::Error),
+    MalformedCityJSON(serde_json::Error, Option<serde_json::Value>), // Some(_) if JSON was syntactically valid
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -36,7 +36,7 @@ impl Display for Error {
             Error::UnsupportedVersion(v, supported) => {
                 write!(
                     f,
-                    "the CityJSON version should be {}, but got {}",
+                    "the CityJSON version should be one of {}, but got {}",
                     supported, v
                 )
             }
@@ -57,8 +57,14 @@ impl Display for Error {
             Error::Io(e) => {
                 write!(f, "IO error: {}", e)
             }
-            Error::MalformedCityJSON(e) => {
-                write!(f, "error while deserializing the JSON document: {}", e)
+            Error::MalformedCityJSON(error, value) => {
+                write!(f, "error while deserializing the JSON document: {}", error)?;
+
+                if let Some(value) = value.as_ref() {
+                    write!(f, ", value: {}", value)?;
+                }
+
+                Ok(())
             }
         }
     }
@@ -72,7 +78,7 @@ impl Debug for Error {
 
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
-        Self::MalformedCityJSON(error)
+        Self::MalformedCityJSON(error, None)
     }
 }
 

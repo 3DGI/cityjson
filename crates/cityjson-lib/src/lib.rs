@@ -6,6 +6,7 @@ mod errors;
 use crate::errors::{Error, Result};
 
 use serde::{Deserialize, Serialize};
+use serde_json::de::{Deserializer, StrRead, StreamDeserializer};
 use serde_json::{from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
 use std::fmt;
@@ -265,9 +266,26 @@ impl fmt::Debug for CityFeature {
     }
 }
 
+impl<'de> Deserialize<'de> for CityFeature {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let icm = ICityModel::deserialize(deserializer)?;
+        match icm.type_cm {
+            CityModelType::CityJSON => Err(serde::de::Error::custom(
+                Error::ExpectedCityJSONFeature(icm.type_cm),
+            )),
+            CityModelType::CityJSONFeature => Ok(Self {
+                id: icm.id.unwrap(),
+            }),
+        }
+    }
+}
+
 impl fmt::Display for CityFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "City(\n\tid: {}\n)", &self.id)
+        write!(f, "CityFeature (\n\tid: {}\n)", &self.id)
     }
 }
 
@@ -282,6 +300,97 @@ impl FromStr for CityFeature {
             CityModelType::CityJSONFeature => Ok(Self {
                 id: icm.id.unwrap(),
             }),
+        }
+    }
+}
+
+/// Deserialize a stream of CityJSONFeatures.
+///
+/// Deserializes a stream of `CityJSONFeature` into `Result<CityFeature>`. It returns an error if
+/// it fails to deserialize an item into a `CityFeature`. If the error is a type error, and the
+/// next thing in the stream was at least valid JSON, then deserialize the item into a
+/// dynamically-typed [serde_json::Value](`serde_json::Value`), return the Value with the error and
+/// skip the item.
+/// If the item is invalid JSON, it returns an error and the iteration stops.
+///
+/// Note:
+///     You may also the default serde_json::StreamDeserializer, however that will stop on the first
+///     error. For instance if the `feature_stream` contains a malformed item, or an item that is
+///     not `CityJSONFeature`, then
+///     `Deserializer::from_str(&feature_stream).into_iter::<CityFeature>();` will stop after
+///     returning any kind of error.
+///     
+/// Example
+/// ```
+/// use cjlib::CityFeatureStreamDeserializer;
+///
+/// let feature_sequence = r#"{"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+///         {"type":"CityJSON","CityObjects":{},"vertices":[]}
+///         {"type":"CityJSONFeature","id":"id-3","CityObjects":{},"vertices":[]}
+///         {"type": invalid json"#;
+///
+/// for result in CityFeatureStreamDeserializer::new(&feature_sequence) {
+///     if let Ok(cityfeature) = result {
+///         println!("cityfeature: {:#?}", cityfeature);
+///     } else {
+///         println!("not cityfeature: {:#?}", result);
+///     }   
+/// }
+/// ```
+///
+/// Credit to ... from https://users.rust-lang.org/t/step-past-errors-in-serde-json-streamdeserializer/84228/8?u=balazsdukai
+pub struct CityFeatureStreamDeserializer<'de> {
+    json: &'de str,
+    stream: StreamDeserializer<'de, StrRead<'de>, CityFeature>,
+    last_ok_pos: usize,
+}
+
+impl<'de> CityFeatureStreamDeserializer<'de>
+where
+    CityFeature: Deserialize<'de>,
+{
+    pub fn new(json: &'de str) -> Self {
+        let stream = Deserializer::from_str(json).into_iter();
+        let last_ok_pos = 0;
+
+        CityFeatureStreamDeserializer {
+            json,
+            stream,
+            last_ok_pos,
+        }
+    }
+}
+
+impl<'de> Iterator for CityFeatureStreamDeserializer<'de>
+where
+    CityFeature: Deserialize<'de>,
+{
+    type Item = Result<CityFeature>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.stream.next()? {
+            Ok(value) => {
+                self.last_ok_pos = self.stream.byte_offset();
+                Some(Ok(value))
+            }
+            Err(error) => {
+                // If an error happened, check whether it's a type error, i.e.
+                // whether the next thing in the stream was at least valid JSON.
+                // If so, return it as a dynamically-typed `Value` and skip it.
+                let err_json = &self.json[self.last_ok_pos..];
+                let mut err_stream =
+                    Deserializer::from_str(err_json).into_iter::<serde_json::Value>();
+                let value = err_stream.next()?.ok();
+                let next_pos = if value.is_some() {
+                    self.last_ok_pos + err_stream.byte_offset()
+                } else {
+                    self.json.len() // when JSON has a syntax error, prevent infinite stream of errors
+                };
+                self.json = &self.json[next_pos..];
+                self.stream = Deserializer::from_str(self.json).into_iter();
+                self.last_ok_pos = 0;
+                Some(Err(Error::MalformedCityJSON(error, value)))
+            }
         }
     }
 }
@@ -494,7 +603,7 @@ struct CityObject;
 
 /// Indexed-CityModel, which is an intermediary struct that is directly deserialized from CityJSON
 /// document and converted to a CityModel.
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct ICityModel {
     // NOTE: consider https://docs.rs/serde_with/latest/serde_with/index.html#skip_serializing_none
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -538,7 +647,7 @@ impl From<&CityFeature> for ICityModel {
 
 type ICityObjects = HashMap<String, ICityObject>;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct ICityObject;
 
 /// Vertex coordinates, deserialized from a CityJSON document.
@@ -677,28 +786,34 @@ mod tests {
     #[test]
     fn features_streamdeserializer() {
         let feature_sequence = r#"{"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
-            {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-        let stream = Cursor::new(feature_sequence);
-        let a = stream
-            .lines()
-            .map(|res| CityFeature::from_str(res.as_ref().unwrap()))
-            .map(|feature| feature.unwrap());
-        for f in a {
-            println!("{:?}", f);
+        {"type":"CityJSON","CityObjects":{},"vertices":[]}
+        {"type":"CityJSONFeature","id":"id-3","CityObjects":{},"vertices":[]}
+        {"type":"CityJSONFeature","id":"id-4","CityObjects":{},"vertices":[]}"#;
+
+        for result in CityFeatureStreamDeserializer::new(&feature_sequence) {
+            println!("{:#?}", result)
         }
-        // let stream = Deserializer::from_str(&feature_sequence).into_iter::<CityFeature>();
-        // // let transform_properties = Transform::new()
-        // //     .scale(1.0, 1.0, 1.0)
-        // //     .translate(0.0, 0.0, 0.0);
-        //
-        // while let Some(feature) = stream.next() {
-        //     let parent_cityobject: String = feature.id;
-        //     for (coid, co) in feature.cityobjects.iter_mut() {
-        //         println!("CityObject id: {}", coid);
-        //         // co.transform(&transform_properties);
-        //         // process the CityObject
-        //     }
-        // }
+
+        // from slice
+        for result in CityFeatureStreamDeserializer::new(feature_sequence.as_bytes()) {
+            println!("{:#?}", result)
+        }
+
+        // Using a Cursor, flatten (panics) and from_str
+        let stream = Cursor::new(feature_sequence);
+        for s in stream.lines().flatten() {
+            let res = CityFeature::from_str(&s);
+        }
+
+        // Using the default serde_json::StreamDeserializer, but it stops after returning the first
+        // error
+        let stream = Deserializer::from_str(&feature_sequence).into_iter::<CityFeature>();
+        for cityfeature_res in stream.skip_while(|cf| cf.is_err()) {
+            match cityfeature_res {
+                Ok(cf) => println!("{}", cf),
+                Err(e) => println!("error: {}", e),
+            }
+        }
     }
 
     #[test]

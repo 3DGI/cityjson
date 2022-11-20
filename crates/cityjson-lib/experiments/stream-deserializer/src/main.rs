@@ -93,7 +93,8 @@ fn main() {
     let feature_sequence = r#"{"id":"this_is_ok_1"}
     {"id":1, "abc": 2}
     {"id":"this_is_ok_2"}
-    {"id": lol wrong JSON"#;
+    {"id": lol wrong JSON
+    {"id":"this_is_ok_3"}"#;
 
     for result in ResilientStreamDeserializer::<Final>::new(feature_sequence) {
         dbg!(result);

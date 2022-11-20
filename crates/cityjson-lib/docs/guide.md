@@ -205,7 +205,7 @@ A file with an extension of `.city.jsonl` or `.jsonl` a newline-delimited sequen
 
 ### Reading a stream of CityJSONFeatures
 
-- [ ] Stream with only CityJSONFeatures
+- [x] Stream with only CityJSONFeatures
 
 Parse a stream of text sequence into [`CityJSONFeature`s](https://www.cityjson.org/specs/1.1.2/#text-sequences-and-streaming-with-cityjsonfeature).
 While this approach does not need access to `CityModel`, we only recommend it in the case when you process and discard the features one by one, because the semantic and appearance objects are duplicated across the features.
@@ -213,22 +213,18 @@ While this approach does not need access to `CityModel`, we only recommend it in
 === "Rust"
 
     ```rust
-    use serde_json::Deserializer;
-
-    let features_sequence = r#"{"type":"CityJSONFeature"}
-        {"type":"CityJSONFeature"}
-    "#;
-    let stream = Deserializer::from_str(features_sequence).into_iter::<CityFeature>();
     let transform_properties = Transform::new()
         .scale(1.0, 1.0, 1.0)
         .translate(0.0, 0.0, 0.0);
 
-    while let Some(feature) = stream.next() {
-        let parent_cityobject: String = feature.id;
-        for (coid, co) in feature.cityobjects.iter_mut() {
-            println!("CityObject id: {}", coid);
-            co.transform(&transform_properties);
-            // process the CityObject
+    let feature_sequence = r#"{"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
+        {"type":"CityJSONFeature","id":"id-3","CityObjects":{},"vertices":[]}#;
+    
+    for result in CityFeatureStreamDeserializer::new(&feature_sequence) {
+        if let Ok(cityfeature) = result {
+            // process the CityFeature
+        } else {
+            // not a CityFeature
         }
     }
     ```
