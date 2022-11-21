@@ -1,13 +1,12 @@
 //! A software library for working with semantic 3D city models, based on the
 //! [CityJSON](https://cityjson.org) data model.
 
-mod errors;
+pub mod errors;
 
 use crate::errors::{Error, Result};
 
 use serde::{Deserialize, Serialize};
 use serde_json::de::{Deserializer, StrRead, StreamDeserializer};
-use serde_json::{from_reader, from_str, to_string};
 use std::collections::{hash_map, HashMap};
 use std::fmt;
 use std::fs::File;
@@ -16,10 +15,46 @@ use std::io::{BufRead, BufReader, LineWriter, Read};
 use std::path::Path;
 use std::str::FromStr;
 
-///```rust
-///let cm = cjlib::CityModel::new();
-///let cm2 = cjlib::CityModel::default();
+/// A struct that represents a city model, which is conceptually equivalent to a
+/// [CityJSON object](https://www.cityjson.org/specs/1.1.2/#cityjson-object).
+///
+/// # Examples
+///
+/// Create new, empty city models.
+///
+/// ```rust
+/// let cm = cjlib::CityModel::new();
+/// let cm2 = cjlib::CityModel::default();
 /// ```
+///
+/// Deserialize a `CityJSON` document into a `CityModel`.
+///
+/// ```
+/// use std::str::FromStr;
+/// let cityjson_str = r#"{
+///        "type": "CityJSON",
+///        "version": "1.1",
+///        "transform": {
+///            "scale": [1.0, 1.0, 1.0],
+///            "translate": [0.0, 0.0, 0.0]
+///        },
+///        "CityObjects": {},
+///        "vertices": []
+///    }"#;
+/// let cm: cjlib::errors::Result<cjlib::CityModel> = cjlib::CityModel::from_str(cityjson_str);
+/// println!("CityModel::from_str {:?}", cm);
+///
+/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_str(cityjson_str);
+/// println!("serde_json::from_str {:?}", cm);
+///
+/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
+/// println!("serde_json::from_slice {:?}", cm);
+///
+/// // &[u8] implements Read
+/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
+/// println!("serde_json::from_reader {:?}", cm);
+/// ```
+///
 pub struct CityModel {
     version: CityJSONVersion,
     transform: Option<Transform>,
@@ -49,12 +84,14 @@ impl CityModel {
                 if extension_os_str == SupportedFileExtension::JSON
                     || extension_os_str == SupportedFileExtension::CITYJSON
                 {
-                    Self::from_reader(reader)
+                    let cm: CityModel = serde_json::from_reader(reader)?;
+                    Ok(cm)
                 } else if extension_os_str == SupportedFileExtension::JSONL {
                     Self::from_stream(reader)
                 } else {
                     // let's try parsing as a regular CityJSON file
-                    Self::from_reader(reader)
+                    let cm: CityModel = serde_json::from_reader(reader)?;
+                    Ok(cm)
                 }
             }
         };
@@ -91,22 +128,9 @@ impl CityModel {
         Ok(cm)
     }
 
-    /// Create a CityModel from an IO stream of CityJSON, by calling [`serde_json::from_reader`](serde_json::from_reader).
-    pub fn from_reader<R>(reader: R) -> Result<Self>
-    where
-        R: Read,
-    {
-        let icm: ICityModel = from_reader(reader)?;
-        Ok(Self {
-            version: icm.version.unwrap(),
-            transform: icm.transform,
-            cityobjects: Default::default(),
-        })
-    }
-
     /// Convert the CityModel to a CityJSON document string.
     pub fn to_string(&self) -> Result<String> {
-        Ok(to_string(&ICityModel::from(self))?)
+        Ok(serde_json::to_string(&ICityModel::from(self))?)
     }
 
     /// Write the CityModel to a CityJSON file.
@@ -144,7 +168,7 @@ impl CityModel {
     /// CityJSONFeature stream. The new CityJSON object has empty "CityObjects" and "vertices"
     /// members, because these are supposed to be passed in subsequent CityJSONFeatures.
     pub fn to_features_cityjson(&self) -> Result<String> {
-        Ok(to_string(&ICityModel {
+        Ok(serde_json::to_string(&ICityModel {
             id: None,
             type_cm: CityModelType::CityJSON,
             version: Some(self.version),
@@ -204,12 +228,31 @@ impl fmt::Display for CityModel {
     }
 }
 
+impl<'de> Deserialize<'de> for CityModel {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let icm = ICityModel::deserialize(deserializer)?;
+        match icm.type_cm {
+            CityModelType::CityJSONFeature => Err(serde::de::Error::custom(
+                Error::ExpectedCityJSON(icm.type_cm),
+            )),
+            CityModelType::CityJSON => Ok(Self {
+                version: icm.version.unwrap(),
+                transform: icm.transform,
+                cityobjects: Default::default(),
+            }),
+        }
+    }
+}
+
 impl FromStr for CityModel {
     type Err = Error;
 
     /// Parse a CityJSON document from a string, by calling [`serde_json::from_str`](serde_json::from_str).
     fn from_str(cityjson: &str) -> Result<Self> {
-        let icm: ICityModel = from_str(cityjson)?;
+        let icm: ICityModel = serde_json::from_str(cityjson)?;
         match icm.type_cm {
             CityModelType::CityJSON => Ok(Self {
                 version: icm.version.unwrap(),
@@ -250,7 +293,7 @@ impl CityFeature {
 
     /// Convert a CityFeature to a CityJSONFeature object string.
     pub fn to_string(&self) -> Result<String> {
-        Ok(to_string(&ICityModel::from(self))?)
+        Ok(serde_json::to_string(&ICityModel::from(self))?)
     }
 }
 
@@ -294,7 +337,7 @@ impl FromStr for CityFeature {
 
     /// Deserialize a string of CityJSON text.
     fn from_str(cityjson: &str) -> Result<Self> {
-        let icm: ICityModel = from_str(cityjson)?;
+        let icm: ICityModel = serde_json::from_str(cityjson)?;
         match icm.type_cm {
             CityModelType::CityJSON => Err(Error::ExpectedCityJSONFeature(icm.type_cm)),
             CityModelType::CityJSONFeature => Ok(Self {
@@ -452,6 +495,7 @@ where
 #[non_exhaustive]
 #[derive(Debug)]
 struct SupportedFileExtension;
+
 impl SupportedFileExtension {
     pub const JSON: &'static str = "json";
     pub const CITYJSON: &'static str = "cityjson";
@@ -692,8 +736,18 @@ mod tests {
             "CityObjects": {},
             "vertices": []
         }"#;
-        let cm = CityModel::from_str(cityjson_str).unwrap();
-        println!("{:?}", cm);
+        let cm: crate::errors::Result<CityModel> = CityModel::from_str(cityjson_str);
+        println!("CityModel::from_str {:?}", cm);
+
+        let cm: serde_json::Result<CityModel> = serde_json::from_str(cityjson_str);
+        println!("serde_json::from_str {:?}", cm);
+
+        let cm: serde_json::Result<CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
+        println!("serde_json::from_slice {:?}", cm);
+
+        // &[u8] implements Read
+        let cm: serde_json::Result<CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
+        println!("serde_json::from_reader {:?}", cm);
     }
 
     #[test]
@@ -770,7 +824,7 @@ mod tests {
             "CityObjects": {},
             "vertices": []
         }"#;
-        let _: ICityModel = from_str(cityjsonfeature_str).unwrap();
+        let _: ICityModel = serde_json::from_str(cityjsonfeature_str).unwrap();
     }
 
     #[test]
@@ -794,10 +848,10 @@ mod tests {
             println!("{:#?}", result)
         }
 
-        // from slice
-        for result in CityFeatureStreamDeserializer::new(feature_sequence.as_bytes()) {
-            println!("{:#?}", result)
-        }
+        // // from slice
+        // for result in CityFeatureStreamDeserializer::new(feature_sequence.as_bytes()) {
+        //     println!("{:#?}", result)
+        // }
 
         // Using a Cursor, flatten (panics) and from_str
         let stream = Cursor::new(feature_sequence);
