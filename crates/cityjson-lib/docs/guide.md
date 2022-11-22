@@ -513,6 +513,42 @@ When you write a CityJSON file in this way, the first JSON object is a `CityJSON
     ```python
     ```
 
+## Metadata for the city model
+
+- [x] Often you want to document the contents of a city model, by providing a date of creation, contact information or 
+similar. You can do this with Metadata. For a detailed explanation on the possible metadata members, see the 
+[CityJSON Metadata specs](https://www.cityjson.org/specs/1.1.2/#metadata).
+
+=== "Rust"
+
+    ```rust
+    let mut metadata = cjlib::Metadata::new();
+    metadata.set_organization("3DGI");
+    metadata.set_role(cjlib::ContactRole::Author);
+    metadata.set_contact_name("Balázs Dukai");
+    metadata.set_email_address("my@email.com");
+    metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+    metadata.set_identifier("123-456-789");
+
+    metadata.geographical_extent();
+    metadata.identifier();
+    ```
+
+=== "Python"
+
+    ```python
+    metadata = Metadata()
+    metadata.set_organization("3DGI")
+    metadata.set_role(cjlib::ContactRole::Author)
+    metadata.set_contact_name("Balázs Dukai")
+    metadata.set_email_address("my@email.com")
+    metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    metadata.set_identifier("123-456-789")
+
+    metadata.geographical_extent()
+    metadata.identifier()
+    ```
+
 ## CityJSON Extensions
 
 [CityJSON Extensions](https://www.cityjson.org/specs/1.1.2/#extensions) are first-class citizen in cjlib.

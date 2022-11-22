@@ -637,6 +637,509 @@ type CityObjects = HashMap<String, CityObject>;
 #[derive(Default, Debug)]
 struct CityObject;
 
+/// Metadata for a city model.
+///
+/// There is only structural validation for the metadata items, the metadata values are not
+/// validated at the moment. For instance, a contact website must be a string, but it is not
+/// checked whether the string is a valid URL or not.
+///
+/// See also the
+/// [CityJSON Metadata](https://www.cityjson.org/specs/1.1.2/#metadata).
+///
+/// # Examples
+///
+/// A metadata object can be built by invoking the `Metadata::builder`, chaining calls
+/// to methods to set each metadata member, and finally calling `.build`.
+/// ```
+/// let metadata = cjlib::Metadata::builder()
+///     .organization("3DGI")
+///     .role(cjlib::ContactRole::Author)
+///     .contact_name("Balázs Dukai")
+///     .email_address("my@email.com")
+///     .geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+///     .identifier("123-456-789")
+///     .build();
+/// ```
+///
+/// Alternatively, you can also create and empty metadata object and set the various members
+/// individually. Note that the `Metadata::builder` and `.build` are not needed in this case.
+///
+/// ```
+/// let mut metadata = cjlib::Metadata::new();
+/// metadata.set_organization("3DGI");
+/// metadata.set_role(cjlib::ContactRole::Author);
+/// metadata.set_contact_name("Balázs Dukai");
+/// metadata.set_email_address("my@email.com");
+/// metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+/// metadata.set_identifier("123-456-789");
+///
+/// println!("{:?}", metadata.identifier());
+/// ```
+#[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
+pub struct Metadata {
+    geographical_extent: Option<BBox>,
+    identifier: Option<CityModelIdentifier>,
+    point_of_contact: Option<Contact>,
+    reference_date: Option<Date>,
+    reference_system: Option<CRS>,
+    title: Option<String>,
+}
+
+impl Metadata {
+    pub fn new() -> Self {
+        Metadata::default()
+    }
+
+    pub fn builder() -> MetadataBuilder {
+        MetadataBuilder::new()
+    }
+
+    pub fn geographical_extent(&self) -> Option<&BBox> {
+        self.geographical_extent.as_ref()
+    }
+    pub fn set_geographical_extent(&mut self, bbox: BBox) {
+        self.geographical_extent = Some(bbox);
+    }
+
+    pub fn identifier(&self) -> Option<&CityModelIdentifier> {
+        self.identifier.as_ref()
+    }
+    pub fn set_identifier<S: AsRef<str>>(&mut self, identifier: S) {
+        self.identifier = Some(identifier.as_ref().to_owned());
+    }
+
+    pub fn reference_date(&self) -> Option<&Date> {
+        self.reference_date.as_ref()
+    }
+    pub fn set_reference_date<S: AsRef<str>>(&mut self, date: S) {
+        self.reference_date = Some(date.as_ref().to_owned());
+    }
+
+    pub fn reference_system(&self) -> Option<&CRS> {
+        self.reference_system.as_ref()
+    }
+    pub fn set_reference_system<S: AsRef<str>>(&mut self, crs: S) {
+        self.reference_system = Some(crs.as_ref().to_owned());
+    }
+
+    pub fn title(&self) -> Option<&String> {
+        self.title.as_ref()
+    }
+    pub fn set_title<S: AsRef<str>>(&mut self, title: S) {
+        self.title = Some(title.as_ref().to_owned());
+    }
+
+    fn point_of_contact(&self) -> Option<&Contact> {
+        self.point_of_contact.as_ref()
+    }
+
+    pub fn contact_name(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            Some(&poc.contact_name)
+        } else {
+            None
+        }
+    }
+    pub fn set_contact_name<S: AsRef<str>>(&mut self, name: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.contact_name = name.as_ref().to_owned()
+        } else {
+            self.point_of_contact = Some(Contact {
+                contact_name: name.as_ref().to_owned(),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn email_address(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            Some(&poc.email_address)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_email_address<S: AsRef<str>>(&mut self, email: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.email_address = email.as_ref().to_owned()
+        } else {
+            self.point_of_contact = Some(Contact {
+                email_address: email.as_ref().to_owned(),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn role(&self) -> Option<&ContactRole> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.role.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_role(&mut self, role: ContactRole) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.role = Some(role);
+        } else {
+            self.point_of_contact = Some(Contact {
+                role: Some(role),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn website(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.website.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_website<S: AsRef<str>>(&mut self, website: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.website = Some(website.as_ref().to_owned());
+        } else {
+            self.point_of_contact = Some(Contact {
+                website: Some(website.as_ref().to_owned()),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn contact_type(&self) -> Option<&ContactType> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.contact_type.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_contact_type(&mut self, contact_type: ContactType) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.contact_type = Some(contact_type);
+        } else {
+            self.point_of_contact = Some(Contact {
+                contact_type: Some(contact_type),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn address(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.address.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_address<S: AsRef<str>>(&mut self, address: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.address = Some(address.as_ref().to_owned());
+        } else {
+            self.point_of_contact = Some(Contact {
+                address: Some(address.as_ref().to_owned()),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn phone(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.phone.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_phone<S: AsRef<str>>(&mut self, phone: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.phone = Some(phone.as_ref().to_owned());
+        } else {
+            self.point_of_contact = Some(Contact {
+                phone: Some(phone.as_ref().to_owned()),
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn organization(&self) -> Option<&String> {
+        if let Some(ref poc) = self.point_of_contact {
+            poc.organization.as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_organization<S: AsRef<str>>(&mut self, organization: S) {
+        if let Some(poc) = self.point_of_contact.as_mut() {
+            poc.organization = Some(organization.as_ref().to_owned());
+        } else {
+            self.point_of_contact = Some(Contact {
+                organization: Some(organization.as_ref().to_owned()),
+                ..Default::default()
+            })
+        }
+    }
+}
+
+/// Builds a `Metadata` object with keyword arguments.
+///
+/// The `MetadataBuilder` is basically for having keyword arguments for the `Metadata`, and maybe
+/// some input validation. There many metadata members, and it is easy to confuse them if only
+/// using the positional arguments that Rust allows.
+#[derive(Default, Debug)]
+pub struct MetadataBuilder {
+    geographical_extent: Option<BBox>,
+    identifier: Option<CityModelIdentifier>,
+    reference_date: Option<Date>,
+    reference_system: Option<CRS>,
+    title: Option<String>,
+    // point_of_contact members
+    contact_name: Option<String>,
+    email_address: Option<String>,
+    role: Option<ContactRole>,
+    website: Option<String>,
+    contact_type: Option<ContactType>,
+    address: Option<String>,
+    phone: Option<String>,
+    organization: Option<String>,
+}
+
+impl MetadataBuilder {
+    fn new() -> Self {
+        MetadataBuilder {
+            geographical_extent: None,
+            identifier: None,
+            reference_date: None,
+            reference_system: None,
+            title: None,
+            contact_name: None,
+            email_address: None,
+            role: None,
+            website: None,
+            contact_type: None,
+            address: None,
+            phone: None,
+            organization: None,
+        }
+    }
+
+    pub fn geographical_extent(mut self, bbox: BBox) -> Self {
+        self.geographical_extent = Some(bbox);
+        self
+    }
+
+    pub fn identifier<S: AsRef<str>>(mut self, identifier: S) -> Self {
+        self.identifier = Some(identifier.as_ref().to_owned());
+        self
+    }
+
+    pub fn reference_date<S: AsRef<str>>(mut self, date: S) -> Self {
+        self.reference_date = Some(date.as_ref().to_owned());
+        self
+    }
+
+    pub fn reference_system<S: AsRef<str>>(mut self, crs: S) -> Self {
+        self.reference_system = Some(crs.as_ref().to_owned());
+        self
+    }
+
+    pub fn title<S: AsRef<str>>(mut self, title: S) -> Self {
+        self.title = Some(title.as_ref().to_owned());
+        self
+    }
+
+    pub fn contact_name<S: AsRef<str>>(mut self, name: S) -> Self {
+        self.contact_name = Some(name.as_ref().to_owned());
+        self
+    }
+
+    pub fn email_address<S: AsRef<str>>(mut self, email: S) -> Self {
+        self.email_address = Some(email.as_ref().to_owned());
+        self
+    }
+
+    pub fn role(mut self, role: ContactRole) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    pub fn website<S: AsRef<str>>(mut self, website: S) -> Self {
+        self.website = Some(website.as_ref().to_owned());
+        self
+    }
+
+    pub fn contact_type(mut self, contact_type: ContactType) -> Self {
+        self.contact_type = Some(contact_type);
+        self
+    }
+
+    pub fn address<S: AsRef<str>>(mut self, address: S) -> Self {
+        self.address = Some(address.as_ref().to_owned());
+        self
+    }
+
+    pub fn phone<S: AsRef<str>>(mut self, phone: S) -> Self {
+        self.phone = Some(phone.as_ref().to_owned());
+        self
+    }
+
+    pub fn organization<S: AsRef<str>>(mut self, org: S) -> Self {
+        self.organization = Some(org.as_ref().to_owned());
+        self
+    }
+
+    pub fn build(self) -> Result<Metadata> {
+        let mut poc: Option<Contact> = None;
+        if (self.role.is_some()
+            || self.website.is_some()
+            || self.contact_type.is_some()
+            || self.address.is_some()
+            || self.phone.is_some()
+            || self.organization.is_some())
+            && (self.contact_name.is_none() || self.email_address.is_none())
+        {
+            return Err(Error::MetadataError("both contact_name and email_address must be set when setting values for the point_of_contact".to_string()));
+        } else if self.contact_name.is_some() || self.email_address.is_some() {
+            poc = Some(Contact {
+                contact_name: self.contact_name.expect(
+                    "contact_name must be set when setting values for the point_of_contact",
+                ),
+                email_address: self.email_address.expect(
+                    "email_address must be set when setting values for the point_of_contact",
+                ),
+                role: self.role,
+                website: self.website,
+                contact_type: self.contact_type,
+                address: self.address,
+                phone: self.phone,
+                organization: self.organization,
+            });
+        }
+        Ok(Metadata {
+            geographical_extent: self.geographical_extent,
+            identifier: self.identifier,
+            point_of_contact: poc,
+            reference_date: self.reference_date,
+            reference_system: self.reference_system,
+            title: self.title,
+        })
+    }
+}
+
+/// Bounding Box.
+///
+/// An array of 6 values: `[minx, miny, minz, maxx, maxy, maxz]`.
+/// See also the
+/// [CityJSON geographicalExtent](https://www.cityjson.org/specs/1.1.2/#geographicalextent-bbox).
+pub type BBox = [f32; 6];
+
+/// An identifier for the dataset.
+/// See also the
+/// [CityJSON identifier](https://www.cityjson.org/specs/1.1.2/#identifier).
+pub type CityModelIdentifier = String;
+
+/// The point of contact for the city model.
+/// See also the
+/// [CityJSON pointOfContact](https://www.cityjson.org/specs/1.1.2/#pointofcontact).
+#[derive(Clone, Default, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Contact {
+    contact_name: String,
+    email_address: String,
+    role: Option<ContactRole>,
+    website: Option<String>,
+    contact_type: Option<ContactType>,
+    address: Option<String>,
+    phone: Option<String>,
+    organization: Option<String>,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactRole {
+    Author,
+    CoAuthor,
+    Collaborator,
+    Contributor,
+    Custodian,
+    Distributor,
+    Editor,
+    Funder,
+    Mediator,
+    Originator,
+    Owner,
+    PointOfContact,
+    PrincipalInvestigator,
+    Processor,
+    Publisher,
+    ResourceProvider,
+    RightsHolder,
+    Sponsor,
+    Stakeholder,
+    User,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactType {
+    Individual,
+    Organization,
+}
+
+/// The date when the dataset was compiled.
+///
+/// The format is a `"full-date"` per the
+/// [RFC 3339, Section 5.6](https://tools.ietf.org/html/rfc3339#section-5.6).
+///
+/// See also the
+/// [CityJSON referenceDate](https://www.cityjson.org/specs/1.1.2/#referencedate).
+///
+/// # Examples
+/// ```
+/// let date: cjlib::Date = String::from("1977-02-28");
+/// ```
+pub type Date = String;
+
+// Note: Could also have a CRS struct with named members but that's too much complication, because
+// it brings a lot of implementation with it (Display, FromStr, Into<String>, ...), incl.
+// validation. And the philosophy with the other Metadata members is that we accept almost any
+// value, because too pedantic validation in cjlib might actually get in the way of building city
+// models. And then it is better to push the validation down to specialized libraries, such as
+// cjval.
+// #[derive(Clone, Default, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+// pub struct CRS {
+//     authority: String,
+//     version: i8,
+//     code: i16,
+// }
+//
+// impl fmt::Display for CRS {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(
+//             f,
+//             "http://www.opengis.net/def/crs/{authority}/{version}/{code}",
+//             authority = self.authority,
+//             version = self.version,
+//             code = self.code
+//         )
+//     }
+// }
+/// The coordinate reference system (CRS) of the city model.
+///
+/// Must be formatted as a URL, according to the
+/// [OGC Name Type Specification](https://docs.opengeospatial.org/pol/09-048r5.html#_production_rule_for_specification_element_names).
+/// See also the
+/// [CityJSON referenceSystem](https://www.cityjson.org/specs/1.1.2/#referencesystem-crs).
+///
+/// # Examples
+/// ```
+/// let crs: cjlib::CRS = String::from("https://www.opengis.net/def/crs/EPSG/0/7415");
+/// ```
+pub type CRS = String;
+
 /// Indexed-structures.
 /// Parsing a CityJSON document is (internally) a two-step process with cjlib.
 /// In the first step, the document is deserialized into structures that are much alike the
@@ -803,7 +1306,7 @@ mod tests {
 
     #[test]
     fn cityjsonversion() {
-        let vr = CityJSONVersion::try_from("1.2");
+        let vr = CityJSONVersion::try_from("1.1");
         assert_eq!(vr.unwrap(), CityJSONVersion::V1_1);
         let s: String = CityJSONVersion::V1_1.into();
         println!("CityJSONVersion.into(): {}", s);
@@ -917,5 +1420,26 @@ mod tests {
 
         let pb: PathBuf = test_output_dir().join(".test_out.city.jsonl");
         let _ = cm.to_file(pb);
+    }
+
+    #[test]
+    fn metadata_setters() {
+        let mut metadata = Metadata::new();
+        metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+        metadata.set_identifier("123-456-789");
+        metadata.set_reference_date("1977-02-28");
+        metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/7415");
+        metadata.set_title("My Model");
+
+        metadata.set_role(ContactRole::Author);
+        metadata.set_contact_name("Balázs Dukai");
+        metadata.set_email_address("my@email.com");
+        metadata.set_website("http://3dbag.nl");
+        metadata.set_contact_type(ContactType::Organization);
+        metadata.set_address("24 Sussex Drive, Ottawa, Canada");
+        metadata.set_phone("+1-613-992-4211");
+        metadata.set_organization("3DGI");
+
+        println!("{:?}", metadata.identifier());
     }
 }

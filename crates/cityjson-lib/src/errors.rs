@@ -7,12 +7,13 @@ use std::path::PathBuf;
 pub enum Error {
     ExpectedCityJSON(CityModelType),
     ExpectedCityJSONFeature(CityModelType),
-    UnsupportedVersion(String, String),
-    UnsupportedExtension,
     InvalidExtension(PathBuf),
-    StreamingError(String),
     Io(std::io::Error),
     MalformedCityJSON(serde_json::Error, Option<serde_json::Value>), // Some(_) if JSON was syntactically valid
+    MetadataError(String),
+    StreamingError(String),
+    UnsupportedExtension,
+    UnsupportedVersion(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -20,9 +21,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::StreamingError(s) => {
-                write!(f, "{}", s)
-            }
             Error::ExpectedCityJSON(t) => {
                 write!(f, "the CityModel type should be CityJSON, but got {}", t)
             }
@@ -31,20 +29,6 @@ impl Display for Error {
                     f,
                     "the CityModel type should be CityJSONFeature, but got {}",
                     t
-                )
-            }
-            Error::UnsupportedVersion(v, supported) => {
-                write!(
-                    f,
-                    "the CityJSON version should be one of {}, but got {}",
-                    supported, v
-                )
-            }
-            Error::UnsupportedExtension => {
-                write!(
-                    f,
-                    "the file extension should be one of {}",
-                    SupportedFileExtension
                 )
             }
             Error::InvalidExtension(pb) => {
@@ -65,6 +49,26 @@ impl Display for Error {
                 }
 
                 Ok(())
+            }
+            Error::MetadataError(s) => {
+                write!(f, "{}", s)
+            }
+            Error::StreamingError(s) => {
+                write!(f, "{}", s)
+            }
+            Error::UnsupportedVersion(v, supported) => {
+                write!(
+                    f,
+                    "the CityJSON version should be one of {}, but got {}",
+                    supported, v
+                )
+            }
+            Error::UnsupportedExtension => {
+                write!(
+                    f,
+                    "the file extension should be one of {}",
+                    SupportedFileExtension
+                )
             }
         }
     }
