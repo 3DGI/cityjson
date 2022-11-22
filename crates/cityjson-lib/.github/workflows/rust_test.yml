@@ -1,0 +1,45 @@
+name: Rust test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+  test_python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: pytest cjlib_py
+        id: get_status
+        uses: stinkyfingers/cross-repo-dispatch@v0.1
+        with:
+          owner: 'balazsdukai'
+          repo: 'cjlib_py'
+          ref: 'master'
+          pat: ${{ secrets.GH_PAT }}
+          user: ${{ secrets.GH_USERNAME }}
+          sha: ${{ github.sha }}
+          client_payload: '{"misc_key":"misc_value"}'
+          event_type: ${{ github.event.head_commit.message }}
+          workflow_status_timeout: 1300
+          workflow_status_retry_interval: 20
+      - name: cjlib_py result
+        run: |
+          echo ${{join(steps.get_status.outputs.*, '\n')}}
+      - if: ${{ steps.get_status.outputs.status }} != 'success'
+        uses: actions/github-script@v3
+        with:
+          script: |
+            core.setFailed('the cjlib_py workflow failed with the latest cjlib')

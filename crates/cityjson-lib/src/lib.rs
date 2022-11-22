@@ -1359,7 +1359,7 @@ mod tests {
         // Using a Cursor, flatten (panics) and from_str
         let stream = Cursor::new(feature_sequence);
         for s in stream.lines().flatten() {
-            let res = CityFeature::from_str(&s);
+            let _ = CityFeature::from_str(&s);
         }
 
         // Using the default serde_json::StreamDeserializer, but it stops after returning the first
