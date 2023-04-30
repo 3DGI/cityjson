@@ -71,7 +71,7 @@ impl CityModel {
     }
 
     /// Read from a file, either a regular JSON file or [JSON Lines text](https://jsonlines.org/).
-    /// The parsing strategy is based on the file extension. Uses [`io::BufReader`](std::io::BufReader)
+    /// The parsing strategy is based on the file extension. Uses [`io::BufReader`](BufReader)
     /// for reading.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path.as_ref())?;
@@ -440,7 +440,7 @@ where
 
 /// A register of what file extensions are supported.
 /// It allows comparison for equality with an [`std::ffi::OsStr`](std::ffi::OsStr), which we get when working with
-/// [`std::path::Path`](std::path::Path)s.
+/// [`std::path::Path`](Path)s.
 /// There are two concepts that are important in this implementation,
 /// [associated constants](https://doc.rust-lang.org/reference/items/associated-items.html#associated-constants)
 /// and the [non_exhaustive attribute](https://doc.rust-lang.org/reference/attributes/type_system.html#the-non_exhaustive-attribute)
@@ -1198,9 +1198,10 @@ type ICityObjects = HashMap<String, ICityObject>;
 struct ICityObject;
 
 /// Vertex coordinates, deserialized from a CityJSON document.
-/// Uses i32, which is way too much, but i16 not enough, because a CityModel can easily have
-/// transformed coordinates beyond +/-32767.
-type IVertices = Vec<[i32; 3]>;
+/// Uses i64, because when we work with CityJSONFeatures of a very large (national)
+/// area, and there is a single, national transformation parameters, then the quantized
+/// coordinates can easily go beyond the max i32.
+type IVertices = Vec<[i64; 3]>;
 
 #[cfg(test)]
 mod tests {
@@ -1239,7 +1240,7 @@ mod tests {
             "CityObjects": {},
             "vertices": []
         }"#;
-        let cm: crate::errors::Result<CityModel> = CityModel::from_str(cityjson_str);
+        let cm: Result<CityModel> = CityModel::from_str(cityjson_str);
         println!("CityModel::from_str {:?}", cm);
 
         let cm: serde_json::Result<CityModel> = serde_json::from_str(cityjson_str);
