@@ -92,11 +92,19 @@ This is to reduce the complexity of the code for creating city models.
 Nevertheless, there are three alternative architectures in consideration.
 Read [the document that outlines them](https://github.com/balazsdukai/cjlib/blob/master/experiments/direct-json-vs-api.md) for more details.
 
-## Other libraries
+## Other libraries and acknowledgement
 
-### Inspiration
+The [GeoJSON rust library](https://docs.rs/geojson/latest/geojson/) is also a serde-based library for working with geodata in JSON documents.
+However, while [GeoJSON](https://geojson.org/) is a simplified format for generic, 2D geographic data, [CityJSON](https://cityjson.org) is a relatively complex, specialized format for encoding [semantic 3D city models](https://3d.bk.tudelft.nl/courses/backup/geo1004/2022/les/4.1/).
+Although the two libraries target two different formats, the GeoJSON rust library inspired cjlib in several ways.
+In particular, [the ability to use your own types with serde](https://docs.rs/geojson/latest/geojson/#using-your-own-types-with-serde), [error handling](https://docs.rs/geojson/latest/geojson/errors/enum.Error.html), and library ergonomics in general.
 
-GeoJSON rust
+The [cityjson .NET library](https://github.com/bertt/cityjson).
+
+The fantastic rust user community have helped through the high quality materials they publish online, but there are two discussions that were particularly influential,
+
+- [Step past errors in serde_json StreamDeserializer](https://users.rust-lang.org/t/step-past-errors-in-serde-json-streamdeserializer/84228)
+- [Why does my data structure allocate so much memory?](https://users.rust-lang.org/t/why-does-my-data-structure-allocate-so-much-memory/75819)
 
 ## Contributing
 

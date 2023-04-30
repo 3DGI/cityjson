@@ -33,7 +33,7 @@ jobs:
           sha: ${{ github.sha }}
           client_payload: '{"misc_key":"misc_value"}'
           event_type: ${{ github.event.head_commit.message }}
-          workflow_status_timeout: 1300
+          workflow_status_timeout: 600
           workflow_status_retry_interval: 20
       - name: cjlib_py result
         run: |

@@ -214,16 +214,190 @@ impl FromStr for Final {
     }
 }
 
-fn main() {
-    let feature_sequence = r#"{"id":"this_is_ok"}
-    {"id":"this_is_err"}
-    {"id":"this_is_ok"}"#;
-    let stream = Cursor::new(feature_sequence);
-    for s in stream.lines().flatten() {
-        let res = Final::from_str(&s);
-        match res {
-            Ok(cf) => println!("{:?}", cf),
-            Err(e) => println!("error: {:?}", e),
+#[derive(Debug)]
+pub enum GeozeroError {
+    Error,
+}
+
+impl std::fmt::Display for GeozeroError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for GeozeroError {}
+
+pub type Result<T> = std::result::Result<T, GeozeroError>;
+
+#[derive(PartialEq, Debug)]
+pub enum ColumnValue {
+    Int(i32),
+}
+
+/// Get property value as Rust type.
+pub trait PropertyReadType<T = Self>
+where
+    T: PropertyReadType,
+{
+    /// Get property value as Rust type.
+    fn get_value(v: &ColumnValue) -> Result<T>;
+}
+
+impl From<&ColumnValue> for Result<i32> {
+    fn from(v: &ColumnValue) -> Result<i32> {
+        if let ColumnValue::Int(v) = v {
+            Ok(*v)
+        } else {
+            Err(GeozeroError::Error)
         }
+    }
+}
+
+impl PropertyReadType for i32 {
+    fn get_value(v: &ColumnValue) -> Result<Self> {
+        v.into()
+    }
+}
+
+macro_rules! impl_scalar_property_reader {
+    ( $t:ty, $e:path ) => {
+        impl From<&ColumnValue> for Result<$t> {
+            fn from(v: &ColumnValue) -> Result<$t> {
+                if let $e(v) = v {
+                    Ok(*v)
+                } else {
+                    Err(GeozeroError::Error)
+                }
+            }
+        }
+        impl PropertyReadType for $t {
+            fn get_value(v: &ColumnValue) -> Result<$t> {
+                v.into()
+            }
+        }
+    };
+}
+
+fn test_grid(extent: &[i32; 6]) -> [i32; 2] {
+    let dx = extent[3] - extent[0];
+    [extent[0], extent[1]]
+}
+
+// Implement an iterator for a 3D Vector
+
+type CellId = [usize; 2];
+type Cell = Vec<Feature>;
+type Feature = usize;
+
+struct Grid {
+    data: Vec<Vec<Cell>>,
+}
+
+impl Grid {
+    fn leaves(&self) -> GridIterator<'_> {
+        GridIterator {
+            row_index: 0,
+            col_index: 0,
+            items: &self.data,
+        }
+    }
+}
+
+impl<'nestedvec> IntoIterator for &'nestedvec Grid {
+    type Item = (CellId, &'nestedvec Cell);
+    type IntoIter = GridIterator<'nestedvec>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        GridIterator {
+            row_index: 0,
+            col_index: 0,
+            items: &self.data,
+        }
+    }
+}
+
+struct GridIterator<'nestedvec> {
+    row_index: usize,
+    col_index: usize,
+    items: &'nestedvec Vec<Vec<Cell>>,
+}
+
+impl<'nestedvec> Iterator for GridIterator<'nestedvec> {
+    type Item = (CellId, &'nestedvec Cell);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(column) = self.items.get(self.col_index) {
+            if let Some(cell) = column.get(self.row_index) {
+                let item = Some(([self.row_index, self.col_index], cell));
+                self.row_index += 1;
+                item
+            } else {
+                // We are at the end of the current column, so jump to the next
+                self.col_index += 1;
+                self.row_index = 0;
+                self.next()
+            }
+        } else {
+            None
+        }
+    }
+}
+
+fn main() {
+    // let feature_sequence = r#"{"id":"this_is_ok"}
+    // {"id":"this_is_err"}
+    // {"id":"this_is_ok"}"#;
+    // let stream = Cursor::new(feature_sequence);
+    // for s in stream.lines().flatten() {
+    //     let res = Final::from_str(&s);
+    //     match res {
+    //         Ok(cf) => println!("{:?}", cf),
+    //         Err(e) => println!("error: {:?}", e),
+    //     }
+    // }
+
+    // let v = ColumnValue::Int(42);
+    // let r = Result::<i32>::from(&v);
+    // println!("{:?}", v);
+    // let k = i32::get_value(&v);
+
+    // assert_eq!(
+    //     std::mem::size_of_val("b3bd7e17c-deb5-11e7-951f-610a7ca84980.city.jsonl"),
+    //     48
+    // );
+    // assert_eq!(std::mem::size_of_val("/data/3DBAGv2/export/cityjson/v210908_fd2cee53/b3bd7e17c-deb5-11e7-951f-610a7ca84980.city.jsonl"), 95);
+    //
+    // let a = 100i64 as f64 / 70usize as f64;
+    // println!("{}", a);
+    //
+    // let extent = [1, 2, 3, 4, 5, 6];
+    // let a = test_grid(&extent);
+    // println!("{}", extent[0]);
+
+    // Iterate over a nested vector (3D) and generate the Cell-ids in the loop, using functional notation
+    let data: Vec<Vec<Vec<usize>>> = vec![
+        vec![vec![11, 12, 13], vec![14, 15, 16], vec![17, 18, 19]],
+        vec![vec![21, 22, 23], vec![24, 25, 26], vec![27, 28, 29]],
+        vec![vec![31, 32, 33], vec![34, 35, 36], vec![37, 38, 39]],
+        vec![vec![41, 42, 43], vec![44, 45, 46], vec![47, 48, 49]],
+    ];
+    let a: Vec<_> = data.iter().enumerate().collect();
+    println!("plain enumerate: {:?}", a);
+    let b: Vec<_> = a
+        .iter()
+        .flat_map(|(c, v)| v.iter().enumerate().map(|(r, cell)| ([r, *c], cell)))
+        .collect();
+    println!("functional iteration: {:?}", b);
+
+    // // Implemented an iterator returned from the .leaves() method
+    // println!("iterator implementation .leaves():");
+    let grid = Grid { data };
+    for (cellid, cell) in grid.leaves() {
+        println!("{:?}, {:?}", cellid, cell);
+    }
+    // Iterating with a for-loop
+    println!("iterator implementation for-loop:");
+    for (cellid, cell) in &grid {
+        println!("{:?}, {:?}", cellid, cell);
     }
 }
