@@ -5,8 +5,6 @@ pub mod errors;
 
 use crate::errors::{Error, Result};
 
-use serde::{Deserialize, Serialize};
-use serde_json::de::{Deserializer, StrRead, StreamDeserializer};
 use std::collections::{hash_map, HashMap};
 use std::fmt;
 use std::fs::File;
@@ -14,6 +12,12 @@ use std::io::prelude::*;
 use std::io::{BufRead, BufReader, LineWriter, Read};
 use std::path::Path;
 use std::str::FromStr;
+// TODO: could we somehow not use Rc?
+use std::rc::Rc;
+
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::de::{StrRead, StreamDeserializer};
 
 /// A struct that represents a city model, which is conceptually equivalent to a
 /// [CityJSON object](https://www.cityjson.org/specs/1.1.2/#cityjson-object).
@@ -30,7 +34,6 @@ use std::str::FromStr;
 /// Deserialize a `CityJSON` document into a `CityModel`.
 ///
 /// ```
-/// use std::str::FromStr;
 /// let cityjson_str = r#"{
 ///        "type": "CityJSON",
 ///        "version": "1.1",
@@ -44,21 +47,19 @@ use std::str::FromStr;
 /// let cm: cjlib::errors::Result<cjlib::CityModel> = cjlib::CityModel::from_str(cityjson_str);
 /// println!("CityModel::from_str {:?}", cm);
 ///
-/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_str(cityjson_str);
-/// println!("serde_json::from_str {:?}", cm);
-///
-/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
-/// println!("serde_json::from_slice {:?}", cm);
+/// let cm: cjlib::errors::Result<cjlib::CityModel> = cjlib::CityModel::from_slice(cityjson_str.as_bytes());
+/// println!("CityModel::from_slice {:?}", cm);
 ///
 /// // &[u8] implements Read
-/// let cm: serde_json::Result<cjlib::CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
-/// println!("serde_json::from_reader {:?}", cm);
+/// let cm: cjlib::errors::Result<cjlib::CityModel> = cjlib::CityModel::from_file("resources/data/minimal_valid.city.json");
+/// println!("CityModel::from_file {:?}", cm);
 /// ```
 ///
 pub struct CityModel {
     version: CityJSONVersion,
     transform: Option<Transform>,
     cityobjects: CityObjects,
+    semantics: Option<Vec<Rc<Semantic>>>,
 }
 
 impl CityModel {
@@ -67,6 +68,41 @@ impl CityModel {
             version: CityJSONVersion::V1_1,
             transform: None,
             cityobjects: Default::default(),
+            semantics: None,
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self> {
+        let mut deserializer = serde_json::Deserializer::from_str(s);
+        // First pass over the data
+        let icm = ICityModel::deserialize(&mut deserializer)?;
+        match icm.type_cm {
+            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
+            CityModelType::CityJSON => {
+                // Second pass over the data
+                let mut cm = Self::new();
+                let visitor = CityModelDereferencer(&mut cm, &icm);
+                deserializer = serde_json::Deserializer::from_str(s);
+                deserializer.deserialize_map(visitor)?;
+                Ok(cm)
+            }
+        }
+    }
+
+    pub fn from_slice(v: &[u8]) -> Result<Self> {
+        let mut deserializer = serde_json::Deserializer::from_slice(v);
+        // First pass over the data
+        let icm = ICityModel::deserialize(&mut deserializer)?;
+        match icm.type_cm {
+            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
+            CityModelType::CityJSON => {
+                // Second pass over the data
+                let mut cm = Self::new();
+                let visitor = CityModelDereferencer(&mut cm, &icm);
+                deserializer = serde_json::Deserializer::from_slice(v);
+                deserializer.deserialize_map(visitor)?;
+                Ok(cm)
+            }
         }
     }
 
@@ -74,8 +110,6 @@ impl CityModel {
     /// The parsing strategy is based on the file extension. Uses [`io::BufReader`](BufReader)
     /// for reading.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = File::open(path.as_ref())?;
-        let reader = BufReader::new(&file);
         return match path.as_ref().extension() {
             None => Err(Error::InvalidExtension(path.as_ref().to_path_buf())),
             Some(extension_os_str) => {
@@ -84,17 +118,36 @@ impl CityModel {
                 if extension_os_str == SupportedFileExtension::JSON
                     || extension_os_str == SupportedFileExtension::CITYJSON
                 {
-                    let cm: CityModel = serde_json::from_reader(reader)?;
-                    Ok(cm)
+                    Self::from_path(path)
                 } else if extension_os_str == SupportedFileExtension::JSONL {
+                    let file = File::open(path.as_ref())?;
+                    let reader = BufReader::new(&file);
                     Self::from_stream(reader)
                 } else {
                     // let's try parsing as a regular CityJSON file
-                    let cm: CityModel = serde_json::from_reader(reader)?;
-                    Ok(cm)
+                    Self::from_path(path)
                 }
             }
         };
+    }
+
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<CityModel> {
+        let mut file = File::open(path.as_ref())?;
+        let mut reader = BufReader::new(&file);
+        let icm: ICityModel = serde_json::from_reader(reader)?;
+        match icm.type_cm {
+            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
+            CityModelType::CityJSON => {
+                // Read the file again for the second pass over the data
+                file.rewind()?;
+                let reader = BufReader::new(&file);
+                let mut cm = Self::new();
+                let visitor = CityModelDereferencer(&mut cm, &icm);
+                let mut deserializer = serde_json::Deserializer::from_reader(reader);
+                deserializer.deserialize_map(visitor)?;
+                Ok(cm)
+            }
+        }
     }
 
     /// Create a CityModel from a stream of CityJSONFeatures, aggregating them into the CityModel's
@@ -120,7 +173,7 @@ impl CityModel {
             // but do notify about it.
             if let Ok(cityjsonfeature_str) = res {
                 let cf = CityFeature::from_str(&cityjsonfeature_str)?;
-                cm.cityobjects.insert(cf.id, CityObject);
+                cm.cityobjects.insert(cf.id, CityObject::default());
             } else {
                 // todo: log error
             }
@@ -228,39 +281,40 @@ impl fmt::Display for CityModel {
     }
 }
 
-impl<'de> Deserialize<'de> for CityModel {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let icm = ICityModel::deserialize(deserializer)?;
-        match icm.type_cm {
-            CityModelType::CityJSONFeature => Err(serde::de::Error::custom(
-                Error::ExpectedCityJSON(icm.type_cm),
-            )),
-            CityModelType::CityJSON => Ok(Self {
-                version: icm.version.unwrap(),
-                transform: icm.transform,
-                cityobjects: Default::default(),
-            }),
-        }
+/// [Visitor](Visitor) implementation that will walk the `CityObjects` map and
+/// dereference the geometry boundaries, and collect the semantics and appearances.
+struct CityModelDereferencer<'citymodel>(&'citymodel mut CityModel, &'citymodel ICityModel);
+
+impl<'de, 'citymodel> Visitor<'de> for CityModelDereferencer<'citymodel> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "a valid CityJSON")
     }
-}
 
-impl FromStr for CityModel {
-    type Err = Error;
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<(), A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let transform = self
+            .1
+            .transform
+            .expect("CityJSON must contain a 'transform' property");
 
-    /// Parse a CityJSON document from a string, by calling [`serde_json::from_str`](serde_json::from_str).
-    fn from_str(cityjson: &str) -> Result<Self> {
-        let icm: ICityModel = serde_json::from_str(cityjson)?;
-        match icm.type_cm {
-            CityModelType::CityJSON => Ok(Self {
-                version: icm.version.unwrap(),
-                transform: icm.transform,
-                cityobjects: Default::default(),
-            }),
-            CityModelType::CityJSONFeature => Err(Error::ExpectedCityJSON(icm.type_cm)),
+        while let Some(key) = map.next_key::<String>()? {
+            if key == "CityObjects" {
+                map.next_value_seed(CityObjectsDereferencer(
+                    &mut self.0.cityobjects,
+                    &mut self.0.semantics,
+                    &self.1.vertices,
+                    &transform,
+                ))?;
+                self.0.cityobjects.shrink_to_fit();
+            } else {
+                map.next_value::<IgnoredAny>()?;
+            }
         }
+        Ok(())
     }
 }
 
@@ -393,7 +447,7 @@ where
     CityFeature: Deserialize<'de>,
 {
     pub fn new(json: &'de str) -> Self {
-        let stream = Deserializer::from_str(json).into_iter();
+        let stream = serde_json::Deserializer::from_str(json).into_iter();
         let last_ok_pos = 0;
 
         CityFeatureStreamDeserializer {
@@ -422,7 +476,7 @@ where
                 // If so, return it as a dynamically-typed `Value` and skip it.
                 let err_json = &self.json[self.last_ok_pos..];
                 let mut err_stream =
-                    Deserializer::from_str(err_json).into_iter::<serde_json::Value>();
+                    serde_json::Deserializer::from_str(err_json).into_iter::<serde_json::Value>();
                 let value = err_stream.next()?.ok();
                 let next_pos = if value.is_some() {
                     self.last_ok_pos + err_stream.byte_offset()
@@ -430,7 +484,7 @@ where
                     self.json.len() // when JSON has a syntax error, prevent infinite stream of errors
                 };
                 self.json = &self.json[next_pos..];
-                self.stream = Deserializer::from_str(self.json).into_iter();
+                self.stream = serde_json::Deserializer::from_str(self.json).into_iter();
                 self.last_ok_pos = 0;
                 Some(Err(Error::MalformedCityJSON(error, value)))
             }
@@ -588,11 +642,10 @@ impl fmt::Display for CityModelType {
     }
 }
 
-// todo: "Transform members need to be private, so that we can change the internals if needed, eg f32 -> f64 or so"
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Transform {
-    pub scale: [f32; 3],
-    pub translate: [f32; 3],
+    scale: [f64; 3],
+    translate: [f64; 3],
 }
 
 impl fmt::Display for Transform {
@@ -632,10 +685,360 @@ impl Default for Transform {
 // Would there be any advantage of a custom type for the CityObject Id, instead of String?
 type CityObjects = HashMap<String, CityObject>;
 
+/// Performs a stateful deserialization of a CityObjects, by taking the previously
+/// deserialized `IVertices`, dereferencing the Geometries and updating the
+/// [CityObjects](`crate::CityObjects`) with the results.
+/// This struct exists only for implementing [DeserializeSeed](DeserializeSeed).
+struct CityObjectsDereferencer<'citymodel>(
+    &'citymodel mut HashMap<String, CityObject>,
+    &'citymodel mut Option<Vec<Rc<Semantic>>>,
+    &'citymodel IVertices,
+    &'citymodel Transform,
+);
+
+impl<'de, 'citymodel> DeserializeSeed<'de> for CityObjectsDereferencer<'citymodel> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        struct CityObjectsDereferencerVisitor<'citymodel>(
+            &'citymodel mut HashMap<String, CityObject>,
+            &'citymodel mut Option<Vec<Rc<Semantic>>>,
+            &'citymodel IVertices,
+            &'citymodel Transform,
+        );
+
+        impl<'de, 'citymodel> Visitor<'de> for CityObjectsDereferencerVisitor<'citymodel> {
+            type Value = ();
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a valid CityObject")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<(), A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                while let Some((coid, co)) = map.next_entry::<String, ICityObject>()? {
+                    let mut new_geoms: Vec<Geometry> = Vec::with_capacity(co.geometry.len());
+                    for geom in &co.geometry {
+                        if let Some(g) = boundary_dereference(self.2, self.3, geom, self.1) {
+                            new_geoms.push(g);
+                        }
+                    }
+                    new_geoms.shrink_to_fit();
+                    self.0.insert(
+                        coid,
+                        CityObject {
+                            cotype: co.cotype,
+                            geometry: Some(new_geoms),
+                        },
+                    );
+                }
+                Ok(())
+            }
+        }
+        deserializer.deserialize_map(CityObjectsDereferencerVisitor(
+            self.0, self.1, self.2, self.3,
+        ))
+    }
+}
+
+fn boundary_dereference(
+    vertices: &IVertices,
+    transform: &Transform,
+    geom: &IGeometry,
+    citymodel_semantics: &mut Option<Vec<Rc<Semantic>>>,
+) -> Option<Geometry> {
+    match geom {
+        IGeometry::Solid {
+            lod,
+            boundaries,
+            semantics,
+        } => {
+            let mut semval: Option<Vec<Vec<Option<Rc<Semantic>>>>> = None;
+            let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
+            for (_shi, shell) in boundaries.iter().enumerate() {
+                let mut new_shell = Vec::with_capacity(shell.len());
+                for (_sui, surface) in shell.iter().enumerate() {
+                    let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
+                    for ring in surface {
+                        let mut new_ring: LineString = Vec::with_capacity(ring.len());
+                        for vtx_idx in ring {
+                            let new_vertex: Point =
+                                transform_quantized(&vertices[*vtx_idx], transform);
+                            new_ring.push(new_vertex);
+                        }
+                        surface_bdry.push(new_ring);
+                    }
+                    new_shell.push(surface_bdry);
+                }
+                new_solid_bdry.push(new_shell);
+            }
+            // This could be moved inside the boundary loop, but having it here outside makes the
+            // code more simple.
+            let mut local_global_semantics_idx: Vec<usize> = Vec::new();
+            if let Some(sem) = semantics {
+                for semantic in sem.surfaces.iter() {
+                    let _sem: Rc<Semantic> = Rc::new(*semantic);
+                    let mut _cmsemantics_idx: usize;
+                    if let Some(ref mut _csm) = citymodel_semantics {
+                        if let Some(sidx) = _csm.iter().position(|r| r == &_sem) {
+                            _cmsemantics_idx = sidx.clone();
+                        } else {
+                            _csm.push(_sem);
+                            _cmsemantics_idx = _csm.len() - 1;
+                        }
+                    } else {
+                        *citymodel_semantics = Some(vec![_sem]);
+                        _cmsemantics_idx = 0;
+                    }
+                    local_global_semantics_idx.push(_cmsemantics_idx);
+                }
+                // TODO: How to handle null values?
+                if let Some(ref _csm) = citymodel_semantics {
+                    let mut _sv: Vec<Vec<Option<Rc<Semantic>>>> = Vec::new();
+                    for shi in &sem.values {
+                        let mut _suv: Vec<Option<Rc<Semantic>>> = Vec::new();
+                        for sui in shi {
+                            _suv.push(Some(
+                                _csm[local_global_semantics_idx[sui.to_owned()]].clone(),
+                            ));
+                        }
+                        _sv.push(_suv)
+                    }
+                    semval = Some(_sv);
+                }
+            }
+            Some(Geometry::Solid {
+                lod: Some(*lod),
+                boundaries: new_solid_bdry,
+                semantics_values: semval,
+                textures_values: None,
+                materials_values: None,
+            })
+        }
+        _ => {
+            println!("Geometry type not implemented");
+            None
+        }
+    }
+}
+
+/// Transforms a point with quantized coordinates to real-world coordinates
+fn transform_quantized(qc: &[i64; 3], transform: &Transform) -> Point {
+    [
+        qc[0] as f64 * transform.scale[0] + transform.translate[0],
+        qc[1] as f64 * transform.scale[1] + transform.translate[1],
+        qc[2] as f64 * transform.scale[2] + transform.translate[2],
+    ]
+}
+
 // NOTE: I think a CityObject should know its own Id. That would make it much simpler to send
 // around CityObjects, eg. when converting to CityFeatures.
-#[derive(Default, Debug)]
-struct CityObject;
+#[derive(Debug, Default)]
+struct CityObject {
+    cotype: CityObjectType,
+    geometry: Option<Vec<Geometry>>,
+}
+
+#[derive(Debug, Default, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Deserialize, Serialize)]
+pub enum CityObjectType {
+    Bridge,
+    BridgePart,
+    BridgeInstallation,
+    BridgeConstructiveElement,
+    BridgeRoom,
+    BridgeFurniture,
+    Building,
+    BuildingPart,
+    BuildingInstallation,
+    BuildingConstructiveElement,
+    BuildingFurniture,
+    BuildingStorey,
+    BuildingRoom,
+    BuildingUnit,
+    CityFurniture,
+    #[default]
+    Default,
+    LandUse,
+    OtherConstruction,
+    PlantCover,
+    SolitaryVegetationObject,
+    TINRelief,
+    WaterBody,
+    Road,
+    Railway,
+    Waterway,
+    TransportSquare,
+}
+
+// TODO: How to represent 'null' values in the semantics/appearance values arrays?
+#[derive(Debug)]
+enum Geometry {
+    MultiPoint {
+        lod: Option<LoD>,
+        boundaries: Vec<Point>,
+    },
+    MultiLineString {
+        lod: Option<LoD>,
+        boundaries: Vec<LineString>,
+    },
+    MultiSurface {
+        lod: Option<LoD>,
+        boundaries: Vec<Surface>,
+        semantics_values: Option<Vec<Option<Rc<Semantic>>>>,
+        textures_values: Option<Vec<Option<Rc<Texture>>>>,
+        materials_values: Option<Vec<Option<Rc<Material>>>>,
+    },
+    Solid {
+        lod: Option<LoD>,
+        boundaries: Vec<Vec<Surface>>,
+        semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>>,
+        textures_values: Option<Vec<Vec<Option<Rc<Texture>>>>>,
+        materials_values: Option<Vec<Vec<Option<Rc<Material>>>>>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LoD {
+    LoD0,
+    LoD0_0,
+    LoD0_1,
+    LoD0_2,
+    LoD0_3,
+    LoD1,
+    LoD1_0,
+    LoD1_1,
+    LoD1_2,
+    LoD1_3,
+    LoD2,
+    LoD2_0,
+    LoD2_1,
+    LoD2_2,
+    LoD2_3,
+    LoD3,
+    LoD3_0,
+    LoD3_1,
+    LoD3_2,
+    LoD3_3,
+}
+
+impl<'de> Deserialize<'de> for LoD {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(LoDVisitor)
+    }
+}
+
+struct LoDVisitor;
+
+impl<'de> Visitor<'de> for LoDVisitor {
+    type Value = LoD;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string with a valid Level of Detail value")
+    }
+
+    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        match value {
+            "0" => Ok(LoD::LoD0),
+            "0.0" => Ok(LoD::LoD0_0),
+            "0.1" => Ok(LoD::LoD0_1),
+            "0.2" => Ok(LoD::LoD0_2),
+            "0.3" => Ok(LoD::LoD0_3),
+            "1" => Ok(LoD::LoD1),
+            "1.0" => Ok(LoD::LoD1_0),
+            "1.1" => Ok(LoD::LoD1_1),
+            "1.2" => Ok(LoD::LoD1_2),
+            "1.3" => Ok(LoD::LoD1_3),
+            "2" => Ok(LoD::LoD2),
+            "2.0" => Ok(LoD::LoD2_0),
+            "2.1" => Ok(LoD::LoD2_1),
+            "2.2" => Ok(LoD::LoD2_2),
+            "2.3" => Ok(LoD::LoD2_3),
+            "3" => Ok(LoD::LoD3),
+            "3.0" => Ok(LoD::LoD3_0),
+            "3.1" => Ok(LoD::LoD3_1),
+            "3.2" => Ok(LoD::LoD3_2),
+            "3.3" => Ok(LoD::LoD3_3),
+            &_ => Err(serde::de::Error::custom(format!(
+                "invalid Level of Detail value: {}",
+                value
+            ))),
+        }
+    }
+}
+
+impl Serialize for LoD {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        match *self {
+            LoD::LoD0 => serializer.serialize_str("0"),
+            LoD::LoD0_0 => serializer.serialize_str("0.0"),
+            LoD::LoD0_1 => serializer.serialize_str("0.1"),
+            LoD::LoD0_2 => serializer.serialize_str("0.2"),
+            LoD::LoD0_3 => serializer.serialize_str("0.3"),
+            LoD::LoD1 => serializer.serialize_str("1"),
+            LoD::LoD1_0 => serializer.serialize_str("1.0"),
+            LoD::LoD1_1 => serializer.serialize_str("1.1"),
+            LoD::LoD1_2 => serializer.serialize_str("1.2"),
+            LoD::LoD1_3 => serializer.serialize_str("1.3"),
+            LoD::LoD2 => serializer.serialize_str("2"),
+            LoD::LoD2_0 => serializer.serialize_str("2.0"),
+            LoD::LoD2_1 => serializer.serialize_str("2.1"),
+            LoD::LoD2_2 => serializer.serialize_str("2.2"),
+            LoD::LoD2_3 => serializer.serialize_str("2.3"),
+            LoD::LoD3 => serializer.serialize_str("3"),
+            LoD::LoD3_0 => serializer.serialize_str("3.0"),
+            LoD::LoD3_1 => serializer.serialize_str("3.1"),
+            LoD::LoD3_2 => serializer.serialize_str("3.2"),
+            LoD::LoD3_3 => serializer.serialize_str("3.3"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
+#[serde(tag = "type")]
+enum Semantic {
+    RoofSurface,
+    GroundSurface,
+    WallSurface,
+    ClosureSurface,
+    OuterCeilingSurface,
+    OuterFloorSurface,
+    Window,
+    Door,
+    InteriorWallSurface,
+    CeilingSurface,
+    FloorSurface,
+    WaterSurface,
+    WaterGroundSurface,
+    WaterClosureSurface,
+    TrafficArea,
+    AuxiliaryTrafficArea,
+    TransportationMarking,
+    TransportationHole,
+}
+
+#[derive(Debug)]
+struct Material;
+
+#[derive(Debug)]
+struct Texture;
+
+type Surface = Vec<LineString>;
+type LineString = Vec<Point>;
+type Point = [f64; 3];
 
 /// Metadata for a city model.
 ///
@@ -1194,8 +1597,33 @@ impl From<&CityFeature> for ICityModel {
 
 type ICityObjects = HashMap<String, ICityObject>;
 
-#[derive(Debug, Serialize)]
-struct ICityObject;
+#[derive(Debug, Deserialize, Serialize)]
+struct ICityObject {
+    #[serde(rename = "type")]
+    cotype: CityObjectType,
+    geometry: Vec<IGeometry>,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+struct ISemantics {
+    surfaces: Vec<Semantic>,
+    values: Vec<Vec<usize>>,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(tag = "type")]
+enum IGeometry {
+    MultiSurface {
+        lod: LoD,
+        boundaries: Vec<Vec<Vec<usize>>>,
+        semantics: Option<ISemantics>,
+    },
+    Solid {
+        lod: LoD,
+        boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+        semantics: Option<ISemantics>,
+    },
+}
 
 /// Vertex coordinates, deserialized from a CityJSON document.
 /// Uses i64, because when we work with CityJSONFeatures of a very large (national)
@@ -1243,15 +1671,15 @@ mod tests {
         let cm: Result<CityModel> = CityModel::from_str(cityjson_str);
         println!("CityModel::from_str {:?}", cm);
 
-        let cm: serde_json::Result<CityModel> = serde_json::from_str(cityjson_str);
-        println!("serde_json::from_str {:?}", cm);
-
-        let cm: serde_json::Result<CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
-        println!("serde_json::from_slice {:?}", cm);
-
-        // &[u8] implements Read
-        let cm: serde_json::Result<CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
-        println!("serde_json::from_reader {:?}", cm);
+        // let cm: serde_json::Result<CityModel> = serde_json::from_str(cityjson_str);
+        // println!("serde_json::from_str {:?}", cm);
+        //
+        // let cm: serde_json::Result<CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
+        // println!("serde_json::from_slice {:?}", cm);
+        //
+        // // &[u8] implements Read
+        // let cm: serde_json::Result<CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
+        // println!("serde_json::from_reader {:?}", cm);
     }
 
     #[test]
@@ -1384,13 +1812,14 @@ mod tests {
     #[test]
     fn citymodel_to_features_iter() {
         let mut cityobjects = CityObjects::new();
-        cityobjects.insert("id-1".to_string(), CityObject);
-        cityobjects.insert("id-2".to_string(), CityObject);
-        cityobjects.insert("id-3".to_string(), CityObject);
+        cityobjects.insert("id-1".to_string(), CityObject::default());
+        cityobjects.insert("id-2".to_string(), CityObject::default());
+        cityobjects.insert("id-3".to_string(), CityObject::default());
         let cm = CityModel {
             version: CityJSONVersion::V1_1,
             transform: None,
             cityobjects,
+            semantics: None,
         };
         let cityfeature_iter: CityFeatureIterator = cm.to_features();
         for cf in cityfeature_iter {
@@ -1410,13 +1839,14 @@ mod tests {
     #[test]
     fn features_to_file() {
         let mut cityobjects = CityObjects::new();
-        cityobjects.insert("id-1".to_string(), CityObject);
-        cityobjects.insert("id-2".to_string(), CityObject);
-        cityobjects.insert("id-3".to_string(), CityObject);
+        cityobjects.insert("id-1".to_string(), CityObject::default());
+        cityobjects.insert("id-2".to_string(), CityObject::default());
+        cityobjects.insert("id-3".to_string(), CityObject::default());
         let cm = CityModel {
             version: CityJSONVersion::V1_1,
             transform: None,
             cityobjects,
+            semantics: None,
         };
 
         let pb: PathBuf = test_output_dir().join(".test_out.city.jsonl");
@@ -1442,5 +1872,42 @@ mod tests {
         metadata.set_organization("3DGI");
 
         println!("{:?}", metadata.identifier());
+    }
+
+    #[test]
+    fn lod() {
+        match serde_json::from_str::<LoD>(r#""0""#) {
+            Ok(lod) => {
+                assert_eq!(lod, LoD::LoD0)
+            }
+            Err(e) => {
+                panic!("error: {:?}", e)
+            }
+        };
+        match serde_json::from_str::<LoD>(r#""0.0""#) {
+            Ok(lod) => {
+                assert_eq!(lod, LoD::LoD0_0)
+            }
+            Err(e) => {
+                panic!("error: {:?}", e)
+            }
+        };
+        match serde_json::from_str::<LoD>(r#""1.4""#) {
+            Ok(lod) => {
+                panic!("{:?}", lod)
+            }
+            Err(e) => {
+                assert!(true)
+            }
+        };
+    }
+
+    #[test]
+    fn test_3dbag() {
+        let cm = CityModel::from_file(
+            "/home/balazs/Development/cjlib/experiments/data/3dbag_v210908_fd2cee53_5786.json",
+        )
+        .unwrap();
+        println!("number of CityObjects: {:?}", cm.cityobjects.len());
     }
 }
