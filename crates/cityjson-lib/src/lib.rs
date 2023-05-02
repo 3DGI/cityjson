@@ -644,8 +644,8 @@ impl fmt::Display for CityModelType {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Transform {
-    scale: [f64; 3],
-    translate: [f64; 3],
+    pub scale: [f64; 3],
+    pub translate: [f64; 3],
 }
 
 impl fmt::Display for Transform {
@@ -753,12 +753,23 @@ fn boundary_dereference(
     citymodel_semantics: &mut Option<Vec<Rc<Semantic>>>,
 ) -> Option<Geometry> {
     match geom {
+        IGeometry::MultiSurface {
+            lod,
+            boundaries,
+            semantics,
+        } => Some(Geometry::MultiSurface {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+            semantics_values: None,
+            textures_values: None,
+            materials_values: None,
+        }),
         IGeometry::Solid {
             lod,
             boundaries,
             semantics,
         } => {
-            let new_solid_bdry = dereference_boundary(&vertices, transform, boundaries);
+            let new_solid = boundaries.dereference(vertices, transform);
             // This could be moved inside the boundary loop, but having it here outside makes the
             // code more simple.
             let mut local_global_semantics_idx: Vec<usize> = Vec::new();
@@ -799,7 +810,7 @@ fn boundary_dereference(
             }
             Some(Geometry::Solid {
                 lod: Some(*lod),
-                boundaries: new_solid_bdry,
+                boundaries: new_solid,
                 semantics_values,
                 textures_values: None,
                 materials_values: None,
@@ -810,32 +821,6 @@ fn boundary_dereference(
             None
         }
     }
-}
-
-fn dereference_boundary(
-    vertices: &IVertices,
-    transform: &Transform,
-    boundaries: &Vec<Vec<Vec<Vec<usize>>>>,
-) -> Vec<Vec<SurfaceBoundary>> {
-    let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
-    for shell in boundaries.iter() {
-        let mut new_shell = Vec::with_capacity(shell.len());
-        for surface in shell.iter() {
-            let mut surface_bdry: SurfaceBoundary = Vec::with_capacity(surface.len());
-            for ring in surface {
-                let mut new_ring: LineStringBoundary = Vec::with_capacity(ring.len());
-                for vtx_idx in ring {
-                    let new_vertex: PointBoundary =
-                        transform_quantized(&vertices[*vtx_idx], transform);
-                    new_ring.push(new_vertex);
-                }
-                surface_bdry.push(new_ring);
-            }
-            new_shell.push(surface_bdry);
-        }
-        new_solid_bdry.push(new_shell);
-    }
-    new_solid_bdry
 }
 
 /// Transforms a point with quantized coordinates to real-world coordinates
@@ -904,6 +889,13 @@ enum Geometry {
         textures_values: Option<Vec<Option<Rc<Texture>>>>,
         materials_values: Option<Vec<Option<Rc<Material>>>>,
     },
+    CompositeSurface {
+        lod: Option<LoD>,
+        boundaries: CompositeSurfaceBoundary,
+        semantics_values: Option<Vec<Option<Rc<Semantic>>>>,
+        textures_values: Option<Vec<Option<Rc<Texture>>>>,
+        materials_values: Option<Vec<Option<Rc<Material>>>>,
+    },
     Solid {
         lod: Option<LoD>,
         boundaries: SolidBoundary,
@@ -927,8 +919,13 @@ type PointBoundary = [f64; 3];
 
 trait Boundary {}
 
-impl Boundary for PointBoundary {}
-impl Boundary for LineStringBoundary {}
+impl Boundary for CompositeSolidBoundary {}
+// impl Boundary for MultiSolidBoundary {} // TODO: conflicting implementation with CompositeSolid
+impl Boundary for SolidBoundary {}
+impl Boundary for CompositeSurfaceBoundary {}
+// impl Boundary for MultiSurfaceBoundary {}
+impl Boundary for MultiLineStringBoundary {}
+impl Boundary for MultiPointBoundary {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum LoD {
@@ -1639,12 +1636,12 @@ struct ISemantics {
 enum IGeometry {
     MultiSurface {
         lod: LoD,
-        boundaries: Vec<Vec<Vec<usize>>>,
+        boundaries: IMultiSurfaceBoundary,
         semantics: Option<ISemantics>,
     },
     Solid {
         lod: LoD,
-        boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+        boundaries: ISolidBoundary,
         semantics: Option<ISemantics>,
     },
 }
@@ -1661,18 +1658,85 @@ type ILineStringBoundary = Vec<IPointBoundary>;
 type IMultiPointBoundary = Vec<IPointBoundary>;
 type IPointBoundary = usize;
 
-trait Dereference {
-    fn dereference(&self) -> Box<dyn Boundary>;
+trait Dereference<Boundary> {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> Boundary;
 }
 
-impl Dereference for IMultiLineStringBoundary {
-    fn dereference(&self) -> Box<dyn Boundary> {
-        todo!()
+impl Dereference<MultiPointBoundary> for IMultiPointBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiPointBoundary {
+        let mut new_multipoint = MultiPointBoundary::with_capacity(self.len());
+        for vtx in self {
+            new_multipoint.push(transform_quantized(&vertices[*vtx], transform));
+        }
+        new_multipoint
     }
 }
 
-fn dereference_imultipoint(mp: IMultiPointBoundary) -> MultiPointBoundary {
-    todo!()
+impl Dereference<MultiLineStringBoundary> for IMultiLineStringBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiLineStringBoundary {
+        let mut new_multilinestring = MultiLineStringBoundary::with_capacity(self.len());
+        for linestring in self {
+            let mut new_linestring = LineStringBoundary::with_capacity(linestring.len());
+            for vtx in linestring {
+                new_linestring.push(transform_quantized(&vertices[*vtx], transform));
+            }
+            new_multilinestring.push(new_linestring);
+        }
+        new_multilinestring
+    }
+}
+
+// TODO: use some generic type for the types that can form a Shell (C.Srf, Shell)
+fn make_shell(
+    shell: &ICompositeSurfaceBoundary,
+    vertices: &IVertices,
+    transform: &Transform,
+) -> CompositeSurfaceBoundary {
+    let mut new_compositesurface = CompositeSurfaceBoundary::with_capacity(shell.len());
+    for surface in shell {
+        let mut new_surface = SurfaceBoundary::with_capacity(surface.len());
+        for linestring in surface {
+            let mut new_linestring = LineStringBoundary::with_capacity(linestring.len());
+            for vtx in linestring {
+                new_linestring.push(transform_quantized(&vertices[*vtx], transform));
+            }
+            new_surface.push(new_linestring);
+        }
+        new_compositesurface.push(new_surface);
+    }
+    new_compositesurface
+}
+
+impl Dereference<CompositeSurfaceBoundary> for ICompositeSurfaceBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSurfaceBoundary {
+        make_shell(self, vertices, transform)
+    }
+}
+
+impl Dereference<SolidBoundary> for ISolidBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> SolidBoundary {
+        let mut new_solid = SolidBoundary::with_capacity(self.len());
+        for shell in self {
+            let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
+            new_solid.push(new_shell);
+        }
+        new_solid
+    }
+}
+
+impl Dereference<CompositeSolidBoundary> for ICompositeSolidBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSolidBoundary {
+        let mut new_compositesolid = CompositeSolidBoundary::with_capacity(self.len());
+        for solid in self {
+            let mut new_solid = SolidBoundary::with_capacity(solid.len());
+            for shell in solid {
+                let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
+                new_solid.push(new_shell);
+            }
+            new_compositesolid.push(new_solid);
+        }
+        new_compositesolid
+    }
 }
 
 /// Vertex coordinates, deserialized from a CityJSON document.
@@ -1959,5 +2023,24 @@ mod tests {
         )
         .unwrap();
         println!("number of CityObjects: {:?}", cm.cityobjects.len());
+    }
+
+    #[test]
+    fn dereference() {
+        let vertices: IVertices = vec![[-10, -10, -10], [10, 10, 10], [20, 20, 20]];
+        let transform = Transform {
+            scale: [0.001, 0.001, 0.001],
+            translate: [0.0, 0.0, 0.0],
+        };
+        // Although we don't have an explicit Dereference implementation for MultiSurface,
+        // this still works, because MultiSurface and CompositeSurface are just alias-es for the
+        // same data type.
+        let imp = IMultiPointBoundary::from([2, 1, 0]);
+        let imsrf: IMultiSurfaceBoundary = vec![vec![imp]];
+        let msrf: MultiSurfaceBoundary = imsrf.dereference(&vertices, &transform);
+
+        let imp = IMultiPointBoundary::from([2, 1, 0]);
+        let icsrf: ICompositeSurfaceBoundary = vec![vec![imp]];
+        let csrf: CompositeSurfaceBoundary = imsrf.dereference(&vertices, &transform);
     }
 }
