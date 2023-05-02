@@ -724,7 +724,7 @@ impl<'de, 'citymodel> DeserializeSeed<'de> for CityObjectsDereferencer<'citymode
                 while let Some((coid, co)) = map.next_entry::<String, ICityObject>()? {
                     let mut new_geoms: Vec<Geometry> = Vec::with_capacity(co.geometry.len());
                     for geom in &co.geometry {
-                        if let Some(g) = boundary_dereference(self.2, self.3, geom, self.1) {
+                        if let Some(g) = dereference_igeometry(geom, self.2, self.3, self.1) {
                             new_geoms.push(g);
                         }
                     }
@@ -746,18 +746,29 @@ impl<'de, 'citymodel> DeserializeSeed<'de> for CityObjectsDereferencer<'citymode
     }
 }
 
-fn boundary_dereference(
+fn dereference_igeometry(
+    geom: &IGeometry,
     vertices: &IVertices,
     transform: &Transform,
-    geom: &IGeometry,
     citymodel_semantics: &mut Option<Vec<Rc<Semantic>>>,
 ) -> Option<Geometry> {
     match geom {
-        IGeometry::MultiSurface {
-            lod,
-            boundaries,
-            semantics,
-        } => Some(Geometry::MultiSurface {
+        IGeometry::MultiPoint { lod, boundaries } => Some(Geometry::MultiPoint {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+        }),
+        IGeometry::MultiLineString { lod, boundaries } => Some(Geometry::MultiLineString {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+        }),
+        IGeometry::MultiSurface { lod, boundaries } => Some(Geometry::MultiSurface {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+            semantics_values: None,
+            textures_values: None,
+            materials_values: None,
+        }),
+        IGeometry::CompositeSurface { lod, boundaries } => Some(Geometry::CompositeSurface {
             lod: Some(*lod),
             boundaries: boundaries.dereference(vertices, transform),
             semantics_values: None,
@@ -769,7 +780,6 @@ fn boundary_dereference(
             boundaries,
             semantics,
         } => {
-            let new_solid = boundaries.dereference(vertices, transform);
             // This could be moved inside the boundary loop, but having it here outside makes the
             // code more simple.
             let mut local_global_semantics_idx: Vec<usize> = Vec::new();
@@ -810,16 +820,20 @@ fn boundary_dereference(
             }
             Some(Geometry::Solid {
                 lod: Some(*lod),
-                boundaries: new_solid,
+                boundaries: boundaries.dereference(vertices, transform),
                 semantics_values,
                 textures_values: None,
                 materials_values: None,
             })
         }
-        _ => {
-            println!("Geometry type not implemented");
-            None
-        }
+        IGeometry::MultiSolid { lod, boundaries } => Some(Geometry::MultiSolid {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+        }),
+        IGeometry::CompositeSolid { lod, boundaries } => Some(Geometry::CompositeSolid {
+            lod: Some(*lod),
+            boundaries: boundaries.dereference(vertices, transform),
+        }),
     }
 }
 
@@ -902,6 +916,14 @@ enum Geometry {
         semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>>,
         textures_values: Option<Vec<Vec<Option<Rc<Texture>>>>>,
         materials_values: Option<Vec<Vec<Option<Rc<Material>>>>>,
+    },
+    MultiSolid {
+        lod: Option<LoD>,
+        boundaries: MultiSolidBoundary,
+    },
+    CompositeSolid {
+        lod: Option<LoD>,
+        boundaries: CompositeSolidBoundary,
     },
 }
 
@@ -1634,15 +1656,34 @@ struct ISemantics {
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(tag = "type")]
 enum IGeometry {
+    MultiPoint {
+        lod: LoD,
+        boundaries: IMultiPointBoundary,
+    },
+    MultiLineString {
+        lod: LoD,
+        boundaries: IMultiLineStringBoundary,
+    },
     MultiSurface {
         lod: LoD,
         boundaries: IMultiSurfaceBoundary,
-        semantics: Option<ISemantics>,
+    },
+    CompositeSurface {
+        lod: LoD,
+        boundaries: ICompositeSurfaceBoundary,
     },
     Solid {
         lod: LoD,
         boundaries: ISolidBoundary,
         semantics: Option<ISemantics>,
+    },
+    MultiSolid {
+        lod: LoD,
+        boundaries: IMultiSolidBoundary,
+    },
+    CompositeSolid {
+        lod: LoD,
+        boundaries: ICompositeSolidBoundary,
     },
 }
 
@@ -1686,7 +1727,9 @@ impl Dereference<MultiLineStringBoundary> for IMultiLineStringBoundary {
     }
 }
 
-// TODO: use some generic type for the types that can form a Shell (C.Srf, Shell)
+/// Technically, MultiSurface, CompositeSurface and Shell have all the same depth of arrays.
+/// Because we are using type aliases for these three types, this function works for all three,
+/// even though there is CompositeSurface in the signature.
 fn make_shell(
     shell: &ICompositeSurfaceBoundary,
     vertices: &IVertices,
