@@ -758,64 +758,49 @@ fn boundary_dereference(
             boundaries,
             semantics,
         } => {
-            let mut semval: Option<Vec<Vec<Option<Rc<Semantic>>>>> = None;
-            let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
-            for (_shi, shell) in boundaries.iter().enumerate() {
-                let mut new_shell = Vec::with_capacity(shell.len());
-                for (_sui, surface) in shell.iter().enumerate() {
-                    let mut surface_bdry: Surface = Vec::with_capacity(surface.len());
-                    for ring in surface {
-                        let mut new_ring: LineString = Vec::with_capacity(ring.len());
-                        for vtx_idx in ring {
-                            let new_vertex: Point =
-                                transform_quantized(&vertices[*vtx_idx], transform);
-                            new_ring.push(new_vertex);
-                        }
-                        surface_bdry.push(new_ring);
-                    }
-                    new_shell.push(surface_bdry);
-                }
-                new_solid_bdry.push(new_shell);
-            }
+            let new_solid_bdry = dereference_boundary(&vertices, transform, boundaries);
             // This could be moved inside the boundary loop, but having it here outside makes the
             // code more simple.
             let mut local_global_semantics_idx: Vec<usize> = Vec::new();
-            if let Some(sem) = semantics {
-                for semantic in sem.surfaces.iter() {
-                    let _sem: Rc<Semantic> = Rc::new(*semantic);
-                    let mut _cmsemantics_idx: usize;
-                    if let Some(ref mut _csm) = citymodel_semantics {
-                        if let Some(sidx) = _csm.iter().position(|r| r == &_sem) {
-                            _cmsemantics_idx = sidx.clone();
+            let mut semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>> = None;
+            if let Some(isemantics) = semantics {
+                for semantic in isemantics.surfaces.iter() {
+                    let semantic_rc: Rc<Semantic> = Rc::new(*semantic);
+                    let semantic_idx: usize;
+                    if let Some(ref mut cm_sem) = citymodel_semantics {
+                        if let Some(existing_semantic_idx) =
+                            cm_sem.iter().position(|r| r == &semantic_rc)
+                        {
+                            semantic_idx = existing_semantic_idx.clone();
                         } else {
-                            _csm.push(_sem);
-                            _cmsemantics_idx = _csm.len() - 1;
+                            cm_sem.push(semantic_rc);
+                            semantic_idx = cm_sem.len() - 1;
                         }
                     } else {
-                        *citymodel_semantics = Some(vec![_sem]);
-                        _cmsemantics_idx = 0;
+                        *citymodel_semantics = Some(vec![semantic_rc]);
+                        semantic_idx = 0;
                     }
-                    local_global_semantics_idx.push(_cmsemantics_idx);
+                    local_global_semantics_idx.push(semantic_idx);
                 }
                 // TODO: How to handle null values?
-                if let Some(ref _csm) = citymodel_semantics {
-                    let mut _sv: Vec<Vec<Option<Rc<Semantic>>>> = Vec::new();
-                    for shi in &sem.values {
-                        let mut _suv: Vec<Option<Rc<Semantic>>> = Vec::new();
-                        for sui in shi {
-                            _suv.push(Some(
-                                _csm[local_global_semantics_idx[sui.to_owned()]].clone(),
+                if let Some(ref cm_sem) = citymodel_semantics {
+                    let mut sem_val: Vec<Vec<Option<Rc<Semantic>>>> = Vec::new();
+                    for shell in &isemantics.values {
+                        let mut srf_vec: Vec<Option<Rc<Semantic>>> = Vec::new();
+                        for srf_idx in shell {
+                            srf_vec.push(Some(
+                                cm_sem[local_global_semantics_idx[srf_idx.to_owned()]].clone(),
                             ));
                         }
-                        _sv.push(_suv)
+                        sem_val.push(srf_vec)
                     }
-                    semval = Some(_sv);
+                    semantics_values = Some(sem_val);
                 }
             }
             Some(Geometry::Solid {
                 lod: Some(*lod),
                 boundaries: new_solid_bdry,
-                semantics_values: semval,
+                semantics_values,
                 textures_values: None,
                 materials_values: None,
             })
@@ -827,8 +812,34 @@ fn boundary_dereference(
     }
 }
 
+fn dereference_boundary(
+    vertices: &IVertices,
+    transform: &Transform,
+    boundaries: &Vec<Vec<Vec<Vec<usize>>>>,
+) -> Vec<Vec<SurfaceBoundary>> {
+    let mut new_solid_bdry = Vec::with_capacity(boundaries.len());
+    for shell in boundaries.iter() {
+        let mut new_shell = Vec::with_capacity(shell.len());
+        for surface in shell.iter() {
+            let mut surface_bdry: SurfaceBoundary = Vec::with_capacity(surface.len());
+            for ring in surface {
+                let mut new_ring: LineStringBoundary = Vec::with_capacity(ring.len());
+                for vtx_idx in ring {
+                    let new_vertex: PointBoundary =
+                        transform_quantized(&vertices[*vtx_idx], transform);
+                    new_ring.push(new_vertex);
+                }
+                surface_bdry.push(new_ring);
+            }
+            new_shell.push(surface_bdry);
+        }
+        new_solid_bdry.push(new_shell);
+    }
+    new_solid_bdry
+}
+
 /// Transforms a point with quantized coordinates to real-world coordinates
-fn transform_quantized(qc: &[i64; 3], transform: &Transform) -> Point {
+fn transform_quantized(qc: &[i64; 3], transform: &Transform) -> PointBoundary {
     [
         qc[0] as f64 * transform.scale[0] + transform.translate[0],
         qc[1] as f64 * transform.scale[1] + transform.translate[1],
@@ -880,27 +891,44 @@ pub enum CityObjectType {
 enum Geometry {
     MultiPoint {
         lod: Option<LoD>,
-        boundaries: Vec<Point>,
+        boundaries: MultiPointBoundary,
     },
     MultiLineString {
         lod: Option<LoD>,
-        boundaries: Vec<LineString>,
+        boundaries: MultiLineStringBoundary,
     },
     MultiSurface {
         lod: Option<LoD>,
-        boundaries: Vec<Surface>,
+        boundaries: MultiSurfaceBoundary,
         semantics_values: Option<Vec<Option<Rc<Semantic>>>>,
         textures_values: Option<Vec<Option<Rc<Texture>>>>,
         materials_values: Option<Vec<Option<Rc<Material>>>>,
     },
     Solid {
         lod: Option<LoD>,
-        boundaries: Vec<Vec<Surface>>,
+        boundaries: SolidBoundary,
         semantics_values: Option<Vec<Vec<Option<Rc<Semantic>>>>>,
         textures_values: Option<Vec<Vec<Option<Rc<Texture>>>>>,
         materials_values: Option<Vec<Vec<Option<Rc<Material>>>>>,
     },
 }
+
+type CompositeSolidBoundary = Vec<SolidBoundary>;
+type MultiSolidBoundary = Vec<SolidBoundary>;
+type SolidBoundary = Vec<ShellBoundary>;
+type ShellBoundary = Vec<SurfaceBoundary>;
+type CompositeSurfaceBoundary = Vec<SurfaceBoundary>;
+type MultiSurfaceBoundary = Vec<SurfaceBoundary>;
+type SurfaceBoundary = Vec<LineStringBoundary>;
+type MultiLineStringBoundary = Vec<LineStringBoundary>;
+type LineStringBoundary = Vec<PointBoundary>;
+type MultiPointBoundary = Vec<PointBoundary>;
+type PointBoundary = [f64; 3];
+
+trait Boundary {}
+
+impl Boundary for PointBoundary {}
+impl Boundary for LineStringBoundary {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum LoD {
@@ -1035,10 +1063,6 @@ struct Material;
 
 #[derive(Debug)]
 struct Texture;
-
-type Surface = Vec<LineString>;
-type LineString = Vec<Point>;
-type Point = [f64; 3];
 
 /// Metadata for a city model.
 ///
@@ -1623,6 +1647,32 @@ enum IGeometry {
         boundaries: Vec<Vec<Vec<Vec<usize>>>>,
         semantics: Option<ISemantics>,
     },
+}
+
+type ICompositeSolidBoundary = Vec<ISolidBoundary>;
+type IMultiSolidBoundary = Vec<ISolidBoundary>;
+type ISolidBoundary = Vec<IShellBoundary>;
+type IShellBoundary = Vec<ISurfaceBoundary>;
+type ICompositeSurfaceBoundary = Vec<ISurfaceBoundary>;
+type IMultiSurfaceBoundary = Vec<ISurfaceBoundary>;
+type ISurfaceBoundary = Vec<ILineStringBoundary>;
+type IMultiLineStringBoundary = Vec<ILineStringBoundary>;
+type ILineStringBoundary = Vec<IPointBoundary>;
+type IMultiPointBoundary = Vec<IPointBoundary>;
+type IPointBoundary = usize;
+
+trait Dereference {
+    fn dereference(&self) -> Box<dyn Boundary>;
+}
+
+impl Dereference for IMultiLineStringBoundary {
+    fn dereference(&self) -> Box<dyn Boundary> {
+        todo!()
+    }
+}
+
+fn dereference_imultipoint(mp: IMultiPointBoundary) -> MultiPointBoundary {
+    todo!()
 }
 
 /// Vertex coordinates, deserialized from a CityJSON document.
