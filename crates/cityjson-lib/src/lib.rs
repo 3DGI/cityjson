@@ -1727,29 +1727,6 @@ impl Dereference<MultiLineStringBoundary> for IMultiLineStringBoundary {
     }
 }
 
-/// Technically, MultiSurface, CompositeSurface and Shell have all the same depth of arrays.
-/// Because we are using type aliases for these three types, this function works for all three,
-/// even though there is CompositeSurface in the signature.
-fn make_shell(
-    shell: &ICompositeSurfaceBoundary,
-    vertices: &IVertices,
-    transform: &Transform,
-) -> CompositeSurfaceBoundary {
-    let mut new_compositesurface = CompositeSurfaceBoundary::with_capacity(shell.len());
-    for surface in shell {
-        let mut new_surface = SurfaceBoundary::with_capacity(surface.len());
-        for linestring in surface {
-            let mut new_linestring = LineStringBoundary::with_capacity(linestring.len());
-            for vtx in linestring {
-                new_linestring.push(transform_quantized(&vertices[*vtx], transform));
-            }
-            new_surface.push(new_linestring);
-        }
-        new_compositesurface.push(new_surface);
-    }
-    new_compositesurface
-}
-
 impl Dereference<CompositeSurfaceBoundary> for ICompositeSurfaceBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSurfaceBoundary {
         make_shell(self, vertices, transform)
@@ -1780,6 +1757,29 @@ impl Dereference<CompositeSolidBoundary> for ICompositeSolidBoundary {
         }
         new_compositesolid
     }
+}
+
+/// Technically, MultiSurface, CompositeSurface and Shell have all the same depth of arrays.
+/// Because we are using type aliases for these three types, this function works for all three,
+/// even though there is CompositeSurface in the signature.
+fn make_shell(
+    shell: &ICompositeSurfaceBoundary,
+    vertices: &IVertices,
+    transform: &Transform,
+) -> CompositeSurfaceBoundary {
+    let mut new_compositesurface = CompositeSurfaceBoundary::with_capacity(shell.len());
+    for surface in shell {
+        let mut new_surface = SurfaceBoundary::with_capacity(surface.len());
+        for linestring in surface {
+            let mut new_linestring = LineStringBoundary::with_capacity(linestring.len());
+            for vtx in linestring {
+                new_linestring.push(transform_quantized(&vertices[*vtx], transform));
+            }
+            new_surface.push(new_linestring);
+        }
+        new_compositesurface.push(new_surface);
+    }
+    new_compositesurface
 }
 
 /// Vertex coordinates, deserialized from a CityJSON document.
