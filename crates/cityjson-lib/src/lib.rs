@@ -947,10 +947,50 @@ impl MultiSolidBoundary {
         self.0.push(solidboundary)
     }
 }
-type SolidBoundary = Vec<ShellBoundary>;
-type ShellBoundary = Vec<SurfaceBoundary>;
-type CompositeSurfaceBoundary = Vec<SurfaceBoundary>;
-type MultiSurfaceBoundary = Vec<SurfaceBoundary>;
+#[derive(Debug)]
+struct SolidBoundary(Vec<ShellBoundary>);
+impl SolidBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, shellboundary: ShellBoundary) {
+        self.0.push(shellboundary)
+    }
+}
+
+#[derive(Debug)]
+struct ShellBoundary(Vec<SurfaceBoundary>);
+impl ShellBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, surfaceboundary: SurfaceBoundary) {
+        self.0.push(surfaceboundary)
+    }
+}
+
+#[derive(Debug)]
+struct CompositeSurfaceBoundary(Vec<SurfaceBoundary>);
+impl CompositeSurfaceBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, surfaceboundary: SurfaceBoundary) {
+        self.0.push(surfaceboundary)
+    }
+}
+
+#[derive(Debug)]
+struct MultiSurfaceBoundary(Vec<SurfaceBoundary>);
+impl MultiSurfaceBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, surfaceboundary: SurfaceBoundary) {
+        self.0.push(surfaceboundary)
+    }
+}
+
 type SurfaceBoundary = Vec<LineStringBoundary>;
 type MultiLineStringBoundary = Vec<LineStringBoundary>;
 type LineStringBoundary = Vec<PointBoundary>;
@@ -963,7 +1003,7 @@ impl Boundary for CompositeSolidBoundary {}
 impl Boundary for MultiSolidBoundary {}
 impl Boundary for SolidBoundary {}
 impl Boundary for CompositeSurfaceBoundary {}
-// impl Boundary for MultiSurfaceBoundary {}
+impl Boundary for MultiSurfaceBoundary {}
 impl Boundary for MultiLineStringBoundary {}
 impl Boundary for MultiPointBoundary {}
 
@@ -1684,11 +1724,11 @@ enum IGeometry {
     },
     MultiSurface {
         lod: LoD,
-        boundaries: IMultiSurfaceBoundary,
+        boundaries: IAggregateSurfaceBoundary,
     },
     CompositeSurface {
         lod: LoD,
-        boundaries: ICompositeSurfaceBoundary,
+        boundaries: IAggregateSurfaceBoundary,
     },
     Solid {
         lod: LoD,
@@ -1707,10 +1747,8 @@ enum IGeometry {
 
 type ICompositeSolidBoundary = Vec<ISolidBoundary>;
 type IMultiSolidBoundary = Vec<ISolidBoundary>;
-type ISolidBoundary = Vec<IShellBoundary>;
-type IShellBoundary = Vec<ISurfaceBoundary>;
-type ICompositeSurfaceBoundary = Vec<ISurfaceBoundary>;
-type IMultiSurfaceBoundary = Vec<ISurfaceBoundary>;
+type ISolidBoundary = Vec<IAggregateSurfaceBoundary>;
+type IAggregateSurfaceBoundary = Vec<ISurfaceBoundary>;
 type ISurfaceBoundary = Vec<ILineStringBoundary>;
 type IMultiLineStringBoundary = Vec<ILineStringBoundary>;
 type ILineStringBoundary = Vec<IPointBoundary>;
@@ -1745,45 +1783,38 @@ impl Dereference<MultiLineStringBoundary> for IMultiLineStringBoundary {
     }
 }
 
-impl Dereference<CompositeSurfaceBoundary> for ICompositeSurfaceBoundary {
+impl Dereference<MultiSurfaceBoundary> for IAggregateSurfaceBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiSurfaceBoundary {
+        let mut new_multisurface = MultiSurfaceBoundary::with_capacity(self.len());
+        dereference_iaggregatesurface(&self, &vertices, &transform, &mut new_multisurface.0);
+        new_multisurface
+    }
+}
+
+impl Dereference<CompositeSurfaceBoundary> for IAggregateSurfaceBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSurfaceBoundary {
-        make_shell(self, vertices, transform)
+        let mut new_compositesurface = CompositeSurfaceBoundary::with_capacity(self.len());
+        dereference_iaggregatesurface(&self, &vertices, &transform, &mut new_compositesurface.0);
+        new_compositesurface
     }
 }
 
 impl Dereference<SolidBoundary> for ISolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> SolidBoundary {
         let mut new_solid = SolidBoundary::with_capacity(self.len());
-        for shell in self {
-            let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
+        for ishell in self {
+            let mut new_shell = ShellBoundary::with_capacity(ishell.len());
+            dereference_iaggregatesurface(&ishell, &vertices, &transform, &mut new_shell.0);
             new_solid.push(new_shell);
         }
         new_solid
     }
 }
 
-/// Dereference an indexed Composite- or MultiSolid boundary (`iaggregatesolid`) and store the
-/// result in the provided container `aggregatesolid`.
-fn dereference_aggregate_solid(
-    aggregatesolid: &mut Vec<SolidBoundary>,
-    iaggregatesolid: &Vec<ISolidBoundary>,
-    vertices: &IVertices,
-    transform: &Transform,
-) {
-    for solid in iaggregatesolid {
-        let mut new_solid = SolidBoundary::with_capacity(solid.len());
-        for shell in solid {
-            let new_shell: ShellBoundary = make_shell(shell, vertices, transform);
-            new_solid.push(new_shell);
-        }
-        aggregatesolid.push(new_solid);
-    }
-}
-
 impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiSolidBoundary {
         let mut new_multisolid = MultiSolidBoundary::with_capacity(self.len());
-        dereference_aggregate_solid(&mut new_multisolid.0, &self, &vertices, &transform);
+        dereference_iaggregatesolid(&self, &vertices, &transform, &mut new_multisolid.0);
         new_multisolid
     }
 }
@@ -1791,21 +1822,39 @@ impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
 impl Dereference<CompositeSolidBoundary> for ICompositeSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSolidBoundary {
         let mut new_compositesolid = CompositeSolidBoundary::with_capacity(self.len());
-        dereference_aggregate_solid(&mut new_compositesolid.0, &self, &vertices, &transform);
+        dereference_iaggregatesolid(&self, &vertices, &transform, &mut new_compositesolid.0);
         new_compositesolid
     }
 }
 
-/// Technically, MultiSurface, CompositeSurface and Shell have all the same depth of arrays.
-/// Because we are using type aliases for these three types, this function works for all three,
-/// even though there is CompositeSurface in the signature.
-fn make_shell(
-    shell: &ICompositeSurfaceBoundary,
+/// Dereference an indexed Composite- or MultiSolid boundary (`iaggregatesolid`) and store the
+/// result in the provided container `aggregatesolid`.
+fn dereference_iaggregatesolid(
+    iaggregatesolid: &Vec<ISolidBoundary>,
     vertices: &IVertices,
     transform: &Transform,
-) -> CompositeSurfaceBoundary {
-    let mut new_compositesurface = CompositeSurfaceBoundary::with_capacity(shell.len());
-    for surface in shell {
+    aggregatesolid: &mut Vec<SolidBoundary>,
+) {
+    for isolid in iaggregatesolid {
+        let mut new_solid = SolidBoundary::with_capacity(isolid.len());
+        for ishell in isolid {
+            let mut new_shell = ShellBoundary::with_capacity(ishell.len());
+            dereference_iaggregatesurface(&ishell, &vertices, &transform, &mut new_shell.0);
+            new_solid.push(new_shell);
+        }
+        aggregatesolid.push(new_solid);
+    }
+}
+
+/// Dereference an indexed Composite- or MultiSurface, or Shell boundary (`iaggregatesurface`) and
+/// store the result in the provided container `aggregatesurface`.
+fn dereference_iaggregatesurface(
+    iaggregatesurface: &Vec<ISurfaceBoundary>,
+    vertices: &IVertices,
+    transform: &Transform,
+    aggregatesurface: &mut Vec<SurfaceBoundary>,
+) {
+    for surface in iaggregatesurface {
         let mut new_surface = SurfaceBoundary::with_capacity(surface.len());
         for linestring in surface {
             let mut new_linestring = LineStringBoundary::with_capacity(linestring.len());
@@ -1814,9 +1863,8 @@ fn make_shell(
             }
             new_surface.push(new_linestring);
         }
-        new_compositesurface.push(new_surface);
+        aggregatesurface.push(new_surface);
     }
-    new_compositesurface
 }
 
 /// Vertex coordinates, deserialized from a CityJSON document.
@@ -2116,11 +2164,11 @@ mod tests {
         // this still works, because MultiSurface and CompositeSurface are just alias-es for the
         // same data type.
         let imp = IMultiPointBoundary::from([2, 1, 0]);
-        let imsrf: IMultiSurfaceBoundary = vec![vec![imp]];
+        let imsrf: IAggregateSurfaceBoundary = vec![vec![imp]];
         let msrf: MultiSurfaceBoundary = imsrf.dereference(&vertices, &transform);
 
         let imp = IMultiPointBoundary::from([2, 1, 0]);
-        let icsrf: ICompositeSurfaceBoundary = vec![vec![imp]];
+        let icsrf: IAggregateSurfaceBoundary = vec![vec![imp]];
         let csrf: CompositeSurfaceBoundary = imsrf.dereference(&vertices, &transform);
     }
 }
