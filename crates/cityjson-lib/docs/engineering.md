@@ -3,6 +3,13 @@
 The capital `I` prefix in signatures is an abbreviation for *Indexed*, such as `IGeometry` stands for *Indexed Geometry*.
 *Indexed* refers to the indexed boundary representation, where only the vertex indices are stored in the geometry boundary instead of the coordinates.
 
+Some boundary representations have the same depth.
+To collectively refer to boundaries of the same depth, the *aggregate* prefix is used.
+The boundary-aggregations of the same depth are:
+
+- `multisurface`, `compositesurface`, `shell` --> `aggregatesurface`
+- `multisolid`, `compositesolid` --> `aggregatesolid`
+
 # Engineering choices
 
 ## Coordinate precision and representation

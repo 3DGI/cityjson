@@ -1762,17 +1762,28 @@ impl Dereference<SolidBoundary> for ISolidBoundary {
     }
 }
 
+/// Dereference an indexed Composite- or MultiSolid boundary (`iaggregatesolid`) and store the
+/// result in the provided container `aggregatesolid`.
+fn dereference_aggregate_solid(
+    aggregatesolid: &mut Vec<SolidBoundary>,
+    iaggregatesolid: &Vec<ISolidBoundary>,
+    vertices: &IVertices,
+    transform: &Transform,
+) {
+    for solid in iaggregatesolid {
+        let mut new_solid = SolidBoundary::with_capacity(solid.len());
+        for shell in solid {
+            let new_shell: ShellBoundary = make_shell(shell, vertices, transform);
+            new_solid.push(new_shell);
+        }
+        aggregatesolid.push(new_solid);
+    }
+}
+
 impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiSolidBoundary {
         let mut new_multisolid = MultiSolidBoundary::with_capacity(self.len());
-        for solid in self {
-            let mut new_solid = SolidBoundary::with_capacity(solid.len());
-            for shell in solid {
-                let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
-                new_solid.push(new_shell);
-            }
-            new_multisolid.push(new_solid);
-        }
+        dereference_aggregate_solid(&mut new_multisolid.0, &self, &vertices, &transform);
         new_multisolid
     }
 }
@@ -1780,14 +1791,7 @@ impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
 impl Dereference<CompositeSolidBoundary> for ICompositeSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSolidBoundary {
         let mut new_compositesolid = CompositeSolidBoundary::with_capacity(self.len());
-        for solid in self {
-            let mut new_solid = SolidBoundary::with_capacity(solid.len());
-            for shell in solid {
-                let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
-                new_solid.push(new_shell);
-            }
-            new_compositesolid.push(new_solid);
-        }
+        dereference_aggregate_solid(&mut new_compositesolid.0, &self, &vertices, &transform);
         new_compositesolid
     }
 }
