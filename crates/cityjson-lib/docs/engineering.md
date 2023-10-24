@@ -1,3 +1,8 @@
+# Contributors guide
+
+The capital `I` prefix in signatures is an abbreviation for *Indexed*, such as `IGeometry` stands for *Indexed Geometry*.
+*Indexed* refers to the indexed boundary representation, where only the vertex indices are stored in the geometry boundary instead of the coordinates.
+
 # Engineering choices
 
 ## Coordinate precision and representation

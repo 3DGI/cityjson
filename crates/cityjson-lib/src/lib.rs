@@ -927,8 +927,26 @@ enum Geometry {
     },
 }
 
-type CompositeSolidBoundary = Vec<SolidBoundary>;
-type MultiSolidBoundary = Vec<SolidBoundary>;
+#[derive(Debug)]
+struct CompositeSolidBoundary(Vec<SolidBoundary>);
+impl CompositeSolidBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, solidboundary: SolidBoundary) {
+        self.0.push(solidboundary)
+    }
+}
+#[derive(Debug)]
+struct MultiSolidBoundary(Vec<SolidBoundary>);
+impl MultiSolidBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, solidboundary: SolidBoundary) {
+        self.0.push(solidboundary)
+    }
+}
 type SolidBoundary = Vec<ShellBoundary>;
 type ShellBoundary = Vec<SurfaceBoundary>;
 type CompositeSurfaceBoundary = Vec<SurfaceBoundary>;
@@ -942,7 +960,7 @@ type PointBoundary = [f64; 3];
 trait Boundary {}
 
 impl Boundary for CompositeSolidBoundary {}
-// impl Boundary for MultiSolidBoundary {} // TODO: conflicting implementation with CompositeSolid
+impl Boundary for MultiSolidBoundary {}
 impl Boundary for SolidBoundary {}
 impl Boundary for CompositeSurfaceBoundary {}
 // impl Boundary for MultiSurfaceBoundary {}
@@ -1741,6 +1759,21 @@ impl Dereference<SolidBoundary> for ISolidBoundary {
             new_solid.push(new_shell);
         }
         new_solid
+    }
+}
+
+impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
+    fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiSolidBoundary {
+        let mut new_multisolid = MultiSolidBoundary::with_capacity(self.len());
+        for solid in self {
+            let mut new_solid = SolidBoundary::with_capacity(solid.len());
+            for shell in solid {
+                let mut new_shell: ShellBoundary = make_shell(shell, vertices, transform);
+                new_solid.push(new_shell);
+            }
+            new_multisolid.push(new_solid);
+        }
+        new_multisolid
     }
 }
 
