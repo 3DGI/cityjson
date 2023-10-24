@@ -1737,16 +1737,15 @@ enum IGeometry {
     },
     MultiSolid {
         lod: LoD,
-        boundaries: IMultiSolidBoundary,
+        boundaries: IAggregateSolidBoundary,
     },
     CompositeSolid {
         lod: LoD,
-        boundaries: ICompositeSolidBoundary,
+        boundaries: IAggregateSolidBoundary,
     },
 }
 
-type ICompositeSolidBoundary = Vec<ISolidBoundary>;
-type IMultiSolidBoundary = Vec<ISolidBoundary>;
+type IAggregateSolidBoundary = Vec<ISolidBoundary>;
 type ISolidBoundary = Vec<IAggregateSurfaceBoundary>;
 type IAggregateSurfaceBoundary = Vec<ISurfaceBoundary>;
 type ISurfaceBoundary = Vec<ILineStringBoundary>;
@@ -1811,7 +1810,7 @@ impl Dereference<SolidBoundary> for ISolidBoundary {
     }
 }
 
-impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
+impl Dereference<MultiSolidBoundary> for IAggregateSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiSolidBoundary {
         let mut new_multisolid = MultiSolidBoundary::with_capacity(self.len());
         dereference_iaggregatesolid(&self, &vertices, &transform, &mut new_multisolid.0);
@@ -1819,7 +1818,7 @@ impl Dereference<MultiSolidBoundary> for IMultiSolidBoundary {
     }
 }
 
-impl Dereference<CompositeSolidBoundary> for ICompositeSolidBoundary {
+impl Dereference<CompositeSolidBoundary> for IAggregateSolidBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> CompositeSolidBoundary {
         let mut new_compositesolid = CompositeSolidBoundary::with_capacity(self.len());
         dereference_iaggregatesolid(&self, &vertices, &transform, &mut new_compositesolid.0);
