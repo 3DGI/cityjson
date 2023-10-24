@@ -839,11 +839,11 @@ fn dereference_igeometry(
 
 /// Transforms a point with quantized coordinates to real-world coordinates
 fn transform_quantized(qc: &[i64; 3], transform: &Transform) -> PointBoundary {
-    [
+    PointBoundary([
         qc[0] as f64 * transform.scale[0] + transform.translate[0],
         qc[1] as f64 * transform.scale[1] + transform.translate[1],
         qc[2] as f64 * transform.scale[2] + transform.translate[2],
-    ]
+    ])
 }
 
 // NOTE: I think a CityObject should know its own Id. That would make it much simpler to send
@@ -1011,9 +1011,28 @@ impl MultiLineStringBoundary {
         self.0.push(linestringboundary)
     }
 }
-type LineStringBoundary = Vec<PointBoundary>;
-type MultiPointBoundary = Vec<PointBoundary>;
-type PointBoundary = [f64; 3];
+#[derive(Debug)]
+struct LineStringBoundary(Vec<PointBoundary>);
+impl LineStringBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, pointboundary: PointBoundary) {
+        self.0.push(pointboundary)
+    }
+}
+#[derive(Debug)]
+struct MultiPointBoundary(Vec<PointBoundary>);
+impl MultiPointBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, pointboundary: PointBoundary) {
+        self.0.push(pointboundary)
+    }
+}
+#[derive(Debug)]
+struct PointBoundary([f64; 3]);
 
 trait Boundary {}
 
