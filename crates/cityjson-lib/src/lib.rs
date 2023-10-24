@@ -991,8 +991,26 @@ impl MultiSurfaceBoundary {
     }
 }
 
-type SurfaceBoundary = Vec<LineStringBoundary>;
-type MultiLineStringBoundary = Vec<LineStringBoundary>;
+#[derive(Debug)]
+struct SurfaceBoundary(Vec<LineStringBoundary>);
+impl SurfaceBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, linestringboundary: LineStringBoundary) {
+        self.0.push(linestringboundary)
+    }
+}
+#[derive(Debug)]
+struct MultiLineStringBoundary(Vec<LineStringBoundary>);
+impl MultiLineStringBoundary {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+    pub fn push(&mut self, linestringboundary: LineStringBoundary) {
+        self.0.push(linestringboundary)
+    }
+}
 type LineStringBoundary = Vec<PointBoundary>;
 type MultiPointBoundary = Vec<PointBoundary>;
 type PointBoundary = [f64; 3];
@@ -1720,7 +1738,7 @@ enum IGeometry {
     },
     MultiLineString {
         lod: LoD,
-        boundaries: IMultiLineStringBoundary,
+        boundaries: ISurfaceBoundary,
     },
     MultiSurface {
         lod: LoD,
@@ -1748,9 +1766,7 @@ enum IGeometry {
 type IAggregateSolidBoundary = Vec<ISolidBoundary>;
 type ISolidBoundary = Vec<IAggregateSurfaceBoundary>;
 type IAggregateSurfaceBoundary = Vec<ISurfaceBoundary>;
-type ISurfaceBoundary = Vec<ILineStringBoundary>;
-type IMultiLineStringBoundary = Vec<ILineStringBoundary>;
-type ILineStringBoundary = Vec<IPointBoundary>;
+type ISurfaceBoundary = Vec<IMultiPointBoundary>;
 type IMultiPointBoundary = Vec<IPointBoundary>;
 type IPointBoundary = usize;
 
@@ -1768,7 +1784,7 @@ impl Dereference<MultiPointBoundary> for IMultiPointBoundary {
     }
 }
 
-impl Dereference<MultiLineStringBoundary> for IMultiLineStringBoundary {
+impl Dereference<MultiLineStringBoundary> for ISurfaceBoundary {
     fn dereference(&self, vertices: &IVertices, transform: &Transform) -> MultiLineStringBoundary {
         let mut new_multilinestring = MultiLineStringBoundary::with_capacity(self.len());
         for linestring in self {
