@@ -10,6 +10,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, LineWriter, Read};
+use std::marker::{Send, Sync};
 use std::path::Path;
 use std::str::FromStr;
 // TODO: could we somehow not use Rc?
@@ -839,11 +840,11 @@ fn dereference_igeometry(
 
 /// Transforms a point with quantized coordinates to real-world coordinates
 fn transform_quantized(qc: &[i64; 3], transform: &Transform) -> PointBoundary {
-    PointBoundary([
+    PointBoundary::new(
         qc[0] as f64 * transform.scale[0] + transform.translate[0],
         qc[1] as f64 * transform.scale[1] + transform.translate[1],
         qc[2] as f64 * transform.scale[2] + transform.translate[2],
-    ])
+    )
 }
 
 // NOTE: I think a CityObject should know its own Id. That would make it much simpler to send
@@ -927,7 +928,7 @@ enum Geometry {
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct CompositeSolidBoundary(Vec<SolidBoundary>);
 impl CompositeSolidBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -937,7 +938,7 @@ impl CompositeSolidBoundary {
         self.0.push(solidboundary)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct MultiSolidBoundary(Vec<SolidBoundary>);
 impl MultiSolidBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -947,7 +948,7 @@ impl MultiSolidBoundary {
         self.0.push(solidboundary)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct SolidBoundary(Vec<ShellBoundary>);
 impl SolidBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -958,7 +959,7 @@ impl SolidBoundary {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct ShellBoundary(Vec<SurfaceBoundary>);
 impl ShellBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -969,7 +970,7 @@ impl ShellBoundary {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct CompositeSurfaceBoundary(Vec<SurfaceBoundary>);
 impl CompositeSurfaceBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -980,7 +981,7 @@ impl CompositeSurfaceBoundary {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct MultiSurfaceBoundary(Vec<SurfaceBoundary>);
 impl MultiSurfaceBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -991,7 +992,7 @@ impl MultiSurfaceBoundary {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct SurfaceBoundary(Vec<LineStringBoundary>);
 impl SurfaceBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -1001,7 +1002,7 @@ impl SurfaceBoundary {
         self.0.push(linestringboundary)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct MultiLineStringBoundary(Vec<LineStringBoundary>);
 impl MultiLineStringBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -1011,7 +1012,7 @@ impl MultiLineStringBoundary {
         self.0.push(linestringboundary)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct LineStringBoundary(Vec<PointBoundary>);
 impl LineStringBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -1021,7 +1022,7 @@ impl LineStringBoundary {
         self.0.push(pointboundary)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 struct MultiPointBoundary(Vec<PointBoundary>);
 impl MultiPointBoundary {
     pub fn with_capacity(capacity: usize) -> Self {
@@ -1031,8 +1032,46 @@ impl MultiPointBoundary {
         self.0.push(pointboundary)
     }
 }
-#[derive(Debug)]
-struct PointBoundary([f64; 3]);
+/// A 3D point, as (x, y, z).
+/// A PointBoundary is 24 bytes.
+#[derive(Clone, Debug, Default)]
+struct PointBoundary {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+impl PointBoundary {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        PointBoundary { x, y, z }
+    }
+}
+
+impl fmt::Display for PointBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})", self.x, self.y, self.z)
+    }
+}
+
+impl From<&[f64; 3]> for PointBoundary {
+    fn from(value: &[f64; 3]) -> Self {
+        PointBoundary {
+            x: value[0],
+            y: value[1],
+            z: value[2],
+        }
+    }
+}
+
+impl From<[f64; 3]> for PointBoundary {
+    fn from(value: [f64; 3]) -> Self {
+        PointBoundary {
+            x: value[0],
+            y: value[1],
+            z: value[2],
+        }
+    }
+}
 
 trait Boundary {}
 
@@ -2204,5 +2243,26 @@ mod tests {
         let imp = IMultiPointBoundary::from([2, 1, 0]);
         let icsrf: IAggregateSurfaceBoundary = vec![vec![imp]];
         let csrf: CompositeSurfaceBoundary = imsrf.dereference(&vertices, &transform);
+    }
+
+    #[test]
+    fn test_boundary() {
+        let point1 = PointBoundary::new(123.0, 456.0, 789.0);
+        let coordinate: [f64; 3] = [123.0, 456.0, 789.0];
+        let point2 = PointBoundary::from(coordinate);
+        let point3 = PointBoundary::from(&coordinate);
+        let p1 = &point1.x;
+    }
+
+    #[test]
+    fn test_send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<PointBoundary>();
+    }
+
+    #[test]
+    fn test_sync() {
+        fn assert_sync<T: Sync>() {}
+        assert_sync::<PointBoundary>();
     }
 }

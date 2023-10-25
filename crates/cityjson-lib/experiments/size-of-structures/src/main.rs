@@ -89,6 +89,16 @@ struct CityModel {
     cityobjects: HashMap<String, CityObject>,
 }
 
+// Different Point representations
+type PointArrayAlias = [f64; 3];
+struct PointTupleStruct(f64, f64, f64);
+struct PointTupleStructArray([f64; 3]);
+struct PointNamedFieldsStruct {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
 fn main() {
     let type_sizes = format!(
         "Type sizes in bytes:\n\
@@ -139,6 +149,33 @@ fn main() {
     };
 
     println!("CityModel empty size: {}", data_size(&cm));
+
+    println!("---Different point representations---");
+    let pointarrayalias: PointArrayAlias = [123.0, 456.0, 678.0];
+    let pointtuplestruct = PointTupleStruct(123.0, 456.0, 678.0);
+    let pointtuplestructarray = PointTupleStructArray([123.0, 456.0, 678.0]);
+    let pointnamedfieldsstruct = PointNamedFieldsStruct {
+        x: 123.0,
+        y: 456.0,
+        z: 678.0,
+    };
+
+    println!(
+        "Size of PointArrayAlias: {}",
+        mem::size_of::<PointArrayAlias>()
+    );
+    println!(
+        "Size of PointTupleStruct: {}",
+        mem::size_of::<PointTupleStruct>()
+    );
+    println!(
+        "Size of PointTupleStructArray: {}",
+        mem::size_of::<PointTupleStructArray>()
+    );
+    println!(
+        "Size of PointNamedFieldsStruct: {}",
+        mem::size_of::<PointNamedFieldsStruct>()
+    );
 }
 
 #[cfg(test)]

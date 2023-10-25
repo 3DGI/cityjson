@@ -1,5 +1,9 @@
 # Contributors guide
 
+## Naming conventions
+
+### The `I`-prefix
+
 The capital `I` prefix in signatures is an abbreviation for *Indexed*, such as `IGeometry` stands for *Indexed Geometry*.
 *Indexed* refers to the indexed boundary representation, where only the vertex indices are stored in the geometry boundary instead of the coordinates.
 
@@ -10,7 +14,26 @@ The boundary-aggregations of the same depth are:
 - `multisurface`, `compositesurface`, `shell` --> `aggregatesurface`
 - `multisolid`, `compositesolid` --> `aggregatesolid`
 
+### Boundary and Geometry
+
+CityJSON uses the term *Geometry* to refer to a geometry object with semantics and appearances, and uses the term *Boundary* to refer to the shape of the geometry object.
+In 2D GIS we use the term "geometry" or "geometry boundary" to refer to what we call *Boundary* in CityJSON and in cjlib.
+
+For the sake of consistency, cjlib adopts the geometry/boundary terminology and thus there is `PointBoundary` and `LineStringBoundary`.
+
 # Engineering choices
+
+## Equality, Ordering and Hashing of Boundaries
+
+*Boundary* objects do not implement equality, because equality comparison of points is done with different tolerances, based on the use case.
+The tolerance has a meaning, such as the maximum allowed 3D distance from the point.
+Since [Eq](https://doc.rust-lang.org/std/cmp/trait.Eq.html) and [PartialEq](https://doc.rust-lang.org/std/cmp/trait.PartialEq.html) does not allow a user provided tolerance value, they are not implemented.
+
+*Boundary* objects do not implement ordering ([Ord](https://doc.rust-lang.org/std/cmp/trait.Ord.html) and [PartialOrd](https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html)), because there is a multitude of spatial ordering schemes, such as Morton-order or Hilbert-order.
+One might be better for some applications than the other, therefore the ordering of boundaries is left to the user.
+
+*Boundary* objects do not implement hashing ([Hash](https://doc.rust-lang.org/std/hash/trait.Hash.html)), because the `f64` type is used for storing the coordinates and `f64` does not implement `Hash`.
+
 
 ## Coordinate precision and representation
 
