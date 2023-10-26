@@ -931,6 +931,9 @@ enum Geometry {
 #[derive(Clone, Debug, Default)]
 struct CompositeSolidBoundary(Vec<SolidBoundary>);
 impl CompositeSolidBoundary {
+    pub fn new(solids: Vec<SolidBoundary>) -> Self {
+        Self(solids)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -938,9 +941,18 @@ impl CompositeSolidBoundary {
         self.0.push(solidboundary)
     }
 }
+impl fmt::Display for CompositeSolidBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatesolid(&self.0, f)
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct MultiSolidBoundary(Vec<SolidBoundary>);
 impl MultiSolidBoundary {
+    pub fn new(solids: Vec<SolidBoundary>) -> Self {
+        Self(solids)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -948,9 +960,26 @@ impl MultiSolidBoundary {
         self.0.push(solidboundary)
     }
 }
+impl fmt::Display for MultiSolidBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatesolid(&self.0, f)
+    }
+}
+
+fn fmt_aggregatesolid(
+    aggregatesolid: &Vec<SolidBoundary>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let so_strings: Vec<String> = aggregatesolid.iter().map(|so| so.to_string()).collect();
+    write!(f, "({})", so_strings.join(", "))
+}
+
 #[derive(Clone, Debug, Default)]
 struct SolidBoundary(Vec<ShellBoundary>);
 impl SolidBoundary {
+    pub fn new(shells: Vec<ShellBoundary>) -> Self {
+        Self(shells)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -958,32 +987,57 @@ impl SolidBoundary {
         self.0.push(shellboundary)
     }
 }
+impl fmt::Display for SolidBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sh_strings: Vec<String> = self.0.iter().map(|sh| sh.to_string()).collect();
+        write!(f, "({})", sh_strings.join(", "))
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 struct ShellBoundary(Vec<SurfaceBoundary>);
 impl ShellBoundary {
+    pub fn new(surfaces: Vec<SurfaceBoundary>) -> Self {
+        Self(surfaces)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
     pub fn push(&mut self, surfaceboundary: SurfaceBoundary) {
         self.0.push(surfaceboundary)
+    }
+}
+impl fmt::Display for ShellBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatesurface(&self.0, f)
     }
 }
 
 #[derive(Clone, Debug, Default)]
 struct CompositeSurfaceBoundary(Vec<SurfaceBoundary>);
 impl CompositeSurfaceBoundary {
+    pub fn new(surfaces: Vec<SurfaceBoundary>) -> Self {
+        Self(surfaces)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
     pub fn push(&mut self, surfaceboundary: SurfaceBoundary) {
         self.0.push(surfaceboundary)
+    }
+}
+impl fmt::Display for CompositeSurfaceBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatesurface(&self.0, f)
     }
 }
 
 #[derive(Clone, Debug, Default)]
 struct MultiSurfaceBoundary(Vec<SurfaceBoundary>);
 impl MultiSurfaceBoundary {
+    pub fn new(surfaces: Vec<SurfaceBoundary>) -> Self {
+        Self(surfaces)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -991,10 +1045,26 @@ impl MultiSurfaceBoundary {
         self.0.push(surfaceboundary)
     }
 }
+impl fmt::Display for MultiSurfaceBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatesurface(&self.0, f)
+    }
+}
+
+fn fmt_aggregatesurface(
+    aggregatesurface: &Vec<SurfaceBoundary>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let ls_strings: Vec<String> = aggregatesurface.iter().map(|ls| ls.to_string()).collect();
+    write!(f, "({})", ls_strings.join(", "))
+}
 
 #[derive(Clone, Debug, Default)]
 struct SurfaceBoundary(Vec<LineStringBoundary>);
 impl SurfaceBoundary {
+    pub fn new(rings: Vec<LineStringBoundary>) -> Self {
+        Self(rings)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -1002,9 +1072,18 @@ impl SurfaceBoundary {
         self.0.push(linestringboundary)
     }
 }
+impl fmt::Display for SurfaceBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatelinestring(&self.0, f)
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct MultiLineStringBoundary(Vec<LineStringBoundary>);
 impl MultiLineStringBoundary {
+    pub fn new(linestrings: Vec<LineStringBoundary>) -> Self {
+        Self(linestrings)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -1012,19 +1091,47 @@ impl MultiLineStringBoundary {
         self.0.push(linestringboundary)
     }
 }
+impl fmt::Display for MultiLineStringBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatelinestring(&self.0, f)
+    }
+}
+
+fn fmt_aggregatelinestring(
+    aggregatelinestring: &Vec<LineStringBoundary>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let ls_strings: Vec<String> = aggregatelinestring
+        .iter()
+        .map(|ls| ls.to_string())
+        .collect();
+    write!(f, "({})", ls_strings.join(", "))
+}
+
 #[derive(Clone, Debug, Default)]
 struct LineStringBoundary(Vec<PointBoundary>);
 impl LineStringBoundary {
+    pub fn new(points: Vec<PointBoundary>) -> Self {
+        Self(points)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
     pub fn push(&mut self, pointboundary: PointBoundary) {
         self.0.push(pointboundary)
+    }
+}
+impl fmt::Display for LineStringBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatepoint(&self.0, f)
     }
 }
 #[derive(Clone, Debug, Default)]
 struct MultiPointBoundary(Vec<PointBoundary>);
 impl MultiPointBoundary {
+    pub fn new(points: Vec<PointBoundary>) -> Self {
+        Self(points)
+    }
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
@@ -1032,6 +1139,24 @@ impl MultiPointBoundary {
         self.0.push(pointboundary)
     }
 }
+
+impl fmt::Display for MultiPointBoundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_aggregatepoint(&self.0, f)
+    }
+}
+
+fn fmt_aggregatepoint(
+    aggregatepoint: &Vec<PointBoundary>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let pb_strings: Vec<String> = aggregatepoint
+        .iter()
+        .map(|pb| format!("{} {} {}", pb.x, pb.y, pb.z))
+        .collect();
+    write!(f, "({})", pb_strings.join(", "))
+}
+
 /// A 3D point, as (x, y, z).
 /// A PointBoundary is 24 bytes.
 #[derive(Clone, Debug, Default)]
@@ -1073,6 +1198,7 @@ impl From<[f64; 3]> for PointBoundary {
     }
 }
 
+// TODO: implement iterator, equality with tolerance, maybe hilbert-order
 trait Boundary {}
 
 impl Boundary for CompositeSolidBoundary {}
@@ -2245,6 +2371,7 @@ mod tests {
         let csrf: CompositeSurfaceBoundary = imsrf.dereference(&vertices, &transform);
     }
 
+    /// Build a complete MultiSolid, using each Boundary type along the way
     #[test]
     fn test_boundary() {
         let point1 = PointBoundary::new(123.0, 456.0, 789.0);
@@ -2252,6 +2379,20 @@ mod tests {
         let point2 = PointBoundary::from(coordinate);
         let point3 = PointBoundary::from(&coordinate);
         let p1 = &point1.x;
+
+        let linestring1 = LineStringBoundary::new(vec![point1, point2, point3]);
+        println!("{}", &linestring1);
+        let surface1 = SurfaceBoundary::new(vec![linestring1]);
+        let shell1 = ShellBoundary::new(vec![
+            surface1.clone(),
+            surface1.clone(),
+            surface1.clone(),
+            surface1.clone(),
+        ]);
+        let solid1 = SolidBoundary::new(vec![shell1]);
+        let multisolid1 = MultiSolidBoundary::new(vec![solid1]);
+
+        println!("{}", multisolid1);
     }
 
     #[test]
