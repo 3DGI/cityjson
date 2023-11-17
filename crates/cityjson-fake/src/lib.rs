@@ -1,74 +1,53 @@
-use serde_json::{json, Value};
+use cjlib::indexed::*;
+use fake::{Dummy, Fake, Faker};
+use rand::Rng;
 
+struct Wrapper<T>(T);
 
-
-struct CityJSONBuilder {
-    value: Value,
-}
-
-impl Default for CityJSONBuilder {
-    fn default() -> Self {
-        Self {
-            value: json!({
-                "type": "CityJSON",
-                "version": "2.0",
-                "transform": {
-                    "scale": [1.0, 1.0, 1.0],
-                    "translate": [0.0, 0.0, 0.0]
-                },
-                "CityObjects": {},
-                "vertices": []
-            })
+impl Dummy<Wrapper<LoD>> for LoD {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<LoD>, rng: &mut R) -> Self {
+        match rng.gen_range(0..20usize) {
+            0 => LoD::LoD0,
+            1 => LoD::LoD0_0,
+            2 => LoD::LoD0_1,
+            3 => LoD::LoD0_2,
+            4 => LoD::LoD0_3,
+            5 => LoD::LoD1,
+            6 => LoD::LoD1_0,
+            7 => LoD::LoD1_1,
+            8 => LoD::LoD1_2,
+            9 => LoD::LoD1_3,
+            10 => LoD::LoD2,
+            11 => LoD::LoD2_0,
+            12 => LoD::LoD2_1,
+            13 => LoD::LoD2_2,
+            14 => LoD::LoD2_3,
+            15 => LoD::LoD3,
+            16 => LoD::LoD3_0,
+            17 => LoD::LoD3_1,
+            18 => LoD::LoD3_2,
+            19 => LoD::LoD3_3,
+            _ => unreachable!()
         }
     }
 }
 
-impl CityJSONBuilder {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn with_metadata(mut self, metadatabuilder: Option<MetadataBuilder>) -> Self {
-        let mb = match metadatabuilder {
-            None => MetadataBuilder::new(),
-            Some(_mb) => _mb
-        };
-        self.value.as_object_mut().unwrap().insert("metadata".to_string(), mb.value);
-        self
-    }
-
-    fn build_string(self) -> serde_json::Result<String> {
-        serde_json::to_string(&self.value)
-    }
-
-    fn build_vec(self) -> serde_json::Result<Vec<u8>> {
-        serde_json::to_vec(&self.value)
-    }
-}
-
-struct MetadataBuilder {
-    value: Value,
-}
-
-impl MetadataBuilder {
-    fn new() -> Self {
-        Self { value: Value::Object(Default::default()) }
-    }
-
-    fn with_geographical_extent(mut self) -> Self {
-        self.value.as_object_mut().unwrap().insert("geographical_extent".to_string(), json!([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-        self
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
     fn it_works() {
-        let mb = MetadataBuilder::new().with_geographical_extent();
-        let cjb = CityJSONBuilder::new().with_metadata(Some(mb));
-        dbg!(cjb.build_string());
+        let a: LoD = Wrapper(LoD::LoD2_2).fake();
+        println!("{:?}", &a);
+        println!("{}", serde_json::to_string(&a).unwrap());
+
+        let ag: AggregateSolidBoundary = Faker.fake::<AggregateSolidBoundary>();
+        println!("{:?}", ag);
+
+        let v: Vertices = Faker.fake::<Vertices>();
+        println!("{:?}", v);
     }
 }
