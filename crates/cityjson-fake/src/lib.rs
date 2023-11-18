@@ -1,8 +1,212 @@
+use cjlib::{BBox, ContactRole, ContactType};
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
+use fake::uuid::UUIDv1;
+use fake::faker::chrono::raw::Date as FakeDate;
+use fake::faker::lorem::raw::{Word, Words};
+use fake::faker::name::raw::Name as FakeName;
+use fake::faker::internet::raw::{SafeEmail, DomainSuffix};
+use fake::faker::address::raw::{CountryName, StreetName, PostCode, CityName, BuildingNumber};
+use fake::faker::phone_number::raw::PhoneNumber;
+use fake::faker::company::raw::CompanyName;
+use fake::locales::*;
 use rand::Rng;
+use rand::seq::SliceRandom;
+
+const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
+const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
+const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
+const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 struct Wrapper<T>(T);
+
+struct CityModelBuilder {
+    id: Option<String>,
+    type_cm: Option<CityModelType>,
+    version: Option<CityJSONVersion>,
+    transform: Option<Transform>,
+    cityobjects: Option<CityObjects>,
+    vertices: Option<Vertices>,
+    metadata: Option<cjlib::Metadata>,
+}
+
+impl Into<CityModel> for CityModelBuilder {
+    fn into(self) -> CityModel {
+        CityModel::new(self.id, self.type_cm,
+                       Some(self.version.unwrap_or(CityJSONVersion::V1_1)),
+                       Some(self.transform.unwrap_or_default()),
+                       self.cityobjects,
+                       self.vertices, self.metadata)
+    }
+}
+
+impl Default for CityModelBuilder {
+    fn default() -> Self {
+        CityModelBuilder::new().metadata(None).vertices()
+    }
+}
+
+impl CityModelBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        CityModelBuilder {
+            id: None,
+            type_cm: None,
+            version: None,
+            transform: None,
+            cityobjects: None,
+            vertices: None,
+            metadata: None,
+        }
+    }
+
+    pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder>) -> Self {
+        if let Some(mb) = metadata_builder {
+            self.metadata = Some(mb.build());
+        } else {
+            self.metadata = Some(MetadataBuilder::default().build());
+        }
+        self
+    }
+
+    pub fn vertices(mut self) -> Self {
+        self.vertices = Some(Faker.fake::<Vertices>());
+        self
+    }
+
+    pub fn build_string(self) -> serde_json::Result<String> {
+        serde_json::to_string::<CityModel>(&self.into())
+    }
+
+    pub fn build_vec(self) -> serde_json::Result<Vec<u8>> {
+        serde_json::to_vec::<CityModel>(&self.into())
+    }
+}
+
+struct MetadataBuilder(cjlib::Metadata);
+
+impl Into<cjlib::Metadata> for MetadataBuilder {
+    fn into(self) -> cjlib::Metadata {
+        self.0
+    }
+}
+
+impl Default for MetadataBuilder {
+    fn default() -> Self {
+        MetadataBuilder::new().geographical_extent().identifier().point_of_contact().reference_date().reference_system().title()
+    }
+}
+
+impl MetadataBuilder {
+    fn new() -> Self {
+        MetadataBuilder(cjlib::Metadata::new())
+    }
+
+    fn geographical_extent(mut self) -> Self {
+        self.0.set_geographical_extent(Faker.fake::<BBox>());
+        self
+    }
+
+    fn identifier(mut self) -> Self {
+        self.0.set_identifier(UUIDv1.fake::<String>());
+        self
+    }
+
+    fn point_of_contact(mut self) -> Self {
+        self.0.set_contact_name(FakeName(EN).fake::<String>());
+        self.0.set_email_address(SafeEmail(EN).fake::<String>());
+        self.0.set_role(Wrapper(ContactRole::Author).fake());
+        self.0.set_website(format!("https://www.{}.{}", Word(EN).fake::<String>(), DomainSuffix(EN).fake::<String>()));
+        self.0.set_contact_type(Wrapper(ContactType::Organization).fake());
+        self.0.set_address(format!("{} {}, {}, {} {}", BuildingNumber(EN).fake::<String>(), StreetName(EN).fake::<String>(), PostCode(EN).fake::<String>(), CityName(EN).fake::<String>(), CountryName(EN).fake::<String>()));
+        self.0.set_phone(PhoneNumber(EN).fake::<String>());
+        self.0.set_organization(CompanyName(EN).fake::<String>());
+        self
+    }
+
+    fn reference_date(mut self) -> Self {
+        self.0.set_reference_date(FakeDate(EN).fake::<String>());
+        self
+    }
+
+    fn reference_system(mut self) -> Self {
+        let ogc_def_crs = "http://www.opengis.net/def/crs";
+        let authority = *CRS_AUTHORITIES.choose(&mut rand::thread_rng()).unwrap_or(&"EPSG");
+        let version = match authority {
+            "EPSG" => {
+                *CRS_EPSG_VERSIONS.choose(&mut rand::thread_rng()).unwrap_or(&"0")
+            }
+            "OGC" => {
+                *CRS_OGC_VERSIONS.choose(&mut rand::thread_rng()).unwrap_or(&"0")
+            }
+            _ => { "0" }
+        };
+        // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included
+        //  with https://doc.rust-lang.org/std/macro.include_str.html
+        let code = match authority {
+            "EPSG" => {
+                let a = rand::thread_rng().gen_range(2000..10500);
+                let str = a.to_string();
+                str
+            }
+            "OGC" => {
+                CRS_OGC_CODES.choose(&mut rand::thread_rng()).unwrap_or(&"0").to_string()
+            }
+            _ => { "0".to_string() }
+        };
+        let crs = format!("{ogc_def_crs}/{authority}/{version}/{code}");
+        self.0.set_reference_system(crs);
+        self
+    }
+
+    fn title(mut self) -> Self {
+        let words: Vec<String> = Words(EN, 0..6).fake();
+        self.0.set_title(words.join(" "));
+        self
+    }
+
+    fn build(self) -> cjlib::Metadata {
+        self.into()
+    }
+}
+
+impl Dummy<Wrapper<ContactRole>> for ContactRole {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<ContactRole>, rng: &mut R) -> Self {
+        match rng.gen_range(0..20) {
+            0 => ContactRole::Author,
+            1 => ContactRole::CoAuthor,
+            2 => ContactRole::Collaborator,
+            3 => ContactRole::Contributor,
+            4 => ContactRole::Custodian,
+            5 => ContactRole::Distributor,
+            6 => ContactRole::Editor,
+            7 => ContactRole::Funder,
+            8 => ContactRole::Mediator,
+            9 => ContactRole::Originator,
+            10 => ContactRole::Owner,
+            11 => ContactRole::PointOfContact,
+            12 => ContactRole::PrincipalInvestigator,
+            13 => ContactRole::Processor,
+            14 => ContactRole::Publisher,
+            15 => ContactRole::ResourceProvider,
+            16 => ContactRole::RightsHolder,
+            17 => ContactRole::Sponsor,
+            18 => ContactRole::Stakeholder,
+            19 => ContactRole::User,
+            _ => unreachable!()
+        }
+    }
+}
+
+impl Dummy<Wrapper<ContactType>> for ContactType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<ContactType>, rng: &mut R) -> Self {
+        match rng.gen_range(0..2) {
+            0 => ContactType::Individual,
+            1 => ContactType::Organization,
+            _ => unreachable!()
+        }
+    }
+}
 
 impl Dummy<Wrapper<LoD>> for LoD {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<LoD>, rng: &mut R) -> Self {
@@ -32,7 +236,6 @@ impl Dummy<Wrapper<LoD>> for LoD {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,5 +252,11 @@ mod tests {
 
         let v: Vertices = Faker.fake::<Vertices>();
         println!("{:?}", v);
+    }
+
+    #[test]
+    fn test_builder_basic() {
+        let cj_str = CityModelBuilder::default().build_string().unwrap();
+        println!("{}", cj_str);
     }
 }
