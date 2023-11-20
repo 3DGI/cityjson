@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ops::Range;
+use std::iter::zip;
 use cjlib::{BBox, ContactRole, ContactType};
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
@@ -32,8 +34,8 @@ struct CityModelBuilder {
 }
 
 struct CityObjectBuilder(CityObject);
-
 struct MetadataBuilder(cjlib::Metadata);
+struct CityObjectFaker;
 
 impl Into<CityModel> for CityModelBuilder {
     fn into(self) -> CityModel {
@@ -47,7 +49,7 @@ impl Into<CityModel> for CityModelBuilder {
 
 impl Default for CityModelBuilder {
     fn default() -> Self {
-        CityModelBuilder::new().metadata(None).vertices().cityobjects()
+        CityModelBuilder::new().metadata(None).vertices().cityobjects(None)
     }
 }
 
@@ -65,12 +67,13 @@ impl CityModelBuilder {
         }
     }
 
-    pub fn cityobjects(mut self) -> Self {
-        let _hm: HashMap<String, Wrapper<CityObject>> = HashMap::new();
-        // let m: HashMap<String, Wrapper<CityObject>> = Wrapper(_hm).fake();
-        // self.cityobjects = Some(m.iter().map(|(coid, co)| (coid.to_owned(), co.0.to_owned())).collect());
-        let m: HashMap<String, CityObject> = Wrapper(_hm).fake();
-        self.cityobjects = Some(m);
+    /// Generate 1 CityObject if `nr_cityobjects` is `None`, else generate the number of CityObjects
+    /// within the provided range.
+    pub fn cityobjects(mut self, nr_cityobjects: Option<Range<usize>>) -> Self {
+        let _nr_cos = nr_cityobjects.unwrap_or(1..2);
+        let cos: Vec<CityObject> = (CityObjectFaker, _nr_cos).fake();
+        // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
+        self.cityobjects = Some(CityObjects::from_iter(cos.iter().map(|co| (Word(EN).fake(), co.to_owned()))));
         self
     }
 
@@ -97,39 +100,11 @@ impl CityModelBuilder {
     }
 }
 
-
-// impl Dummy<Wrapper<HashMap<String, Wrapper<CityObject>>>> for HashMap<String, Wrapper<CityObject>> {
-//     fn dummy_with_rng<R: Rng + ?Sized>(config: &Wrapper<HashMap<String, Wrapper<CityObject>>>, rng: &mut R) -> Self {
-//         config.fake_with_rng::<HashMap<String, Wrapper<CityObject>>, _>(rng)
-//     }
-// }
-
-impl Dummy<Wrapper<HashMap<String, Wrapper<CityObject>>>> for HashMap<String, CityObject> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &Wrapper<HashMap<String, Wrapper<CityObject>>>, rng: &mut R) -> Self {
-        config.fake_with_rng::<HashMap<String, CityObject>, _>(rng)
-    }
-}
-
-// impl Dummy<Wrapper<CityObject>> for Wrapper<CityObject> {
-//     fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObject>, rng: &mut R) -> Self {
-//         let max_geometries: usize = 10;
-//         Wrapper(CityObject::new(
-//             Wrapper(CityObjectType::Default).fake(),
-//             (Wrapper(Geometry::MultiPoint {
-//                 lod: LoD::LoD0,
-//                 boundaries: vec![],
-//                 semantics: None,
-//             }), 0..=max_geometries).fake(),
-//         ))
-//     }
-// }
-
-
-impl Dummy<Wrapper<CityObject>> for CityObject {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObject>, rng: &mut R) -> Self {
+impl Dummy<CityObjectFaker> for CityObject {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectFaker, rng: &mut R) -> Self {
         let max_geometries: usize = 10;
         Self::new(
-            Wrapper(CityObjectType::Default).fake(),
+            CityObjectTypeFaker.fake(),
             (Wrapper(Geometry::MultiPoint {
                 lod: LoD::LoD0,
                 boundaries: vec![],
@@ -138,9 +113,9 @@ impl Dummy<Wrapper<CityObject>> for CityObject {
         )
     }
 }
-
-impl Dummy<Wrapper<CityObjectType>> for CityObjectType {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObjectType>, rng: &mut R) -> Self {
+struct CityObjectTypeFaker;
+impl Dummy<CityObjectTypeFaker> for CityObjectType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectTypeFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..25) {
             0 => CityObjectType::Bridge,
             1 => CityObjectType::BridgePart,
