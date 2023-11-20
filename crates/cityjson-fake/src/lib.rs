@@ -21,8 +21,6 @@ const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
 const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
-struct Wrapper<T>(T);
-
 struct CityModelBuilder {
     id: Option<String>,
     type_cm: Option<CityModelType>,
@@ -32,10 +30,13 @@ struct CityModelBuilder {
     vertices: Option<Vertices>,
     metadata: Option<cjlib::Metadata>,
 }
-
-struct CityObjectBuilder(CityObject);
 struct MetadataBuilder(cjlib::Metadata);
 struct CityObjectFaker;
+struct CityObjectTypeFaker;
+struct GeometryFaker;
+struct LoDFaker;
+struct ContactRoleFaker;
+struct ContactTypeFaker;
 
 impl Into<CityModel> for CityModelBuilder {
     fn into(self) -> CityModel {
@@ -105,15 +106,11 @@ impl Dummy<CityObjectFaker> for CityObject {
         let max_geometries: usize = 10;
         Self::new(
             CityObjectTypeFaker.fake(),
-            (Wrapper(Geometry::MultiPoint {
-                lod: LoD::LoD0,
-                boundaries: vec![],
-                semantics: None,
-            }), 0..=max_geometries).fake(),
+            (GeometryFaker, 0..=max_geometries).fake(),
         )
     }
 }
-struct CityObjectTypeFaker;
+
 impl Dummy<CityObjectTypeFaker> for CityObjectType {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectTypeFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..25) {
@@ -147,7 +144,7 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
     }
 }
 
-impl Dummy<Wrapper<Geometry>> for Geometry {
+impl Dummy<GeometryFaker> for Geometry {
     /// TODO: Could be possible to restrict the type selection to certain types by providing a sub-range
     ///     for `gen_range`. The sub-range could be passed as part of the wrapped CityObjectType.
     ///     That's because certain CityObjectTypes only allow a restricted set of Boundary types.
@@ -155,40 +152,40 @@ impl Dummy<Wrapper<Geometry>> for Geometry {
     ///     with the number of vertices.
 
 
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<Geometry>, rng: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &GeometryFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..7) {
             0 => Geometry::MultiPoint {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<MultiPointBoundary>(),
                 semantics: None,
             },
             1 => Geometry::MultiLineString {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<MultiLineStringBoundary>(),
                 semantics: None,
             },
             2 => Geometry::MultiSurface {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
                 semantics: None,
             },
             3 => Geometry::CompositeSurface {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
                 semantics: None,
             },
             4 => Geometry::Solid {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<SolidBoundary>(),
                 semantics: None,
             },
             5 => Geometry::MultiSolid {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<AggregateSolidBoundary>(),
                 semantics: None,
             },
             6 => Geometry::CompositeSolid {
-                lod: Wrapper(LoD::LoD0).fake(),
+                lod: LoDFaker.fake(),
                 boundaries: Faker.fake::<AggregateSolidBoundary>(),
                 semantics: None,
             },
@@ -198,8 +195,8 @@ impl Dummy<Wrapper<Geometry>> for Geometry {
 }
 
 
-impl Dummy<Wrapper<LoD>> for LoD {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<LoD>, rng: &mut R) -> Self {
+impl Dummy<LoDFaker> for LoD {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &LoDFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..20usize) {
             0 => LoD::LoD0,
             1 => LoD::LoD0_0,
@@ -256,9 +253,9 @@ impl MetadataBuilder {
     fn point_of_contact(mut self) -> Self {
         self.0.set_contact_name(FakeName(EN).fake::<String>());
         self.0.set_email_address(SafeEmail(EN).fake::<String>());
-        self.0.set_role(Wrapper(ContactRole::Author).fake());
+        self.0.set_role(ContactRoleFaker.fake());
         self.0.set_website(format!("https://www.{}.{}", Word(EN).fake::<String>(), DomainSuffix(EN).fake::<String>()));
-        self.0.set_contact_type(Wrapper(ContactType::Organization).fake());
+        self.0.set_contact_type(ContactTypeFaker.fake());
         self.0.set_address(format!("{} {}, {}, {} {}", BuildingNumber(EN).fake::<String>(), StreetName(EN).fake::<String>(), PostCode(EN).fake::<String>(), CityName(EN).fake::<String>(), CountryName(EN).fake::<String>()));
         self.0.set_phone(PhoneNumber(EN).fake::<String>());
         self.0.set_organization(CompanyName(EN).fake::<String>());
@@ -311,8 +308,8 @@ impl MetadataBuilder {
     }
 }
 
-impl Dummy<Wrapper<ContactRole>> for ContactRole {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<ContactRole>, rng: &mut R) -> Self {
+impl Dummy<ContactRoleFaker> for ContactRole {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &ContactRoleFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..20) {
             0 => ContactRole::Author,
             1 => ContactRole::CoAuthor,
@@ -339,8 +336,8 @@ impl Dummy<Wrapper<ContactRole>> for ContactRole {
     }
 }
 
-impl Dummy<Wrapper<ContactType>> for ContactType {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<ContactType>, rng: &mut R) -> Self {
+impl Dummy<ContactTypeFaker> for ContactType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &ContactTypeFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..2) {
             0 => ContactType::Individual,
             1 => ContactType::Organization,
@@ -356,7 +353,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let a: LoD = Wrapper(LoD::LoD2_2).fake();
+        let a: LoD = LoDFaker.fake();
         println!("{:?}", &a);
         println!("{}", serde_json::to_string(&a).unwrap());
 
