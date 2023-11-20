@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::ops::Range;
-use std::iter::zip;
 use cjlib::{BBox, ContactRole, ContactType};
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
@@ -13,13 +11,17 @@ use fake::faker::address::raw::{CountryName, StreetName, PostCode, CityName, Bui
 use fake::faker::phone_number::raw::PhoneNumber;
 use fake::faker::company::raw::CompanyName;
 use fake::locales::*;
+use rand::distributions::uniform::SampleRange;
 use rand::Rng;
 use rand::seq::SliceRandom;
+
+// TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
 const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
+const MAX_MEMBERS_MULTIPOINT: usize = 50;
 
 struct CityModelBuilder {
     id: Option<String>,
@@ -35,6 +37,8 @@ struct CityObjectFaker;
 struct CityObjectTypeFaker;
 struct GeometryFaker;
 struct LoDFaker;
+struct MultiPointFaker{vertex_index_max: usize}
+struct VertexIndexFaker{max: usize}
 struct ContactRoleFaker;
 struct ContactTypeFaker;
 
@@ -223,6 +227,20 @@ impl Dummy<LoDFaker> for LoD {
     }
 }
 
+impl Dummy<MultiPointFaker> for MultiPointBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, rng: &mut R) -> Self {
+        let vf = VertexIndexFaker{max: config.vertex_index_max};
+        (vf, 0..=MAX_MEMBERS_MULTIPOINT).fake::<Vec<usize>>()
+    }
+}
+
+impl Dummy<VertexIndexFaker> for usize {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &VertexIndexFaker, rng: &mut R) -> Self {
+        let vidx: usize = rng.gen_range(0..=config.max);
+        vidx
+    }
+}
+
 impl Into<cjlib::Metadata> for MetadataBuilder {
     fn into(self) -> cjlib::Metadata {
         self.0
@@ -350,6 +368,15 @@ impl Dummy<ContactTypeFaker> for ContactType {
 mod tests {
     use super::*;
     use serde_json;
+
+    #[test]
+    fn test_custom_boundaryfaker() {
+        let nr_vertices: usize = 12;
+        let mpf = MultiPointFaker{vertex_index_max: nr_vertices};
+        let a: MultiPointBoundary = mpf.fake();
+        println!("nr points: {}", a.len());
+        println!("{:?}", &a);
+    }
 
     #[test]
     fn it_works() {
