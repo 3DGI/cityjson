@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use cjlib::{BBox, ContactRole, ContactType};
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
@@ -30,6 +31,10 @@ struct CityModelBuilder {
     metadata: Option<cjlib::Metadata>,
 }
 
+struct CityObjectBuilder(CityObject);
+
+struct MetadataBuilder(cjlib::Metadata);
+
 impl Into<CityModel> for CityModelBuilder {
     fn into(self) -> CityModel {
         CityModel::new(self.id, self.type_cm,
@@ -42,7 +47,7 @@ impl Into<CityModel> for CityModelBuilder {
 
 impl Default for CityModelBuilder {
     fn default() -> Self {
-        CityModelBuilder::new().metadata(None).vertices()
+        CityModelBuilder::new().metadata(None).vertices().cityobjects()
     }
 }
 
@@ -58,6 +63,15 @@ impl CityModelBuilder {
             vertices: None,
             metadata: None,
         }
+    }
+
+    pub fn cityobjects(mut self) -> Self {
+        let _hm: HashMap<String, Wrapper<CityObject>> = HashMap::new();
+        // let m: HashMap<String, Wrapper<CityObject>> = Wrapper(_hm).fake();
+        // self.cityobjects = Some(m.iter().map(|(coid, co)| (coid.to_owned(), co.0.to_owned())).collect());
+        let m: HashMap<String, CityObject> = Wrapper(_hm).fake();
+        self.cityobjects = Some(m);
+        self
     }
 
     pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder>) -> Self {
@@ -83,7 +97,159 @@ impl CityModelBuilder {
     }
 }
 
-struct MetadataBuilder(cjlib::Metadata);
+
+// impl Dummy<Wrapper<HashMap<String, Wrapper<CityObject>>>> for HashMap<String, Wrapper<CityObject>> {
+//     fn dummy_with_rng<R: Rng + ?Sized>(config: &Wrapper<HashMap<String, Wrapper<CityObject>>>, rng: &mut R) -> Self {
+//         config.fake_with_rng::<HashMap<String, Wrapper<CityObject>>, _>(rng)
+//     }
+// }
+
+impl Dummy<Wrapper<HashMap<String, Wrapper<CityObject>>>> for HashMap<String, CityObject> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &Wrapper<HashMap<String, Wrapper<CityObject>>>, rng: &mut R) -> Self {
+        config.fake_with_rng::<HashMap<String, CityObject>, _>(rng)
+    }
+}
+
+// impl Dummy<Wrapper<CityObject>> for Wrapper<CityObject> {
+//     fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObject>, rng: &mut R) -> Self {
+//         let max_geometries: usize = 10;
+//         Wrapper(CityObject::new(
+//             Wrapper(CityObjectType::Default).fake(),
+//             (Wrapper(Geometry::MultiPoint {
+//                 lod: LoD::LoD0,
+//                 boundaries: vec![],
+//                 semantics: None,
+//             }), 0..=max_geometries).fake(),
+//         ))
+//     }
+// }
+
+
+impl Dummy<Wrapper<CityObject>> for CityObject {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObject>, rng: &mut R) -> Self {
+        let max_geometries: usize = 10;
+        Self::new(
+            Wrapper(CityObjectType::Default).fake(),
+            (Wrapper(Geometry::MultiPoint {
+                lod: LoD::LoD0,
+                boundaries: vec![],
+                semantics: None,
+            }), 0..=max_geometries).fake(),
+        )
+    }
+}
+
+impl Dummy<Wrapper<CityObjectType>> for CityObjectType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<CityObjectType>, rng: &mut R) -> Self {
+        match rng.gen_range(0..25) {
+            0 => CityObjectType::Bridge,
+            1 => CityObjectType::BridgePart,
+            2 => CityObjectType::BridgeInstallation,
+            3 => CityObjectType::BridgeConstructiveElement,
+            4 => CityObjectType::BridgeRoom,
+            5 => CityObjectType::BridgeFurniture,
+            6 => CityObjectType::Building,
+            7 => CityObjectType::BuildingPart,
+            8 => CityObjectType::BuildingInstallation,
+            9 => CityObjectType::BuildingConstructiveElement,
+            10 => CityObjectType::BuildingFurniture,
+            11 => CityObjectType::BuildingStorey,
+            12 => CityObjectType::BuildingRoom,
+            13 => CityObjectType::BuildingUnit,
+            14 => CityObjectType::CityFurniture,
+            15 => CityObjectType::LandUse,
+            16 => CityObjectType::OtherConstruction,
+            17 => CityObjectType::PlantCover,
+            18 => CityObjectType::SolitaryVegetationObject,
+            19 => CityObjectType::TINRelief,
+            20 => CityObjectType::WaterBody,
+            21 => CityObjectType::Road,
+            22 => CityObjectType::Railway,
+            23 => CityObjectType::Waterway,
+            24 => CityObjectType::TransportSquare,
+            _ => unreachable!()
+        }
+    }
+}
+
+impl Dummy<Wrapper<Geometry>> for Geometry {
+    /// TODO: Could be possible to restrict the type selection to certain types by providing a sub-range
+    ///     for `gen_range`. The sub-range could be passed as part of the wrapped CityObjectType.
+    ///     That's because certain CityObjectTypes only allow a restricted set of Boundary types.
+    /// TODO: Would need to control the range of the Boundary faker so that the indices correspond
+    ///     with the number of vertices.
+
+
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<Geometry>, rng: &mut R) -> Self {
+        match rng.gen_range(0..7) {
+            0 => Geometry::MultiPoint {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<MultiPointBoundary>(),
+                semantics: None,
+            },
+            1 => Geometry::MultiLineString {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<MultiLineStringBoundary>(),
+                semantics: None,
+            },
+            2 => Geometry::MultiSurface {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
+                semantics: None,
+            },
+            3 => Geometry::CompositeSurface {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
+                semantics: None,
+            },
+            4 => Geometry::Solid {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<SolidBoundary>(),
+                semantics: None,
+            },
+            5 => Geometry::MultiSolid {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<AggregateSolidBoundary>(),
+                semantics: None,
+            },
+            6 => Geometry::CompositeSolid {
+                lod: Wrapper(LoD::LoD0).fake(),
+                boundaries: Faker.fake::<AggregateSolidBoundary>(),
+                semantics: None,
+            },
+            _ => unreachable!()
+        }
+    }
+}
+
+
+impl Dummy<Wrapper<LoD>> for LoD {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<LoD>, rng: &mut R) -> Self {
+        match rng.gen_range(0..20usize) {
+            0 => LoD::LoD0,
+            1 => LoD::LoD0_0,
+            2 => LoD::LoD0_1,
+            3 => LoD::LoD0_2,
+            4 => LoD::LoD0_3,
+            5 => LoD::LoD1,
+            6 => LoD::LoD1_0,
+            7 => LoD::LoD1_1,
+            8 => LoD::LoD1_2,
+            9 => LoD::LoD1_3,
+            10 => LoD::LoD2,
+            11 => LoD::LoD2_0,
+            12 => LoD::LoD2_1,
+            13 => LoD::LoD2_2,
+            14 => LoD::LoD2_3,
+            15 => LoD::LoD3,
+            16 => LoD::LoD3_0,
+            17 => LoD::LoD3_1,
+            18 => LoD::LoD3_2,
+            19 => LoD::LoD3_3,
+            _ => unreachable!()
+        }
+    }
+}
 
 impl Into<cjlib::Metadata> for MetadataBuilder {
     fn into(self) -> cjlib::Metadata {
@@ -203,34 +369,6 @@ impl Dummy<Wrapper<ContactType>> for ContactType {
         match rng.gen_range(0..2) {
             0 => ContactType::Individual,
             1 => ContactType::Organization,
-            _ => unreachable!()
-        }
-    }
-}
-
-impl Dummy<Wrapper<LoD>> for LoD {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &Wrapper<LoD>, rng: &mut R) -> Self {
-        match rng.gen_range(0..20usize) {
-            0 => LoD::LoD0,
-            1 => LoD::LoD0_0,
-            2 => LoD::LoD0_1,
-            3 => LoD::LoD0_2,
-            4 => LoD::LoD0_3,
-            5 => LoD::LoD1,
-            6 => LoD::LoD1_0,
-            7 => LoD::LoD1_1,
-            8 => LoD::LoD1_2,
-            9 => LoD::LoD1_3,
-            10 => LoD::LoD2,
-            11 => LoD::LoD2_0,
-            12 => LoD::LoD2_1,
-            13 => LoD::LoD2_2,
-            14 => LoD::LoD2_3,
-            15 => LoD::LoD3,
-            16 => LoD::LoD3_0,
-            17 => LoD::LoD3_1,
-            18 => LoD::LoD3_2,
-            19 => LoD::LoD3_3,
             _ => unreachable!()
         }
     }
