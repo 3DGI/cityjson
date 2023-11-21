@@ -1,3 +1,11 @@
+//! # cjmock
+//!
+//! CityJSON generator with fake data.
+//!
+//! You can control the number of vertices it the surfaces, for instance to fake triangulated
+//! surfaces.
+//!
+//! See the [design doc] for details on how this crate works under the hood.
 use std::ops::Range;
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
@@ -22,11 +30,19 @@ const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 // TODO: Maybe I could have this configurable, to that it'll be possible to emulate triangulated
 //  surfaces with a range of min=3 max=3.
+
 const MIN_MEMBERS_MULTIPOINT: usize = 1;
 const MAX_MEMBERS_MULTIPOINT: usize = 50;
 const MIN_MEMBERS_MULTILINESTRING: usize = 15;
 const MAX_MEMBERS_MULTILINESTRING: usize = 15;
+const MIN_MEMBERS_MULTI_COMPOSITESURFACE: usize = 1;
+const MAX_MEMBERS_MULTI_COMPOSITESURFACE: usize = 100;
+const MIN_MEMBERS_SOLID: usize = 1;
+const MAX_MEMBERS_SOLID: usize = 10;
+const MIN_MEMBERS_MULTI_COMPOSITESOLID: usize = 1;
+const MAX_MEMBERS_MULTI_COMPOSITESOLID: usize = 10;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: usize = 10;
+
 
 struct CityModelBuilder {
     id: Option<String>,
@@ -47,6 +63,26 @@ struct CityObjectTypeFaker;
 struct GeometryFaker;
 
 struct LoDFaker;
+
+struct CompositeSolidFaker {
+    vertex_index_max: usize,
+}
+
+struct MultiSolidFaker {
+    vertex_index_max: usize,
+}
+
+struct SolidFaker {
+    vertex_index_max: usize,
+}
+
+struct CompositeSurfaceFaker {
+    vertex_index_max: usize,
+}
+
+struct MultiSurfaceFaker {
+    vertex_index_max: usize,
+}
 
 struct MultiLineStringFaker {
     vertex_index_max: usize,
@@ -248,6 +284,72 @@ impl Dummy<LoDFaker> for LoD {
     }
 }
 
+impl CompositeSolidFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<CompositeSolidFaker> for AggregateSolidBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSolidFaker, _: &mut R) -> Self {
+        let sof = SolidFaker::new(config.vertex_index_max);
+        (sof, MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID).fake::<Vec<SolidBoundary>>()
+    }
+}
+
+
+impl MultiSolidFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<MultiSolidFaker> for AggregateSolidBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, _: &mut R) -> Self {
+        let sof = SolidFaker::new(config.vertex_index_max);
+        (sof, MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID).fake::<Vec<SolidBoundary>>()
+    }
+}
+
+impl SolidFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<SolidFaker> for SolidBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, _: &mut R) -> Self {
+        let csrff = CompositeSurfaceFaker::new(config.vertex_index_max);
+        (csrff, MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID).fake::<Vec<AggregateSurfaceBoundary>>()
+    }
+}
+
+impl CompositeSurfaceFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<CompositeSurfaceFaker> for AggregateSurfaceBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSurfaceFaker, _: &mut R) -> Self {
+        let mlsf = MultiLineStringFaker::new(config.vertex_index_max);
+        (mlsf, MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE).fake::<Vec<MultiLineStringBoundary>>()
+    }
+}
+
+impl MultiSurfaceFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<MultiSurfaceFaker> for AggregateSurfaceBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, _: &mut R) -> Self {
+        let mlsf = MultiLineStringFaker::new(config.vertex_index_max);
+        (mlsf, MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE).fake::<Vec<MultiLineStringBoundary>>()
+    }
+}
+
 impl MultiLineStringFaker {
     fn new(vertex_index_max: usize) -> Self {
         Self { vertex_index_max }
@@ -255,7 +357,7 @@ impl MultiLineStringFaker {
 }
 
 impl Dummy<MultiLineStringFaker> for MultiLineStringBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, rng: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, _: &mut R) -> Self {
         let mpf = MultiPointFaker::new(config.vertex_index_max);
         (mpf, MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING).fake::<Vec<MultiPointBoundary>>()
     }
