@@ -56,11 +56,15 @@ struct CityModelBuilder {
 
 struct MetadataBuilder(Metadata);
 
-struct CityObjectFaker;
+struct CityObjectFaker {
+    vertex_index_max: usize,
+}
 
 struct CityObjectTypeFaker;
 
-struct GeometryFaker;
+struct GeometryFaker {
+    vertex_index_max: usize,
+}
 
 struct LoDFaker;
 
@@ -132,9 +136,16 @@ impl CityModelBuilder {
 
     /// Generate 1 CityObject if `nr_cityobjects` is `None`, else generate the number of CityObjects
     /// within the provided range.
+    /// If the vertices haven't been generated yet, they will be created, so that the geometry
+    /// boundaries can index them.
     pub fn cityobjects(mut self, nr_cityobjects: Option<Range<usize>>) -> Self {
         let _nr_cos = nr_cityobjects.unwrap_or(1..2);
-        let cos: Vec<CityObject> = (CityObjectFaker, _nr_cos).fake();
+        if self.vertices.is_none() {
+            self.vertices = Some(fake_vertices());
+        }
+        let nr_vertices = self.vertices.as_ref().unwrap().len();
+        let cof = CityObjectFaker::new(nr_vertices);
+        let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects = Some(CityObjects::from_iter(cos.iter().map(|co| (Word(EN).fake(), co.to_owned()))));
         self
@@ -149,8 +160,11 @@ impl CityModelBuilder {
         self
     }
 
+    /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
     pub fn vertices(mut self) -> Self {
-        self.vertices = Some(Faker.fake::<Vertices>());
+        if self.vertices.is_none() {
+            self.vertices = Some(fake_vertices());
+        }
         self
     }
 
@@ -163,11 +177,18 @@ impl CityModelBuilder {
     }
 }
 
+impl CityObjectFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
 impl Dummy<CityObjectFaker> for CityObject {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
+        let gf = GeometryFaker::new(config.vertex_index_max);
         Self::new(
             CityObjectTypeFaker.fake(),
-            (GeometryFaker, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake(),
+            (gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake(),
         )
     }
 }
@@ -205,6 +226,12 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
     }
 }
 
+impl GeometryFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
 impl Dummy<GeometryFaker> for Geometry {
     /// TODO: Could be possible to restrict the type selection to certain types by providing a sub-range
     ///     for `gen_range`. The sub-range could be passed as part of the wrapped CityObjectType.
@@ -213,41 +240,41 @@ impl Dummy<GeometryFaker> for Geometry {
     ///     with the number of vertices.
 
 
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &GeometryFaker, rng: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
         match rng.gen_range(0..7) {
             0 => Geometry::MultiPoint {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<MultiPointBoundary>(),
+                boundaries: MultiPointFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             1 => Geometry::MultiLineString {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<MultiLineStringBoundary>(),
+                boundaries: MultiLineStringFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             2 => Geometry::MultiSurface {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
+                boundaries: MultiSurfaceFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             3 => Geometry::CompositeSurface {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<AggregateSurfaceBoundary>(),
+                boundaries: CompositeSurfaceFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             4 => Geometry::Solid {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<SolidBoundary>(),
+                boundaries: SolidFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             5 => Geometry::MultiSolid {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<AggregateSolidBoundary>(),
+                boundaries: MultiSolidFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             6 => Geometry::CompositeSolid {
                 lod: LoDFaker.fake(),
-                boundaries: Faker.fake::<AggregateSolidBoundary>(),
+                boundaries: CompositeSolidFaker::new(config.vertex_index_max).fake(),
                 semantics: None,
             },
             _ => unreachable!()
@@ -387,6 +414,10 @@ impl Dummy<VertexIndexFaker> for usize {
         let vidx: usize = rng.gen_range(0..=config.max);
         vidx
     }
+}
+
+fn fake_vertices() -> Vertices {
+    Faker.fake::<Vertices>()
 }
 
 impl Into<Metadata> for MetadataBuilder {
