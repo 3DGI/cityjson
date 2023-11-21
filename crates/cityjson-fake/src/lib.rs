@@ -64,6 +64,7 @@ struct CityObjectTypeFaker;
 
 struct GeometryFaker {
     vertex_index_max: usize,
+    cotype: CityObjectType,
 }
 
 struct LoDFaker;
@@ -185,9 +186,12 @@ impl CityObjectFaker {
 
 impl Dummy<CityObjectFaker> for CityObject {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
-        let gf = GeometryFaker::new(config.vertex_index_max);
+        let cotype: CityObjectType = CityObjectTypeFaker.fake();
+        // TODO: add hierarchy
+        // TODO: add "address" to the type where possible
+        let gf = GeometryFaker::new(config.vertex_index_max, cotype);
         Self::new(
-            CityObjectTypeFaker.fake(),
+            cotype,
             (gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake(),
         )
     }
@@ -195,7 +199,7 @@ impl Dummy<CityObjectFaker> for CityObject {
 
 impl Dummy<CityObjectTypeFaker> for CityObjectType {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectTypeFaker, rng: &mut R) -> Self {
-        match rng.gen_range(0..25) {
+        match rng.gen_range(0..=31) {
             0 => CityObjectType::Bridge,
             1 => CityObjectType::BridgePart,
             2 => CityObjectType::BridgeInstallation,
@@ -221,27 +225,50 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
             22 => CityObjectType::Railway,
             23 => CityObjectType::Waterway,
             24 => CityObjectType::TransportSquare,
+            25 => CityObjectType::Tunnel,
+            26 => CityObjectType::TunnelPart,
+            27 => CityObjectType::TunnelInstallation,
+            28 => CityObjectType::TunnelConstructiveElement,
+            29 => CityObjectType::TunnelHollowSpace,
+            30 => CityObjectType::TunnelFurniture,
+            31 => CityObjectType::GenericCityObject,
             _ => unreachable!()
         }
     }
 }
 
 impl GeometryFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(vertex_index_max: usize, cotype: CityObjectType) -> Self {
+        Self { vertex_index_max, cotype }
     }
 }
 
 impl Dummy<GeometryFaker> for Geometry {
-    /// TODO: Could be possible to restrict the type selection to certain types by providing a sub-range
-    ///     for `gen_range`. The sub-range could be passed as part of the wrapped CityObjectType.
-    ///     That's because certain CityObjectTypes only allow a restricted set of Boundary types.
-    /// TODO: Would need to control the range of the Boundary faker so that the indices correspond
-    ///     with the number of vertices.
-
-
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
-        match rng.gen_range(0..7) {
+        let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        if config.cotype == CityObjectType::Bridge || config.cotype == CityObjectType::BridgePart {
+            geometry_types = vec![2, 3, 4, 6];
+        } else if config.cotype == CityObjectType::Building || config.cotype == CityObjectType::BuildingPart || config.cotype == CityObjectType::BuildingStorey || config.cotype == CityObjectType::BuildingRoom || config.cotype == CityObjectType::BuildingUnit {
+            geometry_types = vec![2, 3, 4, 6];
+        } else if config.cotype == CityObjectType::GenericCityObject {
+            geometry_types = vec![0, 1, 2, 3, 4, 6];
+        } else if config.cotype == CityObjectType::LandUse {
+            geometry_types = vec![2, 3];
+        } else if config.cotype == CityObjectType::PlantCover {
+            geometry_types = vec![2, 3, 4, 5, 6];
+        } else if config.cotype == CityObjectType::TINRelief {
+            geometry_types = vec![3];
+        } else if config.cotype == CityObjectType::Road || config.cotype == CityObjectType::Railway || config.cotype == CityObjectType::Waterway {
+            geometry_types = vec![1, 2, 3];
+        } else if config.cotype == CityObjectType::TransportSquare {
+            geometry_types = vec![0, 1, 2, 3];
+        } else if config.cotype == CityObjectType::Tunnel || config.cotype == CityObjectType::TunnelPart {
+            geometry_types = vec![2, 3, 4, 6];
+        } else if config.cotype == CityObjectType::WaterBody {
+            geometry_types = vec![1, 2, 3, 4, 6];
+        }
+        let geometry_type_chosen = geometry_types.choose(rng).unwrap_or(&0_usize);
+        match geometry_type_chosen {
             0 => Geometry::MultiPoint {
                 lod: LoDFaker.fake(),
                 boundaries: MultiPointFaker::new(config.vertex_index_max).fake(),
