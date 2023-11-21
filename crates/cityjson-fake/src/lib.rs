@@ -1,5 +1,4 @@
 use std::ops::Range;
-use cjlib::{BBox, ContactRole, ContactType};
 use cjlib::indexed::*;
 use fake::{Dummy, Fake, Faker};
 use fake::uuid::UUIDv1;
@@ -21,7 +20,13 @@ const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
 const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
+// TODO: Maybe I could have this configurable, to that it'll be possible to emulate triangulated
+//  surfaces with a range of min=3 max=3.
+const MIN_MEMBERS_MULTIPOINT: usize = 1;
 const MAX_MEMBERS_MULTIPOINT: usize = 50;
+const MIN_MEMBERS_MULTILINESTRING: usize = 15;
+const MAX_MEMBERS_MULTILINESTRING: usize = 15;
+const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: usize = 10;
 
 struct CityModelBuilder {
     id: Option<String>,
@@ -30,16 +35,33 @@ struct CityModelBuilder {
     transform: Option<Transform>,
     cityobjects: Option<CityObjects>,
     vertices: Option<Vertices>,
-    metadata: Option<cjlib::Metadata>,
+    metadata: Option<Metadata>,
 }
-struct MetadataBuilder(cjlib::Metadata);
+
+struct MetadataBuilder(Metadata);
+
 struct CityObjectFaker;
+
 struct CityObjectTypeFaker;
+
 struct GeometryFaker;
+
 struct LoDFaker;
-struct MultiPointFaker{vertex_index_max: usize}
-struct VertexIndexFaker{max: usize}
+
+struct MultiLineStringFaker {
+    vertex_index_max: usize,
+}
+
+struct MultiPointFaker {
+    vertex_index_max: usize,
+}
+
+struct VertexIndexFaker {
+    max: usize,
+}
+
 struct ContactRoleFaker;
+
 struct ContactTypeFaker;
 
 impl Into<CityModel> for CityModelBuilder {
@@ -106,11 +128,10 @@ impl CityModelBuilder {
 }
 
 impl Dummy<CityObjectFaker> for CityObject {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectFaker, rng: &mut R) -> Self {
-        let max_geometries: usize = 10;
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectFaker, _: &mut R) -> Self {
         Self::new(
             CityObjectTypeFaker.fake(),
-            (GeometryFaker, 0..=max_geometries).fake(),
+            (GeometryFaker, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake(),
         )
     }
 }
@@ -227,10 +248,35 @@ impl Dummy<LoDFaker> for LoD {
     }
 }
 
+impl MultiLineStringFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
+impl Dummy<MultiLineStringFaker> for MultiLineStringBoundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, rng: &mut R) -> Self {
+        let mpf = MultiPointFaker::new(config.vertex_index_max);
+        (mpf, MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING).fake::<Vec<MultiPointBoundary>>()
+    }
+}
+
+impl MultiPointFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { vertex_index_max }
+    }
+}
+
 impl Dummy<MultiPointFaker> for MultiPointBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, rng: &mut R) -> Self {
-        let vf = VertexIndexFaker{max: config.vertex_index_max};
-        (vf, 0..=MAX_MEMBERS_MULTIPOINT).fake::<Vec<usize>>()
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, _: &mut R) -> Self {
+        let vf = VertexIndexFaker::new(config.vertex_index_max);
+        (vf, MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT).fake::<Vec<usize>>()
+    }
+}
+
+impl VertexIndexFaker {
+    fn new(vertex_index_max: usize) -> Self {
+        Self { max: vertex_index_max }
     }
 }
 
@@ -241,8 +287,8 @@ impl Dummy<VertexIndexFaker> for usize {
     }
 }
 
-impl Into<cjlib::Metadata> for MetadataBuilder {
-    fn into(self) -> cjlib::Metadata {
+impl Into<Metadata> for MetadataBuilder {
+    fn into(self) -> Metadata {
         self.0
     }
 }
@@ -255,7 +301,7 @@ impl Default for MetadataBuilder {
 
 impl MetadataBuilder {
     fn new() -> Self {
-        MetadataBuilder(cjlib::Metadata::new())
+        MetadataBuilder(Metadata::new())
     }
 
     fn geographical_extent(mut self) -> Self {
@@ -321,7 +367,7 @@ impl MetadataBuilder {
         self
     }
 
-    fn build(self) -> cjlib::Metadata {
+    fn build(self) -> Metadata {
         self.into()
     }
 }
@@ -372,9 +418,14 @@ mod tests {
     #[test]
     fn test_custom_boundaryfaker() {
         let nr_vertices: usize = 12;
-        let mpf = MultiPointFaker{vertex_index_max: nr_vertices};
+
+        let mpf = MultiPointFaker { vertex_index_max: nr_vertices };
         let a: MultiPointBoundary = mpf.fake();
         println!("nr points: {}", a.len());
+        println!("{:?}", &a);
+
+        let a: MultiLineStringBoundary = MultiLineStringFaker { vertex_index_max: nr_vertices }.fake();
+        println!("nr linestrings: {}", a.len());
         println!("{:?}", &a);
     }
 
