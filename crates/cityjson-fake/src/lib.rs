@@ -2,8 +2,11 @@
 //!
 //! CityJSON generator with fake data.
 //!
-//! You can control the number of vertices it the surfaces, for instance to fake triangulated
+//! - You can control the number of vertices it the surfaces, for instance to fake triangulated
 //! surfaces.
+//! - The generated CityJSON is valid according to the specifications. However, the generated
+//! vertices and geometries are random, they have no resemblance to real-world and they are invalid.
+//! -
 //!
 //! See the [design doc] for details on how this crate works under the hood.
 use std::ops::Range;
@@ -19,6 +22,7 @@ use fake::faker::phone_number::raw::PhoneNumber;
 use fake::faker::company::raw::CompanyName;
 use fake::locales::*;
 use rand::distributions::uniform::SampleRange;
+use rand::distributions::{Bernoulli, Distribution};
 use rand::Rng;
 use rand::seq::SliceRandom;
 
@@ -57,47 +61,60 @@ struct CityModelBuilder {
 struct MetadataBuilder(Metadata);
 
 struct CityObjectFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct CityObjectTypeFaker;
 
 struct GeometryFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
     cotype: CityObjectType,
 }
 
 struct LoDFaker;
 
 struct CompositeSolidFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct MultiSolidFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct SolidFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct CompositeSurfaceFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct MultiSurfaceFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct MultiLineStringFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct MultiPointFaker {
-    vertex_index_max: usize,
+    nr_vertices: usize,
 }
 
 struct VertexIndexFaker {
+    max: usize,
+}
+
+struct MultiPointSemanticsFaker {
+    nr_points: usize,
+    cotype: CityObjectType,
+}
+
+struct SemanticFaker {
+    cotype: CityObjectType,
+}
+
+struct OptionalIndexFaker {
     max: usize,
 }
 
@@ -179,8 +196,8 @@ impl CityModelBuilder {
 }
 
 impl CityObjectFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
@@ -189,7 +206,7 @@ impl Dummy<CityObjectFaker> for CityObject {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
         // TODO: add "address" to the type where possible
-        let gf = GeometryFaker::new(config.vertex_index_max, cotype);
+        let gf = GeometryFaker::new(config.nr_vertices, cotype);
         Self::new(
             cotype,
             (gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake(),
@@ -238,17 +255,20 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
 }
 
 impl GeometryFaker {
-    fn new(vertex_index_max: usize, cotype: CityObjectType) -> Self {
-        Self { vertex_index_max, cotype }
+    fn new(nr_vertices: usize, cotype: CityObjectType) -> Self {
+        Self { nr_vertices, cotype }
     }
 }
 
 impl Dummy<GeometryFaker> for Geometry {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
+        let lod: LoD = LoDFaker.fake();
+        // Choose a Geometry type that is allowed for the given CityObject type
         let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        let building_types = config.cotype == CityObjectType::Building || config.cotype == CityObjectType::BuildingPart || config.cotype == CityObjectType::BuildingStorey || config.cotype == CityObjectType::BuildingRoom || config.cotype == CityObjectType::BuildingUnit;
         if config.cotype == CityObjectType::Bridge || config.cotype == CityObjectType::BridgePart {
             geometry_types = vec![2, 3, 4, 6];
-        } else if config.cotype == CityObjectType::Building || config.cotype == CityObjectType::BuildingPart || config.cotype == CityObjectType::BuildingStorey || config.cotype == CityObjectType::BuildingRoom || config.cotype == CityObjectType::BuildingUnit {
+        } else if building_types {
             geometry_types = vec![2, 3, 4, 6];
         } else if config.cotype == CityObjectType::GenericCityObject {
             geometry_types = vec![0, 1, 2, 3, 4, 6];
@@ -268,40 +288,57 @@ impl Dummy<GeometryFaker> for Geometry {
             geometry_types = vec![1, 2, 3, 4, 6];
         }
         let geometry_type_chosen = geometry_types.choose(rng).unwrap_or(&0_usize);
+        // Decide if we can generate semantics for the given CityObject type
+        let mut generate_semantics = false;
+        if lod >= LoD::LoD2 {
+            if building_types || config.cotype == CityObjectType::BuildingInstallation {
+                generate_semantics = true;
+            } else if config.cotype == CityObjectType::WaterBody {
+                generate_semantics = true;
+            } else if config.cotype == CityObjectType::Road || config.cotype == CityObjectType::Railway || config.cotype == CityObjectType::TransportSquare {
+                generate_semantics = true;
+            }
+        }
+
+
         match geometry_type_chosen {
-            0 => Geometry::MultiPoint {
-                lod: LoDFaker.fake(),
-                boundaries: MultiPointFaker::new(config.vertex_index_max).fake(),
-                semantics: None,
-            },
+            0 => {
+                let boundaries: MultiPointBoundary = MultiPointFaker::new(config.nr_vertices).fake();
+                let nr_points = boundaries.len();
+                Geometry::MultiPoint {
+                    lod,
+                    boundaries,
+                    semantics: generate_semantics.then(|| MultiPointSemanticsFaker::new(nr_points, config.cotype).fake()),
+                }
+            }
             1 => Geometry::MultiLineString {
-                lod: LoDFaker.fake(),
-                boundaries: MultiLineStringFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: MultiLineStringFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             2 => Geometry::MultiSurface {
-                lod: LoDFaker.fake(),
-                boundaries: MultiSurfaceFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: MultiSurfaceFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             3 => Geometry::CompositeSurface {
-                lod: LoDFaker.fake(),
-                boundaries: CompositeSurfaceFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: CompositeSurfaceFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             4 => Geometry::Solid {
-                lod: LoDFaker.fake(),
-                boundaries: SolidFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: SolidFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             5 => Geometry::MultiSolid {
-                lod: LoDFaker.fake(),
-                boundaries: MultiSolidFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: MultiSolidFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             6 => Geometry::CompositeSolid {
-                lod: LoDFaker.fake(),
-                boundaries: CompositeSolidFaker::new(config.vertex_index_max).fake(),
+                lod,
+                boundaries: CompositeSolidFaker::new(config.nr_vertices).fake(),
                 semantics: None,
             },
             _ => unreachable!()
@@ -339,100 +376,100 @@ impl Dummy<LoDFaker> for LoD {
 }
 
 impl CompositeSolidFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<CompositeSolidFaker> for AggregateSolidBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSolidFaker, _: &mut R) -> Self {
-        let sof = SolidFaker::new(config.vertex_index_max);
+        let sof = SolidFaker::new(config.nr_vertices);
         (sof, MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID).fake::<Vec<SolidBoundary>>()
     }
 }
 
 
 impl MultiSolidFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<MultiSolidFaker> for AggregateSolidBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, _: &mut R) -> Self {
-        let sof = SolidFaker::new(config.vertex_index_max);
+        let sof = SolidFaker::new(config.nr_vertices);
         (sof, MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID).fake::<Vec<SolidBoundary>>()
     }
 }
 
 impl SolidFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<SolidFaker> for SolidBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, _: &mut R) -> Self {
-        let csrff = CompositeSurfaceFaker::new(config.vertex_index_max);
+        let csrff = CompositeSurfaceFaker::new(config.nr_vertices);
         (csrff, MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID).fake::<Vec<AggregateSurfaceBoundary>>()
     }
 }
 
 impl CompositeSurfaceFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<CompositeSurfaceFaker> for AggregateSurfaceBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSurfaceFaker, _: &mut R) -> Self {
-        let mlsf = MultiLineStringFaker::new(config.vertex_index_max);
+        let mlsf = MultiLineStringFaker::new(config.nr_vertices);
         (mlsf, MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE).fake::<Vec<MultiLineStringBoundary>>()
     }
 }
 
 impl MultiSurfaceFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<MultiSurfaceFaker> for AggregateSurfaceBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, _: &mut R) -> Self {
-        let mlsf = MultiLineStringFaker::new(config.vertex_index_max);
+        let mlsf = MultiLineStringFaker::new(config.nr_vertices);
         (mlsf, MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE).fake::<Vec<MultiLineStringBoundary>>()
     }
 }
 
 impl MultiLineStringFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<MultiLineStringFaker> for MultiLineStringBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, _: &mut R) -> Self {
-        let mpf = MultiPointFaker::new(config.vertex_index_max);
+        let mpf = MultiPointFaker::new(config.nr_vertices);
         (mpf, MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING).fake::<Vec<MultiPointBoundary>>()
     }
 }
 
 impl MultiPointFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { vertex_index_max }
+    fn new(nr_vertices: usize) -> Self {
+        Self { nr_vertices }
     }
 }
 
 impl Dummy<MultiPointFaker> for MultiPointBoundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, _: &mut R) -> Self {
-        let vf = VertexIndexFaker::new(config.vertex_index_max);
+        let vf = VertexIndexFaker::new(config.nr_vertices);
         (vf, MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT).fake::<Vec<usize>>()
     }
 }
 
 impl VertexIndexFaker {
-    fn new(vertex_index_max: usize) -> Self {
-        Self { max: vertex_index_max }
+    fn new(max_vertices: usize) -> Self {
+        Self { max: max_vertices }
     }
 }
 
@@ -445,6 +482,100 @@ impl Dummy<VertexIndexFaker> for usize {
 
 fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
+}
+
+impl MultiPointSemanticsFaker {
+    fn new(nr_points: usize, cotype: CityObjectType) -> Self {
+        Self { nr_points, cotype }
+    }
+}
+
+impl Dummy<MultiPointSemanticsFaker> for MultiPointSemantics {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointSemanticsFaker, rng: &mut R) -> Self {
+        if config.nr_points == 0 {
+            Self::new(Vec::<Semantic>::default(), MultiPointSemanticsValues::default())
+        } else {
+            let sf = SemanticFaker::new(config.cotype);
+            let nr_semantic: usize = (1..config.nr_points).fake_with_rng(rng);
+            let mut surfaces: Vec<Semantic> = Vec::with_capacity(nr_semantic);
+            for _ in 0..nr_semantic {
+                if let Some(_sem) = sf.fake::<Option<Semantic>>() {
+                    surfaces.push(_sem);
+                }
+            }
+            let idxf = OptionalIndexFaker::new(config.nr_points);
+            let values: MultiPointSemanticsValues = (idxf, config.nr_points..config.nr_points + 1).fake::<Vec<OptionalIndex>>();
+            Self::new(surfaces, values)
+
+        }
+    }
+}
+
+impl SemanticFaker {
+    fn new(cotype: CityObjectType) -> Self {
+        Self { cotype }
+    }
+}
+
+impl Dummy<SemanticFaker> for Option<Semantic> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker, rng: &mut R) -> Self {
+        let building_types = config.cotype == CityObjectType::Building || config.cotype == CityObjectType::BuildingPart || config.cotype == CityObjectType::BuildingStorey || config.cotype == CityObjectType::BuildingRoom || config.cotype == CityObjectType::BuildingUnit || config.cotype == CityObjectType::BridgeInstallation;
+        let transportation_types = config.cotype == CityObjectType::Road || config.cotype == CityObjectType::Railway || config.cotype == CityObjectType::TransportSquare;
+        let mut semantic_types: Vec<usize> = (0..=17).collect();
+        if building_types {
+            semantic_types = (0..11).collect();
+        } else if config.cotype == CityObjectType::WaterBody {
+            semantic_types = (11..14).collect();
+        } else if transportation_types {
+            semantic_types = (14..18).collect();
+        } else {
+            return None;
+        }
+        let semantic_type_chosen = semantic_types.choose(rng).unwrap_or(&0_usize);
+        let semantic = match semantic_type_chosen {
+            0 => Semantic::RoofSurface,
+            1 => Semantic::GroundSurface,
+            2 => Semantic::WallSurface,
+            3 => Semantic::ClosureSurface,
+            4 => Semantic::OuterCeilingSurface,
+            5 => Semantic::OuterFloorSurface,
+            6 => Semantic::Window,
+            7 => Semantic::Door,
+            8 => Semantic::InteriorWallSurface,
+            9 => Semantic::CeilingSurface,
+            10 => Semantic::FloorSurface,
+            11 => Semantic::WaterSurface,
+            12 => Semantic::WaterGroundSurface,
+            13 => Semantic::WaterClosureSurface,
+            14 => Semantic::TrafficArea,
+            15 => Semantic::AuxiliaryTrafficArea,
+            16 => Semantic::TransportationMarking,
+            17 => Semantic::TransportationHole,
+            _ => unreachable!()
+        };
+        Some(semantic)
+    }
+}
+
+impl OptionalIndexFaker {
+    fn new(max_index: usize) -> Self {
+        Self { max: max_index }
+    }
+}
+
+impl Dummy<OptionalIndexFaker> for Option<usize> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &OptionalIndexFaker, rng: &mut R) -> Self {
+        // Probability of having a semantic for the surface, instead of a null
+        let prob = 0.8;
+        let d = Bernoulli::new(prob).unwrap();
+        let has_semantic = d.sample(&mut rand::thread_rng());
+        if has_semantic {
+            let idx: usize = rng.gen_range(0..=config.max);
+            Some(idx)
+        } else {
+            None
+        }
+    }
 }
 
 impl Into<Metadata> for MetadataBuilder {
@@ -579,12 +710,12 @@ mod tests {
     fn test_custom_boundaryfaker() {
         let nr_vertices: usize = 12;
 
-        let mpf = MultiPointFaker { vertex_index_max: nr_vertices };
+        let mpf = MultiPointFaker { nr_vertices: nr_vertices };
         let a: MultiPointBoundary = mpf.fake();
         println!("nr points: {}", a.len());
         println!("{:?}", &a);
 
-        let a: MultiLineStringBoundary = MultiLineStringFaker { vertex_index_max: nr_vertices }.fake();
+        let a: MultiLineStringBoundary = MultiLineStringFaker { nr_vertices: nr_vertices }.fake();
         println!("nr linestrings: {}", a.len());
         println!("{:?}", &a);
     }
