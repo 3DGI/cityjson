@@ -45,17 +45,6 @@
 //! }
 //! ```
 //!
-//! Since JSON is schemaless, a generic type like [`serde_json::Value`] is required, because we
-//! cannot know in advance the type of a value in the JSON document. Therefore,
-//! [`serde_json::Value`] needs to be able to store all possible types that the JSON specification
-//! allow. However, this comes with an overhead in memory use and processing time, compared to
-//! specialized data structures.
-//!
-//! CityJSON does follow a schema that restricts the type of most of its objects. This in turn
-//! enables us to translate the CityJSON specification to Rust data structures and enables a much
-//! more efficient de/serialization of CityJSON documents compared to what is possible with
-//! [`serde_json::Value`].
-//!
 //! ### Validation and deserializtion of invalid CityJSON objects
 //!
 //! `serde-cityjson` does not validate the JSON objects in the typical sense, but it parses the objects
