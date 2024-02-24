@@ -1,0 +1,39 @@
+[package]
+name = "serde_cityjson"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+#[[bin]]
+#name = "cj_3dbag"
+#path = "src/b_cj_3dbag.rs"
+#
+#[[bin]]
+#name = "sv_3dbag"
+#path = "src/b_sv_3dbag.rs"
+#
+#[[bin]]
+#name = "cj_3dbvz"
+#path = "src/b_cj_3dbvz.rs"
+#
+#[[bin]]
+#name = "sv_3dbvz"
+#path = "src/b_sv_3dbvz.rs"
+
+[lib]
+name = "serde_cityjson"
+path = "src/lib.rs"
+
+[dependencies]
+derive_more = { version = "0.99.17", features = ["display"] }
+serde = { version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+reqwest = "0.11.24"
+
+[[bench]]
+name = "serde_cityjson_benchmark"
+harness = false
