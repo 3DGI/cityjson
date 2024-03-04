@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Download file from https://data.3dbag.nl/cityjson/v20231008/tiles/10/356/724/10-356-724.city.json.gz
-    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources").join("data");
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources").join("data").join("downloaded");
 
     let mut group = c.benchmark_group("3DBAG");
     group.sample_size(30);

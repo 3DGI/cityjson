@@ -1,0 +1,26 @@
+set dotenv-load := true
+datadir := "resources" / "data" / "downloaded"
+
+# Download test data for the benchmarks
+download:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    # Create dir for downloaded files
+    if [ ! -d {{datadir}} ]; then
+      mkdir {{datadir}}
+    fi
+    # Download the reconstructed features
+    tiles=( "10/356/724" )
+    for tile_id in ${tiles[@]} ;
+    do
+      filename="${tile_id//'/'/'-'}.city.json.gz"
+      filepath="{{datadir}}/$filename"
+      if [ ! -f ${filepath%.*} ]; then
+          wget "https://data.3dbag.nl/cityjson/v20231008/tiles/$tile_id/$filename" -P {{datadir}}
+          gunzip "$filepath"
+      fi
+    done
+
+# Delete all data files
+clean:
+    rm -rf {{datadir}}
