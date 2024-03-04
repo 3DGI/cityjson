@@ -2,6 +2,7 @@
 //!
 //! Specs: <https://www.cityjson.org/specs/1.1.3/>.
 //!
+//! The main struct is [CityModel], which represents a CityJSON or CityJSONFeature object.
 //! See the examples of usage by the various members.
 
 use crate::errors::{Error, Result};
@@ -119,6 +120,7 @@ pub struct Transform {
     pub translate: [f64; 3],
 }
 
+/// The `CityObjects` member of CityJSON.
 pub type CityObjects = HashMap<String, CityObject>;
 
 /// CityObject.
@@ -721,9 +723,10 @@ pub struct GeometryTemplates {
     vertices_templates: VerticesTemplates,
 }
 
+/// The `vertices_templates` member of `geometry-templates` of CityJSON.
 pub type VerticesTemplates = Vec<[f64; 3]>;
 
-/// The `"semantics"` of a `CompositeSolid` geometry.
+/// The `semantics` of a `CompositeSolid` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -762,7 +765,7 @@ pub struct CompositeSolidSemantics {
     pub values: CompositeSolidSemanticsValues,
 }
 
-/// The `"semantics"` of a `MultiSolid` geometry.
+/// The `semantics` of a `MultiSolid` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -801,7 +804,7 @@ pub struct MultiSolidSemantics {
     pub values: MultiSolidSemanticsValues,
 }
 
-/// The `"semantics"` of a `Solid` geometry.
+/// The `semantics` of a `Solid` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -840,7 +843,7 @@ pub struct SolidSemantics {
     pub values: SolidSemanticsValues,
 }
 
-/// The `"semantics"` of a `CompositeSurface` geometry.
+/// The `semantics` of a `CompositeSurface` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -879,7 +882,7 @@ pub struct CompositeSurfaceSemantics {
     pub values: CompositeSurfaceSemanticsValues,
 }
 
-/// The `"semantics"` of a `MultiSurface` geometry.
+/// The `semantics` of a `MultiSurface` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -918,7 +921,7 @@ pub struct MultiSurfaceSemantics {
     pub values: MultiSurfaceSemanticsValues,
 }
 
-/// The `"semantics"` of a `MultiLineString` geometry.
+/// The `semantics` of a `MultiLineString` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -946,7 +949,7 @@ pub struct MultiLineStringSemantics {
     pub values: MultiLineStringSemanticsValues,
 }
 
-/// The `"semantics"` of a `MultiPoint` geometry.
+/// The `semantics` of a `MultiPoint` geometry.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -1449,6 +1452,7 @@ pub type Date = String;
 /// ```
 pub type CRS = String;
 
+/// The `extensions` member of a CityJSON.
 pub type Extensions = HashMap<String, Extension>;
 
 /// An Extension that is used in a city model.
