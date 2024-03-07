@@ -10,9 +10,13 @@ use crate::errors::{Error, Result};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
+#[cfg(feature = "datasize")]
+use datasize::{DataSize, data_size};
+#[cfg(feature = "datasize")]
+use std::io::Write;
+use derive_more::Display;
+use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
-use serde::de::{Visitor};
-use derive_more::{Display};
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -54,6 +58,7 @@ use derive_more::{Display};
 /// # }
 /// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CityModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -72,16 +77,22 @@ pub struct CityModel {
     pub appearance: Option<Appearance>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
     pub geometry_templates: Option<GeometryTemplates>,
-    #[serde(flatten, skip_serializing_if = "Option::is_none", deserialize_with = "deserialize_attributes")]
+    #[serde(
+        flatten,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_attributes"
+    )]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
     pub extra: Option<Attributes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub extensions: Option<Extensions>
+    pub extensions: Option<Extensions>,
 }
 
 /// Version of the CityJSON specifications used for this city model. This module is only for
 /// version `1.1`, thus there is only one version available.
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize)]
 #[serde(tag = "version", try_from = "String", into = "String")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum CityJSONVersion {
     #[default]
     V1_1,
@@ -91,6 +102,7 @@ pub enum CityJSONVersion {
 ///
 /// Marks if the [CityModel] represents a CityJSON object or a CityJSONFeature object.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum CityModelType {
     #[default]
     CityJSON,
@@ -115,6 +127,7 @@ pub enum CityModelType {
 /// # }
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Transform {
     pub scale: [f64; 3],
     pub translate: [f64; 3],
@@ -149,19 +162,29 @@ pub type CityObjects = HashMap<String, CityObject>;
 /// # }
 /// ```
 #[derive(Debug, Display, Clone, Deserialize, Serialize)]
-#[display(fmt = "type: {}, geometry: {:?}, attributes: {:?}, geographical_extent: {:?}, children: {:?}, parents: {:?}", type_co, geometry, attributes, geographical_extent, children, parents)]
+#[display(
+    fmt = "type: {}, geometry: {:?}, attributes: {:?}, geographical_extent: {:?}, children: {:?}, parents: {:?}",
+    type_co,
+    geometry,
+    attributes,
+    geographical_extent,
+    children,
+    parents
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CityObject {
     #[serde(rename = "type")]
     pub type_co: CityObjectType,
     pub geometry: Vec<Geometry>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
     pub attributes: Option<Attributes>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "camelCase")]
     pub geographical_extent: Option<BBox>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parents: Option<Vec<String>>
+    pub parents: Option<Vec<String>>,
 }
 
 /// CityObject type.
@@ -188,6 +211,7 @@ pub struct CityObject {
 /// # }
 /// ```
 #[derive(Debug, Default, Display, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum CityObjectType {
     Bridge,
     BridgePart,
@@ -223,7 +247,7 @@ pub enum CityObjectType {
     TunnelConstructiveElement,
     TunnelHollowSpace,
     TunnelFurniture,
-    Extension(String)
+    Extension(String),
 }
 
 /// Attributes of CityModel, CityObjects, Semantics.
@@ -280,6 +304,7 @@ pub type Attributes = HashMap<String, serde_json::Value>;
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum Geometry {
     MultiPoint {
         lod: LoD,
@@ -331,13 +356,14 @@ pub enum Geometry {
         template: usize,
         boundaries: [usize; 1],
         transformation_matrix: [f64; 16],
-    }
+    },
 }
 
 /// The Level of Detail of a Geometry.
 ///
 /// The `LoD` forms an order, such as `LoD0 < LoD0_0 < LoD0_1 < LoD0_2 < LoD0_3 < LoD1 < ...`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum LoD {
     LoD0,
     LoD0_0,
@@ -383,7 +409,15 @@ pub enum LoD {
 /// ```
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-#[display(fmt = "materials: {:?}, textures: {:?}, vertices-texture: {:?}, default-theme-texture: {:?}, default-theme-material: {:?}", materials, textures, vertices_texture, default_theme_texture, default_theme_material)]
+#[display(
+    fmt = "materials: {:?}, textures: {:?}, vertices-texture: {:?}, default-theme-texture: {:?}, default-theme-material: {:?}",
+    materials,
+    textures,
+    vertices_texture,
+    default_theme_texture,
+    default_theme_material
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Appearance {
     #[serde(skip_serializing_if = "Option::is_none")]
     materials: Option<Vec<Material>>,
@@ -422,7 +456,18 @@ pub struct Appearance {
 /// ```
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[display(fmt = "name: {}, ambient_intensity: {:?}, diffuse_color: {:?}, emissive_color: {:?}, specular_color: {:?}, shininess: {:?}, transparency: {:?}, is_smooth: {:?}", name, ambient_intensity, diffuse_color, emissive_color, specular_color, shininess, transparency, is_smooth)]
+#[display(
+    fmt = "name: {}, ambient_intensity: {:?}, diffuse_color: {:?}, emissive_color: {:?}, specular_color: {:?}, shininess: {:?}, transparency: {:?}, is_smooth: {:?}",
+    name,
+    ambient_intensity,
+    diffuse_color,
+    emissive_color,
+    specular_color,
+    shininess,
+    transparency,
+    is_smooth
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Material {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -463,7 +508,15 @@ pub struct Material {
 /// ```
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[display(fmt = "type: {:?}, image: {:?}, wrap_mode: {:?}, texture_type: {:?}, border_color: {:?}", image_type, image, wrap_mode, texture_type, border_color)]
+#[display(
+    fmt = "type: {:?}, image: {:?}, wrap_mode: {:?}, texture_type: {:?}, border_color: {:?}",
+    image_type,
+    image,
+    wrap_mode,
+    texture_type,
+    border_color
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Texture {
     #[serde(rename = "type")]
     image_type: ImageType,
@@ -481,6 +534,7 @@ pub struct Texture {
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
 #[derive(Clone, Copy, Debug, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ImageType {
     Png,
     Jpg,
@@ -491,6 +545,7 @@ pub enum ImageType {
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
 #[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum WrapMode {
     Wrap,
     Mirror,
@@ -505,6 +560,7 @@ pub enum WrapMode {
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
 #[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum TextureType {
     #[default]
     Unknown,
@@ -544,11 +600,12 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 /// ```
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
 #[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiSurfaceAppearanceValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: OptionalIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<Vec<OptionalIndex>>
+    values: Option<Vec<OptionalIndex>>,
 }
 
 /// The Material or Texture index of a CompositeSurface geometry. This is the `value` or `values`
@@ -576,11 +633,12 @@ pub struct MultiSurfaceAppearanceValues {
 /// ```
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
 #[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CompositeSurfaceAppearanceValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: OptionalIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<Vec<OptionalIndex>>
+    values: Option<Vec<OptionalIndex>>,
 }
 
 /// The Material or Texture index of a Solid geometry. This is the `value` or `values`
@@ -608,11 +666,12 @@ pub struct CompositeSurfaceAppearanceValues {
 /// ```
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
 #[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct SolidAppearanceValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: OptionalIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<Vec<Vec<OptionalIndex>>>
+    values: Option<Vec<Vec<OptionalIndex>>>,
 }
 
 /// The Material or Texture index of a MultiSolid geometry. This is the `value` or `values`
@@ -640,11 +699,12 @@ pub struct SolidAppearanceValues {
 /// ```
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
 #[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiSolidAppearanceValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: OptionalIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<Vec<Vec<Vec<OptionalIndex>>>>
+    values: Option<Vec<Vec<Vec<OptionalIndex>>>>,
 }
 
 /// The Material or Texture index of a CompositeSolid geometry. This is the `value` or `values`
@@ -672,11 +732,12 @@ pub struct MultiSolidAppearanceValues {
 /// ```
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
 #[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CompositeSolidAppearanceValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: OptionalIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<Vec<Vec<Vec<OptionalIndex>>>>
+    values: Option<Vec<Vec<Vec<OptionalIndex>>>>,
 }
 
 /// Geometry Templates.
@@ -717,7 +778,12 @@ pub struct CompositeSolidAppearanceValues {
 /// ```
 #[derive(Clone, Default, Debug, Display, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-#[display(fmt = "templates: {:?}, vertices-templates: {:?}", templates, vertices_templates)]
+#[display(
+    fmt = "templates: {:?}, vertices-templates: {:?}",
+    templates,
+    vertices_templates
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates {
     templates: Vec<Geometry>,
     vertices_templates: VerticesTemplates,
@@ -760,6 +826,7 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CompositeSolidSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: CompositeSolidSemanticsValues,
@@ -799,6 +866,7 @@ pub struct CompositeSolidSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiSolidSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: MultiSolidSemanticsValues,
@@ -838,6 +906,7 @@ pub struct MultiSolidSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct SolidSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: SolidSemanticsValues,
@@ -877,6 +946,7 @@ pub struct SolidSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CompositeSurfaceSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: CompositeSurfaceSemanticsValues,
@@ -916,6 +986,7 @@ pub struct CompositeSurfaceSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiSurfaceSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: MultiSurfaceSemanticsValues,
@@ -944,6 +1015,7 @@ pub struct MultiSurfaceSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiLineStringSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: MultiLineStringSemanticsValues,
@@ -972,6 +1044,7 @@ pub struct MultiLineStringSemantics {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MultiPointSemantics {
     pub surfaces: Vec<Semantic>,
     pub values: MultiPointSemanticsValues,
@@ -999,7 +1072,14 @@ pub struct MultiPointSemantics {
 /// # }
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "type: {:?}, children: {:?}, parent: {:?}, attributes: {:?}", type_sem, children, parent, attributes)]
+#[display(
+    fmt = "type: {:?}, children: {:?}, parent: {:?}, attributes: {:?}",
+    type_sem,
+    children,
+    parent,
+    attributes
+)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Semantic {
     #[serde(rename = "type")]
     pub type_sem: SemanticType,
@@ -1007,14 +1087,20 @@ pub struct Semantic {
     pub children: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<usize>,
-    #[serde(flatten, skip_serializing_if = "Option::is_none", deserialize_with = "deserialize_attributes")]
-    pub attributes: Option<Attributes>
+    #[serde(
+        flatten,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_attributes"
+    )]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
+    pub attributes: Option<Attributes>,
 }
 
 /// Semantic surface type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum SemanticType {
     RoofSurface,
     GroundSurface,
@@ -1034,7 +1120,7 @@ pub enum SemanticType {
     AuxiliaryTrafficArea,
     TransportationMarking,
     TransportationHole,
-    Extension(String)
+    Extension(String),
 }
 
 /// The `values` array of geometry indices of a Semantic object.
@@ -1293,6 +1379,7 @@ pub type Vertices = Vec<[i64; 3]>;
 /// println!("{}", &metadata);
 /// ```
 #[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Metadata {
     pub geographical_extent: Option<BBox>,
     pub identifier: Option<CityModelIdentifier>,
@@ -1352,6 +1439,7 @@ pub type CityModelIdentifier = String;
 /// ```
 #[derive(Clone, Default, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Contact {
     pub contact_name: String,
     pub email_address: String,
@@ -1368,6 +1456,7 @@ pub struct Contact {
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#pointofcontact>
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ContactRole {
     Author,
     CoAuthor,
@@ -1396,6 +1485,7 @@ pub enum ContactRole {
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#pointofcontact>
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ContactType {
     Individual,
     Organization,
@@ -1475,9 +1565,10 @@ pub type Extensions = HashMap<String, Extension>;
 /// # }
 /// ```
 #[derive(Clone, Default, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Extension {
     pub url: String,
-    pub version: String
+    pub version: String,
 }
 
 // --- Implementations
@@ -1494,7 +1585,7 @@ impl CityModel {
         appearance: Option<Appearance>,
         geometry_templates: Option<GeometryTemplates>,
         extra: Option<HashMap<String, serde_json::Value>>,
-        extensions: Option<Extensions>
+        extensions: Option<Extensions>,
     ) -> Self {
         Self {
             id,
@@ -1507,8 +1598,66 @@ impl CityModel {
             appearance,
             geometry_templates,
             extra,
-            extensions
+            extensions,
         }
+    }
+
+    // Prints a hierarchy of members, including the amount of heap memory used by them.
+    #[cfg(feature = "datasize")]
+    fn print_datasize(&self) -> Vec<u8> {
+        let mut w: Vec<u8> = Vec::new();
+        writeln!(&mut w, "| {0: <10} | {1: <15} |", data_size(&self), "CityModel");
+        writeln!(&mut w, "| {0: <10} | {1: <15} |", data_size(&self.cityobjects), "CityObjects");
+        return w;
+    }
+}
+
+fn sizeof_attributes(a: &Option<Attributes>) -> usize {
+    if let Some(ref attributes) = a {
+        attributes.iter().map(|(k, v)| {
+            std::mem::size_of::<String>() + k.capacity() + sizeof_serde_value(v) + std::mem::size_of::<usize>() * 3
+        }).sum()
+    } else {
+        0
+    }
+}
+
+// From https://stackoverflow.com/a/76456111
+fn sizeof_serde_value(v: &serde_json::Value) -> usize {
+    std::mem::size_of::<serde_json::Value>()
+        + match v {
+            serde_json::Value::Null => 0,
+            serde_json::Value::Bool(_) => 0,
+            serde_json::Value::Number(_) => 0, // Incorrect if arbitrary_precision is enabled. oh well
+            serde_json::Value::String(s) => s.capacity(),
+            serde_json::Value::Array(a) => a.iter().map(sizeof_serde_value).sum(),
+            serde_json::Value::Object(o) => o
+                .iter()
+                .map(|(k, v)| {
+                    std::mem::size_of::<String>()
+                        + k.capacity()
+                        + sizeof_serde_value(v)
+                        + std::mem::size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
+                })
+                .sum(),
+        }
+}
+
+mod test_datasize {
+    use super::*;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    #[test]
+    fn bag3d() {
+        let dummy_complete = PathBuf::from("resources").join("data").join("downloaded").join("10-356-724.city.json");
+        let mut file = File::open(dummy_complete).unwrap();
+        let mut cityjson_json = String::new();
+        file.read_to_string(&mut cityjson_json).unwrap();
+
+        let cm: CityModel = serde_json::from_str(&cityjson_json).unwrap();
+        println!("{}", std::str::from_utf8(&cm.print_datasize()).unwrap());
     }
 }
 
@@ -1525,7 +1674,7 @@ impl Default for CityModel {
             appearance: None,
             geometry_templates: None,
             extra: None,
-            extensions: None
+            extensions: None,
         }
     }
 }
@@ -1623,14 +1772,30 @@ impl Default for Transform {
 }
 
 impl CityObject {
-    pub fn new(cotype: CityObjectType, geometry: Vec<Geometry>, attributes: Option<Attributes>, geographical_extent: Option<BBox>, children: Option<Vec<String>>, parents: Option<Vec<String>>) -> Self {
-        Self { type_co: cotype, geometry, attributes, geographical_extent, children, parents }
+    pub fn new(
+        cotype: CityObjectType,
+        geometry: Vec<Geometry>,
+        attributes: Option<Attributes>,
+        geographical_extent: Option<BBox>,
+        children: Option<Vec<String>>,
+        parents: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            type_co: cotype,
+            geometry,
+            attributes,
+            geographical_extent,
+            children,
+            parents,
+        }
     }
 }
 
 impl<'de> Deserialize<'de> for CityObjectType {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where D: serde::Deserializer<'de>, {
+    where
+        D: serde::Deserializer<'de>,
+    {
         deserializer.deserialize_str(CityObjectTypeVisitor)
     }
 }
@@ -1645,7 +1810,9 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-        where E: serde::de::Error, {
+    where
+        E: serde::de::Error,
+    {
         // It would be nice to be case-insensitive, however the &str.to_lowercase()
         // method allocates a new String for the output, which would mean an extra allocation for
         // each semantic type in the data.
@@ -1683,9 +1850,11 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
             "TunnelHollowSpace" => Ok(CityObjectType::TunnelHollowSpace),
             "TunnelFurniture" => Ok(CityObjectType::TunnelFurniture),
             &_ => {
-                if value.chars().nth(0).is_some_and(|first_char| {
-                    first_char == '+'
-                }) {
+                if value
+                    .chars()
+                    .nth(0)
+                    .is_some_and(|first_char| first_char == '+')
+                {
                     Ok(CityObjectType::Extension(value.to_string()))
                 } else {
                     Err(serde::de::Error::custom(format!(
@@ -1700,41 +1869,109 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
 
 impl Serialize for CityObjectType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-        where S: serde::ser::Serializer, {
+    where
+        S: serde::ser::Serializer,
+    {
         match *self {
-            CityObjectType::Bridge => serializer.serialize_unit_variant("CityObjectType",0,"Bridge"),
-            CityObjectType::BridgePart => serializer.serialize_unit_variant("CityObjectType",1,"BridgePart"),
-            CityObjectType::BridgeInstallation => serializer.serialize_unit_variant("CityObjectType",2,"BridgeInstallation"),
-            CityObjectType::BridgeConstructiveElement => serializer.serialize_unit_variant("CityObjectType",3,"BridgeConstructiveElement"),
-            CityObjectType::BridgeRoom => serializer.serialize_unit_variant("CityObjectType",4,"BridgeRoom"),
-            CityObjectType::BridgeFurniture => serializer.serialize_unit_variant("CityObjectType",5,"BridgeFurniture"),
-            CityObjectType::Building => serializer.serialize_unit_variant("CityObjectType",6,"Building"),
-            CityObjectType::BuildingPart => serializer.serialize_unit_variant("CityObjectType",7,"BuildingPart"),
-            CityObjectType::BuildingInstallation => serializer.serialize_unit_variant("CityObjectType",8,"BuildingInstallation"),
-            CityObjectType::BuildingConstructiveElement => serializer.serialize_unit_variant("CityObjectType",9,"BuildingConstructiveElement"),
-            CityObjectType::BuildingFurniture => serializer.serialize_unit_variant("CityObjectType",10,"BuildingFurniture"),
-            CityObjectType::BuildingStorey => serializer.serialize_unit_variant("CityObjectType",11,"BuildingStorey"),
-            CityObjectType::BuildingRoom => serializer.serialize_unit_variant("CityObjectType",12,"BuildingRoom"),
-            CityObjectType::BuildingUnit => serializer.serialize_unit_variant("CityObjectType",13,"BuildingUnit"),
-            CityObjectType::CityFurniture => serializer.serialize_unit_variant("CityObjectType",14,"CityFurniture"),
-            CityObjectType::CityObjectGroup => serializer.serialize_unit_variant("CityObjectType",15,"CityObjectGroup"),
-            CityObjectType::Default => serializer.serialize_unit_variant("CityObjectType",16,"Default"),
-            CityObjectType::LandUse => serializer.serialize_unit_variant("CityObjectType",17,"LandUse"),
-            CityObjectType::OtherConstruction => serializer.serialize_unit_variant("CityObjectType",18,"OtherConstruction"),
-            CityObjectType::PlantCover => serializer.serialize_unit_variant("CityObjectType",19,"PlantCover"),
-            CityObjectType::SolitaryVegetationObject => serializer.serialize_unit_variant("CityObjectType",20,"SolitaryVegetationObject"),
-            CityObjectType::TINRelief => serializer.serialize_unit_variant("CityObjectType",21,"TINRelief"),
-            CityObjectType::WaterBody => serializer.serialize_unit_variant("CityObjectType",22,"WaterBody"),
-            CityObjectType::Road => serializer.serialize_unit_variant("CityObjectType",23,"Road"),
-            CityObjectType::Railway => serializer.serialize_unit_variant("CityObjectType",24,"Railway"),
-            CityObjectType::Waterway => serializer.serialize_unit_variant("CityObjectType",25,"Waterway"),
-            CityObjectType::TransportSquare => serializer.serialize_unit_variant("CityObjectType",26,"TransportSquare"),
-            CityObjectType::Tunnel => serializer.serialize_unit_variant("CityObjectType",27,"Tunnel"),
-            CityObjectType::TunnelPart => serializer.serialize_unit_variant("CityObjectType",28,"TunnelPart"),
-            CityObjectType::TunnelInstallation => serializer.serialize_unit_variant("CityObjectType",29,"TunnelInstallation"),
-            CityObjectType::TunnelConstructiveElement => serializer.serialize_unit_variant("CityObjectType",30,"TunnelConstructiveElement"),
-            CityObjectType::TunnelHollowSpace => serializer.serialize_unit_variant("CityObjectType",31,"TunnelHollowSpace"),
-            CityObjectType::TunnelFurniture => serializer.serialize_unit_variant("CityObjectType",32,"TunnelFurniture"),
+            CityObjectType::Bridge => {
+                serializer.serialize_unit_variant("CityObjectType", 0, "Bridge")
+            }
+            CityObjectType::BridgePart => {
+                serializer.serialize_unit_variant("CityObjectType", 1, "BridgePart")
+            }
+            CityObjectType::BridgeInstallation => {
+                serializer.serialize_unit_variant("CityObjectType", 2, "BridgeInstallation")
+            }
+            CityObjectType::BridgeConstructiveElement => {
+                serializer.serialize_unit_variant("CityObjectType", 3, "BridgeConstructiveElement")
+            }
+            CityObjectType::BridgeRoom => {
+                serializer.serialize_unit_variant("CityObjectType", 4, "BridgeRoom")
+            }
+            CityObjectType::BridgeFurniture => {
+                serializer.serialize_unit_variant("CityObjectType", 5, "BridgeFurniture")
+            }
+            CityObjectType::Building => {
+                serializer.serialize_unit_variant("CityObjectType", 6, "Building")
+            }
+            CityObjectType::BuildingPart => {
+                serializer.serialize_unit_variant("CityObjectType", 7, "BuildingPart")
+            }
+            CityObjectType::BuildingInstallation => {
+                serializer.serialize_unit_variant("CityObjectType", 8, "BuildingInstallation")
+            }
+            CityObjectType::BuildingConstructiveElement => serializer.serialize_unit_variant(
+                "CityObjectType",
+                9,
+                "BuildingConstructiveElement",
+            ),
+            CityObjectType::BuildingFurniture => {
+                serializer.serialize_unit_variant("CityObjectType", 10, "BuildingFurniture")
+            }
+            CityObjectType::BuildingStorey => {
+                serializer.serialize_unit_variant("CityObjectType", 11, "BuildingStorey")
+            }
+            CityObjectType::BuildingRoom => {
+                serializer.serialize_unit_variant("CityObjectType", 12, "BuildingRoom")
+            }
+            CityObjectType::BuildingUnit => {
+                serializer.serialize_unit_variant("CityObjectType", 13, "BuildingUnit")
+            }
+            CityObjectType::CityFurniture => {
+                serializer.serialize_unit_variant("CityObjectType", 14, "CityFurniture")
+            }
+            CityObjectType::CityObjectGroup => {
+                serializer.serialize_unit_variant("CityObjectType", 15, "CityObjectGroup")
+            }
+            CityObjectType::Default => {
+                serializer.serialize_unit_variant("CityObjectType", 16, "Default")
+            }
+            CityObjectType::LandUse => {
+                serializer.serialize_unit_variant("CityObjectType", 17, "LandUse")
+            }
+            CityObjectType::OtherConstruction => {
+                serializer.serialize_unit_variant("CityObjectType", 18, "OtherConstruction")
+            }
+            CityObjectType::PlantCover => {
+                serializer.serialize_unit_variant("CityObjectType", 19, "PlantCover")
+            }
+            CityObjectType::SolitaryVegetationObject => {
+                serializer.serialize_unit_variant("CityObjectType", 20, "SolitaryVegetationObject")
+            }
+            CityObjectType::TINRelief => {
+                serializer.serialize_unit_variant("CityObjectType", 21, "TINRelief")
+            }
+            CityObjectType::WaterBody => {
+                serializer.serialize_unit_variant("CityObjectType", 22, "WaterBody")
+            }
+            CityObjectType::Road => serializer.serialize_unit_variant("CityObjectType", 23, "Road"),
+            CityObjectType::Railway => {
+                serializer.serialize_unit_variant("CityObjectType", 24, "Railway")
+            }
+            CityObjectType::Waterway => {
+                serializer.serialize_unit_variant("CityObjectType", 25, "Waterway")
+            }
+            CityObjectType::TransportSquare => {
+                serializer.serialize_unit_variant("CityObjectType", 26, "TransportSquare")
+            }
+            CityObjectType::Tunnel => {
+                serializer.serialize_unit_variant("CityObjectType", 27, "Tunnel")
+            }
+            CityObjectType::TunnelPart => {
+                serializer.serialize_unit_variant("CityObjectType", 28, "TunnelPart")
+            }
+            CityObjectType::TunnelInstallation => {
+                serializer.serialize_unit_variant("CityObjectType", 29, "TunnelInstallation")
+            }
+            CityObjectType::TunnelConstructiveElement => {
+                serializer.serialize_unit_variant("CityObjectType", 30, "TunnelConstructiveElement")
+            }
+            CityObjectType::TunnelHollowSpace => {
+                serializer.serialize_unit_variant("CityObjectType", 31, "TunnelHollowSpace")
+            }
+            CityObjectType::TunnelFurniture => {
+                serializer.serialize_unit_variant("CityObjectType", 32, "TunnelFurniture")
+            }
             CityObjectType::Extension(ref s) => serializer.serialize_str(s),
         }
     }
@@ -1742,8 +1979,8 @@ impl Serialize for CityObjectType {
 
 impl<'de> Deserialize<'de> for LoD {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         deserializer.deserialize_str(LoDVisitor)
     }
@@ -1759,8 +1996,8 @@ impl<'de> Visitor<'de> for LoDVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-        where
-            E: serde::de::Error,
+    where
+        E: serde::de::Error,
     {
         match value {
             "0" => Ok(LoD::LoD0),
@@ -1793,8 +2030,8 @@ impl<'de> Visitor<'de> for LoDVisitor {
 
 impl Serialize for LoD {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-        where
-            S: serde::ser::Serializer,
+    where
+        S: serde::ser::Serializer,
     {
         match *self {
             LoD::LoD0 => serializer.serialize_str("0"),
@@ -1835,7 +2072,9 @@ impl Display for SemanticType {
 
 impl<'de> Deserialize<'de> for SemanticType {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where D: serde::Deserializer<'de>, {
+    where
+        D: serde::Deserializer<'de>,
+    {
         deserializer.deserialize_str(SemanticTypeVisitor)
     }
 }
@@ -1850,7 +2089,9 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-        where E: serde::de::Error, {
+    where
+        E: serde::de::Error,
+    {
         // It would be nice to be case-insensitive, however the &str.to_lowercase()
         // method allocates a new String for the output, which would mean an extra allocation for
         // each semantic type in the data.
@@ -1874,9 +2115,11 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
             "TransportationMarking" => Ok(SemanticType::TransportationMarking),
             "TransportationHole" => Ok(SemanticType::TransportationHole),
             &_ => {
-                if value.chars().nth(0).is_some_and(|first_char| {
-                    first_char == '+'
-                }) {
+                if value
+                    .chars()
+                    .nth(0)
+                    .is_some_and(|first_char| first_char == '+')
+                {
                     Ok(SemanticType::Extension(value.to_string()))
                 } else {
                     Err(serde::de::Error::custom(format!(
@@ -1884,33 +2127,67 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
                         value
                     )))
                 }
-            },
+            }
         }
     }
 }
 
 impl Serialize for SemanticType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-        where S: serde::ser::Serializer, {
+    where
+        S: serde::ser::Serializer,
+    {
         match *self {
-            SemanticType::RoofSurface => serializer.serialize_unit_variant("SemanticType", 0, "RoofSurface"),
-            SemanticType::GroundSurface => serializer.serialize_unit_variant("SemanticType", 1, "GroundSurface"),
-            SemanticType::WallSurface => serializer.serialize_unit_variant("SemanticType", 2, "WallSurface"),
-            SemanticType::ClosureSurface => serializer.serialize_unit_variant("SemanticType", 3, "ClosureSurface"),
-            SemanticType::OuterCeilingSurface => serializer.serialize_unit_variant("SemanticType", 4, "OuterCeilingSurface"),
-            SemanticType::OuterFloorSurface => serializer.serialize_unit_variant("SemanticType", 5, "OuterFloorSurface"),
+            SemanticType::RoofSurface => {
+                serializer.serialize_unit_variant("SemanticType", 0, "RoofSurface")
+            }
+            SemanticType::GroundSurface => {
+                serializer.serialize_unit_variant("SemanticType", 1, "GroundSurface")
+            }
+            SemanticType::WallSurface => {
+                serializer.serialize_unit_variant("SemanticType", 2, "WallSurface")
+            }
+            SemanticType::ClosureSurface => {
+                serializer.serialize_unit_variant("SemanticType", 3, "ClosureSurface")
+            }
+            SemanticType::OuterCeilingSurface => {
+                serializer.serialize_unit_variant("SemanticType", 4, "OuterCeilingSurface")
+            }
+            SemanticType::OuterFloorSurface => {
+                serializer.serialize_unit_variant("SemanticType", 5, "OuterFloorSurface")
+            }
             SemanticType::Window => serializer.serialize_unit_variant("SemanticType", 6, "Window"),
             SemanticType::Door => serializer.serialize_unit_variant("SemanticType", 7, "Door"),
-            SemanticType::InteriorWallSurface => serializer.serialize_unit_variant("SemanticType", 8, "InteriorWallSurface"),
-            SemanticType::CeilingSurface => serializer.serialize_unit_variant("SemanticType", 9, "CeilingSurface"),
-            SemanticType::FloorSurface => serializer.serialize_unit_variant("SemanticType", 10, "FloorSurface"),
-            SemanticType::WaterSurface => serializer.serialize_unit_variant("SemanticType", 11, "WaterSurface"),
-            SemanticType::WaterGroundSurface => serializer.serialize_unit_variant("SemanticType", 12, "WaterGroundSurface"),
-            SemanticType::WaterClosureSurface => serializer.serialize_unit_variant("SemanticType", 13, "WaterClosureSurface"),
-            SemanticType::TrafficArea => serializer.serialize_unit_variant("SemanticType", 14, "TrafficArea"),
-            SemanticType::AuxiliaryTrafficArea => serializer.serialize_unit_variant("SemanticType", 15, "AuxiliaryTrafficArea"),
-            SemanticType::TransportationMarking => serializer.serialize_unit_variant("SemanticType", 16, "TransportationMarking"),
-            SemanticType::TransportationHole => serializer.serialize_unit_variant("SemanticType", 17, "TransportationHole"),
+            SemanticType::InteriorWallSurface => {
+                serializer.serialize_unit_variant("SemanticType", 8, "InteriorWallSurface")
+            }
+            SemanticType::CeilingSurface => {
+                serializer.serialize_unit_variant("SemanticType", 9, "CeilingSurface")
+            }
+            SemanticType::FloorSurface => {
+                serializer.serialize_unit_variant("SemanticType", 10, "FloorSurface")
+            }
+            SemanticType::WaterSurface => {
+                serializer.serialize_unit_variant("SemanticType", 11, "WaterSurface")
+            }
+            SemanticType::WaterGroundSurface => {
+                serializer.serialize_unit_variant("SemanticType", 12, "WaterGroundSurface")
+            }
+            SemanticType::WaterClosureSurface => {
+                serializer.serialize_unit_variant("SemanticType", 13, "WaterClosureSurface")
+            }
+            SemanticType::TrafficArea => {
+                serializer.serialize_unit_variant("SemanticType", 14, "TrafficArea")
+            }
+            SemanticType::AuxiliaryTrafficArea => {
+                serializer.serialize_unit_variant("SemanticType", 15, "AuxiliaryTrafficArea")
+            }
+            SemanticType::TransportationMarking => {
+                serializer.serialize_unit_variant("SemanticType", 16, "TransportationMarking")
+            }
+            SemanticType::TransportationHole => {
+                serializer.serialize_unit_variant("SemanticType", 17, "TransportationHole")
+            }
             SemanticType::Extension(ref s) => serializer.serialize_str(s),
         }
     }
@@ -2074,19 +2351,35 @@ impl Metadata {
 
 impl Display for Metadata {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "geographical_extent: {:?}, identifier: {:?}, point_of_contact: {:?},
+        write!(
+            f,
+            "geographical_extent: {:?}, identifier: {:?}, point_of_contact: {:?},
         reference_date: {:?}, reference_system: {:?}, title: {:?}",
-        self.geographical_extent, self.identifier, self.point_of_contact, self.reference_date,
-        self.reference_system, self.title)
+            self.geographical_extent,
+            self.identifier,
+            self.point_of_contact,
+            self.reference_date,
+            self.reference_system,
+            self.title
+        )
     }
 }
 
 impl Display for Contact {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "contact_name: {}, email_address: {}, role: {:?}, website: {:?},
+        write!(
+            f,
+            "contact_name: {}, email_address: {}, role: {:?}, website: {:?},
         contact_type: {:?}, address: {:?}, phone: {:?}, organization: {:?},",
-        self.contact_name, self.email_address, self.role, self.website, self.contact_type,
-        self.address, self.phone, self.organization)
+            self.contact_name,
+            self.email_address,
+            self.role,
+            self.website,
+            self.contact_type,
+            self.address,
+            self.phone,
+            self.organization
+        )
     }
 }
 
@@ -2108,7 +2401,9 @@ impl Display for Extension {
     }
 }
 
-pub fn deserialize_attributes<'de, D>(deserializer: D) -> std::result::Result<Option<Attributes>, D::Error>
+pub fn deserialize_attributes<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Attributes>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
