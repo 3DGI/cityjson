@@ -11,12 +11,12 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "datasize")]
-use datasize::{DataSize, data_size};
-#[cfg(feature = "datasize")]
-use std::io::Write;
+use datasize::{data_size, DataSize};
 use derive_more::Display;
 use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "datasize")]
+use std::io::Write;
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -68,7 +68,7 @@ pub struct CityModel {
     pub version: Option<CityJSONVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transform: Option<Transform>,
-    #[serde(skip_deserializing, rename = "CityObjects")]
+    #[serde(rename = "CityObjects")]
     pub cityobjects: CityObjects,
     pub vertices: Vertices,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,7 +82,7 @@ pub struct CityModel {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
-    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub extra: Option<Attributes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Extensions>,
@@ -177,7 +177,7 @@ pub struct CityObject {
     pub type_co: CityObjectType,
     pub geometry: Vec<Geometry>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "camelCase")]
     pub geographical_extent: Option<BBox>,
@@ -1092,7 +1092,7 @@ pub struct Semantic {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
-    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes))]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes>,
 }
 
@@ -1606,17 +1606,33 @@ impl CityModel {
     #[cfg(feature = "datasize")]
     fn print_datasize(&self) -> Vec<u8> {
         let mut w: Vec<u8> = Vec::new();
-        writeln!(&mut w, "| {0: <10} | {1: <15} |", data_size(&self), "CityModel");
-        writeln!(&mut w, "| {0: <10} | {1: <15} |", data_size(&self.cityobjects), "CityObjects");
+        writeln!(
+            &mut w,
+            "| {0: <10} | {1: <15} |",
+            data_size(&self),
+            "CityModel"
+        ).unwrap();
+        writeln!(
+            &mut w,
+            "| {0: <10} | {1: <15} |",
+            data_size(&self.cityobjects),
+            "CityObjects"
+        ).unwrap();
         return w;
     }
 }
 
-fn sizeof_attributes(a: &Option<Attributes>) -> usize {
+fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
     if let Some(ref attributes) = a {
-        attributes.iter().map(|(k, v)| {
-            std::mem::size_of::<String>() + k.capacity() + sizeof_serde_value(v) + std::mem::size_of::<usize>() * 3
-        }).sum()
+        attributes
+            .iter()
+            .map(|(k, v)| {
+                std::mem::size_of::<String>()
+                    + k.capacity()
+                    + sizeof_serde_value(v)
+                    + std::mem::size_of::<usize>() * 3
+            })
+            .sum()
     } else {
         0
     }
@@ -1643,6 +1659,128 @@ fn sizeof_serde_value(v: &serde_json::Value) -> usize {
         }
 }
 
+#[derive(Debug, Default)]
+struct CityModelDataSize {
+    size_id: usize,
+    size_type_cm: usize,
+    size_version: usize,
+    size_transform: usize,
+    count_co: usize,
+    size_total_coid: usize,
+    count_geometry: usize,
+    size_total_geometry: usize,
+    geometries: Vec<GeometryDataSize>,
+    count_attributes: usize,
+    size_total_attributes: usize,
+    count_geographical_extent: usize,
+    size_total_geographical_extent: usize,
+    count_children: usize,
+    size_total_children_id: usize,
+    count_parents: usize,
+    size_total_parents_id: usize,
+    size_vertices: usize,
+    size_metadata: usize,
+    size_appearance: usize,
+    size_geometry_templates: usize,
+    size_extra: usize,
+    size_extensions: usize
+}
+
+#[derive(Debug)]
+struct GeometryDataSize {
+    count: usize,
+    total: usize,
+    lod: LoD,
+    boundaries: usize,
+    semantics: usize,
+    material: usize,
+    texture: usize,
+}
+
+impl Default for GeometryDataSize {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            total: 0,
+            lod: LoD::LoD0,
+            boundaries: 0,
+            semantics: 0,
+            material: 0,
+            texture: 0,
+        }
+    }
+}
+
+impl GeometryDataSize {
+    fn add_geometry(&mut self, geom: &Geometry) {
+        match &geom {
+            Geometry::MultiSurface {
+                boundaries,
+                semantics,
+                material,
+                texture,
+                ..
+            } => {
+                self.boundaries += total_heap_stack_size(boundaries);
+                self.semantics += total_heap_stack_size(semantics);
+                self.texture += total_heap_stack_size(texture);
+                self.material += total_heap_stack_size(material);
+            }
+            Geometry::Solid {
+                boundaries,
+                semantics,
+                material,
+                texture,
+                ..
+            } => {
+                self.boundaries += total_heap_stack_size(boundaries);
+                self.semantics += total_heap_stack_size(semantics);
+                self.texture += total_heap_stack_size(texture);
+                self.material += total_heap_stack_size(material);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn add_to_geometrydatasize_lod(
+    geom: &Geometry,
+    lod: &LoD,
+    geom_lod0_size: &mut GeometryDataSize,
+    geom_lod12_size: &mut GeometryDataSize,
+    geom_lod13_size: &mut GeometryDataSize,
+    geom_lod22_size: &mut GeometryDataSize,
+) {
+    if *lod == LoD::LoD0 {
+        geom_lod0_size.count += 1;
+        geom_lod0_size.total += total_heap_stack_size(geom);
+        geom_lod0_size.add_geometry(geom);
+    } else if *lod == LoD::LoD1_2 {
+        geom_lod12_size.count += 1;
+        geom_lod12_size.total += total_heap_stack_size(geom);
+        geom_lod12_size.add_geometry(geom);
+    } else if *lod == LoD::LoD1_3 {
+        geom_lod13_size.count += 1;
+        geom_lod13_size.total += total_heap_stack_size(geom);
+        geom_lod13_size.add_geometry(geom);
+    } else if *lod == LoD::LoD2_2 {
+        geom_lod22_size.count += 1;
+        geom_lod22_size.total += total_heap_stack_size(geom);
+        geom_lod22_size.add_geometry(geom);
+    }
+}
+
+/// Calculate the total heap and stack size of a variable.
+fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
+    data_size(data) + std::mem::size_of_val(data)
+}
+
+#[derive(DataSize)]
+struct CityModelSerdeValue {
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_serde_value))]
+    inner: serde_json::Value
+}
+
 mod test_datasize {
     use super::*;
     use std::fs::File;
@@ -1651,13 +1789,100 @@ mod test_datasize {
 
     #[test]
     fn bag3d() {
-        let dummy_complete = PathBuf::from("resources").join("data").join("downloaded").join("10-356-724.city.json");
+        let dummy_complete = PathBuf::from("resources")
+            .join("data")
+            .join("downloaded")
+            .join("10-356-724_one.city.json");
         let mut file = File::open(dummy_complete).unwrap();
         let mut cityjson_json = String::new();
         file.read_to_string(&mut cityjson_json).unwrap();
 
+        let mut cm_size = CityModelDataSize {
+            ..Default::default()
+        };
+        let mut geom_lod0_size = GeometryDataSize {
+            lod: LoD::LoD0,
+            ..Default::default()
+        };
+        let mut geom_lod12_size = GeometryDataSize {
+            lod: LoD::LoD1_2,
+            ..Default::default()
+        };
+        let mut geom_lod13_size = GeometryDataSize {
+            lod: LoD::LoD1_3,
+            ..Default::default()
+        };
+        let mut geom_lod22_size = GeometryDataSize {
+            lod: LoD::LoD2_2,
+            ..Default::default()
+        };
         let cm: CityModel = serde_json::from_str(&cityjson_json).unwrap();
-        println!("{}", std::str::from_utf8(&cm.print_datasize()).unwrap());
+        let cm_serde_value = CityModelSerdeValue {
+            inner: serde_json::from_str(&cityjson_json).unwrap()
+        };
+        cm_size.size_id = total_heap_stack_size(&cm.id);
+        cm_size.size_type_cm = total_heap_stack_size(&cm.type_cm);
+        cm_size.size_version = total_heap_stack_size(&cm.version);
+        cm_size.size_transform = total_heap_stack_size(&cm.transform);
+        cm_size.size_vertices = total_heap_stack_size(&cm.vertices);
+        cm_size.size_metadata = total_heap_stack_size(&cm.metadata);
+        cm_size.size_appearance = total_heap_stack_size(&cm.appearance);
+        cm_size.size_geometry_templates = total_heap_stack_size(&cm.geometry_templates);
+        cm_size.size_extra = total_heap_stack_size(&cm.extra.as_ref());
+        cm_size.size_extensions = total_heap_stack_size(&cm.extensions);
+
+        for (coid, co) in cm.cityobjects.iter() {
+            cm_size.count_co += 1;
+            cm_size.size_total_coid += total_heap_stack_size(coid);
+            for geom in co.geometry.iter() {
+                cm_size.count_geometry += 1;
+                cm_size.size_total_geometry += total_heap_stack_size(geom);
+                match geom {
+                    Geometry::MultiSurface { lod, .. } => {
+                        add_to_geometrydatasize_lod(
+                            geom,
+                            lod,
+                            &mut geom_lod0_size,
+                            &mut geom_lod12_size,
+                            &mut geom_lod13_size,
+                            &mut geom_lod22_size,
+                        );
+                    }
+                    Geometry::Solid { lod, .. } => {
+                        add_to_geometrydatasize_lod(
+                            geom,
+                            lod,
+                            &mut geom_lod0_size,
+                            &mut geom_lod12_size,
+                            &mut geom_lod13_size,
+                            &mut geom_lod22_size,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            if co.attributes.is_some() {
+                cm_size.count_attributes += 1;
+            }
+            cm_size.size_total_attributes += total_heap_stack_size(&co.attributes.as_ref());
+            if co.geographical_extent.is_some() {
+                cm_size.count_geographical_extent += 1;
+            }
+            cm_size.size_total_geographical_extent += total_heap_stack_size(&co.geographical_extent);
+            if let Some(ref children) = co.children {
+                cm_size.count_children += children.len();
+            }
+            cm_size.size_total_children_id += total_heap_stack_size(&co.children);
+            if let Some(ref parents) = co.parents {
+                cm_size.count_parents += parents.len();
+            }
+            cm_size.size_total_parents_id += total_heap_stack_size(&co.parents);
+        }
+        cm_size.geometries = vec![geom_lod0_size, geom_lod12_size, geom_lod13_size, geom_lod22_size];
+        println!("CityJSON string: {}", total_heap_stack_size(&cityjson_json));
+        println!("CityModel serde_json::Value : {}", total_heap_stack_size(&cm_serde_value));
+        println!("CityModel total: {}", total_heap_stack_size(&cm));
+        println!("{:#?}", &cm_size);
     }
 }
 
