@@ -5,14 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-#[[bin]]
-#name = "cj_3dbag"
-#path = "src/b_cj_3dbag.rs"
-#
-#[[bin]]
-#name = "sv_3dbag"
-#path = "src/b_sv_3dbag.rs"
-#
+[[bin]]
+name = "cj_3dbag"
+path = "src/b_cj_3dbag.rs"
+
+[[bin]]
+name = "sv_3dbag"
+path = "src/b_sv_3dbag.rs"
+
 #[[bin]]
 #name = "cj_3dbvz"
 #path = "src/b_cj_3dbvz.rs"

@@ -1771,6 +1771,7 @@ fn add_to_geometrydatasize_lod(
 }
 
 /// Calculate the total heap and stack size of a variable.
+#[cfg(feature = "datasize")]
 fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
     data_size(data) + std::mem::size_of_val(data)
 }
@@ -1792,7 +1793,7 @@ mod test_datasize {
         let dummy_complete = PathBuf::from("resources")
             .join("data")
             .join("downloaded")
-            .join("10-356-724_one.city.json");
+            .join("10-356-724.city.json");
         let mut file = File::open(dummy_complete).unwrap();
         let mut cityjson_json = String::new();
         file.read_to_string(&mut cityjson_json).unwrap();
