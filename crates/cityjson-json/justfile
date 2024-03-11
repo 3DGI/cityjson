@@ -1,26 +1,48 @@
 set dotenv-load := true
 datadir := "resources" / "data" / "downloaded"
 
-# Download test data for the benchmarks
-download:
+# Create dir for downloaded files
+_prepare:
     #!/usr/bin/env bash
     set -euxo pipefail
-    # Create dir for downloaded files
     if [ ! -d {{datadir}} ]; then
-      mkdir {{datadir}}
+      mkdir -p {{datadir}}
     fi
-    # Download the reconstructed features
-    tiles=( "10/356/724" )
-    for tile_id in ${tiles[@]} ;
+
+# Download test data for the benchmarks from the 3DBAG
+_download-3dbag: _prepare
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    version="v20231008"
+    tiles=( "10-356-724" )
+    download_url="https://data.3dbag.nl/"$version"/tiles"
+    for tile_id in "${tiles[@]}" ;
     do
-      filename="${tile_id//'/'/'-'}.city.json.gz"
-      filepath="{{datadir}}/$filename"
-      if [ ! -f ${filepath%.*} ]; then
-          wget "https://data.3dbag.nl/cityjson/v20231008/tiles/$tile_id/$filename" -P {{datadir}}
-          gunzip "$filepath"
-      fi
+      tile_path=${tile_id//[-]//}
+      tile_filename=$tile_id".city.json.gz"
+      wget $download_url"/"$tile_path"/"$tile_filename -O {{datadir}}"/"$tile_filename
+      gunzip {{datadir}}"/"$tile_filename
+    done
+    wget "https://data.3dbag.nl/"$version"/metadata.json" -O {{datadir}}"/metadata.json"
+
+# Download test data for the benchmarks from the 3D Basivoorziening
+_download-3dbasisvoorziening: _prepare
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    version="2020"
+    tiles=( "30gz1" )
+    download_url="https://download.pdok.nl/kadaster/basisvoorziening-3d/v1_0//"$version"/volledig"
+    for tile_id in "${tiles[@]}" ;
+    do
+      tile_filename=$tile_id"_"$version"_volledig.zip"
+      wget $download_url"/"$tile_filename -O {{datadir}}"/"$tile_filename
+      unzip {{datadir}}"/"$tile_filename -d {{datadir}}
+      rm {{datadir}}"/"$tile_filename
     done
 
-# Delete all data files
+# Download test data for the benchmarks
+download: _download-3dbag _download-3dbasisvoorziening
+
+# Delete all downloaded files
 clean:
     rm -rf {{datadir}}
