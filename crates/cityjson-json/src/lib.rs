@@ -283,6 +283,7 @@
 pub mod v1_1;
 pub mod v2_0;
 mod errors;
+mod datasize;
 
 
 use std::fmt;

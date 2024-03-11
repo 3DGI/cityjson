@@ -25,6 +25,7 @@ path = "src/b_sv_3dbag.rs"
 name = "serde_cityjson"
 path = "src/lib.rs"
 
+# TODO: Add fancy note to the docs that the datasize module is only enabled with the datasize feature, see how to https://www.reddit.com/r/rust/comments/slk7x2/how_do_i_show_taht_a_module_depends_on_a_feature/
 [features]
 datasize = ["dep:datasize"]
 
