@@ -114,10 +114,11 @@ impl CityModelDataSize {
                     _ => {}
                 }
             }
-            if co.attributes.is_some() {
-                co_size.count_attributes += 1;
+            if let Some(ref attributes) = co.attributes {
+                co_size.count_attributes += attributes.len();
             }
-            co_size.total_attributes += total_heap_stack_size(&co.attributes.as_ref());
+            co_size.total_attributes +=
+                sizeof_attributes_option(&co.attributes) + std::mem::size_of_val(&co.attributes);
             if co.geographical_extent.is_some() {
                 co_size.count_geographical_extent += 1;
             }
@@ -325,5 +326,14 @@ mod test {
         );
         println!("CityModel serde_cityjson: {}", total_heap_stack_size(&cm));
         println!("{}", &cm_size);
+    }
+
+    #[test]
+    #[cfg(feature = "datasize")]
+    fn serde_value_string_size() {
+        let val: serde_json::Value = serde_json::from_str(r#""abcd""#).unwrap();
+        dbg!(sizeof_serde_value(&val));
+        let val: serde_json::Value = serde_json::from_str(r#""abcdefgh""#).unwrap();
+        dbg!(sizeof_serde_value(&val));
     }
 }
