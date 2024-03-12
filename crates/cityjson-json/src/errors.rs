@@ -1,8 +1,9 @@
 //! When operations on city models go wrong.
-use crate::{SupportedFileExtension};
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
+
+use crate::SupportedFileExtension;
 
 pub enum Error {
     ExpectedCityJSON(String),

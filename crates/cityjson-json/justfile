@@ -46,3 +46,7 @@ download: _download-3dbag _download-3dbasisvoorziening
 # Delete all downloaded files
 clean:
     rm -rf {{datadir}}
+
+# Build and open the crate documentation
+doc:
+    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open

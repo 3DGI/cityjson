@@ -1,7 +1,8 @@
-use crate::errors::{Error, Result};
-
 use std::fmt;
+
 use serde::{Deserialize, Serialize};
+
+use crate::errors::{Error, Result};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CityModel {

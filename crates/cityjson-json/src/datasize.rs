@@ -2,11 +2,13 @@
 //! module only used for performance optimization during the development of the library. The data
 //! size estimation has a significant runtime overhead, so don't enable the corresponding "datasize"
 //! feature unless you need it.
-use crate::v1_1::*;
-use datasize::{data_size, DataSize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
+
+use datasize::{data_size, DataSize};
+
+use crate::v1_1::*;
 
 /// Stores the size of [CityModel] and its members. The members `CityModelDataSize` hold the size in
 /// bytes of their corresponding [CityModel] member.
@@ -284,13 +286,13 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
 }
 
 /// Wrapper type over a serde_json::Value that DataSize can be implemented for the inner Value.
+#[derive(DataSize)]
 pub(crate) struct CityModelSerdeValue {
     #[data_size(with = sizeof_serde_value)]
     inner: serde_json::Value,
 }
 
 mod test {
-    use super::*;
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;

@@ -5,20 +5,20 @@
 //! The main struct is [CityModel], which represents a CityJSON or CityJSONFeature object.
 //! See the examples of usage by the various members.
 
-use crate::errors::{Error, Result};
-
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-
 #[cfg(feature = "datasize")]
-use crate::datasize::{sizeof_attributes_option, CityModelDataSize};
+use std::io::Write;
+
 #[cfg(feature = "datasize")]
 use datasize::{data_size, DataSize};
 use derive_more::Display;
-use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
+use serde::de::Visitor;
+
 #[cfg(feature = "datasize")]
-use std::io::Write;
+use crate::datasize::{CityModelDataSize, sizeof_attributes_option};
+use crate::errors::{Error, Result};
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for

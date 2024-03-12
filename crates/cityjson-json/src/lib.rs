@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! CityJSON serialization library.\
 //! `serde_cityjson` provides [serde-serializable](https://serde.rs/) Rust data structures for the
 //! complete CityJSON specification, including a support for Extensions.
@@ -280,18 +281,19 @@
 //!
 //!
 //!
-pub mod v1_1;
-pub mod v2_0;
-mod errors;
-#[cfg(feature = "datasize")]
-mod datasize;
-
-
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Seek};
 use std::path::Path;
-use serde::{Deserialize};
+
+use serde::Deserialize;
+
+#[cfg_attr(docsrs, doc(cfg(feature = "datasize")))]
+#[cfg(feature = "datasize")]
+pub mod datasize;
+pub mod errors;
+pub mod v1_1;
+pub mod v2_0;
 
 #[non_exhaustive]
 #[derive(Debug)]
@@ -315,7 +317,6 @@ impl fmt::Display for SupportedFileExtension {
     }
 }
 
-
 #[derive(Deserialize)]
 struct CityJSONVersionString {
     version: String,
@@ -338,7 +339,10 @@ pub fn deserialize_cityjson(cj: &str) -> errors::Result<CityJSON> {
             let cm = serde_json::from_str::<v2_0::CityModel>(cj)?;
             Ok(CityJSON::V2_0(cm))
         }
-        _ => { Err(errors::Error::UnsupportedVersion(cm.version, "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string())) }
+        _ => Err(errors::Error::UnsupportedVersion(
+            cm.version,
+            "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string(),
+        )),
     }
 }
 
@@ -358,13 +362,9 @@ pub fn deserialize_from_path<P: AsRef<Path>>(path: P) -> errors::Result<CityJSON
             let cm: v2_0::CityModel = serde_json::from_reader(reader)?;
             Ok(CityJSON::V2_0(cm))
         }
-        _ => { Err(errors::Error::UnsupportedVersion(cm.version, "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string())) }
+        _ => Err(errors::Error::UnsupportedVersion(
+            cm.version,
+            "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string(),
+        )),
     }
-}
-
-pub fn serde_value<P: AsRef<Path>>(path: P) -> serde_json::Result<serde_json::Value> {
-    let file = File::open(path.as_ref()).unwrap();
-    let reader = BufReader::new(&file);
-    let cm: serde_json::Value = serde_json::from_reader(reader)?;
-    Ok(cm)
 }

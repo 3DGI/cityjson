@@ -1,9 +1,19 @@
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 
-use serde_cityjson::{deserialize_from_path, serde_value};
+use serde_cityjson::deserialize_from_path;
+
+/// Deserialize into a serde_json::Value.
+fn serde_value<P: AsRef<Path>>(path: P) -> serde_json::Result<serde_json::Value> {
+    let file = File::open(path.as_ref()).unwrap();
+    let reader = BufReader::new(&file);
+    let cm: serde_json::Value = serde_json::from_reader(reader)?;
+    Ok(cm)
+}
 
 /// The measurement time needs to be large enough so that all samples can complete execution and a
 /// bit more. However, [linear sampling](https://bheisler.github.io/criterion.rs/book/user_guide/advanced_configuration.html#sampling-mode)
@@ -30,7 +40,10 @@ fn real_data(c: &mut Criterion) {
     let expected_time_per_test = Duration::from_millis(140);
     group_3dbag.sample_size(sample_size as usize);
     group_3dbag.warm_up_time(expected_time_per_test * warm_up_multiplier);
-    group_3dbag.measurement_time(calculate_measurement_time(expected_time_per_test, sample_size));
+    group_3dbag.measurement_time(calculate_measurement_time(
+        expected_time_per_test,
+        sample_size,
+    ));
     group_3dbag.sampling_mode(sampling_mode);
     group_3dbag.bench_function("serde_cityjson", |b| {
         b.iter_with_large_drop(|| {
@@ -52,7 +65,10 @@ fn real_data(c: &mut Criterion) {
     let expected_time_per_test = Duration::new(9, 0);
     group_3dbvz.sample_size(sample_size as usize);
     group_3dbvz.warm_up_time(expected_time_per_test * warm_up_multiplier);
-    group_3dbvz.measurement_time(calculate_measurement_time(expected_time_per_test, sample_size));
+    group_3dbvz.measurement_time(calculate_measurement_time(
+        expected_time_per_test,
+        sample_size,
+    ));
     group_3dbvz.sampling_mode(sampling_mode);
     group_3dbvz.bench_function("serde_cityjson", |b| {
         b.iter_with_large_drop(|| {
