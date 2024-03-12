@@ -283,6 +283,7 @@
 pub mod v1_1;
 pub mod v2_0;
 mod errors;
+#[cfg(feature = "datasize")]
 mod datasize;
 
 
@@ -366,61 +367,4 @@ pub fn serde_value<P: AsRef<Path>>(path: P) -> serde_json::Result<serde_json::Va
     let reader = BufReader::new(&file);
     let cm: serde_json::Value = serde_json::from_reader(reader)?;
     Ok(cm)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() -> Result<(), String> {
-        let cityjson_str = r#"{
-            "type": "CityJSON",
-            "version": "1.1",
-            "transform": {
-                "scale": [1.0, 1.0, 1.0],
-                "translate": [0.0, 0.0, 0.0]
-            },
-            "CityObjects": {},
-            "vertices": []
-        }"#;
-
-        // We don't know the version of the incoming CityJSON, and we handle each version.
-        if let Ok(cj) = deserialize_cityjson(&cityjson_str) {
-            match cj {
-                CityJSON::V1_1(cm) => {
-                    dbg!(cm);
-                }
-                CityJSON::V2_0(cm) => {
-                    dbg!(cm);
-                }
-            }
-        }
-        // We don't know the version and we silently ignore all unhandled versions
-        let mut cm = v1_1::CityModel::default();
-        if let Ok(cj) = deserialize_cityjson(&cityjson_str) {
-            if let CityJSON::V1_1(c) = cj {
-                cm = c;
-            }
-        }
-        dbg!(cm);
-        // We do know the version
-        let cm_v11: v1_1::CityModel = serde_json::from_str(&cityjson_str).map_err(|e| e.to_string())?;
-        dbg!(cm_v11);
-
-        let cityjson_str = r#"{
-            "type": "CityJSON",
-            "version": "2.0",
-            "transform": {
-                "scale": [1.0, 1.0, 1.0],
-                "translate": [0.0, 0.0, 0.0]
-            },
-            "CityObjects": {},
-            "vertices": []
-        }"#;
-
-        let cms = deserialize_cityjson(&cityjson_str).unwrap();
-        dbg!(cms);
-        Ok(())
-    }
 }

@@ -3,11 +3,9 @@
 //! size estimation has a significant runtime overhead, so don't enable the corresponding "datasize"
 //! feature unless you need it.
 use crate::v1_1::*;
-#[cfg(feature = "datasize")]
 use datasize::{data_size, DataSize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-#[cfg(feature = "datasize")]
 use std::io::Write;
 
 /// Stores the size of [CityModel] and its members. The members `CityModelDataSize` hold the size in
@@ -29,7 +27,6 @@ pub(crate) struct CityModelDataSize {
 
 impl CityModelDataSize {
     /// Calculate the size of a [CityModel].
-    #[cfg(feature = "datasize")]
     pub(crate) fn compute_from(cm: &CityModel) -> Self {
         let mut cm_size = CityModelDataSize {
             ..Default::default()
@@ -210,7 +207,6 @@ impl Default for GeometryDataSize {
 
 impl GeometryDataSize {
     /// Compute the size of a Geometry and add the values.
-    #[cfg(feature = "datasize")]
     pub(crate) fn add_geometry(&mut self, geom: &Geometry) {
         match &geom {
             Geometry::MultiSurface {
@@ -243,13 +239,11 @@ impl GeometryDataSize {
 }
 
 /// Calculate the total heap and stack size of a variable.
-#[cfg(feature = "datasize")]
 fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
     data_size(data) + std::mem::size_of_val(data)
 }
 
 /// Compute the heap size of the optional Attributes.
-#[cfg(feature = "datasize")]
 pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
     if let Some(ref attributes) = a {
         attributes
@@ -269,7 +263,6 @@ pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
 /// Compute the heap size of a serde_json::Value.
 ///
 /// From https://stackoverflow.com/a/76456111
-#[cfg(feature = "datasize")]
 pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
     std::mem::size_of::<serde_json::Value>()
         + match v {
@@ -291,9 +284,8 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
 }
 
 /// Wrapper type over a serde_json::Value that DataSize can be implemented for the inner Value.
-#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub(crate) struct CityModelSerdeValue {
-    #[cfg_attr(feature = "datasize", data_size(with = sizeof_serde_value))]
+    #[data_size(with = sizeof_serde_value)]
     inner: serde_json::Value,
 }
 
@@ -304,7 +296,6 @@ mod test {
     use std::path::PathBuf;
 
     #[test]
-    #[cfg(feature = "datasize")]
     fn bag3d() {
         let dummy_complete = PathBuf::from("resources")
             .join("data")
@@ -329,7 +320,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "datasize")]
     fn serde_value_string_size() {
         let val: serde_json::Value = serde_json::from_str(r#""abcd""#).unwrap();
         dbg!(sizeof_serde_value(&val));

@@ -13,13 +13,13 @@ path = "src/b_cj_3dbag.rs"
 name = "sv_3dbag"
 path = "src/b_sv_3dbag.rs"
 
-#[[bin]]
-#name = "cj_3dbvz"
-#path = "src/b_cj_3dbvz.rs"
-#
-#[[bin]]
-#name = "sv_3dbvz"
-#path = "src/b_sv_3dbvz.rs"
+[[bin]]
+name = "cj_3dbvz"
+path = "src/b_cj_3dbvz.rs"
+
+[[bin]]
+name = "sv_3dbvz"
+path = "src/b_sv_3dbvz.rs"
 
 [lib]
 name = "serde_cityjson"
