@@ -7,11 +7,9 @@
 
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-#[cfg(feature = "datasize")]
-use std::io::Write;
 
 #[cfg(feature = "datasize")]
-use datasize::{data_size, DataSize};
+use datasize::{DataSize};
 use derive_more::Display;
 use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
@@ -2352,5 +2350,5 @@ where
     D: serde::de::Deserializer<'de>,
 {
     let s = HashMap::deserialize(deserializer)?;
-    Ok((s.len() != 0).then_some(s))
+    Ok((!s.is_empty()).then_some(s))
 }

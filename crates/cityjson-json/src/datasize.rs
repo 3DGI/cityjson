@@ -435,21 +435,3 @@ pub struct CityModelSerdeValue {
     #[data_size(with = sizeof_serde_value)]
     pub inner: serde_json::Value,
 }
-
-mod test {
-    use std::path::PathBuf;
-
-    use super::*;
-
-    #[test]
-    fn bag3d() {
-        let filename = "10-356-724";
-        let dummy_complete = PathBuf::from("resources")
-            .join("data")
-            .join("downloaded")
-            .join(filename)
-            .with_extension("city.json");
-        let record = DataSizeRecord::compute_from_file(&dummy_complete).unwrap();
-        println!("{:#?}", &record);
-    }
-}
