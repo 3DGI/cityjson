@@ -50,3 +50,9 @@ clean:
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open
+
+# Run all benchmarks and generate the comparison plots. Requires a python virtualenv in "resources/compare_benchmarks/.venv"
+bench:
+    cargo bench --bench speed --
+    cargo bench --features datasize --bench datasize --
+    resources/compare_benchmarks/.venv/bin/python resources/compare_benchmarks/compare_benchmarks.py

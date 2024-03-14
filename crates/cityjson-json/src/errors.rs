@@ -10,7 +10,8 @@ pub enum Error {
     ExpectedCityJSONFeature(String),
     InvalidExtension(PathBuf),
     Io(std::io::Error),
-    MalformedCityJSON(serde_json::Error, Option<serde_json::Value>), ///Some(_) if JSON was syntactically valid
+    MalformedCityJSON(serde_json::Error, Option<serde_json::Value>),
+    ///Some(_) if JSON was syntactically valid
     MetadataError(String),
     StreamingError(String),
     UnsupportedExtension,

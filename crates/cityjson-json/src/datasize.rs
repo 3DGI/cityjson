@@ -3,17 +3,161 @@
 //! size estimation has a significant runtime overhead, so don't enable the corresponding "datasize"
 //! feature unless you need it.
 use std::collections::HashMap;
+use std::env;
 use std::fmt::{Display, Formatter};
-use std::io::Write;
+use std::fs;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use datasize::{data_size, DataSize};
+use serde::{Deserialize, Serialize};
 
 use crate::v1_1::*;
 
+/// Returns the Cargo target directory, possibly calling `cargo metadata` to
+/// figure it out.
+///
+///
+/// # Licence notice
+/// Copyright 2014 Jorge Aparicio.
+/// Function copied from: https://github.com/bheisler/criterion.rs/blob/master/src/lib.rs.
+/// No changes were made to the the function.
+fn cargo_target_directory() -> Option<PathBuf> {
+    #[derive(Deserialize)]
+    struct Metadata {
+        target_directory: PathBuf,
+    }
+
+    env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .or_else(|| {
+            let output = Command::new(env::var_os("CARGO")?)
+                .args(["metadata", "--format-version", "1"])
+                .output()
+                .ok()?;
+            let metadata: Metadata = serde_json::from_slice(&output.stdout).ok()?;
+            Some(metadata.target_directory)
+        })
+}
+
+pub struct SerdeCityJSONDataSize {
+    output_directory: PathBuf,
+}
+
+impl SerdeCityJSONDataSize {
+    pub fn new(output_directory: Option<PathBuf>) -> Self {
+        Self {
+            output_directory: output_directory.unwrap_or_else(|| match cargo_target_directory() {
+                None => PathBuf::from("target/serde_cityjson_datasize"),
+                Some(path) => path.join("serde_cityjson_datasize"),
+            }),
+        }
+    }
+    pub fn run<P: AsRef<Path>>(
+        &self,
+        group_id: &str,
+        benchmark_id: &str,
+        path: P,
+    ) -> Result<(), String> {
+        println!("Running datasize benchmark {}/{}", group_id, benchmark_id);
+        let record = DataSizeRecord::compute_from_file(path.as_ref()).map_err(|e| e.to_string())?;
+        let filename = "datasizes.json";
+        let bench_dir_new = self
+            .output_directory
+            .join(group_id)
+            .join(benchmark_id)
+            .join("new");
+        let bench_filename_new = bench_dir_new.join(filename);
+        let bench_dir_base = self
+            .output_directory
+            .join(group_id)
+            .join(benchmark_id)
+            .join("base");
+        let bench_filename_base = bench_dir_base.join(filename);
+        let mut base_created: bool = false;
+        if bench_dir_new.exists() {
+            fs::create_dir_all(&bench_dir_base).map_err(|e| e.to_string())?;
+            fs::copy(&bench_filename_new, &bench_filename_base).map_err(|e| e.to_string())?;
+            base_created = true;
+        }
+        fs::create_dir_all(&bench_dir_new).map_err(|e| e.to_string())?;
+        record
+            .save(&bench_filename_new)
+            .map_err(|e| e.to_string())?;
+        if base_created {
+            Self::compare_runs(bench_filename_base, bench_filename_new)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn compare_runs<P: AsRef<Path>>(base_path: P, new_path: P) -> Result<(), String> {
+        let base_file = File::open(base_path.as_ref()).map_err(|e| e.to_string())?;
+        let new_file = File::open(new_path.as_ref()).map_err(|e| e.to_string())?;
+        let base: DataSizeRecord =
+            serde_json::from_reader(&base_file).map_err(|e| e.to_string())?;
+        let new: DataSizeRecord = serde_json::from_reader(&new_file).map_err(|e| e.to_string())?;
+        let new_size_percent =
+            new.serde_cityjson_total as f64 / base.serde_cityjson_total as f64 * 100.0;
+        let new_size_mb = new.serde_cityjson_total as f64 * 1e-6;
+
+        let new_size_percent_json =
+            new.serde_cityjson_total as f64 / base.json as f64 * 100.0;
+        let json_mb = new.json as f64 * 1e-6;
+        println!("\tNew serde_cityjson data size is:\n\t\t{new_size_mb:.2} MB, {new_size_percent:.3}% of the previous run\n\t\t{new_size_percent_json:.3}% of the JSON string ({json_mb:.2} MB)");
+        Ok(())
+    }
+}
+
+/// Stores one record of the measured datasizes.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct DataSizeRecord {
+    /// Size of the JSON String in memory
+    json: usize,
+    /// Size of the serde_json::Value
+    serde_value_total: usize,
+    /// Size of the serde_cityjson::CityModel
+    serde_cityjson_total: usize,
+    /// Detailed size of the serde_cityjson::CityModel
+    serde_cityjson_citymodel: CityModelDataSize,
+}
+
+impl DataSizeRecord {
+    /// Compute the size of the JSON string, serde_json::Value and
+    /// serde_cityjson::CityModel from a CityJSON file.
+    ///
+    /// # Panics
+    /// The function will panic if anything goes wrong.
+    pub fn compute_from_file<P: AsRef<Path>>(path: P) -> Result<Self, String> {
+        let mut file = File::open(path.as_ref()).map_err(|e| e.to_string())?;
+        let mut cityjson_json = String::new();
+        file.read_to_string(&mut cityjson_json)
+            .map_err(|e| e.to_string())?;
+        let cm_serde_value = CityModelSerdeValue {
+            inner: serde_json::from_str(&cityjson_json).map_err(|e| e.to_string())?,
+        };
+        let cm: CityModel = serde_json::from_str(&cityjson_json).unwrap();
+        let cm_size = CityModelDataSize::compute_from(&cm);
+        Ok(DataSizeRecord {
+            json: total_heap_stack_size(&cityjson_json),
+            serde_value_total: total_heap_stack_size(&cm_serde_value),
+            serde_cityjson_total: total_heap_stack_size(&cm),
+            serde_cityjson_citymodel: cm_size,
+        })
+    }
+
+    fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        let file_out = File::create(path.as_ref()).map_err(|e| e.to_string())?;
+        serde_json::to_writer(file_out, &self).map_err(|e| e.to_string())
+    }
+}
+
 /// Stores the size of [CityModel] and its members. The members `CityModelDataSize` hold the size in
 /// bytes of their corresponding [CityModel] member.
-#[derive(Debug, Default)]
-pub(crate) struct CityModelDataSize {
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct CityModelDataSize {
     id: usize,
     type_cm: usize,
     version: usize,
@@ -29,7 +173,7 @@ pub(crate) struct CityModelDataSize {
 
 impl CityModelDataSize {
     /// Calculate the size of a [CityModel].
-    pub(crate) fn compute_from(cm: &CityModel) -> Self {
+    pub fn compute_from(cm: &CityModel) -> Self {
         let mut cm_size = CityModelDataSize {
             ..Default::default()
         };
@@ -64,7 +208,7 @@ impl CityModelDataSize {
                         material,
                     } => {
                         if geometries_size.contains_key(lod) {
-                            let mut geomsize = geometries_size.get_mut(lod).unwrap();
+                            let geomsize = geometries_size.get_mut(lod).unwrap();
                             geomsize.count += 1;
                             geomsize.total += total_heap_stack_size(geom);
                             geomsize.add_geometry(geom);
@@ -91,7 +235,7 @@ impl CityModelDataSize {
                         material,
                     } => {
                         if geometries_size.contains_key(lod) {
-                            let mut geomsize = geometries_size.get_mut(lod).unwrap();
+                            let geomsize = geometries_size.get_mut(lod).unwrap();
                             geomsize.count += 1;
                             geomsize.total += total_heap_stack_size(geom);
                             geomsize.add_geometry(geom);
@@ -145,8 +289,8 @@ impl Display for CityModelDataSize {
 }
 
 /// Stores the data size of all CityObjects.
-#[derive(Debug, Default)]
-pub(crate) struct CityObjectsDataSize {
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct CityObjectsDataSize {
     /// CityObject count
     count: usize,
     /// Size of all CityObject IDs
@@ -176,8 +320,8 @@ pub(crate) struct CityObjectsDataSize {
 }
 
 /// Stores the data size of one geometric representation, e.g. all Geometry objects with the same LoD.
-#[derive(Debug, Clone)]
-pub(crate) struct GeometryDataSize {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeometryDataSize {
     /// Count of geometries of this LoD
     count: usize,
     /// Size of all geometries of this LoD
@@ -241,7 +385,7 @@ impl GeometryDataSize {
 }
 
 /// Calculate the total heap and stack size of a variable.
-fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
+pub fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
     data_size(data) + std::mem::size_of_val(data)
 }
 
@@ -287,45 +431,25 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
 
 /// Wrapper type over a serde_json::Value that DataSize can be implemented for the inner Value.
 #[derive(DataSize)]
-pub(crate) struct CityModelSerdeValue {
+pub struct CityModelSerdeValue {
     #[data_size(with = sizeof_serde_value)]
-    inner: serde_json::Value,
+    pub inner: serde_json::Value,
 }
 
 mod test {
-    use std::fs::File;
-    use std::io::Read;
     use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn bag3d() {
+        let filename = "10-356-724";
         let dummy_complete = PathBuf::from("resources")
             .join("data")
             .join("downloaded")
-            .join("10-356-724.city.json");
-        let mut file = File::open(dummy_complete).unwrap();
-        let mut cityjson_json = String::new();
-        file.read_to_string(&mut cityjson_json).unwrap();
-        let cm_serde_value = CityModelSerdeValue {
-            inner: serde_json::from_str(&cityjson_json).unwrap(),
-        };
-        let cm: CityModel = serde_json::from_str(&cityjson_json).unwrap();
-        let cm_size = CityModelDataSize::compute_from(&cm);
-
-        println!("CityJSON string: {}", total_heap_stack_size(&cityjson_json));
-        println!(
-            "CityModel serde_json::Value : {}",
-            total_heap_stack_size(&cm_serde_value)
-        );
-        println!("CityModel serde_cityjson: {}", total_heap_stack_size(&cm));
-        println!("{}", &cm_size);
-    }
-
-    #[test]
-    fn serde_value_string_size() {
-        let val: serde_json::Value = serde_json::from_str(r#""abcd""#).unwrap();
-        dbg!(sizeof_serde_value(&val));
-        let val: serde_json::Value = serde_json::from_str(r#""abcdefgh""#).unwrap();
-        dbg!(sizeof_serde_value(&val));
+            .join(filename)
+            .with_extension("city.json");
+        let record = DataSizeRecord::compute_from_file(&dummy_complete).unwrap();
+        println!("{:#?}", &record);
     }
 }

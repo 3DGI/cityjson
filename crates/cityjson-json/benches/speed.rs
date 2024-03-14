@@ -1,3 +1,5 @@
+//! Benchmark the execution speed with criterion.rs.
+//! Run 'just download' first to download the data files.
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};

@@ -13,11 +13,11 @@ use std::io::Write;
 #[cfg(feature = "datasize")]
 use datasize::{data_size, DataSize};
 use derive_more::Display;
-use serde::{Deserialize, Serialize};
 use serde::de::Visitor;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "datasize")]
-use crate::datasize::{CityModelDataSize, sizeof_attributes_option};
+use crate::datasize::{sizeof_attributes_option};
 use crate::errors::{Error, Result};
 
 /// Represents the city model that is stored in a CityJSON object.
@@ -1602,11 +1602,6 @@ impl CityModel {
             extra,
             extensions,
         }
-    }
-
-    #[cfg(feature = "datasize")]
-    fn datasize(&self) -> CityModelDataSize {
-        CityModelDataSize::compute_from(self)
     }
 }
 
