@@ -2,6 +2,7 @@
 //! module only used for performance optimization during the development of the library. The data
 //! size estimation has a significant runtime overhead, so don't enable the corresponding "datasize"
 //! feature unless you need it.
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::{Display, Formatter};
@@ -104,8 +105,7 @@ impl SerdeCityJSONDataSize {
         let new_size_mb = new.serde_cityjson_total as f64 * 1e-6;
         let base_size_mb = base.serde_cityjson_total as f64 * 1e-6;
 
-        let new_size_percent_json =
-            new.serde_cityjson_total as f64 / base.json as f64 * 100.0;
+        let new_size_percent_json = new.serde_cityjson_total as f64 / base.json as f64 * 100.0;
         let json_mb = new.json as f64 * 1e-6;
         println!("\tNew serde_cityjson data size is:\n\t\t{new_size_mb:.2} MB/{base_size_mb:.2} MB, {new_size_percent:.3}% of the previous run\n\t\t{new_size_percent_json:.3}% of the JSON string ({json_mb:.2} MB)");
         Ok(())
@@ -197,69 +197,74 @@ impl CityModelDataSize {
         for (coid, co) in cm.cityobjects.iter() {
             co_size.count += 1;
             co_size.total_coid += total_heap_stack_size(coid);
-            for geom in co.geometry.iter() {
-                co_size.count_geometry += 1;
-                co_size.total_geometry += total_heap_stack_size(geom);
-                match geom {
-                    Geometry::MultiSurface {
-                        lod,
-                        boundaries,
-                        semantics,
-                        texture,
-                        material,
-                    } => {
-                        if geometries_size.contains_key(lod) {
-                            let geomsize = geometries_size.get_mut(lod).unwrap();
-                            geomsize.count += 1;
-                            geomsize.total += total_heap_stack_size(geom);
-                            geomsize.add_geometry(geom);
-                        } else {
-                            geometries_size.insert(
-                                *lod,
-                                GeometryDataSize {
-                                    lod: *lod,
-                                    count: 1,
-                                    total: total_heap_stack_size(geom),
-                                    boundaries: total_heap_stack_size(boundaries),
-                                    semantics: total_heap_stack_size(semantics),
-                                    texture: total_heap_stack_size(texture),
-                                    material: total_heap_stack_size(material),
-                                },
-                            );
+            if let Some(ref geometry) = co.geometry {
+                for geom in geometry {
+                    co_size.count_geometry += 1;
+                    co_size.total_geometry += total_heap_stack_size(geom);
+                    match geom {
+                        Geometry::MultiSurface {
+                            lod,
+                            boundaries,
+                            semantics,
+                            texture,
+                            material,
+                        } => {
+                            if geometries_size.contains_key(lod) {
+                                let geomsize = geometries_size.get_mut(lod).unwrap();
+                                geomsize.count += 1;
+                                geomsize.total += total_heap_stack_size(geom);
+                                geomsize.add_geometry(geom);
+                            } else {
+                                geometries_size.insert(
+                                    *lod,
+                                    GeometryDataSize {
+                                        lod: *lod,
+                                        count: 1,
+                                        total: total_heap_stack_size(geom),
+                                        boundaries: total_heap_stack_size(boundaries),
+                                        semantics: total_heap_stack_size(semantics),
+                                        texture: total_heap_stack_size(texture),
+                                        material: total_heap_stack_size(material),
+                                    },
+                                );
+                            }
                         }
-                    }
-                    Geometry::Solid {
-                        lod,
-                        boundaries,
-                        semantics,
-                        texture,
-                        material,
-                    } => {
-                        if geometries_size.contains_key(lod) {
-                            let geomsize = geometries_size.get_mut(lod).unwrap();
-                            geomsize.count += 1;
-                            geomsize.total += total_heap_stack_size(geom);
-                            geomsize.add_geometry(geom);
-                        } else {
-                            geometries_size.insert(
-                                *lod,
-                                GeometryDataSize {
-                                    lod: *lod,
-                                    count: 1,
-                                    total: total_heap_stack_size(geom),
-                                    boundaries: total_heap_stack_size(boundaries),
-                                    semantics: total_heap_stack_size(semantics),
-                                    texture: total_heap_stack_size(texture),
-                                    material: total_heap_stack_size(material),
-                                },
-                            );
+                        Geometry::Solid {
+                            lod,
+                            boundaries,
+                            semantics,
+                            texture,
+                            material,
+                        } => {
+                            if geometries_size.contains_key(lod) {
+                                let geomsize = geometries_size.get_mut(lod).unwrap();
+                                geomsize.count += 1;
+                                geomsize.total += total_heap_stack_size(geom);
+                                geomsize.add_geometry(geom);
+                            } else {
+                                geometries_size.insert(
+                                    *lod,
+                                    GeometryDataSize {
+                                        lod: *lod,
+                                        count: 1,
+                                        total: total_heap_stack_size(geom),
+                                        boundaries: total_heap_stack_size(boundaries),
+                                        semantics: total_heap_stack_size(semantics),
+                                        texture: total_heap_stack_size(texture),
+                                        material: total_heap_stack_size(material),
+                                    },
+                                );
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             if let Some(ref attributes) = co.attributes {
-                co_size.count_attributes += attributes.len();
+                if let Some(a) = attributes.as_object() {
+                    co_size.count_attributes += a.len();
+                }
+
             }
             co_size.total_attributes +=
                 sizeof_attributes_option(&co.attributes) + std::mem::size_of_val(&co.attributes);
@@ -390,18 +395,33 @@ pub fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
     data_size(data) + std::mem::size_of_val(data)
 }
 
-/// Compute the heap size of the optional Attributes.
-pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
+/// Compute the heap size of the optional Attributes that use serde_json_borrow::Value.
+pub(crate) fn sizeof_attributes_option(a: &Option<serde_json_borrow::Value>) -> usize {
     if let Some(ref attributes) = a {
         attributes
+            .as_object()
+            .unwrap()
             .iter()
-            .map(|(k, v)| {
-                std::mem::size_of::<String>()
-                    + k.capacity()
-                    + sizeof_serde_value(v)
+            .map(|(_, v)| {
+                std::mem::size_of::<&str>()
+                    + sizeof_serde_borrow_value(v)
                     + std::mem::size_of::<usize>() * 3
             })
             .sum()
+    } else {
+        0
+    }
+}
+
+/// Compute the heap size of the optional Attributes that use serde_json::Value.
+#[allow(dead_code)]
+pub(crate) fn sizeof_attributes_cloned_option(a: &Option<serde_json::Value>) -> usize {
+    if let Some(ref attributes) = a {
+        if let Some(map) = attributes.as_object() {
+            map.iter().map(|(k, v)| {
+                std::mem::size_of::<String>() + k.capacity() + sizeof_serde_value(v) + std::mem::size_of::<usize>() * 3
+            }).sum()
+        } else { 0 }
     } else {
         0
     }
@@ -424,6 +444,26 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
                     std::mem::size_of::<String>()
                         + k.capacity()
                         + sizeof_serde_value(v)
+                        + std::mem::size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
+                })
+                .sum(),
+        }
+}
+
+/// Compute the heap size of a serde_json_borrow::Value.
+pub(crate) fn sizeof_serde_borrow_value(v: &serde_json_borrow::Value) -> usize {
+    std::mem::size_of::<serde_json::Value>()
+        + match v {
+            serde_json_borrow::Value::Null => 0,
+            serde_json_borrow::Value::Bool(_) => 0,
+            serde_json_borrow::Value::Number(_) => 0, // Incorrect if arbitrary_precision is enabled. oh well
+            serde_json_borrow::Value::Str(_) => std::mem::size_of::<Cow<str>>(),
+            serde_json_borrow::Value::Array(a) => a.iter().map(sizeof_serde_borrow_value).sum(),
+            serde_json_borrow::Value::Object(o) => o
+                .into_iter()
+                .map(|(_, v)| {
+                    std::mem::size_of::<&str>()
+                        + sizeof_serde_borrow_value(v)
                         + std::mem::size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
                 })
                 .sum(),

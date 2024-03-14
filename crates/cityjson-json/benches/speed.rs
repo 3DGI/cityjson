@@ -1,19 +1,18 @@
 //! Benchmark the execution speed with criterion.rs.
 //! Run 'just download' first to download the data files.
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 
-use serde_cityjson::deserialize_from_path;
-
 /// Deserialize into a serde_json::Value.
 fn serde_value<P: AsRef<Path>>(path: P) -> serde_json::Result<serde_json::Value> {
-    let file = File::open(path.as_ref()).unwrap();
-    let reader = BufReader::new(&file);
-    let cm: serde_json::Value = serde_json::from_reader(reader)?;
+            let mut file = File::open(path.as_ref()).unwrap();
+            let mut cityjson_json = String::new();
+            file.read_to_string(&mut cityjson_json).unwrap();
+            let cm: serde_json::Value = serde_json::from_str(&cityjson_json).unwrap();
     Ok(cm)
 }
 
@@ -49,8 +48,11 @@ fn real_data(c: &mut Criterion) {
     group_3dbag.sampling_mode(sampling_mode);
     group_3dbag.bench_function("serde_cityjson", |b| {
         b.iter_with_large_drop(|| {
-            let cm = deserialize_from_path(black_box(&p_json)).unwrap();
-            black_box(&cm);
+            let mut file = File::open(black_box(&p_json)).unwrap();
+            let mut cityjson_json = String::new();
+            file.read_to_string(&mut cityjson_json).unwrap();
+            let cj = serde_cityjson::from_str(&cityjson_json).unwrap();
+            black_box(&cj);
         })
     });
     group_3dbag.bench_function("serde_json::Value", |b| {
@@ -74,8 +76,11 @@ fn real_data(c: &mut Criterion) {
     group_3dbvz.sampling_mode(sampling_mode);
     group_3dbvz.bench_function("serde_cityjson", |b| {
         b.iter_with_large_drop(|| {
-            let cm = deserialize_from_path(black_box(&p_json)).unwrap();
-            black_box(&cm);
+            let mut file = File::open(black_box(&p_json)).unwrap();
+            let mut cityjson_json = String::new();
+            file.read_to_string(&mut cityjson_json).unwrap();
+            let cj = serde_cityjson::from_str(&cityjson_json).unwrap();
+            black_box(&cj);
         })
     });
     group_3dbvz.bench_function("serde_json::Value", |b| {

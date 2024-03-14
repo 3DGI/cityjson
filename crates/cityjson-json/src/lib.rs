@@ -210,7 +210,7 @@
 //!
 //! We don't know the version of the input CityJSON, and we handle each version.
 //! ```rust
-//! # use serde_cityjson::{deserialize_cityjson, CityJSON};
+//! # use serde_cityjson::{from_str, CityJSON};
 //! # use std::fs::File;
 //! # use std::io::Read;
 //! # use std::path::PathBuf;
@@ -218,16 +218,15 @@
 //! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
-//! # file.read_to_string(&mut cityjson_json);
+//! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
 //!
-//! if let Ok(cj) = deserialize_cityjson(&cityjson_json) {
-//!     match &cj {
-//!         CityJSON::V1_1(cm) => {
-//!             println!("CityJSON version 1.1 {:?}", &cm);
-//!         }
-//!         CityJSON::V2_0(cm) => {
-//!             println!("CityJSON version 2.0 {:?}", &cm);
-//!         }
+//! let cj = from_str(&cityjson_json).map_err(|e| e.to_string())?;
+//! match &cj {
+//!     CityJSON::V1_1(cm) => {
+//!         println!("CityJSON version 1.1 {:?}", &cm);
+//!     }
+//!     CityJSON::V2_0(cm) => {
+//!         println!("CityJSON version 2.0 {:?}", &cm);
 //!     }
 //! }
 //!
@@ -237,7 +236,7 @@
 //!
 //! We don't know the version of the input CityJSON and we silently ignore all unhandled versions.
 //! ```rust
-//! use serde_cityjson::{deserialize_cityjson, CityJSON};
+//! use serde_cityjson::{from_str, CityJSON};
 //! use serde_cityjson::v1_1;
 //! # use std::fs::File;
 //! # use std::io::Read;
@@ -246,13 +245,12 @@
 //! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
-//! # file.read_to_string(&mut cityjson_json);
+//! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
 //!
 //! let mut cm = v1_1::CityModel::default();
-//! if let Ok(cj) = deserialize_cityjson(&cityjson_json) {
-//!     if let CityJSON::V1_1(c) = cj {
-//!         cm = c;
-//!     }
+//! let cj = from_str(&cityjson_json).map_err(|e| e.to_string())?;
+//! if let CityJSON::V1_1(c) = cj {
+//!     cm = c;
 //! }
 //!
 //! # Ok(())
@@ -269,7 +267,7 @@
 //! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
-//! # file.read_to_string(&mut cityjson_json);
+//! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
 //!
 //! let cm_v11: v1_1::CityModel = serde_json::from_str(&cityjson_json).map_err(|e| e.to_string())?;
 //!
@@ -282,9 +280,6 @@
 //!
 //!
 use std::fmt;
-use std::fs::File;
-use std::io::{BufReader, Seek};
-use std::path::Path;
 
 use serde::Deserialize;
 
@@ -292,6 +287,7 @@ use serde::Deserialize;
 #[cfg(feature = "datasize")]
 pub mod datasize;
 pub mod errors;
+mod serde_borrow_reprex;
 pub mod v1_1;
 pub mod v2_0;
 
@@ -323,44 +319,23 @@ struct CityJSONVersionString {
 }
 
 #[derive(Debug)]
-pub enum CityJSON {
-    V1_1(v1_1::CityModel),
-    V2_0(v2_0::CityModel),
+pub enum CityJSON<'cm> {
+    V1_1(v1_1::CityModel<'cm>),
+    V2_0(v1_1::CityModel<'cm>),
 }
 
-pub fn deserialize_cityjson(cj: &str) -> errors::Result<CityJSON> {
+pub fn from_str(cj: &str) -> errors::Result<CityJSON> {
     let cm: CityJSONVersionString = serde_json::from_str(cj)?;
     match cm.version.as_str() {
-        "1.1" | "1.1.1" | "1.1.2" | "1.1.3" => {
+        "1.0" | "1.0.0" | "1.0.1" | "1.0.2" | "1.0.3" => {
+            todo!()
+        }
+        "1.1" | "1.1.0" | "1.1.1" | "1.1.2" | "1.1.3" => {
             let cm = serde_json::from_str::<v1_1::CityModel>(cj)?;
             Ok(CityJSON::V1_1(cm))
         }
         "2.0" | "2.0.0" => {
-            let cm = serde_json::from_str::<v2_0::CityModel>(cj)?;
-            Ok(CityJSON::V2_0(cm))
-        }
-        _ => Err(errors::Error::UnsupportedVersion(
-            cm.version,
-            "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string(),
-        )),
-    }
-}
-
-pub fn deserialize_from_path<P: AsRef<Path>>(path: P) -> errors::Result<CityJSON> {
-    let mut file = File::open(path.as_ref())?;
-    let reader = BufReader::new(&file);
-    let cm: CityJSONVersionString = serde_json::from_reader(reader)?;
-    // Read the file again for the second pass over the data
-    file.rewind()?;
-    let reader = BufReader::new(&file);
-    match cm.version.as_str() {
-        "1.1" | "1.1.1" | "1.1.2" | "1.1.3" => {
-            let cm: v1_1::CityModel = serde_json::from_reader(reader)?;
-            Ok(CityJSON::V1_1(cm))
-        }
-        "2.0" | "2.0.0" => {
-            let cm: v2_0::CityModel = serde_json::from_reader(reader)?;
-            Ok(CityJSON::V2_0(cm))
+            todo!()
         }
         _ => Err(errors::Error::UnsupportedVersion(
             cm.version,

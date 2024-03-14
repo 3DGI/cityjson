@@ -9,10 +9,11 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "datasize")]
-use datasize::{DataSize};
+use datasize::DataSize;
 use derive_more::Display;
-use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
+use serde::de::Visitor;
+use serde_json_borrow::Value;
 
 #[cfg(feature = "datasize")]
 use crate::datasize::{sizeof_attributes_option};
@@ -59,7 +60,7 @@ use crate::errors::{Error, Result};
 /// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CityModel {
+pub struct CityModel<'cm> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(rename = "type")]
@@ -69,21 +70,22 @@ pub struct CityModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transform: Option<Transform>,
     #[serde(rename = "CityObjects")]
-    pub cityobjects: CityObjects,
+    pub cityobjects: CityObjects<'cm>,
     pub vertices: Vertices,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Metadata>,
+    pub metadata: Option<Metadata<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appearance: Option<Appearance>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
-    pub geometry_templates: Option<GeometryTemplates>,
+    pub geometry_templates: Option<GeometryTemplates<'cm>>,
     #[serde(
+        borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
-    pub extra: Option<Attributes>,
+    pub extra: Option<Attributes<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Extensions>,
 }
@@ -134,7 +136,7 @@ pub struct Transform {
 }
 
 /// The `CityObjects` member of CityJSON.
-pub type CityObjects = HashMap<String, CityObject>;
+pub type CityObjects<'cm> = HashMap<String, CityObject<'cm>>;
 
 /// CityObject.
 ///
@@ -144,6 +146,12 @@ pub type CityObjects = HashMap<String, CityObject>;
 /// ```
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
+/// let co: CityObject = serde_json::from_str(r#"{
+///   "type": "+ExtendedCityObject"
+/// }"#)?;
+/// println!("{}", &co);
+/// let co_json = serde_json::to_string(&co)?;
+///
 /// let co: CityObject = serde_json::from_str(r#"{
 ///   "type": "BuildingPart",
 ///   "geographicalExtent": [ 84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9 ],
@@ -172,14 +180,18 @@ pub type CityObjects = HashMap<String, CityObject>;
     parents
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CityObject {
+pub struct CityObject<'cm> {
     #[serde(rename = "type")]
     pub type_co: CityObjectType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub geometry: Option<Vec<Geometry>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<Vec<Geometry<'cm>>>,
+    #[serde(
+        borrow,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_attributes"
+    )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
-    pub attributes: Option<Attributes>,
+    pub attributes: Option<Attributes<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "camelCase")]
     pub geographical_extent: Option<BBox>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -187,12 +199,13 @@ pub struct CityObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parents: Option<Vec<String>>,
     #[serde(
+        borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
-    pub extra: Option<Attributes>,
+    pub extra: Option<Attributes<'cm>>,
 }
 
 /// CityObject type.
@@ -258,8 +271,8 @@ pub enum CityObjectType {
     Extension(String),
 }
 
-/// Attributes of CityModel, CityObjects, Semantics.
-pub type Attributes = HashMap<String, serde_json::Value>;
+/// Attributes of CityModel, CityObjects, Semantics. Borrowed from the input data.
+pub type Attributes<'cm> = Value<'cm>;
 
 /// Geometry.
 ///
@@ -289,6 +302,13 @@ pub type Attributes = HashMap<String, serde_json::Value>;
 ///     "red": {
 ///       "value": 3
 ///     }
+///   },
+///   "texture": {
+///    "summer-textures": {
+///       "values": [
+///           [ [[0, 10, 23, 22, 21]], [[0, 1, 2, 6, 5]], [[null]], [[null]] ]
+///       ]
+///    }
 ///   }
 /// }"#)?;
 /// println!("{:?}", &geom);
@@ -310,52 +330,62 @@ pub type Attributes = HashMap<String, serde_json::Value>;
 /// # Ok(())
 /// # }
 /// ```
+// FIXME: Material and Texture have different depth of 'values' arrays !!! What I implemented is
+//  the material, but Texture values follow their own specific rules!!!
+//  https://www.cityjson.org/specs/1.1.3/#geometry-object-having-texture-s.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub enum Geometry {
+pub enum Geometry<'cm> {
     MultiPoint {
         lod: LoD,
         boundaries: MultiPointBoundary,
-        semantics: Option<MultiPointSemantics>,
+        #[serde(borrow)]
+        semantics: Option<MultiPointSemantics<'cm>>,
     },
     MultiLineString {
         lod: LoD,
         boundaries: SurfaceBoundary,
-        semantics: Option<MultiLineStringSemantics>,
+        #[serde(borrow)]
+        semantics: Option<MultiLineStringSemantics<'cm>>,
     },
     MultiSurface {
         lod: LoD,
         boundaries: AggregateSurfaceBoundary,
-        semantics: Option<MultiSurfaceSemantics>,
+        #[serde(borrow)]
+        semantics: Option<MultiSurfaceSemantics<'cm>>,
         material: Option<HashMap<String, MultiSurfaceAppearanceValues>>,
         texture: Option<HashMap<String, MultiSurfaceAppearanceValues>>,
     },
     CompositeSurface {
         lod: LoD,
         boundaries: AggregateSurfaceBoundary,
-        semantics: Option<CompositeSurfaceSemantics>,
+        #[serde(borrow)]
+        semantics: Option<CompositeSurfaceSemantics<'cm>>,
         material: Option<HashMap<String, CompositeSurfaceAppearanceValues>>,
         texture: Option<HashMap<String, CompositeSurfaceAppearanceValues>>,
     },
     Solid {
         lod: LoD,
         boundaries: SolidBoundary,
-        semantics: Option<SolidSemantics>,
+        #[serde(borrow)]
+        semantics: Option<SolidSemantics<'cm>>,
         material: Option<HashMap<String, SolidAppearanceValues>>,
         texture: Option<HashMap<String, SolidAppearanceValues>>,
     },
     MultiSolid {
         lod: LoD,
         boundaries: AggregateSolidBoundary,
-        semantics: Option<MultiSolidSemantics>,
+        #[serde(borrow)]
+        semantics: Option<MultiSolidSemantics<'cm>>,
         material: Option<HashMap<String, MultiSolidAppearanceValues>>,
         texture: Option<HashMap<String, MultiSolidAppearanceValues>>,
     },
     CompositeSolid {
         lod: LoD,
         boundaries: AggregateSolidBoundary,
-        semantics: Option<CompositeSolidSemantics>,
+        #[serde(borrow)]
+        semantics: Option<CompositeSolidSemantics<'cm>>,
         material: Option<HashMap<String, CompositeSolidAppearanceValues>>,
         texture: Option<HashMap<String, CompositeSolidAppearanceValues>>,
     },
@@ -588,10 +618,6 @@ pub type AppearanceSolidValues = Vec<AppearanceAggregateSurfaceValues>;
 pub type AppearanceAggregateSurfaceValues = Vec<AppearanceSurfaceValues>;
 pub type AppearanceSurfaceValues = Vec<Vec<OptionalIndex>>;
 
-// FIXME: Material and Texture have different depth of 'values' arrays !!! What I implemented is
-//  the material, but Texture values follow their own specific rules!!!
-//  https://www.cityjson.org/specs/1.1.3/#geometry-object-having-texture-s
-
 /// The Material or Texture index of a MultiSurface geometry. This is the `value` or `values` member
 /// of a Material or Texture that is assigned to the Geometry object.
 ///
@@ -801,8 +827,9 @@ pub struct CompositeSolidAppearanceValues {
     vertices_templates
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct GeometryTemplates {
-    templates: Vec<Geometry>,
+pub struct GeometryTemplates<'cm> {
+    #[serde(borrow)]
+    templates: Vec<Geometry<'cm>>,
     vertices_templates: VerticesTemplates,
 }
 
@@ -844,8 +871,9 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CompositeSolidSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct CompositeSolidSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: CompositeSolidSemanticsValues,
 }
 
@@ -884,8 +912,9 @@ pub struct CompositeSolidSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiSolidSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct MultiSolidSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: MultiSolidSemanticsValues,
 }
 
@@ -924,8 +953,9 @@ pub struct MultiSolidSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct SolidSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct SolidSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: SolidSemanticsValues,
 }
 
@@ -964,8 +994,9 @@ pub struct SolidSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CompositeSurfaceSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct CompositeSurfaceSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: CompositeSurfaceSemanticsValues,
 }
 
@@ -1004,8 +1035,9 @@ pub struct CompositeSurfaceSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiSurfaceSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct MultiSurfaceSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: MultiSurfaceSemanticsValues,
 }
 
@@ -1033,8 +1065,9 @@ pub struct MultiSurfaceSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiLineStringSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct MultiLineStringSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: MultiLineStringSemanticsValues,
 }
 
@@ -1062,8 +1095,9 @@ pub struct MultiLineStringSemantics {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiPointSemantics {
-    pub surfaces: Vec<Semantic>,
+pub struct MultiPointSemantics<'cm> {
+    #[serde(borrow)]
+    pub surfaces: Vec<Semantic<'cm>>,
     pub values: MultiPointSemanticsValues,
 }
 
@@ -1077,6 +1111,7 @@ pub struct MultiPointSemantics {
 /// # fn main() -> serde_json::Result<()> {
 /// let sem: Semantic = serde_json::from_str(r#"{ "type": "RoofSurface" }"#)?;
 /// let sem_json = serde_json::to_string(&sem)?;
+///
 /// let sem: Semantic = serde_json::from_str(r#"{
 ///     "type": "+MySemantic",
 ///     "my_attribute": 42,
@@ -1097,7 +1132,7 @@ pub struct MultiPointSemantics {
     attributes
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct Semantic {
+pub struct Semantic<'cm> {
     #[serde(rename = "type")]
     pub type_sem: SemanticType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1105,12 +1140,13 @@ pub struct Semantic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<usize>,
     #[serde(
+        borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
-    pub attributes: Option<Attributes>,
+    pub attributes: Option<Attributes<'cm>>,
 }
 
 /// Semantic surface type.
@@ -1397,7 +1433,7 @@ pub type Vertices = Vec<[i64; 3]>;
 /// ```
 #[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct Metadata {
+pub struct Metadata<'cm> {
     pub geographical_extent: Option<BBox>,
     pub identifier: Option<CityModelIdentifier>,
     pub point_of_contact: Option<Contact>,
@@ -1405,12 +1441,13 @@ pub struct Metadata {
     pub reference_system: Option<CRS>,
     pub title: Option<String>,
     #[serde(
+        borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
-    pub extra: Option<Attributes>,
+    pub extra: Option<Attributes<'cm>>,
 }
 
 /// Bounding Box.
@@ -1597,18 +1634,18 @@ pub struct Extension {
 
 // --- Implementations
 
-impl CityModel {
+impl<'cm> CityModel<'cm> {
     pub fn new(
         id: Option<String>,
         type_cm: Option<CityModelType>,
         version: Option<CityJSONVersion>,
         transform: Option<Transform>,
-        cityobjects: Option<CityObjects>,
+        cityobjects: Option<CityObjects<'cm>>,
         vertices: Option<Vertices>,
-        metadata: Option<Metadata>,
+        metadata: Option<Metadata<'cm>>,
         appearance: Option<Appearance>,
-        geometry_templates: Option<GeometryTemplates>,
-        extra: Option<HashMap<String, serde_json::Value>>,
+        geometry_templates: Option<GeometryTemplates<'cm>>,
+        extra: Option<Attributes<'cm>>,
         extensions: Option<Extensions>,
     ) -> Self {
         Self {
@@ -1627,7 +1664,7 @@ impl CityModel {
     }
 }
 
-impl Default for CityModel {
+impl Default for CityModel<'_> {
     fn default() -> Self {
         Self {
             id: None,
@@ -1737,15 +1774,15 @@ impl Default for Transform {
     }
 }
 
-impl CityObject {
+impl<'cm> CityObject<'cm> {
     pub fn new(
         cotype: CityObjectType,
-        geometry: Option<Vec<Geometry>>,
-        attributes: Option<Attributes>,
+        geometry: Option<Vec<Geometry<'cm>>>,
+        attributes: Option<Attributes<'cm>>,
         geographical_extent: Option<BBox>,
         children: Option<Vec<String>>,
         parents: Option<Vec<String>>,
-        extra: Option<Attributes>
+        // extra: Option<Attributes<'cm>>,
     ) -> Self {
         Self {
             type_co: cotype,
@@ -1754,7 +1791,7 @@ impl CityObject {
             geographical_extent,
             children,
             parents,
-            extra
+            // extra,
         }
     }
 }
@@ -2161,49 +2198,49 @@ impl Serialize for SemanticType {
     }
 }
 
-impl CompositeSolidSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: CompositeSolidSemanticsValues) -> Self {
+impl<'cm> CompositeSolidSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: CompositeSolidSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl MultiSolidSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: MultiSolidSemanticsValues) -> Self {
+impl<'cm> MultiSolidSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiSolidSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl SolidSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: SolidSemanticsValues) -> Self {
+impl<'cm> SolidSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: SolidSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl CompositeSurfaceSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: CompositeSurfaceSemanticsValues) -> Self {
+impl<'cm> CompositeSurfaceSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: CompositeSurfaceSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl MultiSurfaceSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: MultiSurfaceSemanticsValues) -> Self {
+impl<'cm> MultiSurfaceSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiSurfaceSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl MultiLineStringSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: MultiLineStringSemanticsValues) -> Self {
+impl<'cm> MultiLineStringSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiLineStringSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl MultiPointSemantics {
-    pub fn new(surfaces: Vec<Semantic>, values: MultiPointSemanticsValues) -> Self {
+impl<'cm> MultiPointSemantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiPointSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl Metadata {
+impl<'cm> Metadata<'cm> {
     pub fn new() -> Self {
         Metadata::default()
     }
@@ -2317,7 +2354,7 @@ impl Metadata {
     }
 }
 
-impl Display for Metadata {
+impl<'cm> Display for Metadata<'cm> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -2369,12 +2406,12 @@ impl Display for Extension {
     }
 }
 
-pub fn deserialize_attributes<'de, D>(
+pub fn deserialize_attributes<'de: 'cm, 'cm, D>(
     deserializer: D,
-) -> std::result::Result<Option<Attributes>, D::Error>
+) -> std::result::Result<Option<Attributes<'cm>>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    let s = HashMap::deserialize(deserializer)?;
-    Ok((!s.is_empty()).then_some(s))
+    let s = Value::deserialize(deserializer)?;
+    Ok((!s.is_null()).then_some(s))
 }

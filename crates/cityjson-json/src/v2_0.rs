@@ -1,12 +1,33 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use serde_json_borrow::Value;
 
 use crate::errors::{Error, Result};
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct CityModel {
-    version: Option<CityJSONVersion>,
+pub struct CityModel<'a> {
+    pub version: Option<CityJSONVersion>,
+    pub geometry: Option<Vec<Boundary>>,
+    #[serde(borrow, deserialize_with = "deserialize_attributes")]
+    pub attributes: Option<Attributes<'a>>,
+}
+
+type Attributes<'a> = Value<'a>;
+
+pub fn deserialize_attributes<'de: 'a, 'a, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Attributes<'a>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let s = Value::deserialize(deserializer)?;
+    Ok((!s.is_null()).then_some(s))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Boundary {
+    inner: Vec<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
