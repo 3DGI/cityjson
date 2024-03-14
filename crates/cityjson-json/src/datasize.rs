@@ -102,11 +102,12 @@ impl SerdeCityJSONDataSize {
         let new_size_percent =
             new.serde_cityjson_total as f64 / base.serde_cityjson_total as f64 * 100.0;
         let new_size_mb = new.serde_cityjson_total as f64 * 1e-6;
+        let base_size_mb = base.serde_cityjson_total as f64 * 1e-6;
 
         let new_size_percent_json =
             new.serde_cityjson_total as f64 / base.json as f64 * 100.0;
         let json_mb = new.json as f64 * 1e-6;
-        println!("\tNew serde_cityjson data size is:\n\t\t{new_size_mb:.2} MB, {new_size_percent:.3}% of the previous run\n\t\t{new_size_percent_json:.3}% of the JSON string ({json_mb:.2} MB)");
+        println!("\tNew serde_cityjson data size is:\n\t\t{new_size_mb:.2} MB/{base_size_mb:.2} MB, {new_size_percent:.3}% of the previous run\n\t\t{new_size_percent_json:.3}% of the JSON string ({json_mb:.2} MB)");
         Ok(())
     }
 }

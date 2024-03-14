@@ -185,6 +185,13 @@ pub struct CityObject {
     pub children: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parents: Option<Vec<String>>,
+    #[serde(
+        flatten,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_attributes"
+    )]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
+    pub extra: Option<Attributes>,
 }
 
 /// CityObject type.
@@ -1378,7 +1385,7 @@ pub type Vertices = Vec<[i64; 3]>;
 /// metadata.set_identifier("123-456-789");
 /// println!("{}", &metadata);
 /// ```
-#[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Metadata {
     pub geographical_extent: Option<BBox>,
@@ -1387,6 +1394,13 @@ pub struct Metadata {
     pub reference_date: Option<Date>,
     pub reference_system: Option<CRS>,
     pub title: Option<String>,
+    #[serde(
+        flatten,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_attributes"
+    )]
+    #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
+    pub extra: Option<Attributes>,
 }
 
 /// Bounding Box.
@@ -1721,6 +1735,7 @@ impl CityObject {
         geographical_extent: Option<BBox>,
         children: Option<Vec<String>>,
         parents: Option<Vec<String>>,
+        extra: Option<Attributes>
     ) -> Self {
         Self {
             type_co: cotype,
@@ -1729,6 +1744,7 @@ impl CityObject {
             geographical_extent,
             children,
             parents,
+            extra
         }
     }
 }
