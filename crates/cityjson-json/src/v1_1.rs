@@ -175,7 +175,8 @@ pub type CityObjects = HashMap<String, CityObject>;
 pub struct CityObject {
     #[serde(rename = "type")]
     pub type_co: CityObjectType,
-    pub geometry: Vec<Geometry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<Vec<Geometry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes>,
@@ -581,6 +582,15 @@ pub enum TextureType {
 ///
 ///
 pub type VerticesTexture = Vec<[f32; 2]>;
+
+pub type AppearanceAggregateSolidValues = Vec<AppearanceSolidValues>;
+pub type AppearanceSolidValues = Vec<AppearanceAggregateSurfaceValues>;
+pub type AppearanceAggregateSurfaceValues = Vec<AppearanceSurfaceValues>;
+pub type AppearanceSurfaceValues = Vec<Vec<OptionalIndex>>;
+
+// FIXME: Material and Texture have different depth of 'values' arrays !!! What I implemented is
+//  the material, but Texture values follow their own specific rules!!!
+//  https://www.cityjson.org/specs/1.1.3/#geometry-object-having-texture-s
 
 /// The Material or Texture index of a MultiSurface geometry. This is the `value` or `values` member
 /// of a Material or Texture that is assigned to the Geometry object.
@@ -1730,7 +1740,7 @@ impl Default for Transform {
 impl CityObject {
     pub fn new(
         cotype: CityObjectType,
-        geometry: Vec<Geometry>,
+        geometry: Option<Vec<Geometry>>,
         attributes: Option<Attributes>,
         geographical_extent: Option<BBox>,
         children: Option<Vec<String>>,
