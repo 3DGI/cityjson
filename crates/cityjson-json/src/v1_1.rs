@@ -5,6 +5,7 @@
 //! The main struct is [CityModel], which represents a CityJSON or CityJSONFeature object.
 //! See the examples of usage by the various members.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
@@ -61,21 +62,21 @@ use crate::errors::{Error, Result};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct CityModel<'cm> {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Cow<'cm, str>>,
     #[serde(rename = "type")]
     pub type_cm: CityModelType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<CityJSONVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transform: Option<Transform>,
-    #[serde(rename = "CityObjects")]
+    #[serde(borrow, rename = "CityObjects")]
     pub cityobjects: CityObjects<'cm>,
     pub vertices: Vertices,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub appearance: Option<Appearance>,
+    pub appearance: Option<Appearance<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
     pub geometry_templates: Option<GeometryTemplates<'cm>>,
     #[serde(
@@ -136,7 +137,7 @@ pub struct Transform {
 }
 
 /// The `CityObjects` member of CityJSON.
-pub type CityObjects<'cm> = HashMap<String, CityObject<'cm>>;
+pub type CityObjects<'cm> = HashMap<Cow<'cm, str>, CityObject<'cm>>;
 
 /// CityObject.
 ///
@@ -195,10 +196,10 @@ pub struct CityObject<'cm> {
     pub attributes: Option<Attributes<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "camelCase")]
     pub geographical_extent: Option<BBox>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub children: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parents: Option<Vec<String>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<Cow<'cm, str>>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub parents: Option<Vec<Cow<'cm, str>>>,
     #[serde(
         borrow,
         flatten,
@@ -355,40 +356,50 @@ pub enum Geometry<'cm> {
         boundaries: AggregateSurfaceBoundary,
         #[serde(borrow)]
         semantics: Option<MultiSurfaceSemantics<'cm>>,
-        material: Option<HashMap<String, MultiSurfaceAppearanceValues>>,
-        texture: Option<HashMap<String, MultiSurfaceAppearanceValues>>,
+        #[serde(borrow)]
+        material: Option<HashMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
+        #[serde(borrow)]
+        texture: Option<HashMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
     },
     CompositeSurface {
         lod: LoD,
         boundaries: AggregateSurfaceBoundary,
         #[serde(borrow)]
         semantics: Option<CompositeSurfaceSemantics<'cm>>,
-        material: Option<HashMap<String, CompositeSurfaceAppearanceValues>>,
-        texture: Option<HashMap<String, CompositeSurfaceAppearanceValues>>,
+        #[serde(borrow)]
+        material: Option<HashMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
+        #[serde(borrow)]
+        texture: Option<HashMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
     },
     Solid {
         lod: LoD,
         boundaries: SolidBoundary,
         #[serde(borrow)]
         semantics: Option<SolidSemantics<'cm>>,
-        material: Option<HashMap<String, SolidAppearanceValues>>,
-        texture: Option<HashMap<String, SolidAppearanceValues>>,
+        #[serde(borrow)]
+        material: Option<HashMap<Cow<'cm, str>, SolidAppearanceValues>>,
+        #[serde(borrow)]
+        texture: Option<HashMap<Cow<'cm, str>, SolidAppearanceValues>>,
     },
     MultiSolid {
         lod: LoD,
         boundaries: AggregateSolidBoundary,
         #[serde(borrow)]
         semantics: Option<MultiSolidSemantics<'cm>>,
-        material: Option<HashMap<String, MultiSolidAppearanceValues>>,
-        texture: Option<HashMap<String, MultiSolidAppearanceValues>>,
+        #[serde(borrow)]
+        material: Option<HashMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
+        #[serde(borrow)]
+        texture: Option<HashMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
     },
     CompositeSolid {
         lod: LoD,
         boundaries: AggregateSolidBoundary,
         #[serde(borrow)]
         semantics: Option<CompositeSolidSemantics<'cm>>,
-        material: Option<HashMap<String, CompositeSolidAppearanceValues>>,
-        texture: Option<HashMap<String, CompositeSolidAppearanceValues>>,
+        #[serde(borrow)]
+        material: Option<HashMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
+        #[serde(borrow)]
+        texture: Option<HashMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
     },
     #[serde(rename_all = "camelCase")]
     GeometryInstance {
@@ -457,17 +468,17 @@ pub enum LoD {
     default_theme_material
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct Appearance {
+pub struct Appearance<'cm> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    materials: Option<Vec<Material>>,
+    materials: Option<Vec<Material<'cm>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    textures: Option<Vec<Texture>>,
+    textures: Option<Vec<Texture<'cm>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     vertices_texture: Option<VerticesTexture>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_theme_texture: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_theme_material: Option<String>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    default_theme_texture: Option<Cow<'cm, str>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    default_theme_material: Option<Cow<'cm, str>>,
 }
 
 /// Material.
@@ -507,8 +518,9 @@ pub struct Appearance {
     is_smooth
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct Material {
-    name: String,
+pub struct Material<'cm> {
+    #[serde(borrow)]
+    name: Cow<'cm, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     ambient_intensity: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -556,10 +568,11 @@ pub struct Material {
     border_color
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct Texture {
+pub struct Texture<'cm> {
     #[serde(rename = "type")]
     image_type: ImageType,
-    image: String,
+    #[serde(borrow)]
+    image: Cow<'cm, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     wrap_mode: Option<WrapMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1637,14 +1650,14 @@ pub struct Extension {
 
 impl<'cm> CityModel<'cm> {
     pub fn new(
-        id: Option<String>,
+        id: Option<Cow<'cm, str>>,
         type_cm: Option<CityModelType>,
         version: Option<CityJSONVersion>,
         transform: Option<Transform>,
         cityobjects: Option<CityObjects<'cm>>,
         vertices: Option<Vertices>,
         metadata: Option<Metadata<'cm>>,
-        appearance: Option<Appearance>,
+        appearance: Option<Appearance<'cm>>,
         geometry_templates: Option<GeometryTemplates<'cm>>,
         extra: Option<Attributes<'cm>>,
         extensions: Option<Extensions>,
@@ -1781,8 +1794,8 @@ impl<'cm> CityObject<'cm> {
         geometry: Option<Vec<Geometry<'cm>>>,
         attributes: Option<Attributes<'cm>>,
         geographical_extent: Option<BBox>,
-        children: Option<Vec<String>>,
-        parents: Option<Vec<String>>,
+        children: Option<Vec<Cow<'cm, str>>>,
+        parents: Option<Vec<Cow<'cm, str>>>,
         extra: Option<Attributes<'cm>>,
     ) -> Self {
         Self {
@@ -1873,7 +1886,7 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
     }
 }
 
-impl Serialize for CityObjectType {
+impl<'cm> Serialize for CityObjectType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
@@ -2070,13 +2083,13 @@ impl Default for ImageType {
     }
 }
 
-impl Display for SemanticType {
+impl<'cm> Display for SemanticType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl<'de> Deserialize<'de> for SemanticType {
+impl<'de: 'cm, 'cm> Deserialize<'de> for SemanticType {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -2138,7 +2151,7 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
     }
 }
 
-impl Serialize for SemanticType {
+impl<'cm> Serialize for SemanticType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
