@@ -188,6 +188,7 @@ pub struct CityObject<'cm> {
     #[serde(
         borrow,
         skip_serializing_if = "Option::is_none",
+        default,
         deserialize_with = "deserialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
@@ -1782,7 +1783,7 @@ impl<'cm> CityObject<'cm> {
         geographical_extent: Option<BBox>,
         children: Option<Vec<String>>,
         parents: Option<Vec<String>>,
-        // extra: Option<Attributes<'cm>>,
+        extra: Option<Attributes<'cm>>,
     ) -> Self {
         Self {
             type_co: cotype,
@@ -1791,7 +1792,7 @@ impl<'cm> CityObject<'cm> {
             geographical_extent,
             children,
             parents,
-            // extra,
+            extra,
         }
     }
 }

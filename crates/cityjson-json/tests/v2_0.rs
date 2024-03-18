@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::Read;
 use serde_cityjson::v2_0::*;
-use std::hint::black_box;
 
 #[test]
 fn objects() -> Result<(), String> {
