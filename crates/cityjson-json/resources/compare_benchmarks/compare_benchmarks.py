@@ -79,7 +79,7 @@ def compare_datasize():
     for group in GROUPS:
         group_dir = datasize_dir.joinpath(group)
         for bench_id in group_dir.iterdir():
-            with bench_id.joinpath(estimates_filename).open("r") as fo:
+            with bench_id.joinpath("new", estimates_filename).open("r") as fo:
                 datasize = json.load(fo)
                 for total_label, plot_cfg in datasizes_total_labels:
                     size_compared_to_baseline = datasize[total_label] / datasize["json"]
