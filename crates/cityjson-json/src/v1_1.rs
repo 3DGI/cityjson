@@ -6,7 +6,7 @@
 //! See the examples of usage by the various members.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "datasize")]
@@ -137,7 +137,7 @@ pub struct Transform {
 }
 
 /// The `CityObjects` member of CityJSON.
-pub type CityObjects<'cm> = HashMap<Cow<'cm, str>, CityObject<'cm>>;
+pub type CityObjects<'cm> = BTreeMap<Cow<'cm, str>, CityObject<'cm>>;
 
 /// CityObject.
 ///
@@ -357,9 +357,9 @@ pub enum Geometry<'cm> {
         #[serde(borrow)]
         semantics: Option<MultiSurfaceSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<HashMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
+        material: Option<BTreeMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<HashMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
+        texture: Option<BTreeMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
     },
     CompositeSurface {
         lod: LoD,
@@ -367,9 +367,9 @@ pub enum Geometry<'cm> {
         #[serde(borrow)]
         semantics: Option<CompositeSurfaceSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<HashMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
+        material: Option<BTreeMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<HashMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
+        texture: Option<BTreeMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
     },
     Solid {
         lod: LoD,
@@ -377,9 +377,9 @@ pub enum Geometry<'cm> {
         #[serde(borrow)]
         semantics: Option<SolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<HashMap<Cow<'cm, str>, SolidAppearanceValues>>,
+        material: Option<BTreeMap<Cow<'cm, str>, SolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<HashMap<Cow<'cm, str>, SolidAppearanceValues>>,
+        texture: Option<BTreeMap<Cow<'cm, str>, SolidAppearanceValues>>,
     },
     MultiSolid {
         lod: LoD,
@@ -387,9 +387,9 @@ pub enum Geometry<'cm> {
         #[serde(borrow)]
         semantics: Option<MultiSolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<HashMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
+        material: Option<BTreeMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<HashMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
+        texture: Option<BTreeMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
     },
     CompositeSolid {
         lod: LoD,
@@ -397,9 +397,9 @@ pub enum Geometry<'cm> {
         #[serde(borrow)]
         semantics: Option<CompositeSolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<HashMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
+        material: Option<BTreeMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<HashMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
+        texture: Option<BTreeMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
     },
     #[serde(rename_all = "camelCase")]
     GeometryInstance {
@@ -1618,7 +1618,7 @@ pub type Date = String;
 pub type CRS = String;
 
 /// The `extensions` member of a CityJSON.
-pub type Extensions = HashMap<String, Extension>;
+pub type Extensions = BTreeMap<String, Extension>;
 
 /// An Extension that is used in a city model.
 ///
