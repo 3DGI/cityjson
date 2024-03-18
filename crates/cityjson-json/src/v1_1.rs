@@ -17,7 +17,7 @@ use serde::de::Visitor;
 use serde_json_borrow::Value;
 
 #[cfg(feature = "datasize")]
-use crate::datasize::{sizeof_attributes_option};
+use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
 
 /// Represents the city model that is stored in a CityJSON object.

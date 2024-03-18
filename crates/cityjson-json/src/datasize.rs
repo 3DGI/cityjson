@@ -264,7 +264,6 @@ impl CityModelDataSize {
                 if let Some(a) = attributes.as_object() {
                     co_size.count_attributes += a.len();
                 }
-
             }
             co_size.total_attributes +=
                 sizeof_attributes_option(&co.attributes) + std::mem::size_of_val(&co.attributes);
@@ -418,10 +417,17 @@ pub(crate) fn sizeof_attributes_option(a: &Option<serde_json_borrow::Value>) -> 
 pub(crate) fn sizeof_attributes_cloned_option(a: &Option<serde_json::Value>) -> usize {
     if let Some(ref attributes) = a {
         if let Some(map) = attributes.as_object() {
-            map.iter().map(|(k, v)| {
-                std::mem::size_of::<String>() + k.capacity() + sizeof_serde_value(v) + std::mem::size_of::<usize>() * 3
-            }).sum()
-        } else { 0 }
+            map.iter()
+                .map(|(k, v)| {
+                    std::mem::size_of::<String>()
+                        + k.capacity()
+                        + sizeof_serde_value(v)
+                        + std::mem::size_of::<usize>() * 3
+                })
+                .sum()
+        } else {
+            0
+        }
     } else {
         0
     }
