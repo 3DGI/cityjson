@@ -9,14 +9,6 @@ edition = "2021"
 name = "serde_cityjson"
 path = "src/lib.rs"
 
-[[bin]]
-name = "serde_cityjson"
-path = "src/serde_cityjson.rs"
-
-[[bin]]
-name = "borrow_value"
-path = "src/borrow_value.rs"
-
 [features]
 datasize = ["dep:datasize"]
 

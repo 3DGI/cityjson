@@ -287,7 +287,6 @@ use serde::Deserialize;
 #[cfg(feature = "datasize")]
 pub mod datasize;
 pub mod errors;
-mod serde_borrow_reprex;
 pub mod v1_1;
 pub mod v2_0;
 
