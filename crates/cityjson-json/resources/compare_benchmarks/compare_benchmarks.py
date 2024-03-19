@@ -73,7 +73,10 @@ def compare_datasize():
 
     datasizes_total_labels = [("serde_cityjson_total", {"label": "serde_cityjson", "color": "blue"}),
                               ("serde_value_total", {"label": "serde_json::Value", "color": "orange"}), ]
+
     plt.style.use('seaborn-v0_8-muted')
+
+    # Plot relative datasizes
     fig, ax = plt.subplots(figsize=(10, 3))
     handles = []
     for group in GROUPS:
@@ -86,6 +89,8 @@ def compare_datasize():
                     pt = ax.scatter(size_compared_to_baseline, group, color=plot_cfg["color"], label=plot_cfg["label"],
                                     marker=MARKER, s=MARKERSIZE)
                     handles.append(pt)
+
+            plot_member_sizes(bench_id, datasize, group)
     # Scatter legend
     # see https://stackoverflow.com/a/13589144
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -103,6 +108,34 @@ def compare_datasize():
     plt.subplots_adjust(left=0.2, bottom=0.2)
     filepath = OUTPUT_FIGS_DIR.joinpath("datasize_relative.png")
     plt.savefig(filepath)
+    print(f"Saved {filepath}")
+
+
+def plot_member_sizes(bench_id, datasize, group):
+    # Plot the size of members for the serde_cityjson structs
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for member, size in datasize["serde_cityjson_citymodel"].items():
+        if member == "cityobjects":
+            for co_member in ["total_coid", "total_geometry", "total_attributes",
+                              "total_geographical_extent", "total_children_id", "total_parents_id"]:
+                size = datasize["serde_cityjson_citymodel"]["cityobjects"][co_member]
+                size_pct = round(size / datasize["serde_cityjson_total"] * 100.0, 2)
+                co_member_name = f"CityObject.{co_member.replace('total_', '')}"
+                _ = ax.barh(co_member_name, size_pct)
+        else:
+            size_pct = round(size / datasize["serde_cityjson_total"] * 100.0, 2)
+            _ = ax.barh(member, size_pct)
+    ax.invert_yaxis()
+    ax.set_xticks(list(range(0, 100, 10)))
+    ax.set_xlim(left=0.0, right=100.0)
+    ax.grid(visible=True, which="major", axis="x")
+    fig.suptitle(f"Relative size of members compared to the total CityModel size", fontsize=14)
+    ax.set_title(f"{group}/{bench_id.name}")
+    ax.set_xlabel("Size of CityModel member relative to the total size [%]")
+    plt.subplots_adjust(left=0.4, bottom=0.2)
+    filepath = OUTPUT_FIGS_DIR.joinpath(f"datasize_members_{group}_{bench_id.name}.png")
+    plt.savefig(filepath)
+    plt.close()
     print(f"Saved {filepath}")
 
 

@@ -52,7 +52,13 @@ doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open
 
 # Run all benchmarks and generate the comparison plots. Requires a python virtualenv in "resources/compare_benchmarks/.venv"
-bench:
+bench: bench-speed bench-size bench-plot
+
+bench-speed:
     cargo bench --bench speed --
+
+bench-size:
     cargo bench --features datasize --bench datasize --
+
+bench-plot:
     resources/compare_benchmarks/.venv/bin/python resources/compare_benchmarks/compare_benchmarks.py

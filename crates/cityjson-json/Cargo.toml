@@ -15,9 +15,10 @@ datasize = ["dep:datasize"]
 [dependencies]
 derive_more = { version = "0.99.17", features = ["display"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["raw_value"] }
 datasize = { version = "0.2.15", optional = true }
 serde_json_borrow = "0.3.0"
+ahash = { version = "0.8.11", features = ["serde"] }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"]}

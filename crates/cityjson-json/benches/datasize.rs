@@ -14,7 +14,7 @@ fn main() -> Result<(), String> {
         .run("3DBAG", filename, filepath)
         .map_err(|e| e.to_string())?);
 
-    let filename = "30gz1_03";
+    let filename = "30gz1_04";
     let filepath = downloaded_dir.join(filename).with_extension("json");
     let ds = SerdeCityJSONDataSize::new(None);
     let _ = black_box(ds

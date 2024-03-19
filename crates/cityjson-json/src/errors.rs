@@ -16,6 +16,7 @@ pub enum Error {
     StreamingError(String),
     UnsupportedExtension,
     UnsupportedVersion(String, String),
+    IncompatibleBoundary(String, String)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -70,6 +71,13 @@ impl Display for Error {
                     f,
                     "the file extension should be one of {}",
                     SupportedFileExtension
+                )
+            }
+            Error::IncompatibleBoundary(source_boundarytype, target_boundarytype) => {
+                write!(
+                    f,
+                    "cannot convert a {} to a {}",
+                    source_boundarytype, target_boundarytype
                 )
             }
         }

@@ -289,6 +289,7 @@ pub mod datasize;
 pub mod errors;
 pub mod v1_1;
 pub mod v2_0;
+pub mod boundary;
 
 #[non_exhaustive]
 #[derive(Debug)]

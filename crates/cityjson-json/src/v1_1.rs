@@ -6,7 +6,7 @@
 //! See the examples of usage by the various members.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::HashMap as Map;
 use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "datasize")]
@@ -15,10 +15,12 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use serde::de::Visitor;
 use serde_json_borrow::Value;
+// use ahash::AHashMap as Map;
 
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
+use crate::boundary;
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -30,7 +32,7 @@ use crate::errors::{Error, Result};
 /// ```
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
-/// let cm: CityModel = serde_json::from_str(r#"{
+/// let json_str = r#"{
 ///   "type": "CityJSON",
 ///   "version": "1.1",
 ///   "extensions": {},
@@ -43,18 +45,24 @@ use crate::errors::{Error, Result};
 ///   "vertices": [],
 ///   "appearance": {},
 ///   "geometry-templates": {}
-/// }"#)?;
-/// println!("{:?}", &cm);
+/// }"#;
+/// let cm: CityModel = serde_json::from_str(json_str)?;
 /// let cm_json = serde_json::to_string(&cm)?;
-///
-/// let cfeature: CityModel = serde_json::from_str(r#"{
+/// assert_eq!(cm_json, json_str.replace(" ", "").replace("\n", ""));
+/// # Ok(())
+/// # }
+/// ```
+/// ```
+/// # use serde_cityjson::v1_1::*;
+/// # fn main() -> serde_json::Result<()> {
+/// let json_str = r#"{
 ///   "type": "CityJSONFeature",
 ///   "id": "myid",
 ///   "CityObjects": {},
 ///   "vertices": [],
 ///   "appearance": {}
-/// }"#)?;
-/// println!("{:?}", &cfeature);
+/// }"#;
+/// let cfeature: CityModel = serde_json::from_str(json_str)?;
 /// let cfeature_json = serde_json::to_string(&cfeature)?;
 /// # Ok(())
 /// # }
@@ -137,7 +145,7 @@ pub struct Transform {
 }
 
 /// The `CityObjects` member of CityJSON.
-pub type CityObjects<'cm> = BTreeMap<Cow<'cm, str>, CityObject<'cm>>;
+pub type CityObjects<'cm> = Map<Cow<'cm, str>, CityObject<'cm>>;
 
 /// CityObject.
 ///
@@ -184,8 +192,8 @@ pub type CityObjects<'cm> = BTreeMap<Cow<'cm, str>, CityObject<'cm>>;
 pub struct CityObject<'cm> {
     #[serde(rename = "type")]
     pub type_co: CityObjectType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub geometry: Option<Vec<Geometry<'cm>>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<Vec<boundary::Geometry<'cm>>>,
     #[serde(
         borrow,
         skip_serializing_if = "Option::is_none",
@@ -315,7 +323,12 @@ pub type Attributes<'cm> = Value<'cm>;
 /// }"#)?;
 /// println!("{:?}", &geom);
 /// let geom_json = serde_json::to_string(&geom)?;
-///
+/// # Ok(())
+/// # }
+/// ```
+/// ```
+/// # use serde_cityjson::v1_1::*;
+/// # fn main() -> serde_json::Result<()> {
 /// let geom: Geometry = serde_json::from_str(r#"{
 ///   "type": "GeometryInstance",
 ///   "template": 0,
@@ -341,65 +354,65 @@ pub type Attributes<'cm> = Value<'cm>;
 pub enum Geometry<'cm> {
     MultiPoint {
         lod: LoD,
-        boundaries: MultiPointBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<MultiPointSemantics<'cm>>,
     },
     MultiLineString {
         lod: LoD,
-        boundaries: SurfaceBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<MultiLineStringSemantics<'cm>>,
     },
     MultiSurface {
         lod: LoD,
-        boundaries: AggregateSurfaceBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<MultiSurfaceSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<BTreeMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
+        material: Option<Map<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<BTreeMap<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
+        texture: Option<Map<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
     },
     CompositeSurface {
         lod: LoD,
-        boundaries: AggregateSurfaceBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<CompositeSurfaceSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<BTreeMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
+        material: Option<Map<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<BTreeMap<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
+        texture: Option<Map<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
     },
     Solid {
         lod: LoD,
-        boundaries: SolidBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<SolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<BTreeMap<Cow<'cm, str>, SolidAppearanceValues>>,
+        material: Option<Map<Cow<'cm, str>, SolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<BTreeMap<Cow<'cm, str>, SolidAppearanceValues>>,
+        texture: Option<Map<Cow<'cm, str>, SolidAppearanceValues>>,
     },
     MultiSolid {
         lod: LoD,
-        boundaries: AggregateSolidBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<MultiSolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<BTreeMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
+        material: Option<Map<Cow<'cm, str>, MultiSolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<BTreeMap<Cow<'cm, str>, MultiSolidAppearanceValues>>,
+        texture: Option<Map<Cow<'cm, str>, MultiSolidAppearanceValues>>,
     },
     CompositeSolid {
         lod: LoD,
-        boundaries: AggregateSolidBoundary,
+        boundaries: boundary::Boundary,
         #[serde(borrow)]
         semantics: Option<CompositeSolidSemantics<'cm>>,
         #[serde(borrow)]
-        material: Option<BTreeMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
+        material: Option<Map<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
         #[serde(borrow)]
-        texture: Option<BTreeMap<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
+        texture: Option<Map<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
     },
     #[serde(rename_all = "camelCase")]
     GeometryInstance {
@@ -469,7 +482,7 @@ pub enum LoD {
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Appearance<'cm> {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
     materials: Option<Vec<Material<'cm>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     textures: Option<Vec<Texture<'cm>>>,
@@ -805,7 +818,7 @@ pub struct CompositeSolidAppearanceValues {
 /// ```
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
-/// let geometry_templates: GeometryTemplates = serde_json::from_str(r#"{
+/// let json_str = r#"{
 ///   "templates": [
 ///     {
 ///       "type": "MultiSurface",
@@ -827,9 +840,10 @@ pub struct CompositeSolidAppearanceValues {
 ///     [1.0, 1.0, 0.0],
 ///     [0.0, 1.0, 0.0]
 ///   ]
-/// }"#)?;
-/// println!("{}", &geometry_templates);
+/// }"#;
+/// let geometry_templates: GeometryTemplates = serde_json::from_str(json_str)?;
 /// let geometry_templates_json = serde_json::to_string(&geometry_templates)?;
+/// assert_eq!(geometry_templates_json, json_str.replace(" ", "").replace("\n", ""));
 /// # Ok(())
 /// # }
 /// ```
@@ -843,7 +857,7 @@ pub struct CompositeSolidAppearanceValues {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates<'cm> {
     #[serde(borrow)]
-    templates: Vec<Geometry<'cm>>,
+    templates: Vec<boundary::Geometry<'cm>>,
     vertices_templates: VerticesTemplates,
 }
 
@@ -1618,7 +1632,7 @@ pub type Date = String;
 pub type CRS = String;
 
 /// The `extensions` member of a CityJSON.
-pub type Extensions = BTreeMap<String, Extension>;
+pub type Extensions = Map<String, Extension>;
 
 /// An Extension that is used in a city model.
 ///
@@ -1791,7 +1805,7 @@ impl Default for Transform {
 impl<'cm> CityObject<'cm> {
     pub fn new(
         cotype: CityObjectType,
-        geometry: Option<Vec<Geometry<'cm>>>,
+        geometry: Option<Vec<boundary::Geometry<'cm>>>,
         attributes: Option<Attributes<'cm>>,
         geographical_extent: Option<BBox>,
         children: Option<Vec<Cow<'cm, str>>>,
