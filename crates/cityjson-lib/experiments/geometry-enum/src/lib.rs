@@ -25,7 +25,7 @@ pub struct CityObject {
 struct Geometry {
     #[serde(rename = "type")]
     type_: GeometryType,
-    lod: String,
+    lod: LoD,
     boundaries: Boundary,
 }
 
@@ -54,7 +54,7 @@ struct Boundary {
 struct IntermediateGeometry<'a> {
     #[serde(alias = "type")]
     type_: GeometryType,
-    lod: String,
+    lod: LoD,
     #[serde(borrow)]
     boundaries: &'a RawValue,
 }
@@ -101,6 +101,81 @@ impl<'a> TryFrom<IntermediateGeometry<'a>> for Geometry {
             lod: geometry.lod,
             boundaries,
         })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LoD {
+    LoD0,
+    LoD0_0,
+    LoD0_1,
+    LoD0_2,
+    LoD0_3,
+    LoD1,
+    LoD1_0,
+    LoD1_1,
+    LoD1_2,
+    LoD1_3,
+    LoD2,
+    LoD2_0,
+    LoD2_1,
+    LoD2_2,
+    LoD2_3,
+    LoD3,
+    LoD3_0,
+    LoD3_1,
+    LoD3_2,
+    LoD3_3,
+}
+
+impl<'de> Deserialize<'de> for LoD {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(LoDVisitor)
+    }
+}
+
+struct LoDVisitor;
+
+impl<'de> Visitor<'de> for LoDVisitor {
+    type Value = LoD;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a string with a valid Level of Detail value")
+    }
+
+    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        match value {
+            "0" => Ok(LoD::LoD0),
+            "0.0" => Ok(LoD::LoD0_0),
+            "0.1" => Ok(LoD::LoD0_1),
+            "0.2" => Ok(LoD::LoD0_2),
+            "0.3" => Ok(LoD::LoD0_3),
+            "1" => Ok(LoD::LoD1),
+            "1.0" => Ok(LoD::LoD1_0),
+            "1.1" => Ok(LoD::LoD1_1),
+            "1.2" => Ok(LoD::LoD1_2),
+            "1.3" => Ok(LoD::LoD1_3),
+            "2" => Ok(LoD::LoD2),
+            "2.0" => Ok(LoD::LoD2_0),
+            "2.1" => Ok(LoD::LoD2_1),
+            "2.2" => Ok(LoD::LoD2_2),
+            "2.3" => Ok(LoD::LoD2_3),
+            "3" => Ok(LoD::LoD3),
+            "3.0" => Ok(LoD::LoD3_0),
+            "3.1" => Ok(LoD::LoD3_1),
+            "3.2" => Ok(LoD::LoD3_2),
+            "3.3" => Ok(LoD::LoD3_3),
+            &_ => Err(serde::de::Error::custom(format!(
+                "invalid Level of Detail value: {}",
+                value
+            ))),
+        }
     }
 }
 
