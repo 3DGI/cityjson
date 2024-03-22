@@ -20,9 +20,11 @@ pub struct CityObject {
     geometry: Vec<Geometry>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
+#[serde(try_from = "IntermediateGeometry")]
 struct Geometry {
-    type_geom: GeometryType,
+    #[serde(rename = "type")]
+    type_: GeometryType,
     lod: String,
     boundaries: Boundary,
 }
@@ -39,46 +41,30 @@ enum GeometryType {
     GeometryInstance,
 }
 
-struct JsonRawValue<'a>(&'a RawValue);
+#[derive(Debug, Default, Serialize)]
+struct Boundary {
+    vertices: Vec<usize>,
+    rings: Vec<usize>,
+    surfaces: Vec<usize>,
+    shells: Vec<usize>,
+    solids: Vec<usize>,
+}
 
-struct GeometryVisitor;
+#[derive(Debug, Deserialize)]
+struct IntermediateGeometry<'a> {
+    #[serde(alias = "type")]
+    type_: GeometryType,
+    lod: String,
+    #[serde(borrow)]
+    boundaries: &'a RawValue,
+}
 
-impl<'de> Visitor<'de> for GeometryVisitor {
-    type Value = Geometry;
+impl<'a> TryFrom<IntermediateGeometry<'a>> for Geometry {
+    type Error = serde_json::Error;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "a valid Geometry object")
-    }
-
-    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let mut geomtype_op: Option<GeometryType> = None;
-        let mut boundaries_rw = serde_json::value::to_raw_value(&Boundary::default()).unwrap();
-        let mut lod_rw = serde_json::value::to_raw_value(&String::new()).unwrap();
-
-        while let Some(key) = map.next_key::<String>()? {
-            if key == "type" {
-                geomtype_op = Some(map.next_value::<GeometryType>()?);
-            } else if key == "boundaries" {
-                boundaries_rw = map.next_value::<Box<RawValue>>()?;
-            } else if key == "lod" {
-                lod_rw = map.next_value::<Box<RawValue>>()?;
-            } else {
-                map.next_value::<IgnoredAny>()?;
-            }
-        }
-
-        if geomtype_op.is_none() {
-            return Err(serde::de::Error::custom(
-                "did not find the key 'type' in the Geometry",
-            ));
-        }
-        let geomtype = geomtype_op.unwrap();
-
+    fn try_from(geometry: IntermediateGeometry) -> Result<Self, Self::Error> {
         let mut boundaries = Boundary::default();
-        match geomtype {
+        match geometry.type_ {
             GeometryType::MultiPoint => {
                 todo!()
             }
@@ -86,19 +72,19 @@ impl<'de> Visitor<'de> for GeometryVisitor {
                 todo!()
             }
             GeometryType::MultiSurface => {
-                boundaries_rw
-                    .deserialize_seq(ExtendSurfacesVisitor(&mut boundaries))
-                    .map_err(serde::de::Error::custom)?;
+                geometry
+                    .boundaries
+                    .deserialize_seq(ExtendSurfacesVisitor(&mut boundaries))?;
             }
             GeometryType::CompositeSurface => {
-                boundaries_rw
-                    .deserialize_seq(ExtendSurfacesVisitor(&mut boundaries))
-                    .map_err(serde::de::Error::custom)?;
+                geometry
+                    .boundaries
+                    .deserialize_seq(ExtendSurfacesVisitor(&mut boundaries))?;
             }
             GeometryType::Solid => {
-                boundaries_rw
-                    .deserialize_seq(ExtendShellsVisitor(&mut boundaries))
-                    .map_err(serde::de::Error::custom)?;
+                geometry
+                    .boundaries
+                    .deserialize_seq(ExtendShellsVisitor(&mut boundaries))?;
             }
             GeometryType::MultiSolid => {
                 todo!()
@@ -110,35 +96,12 @@ impl<'de> Visitor<'de> for GeometryVisitor {
                 todo!()
             }
         }
-        let lod =
-            String::deserialize(lod_rw.into_deserializer()).map_err(serde::de::Error::custom)?;
-
         Ok(Geometry {
-            type_geom: geomtype,
-            lod,
+            type_: geometry.type_,
+            lod: geometry.lod,
             boundaries,
         })
     }
-}
-
-struct GeometryTypeContainer(GeometryType);
-
-impl<'de> Deserialize<'de> for Geometry {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(GeometryVisitor)
-    }
-}
-
-#[derive(Debug, Default, Serialize)]
-struct Boundary {
-    vertices: Vec<usize>,
-    rings: Vec<usize>,
-    surfaces: Vec<usize>,
-    shells: Vec<usize>,
-    solids: Vec<usize>,
 }
 
 struct ExtendVertices<'a>(&'a mut Boundary);

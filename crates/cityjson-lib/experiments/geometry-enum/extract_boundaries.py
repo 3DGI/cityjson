@@ -21,6 +21,7 @@ if __name__ == "__main__":
             "geometry": [{
                 "type": geom["type"],
                 "boundaries": geom["boundaries"],
+                "lod": geom["lod"]
             }, ]
         } for coid, co in cm["CityObjects"].items() for geom in co["geometry"] if geom["type"] == "MultiSurface"
     }
