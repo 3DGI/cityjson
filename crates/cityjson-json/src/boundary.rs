@@ -63,6 +63,7 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
         let mut template_transformation_matrix: Option<[f64; 16]> = None;
         match geometry.type_ {
             GeometryType::MultiPoint => {
+                lod = geometry.lod;
                 // Would be neater with get_or_insert_default once it's stabilized https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert_default
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
@@ -70,36 +71,42 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
             }
             GeometryType::MultiLineString => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendRingsVisitor(boundaries_mut_ref))?;
                 }
             }
             GeometryType::MultiSurface => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
                 }
             }
             GeometryType::CompositeSurface => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
                 }
             }
             GeometryType::Solid => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendShellsVisitor(boundaries_mut_ref))?;
                 }
             }
             GeometryType::MultiSolid => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
                 }
             }
             GeometryType::CompositeSolid => {
+                lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
