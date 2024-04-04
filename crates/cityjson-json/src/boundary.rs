@@ -17,9 +17,9 @@ use std::fmt;
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
 use derive_more::Display;
-use serde::de::{DeserializeSeed, Deserializer, SeqAccess, Visitor};
-use serde::ser::{Error, SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
+use serde::de::{Deserializer, DeserializeSeed, SeqAccess, Visitor};
+use serde::ser::{Error, Serializer, SerializeSeq};
 
 use crate::errors;
 
@@ -32,7 +32,7 @@ use crate::errors;
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Boundary {
-    vertices: Vec<usize>,
+    vertices: Vec<VertexIndex>,
     rings: Vec<usize>,
     surfaces: Vec<usize>,
     shells: Vec<usize>,
@@ -204,15 +204,9 @@ impl Boundary {
     pub fn to_nested_multilinestring(&self) -> errors::Result<BoundaryNestedMultiLineString> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
+            let mut counter = BoundaryCounter::default();
             let mut ml = BoundaryNestedMultiLineString::with_capacity(self.rings.len());
-            let vertices_len = self.vertices.len();
-            for (li, start_idx) in self.rings.iter().enumerate() {
-                let v_endi = li + 1;
-                let v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
-                if let Some(vertices) = self.vertices.get(*start_idx..*v_end_idx) {
-                    ml.push(BoundaryNestedMultiPoint::from(vertices));
-                }
-            }
+            self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter);
             Ok(ml)
         } else {
             Err(errors::Error::IncompatibleBoundary(
@@ -229,33 +223,11 @@ impl Boundary {
     ) -> errors::Result<BoundaryNestedMultiOrCompositeSurface> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSurface {
-            let mut mcsrf =
+            let mut counter = BoundaryCounter::default();
+            let mut mcsurface =
                 BoundaryNestedMultiOrCompositeSurface::with_capacity(self.surfaces.len());
-            let vertices_len = self.vertices.len();
-            let rings_len = self.rings.len();
-            let mut ring_idx: usize = 0;
-            let mut srf_idx: usize = 0;
-            for r_start_idx in &self.surfaces {
-                let r_endi = srf_idx + 1;
-                srf_idx += 1;
-                let r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
-                if let Some(rings) = self.rings.get(*r_start_idx..*r_end_idx) {
-                    let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
-                    for v_start_idx in rings {
-                        // Index of the last vertex of the ring.
-                        let v_endi = ring_idx + 1;
-                        ring_idx += 1;
-                        // At the last ring we are out of bounds of the rings vec with v_endi, so
-                        // we get all the remaining vertices.
-                        let v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
-                        if let Some(vertices) = self.vertices.get(*v_start_idx..*v_end_idx) {
-                            surface.push(BoundaryNestedMultiPoint::from(vertices));
-                        }
-                    }
-                    mcsrf.push(surface);
-                }
-            }
-            Ok(mcsrf)
+            self.push_surfaces_to_multisurface(self.surfaces.as_slice(), &mut mcsurface, &mut counter);
+            Ok(mcsurface)
         } else {
             Err(errors::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
@@ -269,42 +241,9 @@ impl Boundary {
     pub fn to_nested_solid(&self) -> errors::Result<BoundaryNestedSolid> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::Solid {
+            let mut counter = BoundaryCounter::default();
             let mut solid = BoundaryNestedSolid::with_capacity(self.shells.len());
-            let vertices_len = self.vertices.len();
-            let rings_len = self.rings.len();
-            let surfaces_len = self.surfaces.len();
-            let mut ring_idx: usize = 0;
-            let mut srf_idx: usize = 0;
-            let mut shell_idx: usize = 0;
-            for srf_start_idx in &self.shells {
-                let srf_endi = shell_idx + 1;
-                shell_idx += 1;
-                let srf_end_idx = self.shells.get(srf_endi).unwrap_or(&surfaces_len);
-                if let Some(surfaces) = self.surfaces.get(*srf_start_idx..*srf_end_idx) {
-                    let mut mcsrf =
-                        BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
-                    for r_start_idx in surfaces {
-                        let r_endi = srf_idx + 1;
-                        srf_idx += 1;
-                        let r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
-                        if let Some(rings) = self.rings.get(*r_start_idx..*r_end_idx) {
-                            let mut surface =
-                                BoundaryNestedMultiLineString::with_capacity(rings.len());
-                            for v_start_idx in rings {
-                                let v_endi = ring_idx + 1;
-                                ring_idx += 1;
-                                let v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
-                                if let Some(vertices) = self.vertices.get(*v_start_idx..*v_end_idx)
-                                {
-                                    surface.push(BoundaryNestedMultiPoint::from(vertices));
-                                }
-                            }
-                            mcsrf.push(surface);
-                        }
-                    }
-                    solid.push(mcsrf);
-                }
-            }
+            self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter);
             Ok(solid)
         } else {
             Err(errors::Error::IncompatibleBoundary(
@@ -321,53 +260,14 @@ impl Boundary {
     ) -> errors::Result<BoundaryNestedMultiOrCompositeSolid> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSolid {
+            let mut counter = BoundaryCounter::default();
             let mut mcsolid = BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len());
-            let vertices_len = self.vertices.len();
-            let rings_len = self.rings.len();
-            let surfaces_len = self.surfaces.len();
-            let shells_len = self.shells.len();
-            let mut ring_i: usize = 0;
-            let mut surface_i: usize = 0;
-            let mut shell_i: usize = 0;
-            let mut solid_i: usize = 0;
             for shells_start_i in &self.solids {
-                let shells_end_i = self.solids.get(solid_i + 1).unwrap_or(&shells_len);
-                solid_i += 1;
+                let shells_len = self.shells.len();
+                let shells_end_i = self.solids.get(counter.next_solid_i()).unwrap_or(&shells_len);
                 if let Some(shells) = self.shells.get(*shells_start_i..*shells_end_i) {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
-                    for surfaces_start_i in shells {
-                        let surfaces_end_i = self.shells.get(shell_i + 1).unwrap_or(&surfaces_len);
-                        shell_i += 1;
-                        if let Some(surfaces) =
-                            self.surfaces.get(*surfaces_start_i..*surfaces_end_i)
-                        {
-                            let mut mcsurface =
-                                BoundaryNestedMultiOrCompositeSurface::with_capacity(
-                                    surfaces.len(),
-                                );
-                            for ring_start_i in surfaces {
-                                let ring_end_i =
-                                    self.surfaces.get(surface_i + 1).unwrap_or(&rings_len);
-                                surface_i += 1;
-                                if let Some(rings) = self.rings.get(*ring_start_i..*ring_end_i) {
-                                    let mut surface =
-                                        BoundaryNestedMultiLineString::with_capacity(rings.len());
-                                    for vertices_start_i in rings {
-                                        let vertices_end_i =
-                                            self.rings.get(ring_i + 1).unwrap_or(&vertices_len);
-                                        ring_i += 1;
-                                        if let Some(vertices) =
-                                            self.vertices.get(*vertices_start_i..*vertices_end_i)
-                                        {
-                                            surface.push(BoundaryNestedMultiPoint::from(vertices));
-                                        }
-                                    }
-                                    mcsurface.push(surface);
-                                }
-                            }
-                            solid.push(mcsurface);
-                        }
-                    }
+                    self.push_shells_to_solid(shells, &mut solid, &mut counter);
                     mcsolid.push(solid);
                 }
             }
@@ -377,6 +277,51 @@ impl Boundary {
                 boundary_type.to_string(),
                 "MultiOrCompositeSolid".to_string(),
             ))
+        }
+    }
+
+    fn push_shells_to_solid(&self, shells: &[usize], solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>, mut counter: &mut BoundaryCounter) {
+        for surfaces_start_i in shells {
+            let surfaces_len = self.surfaces.len();
+            let surfaces_end_i = self.shells.get(counter.next_shell_i()).unwrap_or(&surfaces_len);
+            if let Some(surfaces) = self.surfaces.get(*surfaces_start_i..*surfaces_end_i) {
+                let mut mcsurface =
+                    BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
+                self.push_surfaces_to_multisurface(surfaces, &mut mcsurface, &mut counter);
+                solid.push(mcsurface);
+            }
+        }
+    }
+
+    fn push_surfaces_to_multisurface(&self, surfaces: &[usize], mcsurface: &mut BoundaryNestedMultiOrCompositeSurface, mut counter: &mut BoundaryCounter) {
+        for ring_start_i in surfaces {
+            let rings_len = self.rings.len();
+            let ring_end_i = self
+                .surfaces
+                .get(counter.next_surface_i())
+                .unwrap_or(&rings_len);
+            if let Some(rings) = self.rings.get(*ring_start_i..*ring_end_i) {
+                let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
+                self.push_rings_to_surface(rings, &mut surface, &mut counter);
+                mcsurface.push(surface);
+            }
+        }
+    }
+
+    fn push_rings_to_surface(
+        &self,
+        rings: &[usize],
+        surface: &mut BoundaryNestedMultiLineString,
+        counter: &mut BoundaryCounter,
+    ) {
+        for vertices_start_i in rings {
+            let vertices_len = self.vertices.len();
+            let vertices_end_i = self.rings.get(counter.next_ring_i()).unwrap_or(&vertices_len);;
+            // At the last ring we are out of bounds of the rings vec with v_endi, so
+            // we get all the remaining vertices.
+            if let Some(vertices) = self.vertices.get(*vertices_start_i..*vertices_end_i) {
+                surface.push(BoundaryNestedMultiPoint::from(vertices));
+            }
         }
     }
 
@@ -404,88 +349,38 @@ impl Boundary {
     }
 }
 
-/// The boundary of a `MultiSolid` or a `CompositeSolid`, represented as nested vectors.
-/// Do not rely on this type, see the module documentation for details.
-///
-/// # Examples
-/// ```
-/// # use serde_cityjson::boundary::*;
-/// # use serde_cityjson::errors;
-/// # fn main() -> errors::Result<()> {
-/// let aso_nested: BoundaryNestedMultiOrCompositeSolid = vec![vec![vec![vec![vec![0, 1, 2, 3]]]]];
-/// let boundary = Boundary::from(aso_nested.clone());
-/// let aso_nested_rev: BoundaryNestedMultiOrCompositeSolid = boundary.to_nested_multi_or_compositesolid()?;
-/// assert_eq!(aso_nested, aso_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiOrCompositeSolid = Vec<BoundaryNestedSolid>;
+#[derive(Default)]
+struct BoundaryCounter {
+    ring_i: usize,
+    surface_i: usize,
+    shell_i: usize,
+    solid_i: usize,
+}
 
-/// The boundary of a `Solid`, represented as nested vectors.
-/// Do not rely on this type, see the module documentation for details.
-///
-/// # Examples
-/// ```
-/// # use serde_cityjson::boundary::*;
-/// # use serde_cityjson::errors;
-/// # fn main() -> errors::Result<()> {
-/// let so_nested: BoundaryNestedSolid = vec![vec![vec![vec![0, 1, 2, 3]]]];
-/// let boundary = Boundary::from(so_nested.clone());
-/// let so_nested_rev: BoundaryNestedSolid = boundary.to_nested_solid()?;
-/// assert_eq!(so_nested, so_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedSolid = Vec<BoundaryNestedMultiOrCompositeSurface>;
+impl BoundaryCounter {
+    fn next_ring_i(&mut self) -> usize {
+        self.ring_i += 1;
+        self.ring_i
+    }
 
-/// The boundary of a `MultiSurface`, `CompositeSurface` or `Shell` represented as nested vectors.
-/// Do not rely on this type, see the module documentation for details.
-///
-/// # Examples
-/// ```
-/// # use serde_cityjson::boundary::*;
-/// # use serde_cityjson::errors;
-/// # fn main() -> errors::Result<()> {
-/// let asrf_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
-/// let boundary = Boundary::from(asrf_nested.clone());
-/// let asrf_nested_rev: BoundaryNestedMultiOrCompositeSurface = boundary.to_nested_multi_or_compositesurface()?;
-/// assert_eq!(asrf_nested, asrf_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiOrCompositeSurface = Vec<BoundaryNestedMultiLineString>;
+    fn next_surface_i(&mut self) -> usize {
+        self.surface_i += 1;
+        self.surface_i
+    }
 
-/// The boundary of a `MultiLineString`, or `Surface` represented as nested vectors.
-/// Do not rely on this type, see the module documentation for details.
-///
-/// # Examples
-/// ```
-/// # use serde_cityjson::boundary::*;
-/// # use serde_cityjson::errors;
-/// # fn main() -> errors::Result<()> {
-/// let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3]];
-/// let boundary = Boundary::from(ml_nested.clone());
-/// let ml_nested_rev: BoundaryNestedMultiLineString = boundary.to_nested_multilinestring()?;
-/// assert_eq!(ml_nested, ml_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiLineString = Vec<BoundaryNestedMultiPoint>;
+    fn next_shell_i(&mut self) -> usize {
+        self.shell_i += 1;
+        self.shell_i
+    }
 
-/// The boundary of a `MultiPoint`, `LineString` or `Ring` represented as nested vectors.
-/// Do not rely on this type, see the module documentation for details.
-///
-/// # Examples
-/// ```
-/// # use serde_cityjson::boundary::*;
-/// # use serde_cityjson::errors;
-/// # fn main() -> errors::Result<()> {
-/// let mp_nested: BoundaryNestedMultiPoint = vec![0, 1, 2, 3];
-/// let boundary = Boundary::from(mp_nested.clone());
-/// let mp_nested_rev: BoundaryNestedMultiPoint = boundary.to_nested_multipoint()?;
-/// assert_eq!(mp_nested, mp_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiPoint = Vec<VertexIndex>;
+    fn next_solid_i(&mut self) -> usize {
+        self.solid_i += 1;
+        self.solid_i
+    }
+}
 
-/// Represents a vertex index.
-pub type VertexIndex = usize; // TODO: u32/usize feature
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Visitor implementations
 
 // The `deserialize` method of `ExtendVertices` is traversing the inner arrays of the
 // MultiPoint/LineString/Ring JSON input and appending each vertex index into an existing Vec.
@@ -684,6 +579,92 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendSolids<'a> {
         deserializer.deserialize_seq(ExtendSolidsVisitor(self.0))
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Nested boundaries
+
+/// The boundary of a `MultiSolid` or a `CompositeSolid`, represented as nested vectors.
+/// Do not rely on this type, see the module documentation for details.
+///
+/// # Examples
+/// ```
+/// # use serde_cityjson::boundary::*;
+/// # use serde_cityjson::errors;
+/// # fn main() -> errors::Result<()> {
+/// let aso_nested: BoundaryNestedMultiOrCompositeSolid = vec![vec![vec![vec![vec![0, 1, 2, 3]]]]];
+/// let boundary = Boundary::from(aso_nested.clone());
+/// let aso_nested_rev: BoundaryNestedMultiOrCompositeSolid = boundary.to_nested_multi_or_compositesolid()?;
+/// assert_eq!(aso_nested, aso_nested_rev);
+/// # Ok(())
+/// # }
+pub type BoundaryNestedMultiOrCompositeSolid = Vec<BoundaryNestedSolid>;
+
+/// The boundary of a `Solid`, represented as nested vectors.
+/// Do not rely on this type, see the module documentation for details.
+///
+/// # Examples
+/// ```
+/// # use serde_cityjson::boundary::*;
+/// # use serde_cityjson::errors;
+/// # fn main() -> errors::Result<()> {
+/// let so_nested: BoundaryNestedSolid = vec![vec![vec![vec![0, 1, 2, 3]]]];
+/// let boundary = Boundary::from(so_nested.clone());
+/// let so_nested_rev: BoundaryNestedSolid = boundary.to_nested_solid()?;
+/// assert_eq!(so_nested, so_nested_rev);
+/// # Ok(())
+/// # }
+pub type BoundaryNestedSolid = Vec<BoundaryNestedMultiOrCompositeSurface>;
+
+/// The boundary of a `MultiSurface`, `CompositeSurface` or `Shell` represented as nested vectors.
+/// Do not rely on this type, see the module documentation for details.
+///
+/// # Examples
+/// ```
+/// # use serde_cityjson::boundary::*;
+/// # use serde_cityjson::errors;
+/// # fn main() -> errors::Result<()> {
+/// let asrf_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
+/// let boundary = Boundary::from(asrf_nested.clone());
+/// let asrf_nested_rev: BoundaryNestedMultiOrCompositeSurface = boundary.to_nested_multi_or_compositesurface()?;
+/// assert_eq!(asrf_nested, asrf_nested_rev);
+/// # Ok(())
+/// # }
+pub type BoundaryNestedMultiOrCompositeSurface = Vec<BoundaryNestedMultiLineString>;
+
+/// The boundary of a `MultiLineString`, or `Surface` represented as nested vectors.
+/// Do not rely on this type, see the module documentation for details.
+///
+/// # Examples
+/// ```
+/// # use serde_cityjson::boundary::*;
+/// # use serde_cityjson::errors;
+/// # fn main() -> errors::Result<()> {
+/// let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3]];
+/// let boundary = Boundary::from(ml_nested.clone());
+/// let ml_nested_rev: BoundaryNestedMultiLineString = boundary.to_nested_multilinestring()?;
+/// assert_eq!(ml_nested, ml_nested_rev);
+/// # Ok(())
+/// # }
+pub type BoundaryNestedMultiLineString = Vec<BoundaryNestedMultiPoint>;
+
+/// The boundary of a `MultiPoint`, `LineString` or `Ring` represented as nested vectors.
+/// Do not rely on this type, see the module documentation for details.
+///
+/// # Examples
+/// ```
+/// # use serde_cityjson::boundary::*;
+/// # use serde_cityjson::errors;
+/// # fn main() -> errors::Result<()> {
+/// let mp_nested: BoundaryNestedMultiPoint = vec![0, 1, 2, 3];
+/// let boundary = Boundary::from(mp_nested.clone());
+/// let mp_nested_rev: BoundaryNestedMultiPoint = boundary.to_nested_multipoint()?;
+/// assert_eq!(mp_nested, mp_nested_rev);
+/// # Ok(())
+/// # }
+pub type BoundaryNestedMultiPoint = Vec<VertexIndex>;
+
+/// Represents a vertex index.
+pub type VertexIndex = usize; // TODO: u32/usize feature
 
 #[cfg(test)]
 mod test {
