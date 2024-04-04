@@ -1,0 +1,9 @@
+{
+  "type": "+MySemantic",
+  "my_attribute": 42,
+  "children": [
+    2,
+    37
+  ],
+  "parent": 0
+}

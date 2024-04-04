@@ -1462,11 +1462,17 @@ pub type Vertices = Vec<[i64; 3]>;
 #[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Metadata<'cm> {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub geographical_extent: Option<BBox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub identifier: Option<CityModelIdentifier>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub point_of_contact: Option<Contact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reference_date: Option<Date>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reference_system: Option<CRS>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(
         borrow,
@@ -1532,11 +1538,17 @@ pub type CityModelIdentifier = String;
 pub struct Contact {
     pub contact_name: String,
     pub email_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<ContactRole>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_type: Option<ContactType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub organization: Option<String>,
 }
 
@@ -1692,7 +1704,7 @@ impl<'cm> CityModel<'cm> {
     }
 }
 
-impl Default for CityModel<'_> {
+impl<'cm> Default for CityModel<'cm> {
     fn default() -> Self {
         Self {
             id: None,

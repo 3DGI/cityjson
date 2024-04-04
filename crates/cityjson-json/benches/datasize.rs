@@ -6,7 +6,7 @@ use std::hint::black_box;
 use serde_cityjson::datasize::SerdeCityJSONDataSize;
 
 fn main() -> Result<(), String> {
-    let downloaded_dir = PathBuf::from("resources").join("data").join("downloaded");
+    let downloaded_dir = PathBuf::from("tests").join("data").join("downloaded");
     let filename = "10-356-724";
     let filepath = downloaded_dir.join(filename).with_extension("city.json");
     let ds = SerdeCityJSONDataSize::new(None);

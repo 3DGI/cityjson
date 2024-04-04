@@ -1,0 +1,25 @@
+{
+  "type": "GeometryInstance",
+  "template": 0,
+  "boundaries": [
+    372
+  ],
+  "transformationMatrix": [
+    2.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    2.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ]
+}

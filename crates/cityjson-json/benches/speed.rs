@@ -27,7 +27,7 @@ fn calculate_measurement_time(expected_time_per_test: Duration, sample_size: u32
 /// Benchmark with real data. Run 'just download' first to download the data files.
 fn real_data(c: &mut Criterion) {
     let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
+        .join("tests")
         .join("data")
         .join("downloaded");
     let warm_up_multiplier: u32 = 8;

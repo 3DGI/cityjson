@@ -1,5 +1,5 @@
 set dotenv-load := true
-datadir := "resources" / "data" / "downloaded"
+datadir := "tests" / "data" / "downloaded"
 
 # Create dir for downloaded files
 _prepare:

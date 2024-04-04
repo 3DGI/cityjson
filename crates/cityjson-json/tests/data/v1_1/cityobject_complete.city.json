@@ -1,0 +1,23 @@
+{
+  "type": "BuildingPart",
+  "geographicalExtent": [
+    84710.1,
+    446846.0,
+    -5.3,
+    84757.1,
+    446944.0,
+    40.9
+  ],
+  "attributes": {
+    "measuredHeight": 22.3,
+    "roofType": "gable",
+    "owner": "Elvis Presley"
+  },
+  "children": [
+    "id-2"
+  ],
+  "parents": [
+    "id-3"
+  ],
+  "geometry": []
+}
