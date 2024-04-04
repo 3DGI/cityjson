@@ -12,15 +12,18 @@ use std::fmt::{Display, Formatter};
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
 use derive_more::Display;
-use serde::{Deserialize, Serialize};
-use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::{IntoDeserializer, Visitor};
 use serde_json_borrow::Value;
+use std::result;
+use std::marker::PhantomData;
+use serde_json::value::RawValue;
 // use ahash::AHashMap as Map;
 
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
-use crate::boundary;
+use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor, VertexIndex};
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -193,7 +196,7 @@ pub struct CityObject<'cm> {
     #[serde(rename = "type")]
     pub type_co: CityObjectType,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    pub geometry: Option<Vec<boundary::Geometry<'cm>>>,
+    pub geometry: Option<Vec<Geometry<'cm>>>,
     #[serde(
         borrow,
         skip_serializing_if = "Option::is_none",
@@ -349,78 +352,148 @@ pub type Attributes<'cm> = Value<'cm>;
 //  the material, but Texture values follow their own specific rules!!!
 //  https://www.cityjson.org/specs/1.1.3/#geometry-object-having-texture-s.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "type")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub enum Geometry<'cm> {
-    MultiPoint {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<MultiPointSemantics<'cm>>,
-    },
-    MultiLineString {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<MultiLineStringSemantics<'cm>>,
-    },
-    MultiSurface {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<MultiSurfaceSemantics<'cm>>,
-        #[serde(borrow)]
-        material: Option<Map<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
-        #[serde(borrow)]
-        texture: Option<Map<Cow<'cm, str>, MultiSurfaceAppearanceValues>>,
-    },
-    CompositeSurface {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<CompositeSurfaceSemantics<'cm>>,
-        #[serde(borrow)]
-        material: Option<Map<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
-        #[serde(borrow)]
-        texture: Option<Map<Cow<'cm, str>, CompositeSurfaceAppearanceValues>>,
-    },
-    Solid {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<SolidSemantics<'cm>>,
-        #[serde(borrow)]
-        material: Option<Map<Cow<'cm, str>, SolidAppearanceValues>>,
-        #[serde(borrow)]
-        texture: Option<Map<Cow<'cm, str>, SolidAppearanceValues>>,
-    },
-    MultiSolid {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<MultiSolidSemantics<'cm>>,
-        #[serde(borrow)]
-        material: Option<Map<Cow<'cm, str>, MultiSolidAppearanceValues>>,
-        #[serde(borrow)]
-        texture: Option<Map<Cow<'cm, str>, MultiSolidAppearanceValues>>,
-    },
-    CompositeSolid {
-        lod: LoD,
-        boundaries: boundary::Boundary,
-        #[serde(borrow)]
-        semantics: Option<CompositeSolidSemantics<'cm>>,
-        #[serde(borrow)]
-        material: Option<Map<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
-        #[serde(borrow)]
-        texture: Option<Map<Cow<'cm, str>, CompositeSolidAppearanceValues>>,
-    },
-    #[serde(rename_all = "camelCase")]
-    GeometryInstance {
-        template: usize,
-        boundaries: [usize; 1],
-        transformation_matrix: [f64; 16],
-    },
+#[serde(try_from = "IntermediateGeometry")]
+pub struct Geometry<'cm> {
+    #[serde(rename = "type")]
+    type_: GeometryType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lod: Option<LoD>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    boundaries: Option<Boundary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    semantics: Option<PhantomData<Vec<usize>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    material: Option<PhantomData<Vec<usize>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    texture: Option<PhantomData<Vec<usize>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    template: Option<u16>,
+    #[serde(rename = "boundaries", skip_serializing_if = "Option::is_none")]
+    template_boundaries: Option<[VertexIndex; 1]>,
+    #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
+    template_transformation_matrix: Option<[f64; 16]>,
+    #[serde(skip)]
+    _phantom: PhantomData<&'cm str>
 }
+
+impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
+    type Error = serde_json::Error;
+
+    fn try_from(geometry: IntermediateGeometry) -> result::Result<Self, Self::Error> {
+        let mut lod: Option<LoD> = None;
+        let mut boundaries: Option<Boundary> = None;
+        let mut template: Option<u16> = None;
+        let mut template_boundaries: Option<[usize; 1]> = None;
+        let mut template_transformation_matrix: Option<[f64; 16]> = None;
+        match geometry.type_ {
+            GeometryType::MultiPoint => {
+                lod = geometry.lod;
+                // Would be neater with get_or_insert_default once it's stabilized https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert_default
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendVerticesVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::MultiLineString => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendRingsVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::MultiSurface => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::CompositeSurface => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::Solid => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendShellsVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::MultiSolid => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::CompositeSolid => {
+                lod = geometry.lod;
+                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
+                }
+            }
+            GeometryType::GeometryInstance => {
+                template = geometry.template;
+                if let Some(boundaries_raw) = geometry.boundaries {
+                    template_boundaries = Some(Deserialize::deserialize(boundaries_raw.into_deserializer())?);
+                }
+                template_transformation_matrix = geometry.template_transformation_matrix;
+            }
+        }
+        Ok(Geometry {
+            type_: geometry.type_,
+            lod,
+            boundaries,
+            semantics: None,
+            material: None,
+            texture: None,
+            template,
+            template_boundaries,
+            template_transformation_matrix,
+            _phantom: Default::default(),
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct IntermediateGeometry<'a> {
+    #[serde(alias = "type")]
+    type_: GeometryType,
+    lod: Option<LoD>,
+    #[serde(borrow)]
+    boundaries: Option<&'a RawValue>,
+    #[serde(borrow)]
+    semantics: Option<&'a RawValue>,
+    #[serde(borrow)]
+    material: Option<&'a RawValue>,
+    #[serde(borrow)]
+    texture: Option<&'a RawValue>,
+    template: Option<u16>,
+    // #[serde(rename = "boundaries")]
+    // template_boundaries: Option<[usize; 1]>,
+    #[serde(rename = "transformationMatrix")]
+    template_transformation_matrix: Option<[f64; 16]>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
+pub enum GeometryType {
+    MultiPoint,
+    MultiLineString,
+    MultiSurface,
+    CompositeSurface,
+    Solid,
+    MultiSolid,
+    CompositeSolid,
+    GeometryInstance,
+}
+
+
 
 /// The Level of Detail of a Geometry.
 ///
@@ -857,7 +930,7 @@ pub struct CompositeSolidAppearanceValues {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates<'cm> {
     #[serde(borrow)]
-    templates: Vec<boundary::Geometry<'cm>>,
+    templates: Vec<Geometry<'cm>>,
     vertices_templates: VerticesTemplates,
 }
 
@@ -1817,7 +1890,7 @@ impl Default for Transform {
 impl<'cm> CityObject<'cm> {
     pub fn new(
         cotype: CityObjectType,
-        geometry: Option<Vec<boundary::Geometry<'cm>>>,
+        geometry: Option<Vec<Geometry<'cm>>>,
         attributes: Option<Attributes<'cm>>,
         geographical_extent: Option<BBox>,
         children: Option<Vec<Cow<'cm, str>>>,

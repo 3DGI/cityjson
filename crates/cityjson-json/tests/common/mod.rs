@@ -4,26 +4,15 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 
+use pretty_assertions::assert_eq;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use pretty_assertions::assert_eq;
-
-pub fn strip_whitespace<S: AsRef<str>>(string: S) -> String {
-    string.as_ref().replace(" ", "").replace("\n", "")
-}
 
 pub fn read_to_string(path: PathBuf) -> String {
     let mut file = File::open(path).unwrap();
     let mut json_string = String::new();
     file.read_to_string(&mut json_string).unwrap();
     json_string
-}
-
-pub fn read_to_slice(path: PathBuf) -> Vec<u8> {
-    let mut file = File::open(path).unwrap();
-    let mut json_buf = Vec::new();
-    file.read_to_end(&mut json_buf).unwrap();
-    json_buf
 }
 
 pub fn cargo_workspace_directory() -> Option<PathBuf> {

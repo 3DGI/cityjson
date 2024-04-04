@@ -1,9 +1,6 @@
-use std::io::Read;
 use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
-use serde::de::{DeserializeOwned, IntoDeserializer};
-use serde::{Deserialize, Serialize};
 
 use common::*;
 use serde_cityjson::v1_1::*;

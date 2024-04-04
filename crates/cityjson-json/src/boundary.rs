@@ -13,7 +13,6 @@
 //!
 //! Do not rely on the `BoundaryNested*` types when using `serde_cityjson`, use [Boundary] instead.
 use std::fmt;
-use std::marker::PhantomData;
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
@@ -21,156 +20,14 @@ use derive_more::Display;
 use serde::de::{DeserializeSeed, Deserializer, SeqAccess, Visitor};
 use serde::ser::{Error, SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 
 use crate::errors;
-use crate::v1_1::LoD;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-#[serde(try_from = "IntermediateGeometry")]
-pub struct Geometry<'cm> {
-    #[serde(rename = "type")]
-    type_: GeometryType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    lod: Option<LoD>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    boundaries: Option<Boundary>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    semantics: Option<PhantomData<Vec<usize>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    material: Option<PhantomData<Vec<usize>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    texture: Option<PhantomData<Vec<usize>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    template: Option<u16>,
-    #[serde(rename = "boundaries", skip_serializing_if = "Option::is_none")]
-    template_boundaries: Option<[usize; 1]>,
-    #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
-    template_transformation_matrix: Option<[f64; 16]>,
-    #[serde(skip)]
-    _phantom: PhantomData<&'cm str>
-}
-
-impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
-    type Error = serde_json::Error;
-
-    fn try_from(geometry: IntermediateGeometry) -> Result<Self, Self::Error> {
-        let mut lod: Option<LoD> = None;
-        let mut boundaries: Option<Boundary> = None;
-        let mut template: Option<u16> = None;
-        let mut template_boundaries: Option<[usize; 1]> = None;
-        let mut template_transformation_matrix: Option<[f64; 16]> = None;
-        match geometry.type_ {
-            GeometryType::MultiPoint => {
-                lod = geometry.lod;
-                // Would be neater with get_or_insert_default once it's stabilized https://doc.rust-lang.org/std/option/enum.Option.html#method.get_or_insert_default
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendVerticesVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::MultiLineString => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendRingsVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::MultiSurface => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::CompositeSurface => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::Solid => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendShellsVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::MultiSolid => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::CompositeSolid => {
-                lod = geometry.lod;
-                let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
-                if let Some(boundaries_raw) = geometry.boundaries {
-                    boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
-                }
-            }
-            GeometryType::GeometryInstance => {
-                template = geometry.template;
-                template_boundaries = geometry.template_boundaries;
-                template_transformation_matrix = geometry.template_transformation_matrix;
-            }
-        }
-        Ok(Geometry {
-            type_: geometry.type_,
-            lod,
-            boundaries,
-            semantics: None,
-            material: None,
-            texture: None,
-            template,
-            template_boundaries,
-            template_transformation_matrix,
-            _phantom: Default::default(),
-        })
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct IntermediateGeometry<'a> {
-    #[serde(alias = "type")]
-    type_: GeometryType,
-    lod: Option<LoD>,
-    #[serde(borrow)]
-    boundaries: Option<&'a RawValue>,
-    #[serde(borrow)]
-    semantics: Option<&'a RawValue>,
-    #[serde(borrow)]
-    material: Option<&'a RawValue>,
-    #[serde(borrow)]
-    texture: Option<&'a RawValue>,
-    template: Option<u16>,
-    #[serde(rename = "boundaries")]
-    template_boundaries: Option<[usize; 1]>,
-    #[serde(rename = "transformationMatrix")]
-    template_transformation_matrix: Option<[f64; 16]>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub enum GeometryType {
-    MultiPoint,
-    MultiLineString,
-    MultiSurface,
-    CompositeSurface,
-    Solid,
-    MultiSolid,
-    CompositeSolid,
-    GeometryInstance,
-}
 
 /// A generic geometry Boundary that can represent every type of boundary. The Boundary itself
 /// does not "know" what type it is. Some boundary types are ambiguous in CityJSON, for example a
 /// `MultiSurface`, `CompositeSurface` and `Shell` each have the same representation.
-/// The exact boundary type is defined by the [GeometryType]
-/// of the parent [Geometry]. Therefore, in most cases a Boundary should only be used in conjunction
+/// The exact boundary type is defined by the [crate::v1_1::GeometryType]
+/// of the parent [crate::v1_1::Geometry]. Therefore, in most cases a Boundary should only be used in conjunction
 /// with its parent Geometry.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
@@ -381,7 +238,7 @@ impl Boundary {
             for r_start_idx in &self.surfaces {
                 let r_endi = srf_idx + 1;
                 srf_idx += 1;
-                let mut r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
+                let r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
                 if let Some(rings) = self.rings.get(*r_start_idx..*r_end_idx) {
                     let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
                     for v_start_idx in rings {
@@ -390,7 +247,7 @@ impl Boundary {
                         ring_idx += 1;
                         // At the last ring we are out of bounds of the rings vec with v_endi, so
                         // we get all the remaining vertices.
-                        let mut v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
+                        let v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
                         if let Some(vertices) = self.vertices.get(*v_start_idx..*v_end_idx) {
                             surface.push(BoundaryNestedMultiPoint::from(vertices));
                         }
@@ -422,21 +279,21 @@ impl Boundary {
             for srf_start_idx in &self.shells {
                 let srf_endi = shell_idx + 1;
                 shell_idx += 1;
-                let mut srf_end_idx = self.shells.get(srf_endi).unwrap_or(&surfaces_len);
+                let srf_end_idx = self.shells.get(srf_endi).unwrap_or(&surfaces_len);
                 if let Some(surfaces) = self.surfaces.get(*srf_start_idx..*srf_end_idx) {
                     let mut mcsrf =
                         BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
                     for r_start_idx in surfaces {
                         let r_endi = srf_idx + 1;
                         srf_idx += 1;
-                        let mut r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
+                        let r_end_idx = self.surfaces.get(r_endi).unwrap_or(&rings_len);
                         if let Some(rings) = self.rings.get(*r_start_idx..*r_end_idx) {
                             let mut surface =
                                 BoundaryNestedMultiLineString::with_capacity(rings.len());
                             for v_start_idx in rings {
                                 let v_endi = ring_idx + 1;
                                 ring_idx += 1;
-                                let mut v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
+                                let v_end_idx = self.rings.get(v_endi).unwrap_or(&vertices_len);
                                 if let Some(vertices) = self.vertices.get(*v_start_idx..*v_end_idx)
                                 {
                                     surface.push(BoundaryNestedMultiPoint::from(vertices));
@@ -474,13 +331,12 @@ impl Boundary {
             let mut shell_i: usize = 0;
             let mut solid_i: usize = 0;
             for shells_start_i in &self.solids {
-                let mut shells_end_i = self.solids.get(solid_i + 1).unwrap_or(&shells_len);
+                let shells_end_i = self.solids.get(solid_i + 1).unwrap_or(&shells_len);
                 solid_i += 1;
                 if let Some(shells) = self.shells.get(*shells_start_i..*shells_end_i) {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
                     for surfaces_start_i in shells {
-                        let mut surfaces_end_i =
-                            self.shells.get(shell_i + 1).unwrap_or(&surfaces_len);
+                        let surfaces_end_i = self.shells.get(shell_i + 1).unwrap_or(&surfaces_len);
                         shell_i += 1;
                         if let Some(surfaces) =
                             self.surfaces.get(*surfaces_start_i..*surfaces_end_i)
@@ -490,14 +346,14 @@ impl Boundary {
                                     surfaces.len(),
                                 );
                             for ring_start_i in surfaces {
-                                let mut ring_end_i =
+                                let ring_end_i =
                                     self.surfaces.get(surface_i + 1).unwrap_or(&rings_len);
                                 surface_i += 1;
                                 if let Some(rings) = self.rings.get(*ring_start_i..*ring_end_i) {
                                     let mut surface =
                                         BoundaryNestedMultiLineString::with_capacity(rings.len());
                                     for vertices_start_i in rings {
-                                        let mut vertices_end_i =
+                                        let vertices_end_i =
                                             self.rings.get(ring_i + 1).unwrap_or(&vertices_len);
                                         ring_i += 1;
                                         if let Some(vertices) =
@@ -634,12 +490,12 @@ pub type VertexIndex = usize; // TODO: u32/usize feature
 // The `deserialize` method of `ExtendVertices` is traversing the inner arrays of the
 // MultiPoint/LineString/Ring JSON input and appending each vertex index into an existing Vec.
 struct ExtendVertices<'a>(&'a mut Boundary);
-struct ExtendVerticesVisitor<'a>(&'a mut Boundary);
+pub(crate) struct ExtendVerticesVisitor<'a>(pub(crate) &'a mut Boundary);
 
 impl<'de, 'a> Visitor<'de> for ExtendVerticesVisitor<'a> {
     type Value = ();
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "an array of vertex indices")
     }
 
@@ -671,7 +527,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendVertices<'a> {
 }
 
 struct ExtendRings<'a>(&'a mut Boundary);
-struct ExtendRingsVisitor<'a>(&'a mut Boundary);
+pub(crate) struct ExtendRingsVisitor<'a>(pub(crate) &'a mut Boundary);
 impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
     type Value = ();
 
@@ -710,7 +566,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendRings<'a> {
 }
 
 struct ExtendSurfaces<'a>(&'a mut Boundary);
-struct ExtendSurfacesVisitor<'a>(&'a mut Boundary);
+pub(crate) struct ExtendSurfacesVisitor<'a>(pub(crate) &'a mut Boundary);
 
 impl<'de, 'a> Visitor<'de> for ExtendSurfacesVisitor<'a> {
     type Value = ();
@@ -752,7 +608,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendSurfaces<'a> {
 }
 
 struct ExtendShells<'a>(&'a mut Boundary);
-struct ExtendShellsVisitor<'a>(&'a mut Boundary);
+pub(crate) struct ExtendShellsVisitor<'a>(pub(crate) &'a mut Boundary);
 
 impl<'de, 'a> Visitor<'de> for ExtendShellsVisitor<'a> {
     type Value = ();
@@ -791,7 +647,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendShells<'a> {
 }
 
 struct ExtendSolids<'a>(&'a mut Boundary);
-struct ExtendSolidsVisitor<'a>(&'a mut Boundary);
+pub(crate) struct ExtendSolidsVisitor<'a>(pub(crate) &'a mut Boundary);
 
 impl<'de, 'a> Visitor<'de> for ExtendSolidsVisitor<'a> {
     type Value = ();
