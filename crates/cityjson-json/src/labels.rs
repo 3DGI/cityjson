@@ -9,10 +9,10 @@ use crate::boundary::{BoundaryCounter, BoundaryType};
 /// Stores the Semantic and Material indices of a Boundary.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize)]
 pub struct LabelIndex {
-    pub(crate) points: Vec<OptionalSemanticIndex>,
-    pub(crate) linestrings: Vec<OptionalSemanticIndex>,
+    pub(crate) points: Vec<OptionalIndex>,
+    pub(crate) linestrings: Vec<OptionalIndex>,
     /// Points to a Surface in the "surfaces" array of the Geometry Semantics
-    pub(crate) surfaces: Vec<OptionalSemanticIndex>,
+    pub(crate) surfaces: Vec<OptionalIndex>,
     pub(crate) shells: Vec<usize>,
     pub(crate) solids: Vec<usize>,
 }
@@ -245,11 +245,11 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendSolids<'a> {
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub type NestedMultiSolidSemanticsValues = Vec<Vec<Vec<OptionalSemanticIndex>>>;
-pub type NestedSolidSemanticsValues = Vec<Vec<OptionalSemanticIndex>>;
-pub type NestedShellSemanticsValues = Vec<OptionalSemanticIndex>;
+pub type NestedMultiSolidSemanticsValues = Vec<Vec<Vec<OptionalIndex>>>;
+pub type NestedSolidSemanticsValues = Vec<Vec<OptionalIndex>>;
+pub type NestedShellSemanticsValues = Vec<OptionalIndex>;
 
 // TODO: this can easily be u8, couz I don't expect to have more than 255 different Semantic object
 //  on a single geometry...but if the shitty code does not dedup the Semantic objects then I could
 //  have a problem, because there will be as many Semantic objects as geometry primitives.
-type OptionalSemanticIndex = Option<usize>;
+pub type OptionalIndex = Option<usize>;

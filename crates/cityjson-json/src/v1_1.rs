@@ -365,7 +365,7 @@ pub struct Geometry<'cm> {
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
     semantics: Option<Semantics<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    material: Option<PhantomData<Vec<usize>>>,
+    material: Option<MaterialIndex<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     texture: Option<PhantomData<Vec<usize>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -374,8 +374,6 @@ pub struct Geometry<'cm> {
     template_boundaries: Option<[VertexIndex; 1]>,
     #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
     template_transformation_matrix: Option<[f64; 16]>,
-    #[serde(skip)]
-    _phantom: PhantomData<&'cm str>
 }
 
 impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
@@ -385,6 +383,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
         let mut lod: Option<LoD> = None;
         let mut boundaries: Option<Boundary> = None;
         let mut semantics: Option<Semantics> = None;
+        let mut material: Option<MaterialIndex> = None;
         let mut template: Option<u16> = None;
         let mut template_boundaries: Option<[usize; 1]> = None;
         let mut template_transformation_matrix: Option<[f64; 16]> = None;
@@ -482,6 +481,21 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         }
                     );
                 }
+                if let Some(intermediate_material) = geometry.material {
+                    let mut materialindex = MaterialIndex::with_capacity(intermediate_material.len());
+                    for (k, v) in intermediate_material.into_iter() {
+                        let mut materialvalues = MaterialValues::default();
+                        if let Some(values_raw) = v.values {
+                            let mut values = labels::LabelIndex::default();
+                            values_raw.deserialize_seq(labels::ExtendShellsVisitor(&mut values))?;
+                            materialvalues.values = Some(values);
+                        } else {
+                            materialvalues.value = v.value;
+                        }
+                        materialindex.insert(k, materialvalues);
+                    }
+                    material.insert(materialindex);
+                }
             }
             GeometryType::MultiSolid => {
                 lod = geometry.lod;
@@ -530,17 +544,16 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
             lod,
             boundaries,
             semantics,
-            material: None,
+            material,
             texture: None,
             template,
             template_boundaries,
             template_transformation_matrix,
-            _phantom: Default::default(),
         })
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 struct IntermediateGeometry<'a> {
     #[serde(alias = "type")]
     type_: GeometryType,
@@ -550,9 +563,9 @@ struct IntermediateGeometry<'a> {
     #[serde(borrow)]
     semantics: Option<IntermediateSemantics<'a>>,
     #[serde(borrow)]
-    material: Option<&'a RawValue>,
+    material: Option<IntermediateAppearance<'a>>,
     #[serde(borrow)]
-    texture: Option<&'a RawValue>,
+    texture: Option<IntermediateAppearance<'a>>,
     template: Option<u16>,
     #[serde(rename = "transformationMatrix")]
     template_transformation_matrix: Option<[f64; 16]>,
@@ -645,6 +658,14 @@ pub struct Appearance<'cm> {
     default_theme_material: Option<Cow<'cm, str>>,
 }
 
+type IntermediateAppearance<'a> = Map<Cow<'a, str>, IntermediateAppearanceValues<'a>>;
+#[derive(Debug, Deserialize)]
+struct IntermediateAppearanceValues<'a> {
+    value: Option<usize>,
+    #[serde(borrow)]
+    values: Option<&'a RawValue>,
+}
+
 /// Material.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#material-object>.
@@ -699,6 +720,17 @@ pub struct Material<'cm> {
     transparency: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_smooth: Option<bool>,
+}
+
+pub type MaterialIndex<'cm> = Map<Cow<'cm, str>, MaterialValues>;
+#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
+#[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
+pub struct MaterialValues {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: labels::OptionalIndex,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    values: Option<labels::LabelIndex>,
 }
 
 /// Texture.
