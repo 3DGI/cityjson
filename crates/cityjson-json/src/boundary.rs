@@ -185,6 +185,9 @@ impl Boundary {
     //  - the conversion is fallible, since the Boundary might not contain the data for the target type,
     //  - we borrow the input and returned owned output.
 
+    // TODO: add to_nested_<geom>_unchecked() methods that skip the boundary type check, because
+    //  the boundary type is already checked in the Serialize implementation
+
     /// Convert to a nested MultiPoint boundary representation, if the Boundary can be interpreted
     /// as a MultiPoint boundary.
     pub fn to_nested_multipoint(&self) -> errors::Result<BoundaryNestedMultiPoint> {
@@ -316,7 +319,7 @@ impl Boundary {
     ) {
         for vertices_start_i in rings {
             let vertices_len = self.vertices.len();
-            let vertices_end_i = self.rings.get(counter.next_ring_i()).unwrap_or(&vertices_len);;
+            let vertices_end_i = self.rings.get(counter.next_ring_i()).unwrap_or(&vertices_len);
             // At the last ring we are out of bounds of the rings vec with v_endi, so
             // we get all the remaining vertices.
             if let Some(vertices) = self.vertices.get(*vertices_start_i..*vertices_end_i) {
@@ -350,7 +353,7 @@ impl Boundary {
 }
 
 #[derive(Default)]
-struct BoundaryCounter {
+pub(crate) struct BoundaryCounter {
     ring_i: usize,
     surface_i: usize,
     shell_i: usize,
@@ -358,22 +361,22 @@ struct BoundaryCounter {
 }
 
 impl BoundaryCounter {
-    fn next_ring_i(&mut self) -> usize {
+    pub(crate) fn next_ring_i(&mut self) -> usize {
         self.ring_i += 1;
         self.ring_i
     }
 
-    fn next_surface_i(&mut self) -> usize {
+    pub(crate) fn next_surface_i(&mut self) -> usize {
         self.surface_i += 1;
         self.surface_i
     }
 
-    fn next_shell_i(&mut self) -> usize {
+    pub(crate) fn next_shell_i(&mut self) -> usize {
         self.shell_i += 1;
         self.shell_i
     }
 
-    fn next_solid_i(&mut self) -> usize {
+    pub(crate) fn next_solid_i(&mut self) -> usize {
         self.solid_i += 1;
         self.solid_i
     }

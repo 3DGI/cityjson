@@ -64,6 +64,18 @@ fn geometry_instance() {
 }
 
 #[test]
+fn geometry_multisurface_semantics() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_multisurface_semantics.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_multipoint_semantics() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_multipoint_semantics.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
 fn appearance_minimal_complete() {
     let json_input = read_to_string(DATA_DIR.join("appearance_minimal_complete.city.json"));
     assert_eq_roundtrip::<Appearance>(&json_input);

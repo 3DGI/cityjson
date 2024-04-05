@@ -24,6 +24,7 @@ use serde_json::value::RawValue;
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
 use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor, VertexIndex};
+use crate::labels;
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -361,8 +362,8 @@ pub struct Geometry<'cm> {
     lod: Option<LoD>,
     #[serde(skip_serializing_if = "Option::is_none")]
     boundaries: Option<Boundary>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    semantics: Option<PhantomData<Vec<usize>>>,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    semantics: Option<Semantics<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     material: Option<PhantomData<Vec<usize>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -377,12 +378,13 @@ pub struct Geometry<'cm> {
     _phantom: PhantomData<&'cm str>
 }
 
-impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
+impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
     type Error = serde_json::Error;
 
-    fn try_from(geometry: IntermediateGeometry) -> result::Result<Self, Self::Error> {
+    fn try_from(geometry: IntermediateGeometry<'a>) -> result::Result<Self, Self::Error> {
         let mut lod: Option<LoD> = None;
         let mut boundaries: Option<Boundary> = None;
+        let mut semantics: Option<Semantics> = None;
         let mut template: Option<u16> = None;
         let mut template_boundaries: Option<[usize; 1]> = None;
         let mut template_transformation_matrix: Option<[f64; 16]> = None;
@@ -394,12 +396,36 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendVerticesVisitor(boundaries_mut_ref))?;
                 }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let values = labels::LabelIndex {
+                        points: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        ..Default::default()
+                    };
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
+                }
             }
             GeometryType::MultiLineString => {
                 lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendRingsVisitor(boundaries_mut_ref))?;
+                }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let values = labels::LabelIndex {
+                        linestrings: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        ..Default::default()
+                    };
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
                 }
             }
             GeometryType::MultiSurface => {
@@ -408,12 +434,36 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
                 }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let values = labels::LabelIndex {
+                        surfaces: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        ..Default::default()
+                    };
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
+                }
             }
             GeometryType::CompositeSurface => {
                 lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSurfacesVisitor(boundaries_mut_ref))?;
+                }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let values = labels::LabelIndex {
+                        surfaces: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        ..Default::default()
+                    };
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
                 }
             }
             GeometryType::Solid => {
@@ -422,6 +472,16 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendShellsVisitor(boundaries_mut_ref))?;
                 }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let mut values = labels::LabelIndex::default();
+                    intermediate_semantics.values.deserialize_seq(labels::ExtendShellsVisitor(&mut values))?;
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
+                }
             }
             GeometryType::MultiSolid => {
                 lod = geometry.lod;
@@ -429,12 +489,32 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
                 }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let mut values = labels::LabelIndex::default();
+                    intermediate_semantics.values.deserialize_seq(labels::ExtendSolidsVisitor(&mut values))?;
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
+                }
             }
             GeometryType::CompositeSolid => {
                 lod = geometry.lod;
                 let boundaries_mut_ref = boundaries.get_or_insert_with(Boundary::default);
                 if let Some(boundaries_raw) = geometry.boundaries {
                     boundaries_raw.deserialize_seq(ExtendSolidsVisitor(boundaries_mut_ref))?;
+                }
+                if let Some(intermediate_semantics) = geometry.semantics {
+                    let mut values = labels::LabelIndex::default();
+                    intermediate_semantics.values.deserialize_seq(labels::ExtendSolidsVisitor(&mut values))?;
+                    let _ = semantics.insert(
+                        Semantics {
+                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
+                            values,
+                        }
+                    );
                 }
             }
             GeometryType::GeometryInstance => {
@@ -449,7 +529,7 @@ impl<'a, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
             type_: geometry.type_,
             lod,
             boundaries,
-            semantics: None,
+            semantics,
             material: None,
             texture: None,
             template,
@@ -468,14 +548,12 @@ struct IntermediateGeometry<'a> {
     #[serde(borrow)]
     boundaries: Option<&'a RawValue>,
     #[serde(borrow)]
-    semantics: Option<&'a RawValue>,
+    semantics: Option<IntermediateSemantics<'a>>,
     #[serde(borrow)]
     material: Option<&'a RawValue>,
     #[serde(borrow)]
     texture: Option<&'a RawValue>,
     template: Option<u16>,
-    // #[serde(rename = "boundaries")]
-    // template_boundaries: Option<[usize; 1]>,
     #[serde(rename = "transformationMatrix")]
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -1180,7 +1258,7 @@ pub struct MultiLineStringSemantics<'cm> {
 /// ```rust
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
-/// let sem: MultiPointSemantics = serde_json::from_str(r#"{
+/// let sem: Semantics = serde_json::from_str(r#"{
 ///     "surfaces" : [
 ///       {
 ///         "type": "TransportationMarking"
@@ -1196,10 +1274,18 @@ pub struct MultiLineStringSemantics<'cm> {
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiPointSemantics<'cm> {
+pub struct Semantics<'cm> {
     #[serde(borrow)]
     pub surfaces: Vec<Semantic<'cm>>,
-    pub values: MultiPointSemanticsValues,
+    pub values: labels::LabelIndex,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct IntermediateSemantics<'a> {
+    #[serde(borrow)]
+    surfaces: &'a RawValue,
+    #[serde(borrow)]
+    values: &'a RawValue,
 }
 
 /// Semantic Object.
@@ -2343,12 +2429,6 @@ impl<'cm> MultiSurfaceSemantics<'cm> {
 
 impl<'cm> MultiLineStringSemantics<'cm> {
     pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiLineStringSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> MultiPointSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiPointSemanticsValues) -> Self {
         Self { surfaces, values }
     }
 }

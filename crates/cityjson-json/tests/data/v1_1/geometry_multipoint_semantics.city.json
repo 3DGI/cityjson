@@ -1,0 +1,26 @@
+{
+  "type": "MultiPoint",
+  "lod": "2.1",
+  "boundaries": [
+    0,
+    3,
+    2,
+    1
+  ],
+  "semantics": {
+    "surfaces": [
+      {
+        "type": "TransportationMarking"
+      },
+      {
+        "type": "+Pylon"
+      }
+    ],
+    "values": [
+      0,
+      0,
+      null,
+      1
+    ]
+  }
+}
