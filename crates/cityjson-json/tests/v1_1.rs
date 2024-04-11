@@ -52,26 +52,38 @@ fn cityobject_extended() {
 }
 
 #[test]
-fn geometry_solid_complete() {
-    let json_input = read_to_string(DATA_DIR.join("geometry_solid_complete.city.json"));
-    assert_eq_roundtrip::<Geometry>(&json_input);
-}
-
-#[test]
 fn geometry_instance() {
     let json_input = read_to_string(DATA_DIR.join("geometry_instance.city.json"));
     assert_eq_roundtrip::<Geometry>(&json_input);
 }
 
 #[test]
-fn geometry_multisurface_semantics() {
-    let json_input = read_to_string(DATA_DIR.join("geometry_multisurface_semantics.city.json"));
+fn geometry_complete_solid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_complete_solid.city.json"));
     assert_eq_roundtrip::<Geometry>(&json_input);
 }
 
 #[test]
-fn geometry_multipoint_semantics() {
-    let json_input = read_to_string(DATA_DIR.join("geometry_multipoint_semantics.city.json"));
+fn geometry_material_solid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_material_solid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_texture_solid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_solid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_semantics_multisurface() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multisurface.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_semantics_multipoint() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multipoint.city.json"));
     assert_eq_roundtrip::<Geometry>(&json_input);
 }
 

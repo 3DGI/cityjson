@@ -354,10 +354,10 @@ impl Boundary {
 
 #[derive(Default)]
 pub(crate) struct BoundaryCounter {
-    ring_i: usize,
-    surface_i: usize,
-    shell_i: usize,
-    solid_i: usize,
+    pub(crate) ring_i: usize,
+    pub(crate) surface_i: usize,
+    pub(crate) shell_i: usize,
+    pub(crate) solid_i: usize,
 }
 
 impl BoundaryCounter {

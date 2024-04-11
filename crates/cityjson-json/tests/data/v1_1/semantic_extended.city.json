@@ -1,6 +1,11 @@
 {
   "type": "+MySemantic",
   "my_attribute": 42,
+  "my_complex_attribute": {
+    "scalar": 1,
+    "string": "this is a string",
+    "array": [2, 4]
+  },
   "children": [
     2,
     37
