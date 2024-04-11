@@ -16,7 +16,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde::de::{IntoDeserializer, Visitor};
 use serde_json_borrow::Value;
 use std::result;
-use std::marker::PhantomData;
 use serde_json::value::RawValue;
 // use ahash::AHashMap as Map;
 
@@ -457,9 +456,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         } else {
                             materialvalues.value = v.value;
                         }
-                        materialindex.insert(k, materialvalues);
+                        let _ = materialindex.insert(k, materialvalues);
                     }
-                    material.insert(materialindex);
+                    let _ = material.insert(materialindex);
                 }
                 if let Some(intermediate_texture) = geometry.texture {
                     let mut texturemap = TextureMap::with_capacity(intermediate_texture.len());
@@ -470,9 +469,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendTextureIndexSurfacesVisitor(&mut values))?;
                             texturevalues.values = Some(values);
                         }
-                        texturemap.insert(k, texturevalues);
+                        let _ = texturemap.insert(k, texturevalues);
                     }
-                    texture.insert(texturemap);
+                    let _ = texture.insert(texturemap);
                 }
             }
             GeometryType::CompositeSurface => {
@@ -504,9 +503,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         } else {
                             materialvalues.value = v.value;
                         }
-                        materialmap.insert(k, materialvalues);
+                        let _ = materialmap.insert(k, materialvalues);
                     }
-                    material.insert(materialmap);
+                    let _ = material.insert(materialmap);
                 }
                 if let Some(intermediate_texture) = geometry.texture {
                     let mut texturemap = TextureMap::with_capacity(intermediate_texture.len());
@@ -517,9 +516,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendTextureIndexSurfacesVisitor(&mut values))?;
                             texturevalues.values = Some(values);
                         }
-                        texturemap.insert(k, texturevalues);
+                        let _ = texturemap.insert(k, texturevalues);
                     }
-                    texture.insert(texturemap);
+                    let _ = texture.insert(texturemap);
                 }
             }
             GeometryType::Solid => {
@@ -549,9 +548,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         } else {
                             materialvalues.value = v.value;
                         }
-                        materialmap.insert(k, materialvalues);
+                        let _ = materialmap.insert(k, materialvalues);
                     }
-                    material.insert(materialmap);
+                    let _ = material.insert(materialmap);
                 }
                 if let Some(intermediate_texture) = geometry.texture {
                     let mut texturemap = TextureMap::with_capacity(intermediate_texture.len());
@@ -562,9 +561,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendTextureIndexShellsVisitor(&mut values))?;
                             texturevalues.values = Some(values);
                         }
-                        texturemap.insert(k, texturevalues);
+                        let _ = texturemap.insert(k, texturevalues);
                     }
-                    texture.insert(texturemap);
+                    let _ = texture.insert(texturemap);
                 }
             }
             GeometryType::MultiSolid => {
@@ -594,9 +593,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         } else {
                             materialvalues.value = v.value;
                         }
-                        materialmap.insert(k, materialvalues);
+                        let _ = materialmap.insert(k, materialvalues);
                     }
-                    material.insert(materialmap);
+                    let _ = material.insert(materialmap);
                 }
                 if let Some(intermediate_texture) = geometry.texture {
                     let mut texturemap = TextureMap::with_capacity(intermediate_texture.len());
@@ -607,9 +606,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(&mut values))?;
                             texturevalues.values = Some(values);
                         }
-                        texturemap.insert(k, texturevalues);
+                        let _ = texturemap.insert(k, texturevalues);
                     }
-                    texture.insert(texturemap);
+                    let _ = texture.insert(texturemap);
                 }
             }
             GeometryType::CompositeSolid => {
@@ -639,9 +638,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         } else {
                             materialvalues.value = v.value;
                         }
-                        materialmap.insert(k, materialvalues);
+                        let _ = materialmap.insert(k, materialvalues);
                     }
-                    material.insert(materialmap);
+                    let _ = material.insert(materialmap);
                 }
                 if let Some(intermediate_texture) = geometry.texture {
                     let mut texturemap = TextureMap::with_capacity(intermediate_texture.len());
@@ -652,9 +651,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(&mut values))?;
                             texturevalues.values = Some(values);
                         }
-                        texturemap.insert(k, texturevalues);
+                        let _ = texturemap.insert(k, texturevalues);
                     }
-                    texture.insert(texturemap);
+                    let _ = texture.insert(texturemap);
                 }
             }
             GeometryType::GeometryInstance => {
