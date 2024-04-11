@@ -3,6 +3,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde::de::{Deserializer, DeserializeSeed, SeqAccess, Visitor};
 use serde::ser::{Error, Serializer, SerializeSeq};
+#[cfg(feature = "datasize")]
+use datasize::DataSize;
 
 use crate::boundary::{BoundaryCounter, BoundaryType};
 
@@ -11,6 +13,7 @@ use crate::boundary::{BoundaryCounter, BoundaryType};
 
 /// Stores the Texture indices of a Boundary.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct TextureIndex {
     pub(crate) vertices: Vec<OptionalIndex>,
     pub(crate) rings: Vec<usize>,
@@ -404,6 +407,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendTextureIndexSolids<'a> {
 /// primitives have the same structure for semantics and materials. Both label the geometry
 /// primitives with extra information, hence the name `LabelIndex`.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct LabelIndex {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
     /// of the item is the index of the Semantic or Material object.

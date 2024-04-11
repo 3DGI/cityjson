@@ -173,7 +173,7 @@ pub struct CityModelDataSize {
 }
 
 impl CityModelDataSize {
-    /// Calculate the size of a [CityModel].
+    /// Calculate the total size of a [CityModel] in memory (heap + stack).
     pub fn compute_from(cm: &CityModel) -> Self {
         let mut cm_size = CityModelDataSize {
             ..Default::default()
@@ -201,62 +201,25 @@ impl CityModelDataSize {
                 for geom in geometry {
                     co_size.count_geometry += 1;
                     co_size.total_geometry += total_heap_stack_size(geom);
-                    match geom {
-                        Geometry::MultiSurface {
+                    let lod = geom.lod.unwrap();
+                    if geometries_size.contains_key(&lod) {
+                        let geomsize = geometries_size.get_mut(&lod).unwrap();
+                        geomsize.count += 1;
+                        geomsize.total += total_heap_stack_size(geom);
+                        geomsize.add_geometry(geom);
+                    } else {
+                        geometries_size.insert(
                             lod,
-                            boundaries,
-                            semantics,
-                            texture,
-                            material,
-                        } => {
-                            if geometries_size.contains_key(lod) {
-                                let geomsize = geometries_size.get_mut(lod).unwrap();
-                                geomsize.count += 1;
-                                geomsize.total += total_heap_stack_size(geom);
-                                geomsize.add_geometry(geom);
-                            } else {
-                                geometries_size.insert(
-                                    *lod,
-                                    GeometryDataSize {
-                                        lod: *lod,
-                                        count: 1,
-                                        total: total_heap_stack_size(geom),
-                                        boundaries: total_heap_stack_size(boundaries),
-                                        semantics: total_heap_stack_size(semantics),
-                                        texture: total_heap_stack_size(texture),
-                                        material: total_heap_stack_size(material),
-                                    },
-                                );
-                            }
-                        }
-                        Geometry::Solid {
-                            lod,
-                            boundaries,
-                            semantics,
-                            texture,
-                            material,
-                        } => {
-                            if geometries_size.contains_key(lod) {
-                                let geomsize = geometries_size.get_mut(lod).unwrap();
-                                geomsize.count += 1;
-                                geomsize.total += total_heap_stack_size(geom);
-                                geomsize.add_geometry(geom);
-                            } else {
-                                geometries_size.insert(
-                                    *lod,
-                                    GeometryDataSize {
-                                        lod: *lod,
-                                        count: 1,
-                                        total: total_heap_stack_size(geom),
-                                        boundaries: total_heap_stack_size(boundaries),
-                                        semantics: total_heap_stack_size(semantics),
-                                        texture: total_heap_stack_size(texture),
-                                        material: total_heap_stack_size(material),
-                                    },
-                                );
-                            }
-                        }
-                        _ => {}
+                            GeometryDataSize {
+                                lod,
+                                count: 1,
+                                total: total_heap_stack_size(geom),
+                                boundaries: total_heap_stack_size(&geom.boundaries),
+                                semantics: total_heap_stack_size(&geom.semantics),
+                                texture: total_heap_stack_size(&geom.texture),
+                                material: total_heap_stack_size(&geom.material),
+                            },
+                        );
                     }
                 }
             }
@@ -359,33 +322,10 @@ impl Default for GeometryDataSize {
 impl GeometryDataSize {
     /// Compute the size of a Geometry and add the values.
     pub(crate) fn add_geometry(&mut self, geom: &Geometry) {
-        match &geom {
-            Geometry::MultiSurface {
-                boundaries,
-                semantics,
-                material,
-                texture,
-                ..
-            } => {
-                self.boundaries += total_heap_stack_size(boundaries);
-                self.semantics += total_heap_stack_size(semantics);
-                self.texture += total_heap_stack_size(texture);
-                self.material += total_heap_stack_size(material);
-            }
-            Geometry::Solid {
-                boundaries,
-                semantics,
-                material,
-                texture,
-                ..
-            } => {
-                self.boundaries += total_heap_stack_size(boundaries);
-                self.semantics += total_heap_stack_size(semantics);
-                self.texture += total_heap_stack_size(texture);
-                self.material += total_heap_stack_size(material);
-            }
-            _ => {}
-        }
+        self.boundaries += total_heap_stack_size(&geom.boundaries);
+        self.semantics += total_heap_stack_size(&geom.semantics);
+        self.texture += total_heap_stack_size(&geom.texture);
+        self.material += total_heap_stack_size(&geom.material);
     }
 }
 

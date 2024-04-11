@@ -348,31 +348,28 @@ pub type Attributes<'cm> = Value<'cm>;
 /// # Ok(())
 /// # }
 /// ```
-// FIXME: Material and Texture have different depth of 'values' arrays !!! What I implemented is
-//  the material, but Texture values follow their own specific rules!!!
-//  https://www.cityjson.org/specs/1.1.3/#geometry-object-having-texture-s.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 #[serde(try_from = "IntermediateGeometry")]
 pub struct Geometry<'cm> {
     #[serde(rename = "type")]
-    type_: GeometryType,
+    pub type_: GeometryType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    lod: Option<LoD>,
+    pub lod: Option<LoD>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    boundaries: Option<Boundary>,
+    pub boundaries: Option<Boundary>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    semantics: Option<Semantics<'cm>>,
+    pub semantics: Option<Semantics<'cm>>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    material: Option<MaterialMap<'cm>>,
+    pub material: Option<MaterialMap<'cm>>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    texture: Option<TextureMap<'cm>>,
+    pub texture: Option<TextureMap<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    template: Option<u16>,
+    pub template: Option<u16>,
     #[serde(rename = "boundaries", skip_serializing_if = "Option::is_none")]
-    template_boundaries: Option<[VertexIndex; 1]>,
+    pub template_boundaries: Option<[VertexIndex; 1]>,
     #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
-    template_transformation_matrix: Option<[f64; 16]>,
+    pub template_transformation_matrix: Option<[f64; 16]>,
 }
 
 impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {

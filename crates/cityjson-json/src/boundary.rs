@@ -161,19 +161,19 @@ impl From<BoundaryNestedMultiLineString> for Boundary {
 }
 
 impl From<BoundaryNestedMultiOrCompositeSurface> for Boundary {
-    fn from(value: BoundaryNestedMultiOrCompositeSurface) -> Self {
+    fn from(_value: BoundaryNestedMultiOrCompositeSurface) -> Self {
         todo!()
     }
 }
 
 impl From<BoundaryNestedSolid> for Boundary {
-    fn from(value: BoundaryNestedSolid) -> Self {
+    fn from(_value: BoundaryNestedSolid) -> Self {
         todo!()
     }
 }
 
 impl From<BoundaryNestedMultiOrCompositeSolid> for Boundary {
-    fn from(value: BoundaryNestedMultiOrCompositeSolid) -> Self {
+    fn from(_value: BoundaryNestedMultiOrCompositeSolid) -> Self {
         todo!()
     }
 }
