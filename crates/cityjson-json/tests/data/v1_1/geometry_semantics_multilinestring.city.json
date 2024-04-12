@@ -1,0 +1,15 @@
+{
+	"type": "MultiLineString",
+	"lod": "0",
+	"boundaries": [[0, 1, 2, 3, 4]],
+	"semantics": {
+		"surfaces": [
+			{
+				"type": "TransportationMarking"
+			}
+		],
+		"values": [
+			0, 0, null, 1, 2
+		]
+	}
+}

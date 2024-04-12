@@ -76,8 +76,26 @@ fn geometry_texture_solid() {
 }
 
 #[test]
+fn geometry_semantics_multisolid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multisolid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_semantics_solid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_solid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
 fn geometry_semantics_multisurface() {
     let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multisurface.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_semantics_multilinestring() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multilinestring.city.json"));
     assert_eq_roundtrip::<Geometry>(&json_input);
 }
 

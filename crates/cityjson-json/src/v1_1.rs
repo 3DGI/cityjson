@@ -736,6 +736,26 @@ pub enum LoD {
     LoD3_3,
 }
 
+pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
+#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
+#[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
+pub struct MaterialValues {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: labels::OptionalIndex,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    values: Option<labels::LabelIndex>,
+}
+
+pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
+#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
+#[display(fmt = "values: {:?}", values)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
+pub struct TextureValues {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    values: Option<labels::TextureIndex>,
+}
+
 /// Appearance.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#appearance-object>.
@@ -842,26 +862,6 @@ pub struct Material<'cm> {
     transparency: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_smooth: Option<bool>,
-}
-
-pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
-#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
-#[display(fmt = "value: {:?}, values: {:?}", value, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MaterialValues {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    value: labels::OptionalIndex,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<labels::LabelIndex>,
-}
-
-pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
-#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
-#[display(fmt = "values: {:?}", values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct TextureValues {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<labels::TextureIndex>,
 }
 
 /// Texture.
@@ -1178,7 +1178,7 @@ pub struct GeometryTemplates<'cm> {
 /// The `vertices_templates` member of `geometry-templates` of CityJSON.
 pub type VerticesTemplates = Vec<[f64; 3]>;
 
-/// The `semantics` of a `CompositeSolid` geometry.
+/// The `semantics` of a Geometry object.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 ///
@@ -1186,250 +1186,22 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 /// ```rust
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
-/// let sem: CompositeSolidSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "WallSurface",
-///         "slope": 33.4,
-///         "children": [2]
-///       },
-///       {
-///         "type": "RoofSurface",
-///         "slope": 66.6
-///       },
-///       {
-///         "type": "+PatioDoor",
-///         "parent": 0,
-///         "colour": "blue"
-///       }
-///     ],
-///     "values": [[[0, 1, 1, null]], [[null, null, null]]]
+/// let sem: Geometry = serde_json::from_str(r#"{
+/// 	"type": "MultiLineString",
+/// 	"lod": "0",
+/// 	"boundaries": [[0, 1, 2, 3, 4]],
+/// 	"semantics": {
+/// 		"surfaces": [
+/// 			{
+/// 				"type": "TransportationMarking"
+/// 			}
+/// 		],
+/// 		"values": [
+/// 			0, 0, null, 0, 0
+/// 		]
+/// 	}
 /// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CompositeSolidSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: CompositeSolidSemanticsValues,
-}
-
-/// The `semantics` of a `MultiSolid` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: MultiSolidSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "WallSurface",
-///         "slope": 33.4,
-///         "children": [2]
-///       },
-///       {
-///         "type": "RoofSurface",
-///         "slope": 66.6
-///       },
-///       {
-///         "type": "+PatioDoor",
-///         "parent": 0,
-///         "colour": "blue"
-///       }
-///     ],
-///     "values": [[[0, 1, 1, null]], [[null, null, null]]]
-/// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiSolidSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: MultiSolidSemanticsValues,
-}
-
-/// The `semantics` of a `Solid` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: SolidSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "WallSurface",
-///         "slope": 33.4,
-///         "children": [2]
-///       },
-///       {
-///         "type": "RoofSurface",
-///         "slope": 66.6
-///       },
-///       {
-///         "type": "+PatioDoor",
-///         "parent": 0,
-///         "colour": "blue"
-///       }
-///     ],
-///     "values": [[0, 0, null, 1, 2]]
-/// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct SolidSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: SolidSemanticsValues,
-}
-
-/// The `semantics` of a `CompositeSurface` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: CompositeSurfaceSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "WallSurface",
-///         "slope": 33.4,
-///         "children": [2]
-///       },
-///       {
-///         "type": "RoofSurface",
-///         "slope": 66.6
-///       },
-///       {
-///         "type": "+PatioDoor",
-///         "parent": 0,
-///         "colour": "blue"
-///       }
-///     ],
-///     "values": [0, 0, null, 1, 2]
-/// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct CompositeSurfaceSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: CompositeSurfaceSemanticsValues,
-}
-
-/// The `semantics` of a `MultiSurface` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: MultiSurfaceSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "WallSurface",
-///         "slope": 33.4,
-///         "children": [2]
-///       },
-///       {
-///         "type": "RoofSurface",
-///         "slope": 66.6
-///       },
-///       {
-///         "type": "+PatioDoor",
-///         "parent": 0,
-///         "colour": "blue"
-///       }
-///     ],
-///     "values": [0, 0, null, 1, 2]
-/// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiSurfaceSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: MultiSurfaceSemanticsValues,
-}
-
-/// The `semantics` of a `MultiLineString` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: MultiLineStringSemantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "TransportationMarking"
-///       }
-///     ],
-///     "values": [0, 0, null, 1, 2]
-/// }"#)?;
-/// println!("{}", &sem);
-/// let sem_json = serde_json::to_string(&sem)?;
-/// # Ok(())
-/// # }
-/// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub struct MultiLineStringSemantics<'cm> {
-    #[serde(borrow)]
-    pub surfaces: Vec<Semantic<'cm>>,
-    pub values: MultiLineStringSemanticsValues,
-}
-
-/// The `semantics` of a `MultiPoint` geometry.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-///
-/// # Examples
-/// ```rust
-/// # use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let sem: Semantics = serde_json::from_str(r#"{
-///     "surfaces" : [
-///       {
-///         "type": "TransportationMarking"
-///       }
-///     ],
-///     "values": [0, 0, null, 1, 2]
-/// }"#)?;
-/// println!("{}", &sem);
+/// println!("{:?}", &sem);
 /// let sem_json = serde_json::to_string(&sem)?;
 /// # Ok(())
 /// # }
@@ -1525,78 +1297,6 @@ pub enum SemanticType {
     TransportationHole,
     Extension(String),
 }
-
-/// The `values` array of geometry indices of a Semantic object.
-///
-/// # Examples
-/// ```
-/// use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let csolsemval: CompositeSolidSemanticsValues = serde_json::from_str(r#"[
-///  [ [0, 1, 1, null] ],
-///  [ [null, null, null] ]
-/// ]"#)?;
-/// # Ok(())
-/// # }
-/// ```
-pub type CompositeSolidSemanticsValues = Vec<Vec<Vec<OptionalIndex>>>;
-
-/// The `values` array of geometry indices of a Semantic object.
-///
-/// # Examples
-/// ```
-/// use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let msolsemval: MultiSolidSemanticsValues = serde_json::from_str(r#"[
-///  [ [0, 1, 1, null] ],
-///  [ [null, null, null] ]
-/// ]"#)?;
-/// # Ok(())
-/// # }
-/// ```
-pub type MultiSolidSemanticsValues = Vec<Vec<Vec<OptionalIndex>>>;
-
-/// The `values` array of geometry indices of a Semantic object.
-///
-/// # Examples
-/// ```
-/// use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let solsemval: SolidSemanticsValues = serde_json::from_str(r#"[ [0, 1, 1, null] ]"#)?;
-/// # Ok(())
-/// # }
-/// ```
-pub type SolidSemanticsValues = Vec<Vec<OptionalIndex>>;
-
-/// The `values` array of geometry indices of a Semantic object.
-pub type CompositeSurfaceSemanticsValues = Vec<OptionalIndex>;
-
-/// The `values` array of geometry indices of a Semantic object.
-///
-/// # Examples
-/// ```
-/// use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let mptsemval: MultiSurfaceSemanticsValues = serde_json::from_str(r#"[0, 0, null, 1, 2]"#)?;
-/// # Ok(())
-/// # }
-/// ```
-pub type MultiSurfaceSemanticsValues = Vec<OptionalIndex>;
-
-/// The `values` array of geometry indices of a Semantic object.
-pub type MultiLineStringSemanticsValues = Vec<OptionalIndex>;
-
-/// The `values` array of geometry indices of a Semantic object.
-///
-/// # Examples
-/// ```
-/// use serde_cityjson::v1_1::*;
-/// # fn main() -> serde_json::Result<()> {
-/// let mptsemval: MultiPointSemanticsValues = serde_json::from_str(r#"[0, 0, null, 1, 2]"#)?;
-/// # Ok(())
-/// # }
-/// ```
-pub type MultiPointSemanticsValues = Vec<OptionalIndex>;
 
 /// Index value that can be `null` to indicate the absence of semantic, or appearance on a
 /// geometric primitive.
@@ -2557,42 +2257,6 @@ impl<'cm> Serialize for SemanticType {
             }
             SemanticType::Extension(ref s) => serializer.serialize_str(s),
         }
-    }
-}
-
-impl<'cm> CompositeSolidSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: CompositeSolidSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> MultiSolidSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiSolidSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> SolidSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: SolidSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> CompositeSurfaceSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: CompositeSurfaceSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> MultiSurfaceSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiSurfaceSemanticsValues) -> Self {
-        Self { surfaces, values }
-    }
-}
-
-impl<'cm> MultiLineStringSemantics<'cm> {
-    pub fn new(surfaces: Vec<Semantic<'cm>>, values: MultiLineStringSemanticsValues) -> Self {
-        Self { surfaces, values }
     }
 }
 
