@@ -70,8 +70,20 @@ fn geometry_material_solid() {
 }
 
 #[test]
+fn geometry_texture_multisolid() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_multisolid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
 fn geometry_texture_solid() {
     let json_input = read_to_string(DATA_DIR.join("geometry_texture_solid.city.json"));
+    assert_eq_roundtrip::<Geometry>(&json_input);
+}
+
+#[test]
+fn geometry_texture_multisurface() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_multisurface.city.json"));
     assert_eq_roundtrip::<Geometry>(&json_input);
 }
 
