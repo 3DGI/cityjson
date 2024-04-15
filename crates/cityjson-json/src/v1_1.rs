@@ -367,7 +367,7 @@ pub struct Geometry<'cm> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<u16>,
     #[serde(rename = "boundaries", skip_serializing_if = "Option::is_none")]
-    pub template_boundaries: Option<[VertexIndex; 1]>,
+    pub template_boundaries: Option<[usize; 1]>,
     #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
     pub template_transformation_matrix: Option<[f64; 16]>,
 }

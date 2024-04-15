@@ -291,6 +291,7 @@ pub mod v1_1;
 pub mod v2_0;
 pub mod boundary;
 pub mod labels;
+pub mod indices;
 
 #[non_exhaustive]
 #[derive(Debug)]
