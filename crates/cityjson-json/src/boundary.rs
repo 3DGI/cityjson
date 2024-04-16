@@ -43,7 +43,7 @@ pub struct Boundary {
     /// Values point to Self.surfaces
     shells: LargeIndexVec,
     /// Values point to self.shells
-    solids: Vec<usize>,
+    solids: LargeIndexVec,
 }
 
 #[derive(Copy, Clone, Debug, Display, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -273,9 +273,11 @@ impl Boundary {
             let mut counter = BoundaryCounter::default();
             let mut mcsolid = BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len());
             for shells_start_i in &self.solids {
-                let shells_len = self.shells.len();
+                let shells_len = LargeIndex::try_from(self.shells.len()).unwrap();
                 let shells_end_i = self.solids.get(counter.next_solid_i()).unwrap_or(&shells_len);
-                if let Some(shells) = self.shells.get(*shells_start_i..*shells_end_i) {
+                let s_usize = usize::try_from(*shells_start_i).unwrap();
+                let e_usize = usize::try_from(*shells_end_i).unwrap();
+                if let Some(shells) = self.shells.get(s_usize..e_usize) {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
                     self.push_shells_to_solid(shells, &mut solid, &mut counter);
                     mcsolid.push(solid);
@@ -575,10 +577,10 @@ impl<'de, 'a> Visitor<'de> for ExtendSolidsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first shell of the aggregate
-        self.0.solids.push(self.0.shells.len());
+        self.0.solids.push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendShells(self.0))? {
-            self.0.solids.push(self.0.shells.len());
+            self.0.solids.push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         }
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;
@@ -804,7 +806,7 @@ mod test {
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap(),
             shells: LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap(),
-            solids: vec![0_usize, 2],
+            solids: LargeIndexVec::try_from(vec![0_usize, 2]).unwrap(),
         };
         let boundary_json = serde_json::to_string(&boundary)
             .map_err(|e| e.to_string())
