@@ -13,6 +13,7 @@
 //!
 //! Do not rely on the `BoundaryNested*` types when using `serde_cityjson`, use [Boundary] instead.
 use std::fmt;
+use std::ops::Deref;
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
@@ -36,7 +37,7 @@ pub struct Boundary {
     /// Values point to CityModel.vertices
     vertices: LargeIndexVec,
     /// Values point to Self.vertices
-    rings: Vec<usize>,
+    rings: LargeIndexVec,
     /// Values point to Self.rings
     surfaces: Vec<usize>,
     /// Values point to Self.surfaces
@@ -148,13 +149,13 @@ impl From<BoundaryNestedMultiLineString> for Boundary {
             Self::default()
         } else {
             let mut vertices = LargeIndexVec::new();
-            let mut rings: Vec<usize> = Vec::with_capacity(value.len());
-            let mut ring_start: usize = 0;
+            let mut rings = LargeIndexVec::with_capacity(value.len());
+            let mut ring_start = LargeIndex::new(0);
             for ring in &value {
                 rings.push(ring_start);
                 for vertex in ring {
                     vertices.push(LargeIndex::try_from(*vertex).unwrap());
-                    ring_start += 1;
+                    ring_start += LargeIndex::new(1);
                 }
             }
             Self {
@@ -319,16 +320,21 @@ impl Boundary {
 
     fn push_rings_to_surface(
         &self,
-        rings: &[usize],
+        rings: &[LargeIndex],
         surface: &mut BoundaryNestedMultiLineString,
         counter: &mut BoundaryCounter,
     ) {
         for vertices_start_i in rings {
-            let vertices_len = self.vertices.len();
+            let vertices_len = LargeIndex::try_from(self.vertices.len()).unwrap();
             let vertices_end_i = self.rings.get(counter.next_ring_i()).unwrap_or(&vertices_len);
             // At the last ring we are out of bounds of the rings vec with v_endi, so
             // we get all the remaining vertices.
-            if let Some(vertices) = self.vertices.get(*vertices_start_i..*vertices_end_i) {
+            let s_usize = usize::try_from(*vertices_start_i).unwrap();
+            let e_usize = usize::try_from(*vertices_end_i).unwrap();
+            // TODO: since I deref LargeIndexVec to Vec<LargeIndex>, the get() method here is the
+            //  method of Vec, which take a Range of usize. I would need to somehow get() that takes
+            //  a Range of LargeIndex.
+            if let Some(vertices) = self.vertices.get(s_usize..e_usize) {
                 surface.push(vertices.iter().map(|v| v.into()).collect());
             }
         }
@@ -444,10 +450,10 @@ impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first ring of the surface.
-        self.0.rings.push(self.0.vertices.len());
+        self.0.rings.push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
         // Each iteration through this loop is one ring.
         while let Some(()) = seq.next_element_seed(ExtendVertices(self.0))? {
-            self.0.rings.push(self.0.vertices.len());
+            self.0.rings.push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
         }
         // The last ring index needs to be removed, because that is vertices.len()
         // after the last iteration.
@@ -721,7 +727,7 @@ mod test {
     fn serialize_multilinestring_basic() {
         let boundary = Boundary {
             vertices: LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 8]).unwrap(),
-            rings: vec![0, 4, 7],
+            rings: LargeIndexVec::try_from(vec![0, 4, 7]).unwrap(),
             ..Default::default()
         };
         let boundary_json = serde_json::to_string(&boundary)
@@ -734,7 +740,7 @@ mod test {
     fn serialize_multilinestring_empty() {
         let boundary = Boundary {
             vertices: LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap(),
-            rings: vec![0, 4, 4, 8],
+            rings: LargeIndexVec::try_from(vec![0, 4, 4, 8]).unwrap(),
             ..Default::default()
         };
         let boundary_json = serde_json::to_string(&boundary)
@@ -750,7 +756,7 @@ mod test {
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22,
             ]).unwrap(),
-            rings: vec![0_usize, 4, 8, 12, 16, 19],
+            rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
             surfaces: vec![0_usize, 3, 4],
             ..Default::default()
         };
@@ -770,7 +776,7 @@ mod test {
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22,
             ]).unwrap(),
-            rings: vec![0_usize, 4, 8, 12, 16, 19],
+            rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
             surfaces: vec![0_usize, 3, 4],
             shells: vec![0_usize, 2],
             ..Default::default()
@@ -791,7 +797,7 @@ mod test {
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22, 23, 24, 25, 26, 27, 28,
             ]).unwrap(),
-            rings: vec![0_usize, 4, 8, 12, 16, 19, 23, 26],
+            rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap(),
             surfaces: vec![0_usize, 3, 4, 6, 7],
             shells: vec![0_usize, 2, 3],
             solids: vec![0_usize, 2],

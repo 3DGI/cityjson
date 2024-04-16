@@ -3,7 +3,8 @@
 use std::fmt;
 use std::fmt::Display;
 use std::ops::{Index};
-use derive_more::{Display, Deref, From, IntoIterator, DerefMut};
+use std::slice::SliceIndex;
+use derive_more::{Display, Deref, From, IntoIterator, DerefMut, AddAssign, Into};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
@@ -22,6 +23,7 @@ type SmallIndexType = u16;
 /// # Examples
 /// ```
 /// # use serde_cityjson::indices::*;
+/// # use std::ops::Deref;
 /// # fn main() -> Result<(), String> {
 /// let _: LargeIndex = 0u32.into();
 /// let _: LargeIndex = 0usize.try_into().unwrap();
@@ -29,16 +31,25 @@ type SmallIndexType = u16;
 /// assert_eq!(*LargeIndex::new(0), 0u32);
 /// let _ = LargeIndex::from(0u32);
 /// let _ = LargeIndex::try_from(0usize).unwrap();
+/// let _: usize = usize::try_from(LargeIndex::new(0)).unwrap();
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Copy, Clone, Default, Debug, Deref, Display, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[derive(AddAssign, Copy, Clone, Default, Debug, Deref, Display, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct LargeIndex(LargeIndexType);
 
 impl From<&LargeIndex> for u32 {
     fn from(value: &LargeIndex) -> Self {
         value.0 as u32
+    }
+}
+
+impl TryFrom<LargeIndex> for usize {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(value: LargeIndex) -> Result<Self, Self::Error> {
+        usize::try_from(u32::from(&value))
     }
 }
 
@@ -81,13 +92,24 @@ impl Index<LargeIndex> for LargeIndexVec {
     }
 }
 
-impl Index<u32> for LargeIndexVec {
-    type Output = LargeIndex;
+// impl<Idx> Index<Idx> for LargeIndexVec
+// where
+//     Idx: SliceIndex<[LargeIndex]>
+// {
+//     type Output = Idx::Output;
+//
+//     fn index(&self, index: Idx) -> &Self::Output {
+//         &self.0[index]
+//     }
+// }
 
-    fn index(&self, index: u32) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
+// impl Index<u32> for LargeIndexVec {
+//     type Output = LargeIndex;
+//
+//     fn index(&self, index: u32) -> &Self::Output {
+//         &self.0[index as usize]
+//     }
+// }
 
 impl From<Vec<u32>> for LargeIndexVec {
     fn from(value: Vec<u32>) -> Self {
