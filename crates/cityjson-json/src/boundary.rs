@@ -41,7 +41,7 @@ pub struct Boundary {
     /// Values point to Self.rings
     surfaces: LargeIndexVec,
     /// Values point to Self.surfaces
-    shells: Vec<usize>,
+    shells: LargeIndexVec,
     /// Values point to self.shells
     solids: Vec<usize>,
 }
@@ -290,11 +290,13 @@ impl Boundary {
         }
     }
 
-    fn push_shells_to_solid(&self, shells: &[usize], solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>, mut counter: &mut BoundaryCounter) {
+    fn push_shells_to_solid(&self, shells: &[LargeIndex], solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>, mut counter: &mut BoundaryCounter) {
         for surfaces_start_i in shells {
-            let surfaces_len = self.surfaces.len();
+            let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
             let surfaces_end_i = self.shells.get(counter.next_shell_i()).unwrap_or(&surfaces_len);
-            if let Some(surfaces) = self.surfaces.get(*surfaces_start_i..*surfaces_end_i) {
+            let s_usize = usize::try_from(*surfaces_start_i).unwrap();
+            let e_usize = usize::try_from(*surfaces_end_i).unwrap();
+            if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
                 let mut mcsurface =
                     BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
                 self.push_surfaces_to_multisurface(surfaces, &mut mcsurface, &mut counter);
@@ -534,10 +536,10 @@ impl<'de, 'a> Visitor<'de> for ExtendShellsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first surface of the aggregate
-        self.0.shells.push(self.0.surfaces.len());
+        self.0.shells.push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendSurfaces(self.0))? {
-            self.0.shells.push(self.0.surfaces.len());
+            self.0.shells.push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         }
         if !self.0.shells.is_empty() {
             let last_idx = self.0.shells.len() - 1;
@@ -780,7 +782,7 @@ mod test {
             ]).unwrap(),
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4]).unwrap(),
-            shells: vec![0_usize, 2],
+            shells: LargeIndexVec::try_from(vec![0_usize, 2]).unwrap(),
             ..Default::default()
         };
         let boundary_json = serde_json::to_string(&boundary)
@@ -801,7 +803,7 @@ mod test {
             ]).unwrap(),
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap(),
-            shells: vec![0_usize, 2, 3],
+            shells: LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap(),
             solids: vec![0_usize, 2],
         };
         let boundary_json = serde_json::to_string(&boundary)
