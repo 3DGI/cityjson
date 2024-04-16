@@ -7,6 +7,7 @@ use serde::ser::{Error, Serializer, SerializeSeq};
 use datasize::DataSize;
 
 use crate::boundary::{BoundaryCounter, BoundaryType};
+use crate::indices::OptionalLargeIndex;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Texture indices
@@ -417,7 +418,7 @@ pub struct LabelIndex {
     pub(crate) linestrings: Vec<OptionalIndex>,
     /// Each item corresponds to the surface with the same index, the value
     /// of the item is the index of the Semantic or Material object.
-    pub(crate) surfaces: Vec<OptionalIndex>,
+    pub(crate) surfaces: Vec<OptionalLargeIndex>,
     pub(crate) shells: Vec<usize>,
     pub(crate) solids: Vec<usize>,
 }
@@ -451,7 +452,7 @@ impl Serialize for LabelIndex {
                                 let mut shell =
                                     NestedShellSemanticsValues::with_capacity(surfaces.len());
                                 for op_idx in surfaces {
-                                    shell.push(*op_idx);
+                                    shell.push(op_idx.map(|v| u32::from(&v)));
                                 }
                                 solid.push(shell);
                             }
@@ -474,7 +475,7 @@ impl Serialize for LabelIndex {
                     if let Some(surfaces) = self.surfaces.get(*surfaces_start_i..*surfaces_end_i) {
                         let mut shell = NestedShellSemanticsValues::with_capacity(surfaces.len());
                         for op_idx in surfaces {
-                            shell.push(*op_idx);
+                            shell.push(op_idx.map(|v| u32::from(&v)));
                         }
                         nested_json.serialize_element(&shell)?;
                     }
@@ -665,4 +666,4 @@ pub type NestedShellSemanticsValues = Vec<OptionalIndex>;
 // TODO: this can easily be u8, couz I don't expect to have more than 255 different Semantic object
 //  on a single geometry...but if the shitty code does not dedup the Semantic objects then I could
 //  have a problem, because there will be as many Semantic objects as geometry primitives.
-pub type OptionalIndex = Option<usize>;
+pub type OptionalIndex = Option<u32>;

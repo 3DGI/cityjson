@@ -1,13 +1,13 @@
 //! Coordinate and index definitions, used as boundary, semantics and appearance indices.
 
-use std::fmt;
-use std::fmt::Display;
-use std::ops::{Index};
-use std::slice::SliceIndex;
-use derive_more::{Display, Deref, From, IntoIterator, DerefMut, AddAssign, Into};
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
+use derive_more::{AddAssign, Deref, DerefMut, Display, From, Into, IntoIterator};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
+use std::ops::Index;
+use std::slice::SliceIndex;
 
 /// A floating-point coordinate value..
 pub struct CoordinateFloat(f64);
@@ -35,7 +35,23 @@ type SmallIndexType = u16;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(AddAssign, Copy, Clone, Default, Debug, Deref, Display, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[derive(
+    AddAssign,
+    Copy,
+    Clone,
+    Default,
+    Debug,
+    Deref,
+    Display,
+    From,
+    Deserialize,
+    Serialize,
+    Eq,
+    Ord,
+    PartialOrd,
+    PartialEq,
+    Hash,
+)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct LargeIndex(LargeIndexType);
 
@@ -53,7 +69,6 @@ impl TryFrom<LargeIndex> for usize {
     }
 }
 
-/// LargeIndex can be `u64` or `u32`.
 impl TryFrom<usize> for LargeIndex {
     type Error = std::num::TryFromIntError;
 
@@ -69,13 +84,15 @@ impl LargeIndex {
 }
 
 /// A vector of [LargeIndex].
-#[derive(Clone, Default, Debug, Deref, DerefMut, IntoIterator, Eq, Ord, PartialOrd, PartialEq, Hash)]
+#[derive(
+    Clone, Default, Debug, Deref, DerefMut, IntoIterator, Eq, Ord, PartialOrd, PartialEq, Hash,
+)]
 #[into_iterator(owned, ref)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub(crate) struct LargeIndexVec(pub(crate) Vec<LargeIndex>);
 
 impl FromIterator<LargeIndex> for LargeIndexVec {
-    fn from_iter<T: IntoIterator<Item=LargeIndex>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = LargeIndex>>(iter: T) -> Self {
         let mut c = Self::new();
         for v in iter {
             c.0.push(v)
@@ -91,25 +108,6 @@ impl Index<LargeIndex> for LargeIndexVec {
         &self.0[index.0 as usize]
     }
 }
-
-// impl<Idx> Index<Idx> for LargeIndexVec
-// where
-//     Idx: SliceIndex<[LargeIndex]>
-// {
-//     type Output = Idx::Output;
-//
-//     fn index(&self, index: Idx) -> &Self::Output {
-//         &self.0[index]
-//     }
-// }
-
-// impl Index<u32> for LargeIndexVec {
-//     type Output = LargeIndex;
-//
-//     fn index(&self, index: u32) -> &Self::Output {
-//         &self.0[index as usize]
-//     }
-// }
 
 impl From<Vec<u32>> for LargeIndexVec {
     fn from(value: Vec<u32>) -> Self {
@@ -139,51 +137,32 @@ impl LargeIndexVec {
     }
 }
 
-#[test]
-fn test_large_index_vec() {
-    let v = LargeIndexVec::from(vec![0u32, 1, 2, 3,]);
-    assert_eq!(v[LargeIndex::new(0)], LargeIndex::new(0));
-}
+pub type OptionalLargeIndex = Option<LargeIndex>;
 
-
-#[derive(Copy, Clone, Default, Debug, Deref, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub struct OptionalLargeIndex(Option<LargeIndexType>);
-
-#[derive(Copy, Clone, Default, Debug, Deref, Display, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub struct SmallIndex(SmallIndexType);
-
-#[derive(Copy, Clone, Default, Debug, Deref, From, Deserialize, Serialize, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub struct OptionalSmallIndex(Option<SmallIndexType>);
-
-#[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub(crate) struct OptionalLargeIndexVec(Vec<OptionalLargeIndex>);
-#[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub(crate) struct SmallIndexVec(Vec<SmallIndex>);
-#[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
-pub(crate) struct OptionalSmallIndexVec(Vec<OptionalSmallIndex>);
-
-impl Display for OptionalLargeIndex {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref val) = self.0 {
-            write!(f, "{}", val)
-        } else {
-            write!(f, "none")
-        }
-    }
-}
-
-impl Display for OptionalSmallIndex {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref val) = self.0 {
-            write!(f, "{}", val)
-        } else {
-            write!(f, "none")
-        }
-    }
-}
+// #[derive(
+//     Copy,
+//     Clone,
+//     Default,
+//     Debug,
+//     Deref,
+//     From,
+//     Deserialize,
+//     Serialize,
+//     Eq,
+//     Ord,
+//     PartialOrd,
+//     PartialEq,
+//     Hash,
+// )]
+// #[cfg_attr(feature = "datasize", derive(DataSize))]
+// pub struct OptionalLargeIndex(Option<LargeIndexType>);
+//
+// impl Display for OptionalLargeIndex {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         if let Some(ref val) = self.0 {
+//             write!(f, "{}", val)
+//         } else {
+//             write!(f, "none")
+//         }
+//     }
+// }

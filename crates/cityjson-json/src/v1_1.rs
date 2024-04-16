@@ -451,7 +451,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value;
+                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
                         }
                         let _ = materialindex.insert(k, materialvalues);
                     }
@@ -498,7 +498,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value;
+                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -543,7 +543,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexShellsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value;
+                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -588,7 +588,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value;
+                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -633,7 +633,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value;
+                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
