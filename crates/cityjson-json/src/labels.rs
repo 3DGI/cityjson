@@ -7,7 +7,7 @@ use serde::ser::{Error, Serializer, SerializeSeq};
 use datasize::DataSize;
 
 use crate::boundary::{BoundaryCounter, BoundaryType};
-use crate::indices::OptionalLargeIndex;
+use crate::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Texture indices
@@ -412,15 +412,15 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendTextureIndexSolids<'a> {
 pub struct LabelIndex {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
     /// of the item is the index of the Semantic or Material object.
-    pub(crate) points: Vec<OptionalIndex>,
+    pub(crate) points: Vec<OptionalLargeIndex>,
     /// Each item corresponds to the linestring with the same index in a MultiLineString boundary,
     /// the value of the item is the index of the Semantic or Material object.
-    pub(crate) linestrings: Vec<OptionalIndex>,
+    pub(crate) linestrings: Vec<OptionalLargeIndex>,
     /// Each item corresponds to the surface with the same index, the value
     /// of the item is the index of the Semantic or Material object.
     pub(crate) surfaces: Vec<OptionalLargeIndex>,
-    pub(crate) shells: Vec<usize>,
-    pub(crate) solids: Vec<usize>,
+    pub(crate) shells: LargeIndexVec,
+    pub(crate) solids: LargeIndexVec,
 }
 
 impl Serialize for LabelIndex {
@@ -433,21 +433,25 @@ impl Serialize for LabelIndex {
                 let mut nested_json = serializer.serialize_seq(Some(self.solids.len()))?;
                 let mut counter = BoundaryCounter::default();
                 for shells_start_i in &self.solids {
-                    let shells_len = self.shells.len();
+                    let shells_len = LargeIndex::try_from(self.shells.len()).unwrap();
                     let shells_end_i = self
                         .solids
                         .get(counter.next_solid_i())
                         .unwrap_or(&shells_len);
-                    if let Some(shells) = self.shells.get(*shells_start_i..*shells_end_i) {
+                    let s_usize = usize::try_from(*shells_start_i).unwrap();
+                    let e_usize = usize::try_from(*shells_end_i).unwrap();
+                    if let Some(shells) = self.shells.get(s_usize..e_usize) {
                         let mut solid = NestedSolidSemanticsValues::with_capacity(shells.len());
                         for surfaces_start_i in shells {
-                            let surfaces_len = self.surfaces.len();
+                            let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
                             let surfaces_end_i = self
                                 .shells
                                 .get(counter.next_shell_i())
                                 .unwrap_or(&surfaces_len);
+                            let s_usize = usize::try_from(*surfaces_start_i).unwrap();
+                            let e_usize = usize::try_from(*surfaces_end_i).unwrap();
                             if let Some(surfaces) =
-                                self.surfaces.get(*surfaces_start_i..*surfaces_end_i)
+                                self.surfaces.get(s_usize..e_usize)
                             {
                                 let mut shell =
                                     NestedShellSemanticsValues::with_capacity(surfaces.len());
@@ -467,12 +471,14 @@ impl Serialize for LabelIndex {
                 let mut counter = BoundaryCounter::default();
                 // For the semantics.values of a Solid, we need a two-level deep array
                 for surfaces_start_i in &self.shells {
-                    let surfaces_len = self.surfaces.len();
+                    let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
                     let surfaces_end_i = self
                         .shells
                         .get(counter.next_shell_i())
                         .unwrap_or(&surfaces_len);
-                    if let Some(surfaces) = self.surfaces.get(*surfaces_start_i..*surfaces_end_i) {
+                    let s_usize = usize::try_from(*surfaces_start_i).unwrap();
+                    let e_usize = usize::try_from(*surfaces_end_i).unwrap();
+                    if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
                         let mut shell = NestedShellSemanticsValues::with_capacity(surfaces.len());
                         for op_idx in surfaces {
                             shell.push(op_idx.map(|v| u32::from(&v)));
@@ -583,10 +589,14 @@ impl<'de, 'a> Visitor<'de> for ExtendLabelIndexShellsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first ring of the surface.
-        self.0.shells.push(self.0.surfaces.len());
+        self.0
+            .shells
+            .push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         // Each iteration through this loop is one ring.
         while let Some(()) = seq.next_element_seed(ExtendLabelIndexSurfaces(self.0))? {
-            self.0.shells.push(self.0.surfaces.len());
+            self.0
+                .shells
+                .push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         }
         // The last shell index needs to be removed, because that is surfaces.len()
         // after the last iteration.
@@ -626,10 +636,14 @@ impl<'de, 'a> Visitor<'de> for ExtendLabelIndexSolidsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first surface of the aggregate
-        self.0.solids.push(self.0.shells.len());
+        self.0
+            .solids
+            .push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendLabelIndexShells(self.0))? {
-            self.0.solids.push(self.0.shells.len());
+            self.0
+                .solids
+                .push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         }
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;

@@ -13,7 +13,6 @@
 //!
 //! Do not rely on the `BoundaryNested*` types when using `serde_cityjson`, use [Boundary] instead.
 use std::fmt;
-use std::ops::Deref;
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
@@ -697,7 +696,7 @@ mod test {
     fn from_multilinestring_empty_last() {
         let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3], vec![]];
         let boundary = Boundary::from(ml_nested);
-        assert_eq!(boundary.rings, vec![0_usize, 4])
+        assert_eq!(boundary.rings, LargeIndexVec::from(vec![0_u32, 4]))
     }
 
     #[test]
@@ -705,7 +704,7 @@ mod test {
         let ml_nested: BoundaryNestedMultiLineString =
             vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
         let boundary = Boundary::from(ml_nested);
-        assert_eq!(boundary.rings, vec![0_usize, 4, 4, 8])
+        assert_eq!(boundary.rings, LargeIndexVec::from(vec![0u32, 4, 4, 8]))
     }
 
     #[test]
@@ -733,7 +732,7 @@ mod test {
     fn serialize_multilinestring_basic() {
         let boundary = Boundary {
             vertices: LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 8]).unwrap(),
-            rings: LargeIndexVec::try_from(vec![0, 4, 7]).unwrap(),
+            rings: LargeIndexVec::try_from(vec![0_usize, 4, 7]).unwrap(),
             ..Default::default()
         };
         let boundary_json = serde_json::to_string(&boundary)
@@ -746,7 +745,7 @@ mod test {
     fn serialize_multilinestring_empty() {
         let boundary = Boundary {
             vertices: LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap(),
-            rings: LargeIndexVec::try_from(vec![0, 4, 4, 8]).unwrap(),
+            rings: LargeIndexVec::try_from(vec![0_usize, 4, 4, 8]).unwrap(),
             ..Default::default()
         };
         let boundary_json = serde_json::to_string(&boundary)
@@ -840,11 +839,11 @@ mod test {
         );
         assert_eq!(
             mcsolidboundary.rings,
-            vec![0_usize, 4, 8, 12, 16, 19, 23, 26]
+            LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap()
         );
-        assert_eq!(mcsolidboundary.surfaces, vec![0_usize, 3, 4, 6, 7]);
-        assert_eq!(mcsolidboundary.shells, vec![0_usize, 2, 3]);
-        assert_eq!(mcsolidboundary.solids, vec![0_usize, 2]);
+        assert_eq!(mcsolidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap());
+        assert_eq!(mcsolidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap());
+        assert_eq!(mcsolidboundary.solids, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
     }
 
     #[test]
@@ -879,9 +878,9 @@ mod test {
             solidboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5]).unwrap(),
         );
-        assert_eq!(solidboundary.rings, vec![0_usize, 4, 8, 12]);
-        assert_eq!(solidboundary.surfaces, vec![0_usize, 1, 2, 3]);
-        assert_eq!(solidboundary.shells, vec![0_usize]);
+        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap());
+        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap());
+        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize]).unwrap());
     }
 
     #[test]
@@ -904,10 +903,10 @@ mod test {
             solidboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5]).unwrap(),
         );
-        assert_eq!(solidboundary.rings, vec![0_usize, 4, 8, 12]);
-        assert_eq!(solidboundary.surfaces, vec![0_usize, 1, 2, 3]);
+        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap());
+        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap());
         // Surface index 4 is out of bounds, which indicates and empty shell.
-        assert_eq!(solidboundary.shells, vec![0_usize, 4]);
+        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 4]).unwrap());
     }
     #[test]
     fn deserialize_solidboundary_surface_inner_ring() {
@@ -921,9 +920,9 @@ mod test {
             solidboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4]).unwrap(),
         );
-        assert_eq!(solidboundary.rings, vec![0_usize, 4, 8]);
-        assert_eq!(solidboundary.surfaces, vec![0_usize, 2]);
-        assert_eq!(solidboundary.shells, vec![0_usize, 1]);
+        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
+        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
+        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 1]).unwrap());
     }
 
     #[test]
@@ -949,7 +948,7 @@ mod test {
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
         assert_eq!(multisurfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap());
-        assert_eq!(multisurfaceboundary.rings, vec![0_usize]);
+        assert_eq!(multisurfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize]).unwrap());
     }
     #[test]
     fn deserialize_multi_or_compositesurfaceboundary_surface_inner_ring() {
@@ -963,8 +962,8 @@ mod test {
             multisurfaceboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 3, 2, 1]).unwrap()
         );
-        assert_eq!(multisurfaceboundary.rings, vec![0_usize, 4, 8]);
-        assert_eq!(multisurfaceboundary.surfaces, vec![0_usize, 2]);
+        assert_eq!(multisurfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
+        assert_eq!(multisurfaceboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
     }
 
     #[test]
@@ -986,7 +985,7 @@ mod test {
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
         assert_eq!(surfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap());
-        assert_eq!(surfaceboundary.rings, vec![0_usize]);
+        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize]).unwrap());
     }
     #[test]
     fn deserialize_surfaceboundary_inner_ring() {
@@ -997,7 +996,7 @@ mod test {
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
         assert_eq!(surfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap());
-        assert_eq!(surfaceboundary.rings, vec![0_usize, 4]);
+        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4]).unwrap());
     }
     #[test]
     fn deserialize_surfaceboundary_inner_ring_multiple() {
@@ -1011,6 +1010,6 @@ mod test {
             surfaceboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 4, 5, 6, 7]).unwrap()
         );
-        assert_eq!(surfaceboundary.rings, vec![0_usize, 4, 8]);
+        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
     }
 }

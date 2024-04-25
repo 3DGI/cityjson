@@ -2,12 +2,9 @@
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
-use derive_more::{AddAssign, Deref, DerefMut, Display, From, Into, IntoIterator};
+use derive_more::{AddAssign, Deref, DerefMut, Display, From, IntoIterator};
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::Display;
-use std::ops::Index;
-use std::slice::SliceIndex;
+use std::ops::{Index};
 
 /// A floating-point coordinate value..
 pub struct CoordinateFloat(f64);
@@ -16,7 +13,6 @@ pub struct CoordinateFloat(f64);
 pub struct CoordinateInt(i64);
 
 type LargeIndexType = u32;
-type SmallIndexType = u16;
 
 /// Index with large values.
 ///
@@ -85,7 +81,7 @@ impl LargeIndex {
 
 /// A vector of [LargeIndex].
 #[derive(
-    Clone, Default, Debug, Deref, DerefMut, IntoIterator, Eq, Ord, PartialOrd, PartialEq, Hash,
+    Clone, Default, Debug, Deref, DerefMut, IntoIterator, Eq, Ord, PartialOrd, PartialEq, Hash, Deserialize, Serialize
 )]
 #[into_iterator(owned, ref)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
@@ -135,6 +131,11 @@ impl LargeIndexVec {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
+
+    // pub(crate) fn get(&self, idx: Range<LargeIndex>) -> Option<&[LargeIndex]> {
+    //     self.0.get(idx.start.0 as usize..idx.end.0 as usize)
+    // }
+
 }
 
 pub type OptionalLargeIndex = Option<LargeIndex>;

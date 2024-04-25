@@ -22,7 +22,7 @@ use serde_json::value::RawValue;
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
-use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor, VertexIndex};
+use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor};
 use crate::labels;
 
 /// Represents the city model that is stored in a CityJSON object.
