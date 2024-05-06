@@ -34,15 +34,15 @@ use crate::indices::*;
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Boundary {
     /// Values point to CityModel.vertices
-    vertices: LargeIndexVec,
+    pub vertices: LargeIndexVec,
     /// Values point to Self.vertices
-    rings: LargeIndexVec,
+    pub rings: LargeIndexVec,
     /// Values point to Self.rings
-    surfaces: LargeIndexVec,
+    pub surfaces: LargeIndexVec,
     /// Values point to Self.surfaces
-    shells: LargeIndexVec,
+    pub shells: LargeIndexVec,
     /// Values point to self.shells
-    solids: LargeIndexVec,
+    pub solids: LargeIndexVec,
 }
 
 #[derive(Copy, Clone, Debug, Display, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]

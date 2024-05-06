@@ -85,7 +85,7 @@ impl LargeIndex {
 )]
 #[into_iterator(owned, ref)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
-pub(crate) struct LargeIndexVec(pub(crate) Vec<LargeIndex>);
+pub struct LargeIndexVec(pub(crate) Vec<LargeIndex>);
 
 impl FromIterator<LargeIndex> for LargeIndexVec {
     fn from_iter<T: IntoIterator<Item = LargeIndex>>(iter: T) -> Self {
@@ -124,11 +124,11 @@ impl TryFrom<Vec<usize>> for LargeIndexVec {
 }
 
 impl LargeIndexVec {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
 

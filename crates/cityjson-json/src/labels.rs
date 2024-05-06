@@ -429,15 +429,15 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendTextureIndexSolids<'a> {
 pub struct LabelIndex {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
     /// of the item is the index of the Semantic or Material object.
-    pub(crate) points: Vec<OptionalLargeIndex>,
+    pub points: Vec<OptionalLargeIndex>,
     /// Each item corresponds to the linestring with the same index in a MultiLineString boundary,
     /// the value of the item is the index of the Semantic or Material object.
-    pub(crate) linestrings: Vec<OptionalLargeIndex>,
+    pub linestrings: Vec<OptionalLargeIndex>,
     /// Each item corresponds to the surface with the same index, the value
     /// of the item is the index of the Semantic or Material object.
-    pub(crate) surfaces: Vec<OptionalLargeIndex>,
-    pub(crate) shells: LargeIndexVec,
-    pub(crate) solids: LargeIndexVec,
+    pub surfaces: Vec<OptionalLargeIndex>,
+    pub shells: LargeIndexVec,
+    pub solids: LargeIndexVec,
 }
 
 impl Serialize for LabelIndex {

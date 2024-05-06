@@ -1843,6 +1843,15 @@ impl Default for ImageType {
     }
 }
 
+impl<'cm> Semantics<'cm> {
+    pub fn new(surfaces: Vec<Semantic<'cm>>, values: labels::LabelIndex) -> Self {
+        Self {
+            surfaces,
+            values,
+        }
+    }
+}
+
 impl<'cm> Display for SemanticType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
