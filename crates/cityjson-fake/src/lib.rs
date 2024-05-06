@@ -9,7 +9,6 @@
 //! -
 //!
 //! See the [design doc] for details on how this crate works under the hood.
-use cjlib::indexed::*;
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::company::raw::CompanyName;
@@ -24,7 +23,19 @@ use rand::distributions::uniform::SampleRange;
 use rand::distributions::{Bernoulli, Distribution};
 use rand::seq::SliceRandom;
 use rand::Rng;
-use std::ops::Range;
+use serde_cityjson::boundary::{
+    Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
+    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
+};
+use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
+use serde_cityjson::labels;
+use serde_cityjson::labels::{
+    LabelIndex, NestedMultiSolidSemanticsValues, NestedShellSemanticsValues,
+    NestedSolidSemanticsValues, OptionalIndex,
+};
+use serde_cityjson::v1_1::*;
+use std::borrow::Cow;
+use std::ops::{Range, RangeInclusive};
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
 
@@ -32,110 +43,103 @@ const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
 const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
+
+type IndexType = u32;
 // TODO: Maybe I could have this configurable, to that it'll be possible to emulate triangulated
 //  surfaces with a range of min=3 max=3.
+const MIN_MEMBERS_MULTIPOINT: IndexType = 1;
+const MAX_MEMBERS_MULTIPOINT: IndexType = 50;
+const MIN_MEMBERS_MULTILINESTRING: IndexType = 1;
+const MAX_MEMBERS_MULTILINESTRING: IndexType = 5;
+const MIN_MEMBERS_MULTISURFACE: IndexType = 1;
+const MAX_MEMBERS_MULTISURFACE: IndexType = 10;
+const MIN_MEMBERS_SOLID: IndexType = 1;
+const MAX_MEMBERS_SOLID: IndexType = 5;
+const MIN_MEMBERS_MULTISOLID: IndexType = 1;
+const MAX_MEMBERS_MULTISOLID: IndexType = 5;
+const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 10;
 
-const MIN_MEMBERS_MULTIPOINT: usize = 1;
-const MAX_MEMBERS_MULTIPOINT: usize = 50;
-const MIN_MEMBERS_MULTILINESTRING: usize = 1;
-const MAX_MEMBERS_MULTILINESTRING: usize = 5;
-const MIN_MEMBERS_MULTI_COMPOSITESURFACE: usize = 1;
-const MAX_MEMBERS_MULTI_COMPOSITESURFACE: usize = 10;
-const MIN_MEMBERS_SOLID: usize = 1;
-const MAX_MEMBERS_SOLID: usize = 5;
-const MIN_MEMBERS_MULTI_COMPOSITESOLID: usize = 1;
-const MAX_MEMBERS_MULTI_COMPOSITESOLID: usize = 5;
-const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: usize = 10;
-
-struct CityModelBuilder {
-    id: Option<String>,
+struct CityModelBuilder<'a> {
+    id: Option<Cow<'a, str>>,
     type_cm: Option<CityModelType>,
     version: Option<CityJSONVersion>,
     transform: Option<Transform>,
-    cityobjects: Option<CityObjects>,
+    cityobjects: Option<CityObjects<'a>>,
     vertices: Option<Vertices>,
-    metadata: Option<Metadata>,
+    metadata: Option<Metadata<'a>>,
 }
 
-struct MetadataBuilder(Metadata);
+struct MetadataBuilder<'a>(Metadata<'a>);
 
 struct CityObjectFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
 struct CityObjectTypeFaker;
 
 struct GeometryFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
     cotype: CityObjectType,
 }
 
 struct LoDFaker;
 
-struct CompositeSolidFaker {
-    nr_vertices: usize,
-}
-
 struct MultiSolidFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
 struct SolidFaker {
-    nr_vertices: usize,
-}
-
-struct CompositeSurfaceFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
 struct MultiSurfaceFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
 struct MultiLineStringFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
 struct MultiPointFaker {
-    nr_vertices: usize,
+    nr_vertices: IndexType,
 }
 
-struct VertexIndexFaker {
-    max: usize,
+struct IndexFaker {
+    max: IndexType,
 }
 
 struct CompositeSolidSemanticsFaker {
-    nr_solids: Vec<Vec<usize>>,
+    nr_solids: IndexType,
     cotype: CityObjectType,
 }
 
 struct MultiSolidSemanticsFaker {
-    nr_solids: Vec<Vec<usize>>,
+    nr_solids: IndexType,
     cotype: CityObjectType,
 }
 
-struct SolidSemanticsFaker {
-    nr_shells: Vec<usize>,
+struct SolidSemanticsFaker<'a> {
+    boundary: &'a Boundary,
     cotype: CityObjectType,
 }
 
 struct CompositeSurfaceSemanticsFaker {
-    nr_surfaces: usize,
+    nr_surfaces: IndexType,
     cotype: CityObjectType,
 }
 
 struct MultiSurfaceSemanticsFaker {
-    nr_surfaces: usize,
+    nr_surfaces: IndexType,
     cotype: CityObjectType,
 }
 
 struct MultiLineStringSemanticsFaker {
-    nr_linestrings: usize,
+    nr_linestrings: IndexType,
     cotype: CityObjectType,
 }
 
 struct MultiPointSemanticsFaker {
-    nr_points: usize,
+    nr_points: IndexType,
     cotype: CityObjectType,
 }
 
@@ -144,7 +148,7 @@ struct SemanticFaker {
 }
 
 struct OptionalIndexFaker {
-    max: usize,
+    max: IndexType,
 }
 
 struct ContactRoleFaker;
@@ -198,12 +202,13 @@ impl CityModelBuilder {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(nr_vertices);
+        let cof = CityObjectFaker::new(nr_vertices as IndexType);
         let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
-        self.cityobjects = Some(CityObjects::from_iter(
-            cos.iter().map(|co| (Word(EN).fake(), co.to_owned())),
-        ));
+        self.cityobjects =
+            Some(CityObjects::from_iter(cos.iter().map(|co| {
+                (Cow::from(Word(EN).fake::<&str>()), co.to_owned())
+            })));
         self
     }
 
@@ -234,7 +239,7 @@ impl CityModelBuilder {
 }
 
 impl CityObjectFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
     }
 }
@@ -244,8 +249,16 @@ impl Dummy<CityObjectFaker> for CityObject {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
         // TODO: add "address" to the type where possible
-        let gf = GeometryFaker::new(config.nr_vertices, cotype);
-        Self::new(cotype, (gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES).fake())
+        let gf = GeometryFaker::new(config.nr_vertices, cotype.clone());
+        Self::new(
+            cotype,
+            (gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
     }
 }
 
@@ -283,14 +296,14 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
             28 => CityObjectType::TunnelConstructiveElement,
             29 => CityObjectType::TunnelHollowSpace,
             30 => CityObjectType::TunnelFurniture,
-            31 => CityObjectType::GenericCityObject,
+            // 31 => CityObjectType::GenericCityObject,
             _ => unreachable!(),
         }
     }
 }
 
 impl GeometryFaker {
-    fn new(nr_vertices: usize, cotype: CityObjectType) -> Self {
+    fn new(nr_vertices: IndexType, cotype: CityObjectType) -> Self {
         Self {
             nr_vertices,
             cotype,
@@ -301,6 +314,7 @@ impl GeometryFaker {
 impl Dummy<GeometryFaker> for Geometry {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
         let lod: LoD = LoDFaker.fake();
+        // todo: move this type setup to compile time
         // Choose a Geometry type that is allowed for the given CityObject type
         let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let building_types = config.cotype == CityObjectType::Building
@@ -312,8 +326,8 @@ impl Dummy<GeometryFaker> for Geometry {
             geometry_types = vec![2, 3, 4, 6];
         } else if building_types {
             geometry_types = vec![2, 3, 4, 6];
-        } else if config.cotype == CityObjectType::GenericCityObject {
-            geometry_types = vec![0, 1, 2, 3, 4, 6];
+        // } else if config.cotype == CityObjectType::GenericCityObject {
+        //     geometry_types = vec![0, 1, 2, 3, 4, 6];
         } else if config.cotype == CityObjectType::LandUse {
             geometry_types = vec![2, 3];
         } else if config.cotype == CityObjectType::PlantCover {
@@ -350,57 +364,100 @@ impl Dummy<GeometryFaker> for Geometry {
             }
         }
 
+        let mut boundaries: Option<Boundary> = None;
+        let mut semantics: Option<Semantics> = None;
+        let mut material: Option<MaterialMap> = None;
+        let mut texture: Option<TextureMap> = None;
+        let mut template: Option<u16> = None;
+        let mut template_boundaries: Option<[usize; 1]> = None;
+        let mut template_transformation_matrix: Option<[f64; 16]> = None;
+
         match geometry_type_chosen {
             0 => {
-                let (nr_points, boundaries) =
-                    MultiPointFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::MultiPoint {
-                    lod,
-                    boundaries,
-                    semantics: generate_semantics
-                        .then(|| MultiPointSemanticsFaker::new(nr_points, config.cotype).fake()),
+                let boundaries: Boundary = MultiPointFaker::new(config.nr_vertices).fake();
+                let nr_points = IndexType::try_from(boundaries.vertices.len()).unwrap();
+
+                Geometry {
+                    type_: GeometryType::MultiPoint,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
+                    semantics: generate_semantics.then(|| {
+                        MultiPointSemanticsFaker::new(nr_points, config.cotype.clone()).fake()
+                    }),
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             1 => {
-                let (nr_linestrings, boundaries) =
-                    MultiLineStringFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::MultiLineString {
-                    lod,
-                    boundaries,
+                let boundaries: Boundary = MultiLineStringFaker::new(config.nr_vertices).fake();
+                let nr_linestrings = IndexType::try_from(boundaries.rings.len()).unwrap();
+                Geometry {
+                    type_: GeometryType::MultiLineString,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
                     semantics: generate_semantics.then(|| {
-                        MultiLineStringSemanticsFaker::new(nr_linestrings, config.cotype).fake()
+                        MultiLineStringSemanticsFaker::new(nr_linestrings, config.cotype.clone())
+                            .fake()
                     }),
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             2 => {
-                let (nr_surfaces, boundaries) =
-                    MultiSurfaceFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::MultiSurface {
-                    lod,
-                    boundaries,
+                let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
+                let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
+                Geometry {
+                    type_: GeometryType::MultiSurface,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
                     semantics: generate_semantics.then(|| {
-                        MultiSurfaceSemanticsFaker::new(nr_surfaces, config.cotype).fake()
+                        MultiSurfaceSemanticsFaker::new(nr_surfaces, config.cotype.clone()).fake()
                     }),
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             3 => {
-                let (nr_surfaces, boundaries) =
-                    CompositeSurfaceFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::CompositeSurface {
-                    lod,
-                    boundaries,
+                let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
+                let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
+                Geometry {
+                    type_: GeometryType::CompositeSurface,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
                     semantics: generate_semantics.then(|| {
-                        CompositeSurfaceSemanticsFaker::new(nr_surfaces, config.cotype).fake()
+                        MultiSurfaceSemanticsFaker::new(nr_surfaces, config.cotype.clone()).fake()
                     }),
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             4 => {
-                let (nr_members, boundaries) = SolidFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::Solid {
-                    lod,
-                    boundaries,
-                    semantics: generate_semantics
-                        .then(|| SolidSemanticsFaker::new(nr_members, config.cotype).fake()),
+                let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake();
+                semantics = generate_semantics
+                    .then(|| SolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake());
+                let nr_shells = IndexType::try_from(boundaries.shells.len()).unwrap();
+                Geometry {
+                    type_: GeometryType::Solid,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
+                    semantics,
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             5 => {
@@ -409,8 +466,9 @@ impl Dummy<GeometryFaker> for Geometry {
                 Geometry::MultiSolid {
                     lod,
                     boundaries,
-                    semantics: generate_semantics
-                        .then(|| MultiSolidSemanticsFaker::new(nr_members, config.cotype).fake()),
+                    semantics: generate_semantics.then(|| {
+                        MultiSolidSemanticsFaker::new(nr_members, config.cotype.clone()).fake()
+                    }),
                 }
             }
             6 => {
@@ -420,7 +478,7 @@ impl Dummy<GeometryFaker> for Geometry {
                     lod,
                     boundaries,
                     semantics: generate_semantics.then(|| {
-                        CompositeSolidSemanticsFaker::new(nr_members, config.cotype).fake()
+                        CompositeSolidSemanticsFaker::new(nr_members, config.cotype.clone()).fake()
                     }),
                 }
             }
@@ -457,204 +515,320 @@ impl Dummy<LoDFaker> for LoD {
     }
 }
 
-impl CompositeSolidFaker {
-    fn new(nr_vertices: usize) -> Self {
-        Self { nr_vertices }
-    }
-
-    /// Returns the (Vec with the (shell number for each solid, surface number for each shell),
-    /// CompositeSolidBoundary).
-    ///
-    fn fake_boundary(&self) -> (Vec<Vec<usize>>, AggregateSolidBoundary) {
-        let nr_solids: usize = rand::thread_rng()
-            .gen_range(MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID);
-        let mut asb: AggregateSolidBoundary = Vec::with_capacity(nr_solids);
-        let mut solid_counts: Vec<Vec<usize>> = Vec::with_capacity(nr_solids);
-        for _ in 0..nr_solids {
-            let (shells, sb) = SolidFaker::new(self.nr_vertices).fake_boundary();
-            solid_counts.push(shells);
-            asb.push(sb);
-        }
-
-        (solid_counts, asb)
-    }
-}
-
-impl Dummy<CompositeSolidFaker> for AggregateSolidBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSolidFaker, _: &mut R) -> Self {
-        let sof = SolidFaker::new(config.nr_vertices);
-        (
-            sof,
-            MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID,
-        )
-            .fake::<Vec<SolidBoundary>>()
-    }
-}
-
 impl MultiSolidFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
-    }
-
-    /// Returns the (Vec with the (shell number for each solid, surface number for each shell),
-    /// MultiSolidBoundary).
-    ///
-    fn fake_boundary(&self) -> (Vec<Vec<usize>>, AggregateSolidBoundary) {
-        let nr_solids: usize = rand::thread_rng()
-            .gen_range(MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID);
-        let mut asb: AggregateSolidBoundary = Vec::with_capacity(nr_solids);
-        let mut solid_counts: Vec<Vec<usize>> = Vec::with_capacity(nr_solids);
-        for _ in 0..nr_solids {
-            let (shells, sb) = SolidFaker::new(self.nr_vertices).fake_boundary();
-            solid_counts.push(shells);
-            asb.push(sb);
-        }
-
-        (solid_counts, asb)
     }
 }
 
-impl Dummy<MultiSolidFaker> for AggregateSolidBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, _: &mut R) -> Self {
-        let sof = SolidFaker::new(config.nr_vertices);
-        (
-            sof,
-            MIN_MEMBERS_MULTI_COMPOSITESOLID..=MAX_MEMBERS_MULTI_COMPOSITESOLID,
-        )
-            .fake::<Vec<SolidBoundary>>()
+impl Dummy<MultiSolidFaker> for Boundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, rng: &mut R) -> Self {
+        let mut boundary = Boundary {
+            vertices: LargeIndexVec::with_capacity(
+                (MIN_MEMBERS_MULTIPOINT
+                    * MAX_MEMBERS_MULTILINESTRING
+                    * MAX_MEMBERS_MULTISURFACE
+                    * MAX_MEMBERS_SOLID
+                    * MAX_MEMBERS_MULTISOLID) as usize,
+            ),
+            rings: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_MULTILINESTRING
+                    * MAX_MEMBERS_MULTISURFACE
+                    * MAX_MEMBERS_SOLID
+                    * MAX_MEMBERS_MULTISOLID) as usize,
+            ),
+            surfaces: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID * MAX_MEMBERS_MULTISOLID) as usize,
+            ),
+            shells: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_SOLID * MAX_MEMBERS_MULTISOLID) as usize,
+            ),
+            solids: LargeIndexVec::with_capacity(MAX_MEMBERS_MULTISOLID as usize),
+        };
+
+        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+            MIN_MEMBERS_MULTIPOINT
+        } else {
+            MIN_MEMBERS_MULTIPOINT + 1
+        };
+
+        // Counters
+        let mut ring_i = 0u32;
+        let mut surface_i = 0u32;
+        let mut shell_i = 0u32;
+        let mut solid_i = 0u32;
+
+        let nr_solids = rng.gen_range(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID);
+        for _solid in MIN_MEMBERS_MULTISOLID..=nr_solids {
+            boundary.solids.push(LargeIndex::from(solid_i));
+            let solid_len = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
+            solid_i += solid_len;
+
+            for _shell in MIN_MEMBERS_SOLID..=solid_len {
+                boundary.shells.push(LargeIndex::from(shell_i));
+                let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+                shell_i += shell_len;
+
+                // Add the surfaces for each shell
+                for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
+                    boundary.surfaces.push(LargeIndex::from(surface_i));
+                    let surface_len =
+                        rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+                    surface_i += surface_len;
+
+                    // Add the rings for each surface
+                    for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
+                        boundary.rings.push(LargeIndex::from(ring_i));
+                        let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+                        ring_i += ring_len;
+
+                        // Add the vertices for each ring
+                        let nr_vertices: IndexType =
+                            rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+                        boundary.vertices.extend(
+                            (0..nr_vertices)
+                                .into_iter()
+                                .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                        );
+                    }
+                }
+            }
+        }
+
+        boundary
     }
 }
 
 impl SolidFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
     }
+}
 
-    /// Returns the (Vec with the surface number for each shell, SolidBoundary).
-    ///
-    fn fake_boundary(&self) -> (Vec<usize>, SolidBoundary) {
-        let nr_shells: usize = rand::thread_rng().gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
-        let mut sb: SolidBoundary = Vec::with_capacity(nr_shells);
-        let mut surface_counts: Vec<usize> = Vec::with_capacity(nr_shells);
-        for _ in 0..nr_shells {
-            let csrf: AggregateSurfaceBoundary =
-                CompositeSurfaceFaker::new(self.nr_vertices).fake();
-            surface_counts.push(csrf.len());
-            sb.push(csrf);
+impl Dummy<SolidFaker> for Boundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, rng: &mut R) -> Self {
+        let mut boundary = Boundary {
+            vertices: LargeIndexVec::with_capacity(
+                (MIN_MEMBERS_MULTIPOINT
+                    * MAX_MEMBERS_MULTILINESTRING
+                    * MAX_MEMBERS_MULTISURFACE
+                    * MAX_MEMBERS_SOLID) as usize,
+            ),
+            rings: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID)
+                    as usize,
+            ),
+            surfaces: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID) as usize,
+            ),
+            shells: LargeIndexVec::with_capacity((MAX_MEMBERS_SOLID) as usize),
+            solids: LargeIndexVec::default(),
+        };
+
+        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+            MIN_MEMBERS_MULTIPOINT
+        } else {
+            MIN_MEMBERS_MULTIPOINT + 1
+        };
+
+        // Counters
+        let mut ring_i = 0u32;
+        let mut surface_i = 0u32;
+        let mut shell_i = 0u32;
+
+        let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
+        for _shell in MIN_MEMBERS_SOLID..=nr_shells {
+            boundary.shells.push(LargeIndex::from(shell_i));
+            let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+            shell_i += shell_len;
+
+            // Add the surfaces for each shell
+            for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
+                boundary.surfaces.push(LargeIndex::from(surface_i));
+                let surface_len =
+                    rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+                surface_i += surface_len;
+
+                // Add the rings for each surface
+                for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
+                    boundary.rings.push(LargeIndex::from(ring_i));
+                    let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+                    ring_i += ring_len;
+
+                    // Add the vertices for each ring
+                    let nr_vertices: IndexType =
+                        rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+                    boundary.vertices.extend(
+                        (0..nr_vertices)
+                            .into_iter()
+                            .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                    );
+                }
+            }
         }
-        (surface_counts, sb)
-    }
-}
 
-impl Dummy<SolidFaker> for SolidBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, _: &mut R) -> Self {
-        let csrff = CompositeSurfaceFaker::new(config.nr_vertices);
-        (csrff, MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID).fake::<Vec<AggregateSurfaceBoundary>>()
-    }
-}
-
-impl CompositeSurfaceFaker {
-    fn new(nr_vertices: usize) -> Self {
-        Self { nr_vertices }
-    }
-
-    /// Returns the (number of surfaces, CompositeSurfaceBoundary).
-    ///
-    fn fake_boundary(&self) -> (usize, AggregateSurfaceBoundary) {
-        let msrf: AggregateSurfaceBoundary = MultiSurfaceFaker::new(self.nr_vertices).fake();
-        (msrf.len(), msrf)
-    }
-}
-
-impl Dummy<CompositeSurfaceFaker> for AggregateSurfaceBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSurfaceFaker, _: &mut R) -> Self {
-        let mlsf = MultiLineStringFaker::new(config.nr_vertices);
-        (
-            mlsf,
-            MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE,
-        )
-            .fake::<Vec<MultiLineStringBoundary>>()
+        boundary
     }
 }
 
 impl MultiSurfaceFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
-    }
-
-    /// Returns the (number of surfaces, MultiSurfaceBoundary).
-    ///
-    fn fake_boundary(&self) -> (usize, AggregateSurfaceBoundary) {
-        let msrf: AggregateSurfaceBoundary = MultiSurfaceFaker::new(self.nr_vertices).fake();
-        (msrf.len(), msrf)
     }
 }
 
-impl Dummy<MultiSurfaceFaker> for AggregateSurfaceBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, _: &mut R) -> Self {
-        let mlsf = MultiLineStringFaker::new(config.nr_vertices);
-        (
-            mlsf,
-            MIN_MEMBERS_MULTI_COMPOSITESURFACE..=MAX_MEMBERS_MULTI_COMPOSITESURFACE,
-        )
-            .fake::<Vec<MultiLineStringBoundary>>()
+impl Dummy<MultiSurfaceFaker> for Boundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, rng: &mut R) -> Self {
+        let mut boundary = Boundary {
+            // todo scj: ::with_capacity should with the type that largeindex holds, because it doesn't make sense for largeindexvec to hold more items than max largeindex
+            vertices: LargeIndexVec::with_capacity(
+                (MIN_MEMBERS_MULTIPOINT * MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE)
+                    as usize,
+            ),
+            rings: LargeIndexVec::with_capacity(
+                (MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE) as usize,
+            ),
+            surfaces: LargeIndexVec::with_capacity(MAX_MEMBERS_MULTISURFACE as usize),
+            shells: LargeIndexVec::default(),
+            solids: LargeIndexVec::default(),
+        };
+
+        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+            MIN_MEMBERS_MULTIPOINT
+        } else {
+            MIN_MEMBERS_MULTIPOINT + 1
+        };
+
+        // Counters
+        let mut ring_i = 0u32;
+        let mut surface_i = 0u32;
+
+        let nr_surfaces = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+        for _surface in MIN_MEMBERS_MULTISURFACE..=nr_surfaces {
+            boundary.surfaces.push(LargeIndex::from(surface_i));
+            let surface_len =
+                rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            surface_i += surface_len;
+
+            // Add the rings for each surface
+            for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
+                boundary.rings.push(LargeIndex::from(ring_i));
+                let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+                ring_i += ring_len;
+
+                // Add the vertices for each ring
+                let nr_vertices: IndexType =
+                    rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+                boundary.vertices.extend(
+                    (0..nr_vertices)
+                        .into_iter()
+                        .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                );
+            }
+        }
+        boundary
     }
 }
 
 impl MultiLineStringFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
-    }
-
-    /// Returns the (number of linestrings, MultiLineStringBoundary).
-    ///
-    fn fake_boundary(&self) -> (usize, MultiLineStringBoundary) {
-        let ml: MultiLineStringBoundary = MultiLineStringFaker::new(self.nr_vertices).fake();
-        (ml.len(), ml)
     }
 }
 
-impl Dummy<MultiLineStringFaker> for MultiLineStringBoundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, _: &mut R) -> Self {
-        let mpf = MultiPointFaker::new(config.nr_vertices);
-        (
-            mpf,
-            MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING,
-        )
-            .fake::<Vec<MultiPointBoundary>>()
+impl Dummy<MultiLineStringFaker> for Boundary {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, rng: &mut R) -> Self {
+        let mut boundary = Boundary {
+            vertices: LargeIndexVec::with_capacity(
+                (MIN_MEMBERS_MULTIPOINT * MAX_MEMBERS_MULTILINESTRING) as usize,
+            ),
+            rings: LargeIndexVec::with_capacity((MAX_MEMBERS_MULTILINESTRING) as usize),
+            surfaces: LargeIndexVec::default(),
+            shells: LargeIndexVec::default(),
+            solids: LargeIndexVec::default(),
+        };
+
+        // A linestring must have at least two vertices, otherwise it's not a line.
+        // Here I assume that MIN_MEMBERS_MULTIPOINT is always > 0.
+        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+            MIN_MEMBERS_MULTIPOINT
+        } else {
+            MIN_MEMBERS_MULTIPOINT + 1
+        };
+
+        // Counters
+        let mut ring_i = 0u32;
+
+        let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+        for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
+            boundary.rings.push(LargeIndex::try_from(ring_i).unwrap());
+            let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+            ring_i += ring_len;
+
+            // Add the vertices for each ring
+            let nr_vertices: IndexType =
+                rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+            boundary.vertices.extend(
+                (0..nr_vertices)
+                    .into_iter()
+                    .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+            );
+        }
+        boundary
     }
 }
 
 impl MultiPointFaker {
-    fn new(nr_vertices: usize) -> Self {
+    fn new(nr_vertices: IndexType) -> Self {
         Self { nr_vertices }
     }
-
-    /// Returns the (number of points, MultiPointBoundary).
-    ///
-    fn fake_boundary(&self) -> (usize, MultiPointBoundary) {
-        let mp: MultiPointBoundary = MultiPointFaker::new(self.nr_vertices).fake();
-        (mp.len(), mp)
-    }
 }
 
-impl Dummy<MultiPointFaker> for MultiPointBoundary {
+impl Dummy<MultiPointFaker> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, _: &mut R) -> Self {
-        let vf = VertexIndexFaker::new(config.nr_vertices);
-        (vf, MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT).fake::<Vec<usize>>()
+        let vf = IndexFaker::new(config.nr_vertices);
+        Boundary {
+            vertices: LargeIndexVecFaker(vf, MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT)
+                .fake(),
+            rings: Default::default(),
+            surfaces: Default::default(),
+            shells: Default::default(),
+            solids: Default::default(),
+        }
     }
 }
 
-impl VertexIndexFaker {
-    fn new(max_vertices: usize) -> Self {
+struct LargeIndexVecFaker(IndexFaker, RangeInclusive<u32>);
+
+impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, _: &mut R) -> Self {
+        LargeIndexVec::from(
+            (
+                *config.0,
+                *config.1.start() as usize..*config.1.end() as usize,
+            )
+                .fake::<Vec<u32>>(),
+        )
+    }
+}
+
+impl IndexFaker {
+    fn new(max_vertices: IndexType) -> Self {
         Self { max: max_vertices }
     }
 }
 
-impl Dummy<VertexIndexFaker> for usize {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &VertexIndexFaker, rng: &mut R) -> Self {
-        let vidx: usize = rng.gen_range(0..=config.max);
+impl Dummy<IndexFaker> for IndexType {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &IndexFaker, rng: &mut R) -> Self {
+        let vidx: IndexType = rng.gen_range(0..=config.max);
         vidx
+    }
+}
+
+impl Dummy<IndexFaker> for LargeIndex {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &IndexFaker, rng: &mut R) -> Self {
+        let vidx: IndexType = rng.gen_range(0..=config.max);
+        LargeIndex::from(vidx)
     }
 }
 
@@ -662,95 +836,53 @@ fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
 }
 
-impl CompositeSolidSemanticsFaker {
-    fn new(nr_solids: Vec<Vec<usize>>, cotype: CityObjectType) -> Self {
-        Self { nr_solids, cotype }
-    }
-}
-
-impl Dummy<CompositeSolidSemanticsFaker> for CompositeSolidSemantics {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &CompositeSolidSemanticsFaker, rng: &mut R) -> Self {
-        if config.nr_solids.is_empty() {
-            Self::new(
-                Vec::<Semantic>::default(),
-                CompositeSolidSemanticsValues::default(),
-            )
-        } else {
-            let (surfaces, values) =
-                fake_depth_three_semantics(config.cotype, &config.nr_solids, rng);
-            Self::new(surfaces, values)
-        }
-    }
-}
-
 impl MultiSolidSemanticsFaker {
-    fn new(nr_solids: Vec<Vec<usize>>, cotype: CityObjectType) -> Self {
+    fn new(nr_solids: IndexType, cotype: CityObjectType) -> Self {
         Self { nr_solids, cotype }
     }
 }
 
-impl Dummy<MultiSolidSemanticsFaker> for MultiSolidSemantics {
+impl Dummy<MultiSolidSemanticsFaker> for Semantics {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidSemanticsFaker, rng: &mut R) -> Self {
         if config.nr_solids.is_empty() {
-            Self::new(
-                Vec::<Semantic>::default(),
-                MultiSolidSemanticsValues::default(),
-            )
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
             let (surfaces, values) =
-                fake_depth_three_semantics(config.cotype, &config.nr_solids, rng);
+                fake_depth_three_semantics(config.cotype.clone(), &config.nr_solids, rng);
             Self::new(surfaces, values)
         }
     }
 }
 
 impl SolidSemanticsFaker {
-    fn new(nr_shells: Vec<usize>, cotype: CityObjectType) -> Self {
-        Self { nr_shells, cotype }
+    fn new(boundary: &Boundary, cotype: CityObjectType) -> Self {
+        Self { boundary, cotype }
     }
 }
 
-impl Dummy<SolidSemanticsFaker> for SolidSemantics {
+impl Dummy<SolidSemanticsFaker> for Semantics {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidSemanticsFaker, rng: &mut R) -> Self {
-        if config.nr_shells.is_empty() {
-            Self::new(Vec::<Semantic>::default(), SolidSemanticsValues::default())
+        if config.boundary.shells.is_empty() {
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
             let (surfaces, values) =
-                fake_depth_two_semantics(config.cotype, &config.nr_shells, rng);
-            Self::new(surfaces, values)
-        }
-    }
-}
-
-impl CompositeSurfaceSemanticsFaker {
-    fn new(nr_surfaces: usize, cotype: CityObjectType) -> Self {
-        Self {
-            nr_surfaces,
-            cotype,
-        }
-    }
-}
-
-impl Dummy<CompositeSurfaceSemanticsFaker> for CompositeSurfaceSemantics {
-    fn dummy_with_rng<R: Rng + ?Sized>(
-        config: &CompositeSurfaceSemanticsFaker,
-        rng: &mut R,
-    ) -> Self {
-        if config.nr_surfaces == 0 {
+                fake_depth_two_semantics(config.cotype.clone(), config.boundary, rng);
             Self::new(
-                Vec::<Semantic>::default(),
-                CompositeSurfaceSemanticsValues::default(),
+                surfaces,
+                LabelIndex {
+                    points: vec![],
+                    linestrings: vec![],
+                    surfaces: vec![],
+                    shells: values,
+                    solids: Default::default(),
+                },
             )
-        } else {
-            let (surfaces, values) =
-                fake_depth_one_semantics(config.cotype, config.nr_surfaces, rng);
-            Self::new(surfaces, values)
         }
     }
 }
 
 impl MultiSurfaceSemanticsFaker {
-    fn new(nr_surfaces: usize, cotype: CityObjectType) -> Self {
+    fn new(nr_surfaces: IndexType, cotype: CityObjectType) -> Self {
         Self {
             nr_surfaces,
             cotype,
@@ -758,23 +890,29 @@ impl MultiSurfaceSemanticsFaker {
     }
 }
 
-impl Dummy<MultiSurfaceSemanticsFaker> for MultiSurfaceSemantics {
+impl Dummy<MultiSurfaceSemanticsFaker> for Semantics {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceSemanticsFaker, rng: &mut R) -> Self {
         if config.nr_surfaces == 0 {
-            Self::new(
-                Vec::<Semantic>::default(),
-                MultiSurfaceSemanticsValues::default(),
-            )
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
             let (surfaces, values) =
-                fake_depth_one_semantics(config.cotype, config.nr_surfaces, rng);
-            Self::new(surfaces, values)
+                fake_depth_one_semantics(config.cotype.clone(), config.nr_surfaces, rng);
+            Self::new(
+                surfaces,
+                LabelIndex {
+                    points: vec![],
+                    linestrings: vec![],
+                    surfaces: values,
+                    shells: Default::default(),
+                    solids: Default::default(),
+                },
+            )
         }
     }
 }
 
 impl MultiLineStringSemanticsFaker {
-    fn new(nr_linestrings: usize, cotype: CityObjectType) -> Self {
+    fn new(nr_linestrings: IndexType, cotype: CityObjectType) -> Self {
         Self {
             nr_linestrings,
             cotype,
@@ -782,60 +920,73 @@ impl MultiLineStringSemanticsFaker {
     }
 }
 
-impl Dummy<MultiLineStringSemanticsFaker> for MultiLineStringSemantics {
+impl Dummy<MultiLineStringSemanticsFaker> for Semantics {
     fn dummy_with_rng<R: Rng + ?Sized>(
         config: &MultiLineStringSemanticsFaker,
         rng: &mut R,
     ) -> Self {
         if config.nr_linestrings == 0 {
-            Self::new(
-                Vec::<Semantic>::default(),
-                MultiLineStringSemanticsValues::default(),
-            )
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
             let (surfaces, values) =
-                fake_depth_one_semantics(config.cotype, config.nr_linestrings, rng);
-            Self::new(surfaces, values)
+                fake_depth_one_semantics(config.cotype.clone(), config.nr_linestrings, rng);
+            Self::new(
+                surfaces,
+                LabelIndex {
+                    points: vec![],
+                    linestrings: values,
+                    surfaces: vec![],
+                    shells: Default::default(),
+                    solids: Default::default(),
+                },
+            )
         }
     }
 }
 
 impl MultiPointSemanticsFaker {
-    fn new(nr_points: usize, cotype: CityObjectType) -> Self {
+    fn new(nr_points: IndexType, cotype: CityObjectType) -> Self {
         Self { nr_points, cotype }
     }
 }
 
-impl Dummy<MultiPointSemanticsFaker> for MultiPointSemantics {
+impl Dummy<MultiPointSemanticsFaker> for Semantics {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointSemanticsFaker, rng: &mut R) -> Self {
         if config.nr_points == 0 {
-            Self::new(
-                Vec::<Semantic>::default(),
-                MultiPointSemanticsValues::default(),
-            )
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
-            let (surfaces, values) = fake_depth_one_semantics(config.cotype, config.nr_points, rng);
-            Self::new(surfaces, values)
+            let (surfaces, values) =
+                fake_depth_one_semantics(config.cotype.clone(), config.nr_points, rng);
+            Self::new(
+                surfaces,
+                LabelIndex {
+                    points: values,
+                    linestrings: vec![],
+                    surfaces: vec![],
+                    shells: Default::default(),
+                    solids: Default::default(),
+                },
+            )
         }
     }
 }
 
 fn fake_depth_three_semantics<R: Rng + ?Sized>(
     cotype: CityObjectType,
-    nr_members: &Vec<Vec<usize>>,
+    nr_members: &Vec<Vec<IndexType>>,
     rng: &mut R,
-) -> (Vec<Semantic>, Vec<Vec<Vec<OptionalIndex>>>) {
+) -> (Vec<Semantic>, NestedMultiSolidSemanticsValues) {
     // semantics.surfaces
     // The number of surfaces in the first shell determines the number of different Semantic objects
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members[0][0], rng);
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic);
-    let mut values: Vec<Vec<Vec<OptionalIndex>>> = Vec::with_capacity(nr_members.len());
+    let mut values: NestedMultiSolidSemanticsValues = Vec::with_capacity(nr_members.len());
     for (_, shells_counts) in nr_members.iter().enumerate() {
-        let mut shell: Vec<Vec<OptionalIndex>> = Vec::with_capacity(shells_counts.len());
+        let mut shell: NestedSolidSemanticsValues = Vec::with_capacity(shells_counts.len());
         for (_, nr_surfaces) in nr_members.iter().enumerate() {
-            let _s: Vec<OptionalIndex> =
-                (&idxf, nr_surfaces..=nr_surfaces).fake::<Vec<OptionalIndex>>();
+            let _s: NestedShellSemanticsValues =
+                (&idxf, nr_surfaces..=nr_surfaces).fake::<NestedShellSemanticsValues>();
             shell.push(_s);
         }
         values.push(shell);
@@ -845,40 +996,44 @@ fn fake_depth_three_semantics<R: Rng + ?Sized>(
 
 fn fake_depth_two_semantics<R: Rng + ?Sized>(
     cotype: CityObjectType,
-    nr_members: &Vec<usize>,
+    boundary: &Boundary,
     rng: &mut R,
-) -> (Vec<Semantic>, Vec<Vec<OptionalIndex>>) {
+) -> (Vec<Semantic>, LargeIndexVec) {
     // semantics.surfaces
     // The number of surfaces in the first shell determines the number of different Semantic objects
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members[0], rng);
     // semantics.values
-    let idxf = OptionalIndexFaker::new(nr_semantic);
-    let mut values: Vec<Vec<OptionalIndex>> = Vec::with_capacity(nr_members.len());
-    for (_, nr_surfaces) in nr_members.iter().enumerate() {
-        values.push((&idxf, nr_surfaces..=nr_surfaces).fake::<Vec<OptionalIndex>>());
-    }
+    let values: LargeIndexVec =
+        LargeIndexVecFaker(IndexFaker::new(nr_semantic), nr_members..=nr_members).fake();
     (surfaces, values)
 }
 
 fn fake_depth_one_semantics<R: Rng + ?Sized>(
     cotype: CityObjectType,
-    nr_members: usize,
+    nr_members: IndexType,
     rng: &mut R,
-) -> (Vec<Semantic>, Vec<OptionalIndex>) {
+) -> (Vec<Semantic>, Vec<OptionalLargeIndex>) {
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng);
     let idxf = OptionalIndexFaker::new(nr_semantic);
-    let values = (idxf, nr_members..=nr_members).fake::<Vec<OptionalIndex>>();
+    let values =
+        (idxf, nr_members as usize..=nr_members as usize).fake::<Vec<OptionalLargeIndex>>();
     (surfaces, values)
 }
 
 fn fake_semantics_surfaces<R: Rng + ?Sized>(
     cotype: CityObjectType,
-    nr_members: usize,
+    nr_members: IndexType,
     rng: &mut R,
-) -> (usize, Vec<Semantic>) {
+) -> (IndexType, Vec<Semantic>) {
     let sf = SemanticFaker::new(cotype);
-    let nr_semantic: usize = (1..nr_members).fake_with_rng(rng);
-    let mut surfaces: Vec<Semantic> = Vec::with_capacity(nr_semantic);
+    // We have max. as many different Semantics as there are geometry members
+    let nr_semantic: IndexType = (1..nr_members).fake_with_rng(rng);
+    let mut surfaces: Vec<Semantic> = Vec::with_capacity(nr_semantic as usize);
+    let a: Vec<Semantic> = (0..nr_semantic)
+        .into_iter()
+        .filter_map(|_| sf.fake::<Option<Semantic>>())
+        .map()
+        .collect();
     for _ in 0..nr_semantic {
         if let Some(_sem) = sf.fake::<Option<Semantic>>() {
             surfaces.push(_sem);
@@ -893,6 +1048,7 @@ impl SemanticFaker {
     }
 }
 
+// Not all CityObject types can have Semantics, so we return an Option
 impl Dummy<SemanticFaker> for Option<Semantic> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker, rng: &mut R) -> Self {
         let building_types = config.cotype == CityObjectType::Building
@@ -941,20 +1097,21 @@ impl Dummy<SemanticFaker> for Option<Semantic> {
 }
 
 impl OptionalIndexFaker {
-    fn new(max_index: usize) -> Self {
+    fn new(max_index: IndexType) -> Self {
         Self { max: max_index }
     }
 }
 
-impl Dummy<OptionalIndexFaker> for Option<usize> {
+// todo: here i have to use Option<LargeIndex>, i cannot use the OptionalLargeIndex for some reason
+impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &OptionalIndexFaker, rng: &mut R) -> Self {
         // Probability of having a semantic for the surface, instead of a null
         let prob = 0.8;
         let d = Bernoulli::new(prob).unwrap();
         let has_semantic = d.sample(&mut rand::thread_rng());
         if has_semantic {
-            let idx: usize = rng.gen_range(0..=config.max);
-            Some(idx)
+            let idx: IndexType = rng.gen_range(0..=config.max);
+            Some(LargeIndex::from(idx))
         } else {
             None
         }
