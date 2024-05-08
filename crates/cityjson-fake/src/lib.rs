@@ -9,6 +9,9 @@
 //! -
 //!
 //! See the [design doc] for details on how this crate works under the hood.
+use std::borrow::Cow;
+use std::ops::{Range, RangeInclusive};
+
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::company::raw::CompanyName;
@@ -19,23 +22,13 @@ use fake::faker::phone_number::raw::PhoneNumber;
 use fake::locales::*;
 use fake::uuid::UUIDv1;
 use fake::{Dummy, Fake, Faker};
-use rand::distributions::uniform::SampleRange;
 use rand::distributions::{Bernoulli, Distribution};
 use rand::seq::SliceRandom;
 use rand::Rng;
-use serde_cityjson::boundary::{
-    Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
-    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
-};
+use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
-use serde_cityjson::labels;
-use serde_cityjson::labels::{
-    LabelIndex, NestedMultiSolidSemanticsValues, NestedShellSemanticsValues,
-    NestedSolidSemanticsValues, OptionalIndex,
-};
+use serde_cityjson::labels::LabelIndex;
 use serde_cityjson::v1_1::*;
-use std::borrow::Cow;
-use std::ops::{Range, RangeInclusive};
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
 
@@ -67,6 +60,10 @@ struct CityModelBuilder<'a> {
     cityobjects: Option<CityObjects<'a>>,
     vertices: Option<Vertices>,
     metadata: Option<Metadata<'a>>,
+    appearance: Option<Appearance<'a>>,
+    geometry_templates: Option<GeometryTemplates<'a>>,
+    extra: Option<Attributes<'a>>,
+    extensions: Option<Extensions>,
 }
 
 struct MetadataBuilder<'a>(Metadata<'a>);
@@ -104,6 +101,7 @@ struct MultiPointFaker {
     nr_vertices: IndexType,
 }
 
+#[derive(Clone)]
 struct IndexFaker {
     max: IndexType,
 }
@@ -113,8 +111,8 @@ struct CompositeSolidSemanticsFaker {
     cotype: CityObjectType,
 }
 
-struct MultiSolidSemanticsFaker {
-    nr_solids: IndexType,
+struct MultiSolidSemanticsFaker<'a> {
+    boundary: &'a Boundary,
     cotype: CityObjectType,
 }
 
@@ -147,6 +145,10 @@ struct SemanticFaker {
     cotype: CityObjectType,
 }
 
+struct SemanticTypeFaker {
+    cotype: CityObjectType,
+}
+
 struct OptionalIndexFaker {
     max: IndexType,
 }
@@ -155,8 +157,8 @@ struct ContactRoleFaker;
 
 struct ContactTypeFaker;
 
-impl Into<CityModel> for CityModelBuilder {
-    fn into(self) -> CityModel {
+impl Into<CityModel<'_>> for CityModelBuilder<'_> {
+    fn into(self) -> CityModel<'static> {
         CityModel::new(
             self.id,
             self.type_cm,
@@ -165,11 +167,15 @@ impl Into<CityModel> for CityModelBuilder {
             self.cityobjects,
             self.vertices,
             self.metadata,
+            self.appearance,
+            self.geometry_templates,
+            self.extra,
+            self.extensions,
         )
     }
 }
 
-impl Default for CityModelBuilder {
+impl Default for CityModelBuilder<'_> {
     fn default() -> Self {
         CityModelBuilder::new()
             .metadata(None)
@@ -178,7 +184,7 @@ impl Default for CityModelBuilder {
     }
 }
 
-impl CityModelBuilder {
+impl CityModelBuilder<'_> {
     #[must_use]
     pub fn new() -> Self {
         CityModelBuilder {
@@ -189,6 +195,10 @@ impl CityModelBuilder {
             cityobjects: None,
             vertices: None,
             metadata: None,
+            appearance: None,
+            geometry_templates: None,
+            extra: None,
+            extensions: None,
         }
     }
 
@@ -244,7 +254,7 @@ impl CityObjectFaker {
     }
 }
 
-impl Dummy<CityObjectFaker> for CityObject {
+impl Dummy<CityObjectFaker> for CityObject<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
@@ -311,7 +321,7 @@ impl GeometryFaker {
     }
 }
 
-impl Dummy<GeometryFaker> for Geometry {
+impl Dummy<GeometryFaker> for Geometry<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
         let lod: LoD = LoDFaker.fake();
         // todo: move this type setup to compile time
@@ -447,7 +457,6 @@ impl Dummy<GeometryFaker> for Geometry {
                 let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake();
                 semantics = generate_semantics
                     .then(|| SolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake());
-                let nr_shells = IndexType::try_from(boundaries.shells.len()).unwrap();
                 Geometry {
                     type_: GeometryType::Solid,
                     lod: Some(lod),
@@ -461,25 +470,37 @@ impl Dummy<GeometryFaker> for Geometry {
                 }
             }
             5 => {
-                let (nr_members, boundaries) =
-                    MultiSolidFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::MultiSolid {
-                    lod,
-                    boundaries,
-                    semantics: generate_semantics.then(|| {
-                        MultiSolidSemanticsFaker::new(nr_members, config.cotype.clone()).fake()
-                    }),
+                let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
+                semantics = generate_semantics.then(|| {
+                    MultiSolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake()
+                });
+                Geometry {
+                    type_: GeometryType::MultiSolid,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
+                    semantics,
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             6 => {
-                let (nr_members, boundaries) =
-                    CompositeSolidFaker::new(config.nr_vertices).fake_boundary();
-                Geometry::CompositeSolid {
-                    lod,
-                    boundaries,
-                    semantics: generate_semantics.then(|| {
-                        CompositeSolidSemanticsFaker::new(nr_members, config.cotype.clone()).fake()
-                    }),
+                let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
+                semantics = generate_semantics.then(|| {
+                    MultiSolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake()
+                });
+                Geometry {
+                    type_: GeometryType::CompositeSolid,
+                    lod: Some(lod),
+                    boundaries: Some(boundaries),
+                    semantics,
+                    material: None,
+                    texture: None,
+                    template: None,
+                    template_boundaries: None,
+                    template_transformation_matrix: None,
                 }
             }
             _ => unreachable!(),
@@ -588,7 +609,7 @@ impl Dummy<MultiSolidFaker> for Boundary {
                         boundary.vertices.extend(
                             (0..nr_vertices)
                                 .into_iter()
-                                .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                                .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                         );
                     }
                 }
@@ -661,7 +682,7 @@ impl Dummy<SolidFaker> for Boundary {
                     boundary.vertices.extend(
                         (0..nr_vertices)
                             .into_iter()
-                            .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                            .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                     );
                 }
             }
@@ -722,7 +743,7 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
                 boundary.vertices.extend(
                     (0..nr_vertices)
                         .into_iter()
-                        .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                        .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                 );
             }
         }
@@ -771,7 +792,7 @@ impl Dummy<MultiLineStringFaker> for Boundary {
             boundary.vertices.extend(
                 (0..nr_vertices)
                     .into_iter()
-                    .map(|_| IndexFaker::new(config.nr_vertices).fake()),
+                    .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
             );
         }
         boundary
@@ -804,7 +825,7 @@ impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, _: &mut R) -> Self {
         LargeIndexVec::from(
             (
-                *config.0,
+                config.0.clone(),
                 *config.1.start() as usize..*config.1.end() as usize,
             )
                 .fake::<Vec<u32>>(),
@@ -836,47 +857,38 @@ fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
 }
 
-impl MultiSolidSemanticsFaker {
-    fn new(nr_solids: IndexType, cotype: CityObjectType) -> Self {
-        Self { nr_solids, cotype }
-    }
-}
-
-impl Dummy<MultiSolidSemanticsFaker> for Semantics {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidSemanticsFaker, rng: &mut R) -> Self {
-        if config.nr_solids.is_empty() {
-            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
-        } else {
-            let (surfaces, values) =
-                fake_depth_three_semantics(config.cotype.clone(), &config.nr_solids, rng);
-            Self::new(surfaces, values)
-        }
-    }
-}
-
-impl SolidSemanticsFaker {
+impl MultiSolidSemanticsFaker<'_> {
     fn new(boundary: &Boundary, cotype: CityObjectType) -> Self {
         Self { boundary, cotype }
     }
 }
 
-impl Dummy<SolidSemanticsFaker> for Semantics {
+impl Dummy<MultiSolidSemanticsFaker<'_>> for Semantics<'_> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidSemanticsFaker, rng: &mut R) -> Self {
+        if config.boundary.solids.is_empty() {
+            Self::new(Vec::<Semantic>::default(), LabelIndex::default())
+        } else {
+            let (surfaces, values) =
+                fake_depth_three_semantics(config.cotype.clone(), &config.boundary, rng);
+            Self::new(surfaces, values)
+        }
+    }
+}
+
+impl SolidSemanticsFaker<'_> {
+    fn new(boundary: &Boundary, cotype: CityObjectType) -> Self {
+        Self { boundary, cotype }
+    }
+}
+
+impl Dummy<SolidSemanticsFaker<'_>> for Semantics<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidSemanticsFaker, rng: &mut R) -> Self {
         if config.boundary.shells.is_empty() {
             Self::new(Vec::<Semantic>::default(), LabelIndex::default())
         } else {
             let (surfaces, values) =
                 fake_depth_two_semantics(config.cotype.clone(), config.boundary, rng);
-            Self::new(
-                surfaces,
-                LabelIndex {
-                    points: vec![],
-                    linestrings: vec![],
-                    surfaces: vec![],
-                    shells: values,
-                    solids: Default::default(),
-                },
-            )
+            Self::new(surfaces, values)
         }
     }
 }
@@ -890,7 +902,7 @@ impl MultiSurfaceSemanticsFaker {
     }
 }
 
-impl Dummy<MultiSurfaceSemanticsFaker> for Semantics {
+impl Dummy<MultiSurfaceSemanticsFaker> for Semantics<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceSemanticsFaker, rng: &mut R) -> Self {
         if config.nr_surfaces == 0 {
             Self::new(Vec::<Semantic>::default(), LabelIndex::default())
@@ -920,7 +932,7 @@ impl MultiLineStringSemanticsFaker {
     }
 }
 
-impl Dummy<MultiLineStringSemanticsFaker> for Semantics {
+impl Dummy<MultiLineStringSemanticsFaker> for Semantics<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(
         config: &MultiLineStringSemanticsFaker,
         rng: &mut R,
@@ -950,7 +962,7 @@ impl MultiPointSemanticsFaker {
     }
 }
 
-impl Dummy<MultiPointSemanticsFaker> for Semantics {
+impl Dummy<MultiPointSemanticsFaker> for Semantics<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointSemanticsFaker, rng: &mut R) -> Self {
         if config.nr_points == 0 {
             Self::new(Vec::<Semantic>::default(), LabelIndex::default())
@@ -971,48 +983,61 @@ impl Dummy<MultiPointSemanticsFaker> for Semantics {
     }
 }
 
-fn fake_depth_three_semantics<R: Rng + ?Sized>(
+fn fake_depth_three_semantics<'a, R: Rng + ?Sized>(
     cotype: CityObjectType,
-    nr_members: &Vec<Vec<IndexType>>,
+    boundary: &'a Boundary,
     rng: &mut R,
-) -> (Vec<Semantic>, NestedMultiSolidSemanticsValues) {
+) -> (Vec<Semantic<'a>>, LabelIndex) {
     // semantics.surfaces
     // The number of surfaces in the first shell determines the number of different Semantic objects
-    let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members[0][0], rng);
+    let (nr_semantic, surfaces) =
+        fake_semantics_surfaces(cotype, boundary.surfaces.len() as IndexType, rng);
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic);
-    let mut values: NestedMultiSolidSemanticsValues = Vec::with_capacity(nr_members.len());
-    for (_, shells_counts) in nr_members.iter().enumerate() {
-        let mut shell: NestedSolidSemanticsValues = Vec::with_capacity(shells_counts.len());
-        for (_, nr_surfaces) in nr_members.iter().enumerate() {
-            let _s: NestedShellSemanticsValues =
-                (&idxf, nr_surfaces..=nr_surfaces).fake::<NestedShellSemanticsValues>();
-            shell.push(_s);
-        }
-        values.push(shell);
-    }
-    (surfaces, values)
+    let surfaces_values =
+        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
+    (
+        surfaces,
+        LabelIndex {
+            points: vec![],
+            linestrings: vec![],
+            surfaces: surfaces_values,
+            shells: boundary.shells.clone(),
+            solids: boundary.solids.clone(),
+        },
+    )
 }
 
-fn fake_depth_two_semantics<R: Rng + ?Sized>(
+fn fake_depth_two_semantics<'a, R: Rng + ?Sized>(
     cotype: CityObjectType,
-    boundary: &Boundary,
+    boundary: &'a Boundary,
     rng: &mut R,
-) -> (Vec<Semantic>, LargeIndexVec) {
+) -> (Vec<Semantic<'a>>, LabelIndex) {
     // semantics.surfaces
     // The number of surfaces in the first shell determines the number of different Semantic objects
-    let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members[0], rng);
+    let (nr_semantic, surfaces) =
+        fake_semantics_surfaces(cotype, boundary.surfaces.len() as IndexType, rng);
     // semantics.values
-    let values: LargeIndexVec =
-        LargeIndexVecFaker(IndexFaker::new(nr_semantic), nr_members..=nr_members).fake();
-    (surfaces, values)
+    let idxf = OptionalIndexFaker::new(nr_semantic);
+    let surfaces_values =
+        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
+    (
+        surfaces,
+        LabelIndex {
+            points: vec![],
+            linestrings: vec![],
+            surfaces: surfaces_values,
+            shells: boundary.shells.clone(),
+            solids: Default::default(),
+        },
+    )
 }
 
 fn fake_depth_one_semantics<R: Rng + ?Sized>(
     cotype: CityObjectType,
     nr_members: IndexType,
     rng: &mut R,
-) -> (Vec<Semantic>, Vec<OptionalLargeIndex>) {
+) -> (Vec<Semantic<'static>>, Vec<OptionalLargeIndex>) {
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng);
     let idxf = OptionalIndexFaker::new(nr_semantic);
     let values =
@@ -1024,21 +1049,14 @@ fn fake_semantics_surfaces<R: Rng + ?Sized>(
     cotype: CityObjectType,
     nr_members: IndexType,
     rng: &mut R,
-) -> (IndexType, Vec<Semantic>) {
+) -> (IndexType, Vec<Semantic<'static>>) {
     let sf = SemanticFaker::new(cotype);
     // We have max. as many different Semantics as there are geometry members
     let nr_semantic: IndexType = (1..nr_members).fake_with_rng(rng);
-    let mut surfaces: Vec<Semantic> = Vec::with_capacity(nr_semantic as usize);
-    let a: Vec<Semantic> = (0..nr_semantic)
+    let surfaces: Vec<Semantic> = (0..nr_semantic)
         .into_iter()
         .filter_map(|_| sf.fake::<Option<Semantic>>())
-        .map()
         .collect();
-    for _ in 0..nr_semantic {
-        if let Some(_sem) = sf.fake::<Option<Semantic>>() {
-            surfaces.push(_sem);
-        }
-    }
     (nr_semantic, surfaces)
 }
 
@@ -1048,9 +1066,32 @@ impl SemanticFaker {
     }
 }
 
-// Not all CityObject types can have Semantics, so we return an Option
-impl Dummy<SemanticFaker> for Option<Semantic> {
+impl Dummy<SemanticFaker> for Option<Semantic<'_>> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker, rng: &mut R) -> Self {
+        if let Some(semtype) =
+            SemanticTypeFaker::new(config.cotype.clone()).fake::<Option<SemanticType>>()
+        {
+            Some(Semantic {
+                type_sem: semtype,
+                children: None,
+                parent: None,
+                attributes: None,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl SemanticTypeFaker {
+    fn new(cotype: CityObjectType) -> Self {
+        Self { cotype }
+    }
+}
+
+// Not all CityObject types can have Semantics, so we return an Option
+impl Dummy<SemanticTypeFaker> for Option<SemanticType> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticTypeFaker, rng: &mut R) -> Self {
         let building_types = config.cotype == CityObjectType::Building
             || config.cotype == CityObjectType::BuildingPart
             || config.cotype == CityObjectType::BuildingStorey
@@ -1072,24 +1113,24 @@ impl Dummy<SemanticFaker> for Option<Semantic> {
         }
         let semantic_type_chosen = semantic_types.choose(rng).unwrap_or(&0_usize);
         let semantic = match semantic_type_chosen {
-            0 => Semantic::RoofSurface,
-            1 => Semantic::GroundSurface,
-            2 => Semantic::WallSurface,
-            3 => Semantic::ClosureSurface,
-            4 => Semantic::OuterCeilingSurface,
-            5 => Semantic::OuterFloorSurface,
-            6 => Semantic::Window,
-            7 => Semantic::Door,
-            8 => Semantic::InteriorWallSurface,
-            9 => Semantic::CeilingSurface,
-            10 => Semantic::FloorSurface,
-            11 => Semantic::WaterSurface,
-            12 => Semantic::WaterGroundSurface,
-            13 => Semantic::WaterClosureSurface,
-            14 => Semantic::TrafficArea,
-            15 => Semantic::AuxiliaryTrafficArea,
-            16 => Semantic::TransportationMarking,
-            17 => Semantic::TransportationHole,
+            0 => SemanticType::RoofSurface,
+            1 => SemanticType::GroundSurface,
+            2 => SemanticType::WallSurface,
+            3 => SemanticType::ClosureSurface,
+            4 => SemanticType::OuterCeilingSurface,
+            5 => SemanticType::OuterFloorSurface,
+            6 => SemanticType::Window,
+            7 => SemanticType::Door,
+            8 => SemanticType::InteriorWallSurface,
+            9 => SemanticType::CeilingSurface,
+            10 => SemanticType::FloorSurface,
+            11 => SemanticType::WaterSurface,
+            12 => SemanticType::WaterGroundSurface,
+            13 => SemanticType::WaterClosureSurface,
+            14 => SemanticType::TrafficArea,
+            15 => SemanticType::AuxiliaryTrafficArea,
+            16 => SemanticType::TransportationMarking,
+            17 => SemanticType::TransportationHole,
             _ => unreachable!(),
         };
         Some(semantic)
@@ -1118,13 +1159,13 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
     }
 }
 
-impl Into<Metadata> for MetadataBuilder {
-    fn into(self) -> Metadata {
+impl Into<Metadata<'_>> for MetadataBuilder<'_> {
+    fn into(self) -> Metadata<'static> {
         self.0
     }
 }
 
-impl Default for MetadataBuilder {
+impl Default for MetadataBuilder<'_> {
     fn default() -> Self {
         MetadataBuilder::new()
             .geographical_extent()
@@ -1136,7 +1177,7 @@ impl Default for MetadataBuilder {
     }
 }
 
-impl MetadataBuilder {
+impl MetadataBuilder<'_> {
     fn new() -> Self {
         MetadataBuilder(Metadata::new())
     }
@@ -1218,7 +1259,7 @@ impl MetadataBuilder {
         self
     }
 
-    fn build(self) -> Metadata {
+    fn build(self) -> Metadata<'static> {
         self.into()
     }
 }
@@ -1264,39 +1305,38 @@ impl Dummy<ContactTypeFaker> for ContactType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
 
-    #[test]
-    fn test_custom_boundaryfaker() {
-        let nr_vertices: usize = 12;
+    // #[test]
+    // fn test_custom_boundaryfaker() {
+    //     let nr_vertices: usize = 12;
+    //
+    //     let mpf = MultiPointFaker {
+    //         nr_vertices: nr_vertices,
+    //     };
+    //     let a: MultiPointBoundary = mpf.fake();
+    //     println!("nr points: {}", a.len());
+    //     println!("{:?}", &a);
+    //
+    //     let a: MultiLineStringBoundary = MultiLineStringFaker {
+    //         nr_vertices: nr_vertices,
+    //     }
+    //     .fake();
+    //     println!("nr linestrings: {}", a.len());
+    //     println!("{:?}", &a);
+    // }
 
-        let mpf = MultiPointFaker {
-            nr_vertices: nr_vertices,
-        };
-        let a: MultiPointBoundary = mpf.fake();
-        println!("nr points: {}", a.len());
-        println!("{:?}", &a);
-
-        let a: MultiLineStringBoundary = MultiLineStringFaker {
-            nr_vertices: nr_vertices,
-        }
-        .fake();
-        println!("nr linestrings: {}", a.len());
-        println!("{:?}", &a);
-    }
-
-    #[test]
-    fn it_works() {
-        let a: LoD = LoDFaker.fake();
-        println!("{:?}", &a);
-        println!("{}", serde_json::to_string(&a).unwrap());
-
-        let ag: AggregateSolidBoundary = Faker.fake::<AggregateSolidBoundary>();
-        println!("{:?}", ag);
-
-        let v: Vertices = Faker.fake::<Vertices>();
-        println!("{:?}", v);
-    }
+    // #[test]
+    // fn it_works() {
+    //     let a: LoD = LoDFaker.fake();
+    //     println!("{:?}", &a);
+    //     println!("{}", serde_json::to_string(&a).unwrap());
+    //
+    //     let ag: AggregateSolidBoundary = Faker.fake::<AggregateSolidBoundary>();
+    //     println!("{:?}", ag);
+    //
+    //     let v: Vertices = Faker.fake::<Vertices>();
+    //     println!("{:?}", v);
+    // }
 
     #[test]
     fn test_builder_basic() {
