@@ -1033,15 +1033,15 @@ fn fake_depth_one_semantics<'cm, R: Rng + ?Sized>(
     (surfaces, values)
 }
 
-fn fake_semantics_surfaces<R: Rng + ?Sized>(
+fn fake_semantics_surfaces<'cm, R: Rng + ?Sized>(
     cotype: CityObjectType,
     nr_members: IndexType,
     rng: &mut R,
-) -> (IndexType, Vec<Semantic<'static>>) {
+) -> (IndexType, Vec<Semantic<'cm>>) {
     let sf = SemanticFaker::new(cotype);
     // We have max. as many different Semantics as there are geometry members
-    let nr_semantic: IndexType = (1..nr_members).fake_with_rng(rng);
-    let surfaces: Vec<Semantic> = (0..nr_semantic)
+    let nr_semantic: IndexType = (1..=nr_members).fake_with_rng(rng);
+    let surfaces: Vec<Semantic> = (0..=nr_semantic)
         .into_iter()
         .filter_map(|_| sf.fake::<Option<Semantic>>())
         .collect();
@@ -1314,7 +1314,7 @@ mod tests {
 
     #[test]
     fn geometry() {
-        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Bridge).fake();
+        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building).fake();
         dbg!(geom);
     }
 
@@ -1333,6 +1333,7 @@ mod tests {
 
     #[test]
     fn default() {
+        let cm: CityModel = CityModelBuilder::default().into();
         let cj_str = CityModelBuilder::default().build_string().unwrap();
         println!("{}", cj_str);
     }
