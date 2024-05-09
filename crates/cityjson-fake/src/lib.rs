@@ -10,6 +10,7 @@
 //!
 //! See the [design doc] for details on how this crate works under the hood.
 use std::borrow::Cow;
+use std::ops::Range;
 
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
 use fake::faker::chrono::raw::Date as FakeDate;
@@ -81,7 +82,10 @@ impl<'cmbuild: 'cm, 'cm> Into<CityModel<'cm>> for CityModelBuilder<'cmbuild> {
 
 impl<'cmbuild> Default for CityModelBuilder<'cmbuild> {
     fn default() -> Self {
-        CityModelBuilder::new().metadata(None)
+        CityModelBuilder::new()
+            .metadata(None)
+            .vertices()
+            .cityobjects(None)
     }
 }
 
@@ -103,6 +107,26 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
         }
     }
 
+    /// Generate 1 CityObject if `nr_cityobjects` is `None`, else generate the number of CityObjects
+    /// within the provided range.
+    /// If the vertices haven't been generated yet, they will be created, so that the geometry
+    /// boundaries can index them.
+    pub fn cityobjects(mut self, nr_cityobjects: Option<Range<usize>>) -> Self {
+        let _nr_cos = nr_cityobjects.unwrap_or(1..2);
+        if self.vertices.is_none() {
+            self.vertices = Some(fake_vertices());
+        }
+        let nr_vertices = self.vertices.as_ref().unwrap().len();
+        let cof = CityObjectFaker::new(nr_vertices as IndexType);
+        let cos: Vec<CityObject> = (cof, _nr_cos).fake();
+        // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
+        self.cityobjects =
+            Some(CityObjects::from_iter(cos.iter().map(|co| {
+                (Cow::from(Word(EN).fake::<&str>()), co.to_owned())
+            })));
+        self
+    }
+
     pub fn metadata<'mdbuild: 'cmbuild>(
         mut self,
         metadata_builder: Option<MetadataBuilder<'mdbuild>>,
@@ -115,12 +139,82 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
         self
     }
 
+    /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
+    pub fn vertices(mut self) -> Self {
+        if self.vertices.is_none() {
+            self.vertices = Some(fake_vertices());
+        }
+        self
+    }
+
     pub fn build_string(self) -> serde_json::Result<String> {
         serde_json::to_string::<CityModel>(&self.into())
     }
 
     pub fn build_vec(self) -> serde_json::Result<Vec<u8>> {
         serde_json::to_vec::<CityModel>(&self.into())
+    }
+}
+
+struct CityObjectFaker {
+    nr_vertices: IndexType,
+}
+
+impl CityObjectFaker {
+    fn new(nr_vertices: IndexType) -> Self {
+        Self { nr_vertices }
+    }
+}
+
+impl<'cm> Dummy<CityObjectFaker> for CityObject<'cm> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
+        let cotype: CityObjectType = CityObjectTypeFaker.fake();
+        // TODO: add hierarchy
+        // TODO: add "address" to the type where possible
+        // let gf = GeometryFaker::new(config.nr_vertices, cotype.clone());
+        Self::new(cotype, None, None, None, None, None, None)
+    }
+}
+
+struct CityObjectTypeFaker;
+
+impl Dummy<CityObjectTypeFaker> for CityObjectType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectTypeFaker, rng: &mut R) -> Self {
+        match rng.gen_range(0..=31) {
+            0 => CityObjectType::Bridge,
+            1 => CityObjectType::BridgePart,
+            2 => CityObjectType::BridgeInstallation,
+            3 => CityObjectType::BridgeConstructiveElement,
+            4 => CityObjectType::BridgeRoom,
+            5 => CityObjectType::BridgeFurniture,
+            6 => CityObjectType::Building,
+            7 => CityObjectType::BuildingPart,
+            8 => CityObjectType::BuildingInstallation,
+            9 => CityObjectType::BuildingConstructiveElement,
+            10 => CityObjectType::BuildingFurniture,
+            11 => CityObjectType::BuildingStorey,
+            12 => CityObjectType::BuildingRoom,
+            13 => CityObjectType::BuildingUnit,
+            14 => CityObjectType::CityFurniture,
+            15 => CityObjectType::LandUse,
+            16 => CityObjectType::OtherConstruction,
+            17 => CityObjectType::PlantCover,
+            18 => CityObjectType::SolitaryVegetationObject,
+            19 => CityObjectType::TINRelief,
+            20 => CityObjectType::WaterBody,
+            21 => CityObjectType::Road,
+            22 => CityObjectType::Railway,
+            23 => CityObjectType::Waterway,
+            24 => CityObjectType::TransportSquare,
+            25 => CityObjectType::Tunnel,
+            26 => CityObjectType::TunnelPart,
+            27 => CityObjectType::TunnelInstallation,
+            28 => CityObjectType::TunnelConstructiveElement,
+            29 => CityObjectType::TunnelHollowSpace,
+            30 => CityObjectType::TunnelFurniture,
+            // 31 => CityObjectType::GenericCityObject,
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -271,6 +365,10 @@ impl Dummy<ContactTypeFaker> for ContactType {
             _ => unreachable!(),
         }
     }
+}
+
+fn fake_vertices() -> Vertices {
+    Faker.fake::<Vertices>()
 }
 
 #[cfg(test)]
