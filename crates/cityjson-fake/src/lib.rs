@@ -55,6 +55,8 @@ const MAX_MEMBERS_SOLID: IndexType = 5;
 const MIN_MEMBERS_MULTISOLID: IndexType = 1;
 const MAX_MEMBERS_MULTISOLID: IndexType = 5;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 10;
+const MIN_NR_MATERIALS: usize = 1;
+const MAX_NR_MATERIALS: usize = 10;
 
 struct CityModelBuilder<'cmbuild> {
     id: Option<Cow<'cmbuild, str>>,
@@ -93,6 +95,7 @@ impl<'cmbuild> Default for CityModelBuilder<'cmbuild> {
         CityModelBuilder::new()
             .metadata(None)
             .vertices()
+            .materials(None)
             .cityobjects(None)
     }
 }
@@ -132,6 +135,33 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
             Some(CityObjects::from_iter(cos.iter().map(|co| {
                 (Cow::from(Word(EN).fake::<&str>()), co.to_owned())
             })));
+        self
+    }
+
+    pub fn materials<'matbuild: 'cmbuild>(
+        mut self,
+        material_builder: Option<MaterialBuilder<'matbuild>>,
+    ) -> Self {
+        let mut mat: Vec<Material> = Vec::new();
+        if let Some(mb) = material_builder {
+            mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
+                .into_iter()
+                .map(|_| mb.clone().build())
+                .collect()
+        } else {
+            mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
+                .into_iter()
+                .map(|_| MaterialBuilder::default().into())
+                .collect()
+        }
+        let def_mat = mat.first().map(|m| m.name.clone());
+        self.appearance = Some(Appearance {
+            materials: Some(mat),
+            textures: None,
+            vertices_texture: None,
+            default_theme_texture: None,
+            default_theme_material: def_mat,
+        });
         self
     }
 
@@ -1192,6 +1222,118 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
     }
 }
 
+#[derive(Clone)]
+struct MaterialBuilder<'matbuild>(Material<'matbuild>);
+
+impl<'matbuild: 'mat, 'mat> Into<Material<'mat>> for MaterialBuilder<'matbuild> {
+    fn into(self) -> Material<'mat> {
+        self.0
+    }
+}
+
+impl<'matbuild> Default for MaterialBuilder<'matbuild> {
+    fn default() -> Self {
+        Self::new()
+            .name()
+            .ambient_intensity()
+            .diffuse_color()
+            .emissive_color()
+            .specular_color()
+            .shininess()
+            .transparency()
+            .smooth()
+    }
+}
+
+impl<'matbuild> MaterialBuilder<'matbuild> {
+    fn new() -> Self {
+        Self(Material::new())
+    }
+
+    fn name(mut self) -> Self {
+        self.0.name = Cow::from(Word(EN).fake::<&str>());
+        self
+    }
+
+    fn ambient_intensity(mut self) -> Self {
+        self.0.ambient_intensity = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self
+    }
+
+    fn diffuse_color(mut self) -> Self {
+        self.0.diffuse_color = Some(RGBFaker.fake());
+        self
+    }
+
+    fn emissive_color(mut self) -> Self {
+        self.0.emissive_color = Some(RGBFaker.fake());
+        self
+    }
+
+    fn specular_color(mut self) -> Self {
+        self.0.diffuse_color = Some(RGBFaker.fake());
+        self
+    }
+
+    fn shininess(mut self) -> Self {
+        self.0.shininess = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self
+    }
+
+    fn transparency(mut self) -> Self {
+        self.0.transparency = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self
+    }
+
+    fn smooth(mut self) -> Self {
+        self.0.is_smooth = Some(rand::thread_rng().gen_bool(0.5));
+        self
+    }
+
+    /// Builds a Material with new values set for the members that are configured in the builder.
+    fn build(self) -> Material<'matbuild> {
+        let mut mb = self.name();
+        if mb.0.ambient_intensity.is_some() {
+            mb = mb.ambient_intensity();
+        }
+        if mb.0.diffuse_color.is_some() {
+            mb = mb.diffuse_color();
+        }
+        if mb.0.emissive_color.is_some() {
+            mb = mb.emissive_color();
+        }
+        if mb.0.specular_color.is_some() {
+            mb = mb.specular_color();
+        }
+        if mb.0.shininess.is_some() {
+            mb = mb.shininess();
+        }
+        if mb.0.transparency.is_some() {
+            mb = mb.transparency();
+        }
+        if mb.0.is_smooth.is_some() {
+            mb = mb.smooth();
+        }
+        mb.into()
+    }
+}
+
+type RGB = [f32; 3];
+
+struct RGBFaker;
+
+impl Dummy<RGBFaker> for RGB {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &RGBFaker, rng: &mut R) -> Self {
+        let color_range = 0.0f32..=1.0;
+        [
+            rng.gen_range(color_range.clone()),
+            rng.gen_range(color_range.clone()),
+            rng.gen_range(color_range.clone()),
+        ]
+    }
+}
+
+#[derive(Clone)]
 struct MetadataBuilder<'mdbuild>(Metadata<'mdbuild>);
 
 impl<'mdbuild: 'md, 'md> Into<Metadata<'md>> for MetadataBuilder<'mdbuild> {
