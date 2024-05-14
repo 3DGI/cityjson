@@ -40,6 +40,10 @@ const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 type IndexType = u32;
 // TODO: Maybe I could have this configurable, to that it'll be possible to emulate triangulated
 //  surfaces with a range of min=3 max=3.
+const MIN_COORDINATE: i64 = i64::MIN;
+const MAX_COORDINATE: i64 = i64::MAX;
+const MIN_NR_VERTICES: IndexType = 1;
+const MAX_NR_VERTICES: IndexType = IndexType::MAX;
 const MIN_MEMBERS_MULTIPOINT: IndexType = 1;
 const MAX_MEMBERS_MULTIPOINT: IndexType = 50;
 const MIN_MEMBERS_MULTILINESTRING: IndexType = 1;
@@ -797,8 +801,10 @@ struct IndexFaker {
 }
 
 impl IndexFaker {
-    fn new(max_vertices: IndexType) -> Self {
-        Self { max: max_vertices }
+    fn new(nr_vertices: IndexType) -> Self {
+        Self {
+            max: if nr_vertices > 0 { nr_vertices - 1 } else { 0 },
+        }
     }
 }
 
@@ -818,6 +824,33 @@ impl Dummy<IndexFaker> for LargeIndex {
 
 fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
+}
+
+// todo scj: need to use the proper coordinate type
+struct CoordinateFaker {
+    min: i64,
+    max: i64,
+}
+
+impl Dummy<CoordinateFaker> for [i64; 3] {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CoordinateFaker, rng: &mut R) -> Self {
+        [
+            rng.gen_range(config.min..=config.max),
+            rng.gen_range(0..=config.max),
+            rng.gen_range(0..=config.max),
+        ]
+    }
+}
+
+struct VerticesFaker;
+impl Dummy<VerticesFaker> for Vertices {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesFaker, _: &mut R) -> Self {
+        let cf = CoordinateFaker {
+            min: MIN_COORDINATE,
+            max: MAX_COORDINATE,
+        };
+        (cf, MIN_NR_VERTICES as usize..=MAX_NR_VERTICES as usize).fake()
+    }
 }
 
 struct MultiSolidSemanticsFaker<'semfaker> {
@@ -1310,6 +1343,8 @@ impl Dummy<ContactTypeFaker> for ContactType {
 
 #[cfg(test)]
 mod tests {
+    use cjval::CJValidator;
+
     use super::*;
 
     #[test]
@@ -1335,6 +1370,16 @@ mod tests {
     fn default() {
         let cm: CityModel = CityModelBuilder::default().into();
         let cj_str = CityModelBuilder::default().build_string().unwrap();
-        println!("{}", cj_str);
+        println!("{}", &cj_str);
+        let mut val = CJValidator::from_str(&cj_str);
+        // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
+        for (criterion, summary) in val.validate().iter() {
+            assert!(
+                summary.is_valid(),
+                "{} is not valid with {}",
+                criterion,
+                summary
+            )
+        }
     }
 }
