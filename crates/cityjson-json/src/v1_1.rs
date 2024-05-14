@@ -1195,6 +1195,7 @@ pub type Vertices = Vec<[i64; 3]>;
 /// ```
 #[derive(Clone, Default, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
+#[serde(rename_all = "camelCase")]
 pub struct Metadata<'cm> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geographical_extent: Option<BBox>,
