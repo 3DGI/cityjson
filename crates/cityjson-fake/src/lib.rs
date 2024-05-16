@@ -57,6 +57,8 @@ const MAX_MEMBERS_MULTISOLID: IndexType = 5;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 10;
 const MIN_NR_MATERIALS: usize = 1;
 const MAX_NR_MATERIALS: usize = 10;
+const NR_THEMES_MATERIALS: usize = 3;
+const NR_THEMES_TEXTURES: usize = 3;
 
 struct CityModelBuilder<'cmbuild> {
     id: Option<Cow<'cmbuild, str>>,
@@ -70,6 +72,8 @@ struct CityModelBuilder<'cmbuild> {
     geometry_templates: Option<GeometryTemplates<'cmbuild>>,
     extra: Option<Attributes<'cmbuild>>,
     extensions: Option<Extensions>,
+    themes_material: Option<Vec<String>>,
+    themes_texture: Option<Vec<String>>,
 }
 
 impl<'cmbuild: 'cm, 'cm> Into<CityModel<'cm>> for CityModelBuilder<'cmbuild> {
@@ -115,6 +119,8 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
             geometry_templates: None,
             extra: None,
             extensions: None,
+            themes_material: None,
+            themes_texture: None,
         }
     }
 
@@ -154,13 +160,15 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
                 .map(|_| MaterialBuilder::default().into())
                 .collect()
         }
-        let def_mat = mat.first().map(|m| m.name.clone());
+        let themes: Vec<String> = (Word(EN), NR_THEMES_MATERIALS..=NR_THEMES_MATERIALS).fake();
+        let default_theme = themes.first().map(|t| Cow::from(t.clone()));
+        self.themes_material = Some(themes);
         self.appearance = Some(Appearance {
             materials: Some(mat),
             textures: None,
             vertices_texture: None,
             default_theme_texture: None,
-            default_theme_material: def_mat,
+            default_theme_material: default_theme,
         });
         self
     }
