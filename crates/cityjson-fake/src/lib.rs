@@ -31,6 +31,8 @@ use serde_cityjson::labels::LabelIndex;
 use serde_cityjson::v1_1::*;
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
+// FIXME: vertices unused
+// FIXME: object hierarchy
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
@@ -60,23 +62,23 @@ const MAX_NR_MATERIALS: usize = 10;
 const NR_THEMES_MATERIALS: usize = 3;
 const NR_THEMES_TEXTURES: usize = 3;
 
-struct CityModelBuilder<'cmbuild> {
-    id: Option<Cow<'cmbuild, str>>,
+struct CityModelBuilder<'cm> {
+    id: Option<Cow<'cm, str>>,
     type_cm: Option<CityModelType>,
     version: Option<CityJSONVersion>,
     transform: Option<Transform>,
-    cityobjects: Option<CityObjects<'cmbuild>>,
+    cityobjects: Option<CityObjects<'cm>>,
     vertices: Option<Vertices>,
-    metadata: Option<Metadata<'cmbuild>>,
-    appearance: Option<Appearance<'cmbuild>>,
-    geometry_templates: Option<GeometryTemplates<'cmbuild>>,
-    extra: Option<Attributes<'cmbuild>>,
+    metadata: Option<Metadata<'cm>>,
+    appearance: Option<Appearance<'cm>>,
+    geometry_templates: Option<GeometryTemplates<'cm>>,
+    extra: Option<Attributes<'cm>>,
     extensions: Option<Extensions>,
     themes_material: Option<Vec<String>>,
     themes_texture: Option<Vec<String>>,
 }
 
-impl<'cmbuild: 'cm, 'cm> Into<CityModel<'cm>> for CityModelBuilder<'cmbuild> {
+impl<'cm> Into<CityModel<'cm>> for CityModelBuilder<'cm> {
     fn into(self) -> CityModel<'cm> {
         CityModel::new(
             self.id,
@@ -94,7 +96,7 @@ impl<'cmbuild: 'cm, 'cm> Into<CityModel<'cm>> for CityModelBuilder<'cmbuild> {
     }
 }
 
-impl<'cmbuild> Default for CityModelBuilder<'cmbuild> {
+impl<'cm> Default for CityModelBuilder<'cm> {
     fn default() -> Self {
         CityModelBuilder::new()
             .metadata(None)
@@ -104,7 +106,7 @@ impl<'cmbuild> Default for CityModelBuilder<'cmbuild> {
     }
 }
 
-impl<'cmbuild> CityModelBuilder<'cmbuild> {
+impl<'cm> CityModelBuilder<'cm> {
     #[must_use]
     pub fn new() -> Self {
         CityModelBuilder {
@@ -144,10 +146,7 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
         self
     }
 
-    pub fn materials<'matbuild: 'cmbuild>(
-        mut self,
-        material_builder: Option<MaterialBuilder<'matbuild>>,
-    ) -> Self {
+    pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
         let mut mat: Vec<Material> = Vec::new();
         if let Some(mb) = material_builder {
             mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
@@ -173,10 +172,7 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
         self
     }
 
-    pub fn metadata<'mdbuild: 'cmbuild>(
-        mut self,
-        metadata_builder: Option<MetadataBuilder<'mdbuild>>,
-    ) -> Self {
+    pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder<'cm>>) -> Self {
         if let Some(mb) = metadata_builder {
             self.metadata = Some(mb.build());
         } else {
@@ -1231,15 +1227,15 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
 }
 
 #[derive(Clone)]
-struct MaterialBuilder<'matbuild>(Material<'matbuild>);
+struct MaterialBuilder<'cm>(Material<'cm>);
 
-impl<'matbuild: 'mat, 'mat> Into<Material<'mat>> for MaterialBuilder<'matbuild> {
-    fn into(self) -> Material<'mat> {
+impl<'cm> Into<Material<'cm>> for MaterialBuilder<'cm> {
+    fn into(self) -> Material<'cm> {
         self.0
     }
 }
 
-impl<'matbuild> Default for MaterialBuilder<'matbuild> {
+impl<'cm> Default for MaterialBuilder<'cm> {
     fn default() -> Self {
         Self::new()
             .name()
@@ -1253,7 +1249,7 @@ impl<'matbuild> Default for MaterialBuilder<'matbuild> {
     }
 }
 
-impl<'matbuild> MaterialBuilder<'matbuild> {
+impl<'cm> MaterialBuilder<'cm> {
     fn new() -> Self {
         Self(Material::new())
     }
@@ -1299,7 +1295,7 @@ impl<'matbuild> MaterialBuilder<'matbuild> {
     }
 
     /// Builds a Material with new values set for the members that are configured in the builder.
-    fn build(self) -> Material<'matbuild> {
+    fn build(self) -> Material<'cm> {
         let mut mb = self.name();
         if mb.0.ambient_intensity.is_some() {
             mb = mb.ambient_intensity();
@@ -1342,15 +1338,15 @@ impl Dummy<RGBFaker> for RGB {
 }
 
 #[derive(Clone)]
-struct MetadataBuilder<'mdbuild>(Metadata<'mdbuild>);
+struct MetadataBuilder<'cm>(Metadata<'cm>);
 
-impl<'mdbuild: 'md, 'md> Into<Metadata<'md>> for MetadataBuilder<'mdbuild> {
-    fn into(self) -> Metadata<'md> {
+impl<'cm> Into<Metadata<'cm>> for MetadataBuilder<'cm> {
+    fn into(self) -> Metadata<'cm> {
         self.0
     }
 }
 
-impl<'mdbuild> Default for MetadataBuilder<'mdbuild> {
+impl<'cm> Default for MetadataBuilder<'cm> {
     fn default() -> Self {
         MetadataBuilder::new()
             .geographical_extent()
@@ -1362,7 +1358,7 @@ impl<'mdbuild> Default for MetadataBuilder<'mdbuild> {
     }
 }
 
-impl<'mdbuild> MetadataBuilder<'mdbuild> {
+impl<'cm> MetadataBuilder<'cm> {
     fn new() -> Self {
         MetadataBuilder(Metadata::new())
     }
@@ -1444,7 +1440,7 @@ impl<'mdbuild> MetadataBuilder<'mdbuild> {
         self
     }
 
-    fn build(self) -> Metadata<'mdbuild> {
+    fn build(self) -> Metadata<'cm> {
         self.into()
     }
 }
