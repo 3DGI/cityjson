@@ -136,7 +136,7 @@ impl<'cm> CityModelBuilder<'cm> {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(nr_vertices as IndexType);
+        let cof = CityObjectFaker::new(nr_vertices as IndexType, &self.appearance);
         let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects =
@@ -198,17 +198,21 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 }
 
-struct CityObjectFaker {
+struct CityObjectFaker<'cmbuild: 'cobuild, 'cobuild> {
     nr_vertices: IndexType,
+    appearance: &'cobuild Option<Appearance<'cmbuild>>,
 }
 
-impl CityObjectFaker {
-    fn new(nr_vertices: IndexType) -> Self {
-        Self { nr_vertices }
+impl<'cmbuild: 'cobuild, 'cobuild> CityObjectFaker<'cmbuild, 'cobuild> {
+    fn new(nr_vertices: IndexType, appearance: &'cobuild Option<Appearance<'cmbuild>>) -> Self {
+        Self {
+            nr_vertices,
+            appearance,
+        }
     }
 }
 
-impl<'cm> Dummy<CityObjectFaker> for CityObject<'cm> {
+impl<'cobuild: 'cm, 'cm> Dummy<CityObjectFaker<'cobuild, 'cm>> for CityObject<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
