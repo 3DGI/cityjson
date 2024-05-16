@@ -136,7 +136,7 @@ impl<'cm> CityModelBuilder<'cm> {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(nr_vertices as IndexType, &self.appearance);
+        let cof = CityObjectFaker::new(nr_vertices as IndexType, self.appearance.clone());
         let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects =
@@ -198,13 +198,14 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 }
 
-struct CityObjectFaker<'cmbuild: 'cobuild, 'cobuild> {
+struct CityObjectFaker<'cmbuild> {
     nr_vertices: IndexType,
-    appearance: &'cobuild Option<Appearance<'cmbuild>>,
+    // FIXME: this should take an &Option<Appearance, referencing appearance of the CityModelBuilder but I don't know how to make it work
+    appearance: Option<Appearance<'cmbuild>>,
 }
 
-impl<'cmbuild: 'cobuild, 'cobuild> CityObjectFaker<'cmbuild, 'cobuild> {
-    fn new(nr_vertices: IndexType, appearance: &'cobuild Option<Appearance<'cmbuild>>) -> Self {
+impl<'cmbuild> CityObjectFaker<'cmbuild> {
+    fn new(nr_vertices: IndexType, appearance: Option<Appearance<'cmbuild>>) -> Self {
         Self {
             nr_vertices,
             appearance,
@@ -212,12 +213,16 @@ impl<'cmbuild: 'cobuild, 'cobuild> CityObjectFaker<'cmbuild, 'cobuild> {
     }
 }
 
-impl<'cobuild: 'cm, 'cm> Dummy<CityObjectFaker<'cobuild, 'cm>> for CityObject<'cm> {
+impl<'cm> Dummy<CityObjectFaker<'cm>> for CityObject<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker, _: &mut R) -> Self {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
         // TODO: add "address" to the type where possible
-        let gf = GeometryFaker::new(config.nr_vertices, cotype.clone());
+        let gf = GeometryFaker::new(
+            config.nr_vertices,
+            cotype.clone(),
+            config.appearance.clone(),
+        );
         Self::new(
             cotype,
             Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake()),
@@ -272,21 +277,27 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
     }
 }
 
-struct GeometryFaker {
+struct GeometryFaker<'cmbuild> {
     nr_vertices: IndexType,
     cotype: CityObjectType,
+    appearance: Option<Appearance<'cmbuild>>,
 }
 
-impl GeometryFaker {
-    fn new(nr_vertices: IndexType, cotype: CityObjectType) -> Self {
+impl<'cmbuild> GeometryFaker<'cmbuild> {
+    fn new(
+        nr_vertices: IndexType,
+        cotype: CityObjectType,
+        appearance: Option<Appearance<'cmbuild>>,
+    ) -> Self {
         Self {
             nr_vertices,
             cotype,
+            appearance,
         }
     }
 }
 
-impl Dummy<GeometryFaker> for Geometry<'_> {
+impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
         let lod: LoD = LoDFaker.fake();
         // todo: move this type setup to compile time
@@ -1499,7 +1510,7 @@ mod tests {
 
     #[test]
     fn geometry() {
-        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building).fake();
+        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building, None).fake();
         dbg!(geom);
     }
 
