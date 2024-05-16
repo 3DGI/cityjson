@@ -134,7 +134,7 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(nr_vertices as IndexType);
+        let cof = CityObjectFaker::new(nr_vertices as IndexType, self.appearance.as_ref());
         let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects =
@@ -202,13 +202,17 @@ impl<'cmbuild> CityModelBuilder<'cmbuild> {
     }
 }
 
-struct CityObjectFaker {
+struct CityObjectFaker<'cobuild, 'cm> {
     nr_vertices: IndexType,
+    appearance: Option<&'cobuild Appearance<'cm>>,
 }
 
 impl CityObjectFaker {
-    fn new(nr_vertices: IndexType) -> Self {
-        Self { nr_vertices }
+    fn new(nr_vertices: IndexType, appearance: Option<&Appearance>) -> Self {
+        Self {
+            nr_vertices,
+            appearance,
+        }
     }
 }
 
@@ -217,7 +221,7 @@ impl<'cm> Dummy<CityObjectFaker> for CityObject<'cm> {
         let cotype: CityObjectType = CityObjectTypeFaker.fake();
         // TODO: add hierarchy
         // TODO: add "address" to the type where possible
-        let gf = GeometryFaker::new(config.nr_vertices, cotype.clone());
+        let gf = GeometryFaker::new(config.nr_vertices, cotype.clone(), config.appearance);
         Self::new(
             cotype,
             Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake()),
@@ -272,16 +276,22 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
     }
 }
 
-struct GeometryFaker {
+struct GeometryFaker<'geombuild, 'cm> {
     nr_vertices: IndexType,
     cotype: CityObjectType,
+    appearance: Option<&'geombuild Appearance<'cm>>,
 }
 
 impl GeometryFaker {
-    fn new(nr_vertices: IndexType, cotype: CityObjectType) -> Self {
+    fn new(
+        nr_vertices: IndexType,
+        cotype: CityObjectType,
+        appearance: Option<&Appearance>,
+    ) -> Self {
         Self {
             nr_vertices,
             cotype,
+            appearance,
         }
     }
 }
@@ -1499,7 +1509,7 @@ mod tests {
 
     #[test]
     fn geometry() {
-        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building).fake();
+        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building, None).fake();
         dbg!(geom);
     }
 
