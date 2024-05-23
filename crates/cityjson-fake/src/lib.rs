@@ -59,7 +59,9 @@ const MAX_MEMBERS_MULTISOLID: IndexType = 5;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 10;
 const MIN_NR_MATERIALS: usize = 1;
 const MAX_NR_MATERIALS: usize = 10;
+// Must be >= 1
 const NR_THEMES_MATERIALS: usize = 3;
+// Must be >= 1
 const NR_THEMES_TEXTURES: usize = 3;
 
 struct CityModelBuilder<'cm> {
@@ -136,7 +138,12 @@ impl<'cm> CityModelBuilder<'cm> {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(nr_vertices as IndexType, self.appearance.clone());
+        let cof = CityObjectFaker::new(
+            nr_vertices as IndexType,
+            self.appearance.clone(),
+            self.themes_material.clone(),
+            self.themes_texture.clone(),
+        );
         let cos: Vec<CityObject> = (cof, _nr_cos).fake();
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects =
@@ -159,7 +166,7 @@ impl<'cm> CityModelBuilder<'cm> {
                 .map(|_| MaterialBuilder::default().into())
                 .collect()
         }
-        let themes: Vec<String> = (Word(EN), NR_THEMES_MATERIALS..=NR_THEMES_MATERIALS).fake();
+        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_MATERIALS).fake();
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_material = Some(themes);
         self.appearance = Some(Appearance {
@@ -202,13 +209,22 @@ struct CityObjectFaker<'cmbuild> {
     nr_vertices: IndexType,
     // FIXME: this should take an &Option<Appearance, referencing appearance of the CityModelBuilder but I don't know how to make it work
     appearance: Option<Appearance<'cmbuild>>,
+    themes_material: Option<Vec<String>>,
+    themes_texture: Option<Vec<String>>,
 }
 
 impl<'cmbuild> CityObjectFaker<'cmbuild> {
-    fn new(nr_vertices: IndexType, appearance: Option<Appearance<'cmbuild>>) -> Self {
+    fn new(
+        nr_vertices: IndexType,
+        appearance: Option<Appearance<'cmbuild>>,
+        themes_material: Option<Vec<String>>,
+        themes_texture: Option<Vec<String>>,
+    ) -> Self {
         Self {
             nr_vertices,
             appearance,
+            themes_material,
+            themes_texture,
         }
     }
 }
@@ -222,6 +238,8 @@ impl<'cm> Dummy<CityObjectFaker<'cm>> for CityObject<'cm> {
             config.nr_vertices,
             cotype.clone(),
             config.appearance.clone(),
+            config.themes_material.clone(),
+            config.themes_texture.clone(),
         );
         Self::new(
             cotype,
@@ -281,6 +299,8 @@ struct GeometryFaker<'cmbuild> {
     nr_vertices: IndexType,
     cotype: CityObjectType,
     appearance: Option<Appearance<'cmbuild>>,
+    themes_material: Option<Vec<String>>,
+    themes_texture: Option<Vec<String>>,
 }
 
 impl<'cmbuild> GeometryFaker<'cmbuild> {
@@ -288,11 +308,15 @@ impl<'cmbuild> GeometryFaker<'cmbuild> {
         nr_vertices: IndexType,
         cotype: CityObjectType,
         appearance: Option<Appearance<'cmbuild>>,
+        themes_material: Option<Vec<String>>,
+        themes_texture: Option<Vec<String>>,
     ) -> Self {
         Self {
             nr_vertices,
             cotype,
             appearance,
+            themes_material,
+            themes_texture,
         }
     }
 }
@@ -349,6 +373,34 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 generate_semantics = true;
             }
         }
+        // Decide if we can generate materials
+        let mut generate_materials = false;
+        let mut nr_materials: IndexType = 0;
+        // The material themes of the geometry
+        let mut themes_material: Vec<String> = Vec::new();
+        // The whole geometry gets a single material
+        let mut single_material = false;
+        if let Some(ref appearance) = config.appearance {
+            if let Some(ref materials_vec) = appearance.materials {
+                nr_materials = IndexType::try_from(materials_vec.len()).unwrap();
+                if nr_materials > 0 {
+                    generate_materials = true;
+                    // Choose the material themes from the available themes.
+                    // One of the themes must be the default theme.
+                    if let Some(ref all_themes_materials) = config.themes_material {
+                        if let Some(ref default_theme) = appearance.default_theme_material {
+                            themes_material.push(default_theme.to_string());
+                            if let Some(t) = all_themes_materials[1..].choose(rng) {
+                                themes_material.push(t.to_string());
+                            }
+                        }
+                    }
+                    single_material = rng.gen_bool(0.7);
+                }
+            }
+        }
+        // Decide if we can generate textures
+        let mut generate_textures = false;
 
         let mut boundaries: Option<Boundary> = None;
         let mut semantics: Option<Semantics> = None;
@@ -401,12 +453,21 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(nr_surfaces, config.cotype.clone()).fake()
                 });
+                material = generate_materials.then(|| {
+                    MaterialMapFaker::new(
+                        nr_materials,
+                        themes_material,
+                        single_material,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::MultiSurface,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
-                    material: None,
+                    material,
                     texture: None,
                     template: None,
                     template_boundaries: None,
@@ -419,12 +480,21 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(nr_surfaces, config.cotype.clone()).fake()
                 });
+                material = generate_materials.then(|| {
+                    MaterialMapFaker::new(
+                        nr_materials,
+                        themes_material,
+                        single_material,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::CompositeSurface,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
-                    material: None,
+                    material,
                     texture: None,
                     template: None,
                     template_boundaries: None,
@@ -435,12 +505,21 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake();
                 semantics = generate_semantics
                     .then(|| SolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake());
+                material = generate_materials.then(|| {
+                    MaterialMapFaker::new(
+                        nr_materials,
+                        themes_material,
+                        single_material,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::Solid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
-                    material: None,
+                    material,
                     texture: None,
                     template: None,
                     template_boundaries: None,
@@ -452,12 +531,21 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake()
                 });
+                material = generate_materials.then(|| {
+                    MaterialMapFaker::new(
+                        nr_materials,
+                        themes_material,
+                        single_material,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::MultiSolid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
-                    material: None,
+                    material,
                     texture: None,
                     template: None,
                     template_boundaries: None,
@@ -469,12 +557,21 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(&boundaries, config.cotype.clone()).fake()
                 });
+                material = generate_materials.then(|| {
+                    MaterialMapFaker::new(
+                        nr_materials,
+                        themes_material,
+                        single_material,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::CompositeSolid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
-                    material: None,
+                    material,
                     texture: None,
                     template: None,
                     template_boundaries: None,
@@ -844,7 +941,7 @@ impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct IndexFaker {
     max: IndexType,
 }
@@ -871,6 +968,8 @@ impl Dummy<IndexFaker> for LargeIndex {
     }
 }
 
+// FIXME: this can generate an empty vertices vec. Should be able to set the amount of vertices
+//  needed, with the minimum of 1.
 fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
 }
@@ -1215,6 +1314,7 @@ impl Dummy<SemanticTypeFaker> for Option<SemanticType> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct OptionalIndexFaker {
     max: IndexType,
 }
@@ -1349,6 +1449,74 @@ impl Dummy<RGBFaker> for RGB {
             rng.gen_range(color_range.clone()),
             rng.gen_range(color_range.clone()),
         ]
+    }
+}
+
+/// Fake the materials for Multi/CompositeSurface, Solid, Multi/CompositeSolid geometries.
+struct MaterialMapFaker<'matmapfaker> {
+    nr_materials: IndexType,
+    themes_material: Vec<String>,
+    single_material: bool,
+    boundary: &'matmapfaker Boundary,
+}
+
+impl<'matmapfaker> MaterialMapFaker<'matmapfaker> {
+    fn new(
+        nr_materials: IndexType,
+        themes_material: Vec<String>,
+        single_material: bool,
+        boundary: &'matmapfaker Boundary,
+    ) -> Self {
+        Self {
+            nr_materials,
+            themes_material,
+            single_material,
+            boundary,
+        }
+    }
+}
+
+impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MaterialMapFaker, _: &mut R) -> Self {
+        let nr_surfaces = config.boundary.surfaces.len();
+        if nr_surfaces == 0 {
+            Self::new()
+        } else {
+            let idxf = IndexFaker::new(config.nr_materials);
+            let oidxf = OptionalIndexFaker::new(config.nr_materials);
+            let mut matmap = MaterialMap::new();
+            for theme in &config.themes_material {
+                if config.single_material {
+                    matmap.insert(
+                        Cow::Owned(theme.to_string()),
+                        MaterialValues {
+                            value: Some(idxf.fake()),
+                            values: None,
+                        },
+                    );
+                } else {
+                    let values =
+                        (oidxf, nr_surfaces..=nr_surfaces).fake::<Vec<OptionalLargeIndex>>();
+                    // Only the surfaces vec contains the pointers to the Materials, shells and
+                    // solids are just pointers to the boundary arrays. In case of
+                    // Multi/CompositeSurface the empty Vec-s are cloned, for more complex geoms
+                    // Vec-s contain values. Works the same way as for the LabelIndex of Semantics.
+                    let labelindex = LabelIndex {
+                        points: vec![],
+                        linestrings: vec![],
+                        surfaces: values,
+                        shells: config.boundary.shells.clone(),
+                        solids: config.boundary.solids.clone(),
+                    };
+                    let matval = MaterialValues {
+                        value: None,
+                        values: Some(labelindex),
+                    };
+                    matmap.insert(Cow::Owned(theme.to_string()), matval);
+                }
+            }
+            matmap
+        }
     }
 }
 
@@ -1510,7 +1678,8 @@ mod tests {
 
     #[test]
     fn geometry() {
-        let geom: Geometry = GeometryFaker::new(12, CityObjectType::Building, None).fake();
+        let geom: Geometry =
+            GeometryFaker::new(12, CityObjectType::Building, None, None, None).fake();
         dbg!(geom);
     }
 
@@ -1530,7 +1699,7 @@ mod tests {
     #[test]
     fn default() {
         let cm: CityModel = CityModelBuilder::default().into();
-        let cj_str = CityModelBuilder::default().build_string().unwrap();
+        let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
         let mut val = CJValidator::from_str(&cj_str);
         // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
