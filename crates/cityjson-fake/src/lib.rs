@@ -11,10 +11,12 @@
 //! See the [design doc] for details on how this crate works under the hood.
 use std::borrow::Cow;
 use std::ops::{Range, RangeInclusive};
+use std::path::PathBuf;
 
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::company::raw::CompanyName;
+use fake::faker::filesystem::raw::*;
 use fake::faker::internet::raw::{DomainSuffix, SafeEmail};
 use fake::faker::lorem::raw::{Word, Words};
 use fake::faker::name::raw::Name as FakeName;
@@ -24,15 +26,23 @@ use fake::uuid::UUIDv1;
 use fake::{Dummy, Fake, Faker};
 use rand::distributions::{Bernoulli, Distribution};
 use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::LabelIndex;
 use serde_cityjson::v1_1::*;
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
+// TODO: textures
+// TODO: geometry templates
+// TODO: attributes
+// TODO: object hierarchy
+// TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // FIXME: vertices unused
-// FIXME: object hierarchy
+// TODO: exact configuration for reproducible models (same types, config etc)
+// TODO: CLI/API
+// TODO: exe/docker/server
+// TODO: docs
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
@@ -61,8 +71,11 @@ const MIN_NR_MATERIALS: usize = 1;
 const MAX_NR_MATERIALS: usize = 10;
 // Must be >= 1
 const NR_THEMES_MATERIALS: usize = 3;
+const MIN_NR_TEXTURES: usize = 1;
+const MAX_NR_TEXTURES: usize = 10;
 // Must be >= 1
 const NR_THEMES_TEXTURES: usize = 3;
+const MAX_NR_VERTICES_TEXTURE: usize = 10;
 
 struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
@@ -104,6 +117,7 @@ impl<'cm> Default for CityModelBuilder<'cm> {
             .metadata(None)
             .vertices()
             .materials(None)
+            .textures(None)
             .cityobjects(None)
     }
 }
@@ -169,13 +183,52 @@ impl<'cm> CityModelBuilder<'cm> {
         let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_MATERIALS).fake();
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_material = Some(themes);
-        self.appearance = Some(Appearance {
-            materials: Some(mat),
-            textures: None,
-            vertices_texture: None,
-            default_theme_texture: None,
-            default_theme_material: default_theme,
-        });
+        if let Some(ref mut appearance) = self.appearance {
+            appearance.materials = Some(mat);
+            appearance.default_theme_material = default_theme;
+        } else {
+            self.appearance = Some(Appearance {
+                materials: Some(mat),
+                textures: None,
+                vertices_texture: None,
+                default_theme_texture: None,
+                default_theme_material: default_theme,
+            });
+        }
+        self
+    }
+
+    pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
+        let mut tex: Vec<Texture> = Vec::new();
+        if let Some(tb) = texture_builder {
+            tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
+                .into_iter()
+                .map(|_| tb.clone().build())
+                .collect()
+        } else {
+            tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
+                .into_iter()
+                .map(|_| TextureBuilder::default().into())
+                .collect()
+        }
+        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_TEXTURES).fake();
+        let default_theme = themes.first().map(|t| Cow::from(t.clone()));
+        self.themes_texture = Some(themes);
+        let vertices_texture: VerticesTexture =
+            (UVCoordinateFaker, 0..=MAX_NR_VERTICES_TEXTURE).fake();
+        if let Some(ref mut appearance) = self.appearance {
+            appearance.textures = Some(tex);
+            appearance.vertices_texture = Some(vertices_texture);
+            appearance.default_theme_texture = default_theme;
+        } else {
+            self.appearance = Some(Appearance {
+                materials: None,
+                textures: Some(tex),
+                vertices_texture: Some(vertices_texture),
+                default_theme_texture: default_theme,
+                default_theme_material: None,
+            });
+        }
         self
     }
 
@@ -1375,7 +1428,7 @@ impl<'cm> MaterialBuilder<'cm> {
     }
 
     fn ambient_intensity(mut self) -> Self {
-        self.0.ambient_intensity = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self.0.ambient_intensity = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
@@ -1395,17 +1448,17 @@ impl<'cm> MaterialBuilder<'cm> {
     }
 
     fn shininess(mut self) -> Self {
-        self.0.shininess = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self.0.shininess = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
     fn transparency(mut self) -> Self {
-        self.0.transparency = Some(rand::thread_rng().gen_range(0.0f32..=0.1));
+        self.0.transparency = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
     fn smooth(mut self) -> Self {
-        self.0.is_smooth = Some(rand::thread_rng().gen_bool(0.5));
+        self.0.is_smooth = Some(thread_rng().gen_bool(0.5));
         self
     }
 
@@ -1445,6 +1498,22 @@ impl Dummy<RGBFaker> for RGB {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &RGBFaker, rng: &mut R) -> Self {
         let color_range = 0.0f32..=1.0;
         [
+            rng.gen_range(color_range.clone()),
+            rng.gen_range(color_range.clone()),
+            rng.gen_range(color_range.clone()),
+        ]
+    }
+}
+
+type RGBA = [f32; 4];
+
+struct RGBAFaker;
+
+impl Dummy<RGBAFaker> for RGBA {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &RGBAFaker, rng: &mut R) -> Self {
+        let color_range = 0.0f32..=1.0;
+        [
+            rng.gen_range(color_range.clone()),
             rng.gen_range(color_range.clone()),
             rng.gen_range(color_range.clone()),
             rng.gen_range(color_range.clone()),
@@ -1517,6 +1586,134 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
             }
             matmap
         }
+    }
+}
+
+#[derive(Clone)]
+struct TextureBuilder<'cm>(Texture<'cm>);
+
+impl<'cm> Into<Texture<'cm>> for TextureBuilder<'cm> {
+    fn into(self) -> Texture<'cm> {
+        self.0
+    }
+}
+
+impl<'cm> Default for TextureBuilder<'cm> {
+    fn default() -> Self {
+        Self::new()
+            .image_type()
+            .image()
+            .wrap_mode()
+            .texture_type()
+            .border_color()
+    }
+}
+
+impl<'cm> TextureBuilder<'cm> {
+    fn new() -> Self {
+        Self(Texture::new())
+    }
+
+    fn image_type(mut self) -> Self {
+        self.0.image_type = if thread_rng().gen_bool(0.5) {
+            ImageType::Jpg
+        } else {
+            ImageType::Png
+        };
+        self
+    }
+
+    fn image(mut self) -> Self {
+        let fp: PathBuf = FilePath(EN).fake();
+        match &self.0.image_type {
+            ImageType::Png => {
+                if let Some(pstr) = fp.with_extension("png").to_str() {
+                    self.0.image = Cow::from(pstr.to_string());
+                }
+            }
+            ImageType::Jpg => {
+                if let Some(pstr) = fp.with_extension("jpg").to_str() {
+                    self.0.image = Cow::from(pstr.to_string());
+                }
+            }
+        }
+        self
+    }
+
+    fn wrap_mode(mut self) -> Self {
+        self.0.wrap_mode = Some(WrapModeFaker.fake());
+        self
+    }
+
+    fn texture_type(mut self) -> Self {
+        self.0.texture_type = Some(TextureTypeFaker.fake());
+        self
+    }
+
+    fn border_color(mut self) -> Self {
+        self.0.border_color = Some(RGBAFaker.fake());
+        self
+    }
+
+    /// Builds a Texture with new values set for the members that are configured in the builder.
+    fn build(self) -> Texture<'cm> {
+        let mut tb = self.image_type();
+        tb = tb.image();
+        if tb.0.wrap_mode.is_some() {
+            tb = tb.wrap_mode();
+        }
+        if tb.0.texture_type.is_some() {
+            tb = tb.texture_type();
+        }
+        if tb.0.border_color.is_some() {
+            tb = tb.border_color();
+        }
+        tb.into()
+    }
+}
+
+struct WrapModeFaker;
+
+impl Dummy<WrapModeFaker> for WrapMode {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &WrapModeFaker, rng: &mut R) -> Self {
+        match rng.gen_range(0..5) {
+            0 => WrapMode::Wrap,
+            1 => WrapMode::Mirror,
+            2 => WrapMode::Clamp,
+            3 => WrapMode::Border,
+            4 => WrapMode::None,
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+}
+
+struct TextureTypeFaker;
+
+impl Dummy<TextureTypeFaker> for TextureType {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &TextureTypeFaker, rng: &mut R) -> Self {
+        match rng.gen_range(0..3) {
+            0 => TextureType::Unknown,
+            1 => TextureType::Typical,
+            2 => TextureType::Specific,
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+}
+
+type UVCoordinate = [f32; 2];
+
+struct UVCoordinateFaker;
+impl Dummy<UVCoordinateFaker> for UVCoordinate {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &UVCoordinateFaker, rng: &mut R) -> Self {
+        let uv_range = 0.0..=1.0;
+        [
+            rng.gen_range(uv_range.clone()),
+            rng.gen_range(uv_range.clone()),
+        ]
     }
 }
 
