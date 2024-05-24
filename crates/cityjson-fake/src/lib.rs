@@ -29,11 +29,10 @@ use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
-use serde_cityjson::labels::LabelIndex;
+use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
-// TODO: textures
 // TODO: geometry templates
 // TODO: attributes
 // TODO: object hierarchy
@@ -55,24 +54,24 @@ type IndexType = u32;
 const MIN_COORDINATE: i64 = i64::MIN;
 const MAX_COORDINATE: i64 = i64::MAX;
 const MIN_NR_VERTICES: IndexType = 1;
-const MAX_NR_VERTICES: IndexType = IndexType::MAX;
+const MAX_NR_VERTICES: IndexType = 30; // IndexType::MAX;
 const MIN_MEMBERS_MULTIPOINT: IndexType = 1;
-const MAX_MEMBERS_MULTIPOINT: IndexType = 50;
+const MAX_MEMBERS_MULTIPOINT: IndexType = 10;
 const MIN_MEMBERS_MULTILINESTRING: IndexType = 1;
 const MAX_MEMBERS_MULTILINESTRING: IndexType = 5;
 const MIN_MEMBERS_MULTISURFACE: IndexType = 1;
-const MAX_MEMBERS_MULTISURFACE: IndexType = 10;
+const MAX_MEMBERS_MULTISURFACE: IndexType = 5;
 const MIN_MEMBERS_SOLID: IndexType = 1;
-const MAX_MEMBERS_SOLID: IndexType = 5;
+const MAX_MEMBERS_SOLID: IndexType = 3;
 const MIN_MEMBERS_MULTISOLID: IndexType = 1;
-const MAX_MEMBERS_MULTISOLID: IndexType = 5;
-const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 10;
+const MAX_MEMBERS_MULTISOLID: IndexType = 3;
+const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 3;
 const MIN_NR_MATERIALS: usize = 1;
-const MAX_NR_MATERIALS: usize = 10;
+const MAX_NR_MATERIALS: usize = 3;
 // Must be >= 1
 const NR_THEMES_MATERIALS: usize = 3;
 const MIN_NR_TEXTURES: usize = 1;
-const MAX_NR_TEXTURES: usize = 10;
+const MAX_NR_TEXTURES: usize = 3;
 // Must be >= 1
 const NR_THEMES_TEXTURES: usize = 3;
 const MAX_NR_VERTICES_TEXTURE: usize = 10;
@@ -448,12 +447,37 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                             }
                         }
                     }
-                    single_material = rng.gen_bool(0.7);
+                    single_material = rng.gen_bool(0.5);
                 }
             }
         }
         // Decide if we can generate textures
         let mut generate_textures = false;
+        let mut nr_textures: IndexType = 0;
+        let mut nr_vertices_texture: IndexType = 0;
+        // The texture themes of the geometry
+        let mut themes_texture: Vec<String> = Vec::new();
+        if let Some(ref appearance) = config.appearance {
+            if let Some(ref textures_vec) = appearance.textures {
+                nr_textures = IndexType::try_from(textures_vec.len()).unwrap();
+                if nr_textures > 0 {
+                    generate_textures = true;
+                    // Choose the texture themes from the available themes.
+                    // One of the themes must be the default theme.
+                    if let Some(ref all_themes_textures) = config.themes_texture {
+                        if let Some(ref default_theme) = appearance.default_theme_texture {
+                            themes_texture.push(default_theme.to_string());
+                            if let Some(t) = all_themes_textures[1..].choose(rng) {
+                                themes_texture.push(t.to_string());
+                            }
+                        }
+                    }
+                    if let Some(ref vt) = appearance.vertices_texture {
+                        nr_vertices_texture = IndexType::try_from(vt.len()).unwrap();
+                    }
+                }
+            }
+        }
 
         let mut boundaries: Option<Boundary> = None;
         let mut semantics: Option<Semantics> = None;
@@ -515,13 +539,22 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     )
                     .fake()
                 });
+                texture = generate_textures.then(|| {
+                    TextureMapFaker::new(
+                        nr_textures,
+                        nr_vertices_texture,
+                        themes_texture,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::MultiSurface,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
                     material,
-                    texture: None,
+                    texture,
                     template: None,
                     template_boundaries: None,
                     template_transformation_matrix: None,
@@ -542,13 +575,22 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     )
                     .fake()
                 });
+                texture = generate_textures.then(|| {
+                    TextureMapFaker::new(
+                        nr_textures,
+                        nr_vertices_texture,
+                        themes_texture,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::CompositeSurface,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
                     material,
-                    texture: None,
+                    texture,
                     template: None,
                     template_boundaries: None,
                     template_transformation_matrix: None,
@@ -567,13 +609,22 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     )
                     .fake()
                 });
+                texture = generate_textures.then(|| {
+                    TextureMapFaker::new(
+                        nr_textures,
+                        nr_vertices_texture,
+                        themes_texture,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::Solid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
                     material,
-                    texture: None,
+                    texture,
                     template: None,
                     template_boundaries: None,
                     template_transformation_matrix: None,
@@ -593,13 +644,22 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     )
                     .fake()
                 });
+                texture = generate_textures.then(|| {
+                    TextureMapFaker::new(
+                        nr_textures,
+                        nr_vertices_texture,
+                        themes_texture,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::MultiSolid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
                     material,
-                    texture: None,
+                    texture,
                     template: None,
                     template_boundaries: None,
                     template_transformation_matrix: None,
@@ -619,13 +679,22 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     )
                     .fake()
                 });
+                texture = generate_textures.then(|| {
+                    TextureMapFaker::new(
+                        nr_textures,
+                        nr_vertices_texture,
+                        themes_texture,
+                        &boundaries,
+                    )
+                    .fake()
+                });
                 Geometry {
                     type_: GeometryType::CompositeSolid,
                     lod: Some(lod),
                     boundaries: Some(boundaries),
                     semantics,
                     material,
-                    texture: None,
+                    texture,
                     template: None,
                     template_boundaries: None,
                     template_transformation_matrix: None,
@@ -1714,6 +1783,64 @@ impl Dummy<UVCoordinateFaker> for UVCoordinate {
             rng.gen_range(uv_range.clone()),
             rng.gen_range(uv_range.clone()),
         ]
+    }
+}
+
+/// Fake the textures for Multi/CompositeSurface, Solid, Multi/CompositeSolid geometries.
+struct TextureMapFaker<'texmapfaker> {
+    nr_textures: IndexType,
+    nr_vertices_texture: IndexType,
+    themes_texture: Vec<String>,
+    boundary: &'texmapfaker Boundary,
+}
+
+impl<'texmapfaker> TextureMapFaker<'texmapfaker> {
+    fn new(
+        nr_textures: IndexType,
+        nr_vertices_texture: IndexType,
+        themes_texture: Vec<String>,
+        boundary: &'texmapfaker Boundary,
+    ) -> Self {
+        Self {
+            nr_textures,
+            nr_vertices_texture,
+            themes_texture,
+            boundary,
+        }
+    }
+}
+
+impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &TextureMapFaker, _: &mut R) -> Self {
+        let nr_vertices = config.boundary.vertices.len();
+        let nr_rings = config.boundary.rings.len();
+        let nr_surfaces = config.boundary.surfaces.len();
+        if nr_surfaces == 0 {
+            Self::new()
+        } else {
+            let uv_idx_faker = OptionalIndexFaker::new(config.nr_vertices_texture - 1);
+            let tex_idx_faker = OptionalIndexFaker::new(config.nr_textures - 1);
+            let mut texmap = TextureMap::new();
+            for theme in &config.themes_texture {
+                let uv_coord_indices =
+                    (uv_idx_faker, nr_vertices..=nr_vertices).fake::<Vec<OptionalLargeIndex>>();
+                let tex_indices =
+                    (tex_idx_faker, nr_rings..=nr_rings).fake::<Vec<OptionalLargeIndex>>();
+                let textureindex = TextureIndex {
+                    vertices: uv_coord_indices,
+                    rings: config.boundary.rings.clone(),
+                    rings_textures: tex_indices,
+                    surfaces: config.boundary.surfaces.clone(),
+                    shells: config.boundary.shells.clone(),
+                    solids: config.boundary.solids.clone(),
+                };
+                let texval = TextureValues {
+                    values: Some(textureindex),
+                };
+                texmap.insert(Cow::Owned(theme.to_string()), texval);
+            }
+            texmap
+        }
     }
 }
 
