@@ -33,7 +33,6 @@ use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
-// TODO: geometry templates
 // TODO: attributes
 // TODO: object hierarchy
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
@@ -75,6 +74,8 @@ const MAX_NR_TEXTURES: usize = 3;
 // Must be >= 1
 const NR_THEMES_TEXTURES: usize = 3;
 const MAX_NR_VERTICES_TEXTURE: usize = 10;
+const MIN_NR_TEMPLATES: usize = 1;
+const MAX_NR_TEMPLATES: usize = 10;
 
 struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
@@ -146,6 +147,7 @@ impl<'cm> CityModelBuilder<'cm> {
     /// If the vertices haven't been generated yet, they will be created, so that the geometry
     /// boundaries can index them.
     pub fn cityobjects(mut self, nr_cityobjects: Option<Range<usize>>) -> Self {
+        let use_templates = true;
         let _nr_cos = nr_cityobjects.unwrap_or(1..2);
         if self.vertices.is_none() {
             self.vertices = Some(fake_vertices());
@@ -163,6 +165,25 @@ impl<'cm> CityModelBuilder<'cm> {
             Some(CityObjects::from_iter(cos.iter().map(|co| {
                 (Cow::from(Word(EN).fake::<&str>()), co.to_owned())
             })));
+        if use_templates {
+            let vertices_templates: VerticesTemplates = VerticesTemplatesFaker.fake();
+            // The 8th geometry type is GeometryInstance, which cannot be a template
+            let geometry_types = Some(vec![0usize, 1, 2, 3, 4, 5, 6]);
+            let gf = GeometryFaker {
+                nr_vertices: IndexType::try_from(vertices_templates.len()).unwrap(),
+                // All templates are Buildings, to make our life easier, and so that semantics,
+                // materials and textures can be added to them.
+                cotype: CityObjectType::Building,
+                appearance: self.appearance.clone(),
+                themes_material: self.themes_material.clone(),
+                themes_texture: self.themes_texture.clone(),
+                geometry_types,
+            };
+            self.geometry_templates = Some(GeometryTemplates {
+                templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake(),
+                vertices_templates,
+            });
+        }
         self
     }
 
@@ -292,6 +313,7 @@ impl<'cm> Dummy<CityObjectFaker<'cm>> for CityObject<'cm> {
             config.appearance.clone(),
             config.themes_material.clone(),
             config.themes_texture.clone(),
+            None,
         );
         Self::new(
             cotype,
@@ -353,6 +375,7 @@ struct GeometryFaker<'cmbuild> {
     appearance: Option<Appearance<'cmbuild>>,
     themes_material: Option<Vec<String>>,
     themes_texture: Option<Vec<String>>,
+    geometry_types: Option<Vec<usize>>,
 }
 
 impl<'cmbuild> GeometryFaker<'cmbuild> {
@@ -362,6 +385,7 @@ impl<'cmbuild> GeometryFaker<'cmbuild> {
         appearance: Option<Appearance<'cmbuild>>,
         themes_material: Option<Vec<String>>,
         themes_texture: Option<Vec<String>>,
+        geometry_types: Option<Vec<usize>>,
     ) -> Self {
         Self {
             nr_vertices,
@@ -369,6 +393,7 @@ impl<'cmbuild> GeometryFaker<'cmbuild> {
             appearance,
             themes_material,
             themes_texture,
+            geometry_types,
         }
     }
 }
@@ -377,38 +402,45 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker, rng: &mut R) -> Self {
         let lod: LoD = LoDFaker.fake();
         // todo: move this type setup to compile time
-        // Choose a Geometry type that is allowed for the given CityObject type
-        let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let building_types = config.cotype == CityObjectType::Building
             || config.cotype == CityObjectType::BuildingPart
             || config.cotype == CityObjectType::BuildingStorey
             || config.cotype == CityObjectType::BuildingRoom
             || config.cotype == CityObjectType::BuildingUnit;
-        if config.cotype == CityObjectType::Bridge || config.cotype == CityObjectType::BridgePart {
-            geometry_types = vec![2, 3, 4, 6];
-        } else if building_types {
-            geometry_types = vec![2, 3, 4, 6];
-        // } else if config.cotype == CityObjectType::GenericCityObject {
-        //     geometry_types = vec![0, 1, 2, 3, 4, 6];
-        } else if config.cotype == CityObjectType::LandUse {
-            geometry_types = vec![2, 3];
-        } else if config.cotype == CityObjectType::PlantCover {
-            geometry_types = vec![2, 3, 4, 5, 6];
-        } else if config.cotype == CityObjectType::TINRelief {
-            geometry_types = vec![3];
-        } else if config.cotype == CityObjectType::Road
-            || config.cotype == CityObjectType::Railway
-            || config.cotype == CityObjectType::Waterway
-        {
-            geometry_types = vec![1, 2, 3];
-        } else if config.cotype == CityObjectType::TransportSquare {
-            geometry_types = vec![0, 1, 2, 3];
-        } else if config.cotype == CityObjectType::Tunnel
-            || config.cotype == CityObjectType::TunnelPart
-        {
-            geometry_types = vec![2, 3, 4, 6];
-        } else if config.cotype == CityObjectType::WaterBody {
-            geometry_types = vec![1, 2, 3, 4, 6];
+        let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        if let Some(ref gt) = config.geometry_types {
+            geometry_types = gt.clone()
+        } else {
+            // FIXME: MultiPoint, lod 3, Building --> semantics don't make sense
+            // Choose a Geometry type that is allowed for the given CityObject type
+            if config.cotype == CityObjectType::Bridge
+                || config.cotype == CityObjectType::BridgePart
+            {
+                geometry_types = vec![2, 3, 4, 6];
+            } else if building_types {
+                geometry_types = vec![2, 3, 4, 6];
+            // } else if config.cotype == CityObjectType::GenericCityObject {
+            //     geometry_types = vec![0, 1, 2, 3, 4, 6];
+            } else if config.cotype == CityObjectType::LandUse {
+                geometry_types = vec![2, 3];
+            } else if config.cotype == CityObjectType::PlantCover {
+                geometry_types = vec![2, 3, 4, 5, 6];
+            } else if config.cotype == CityObjectType::TINRelief {
+                geometry_types = vec![3];
+            } else if config.cotype == CityObjectType::Road
+                || config.cotype == CityObjectType::Railway
+                || config.cotype == CityObjectType::Waterway
+            {
+                geometry_types = vec![1, 2, 3];
+            } else if config.cotype == CityObjectType::TransportSquare {
+                geometry_types = vec![0, 1, 2, 3];
+            } else if config.cotype == CityObjectType::Tunnel
+                || config.cotype == CityObjectType::TunnelPart
+            {
+                geometry_types = vec![2, 3, 4, 6];
+            } else if config.cotype == CityObjectType::WaterBody {
+                geometry_types = vec![1, 2, 3, 4, 6];
+            }
         }
         let geometry_type_chosen = geometry_types.choose(rng).unwrap_or(&0_usize);
         // Decide if we can generate semantics for the given CityObject type
@@ -700,18 +732,27 @@ impl Dummy<GeometryFaker<'_>> for Geometry<'_> {
                     template_transformation_matrix: None,
                 }
             }
-            7 => Geometry {
-                type_: GeometryType::GeometryInstance,
-                lod: None,
-                boundaries,
-                semantics,
-                material,
-                texture,
-                template,
-                template_boundaries,
-                template_transformation_matrix,
-            },
-            _ => unreachable!("There are only seven geometry types"),
+            7 => {
+                let reference_point: u32 = IndexFaker {
+                    max: config.nr_vertices,
+                }
+                .fake();
+                template_boundaries = Some([reference_point as usize]);
+                template = Some(0);
+                template_transformation_matrix = Some((0.0..f64::MAX).fake());
+                Geometry {
+                    type_: GeometryType::GeometryInstance,
+                    lod: None,
+                    boundaries,
+                    semantics,
+                    material,
+                    texture,
+                    template,
+                    template_boundaries,
+                    template_transformation_matrix,
+                }
+            }
+            _ => unreachable!("There are only eight geometry types"),
         }
     }
 }
@@ -755,7 +796,7 @@ impl MultiSolidFaker {
         Self { nr_vertices }
     }
 }
-
+// FIXME: shouldn't have empty arrays
 impl Dummy<MultiSolidFaker> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
@@ -1094,6 +1135,21 @@ impl Dummy<IndexFaker> for LargeIndex {
 //  needed, with the minimum of 1.
 fn fake_vertices() -> Vertices {
     Faker.fake::<Vertices>()
+}
+
+struct VerticesTemplatesFaker;
+impl Dummy<VerticesTemplatesFaker> for VerticesTemplates {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesTemplatesFaker, _: &mut R) -> Self {
+        (TemplateVertexFaker, 1..=MAX_NR_VERTICES as usize).fake()
+    }
+}
+
+type TemplateVertex = [f64; 3];
+struct TemplateVertexFaker;
+impl Dummy<TemplateVertexFaker> for TemplateVertex {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &TemplateVertexFaker, rng: &mut R) -> Self {
+        Faker.fake()
+    }
 }
 
 // todo scj: need to use the proper coordinate type
@@ -2001,9 +2057,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_fake() {
+        let a: [f64; 16] = (1.0..5.0).fake();
+        dbg!(a);
+    }
+
+    #[test]
     fn geometry() {
         let geom: Geometry =
-            GeometryFaker::new(12, CityObjectType::Building, None, None, None).fake();
+            GeometryFaker::new(12, CityObjectType::Building, None, None, None, None).fake();
         dbg!(geom);
     }
 
