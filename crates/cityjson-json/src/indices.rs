@@ -6,12 +6,6 @@ use derive_more::{AddAssign, Deref, DerefMut, Display, From, IntoIterator};
 use serde::{Deserialize, Serialize};
 use std::ops::{Index};
 
-/// A floating-point coordinate value..
-pub struct CoordinateFloat(f64);
-
-/// A signed integer coordinate value.
-pub struct CoordinateInt(i64);
-
 type LargeIndexType = u32;
 
 /// Index with large values.
