@@ -23,7 +23,10 @@ use serde_json::value::RawValue;
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
 use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor};
+use crate::indices::{LargeIndex, OptionalLargeIndex};
 use crate::labels;
+
+// TODO: rename all type_X to type_
 
 /// Represents the city model that is stored in a CityJSON object.
 /// The conceptual equivalent of a CityJSON object, but the `CityModel` is also used for
@@ -451,7 +454,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
+                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialindex.insert(k, materialvalues);
                     }
@@ -498,7 +501,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
+                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -543,7 +546,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexShellsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
+                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -588,7 +591,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
+                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -633,7 +636,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| u32::try_from(v).unwrap());
+                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -742,9 +745,9 @@ pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MaterialValues {
     #[serde(skip_serializing_if = "Option::is_none")]
-    value: labels::OptionalIndex,
+    pub value: OptionalLargeIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<labels::LabelIndex>,
+    pub values: Option<labels::LabelIndex>,
 }
 
 pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
@@ -753,7 +756,7 @@ pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct TextureValues {
     #[serde(skip_serializing_if = "Option::is_none")]
-    values: Option<labels::TextureIndex>,
+    pub values: Option<labels::TextureIndex>,
 }
 
 /// Appearance.
@@ -789,15 +792,15 @@ pub struct TextureValues {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Appearance<'cm> {
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    materials: Option<Vec<Material<'cm>>>,
+    pub materials: Option<Vec<Material<'cm>>>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    textures: Option<Vec<Texture<'cm>>>,
+    pub textures: Option<Vec<Texture<'cm>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    vertices_texture: Option<VerticesTexture>,
+    pub vertices_texture: Option<VerticesTexture>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    default_theme_texture: Option<Cow<'cm, str>>,
+    pub default_theme_texture: Option<Cow<'cm, str>>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    default_theme_material: Option<Cow<'cm, str>>,
+    pub default_theme_material: Option<Cow<'cm, str>>,
 }
 
 type IntermediateAppearance<'a> = Map<Cow<'a, str>, IntermediateAppearanceValues<'a>>;
@@ -847,21 +850,21 @@ struct IntermediateAppearanceValues<'a> {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Material<'cm> {
     #[serde(borrow)]
-    name: Cow<'cm, str>,
+    pub name: Cow<'cm, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ambient_intensity: Option<f32>,
+    pub ambient_intensity: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    diffuse_color: Option<[f32; 3]>,
+    pub diffuse_color: Option<[f32; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    emissive_color: Option<[f32; 3]>,
+    pub emissive_color: Option<[f32; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    specular_color: Option<[f32; 3]>,
+    pub specular_color: Option<[f32; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    shininess: Option<f32>,
+    pub shininess: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    transparency: Option<f32>,
+    pub transparency: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    is_smooth: Option<bool>,
+    pub is_smooth: Option<bool>,
 }
 
 /// Texture.
@@ -897,15 +900,15 @@ pub struct Material<'cm> {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Texture<'cm> {
     #[serde(rename = "type")]
-    image_type: ImageType,
+    pub image_type: ImageType,
     #[serde(borrow)]
-    image: Cow<'cm, str>,
+    pub image: Cow<'cm, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    wrap_mode: Option<WrapMode>,
+    pub wrap_mode: Option<WrapMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    texture_type: Option<TextureType>,
+    pub texture_type: Option<TextureType>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    border_color: Option<[f32; 4]>,
+    pub border_color: Option<[f32; 4]>,
 }
 
 /// Texture image type.
@@ -1001,8 +1004,8 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates<'cm> {
     #[serde(borrow)]
-    templates: Vec<Geometry<'cm>>,
-    vertices_templates: VerticesTemplates,
+    pub templates: Vec<Geometry<'cm>>,
+    pub vertices_templates: VerticesTemplates,
 }
 
 /// The `vertices_templates` member of `geometry-templates` of CityJSON.
@@ -1979,6 +1982,18 @@ impl<'cm> Serialize for SemanticType {
             }
             SemanticType::Extension(ref s) => serializer.serialize_str(s),
         }
+    }
+}
+
+impl<'cm> Material<'cm> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<'cm> Texture<'cm> {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

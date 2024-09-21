@@ -16,12 +16,12 @@ use crate::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct TextureIndex {
-    pub(crate) vertices: Vec<OptionalLargeIndex>,
-    pub(crate) rings: LargeIndexVec,
-    pub(crate) rings_textures: Vec<OptionalLargeIndex>,
-    pub(crate) surfaces: LargeIndexVec,
-    pub(crate) shells: LargeIndexVec,
-    pub(crate) solids: LargeIndexVec,
+    pub vertices: Vec<OptionalLargeIndex>,
+    pub rings: LargeIndexVec,
+    pub rings_textures: Vec<OptionalLargeIndex>,
+    pub surfaces: LargeIndexVec,
+    pub shells: LargeIndexVec,
+    pub solids: LargeIndexVec,
 }
 
 impl Serialize for TextureIndex {
