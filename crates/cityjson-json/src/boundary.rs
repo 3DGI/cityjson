@@ -561,6 +561,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendShells<'a> {
     }
 }
 
+#[allow(dead_code)]
 struct ExtendSolids<'a>(&'a mut Boundary);
 pub(crate) struct ExtendSolidsVisitor<'a>(pub(crate) &'a mut Boundary);
 

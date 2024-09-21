@@ -377,6 +377,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendTextureIndexShells<'a> {
     }
 }
 
+#[allow(dead_code)]
 struct ExtendTextureIndexSolids<'a>(&'a mut TextureIndex);
 pub(crate) struct ExtendTextureIndexSolidsVisitor<'a>(pub(crate) &'a mut TextureIndex);
 
@@ -635,6 +636,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendLabelIndexShells<'a> {
     }
 }
 
+#[allow(dead_code)]
 struct ExtendLabelIndexSolids<'a>(&'a mut LabelIndex);
 pub(crate) struct ExtendLabelIndexSolidsVisitor<'a>(pub(crate) &'a mut LabelIndex);
 
