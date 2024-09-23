@@ -12,17 +12,20 @@ use std::fmt::{Display, Formatter};
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
 use derive_more::Display;
-use serde::{Deserialize, Deserializer, Serialize};
 use serde::de::{IntoDeserializer, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::value::RawValue;
 use serde_json_borrow::Value;
 use std::result;
-use serde_json::value::RawValue;
 // use ahash::AHashMap as Map;
 
+use crate::boundary::{
+    Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor,
+    ExtendVerticesVisitor,
+};
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
-use crate::boundary::{Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor, ExtendVerticesVisitor};
 use crate::indices::{LargeIndex, OptionalLargeIndex};
 use crate::labels;
 
@@ -371,7 +374,10 @@ pub struct Geometry<'cm> {
     pub template: Option<u16>,
     #[serde(rename = "boundaries", skip_serializing_if = "Option::is_none")]
     pub template_boundaries: Option<[usize; 1]>,
-    #[serde(rename = "transformationMatrix", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "transformationMatrix",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub template_transformation_matrix: Option<[f64; 16]>,
 }
 
@@ -397,15 +403,17 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let values = labels::LabelIndex {
-                        points: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        points: Deserialize::deserialize(
+                            intermediate_semantics.values.into_deserializer(),
+                        )?,
                         ..Default::default()
                     };
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
             }
             GeometryType::MultiLineString => {
@@ -416,15 +424,17 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let values = labels::LabelIndex {
-                        linestrings: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        linestrings: Deserialize::deserialize(
+                            intermediate_semantics.values.into_deserializer(),
+                        )?,
                         ..Default::default()
                     };
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
             }
             GeometryType::MultiSurface => {
@@ -435,15 +445,17 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let values = labels::LabelIndex {
-                        surfaces: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.values.into_deserializer(),
+                        )?,
                         ..Default::default()
                     };
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
                 if let Some(intermediate_material) = geometry.material {
                     let mut materialindex = MaterialMap::with_capacity(intermediate_material.len());
@@ -451,10 +463,13 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut materialvalues = MaterialValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::LabelIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(
+                                &mut values,
+                            ))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                            materialvalues.value =
+                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialindex.insert(k, materialvalues);
                     }
@@ -466,7 +481,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut texturevalues = TextureValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::TextureIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendTextureIndexSurfacesVisitor(&mut values))?;
+                            values_raw.deserialize_seq(
+                                labels::ExtendTextureIndexSurfacesVisitor(&mut values),
+                            )?;
                             texturevalues.values = Some(values);
                         }
                         let _ = texturemap.insert(k, texturevalues);
@@ -482,15 +499,17 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let values = labels::LabelIndex {
-                        surfaces: Deserialize::deserialize(intermediate_semantics.values.into_deserializer())?,
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.values.into_deserializer(),
+                        )?,
                         ..Default::default()
                     };
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
                 if let Some(intermediate_material) = geometry.material {
                     let mut materialmap = MaterialMap::with_capacity(intermediate_material.len());
@@ -498,10 +517,13 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut materialvalues = MaterialValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::LabelIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendLabelIndexSurfacesVisitor(
+                                &mut values,
+                            ))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                            materialvalues.value =
+                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -513,7 +535,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut texturevalues = TextureValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::TextureIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendTextureIndexSurfacesVisitor(&mut values))?;
+                            values_raw.deserialize_seq(
+                                labels::ExtendTextureIndexSurfacesVisitor(&mut values),
+                            )?;
                             texturevalues.values = Some(values);
                         }
                         let _ = texturemap.insert(k, texturevalues);
@@ -529,13 +553,15 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let mut values = labels::LabelIndex::default();
-                    intermediate_semantics.values.deserialize_seq(labels::ExtendLabelIndexShellsVisitor(&mut values))?;
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    intermediate_semantics
+                        .values
+                        .deserialize_seq(labels::ExtendLabelIndexShellsVisitor(&mut values))?;
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
                 if let Some(intermediate_material) = geometry.material {
                     let mut materialmap = MaterialMap::with_capacity(intermediate_material.len());
@@ -543,10 +569,13 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut materialvalues = MaterialValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::LabelIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendLabelIndexShellsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendLabelIndexShellsVisitor(
+                                &mut values,
+                            ))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                            materialvalues.value =
+                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -558,7 +587,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut texturevalues = TextureValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::TextureIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendTextureIndexShellsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendTextureIndexShellsVisitor(
+                                &mut values,
+                            ))?;
                             texturevalues.values = Some(values);
                         }
                         let _ = texturemap.insert(k, texturevalues);
@@ -574,13 +605,15 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let mut values = labels::LabelIndex::default();
-                    intermediate_semantics.values.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    intermediate_semantics
+                        .values
+                        .deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
                 if let Some(intermediate_material) = geometry.material {
                     let mut materialmap = MaterialMap::with_capacity(intermediate_material.len());
@@ -588,10 +621,13 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut materialvalues = MaterialValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::LabelIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(
+                                &mut values,
+                            ))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                            materialvalues.value =
+                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -603,7 +639,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut texturevalues = TextureValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::TextureIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(
+                                &mut values,
+                            ))?;
                             texturevalues.values = Some(values);
                         }
                         let _ = texturemap.insert(k, texturevalues);
@@ -619,13 +657,15 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                 }
                 if let Some(intermediate_semantics) = geometry.semantics {
                     let mut values = labels::LabelIndex::default();
-                    intermediate_semantics.values.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
-                    let _ = semantics.insert(
-                        Semantics {
-                            surfaces: Deserialize::deserialize(intermediate_semantics.surfaces.into_deserializer())?,
-                            values,
-                        }
-                    );
+                    intermediate_semantics
+                        .values
+                        .deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
+                    let _ = semantics.insert(Semantics {
+                        surfaces: Deserialize::deserialize(
+                            intermediate_semantics.surfaces.into_deserializer(),
+                        )?,
+                        values,
+                    });
                 }
                 if let Some(intermediate_material) = geometry.material {
                     let mut materialmap = MaterialMap::with_capacity(intermediate_material.len());
@@ -633,10 +673,13 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut materialvalues = MaterialValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::LabelIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendLabelIndexSolidsVisitor(
+                                &mut values,
+                            ))?;
                             materialvalues.values = Some(values);
                         } else {
-                            materialvalues.value = v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                            materialvalues.value =
+                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -648,7 +691,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                         let mut texturevalues = TextureValues::default();
                         if let Some(values_raw) = v.values {
                             let mut values = labels::TextureIndex::default();
-                            values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(&mut values))?;
+                            values_raw.deserialize_seq(labels::ExtendTextureIndexSolidsVisitor(
+                                &mut values,
+                            ))?;
                             texturevalues.values = Some(values);
                         }
                         let _ = texturemap.insert(k, texturevalues);
@@ -659,7 +704,9 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
             GeometryType::GeometryInstance => {
                 template = geometry.template;
                 if let Some(boundaries_raw) = geometry.boundaries {
-                    template_boundaries = Some(Deserialize::deserialize(boundaries_raw.into_deserializer())?);
+                    template_boundaries = Some(Deserialize::deserialize(
+                        boundaries_raw.into_deserializer(),
+                    )?);
                 }
                 template_transformation_matrix = geometry.template_transformation_matrix;
             }
@@ -708,8 +755,6 @@ pub enum GeometryType {
     CompositeSolid,
     GeometryInstance,
 }
-
-
 
 /// The Level of Detail of a Geometry.
 ///
@@ -1849,10 +1894,7 @@ impl Default for ImageType {
 
 impl<'cm> Semantics<'cm> {
     pub fn new(surfaces: Vec<Semantic<'cm>>, values: labels::LabelIndex) -> Self {
-        Self {
-            surfaces,
-            values,
-        }
+        Self { surfaces, values }
     }
 }
 

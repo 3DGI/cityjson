@@ -37,7 +37,7 @@ pub fn cargo_workspace_directory() -> Option<PathBuf> {
 /// Assert that result == expected.
 pub fn assert_eq_roundtrip<'de, T>(json_input: &'de str)
 where
-    T: Deserialize<'de> + Serialize
+    T: Deserialize<'de> + Serialize,
 {
     let cm = serde_json::from_str::<T>(&json_input).unwrap();
     let json_cm = serde_json::to_string(&cm).unwrap();

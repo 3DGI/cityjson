@@ -1,6 +1,6 @@
+use serde_cityjson::v2_0::*;
 use std::fs::File;
 use std::io::Read;
-use serde_cityjson::v2_0::*;
 
 #[test]
 fn objects() -> Result<(), String> {
@@ -45,7 +45,8 @@ fn borrow_value() -> Result<(), String> {
     let mut cityjson_json = Vec::new();
     file.read_to_end(&mut cityjson_json)
         .map_err(|e| e.to_string())?;
-    let cm: serde_json_borrow::Value = serde_json::from_slice(&cityjson_json).map_err(|e| e.to_string())?;
+    let cm: serde_json_borrow::Value =
+        serde_json::from_slice(&cityjson_json).map_err(|e| e.to_string())?;
     println!("{:?}", &cm.get("version"));
     Ok(())
 }

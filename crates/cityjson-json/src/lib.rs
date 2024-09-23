@@ -283,15 +283,15 @@ use std::fmt;
 
 use serde::Deserialize;
 
+pub mod boundary;
 #[cfg_attr(docsrs, doc(cfg(feature = "datasize")))]
 #[cfg(feature = "datasize")]
 pub mod datasize;
 pub mod errors;
+pub mod indices;
+pub mod labels;
 pub mod v1_1;
 pub mod v2_0;
-pub mod boundary;
-pub mod labels;
-pub mod indices;
 
 #[non_exhaustive]
 #[derive(Debug)]

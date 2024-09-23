@@ -4,7 +4,7 @@
 use datasize::DataSize;
 use derive_more::{AddAssign, Deref, DerefMut, Display, From, IntoIterator};
 use serde::{Deserialize, Serialize};
-use std::ops::{Index};
+use std::ops::Index;
 
 type LargeIndexType = u32;
 
@@ -75,7 +75,19 @@ impl LargeIndex {
 
 /// A vector of [LargeIndex].
 #[derive(
-    Clone, Default, Debug, Deref, DerefMut, IntoIterator, Eq, Ord, PartialOrd, PartialEq, Hash, Deserialize, Serialize
+    Clone,
+    Default,
+    Debug,
+    Deref,
+    DerefMut,
+    IntoIterator,
+    Eq,
+    Ord,
+    PartialOrd,
+    PartialEq,
+    Hash,
+    Deserialize,
+    Serialize,
 )]
 #[into_iterator(owned, ref)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
@@ -129,7 +141,6 @@ impl LargeIndexVec {
     // pub(crate) fn get(&self, idx: Range<LargeIndex>) -> Option<&[LargeIndex]> {
     //     self.0.get(idx.start.0 as usize..idx.end.0 as usize)
     // }
-
 }
 
 pub type OptionalLargeIndex = Option<LargeIndex>;

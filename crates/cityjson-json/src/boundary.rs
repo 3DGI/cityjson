@@ -17,9 +17,9 @@ use std::fmt;
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
 use derive_more::Display;
+use serde::de::{DeserializeSeed, Deserializer, SeqAccess, Visitor};
+use serde::ser::{Error, SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
-use serde::de::{Deserializer, DeserializeSeed, SeqAccess, Visitor};
-use serde::ser::{Error, Serializer, SerializeSeq};
 
 use crate::errors;
 use crate::indices::*;
@@ -135,7 +135,10 @@ impl From<BoundaryNestedMultiPoint> for Boundary {
             Self::default()
         } else {
             Self {
-                vertices: value.iter().map(|v| LargeIndex::try_from(*v).unwrap()).collect(),
+                vertices: value
+                    .iter()
+                    .map(|v| LargeIndex::try_from(*v).unwrap())
+                    .collect(),
                 ..Self::default()
             }
         }
@@ -235,7 +238,11 @@ impl Boundary {
             let mut counter = BoundaryCounter::default();
             let mut mcsurface =
                 BoundaryNestedMultiOrCompositeSurface::with_capacity(self.surfaces.len());
-            self.push_surfaces_to_multisurface(self.surfaces.as_slice(), &mut mcsurface, &mut counter);
+            self.push_surfaces_to_multisurface(
+                self.surfaces.as_slice(),
+                &mut mcsurface,
+                &mut counter,
+            );
             Ok(mcsurface)
         } else {
             Err(errors::Error::IncompatibleBoundary(
@@ -273,7 +280,10 @@ impl Boundary {
             let mut mcsolid = BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len());
             for shells_start_i in &self.solids {
                 let shells_len = LargeIndex::try_from(self.shells.len()).unwrap();
-                let shells_end_i = self.solids.get(counter.next_solid_i()).unwrap_or(&shells_len);
+                let shells_end_i = self
+                    .solids
+                    .get(counter.next_solid_i())
+                    .unwrap_or(&shells_len);
                 let s_usize = usize::try_from(*shells_start_i).unwrap();
                 let e_usize = usize::try_from(*shells_end_i).unwrap();
                 if let Some(shells) = self.shells.get(s_usize..e_usize) {
@@ -291,10 +301,18 @@ impl Boundary {
         }
     }
 
-    fn push_shells_to_solid(&self, shells: &[LargeIndex], solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>, mut counter: &mut BoundaryCounter) {
+    fn push_shells_to_solid(
+        &self,
+        shells: &[LargeIndex],
+        solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>,
+        mut counter: &mut BoundaryCounter,
+    ) {
         for surfaces_start_i in shells {
             let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
-            let surfaces_end_i = self.shells.get(counter.next_shell_i()).unwrap_or(&surfaces_len);
+            let surfaces_end_i = self
+                .shells
+                .get(counter.next_shell_i())
+                .unwrap_or(&surfaces_len);
             let s_usize = usize::try_from(*surfaces_start_i).unwrap();
             let e_usize = usize::try_from(*surfaces_end_i).unwrap();
             if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
@@ -306,7 +324,12 @@ impl Boundary {
         }
     }
 
-    fn push_surfaces_to_multisurface(&self, surfaces: &[LargeIndex], mcsurface: &mut BoundaryNestedMultiOrCompositeSurface, mut counter: &mut BoundaryCounter) {
+    fn push_surfaces_to_multisurface(
+        &self,
+        surfaces: &[LargeIndex],
+        mcsurface: &mut BoundaryNestedMultiOrCompositeSurface,
+        mut counter: &mut BoundaryCounter,
+    ) {
         for ring_start_i in surfaces {
             let rings_len = LargeIndex::try_from(self.rings.len()).unwrap();
             let ring_end_i = self
@@ -331,7 +354,10 @@ impl Boundary {
     ) {
         for vertices_start_i in rings {
             let vertices_len = LargeIndex::try_from(self.vertices.len()).unwrap();
-            let vertices_end_i = self.rings.get(counter.next_ring_i()).unwrap_or(&vertices_len);
+            let vertices_end_i = self
+                .rings
+                .get(counter.next_ring_i())
+                .unwrap_or(&vertices_len);
             // At the last ring we are out of bounds of the rings vec with v_endi, so
             // we get all the remaining vertices.
             let s_usize = usize::try_from(*vertices_start_i).unwrap();
@@ -455,10 +481,14 @@ impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first ring of the surface.
-        self.0.rings.push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
+        self.0
+            .rings
+            .push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
         // Each iteration through this loop is one ring.
         while let Some(()) = seq.next_element_seed(ExtendVertices(self.0))? {
-            self.0.rings.push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
+            self.0
+                .rings
+                .push(LargeIndex::try_from(self.0.vertices.len()).unwrap());
         }
         // The last ring index needs to be removed, because that is vertices.len()
         // after the last iteration.
@@ -498,10 +528,14 @@ impl<'de, 'a> Visitor<'de> for ExtendSurfacesVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first surface of the aggregate
-        self.0.surfaces.push(LargeIndex::try_from(self.0.rings.len()).unwrap());
+        self.0
+            .surfaces
+            .push(LargeIndex::try_from(self.0.rings.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendRings(self.0))? {
-            self.0.surfaces.push(LargeIndex::try_from(self.0.rings.len()).unwrap());
+            self.0
+                .surfaces
+                .push(LargeIndex::try_from(self.0.rings.len()).unwrap());
         }
         if !self.0.surfaces.is_empty() {
             let last_idx = self.0.surfaces.len() - 1;
@@ -537,10 +571,14 @@ impl<'de, 'a> Visitor<'de> for ExtendShellsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first surface of the aggregate
-        self.0.shells.push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
+        self.0
+            .shells
+            .push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendSurfaces(self.0))? {
-            self.0.shells.push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
+            self.0
+                .shells
+                .push(LargeIndex::try_from(self.0.surfaces.len()).unwrap());
         }
         if !self.0.shells.is_empty() {
             let last_idx = self.0.shells.len() - 1;
@@ -577,10 +615,14 @@ impl<'de, 'a> Visitor<'de> for ExtendSolidsVisitor<'a> {
         A: SeqAccess<'de>,
     {
         // Add the start index of the first shell of the aggregate
-        self.0.solids.push(LargeIndex::try_from(self.0.shells.len()).unwrap());
+        self.0
+            .solids
+            .push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendShells(self.0))? {
-            self.0.solids.push(LargeIndex::try_from(self.0.shells.len()).unwrap());
+            self.0
+                .solids
+                .push(LargeIndex::try_from(self.0.shells.len()).unwrap());
         }
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;
@@ -761,7 +803,8 @@ mod test {
             vertices: LargeIndexVec::try_from(vec![
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22,
-            ]).unwrap(),
+            ])
+            .unwrap(),
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4]).unwrap(),
             ..Default::default()
@@ -781,7 +824,8 @@ mod test {
             vertices: LargeIndexVec::try_from(vec![
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22,
-            ]).unwrap(),
+            ])
+            .unwrap(),
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4]).unwrap(),
             shells: LargeIndexVec::try_from(vec![0_usize, 2]).unwrap(),
@@ -802,7 +846,8 @@ mod test {
             vertices: LargeIndexVec::try_from(vec![
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22, 23, 24, 25, 26, 27, 28,
-            ]).unwrap(),
+            ])
+            .unwrap(),
             rings: LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap(),
             surfaces: LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap(),
             shells: LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap(),
@@ -836,15 +881,25 @@ mod test {
             LargeIndexVec::try_from(vec![
                 0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                 22, 23, 24, 25, 26, 27, 28,
-            ]).unwrap(),
+            ])
+            .unwrap(),
         );
         assert_eq!(
             mcsolidboundary.rings,
             LargeIndexVec::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap()
         );
-        assert_eq!(mcsolidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap());
-        assert_eq!(mcsolidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap());
-        assert_eq!(mcsolidboundary.solids, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
+        assert_eq!(
+            mcsolidboundary.surfaces,
+            LargeIndexVec::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap()
+        );
+        assert_eq!(
+            mcsolidboundary.shells,
+            LargeIndexVec::try_from(vec![0_usize, 2, 3]).unwrap()
+        );
+        assert_eq!(
+            mcsolidboundary.solids,
+            LargeIndexVec::try_from(vec![0_usize, 2]).unwrap()
+        );
     }
 
     #[test]
@@ -877,11 +932,21 @@ mod test {
             .unwrap();
         assert_eq!(
             solidboundary.vertices,
-            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5]).unwrap(),
+            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5])
+                .unwrap(),
         );
-        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap());
-        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap());
-        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize]).unwrap());
+        assert_eq!(
+            solidboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap()
+        );
+        assert_eq!(
+            solidboundary.surfaces,
+            LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap()
+        );
+        assert_eq!(
+            solidboundary.shells,
+            LargeIndexVec::try_from(vec![0_usize]).unwrap()
+        );
     }
 
     #[test]
@@ -902,12 +967,22 @@ mod test {
             .unwrap();
         assert_eq!(
             solidboundary.vertices,
-            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5]).unwrap(),
+            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5])
+                .unwrap(),
         );
-        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap());
-        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap());
+        assert_eq!(
+            solidboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4, 8, 12]).unwrap()
+        );
+        assert_eq!(
+            solidboundary.surfaces,
+            LargeIndexVec::try_from(vec![0_usize, 1, 2, 3]).unwrap()
+        );
         // Surface index 4 is out of bounds, which indicates and empty shell.
-        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 4]).unwrap());
+        assert_eq!(
+            solidboundary.shells,
+            LargeIndexVec::try_from(vec![0_usize, 4]).unwrap()
+        );
     }
     #[test]
     fn deserialize_solidboundary_surface_inner_ring() {
@@ -921,9 +996,18 @@ mod test {
             solidboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4]).unwrap(),
         );
-        assert_eq!(solidboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
-        assert_eq!(solidboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
-        assert_eq!(solidboundary.shells, LargeIndexVec::try_from(vec![0_usize, 1]).unwrap());
+        assert_eq!(
+            solidboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap()
+        );
+        assert_eq!(
+            solidboundary.surfaces,
+            LargeIndexVec::try_from(vec![0_usize, 2]).unwrap()
+        );
+        assert_eq!(
+            solidboundary.shells,
+            LargeIndexVec::try_from(vec![0_usize, 1]).unwrap()
+        );
     }
 
     #[test]
@@ -948,8 +1032,14 @@ mod test {
             .deserialize_seq(ExtendSurfacesVisitor(&mut multisurfaceboundary))
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
-        assert_eq!(multisurfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap());
-        assert_eq!(multisurfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize]).unwrap());
+        assert_eq!(
+            multisurfaceboundary.vertices,
+            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap()
+        );
+        assert_eq!(
+            multisurfaceboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize]).unwrap()
+        );
     }
     #[test]
     fn deserialize_multi_or_compositesurfaceboundary_surface_inner_ring() {
@@ -963,8 +1053,14 @@ mod test {
             multisurfaceboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 0, 3, 2, 1]).unwrap()
         );
-        assert_eq!(multisurfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
-        assert_eq!(multisurfaceboundary.surfaces, LargeIndexVec::try_from(vec![0_usize, 2]).unwrap());
+        assert_eq!(
+            multisurfaceboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap()
+        );
+        assert_eq!(
+            multisurfaceboundary.surfaces,
+            LargeIndexVec::try_from(vec![0_usize, 2]).unwrap()
+        );
     }
 
     #[test]
@@ -985,8 +1081,14 @@ mod test {
             .deserialize_seq(ExtendRingsVisitor(&mut surfaceboundary))
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
-        assert_eq!(surfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap());
-        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize]).unwrap());
+        assert_eq!(
+            surfaceboundary.vertices,
+            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1]).unwrap()
+        );
+        assert_eq!(
+            surfaceboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize]).unwrap()
+        );
     }
     #[test]
     fn deserialize_surfaceboundary_inner_ring() {
@@ -996,8 +1098,14 @@ mod test {
             .deserialize_seq(ExtendRingsVisitor(&mut surfaceboundary))
             .map_err(|e: serde_json::Error| e.to_string())
             .unwrap();
-        assert_eq!(surfaceboundary.vertices, LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap());
-        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4]).unwrap());
+        assert_eq!(
+            surfaceboundary.vertices,
+            LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap()
+        );
+        assert_eq!(
+            surfaceboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4]).unwrap()
+        );
     }
     #[test]
     fn deserialize_surfaceboundary_inner_ring_multiple() {
@@ -1011,6 +1119,9 @@ mod test {
             surfaceboundary.vertices,
             LargeIndexVec::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 4, 5, 6, 7]).unwrap()
         );
-        assert_eq!(surfaceboundary.rings, LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap());
+        assert_eq!(
+            surfaceboundary.rings,
+            LargeIndexVec::try_from(vec![0_usize, 4, 8]).unwrap()
+        );
     }
 }

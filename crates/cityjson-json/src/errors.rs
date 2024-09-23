@@ -16,7 +16,7 @@ pub enum Error {
     StreamingError(String),
     UnsupportedExtension,
     UnsupportedVersion(String, String),
-    IncompatibleBoundary(String, String)
+    IncompatibleBoundary(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
