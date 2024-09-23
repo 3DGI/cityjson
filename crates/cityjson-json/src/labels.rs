@@ -37,7 +37,7 @@ impl Serialize for TextureIndex {
                     let shells_len = LargeIndex::try_from(self.shells.len()).unwrap();
                     let shells_end_i = self
                         .solids
-                        .get(counter.next_shell_i())
+                        .get(counter.next_solid_i())
                         .unwrap_or(&shells_len);
                     let s_usize = usize::try_from(*shells_start_i).unwrap();
                     let e_usize = usize::try_from(*shells_end_i).unwrap();
@@ -45,10 +45,9 @@ impl Serialize for TextureIndex {
                         let mut solid = NestedSolidTextureValues::with_capacity(shells.len());
                         for surfaces_start_i in shells {
                             let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
-                            let surfaces_end_i = self
-                                .shells
-                                .get(counter.next_shell_i())
-                                .unwrap_or(&surfaces_len);
+                            let _nshi = counter.next_shell_i();
+                            let _srf_e_i_op = self.shells.get(_nshi);
+                            let surfaces_end_i = _srf_e_i_op.unwrap_or(&surfaces_len);
                             let s_usize = usize::try_from(*surfaces_start_i).unwrap();
                             let e_usize = usize::try_from(*surfaces_end_i).unwrap();
                             if let Some(surfaces) =

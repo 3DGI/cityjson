@@ -34,6 +34,7 @@ pub fn cargo_workspace_directory() -> Option<PathBuf> {
 }
 
 /// Assert that the data retains the same content after a deserialize-serialize roundtrip.
+/// Assert that result == expected.
 pub fn assert_eq_roundtrip<'de, T>(json_input: &'de str)
 where
     T: Deserialize<'de> + Serialize
