@@ -292,6 +292,7 @@ pub mod indices;
 pub mod labels;
 pub mod v1_1;
 pub mod v2_0;
+pub mod attributes;
 
 #[non_exhaustive]
 #[derive(Debug)]

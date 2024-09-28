@@ -2,3 +2,4 @@
 Cargo.lock
 .idea
 /resources/data/10-356-724.city.json
+/experiments/attributes/target/

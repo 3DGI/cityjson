@@ -28,6 +28,7 @@ use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
 use crate::indices::{LargeIndex, OptionalLargeIndex};
 use crate::labels;
+use crate::attributes::{Attributes, deserialize_attributes, serialize_attributes};
 
 // TODO: rename all type_X to type_
 
@@ -100,7 +101,8 @@ pub struct CityModel<'cm> {
         borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_attributes"
+        deserialize_with = "deserialize_attributes",
+        serialize_with = "serialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub extra: Option<Attributes<'cm>>,
@@ -207,7 +209,8 @@ pub struct CityObject<'cm> {
         borrow,
         skip_serializing_if = "Option::is_none",
         default,
-        deserialize_with = "deserialize_attributes"
+        deserialize_with = "deserialize_attributes",
+        serialize_with = "serialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes<'cm>>,
@@ -221,7 +224,8 @@ pub struct CityObject<'cm> {
         borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_attributes"
+        deserialize_with = "deserialize_attributes",
+        serialize_with = "serialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub extra: Option<Attributes<'cm>>,
@@ -290,8 +294,27 @@ pub enum CityObjectType {
     Extension(String),
 }
 
-/// Attributes of CityModel, CityObjects, Semantics. Borrowed from the input data.
-pub type Attributes<'cm> = Value<'cm>;
+mod test_attributes {
+    use super::Attributes;
+    #[test]
+    fn test_attributes_from_serde_json() {
+        let mut attributes_map = serde_json::Map::new();
+        attributes_map.insert("null".into(), serde_json::Value::Null);
+        attributes_map.insert("bool".into(), serde_json::Value::Bool(true));
+        attributes_map.insert("number_int".into(), serde_json::Value::from(42_i64));
+        attributes_map.insert("number_float".into(), serde_json::Value::from(42_f64));
+        attributes_map.insert("string".into(), serde_json::Value::String("äáßüóíéöűőú".into()));
+        attributes_map.insert("array_null".into(), serde_json::Value::Array(vec![serde_json::Value::Null, serde_json::Value::Null]));
+        attributes_map.insert("array_bool".into(), serde_json::Value::Array(vec![serde_json::Value::Bool(true), serde_json::Value::Bool(false)]));
+        attributes_map.insert("array_number".into(), serde_json::Value::Array(vec![serde_json::Value::from(42_i64), serde_json::Value::from(42_f64)]));
+        attributes_map.insert("array_string".into(), serde_json::Value::Array(vec![serde_json::Value::String("".into()), serde_json::Value::String("äáßüóíéöűőú".into())]));
+        let complex_attribute = serde_json::json!(r#"{"key": "value", "array": [1, "two", null, false]}"#);
+        attributes_map.insert("object".into(), complex_attribute);
+        let serde_value = serde_json::Value::from(attributes_map);
+        let attributes = Attributes::Owned(serde_value);
+    }
+
+}
 
 /// Geometry.
 ///
@@ -1143,7 +1166,8 @@ pub struct Semantic<'cm> {
         borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_attributes"
+        deserialize_with = "deserialize_attributes",
+        serialize_with = "serialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes<'cm>>,
@@ -1261,7 +1285,8 @@ pub struct Metadata<'cm> {
         borrow,
         flatten,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_attributes"
+        deserialize_with = "deserialize_attributes",
+        serialize_with = "serialize_attributes"
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub extra: Option<Attributes<'cm>>,
@@ -2203,14 +2228,4 @@ impl Display for Extension {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "url: {}, version: {}", self.url, self.version)
     }
-}
-
-pub fn deserialize_attributes<'de: 'cm, 'cm, D>(
-    deserializer: D,
-) -> std::result::Result<Option<Attributes<'cm>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let s = Value::deserialize(deserializer)?;
-    Ok((!s.is_null()).then_some(s))
 }
