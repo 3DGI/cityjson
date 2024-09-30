@@ -686,10 +686,10 @@ pub type BoundaryNestedSolid = Vec<BoundaryNestedMultiOrCompositeSurface>;
 /// # use serde_cityjson::boundary::*;
 /// # use serde_cityjson::errors;
 /// # fn main() -> errors::Result<()> {
-/// let asrf_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
-/// let boundary = Boundary::from(asrf_nested.clone());
-/// let asrf_nested_rev: BoundaryNestedMultiOrCompositeSurface = boundary.to_nested_multi_or_compositesurface()?;
-/// assert_eq!(asrf_nested, asrf_nested_rev);
+/// let aggregatesurface_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
+/// let boundary = Boundary::from(aggregatesurface_nested.clone());
+/// let aggregatesurface_nested_rev: BoundaryNestedMultiOrCompositeSurface = boundary.to_nested_multi_or_compositesurface()?;
+/// assert_eq!(aggregatesurface_nested, aggregatesurface_nested_rev);
 /// # Ok(())
 /// # }
 pub type BoundaryNestedMultiOrCompositeSurface = Vec<BoundaryNestedMultiLineString>;

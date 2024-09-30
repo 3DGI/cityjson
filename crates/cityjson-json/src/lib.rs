@@ -52,7 +52,7 @@
 //! ["Type-Driven API Design in Rust" by Will Crichton](https://youtu.be/bnnacleqg6k?feature=shared)
 //! provides some inspiration for this concept.
 //!
-//! ### Validation and deserializtion of invalid CityJSON objects
+//! ### Validation and deserialization of invalid CityJSON objects
 //!
 //! `serde_cityjson` does not validate the CityJSON objects in the typical sense, but it tries to
 //! parse and deserialize them into the Rust structures that mimic the CityJSON specification.

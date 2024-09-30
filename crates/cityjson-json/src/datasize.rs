@@ -1,4 +1,4 @@
-//! Estimate the stack and heap size of serde_citjson's structs that are holding value. This
+//! Estimate the stack and heap size of serde_cityjson's structs that are holding value. This
 //! module only used for performance optimization during the development of the library. The data
 //! size estimation has a significant runtime overhead, so don't enable the corresponding "datasize"
 //! feature unless you need it.
@@ -203,10 +203,10 @@ impl CityModelDataSize {
                     co_size.total_geometry += total_heap_stack_size(geom);
                     let lod = geom.lod.unwrap();
                     if geometries_size.contains_key(&lod) {
-                        let geomsize = geometries_size.get_mut(&lod).unwrap();
-                        geomsize.count += 1;
-                        geomsize.total += total_heap_stack_size(geom);
-                        geomsize.add_geometry(geom);
+                        let geometry_size = geometries_size.get_mut(&lod).unwrap();
+                        geometry_size.count += 1;
+                        geometry_size.total += total_heap_stack_size(geom);
+                        geometry_size.add_geometry(geom);
                     } else {
                         geometries_size.insert(
                             lod,
@@ -229,7 +229,7 @@ impl CityModelDataSize {
                 }
             }
             co_size.total_attributes +=
-                sizeof_attributes_option(&co.attributes) + std::mem::size_of_val(&co.attributes);
+                sizeof_attributes_option(&co.attributes) + size_of_val(&co.attributes);
             if co.geographical_extent.is_some() {
                 co_size.count_geographical_extent += 1;
             }
@@ -331,7 +331,7 @@ impl GeometryDataSize {
 
 /// Calculate the total heap and stack size of a variable.
 pub fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
-    data_size(data) + std::mem::size_of_val(data)
+    data_size(data) + size_of_val(data)
 }
 
 /// Compute the heap size of the optional Attributes that use serde_json_borrow::Value.
@@ -342,9 +342,9 @@ pub(crate) fn sizeof_attributes_option(a: &Option<serde_json_borrow::Value>) -> 
             .unwrap()
             .iter()
             .map(|(_, v)| {
-                std::mem::size_of::<&str>()
+                size_of::<&str>()
                     + sizeof_serde_borrow_value(v)
-                    + std::mem::size_of::<usize>() * 3
+                    + size_of::<usize>() * 3
             })
             .sum()
     } else {
@@ -359,10 +359,10 @@ pub(crate) fn sizeof_attributes_cloned_option(a: &Option<serde_json::Value>) -> 
         if let Some(map) = attributes.as_object() {
             map.iter()
                 .map(|(k, v)| {
-                    std::mem::size_of::<String>()
+                    size_of::<String>()
                         + k.capacity()
                         + sizeof_serde_value(v)
-                        + std::mem::size_of::<usize>() * 3
+                        + size_of::<usize>() * 3
                 })
                 .sum()
         } else {
@@ -377,7 +377,7 @@ pub(crate) fn sizeof_attributes_cloned_option(a: &Option<serde_json::Value>) -> 
 ///
 /// From https://stackoverflow.com/a/76456111
 pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
-    std::mem::size_of::<serde_json::Value>()
+    size_of::<serde_json::Value>()
         + match v {
             serde_json::Value::Null => 0,
             serde_json::Value::Bool(_) => 0,
@@ -387,10 +387,10 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
             serde_json::Value::Object(o) => o
                 .iter()
                 .map(|(k, v)| {
-                    std::mem::size_of::<String>()
+                    size_of::<String>()
                         + k.capacity()
                         + sizeof_serde_value(v)
-                        + std::mem::size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
+                        + size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
                 })
                 .sum(),
         }
@@ -398,19 +398,19 @@ pub(crate) fn sizeof_serde_value(v: &serde_json::Value) -> usize {
 
 /// Compute the heap size of a serde_json_borrow::Value.
 pub(crate) fn sizeof_serde_borrow_value(v: &serde_json_borrow::Value) -> usize {
-    std::mem::size_of::<serde_json::Value>()
+    size_of::<serde_json::Value>()
         + match v {
             serde_json_borrow::Value::Null => 0,
             serde_json_borrow::Value::Bool(_) => 0,
             serde_json_borrow::Value::Number(_) => 0, // Incorrect if arbitrary_precision is enabled. oh well
-            serde_json_borrow::Value::Str(_) => std::mem::size_of::<Cow<str>>(),
+            serde_json_borrow::Value::Str(_) => size_of::<Cow<str>>(),
             serde_json_borrow::Value::Array(a) => a.iter().map(sizeof_serde_borrow_value).sum(),
             serde_json_borrow::Value::Object(o) => o
                 .into_iter()
                 .map(|(_, v)| {
-                    std::mem::size_of::<&str>()
+                    size_of::<&str>()
                         + sizeof_serde_borrow_value(v)
-                        + std::mem::size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
+                        + size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
                 })
                 .sum(),
         }

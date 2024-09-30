@@ -4,11 +4,11 @@ use std::fmt::{Display, Formatter};
 
 /// Attributes of CityModel, CityObjects, Semantics.
 /// Borrowed from the input data when deserialized. The deserialized value
-/// is [serde_json_borrow::Value].
+/// is [Value].
 /// Can own its value, which is then [serde_json::Value].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Attributes<'cm> {
-    Borrowed(serde_json_borrow::Value<'cm>),
+    Borrowed(Value<'cm>),
     Owned(serde_json::Value),
 }
 
@@ -33,7 +33,7 @@ impl Display for Attributes<'_> {
 
 pub fn deserialize_attributes<'de: 'cm, 'cm, D>(
     deserializer: D,
-) -> std::result::Result<Option<Attributes<'cm>>, D::Error>
+) -> Result<Option<Attributes<'cm>>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {

@@ -198,7 +198,7 @@ impl Serialize for TextureIndex {
 }
 
 impl TextureIndex {
-    /// Hint what [crate::boundary::BoundaryType] does the TextureIndex belong to.
+    /// Hint what [BoundaryType] does the TextureIndex belong to.
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {
             BoundaryType::MultiOrCompositeSolid
@@ -547,7 +547,7 @@ impl Serialize for LabelIndex {
 }
 
 impl LabelIndex {
-    /// Hint what [crate::boundary::BoundaryType] does the LabelIndex belong to.
+    /// Hint what [BoundaryType] does the LabelIndex belong to.
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {
             BoundaryType::MultiOrCompositeSolid
@@ -710,7 +710,7 @@ pub type NestedMultiSolidSemanticsValues = Vec<Vec<Vec<OptionalIndex>>>;
 pub type NestedSolidSemanticsValues = Vec<Vec<OptionalIndex>>;
 pub type NestedShellSemanticsValues = Vec<OptionalIndex>;
 
-// TODO: this can easily be u8, couz I don't expect to have more than 255 different Semantic object
+// TODO: this can easily be u8, because I don't expect to have more than 255 different Semantic object
 //  on a single geometry...but if the shitty code does not dedup the Semantic objects then I could
 //  have a problem, because there will be as many Semantic objects as geometry primitives.
 pub type OptionalIndex = Option<u32>;

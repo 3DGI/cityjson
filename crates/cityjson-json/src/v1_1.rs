@@ -71,8 +71,8 @@ use crate::attributes::{Attributes, deserialize_attributes, serialize_attributes
 ///   "vertices": [],
 ///   "appearance": {}
 /// }"#;
-/// let cfeature: CityModel = serde_json::from_str(json_str)?;
-/// let cfeature_json = serde_json::to_string(&cfeature)?;
+/// let cjfeature: CityModel = serde_json::from_str(json_str)?;
+/// let cjfeature_json = serde_json::to_string(&cjfeature)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -1625,9 +1625,9 @@ impl<'cm> CityObject<'cm> {
 }
 
 impl<'de> Deserialize<'de> for CityObjectType {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_str(CityObjectTypeVisitor)
     }
@@ -1642,7 +1642,7 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
         formatter.write_str("a string of a valid CityObject type")
     }
 
-    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+    fn visit_str<E>(self, value: &str) -> result::Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
@@ -1701,7 +1701,7 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
 }
 
 impl Serialize for CityObjectType {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
     {
@@ -1811,9 +1811,9 @@ impl Serialize for CityObjectType {
 }
 
 impl<'de> Deserialize<'de> for LoD {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_str(LoDVisitor)
     }
@@ -1828,7 +1828,7 @@ impl<'de> Visitor<'de> for LoDVisitor {
         formatter.write_str("a string with a valid Level of Detail value")
     }
 
-    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+    fn visit_str<E>(self, value: &str) -> result::Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
@@ -1862,7 +1862,7 @@ impl<'de> Visitor<'de> for LoDVisitor {
 }
 
 impl Serialize for LoD {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
     {
@@ -1904,9 +1904,9 @@ impl Display for SemanticType {
 }
 
 impl<'de: 'cm, 'cm> Deserialize<'de> for SemanticType {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_str(SemanticTypeVisitor)
     }
@@ -1921,7 +1921,7 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
         formatter.write_str("a string of a valid Semantic type")
     }
 
-    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+    fn visit_str<E>(self, value: &str) -> result::Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
@@ -1966,7 +1966,7 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
 }
 
 impl Serialize for SemanticType {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
     {
