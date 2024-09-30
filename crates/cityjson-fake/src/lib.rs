@@ -96,20 +96,20 @@ struct CityModelBuilder<'cm> {
     attributes_semantic: Option<Attributes<'cm>>,
 }
 
-impl<'cm> Into<CityModel<'cm>> for CityModelBuilder<'cm> {
-    fn into(self) -> CityModel<'cm> {
+impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
+    fn from(val: CityModelBuilder<'cm>) -> Self {
         CityModel::new(
-            self.id,
-            self.type_cm,
-            Some(self.version.unwrap_or(CityJSONVersion::V1_1)),
-            Some(self.transform.unwrap_or_default()),
-            self.cityobjects,
-            self.vertices,
-            self.metadata,
-            self.appearance,
-            self.geometry_templates,
-            self.extra,
-            self.extensions,
+            val.id,
+            val.type_cm,
+            Some(val.version.unwrap_or(CityJSONVersion::V1_1)),
+            Some(val.transform.unwrap_or_default()),
+            val.cityobjects,
+            val.vertices,
+            val.metadata,
+            val.appearance,
+            val.geometry_templates,
+            val.extra,
+            val.extensions,
         )
     }
 }
@@ -1573,10 +1573,7 @@ struct SemanticFaker<'cmbuild, 'cm> {
 
 impl<'cm: 'cmbuild, 'cmbuild> SemanticFaker<'cmbuild, 'cm> {
     fn new(cotype: CityObjectType, attributes: &'cmbuild Option<Attributes<'cm>>) -> Self {
-        Self {
-            cotype,
-            attributes: attributes,
-        }
+        Self { cotype, attributes }
     }
 }
 
@@ -1681,9 +1678,9 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
 #[derive(Clone)]
 struct MaterialBuilder<'cm>(Material<'cm>);
 
-impl<'cm> Into<Material<'cm>> for MaterialBuilder<'cm> {
-    fn into(self) -> Material<'cm> {
-        self.0
+impl<'cm> From<MaterialBuilder<'cm>> for Material<'cm> {
+    fn from(val: MaterialBuilder<'cm>) -> Self {
+        val.0
     }
 }
 
@@ -1876,9 +1873,9 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
 #[derive(Clone)]
 struct TextureBuilder<'cm>(Texture<'cm>);
 
-impl<'cm> Into<Texture<'cm>> for TextureBuilder<'cm> {
-    fn into(self) -> Texture<'cm> {
-        self.0
+impl<'cm> From<TextureBuilder<'cm>> for Texture<'cm> {
+    fn from(val: TextureBuilder<'cm>) -> Self {
+        val.0
     }
 }
 
@@ -2062,9 +2059,9 @@ impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
 #[derive(Clone)]
 struct MetadataBuilder<'cm>(Metadata<'cm>);
 
-impl<'cm> Into<Metadata<'cm>> for MetadataBuilder<'cm> {
-    fn into(self) -> Metadata<'cm> {
-        self.0
+impl<'cm> From<MetadataBuilder<'cm>> for Metadata<'cm> {
+    fn from(val: MetadataBuilder<'cm>) -> Self {
+        val.0
     }
 }
 
