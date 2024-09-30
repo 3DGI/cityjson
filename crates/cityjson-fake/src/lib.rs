@@ -1038,7 +1038,7 @@ impl MultiSurfaceFaker {
 impl Dummy<MultiSurfaceFaker> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            // todo scj: ::with_capacity should with the type that largeindex holds, because it doesn't make sense for largeindexvec to hold more items than max largeindex
+            // todo scj: ::with_capacity should with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
             vertices: LargeIndexVec::with_capacity(
                 (MIN_MEMBERS_MULTIPOINT * MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE)
                     as usize,
@@ -1665,7 +1665,7 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
         // Probability of having a semantic for the surface, instead of a null
         let prob = 0.8;
         let d = Bernoulli::new(prob).unwrap();
-        let has_semantic = d.sample(&mut rand::thread_rng());
+        let has_semantic = d.sample(&mut thread_rng());
         if has_semantic {
             let idx: IndexType = rng.gen_range(0..=config.max);
             Some(LargeIndex::from(idx))
@@ -2122,27 +2122,21 @@ impl<'cm> MetadataBuilder<'cm> {
 
     fn reference_system(mut self) -> Self {
         let ogc_def_crs = "http://www.opengis.net/def/crs";
-        let authority = *CRS_AUTHORITIES
-            .choose(&mut rand::thread_rng())
-            .unwrap_or(&"EPSG");
+        let authority = *CRS_AUTHORITIES.choose(&mut thread_rng()).unwrap_or(&"EPSG");
         let version = match authority {
-            "EPSG" => *CRS_EPSG_VERSIONS
-                .choose(&mut rand::thread_rng())
-                .unwrap_or(&"0"),
-            "OGC" => *CRS_OGC_VERSIONS
-                .choose(&mut rand::thread_rng())
-                .unwrap_or(&"0"),
+            "EPSG" => *CRS_EPSG_VERSIONS.choose(&mut thread_rng()).unwrap_or(&"0"),
+            "OGC" => *CRS_OGC_VERSIONS.choose(&mut thread_rng()).unwrap_or(&"0"),
             _ => "0",
         };
         // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included
         //  with https://doc.rust-lang.org/std/macro.include_str.html
         let code = match authority {
             "EPSG" => {
-                let a = rand::thread_rng().gen_range(2000..10500);
+                let a = thread_rng().gen_range(2000..10500);
                 a.to_string()
             }
             "OGC" => CRS_OGC_CODES
-                .choose(&mut rand::thread_rng())
+                .choose(&mut thread_rng())
                 .unwrap_or(&"0")
                 .to_string(),
             _ => "0".to_string(),
