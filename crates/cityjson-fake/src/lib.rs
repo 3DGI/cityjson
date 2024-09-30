@@ -10,7 +10,7 @@
 //!
 //! See the [design doc] for details on how this crate works under the hood.
 use std::borrow::Cow;
-use std::ops::{Deref, Range, RangeInclusive};
+use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
@@ -555,7 +555,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
             }
         }
 
-        let mut boundaries: Option<Boundary> = None;
+        let boundaries: Option<Boundary> = None;
         let mut semantics: Option<Semantics> = None;
         let mut material: Option<MaterialMap> = None;
         let mut texture: Option<TextureMap> = None;
