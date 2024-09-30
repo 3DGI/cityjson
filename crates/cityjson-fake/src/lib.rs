@@ -981,7 +981,7 @@ impl Dummy<SolidFaker> for Boundary {
             surfaces: LargeIndexVec::with_capacity(
                 (MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID) as usize,
             ),
-            shells: LargeIndexVec::with_capacity((MAX_MEMBERS_SOLID) as usize),
+            shells: LargeIndexVec::with_capacity(MAX_MEMBERS_SOLID as usize),
             solids: LargeIndexVec::default(),
         };
 
@@ -1110,7 +1110,7 @@ impl Dummy<MultiLineStringFaker> for Boundary {
             vertices: LargeIndexVec::with_capacity(
                 (MIN_MEMBERS_MULTIPOINT * MAX_MEMBERS_MULTILINESTRING) as usize,
             ),
-            rings: LargeIndexVec::with_capacity((MAX_MEMBERS_MULTILINESTRING) as usize),
+            rings: LargeIndexVec::with_capacity(MAX_MEMBERS_MULTILINESTRING as usize),
             surfaces: LargeIndexVec::default(),
             shells: LargeIndexVec::default(),
             solids: LargeIndexVec::default(),
@@ -1227,7 +1227,7 @@ impl Dummy<VerticesTemplatesFaker> for VerticesTemplates {
 type TemplateVertex = [f64; 3];
 struct TemplateVertexFaker;
 impl Dummy<TemplateVertexFaker> for TemplateVertex {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &TemplateVertexFaker, rng: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &TemplateVertexFaker, _: &mut R) -> Self {
         Faker.fake()
     }
 }
@@ -1591,7 +1591,7 @@ impl<'cm: 'cmbuild, 'cmbuild> SemanticFaker<'cmbuild, 'cm> {
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<SemanticFaker<'cmbuild, 'cm>> for Option<Semantic<'cm>> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker<'cmbuild, 'cm>, rng: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker<'cmbuild, 'cm>, _: &mut R) -> Self {
         if let Some(semtype) =
             SemanticTypeFaker::new(config.cotype.clone()).fake::<Option<SemanticType>>()
         {
