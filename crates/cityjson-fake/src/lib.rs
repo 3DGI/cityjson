@@ -3,9 +3,9 @@
 //! CityJSON generator with fake data.
 //!
 //! - You can control the number of vertices it the surfaces, for instance to fake triangulated
-//! surfaces.
+//!   surfaces.
 //! - The generated CityJSON is valid according to the specifications. However, the generated
-//! vertices and geometries are random, they have no resemblance to real-world and they are invalid.
+//!   vertices and geometries are random, they have no resemblance to real-world and they are invalid.
 //! -
 //!
 //! See the [design doc] for details on how this crate works under the hood.
@@ -225,12 +225,10 @@ impl<'cm> CityModelBuilder<'cm> {
         let mat: Vec<Material>;
         if let Some(mb) = material_builder {
             mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
-                .into_iter()
                 .map(|_| mb.clone().build())
                 .collect()
         } else {
             mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
-                .into_iter()
                 .map(|_| MaterialBuilder::default().into())
                 .collect()
         }
@@ -256,12 +254,10 @@ impl<'cm> CityModelBuilder<'cm> {
         let tex: Vec<Texture>;
         if let Some(tb) = texture_builder {
             tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
-                .into_iter()
                 .map(|_| tb.clone().build())
                 .collect()
         } else {
             tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
-                .into_iter()
                 .map(|_| TextureBuilder::default().into())
                 .collect()
         }
@@ -491,17 +487,15 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
         let geometry_type_chosen = geometry_types.choose(rng).unwrap_or(&0_usize);
         // Decide if we can generate semantics for the given CityObject type
         let mut generate_semantics = false;
-        if lod >= LoD::LoD2 {
-            if building_types || config.cotype == CityObjectType::BuildingInstallation {
-                generate_semantics = true;
-            } else if config.cotype == CityObjectType::WaterBody {
-                generate_semantics = true;
-            } else if config.cotype == CityObjectType::Road
+        if lod >= LoD::LoD2
+            && (building_types
+                || config.cotype == CityObjectType::BuildingInstallation
+                || config.cotype == CityObjectType::WaterBody
+                || config.cotype == CityObjectType::Road
                 || config.cotype == CityObjectType::Railway
-                || config.cotype == CityObjectType::TransportSquare
-            {
-                generate_semantics = true;
-            }
+                || config.cotype == CityObjectType::TransportSquare)
+        {
+            generate_semantics = true;
         }
         // Decide if we can generate materials
         let mut generate_materials = false;
@@ -1567,7 +1561,6 @@ fn fake_semantics_surfaces<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
     // We have max. as many different Semantics as there are geometry members
     let nr_semantic: IndexType = (1..=nr_members).fake_with_rng(rng);
     let surfaces: Vec<Semantic> = (0..=nr_semantic)
-        .into_iter()
         .filter_map(|_| sf.fake::<Option<Semantic>>())
         .collect();
     (nr_semantic, surfaces)
