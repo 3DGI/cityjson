@@ -945,7 +945,6 @@ impl Dummy<MultiSolidFaker> for Boundary {
                             rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
                         boundary.vertices.extend(
                             (0..nr_vertices)
-                                .into_iter()
                                 .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                         );
                     }
@@ -1022,7 +1021,6 @@ impl Dummy<SolidFaker> for Boundary {
                         rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
                     boundary.vertices.extend(
                         (0..nr_vertices)
-                            .into_iter()
                             .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                     );
                 }
@@ -1087,7 +1085,6 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
                     rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
                 boundary.vertices.extend(
                     (0..nr_vertices)
-                        .into_iter()
                         .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
                 );
             }
@@ -1131,7 +1128,7 @@ impl Dummy<MultiLineStringFaker> for Boundary {
 
         let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
         for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
-            boundary.rings.push(LargeIndex::try_from(ring_i).unwrap());
+            boundary.rings.push(LargeIndex::from(ring_i));
             let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
             ring_i += ring_len;
 
@@ -1139,9 +1136,7 @@ impl Dummy<MultiLineStringFaker> for Boundary {
             let nr_vertices: IndexType =
                 rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
             boundary.vertices.extend(
-                (0..nr_vertices)
-                    .into_iter()
-                    .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
+                (0..nr_vertices).map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
             );
         }
         boundary
@@ -1178,7 +1173,7 @@ impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, _: &mut R) -> Self {
         LargeIndexVec::from(
             (
-                config.0.clone(),
+                config.0,
                 *config.1.start() as usize..*config.1.end() as usize,
             )
                 .fake::<Vec<u32>>(),
@@ -1293,7 +1288,7 @@ impl<'cm: 'semfaker + 'cmbuild, 'cmbuild, 'semfaker>
         } else {
             let (surfaces, values) = fake_depth_three_semantics(
                 config.cotype.clone(),
-                &config.boundary,
+                config.boundary,
                 rng,
                 config.attributes,
             );
@@ -1594,18 +1589,14 @@ impl<'cm: 'cmbuild, 'cmbuild> SemanticFaker<'cmbuild, 'cm> {
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<SemanticFaker<'cmbuild, 'cm>> for Option<Semantic<'cm>> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker<'cmbuild, 'cm>, _: &mut R) -> Self {
-        if let Some(semtype) =
-            SemanticTypeFaker::new(config.cotype.clone()).fake::<Option<SemanticType>>()
-        {
-            Some(Semantic {
+        SemanticTypeFaker::new(config.cotype.clone())
+            .fake::<Option<SemanticType>>()
+            .map(|semtype| Semantic {
                 type_sem: semtype,
                 children: None,
                 parent: None,
                 attributes: config.attributes.clone(),
             })
-        } else {
-            None
-        }
     }
 }
 
