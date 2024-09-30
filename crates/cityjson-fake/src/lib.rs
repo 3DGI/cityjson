@@ -916,7 +916,7 @@ impl Dummy<MultiSolidFaker> for Boundary {
             let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
             solid_i += nr_shells;
 
-            fake_boundary(
+            fake_solid_boundary(
                 config.nr_vertices,
                 rng,
                 &mut boundary,
@@ -974,7 +974,7 @@ impl Dummy<SolidFaker> for Boundary {
         let shell_i = 0u32;
 
         let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
-        fake_boundary(
+        fake_solid_boundary(
             config.nr_vertices,
             rng,
             &mut boundary,
@@ -989,12 +989,13 @@ impl Dummy<SolidFaker> for Boundary {
     }
 }
 
-fn fake_boundary<R: Rng + ?Sized>(
+#[allow(clippy::too_many_arguments)]
+fn fake_solid_boundary<R: Rng + ?Sized>(
     nr_vertices_citymodel: IndexType,
     rng: &mut R,
     boundary: &mut Boundary,
     min_linestring_len: IndexType,
-    mut ring_i: u32,
+    ring_i: u32,
     mut surface_i: u32,
     mut shell_i: u32,
     nr_shells: IndexType,
@@ -1007,24 +1008,18 @@ fn fake_boundary<R: Rng + ?Sized>(
         // Add the surfaces for each shell
         for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
             boundary.surfaces.push(LargeIndex::from(surface_i));
-            let surface_len =
-                rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-            surface_i += surface_len;
+            let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            surface_i += nr_rings;
 
             // Add the rings for each surface
-            for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
-                boundary.rings.push(LargeIndex::from(ring_i));
-                let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-                ring_i += ring_len;
-
-                // Add the vertices for each ring
-                let nr_vertices: IndexType =
-                    rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-                boundary.vertices.extend(
-                    (0..nr_vertices)
-                        .map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
-                );
-            }
+            fake_surface_boundary(
+                nr_vertices_citymodel,
+                rng,
+                boundary,
+                min_linestring_len,
+                ring_i,
+                nr_rings,
+            );
         }
     }
 }
@@ -1062,30 +1057,24 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
         };
 
         // Counters
-        let mut ring_i = 0u32;
+        let ring_i = 0u32;
         let mut surface_i = 0u32;
 
         let nr_surfaces = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
         for _surface in MIN_MEMBERS_MULTISURFACE..=nr_surfaces {
             boundary.surfaces.push(LargeIndex::from(surface_i));
-            let surface_len =
-                rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-            surface_i += surface_len;
+            let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            surface_i += nr_rings;
 
             // Add the rings for each surface
-            for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
-                boundary.rings.push(LargeIndex::from(ring_i));
-                let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-                ring_i += ring_len;
-
-                // Add the vertices for each ring
-                let nr_vertices: IndexType =
-                    rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-                boundary.vertices.extend(
-                    (0..nr_vertices)
-                        .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
-                );
-            }
+            fake_surface_boundary(
+                config.nr_vertices,
+                rng,
+                &mut boundary,
+                min_linestring_len,
+                ring_i,
+                nr_rings,
+            );
         }
         boundary
     }
@@ -1122,22 +1111,39 @@ impl Dummy<MultiLineStringFaker> for Boundary {
         };
 
         // Counters
-        let mut ring_i = 0u32;
+        let ring_i = 0u32;
 
         let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-        for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
-            boundary.rings.push(LargeIndex::from(ring_i));
-            let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-            ring_i += ring_len;
-
-            // Add the vertices for each ring
-            let nr_vertices: IndexType =
-                rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-            boundary.vertices.extend(
-                (0..nr_vertices).map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
-            );
-        }
+        fake_surface_boundary(
+            config.nr_vertices,
+            rng,
+            &mut boundary,
+            min_linestring_len,
+            ring_i,
+            nr_rings,
+        );
         boundary
+    }
+}
+
+fn fake_surface_boundary<R: Rng + ?Sized>(
+    nr_vertices_citymodel: IndexType,
+    rng: &mut R,
+    boundary: &mut Boundary,
+    min_linestring_len: IndexType,
+    mut ring_i: u32,
+    nr_rings: IndexType,
+) {
+    for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
+        boundary.rings.push(LargeIndex::from(ring_i));
+        let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+        ring_i += ring_len;
+
+        // Add the vertices for each ring
+        let nr_vertices: IndexType = rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+        boundary.vertices.extend(
+            (0..nr_vertices).map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
+        );
     }
 }
 
