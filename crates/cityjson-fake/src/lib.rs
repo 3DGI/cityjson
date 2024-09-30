@@ -222,7 +222,7 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 
     pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
-        let mut mat: Vec<Material> = Vec::new();
+        let mat: Vec<Material>;
         if let Some(mb) = material_builder {
             mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
                 .into_iter()
@@ -253,7 +253,7 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 
     pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
-        let mut tex: Vec<Texture> = Vec::new();
+        let tex: Vec<Texture>;
         if let Some(tb) = texture_builder {
             tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
                 .into_iter()
@@ -303,10 +303,12 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
+    #[allow(dead_code)]
     pub fn build_string(self) -> serde_json::Result<String> {
         serde_json::to_string::<CityModel>(&self.into())
     }
 
+    #[allow(dead_code)]
     pub fn build_vec(self) -> serde_json::Result<Vec<u8>> {
         serde_json::to_vec::<CityModel>(&self.into())
     }
@@ -559,9 +561,9 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
         let mut semantics: Option<Semantics> = None;
         let mut material: Option<MaterialMap> = None;
         let mut texture: Option<TextureMap> = None;
-        let mut template: Option<u16> = None;
-        let mut template_boundaries: Option<[usize; 1]> = None;
-        let mut template_transformation_matrix: Option<[f64; 16]> = None;
+        let template: Option<u16>;
+        let template_boundaries: Option<[usize; 1]>;
+        let template_transformation_matrix: Option<[f64; 16]>;
 
         match geometry_type_chosen {
             0 => {
@@ -1629,7 +1631,7 @@ impl Dummy<SemanticTypeFaker> for Option<SemanticType> {
         let transportation_types = config.cotype == CityObjectType::Road
             || config.cotype == CityObjectType::Railway
             || config.cotype == CityObjectType::TransportSquare;
-        let mut semantic_types: Vec<usize> = (0..=17).collect();
+        let semantic_types: Vec<usize>;
         if building_types {
             semantic_types = (0..11).collect();
         } else if config.cotype == CityObjectType::WaterBody {
