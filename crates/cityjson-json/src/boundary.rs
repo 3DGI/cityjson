@@ -80,7 +80,7 @@ impl Serialize for Boundary {
                 let mut nested_json = serializer.serialize_seq(Some(self.solids.len()))?;
                 let nested = self
                     .to_nested_multi_or_compositesolid()
-                    .map_err(|e| Error::custom(e))?;
+                    .map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -88,7 +88,7 @@ impl Serialize for Boundary {
             }
             BoundaryType::Solid => {
                 let mut nested_json = serializer.serialize_seq(Some(self.shells.len()))?;
-                let nested = self.to_nested_solid().map_err(|e| Error::custom(e))?;
+                let nested = self.to_nested_solid().map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -98,7 +98,7 @@ impl Serialize for Boundary {
                 let mut nested_json = serializer.serialize_seq(Some(self.surfaces.len()))?;
                 let nested = self
                     .to_nested_multi_or_compositesurface()
-                    .map_err(|e| Error::custom(e))?;
+                    .map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -108,7 +108,7 @@ impl Serialize for Boundary {
                 let mut nested_json = serializer.serialize_seq(Some(self.rings.len()))?;
                 let nested = self
                     .to_nested_multilinestring()
-                    .map_err(|e| Error::custom(e))?;
+                    .map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -116,7 +116,7 @@ impl Serialize for Boundary {
             }
             BoundaryType::MultiPoint => {
                 let mut nested_json = serializer.serialize_seq(Some(self.vertices.len()))?;
-                let nested = self.to_nested_multipoint().map_err(|e| Error::custom(e))?;
+                let nested = self.to_nested_multipoint().map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -137,7 +137,7 @@ impl From<BoundaryNestedMultiPoint> for Boundary {
             Self {
                 vertices: value
                     .iter()
-                    .map(|v| LargeIndex::try_from(*v).unwrap())
+                    .map(|v| LargeIndex::from(*v))
                     .collect(),
                 ..Self::default()
             }
@@ -156,7 +156,7 @@ impl From<BoundaryNestedMultiLineString> for Boundary {
             for ring in &value {
                 rings.push(ring_start);
                 for vertex in ring {
-                    vertices.push(LargeIndex::try_from(*vertex).unwrap());
+                    vertices.push(LargeIndex::from(*vertex));
                     ring_start += LargeIndex::new(1);
                 }
             }
@@ -305,7 +305,7 @@ impl Boundary {
         &self,
         shells: &[LargeIndex],
         solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface>,
-        mut counter: &mut BoundaryCounter,
+        counter: &mut BoundaryCounter,
     ) {
         for surfaces_start_i in shells {
             let surfaces_len = LargeIndex::try_from(self.surfaces.len()).unwrap();
@@ -318,7 +318,7 @@ impl Boundary {
             if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
                 let mut mcsurface =
                     BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
-                self.push_surfaces_to_multisurface(surfaces, &mut mcsurface, &mut counter);
+                self.push_surfaces_to_multisurface(surfaces, &mut mcsurface, counter);
                 solid.push(mcsurface);
             }
         }
@@ -328,7 +328,7 @@ impl Boundary {
         &self,
         surfaces: &[LargeIndex],
         mcsurface: &mut BoundaryNestedMultiOrCompositeSurface,
-        mut counter: &mut BoundaryCounter,
+        counter: &mut BoundaryCounter,
     ) {
         for ring_start_i in surfaces {
             let rings_len = LargeIndex::try_from(self.rings.len()).unwrap();
@@ -340,7 +340,7 @@ impl Boundary {
             let e_usize = usize::try_from(*ring_end_i).unwrap();
             if let Some(rings) = self.rings.get(s_usize..e_usize) {
                 let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
-                self.push_rings_to_surface(rings, &mut surface, &mut counter);
+                self.push_rings_to_surface(rings, &mut surface, counter);
                 mcsurface.push(surface);
             }
         }

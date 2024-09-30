@@ -959,10 +959,11 @@ pub struct Texture<'cm> {
 /// Texture image type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
-#[derive(Clone, Copy, Debug, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ImageType {
+    #[default]
     Png,
     Jpg,
 }
@@ -1065,19 +1066,19 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 /// # use serde_cityjson::v1_1::*;
 /// # fn main() -> serde_json::Result<()> {
 /// let sem: Geometry = serde_json::from_str(r#"{
-/// 	"type": "MultiLineString",
-/// 	"lod": "0",
-/// 	"boundaries": [[0, 1, 2, 3, 4]],
-/// 	"semantics": {
-/// 		"surfaces": [
-/// 			{
-/// 				"type": "TransportationMarking"
-/// 			}
-/// 		],
-/// 		"values": [
-/// 			0, 0, null, 0, 0
-/// 		]
-/// 	}
+///     "type": "MultiLineString",
+///     "lod": "0",
+///     "boundaries": [[0, 1, 2, 3, 4]],
+///     "semantics": {
+///         "surfaces": [
+///             {
+///                 "type": "TransportationMarking"
+///             }
+///         ],
+///         "values": [
+///             0, 0, null, 0, 0
+///         ]
+///     }
 /// }"#)?;
 /// println!("{:?}", &sem);
 /// let sem_json = serde_json::to_string(&sem)?;
@@ -1459,6 +1460,7 @@ pub struct Extension {
 
 // --- Implementations
 
+#[allow(clippy::too_many_arguments)]
 impl<'cm> CityModel<'cm> {
     pub fn new(
         id: Option<Cow<'cm, str>>,
@@ -1548,6 +1550,7 @@ impl TryFrom<String> for CityJSONVersion {
 /// This implementation is only used for serializing the CityJSON version, because serde cannot
 /// serialize from 'try_into' (which is provided by the 'try_from' implementations).
 /// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
+#[allow(clippy::from_over_into)]
 impl Into<String> for CityJSONVersion {
     fn into(self) -> String {
         match self {
@@ -1697,7 +1700,7 @@ impl<'de> Visitor<'de> for CityObjectTypeVisitor {
     }
 }
 
-impl<'cm> Serialize for CityObjectType {
+impl Serialize for CityObjectType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
@@ -1888,19 +1891,13 @@ impl Serialize for LoD {
     }
 }
 
-impl Default for ImageType {
-    fn default() -> Self {
-        ImageType::Png
-    }
-}
-
 impl<'cm> Semantics<'cm> {
     pub fn new(surfaces: Vec<Semantic<'cm>>, values: labels::LabelIndex) -> Self {
         Self { surfaces, values }
     }
 }
 
-impl<'cm> Display for SemanticType {
+impl Display for SemanticType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -1968,7 +1965,7 @@ impl<'de> Visitor<'de> for SemanticTypeVisitor {
     }
 }
 
-impl<'cm> Serialize for SemanticType {
+impl Serialize for SemanticType {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,

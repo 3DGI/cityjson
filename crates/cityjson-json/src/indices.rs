@@ -47,7 +47,7 @@ pub struct LargeIndex(LargeIndexType);
 
 impl From<&LargeIndex> for u32 {
     fn from(value: &LargeIndex) -> Self {
-        value.0 as u32
+        value.0
     }
 }
 
@@ -63,7 +63,7 @@ impl TryFrom<usize> for LargeIndex {
     type Error = std::num::TryFromIntError;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
-        u32::try_from(value).map(|v| LargeIndex(v))
+        u32::try_from(value).map(LargeIndex)
     }
 }
 

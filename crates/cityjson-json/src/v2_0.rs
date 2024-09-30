@@ -77,6 +77,7 @@ impl CityJSONVersion {
 /// This implementation is only used for serializing the CityJSON version, because serde cannot
 /// serialize from 'try_into' (which is provided by the 'try_from' implementations).
 /// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
+#[allow(clippy::from_over_into)]
 impl Into<String> for CityJSONVersion {
     fn into(self) -> String {
         match self {

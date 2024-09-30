@@ -52,7 +52,7 @@ where
     // 'skip_serializing_if = "Option::is_none"'.
     let a = attributes.as_ref().unwrap();
     match a {
-        Attributes::Borrowed(a) => return a.serialize(serializer),
-        Attributes::Owned(a) => return a.serialize(serializer),
+        Attributes::Borrowed(a) => a.serialize(serializer),
+        Attributes::Owned(a) => a.serialize(serializer),
     }
 }
