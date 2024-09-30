@@ -15,7 +15,6 @@ use derive_more::Display;
 use serde::de::{IntoDeserializer, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
-use serde_json_borrow::Value;
 use std::result;
 // use ahash::AHashMap as Map;
 
@@ -292,28 +291,6 @@ pub enum CityObjectType {
     TunnelHollowSpace,
     TunnelFurniture,
     Extension(String),
-}
-
-mod test_attributes {
-    use super::Attributes;
-    #[test]
-    fn test_attributes_from_serde_json() {
-        let mut attributes_map = serde_json::Map::new();
-        attributes_map.insert("null".into(), serde_json::Value::Null);
-        attributes_map.insert("bool".into(), serde_json::Value::Bool(true));
-        attributes_map.insert("number_int".into(), serde_json::Value::from(42_i64));
-        attributes_map.insert("number_float".into(), serde_json::Value::from(42_f64));
-        attributes_map.insert("string".into(), serde_json::Value::String("äáßüóíéöűőú".into()));
-        attributes_map.insert("array_null".into(), serde_json::Value::Array(vec![serde_json::Value::Null, serde_json::Value::Null]));
-        attributes_map.insert("array_bool".into(), serde_json::Value::Array(vec![serde_json::Value::Bool(true), serde_json::Value::Bool(false)]));
-        attributes_map.insert("array_number".into(), serde_json::Value::Array(vec![serde_json::Value::from(42_i64), serde_json::Value::from(42_f64)]));
-        attributes_map.insert("array_string".into(), serde_json::Value::Array(vec![serde_json::Value::String("".into()), serde_json::Value::String("äáßüóíéöűőú".into())]));
-        let complex_attribute = serde_json::json!(r#"{"key": "value", "array": [1, "two", null, false]}"#);
-        attributes_map.insert("object".into(), complex_attribute);
-        let serde_value = serde_json::Value::from(attributes_map);
-        let attributes = Attributes::Owned(serde_value);
-    }
-
 }
 
 /// Geometry.
