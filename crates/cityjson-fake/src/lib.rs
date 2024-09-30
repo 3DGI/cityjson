@@ -2278,14 +2278,15 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
             value_number_int = serde_json::Value::from(Faker.fake::<i64>());
             value_number_float = serde_json::Value::from(Faker.fake::<f64>());
             value_string = serde_json::Value::String(Faker.fake());
+            let af64: Vec<f64> = (F64Faker, 3..5).fake();
             value_array_number = serde_json::Value::Array(
-                fake::vec![f64; 3..5]
-                    .into_iter()
+                af64.into_iter()
                     .map(|f| serde_json::Value::from(f))
                     .collect::<Vec<_>>(),
             );
+            let astring: Vec<String> = (Word(EN), 3..5).fake();
             value_array_string = serde_json::Value::Array(
-                fake::vec![String as Word(EN); 3..5]
+                astring
                     .into_iter()
                     .map(|f| serde_json::Value::from(f))
                     .collect::<Vec<_>>(),
@@ -2306,6 +2307,13 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
         attributes_map.insert(key_object, value_object);
 
         Attributes::Owned(serde_json::Value::from(attributes_map))
+    }
+}
+
+struct F64Faker;
+impl Dummy<F64Faker> for f64 {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &F64Faker, rng: &mut R) -> Self {
+        rng.gen()
     }
 }
 
