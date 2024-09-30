@@ -211,6 +211,13 @@ impl<'cm> CityModelBuilder<'cm> {
             }
             .fake(),
         );
+        self.extra = Some(
+            AttributesFaker {
+                random_values: false,
+                random_keys: false,
+            }
+            .fake(),
+        );
         self
     }
 
@@ -2305,7 +2312,6 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cjval::CJValidator;
 
     #[test]
     fn attributes() {
