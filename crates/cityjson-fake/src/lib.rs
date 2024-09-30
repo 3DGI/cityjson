@@ -1733,17 +1733,17 @@ impl<'cm> MaterialBuilder<'cm> {
     }
 
     fn diffuse_color(mut self) -> Self {
-        self.0.diffuse_color = Some(RGBFaker.fake());
+        self.0.diffuse_color = Some(RgbFaker.fake());
         self
     }
 
     fn emissive_color(mut self) -> Self {
-        self.0.emissive_color = Some(RGBFaker.fake());
+        self.0.emissive_color = Some(RgbFaker.fake());
         self
     }
 
     fn specular_color(mut self) -> Self {
-        self.0.diffuse_color = Some(RGBFaker.fake());
+        self.0.diffuse_color = Some(RgbFaker.fake());
         self
     }
 
@@ -1790,12 +1790,12 @@ impl<'cm> MaterialBuilder<'cm> {
     }
 }
 
-type RGB = [f32; 3];
+type Rgb = [f32; 3];
 
-struct RGBFaker;
+struct RgbFaker;
 
-impl Dummy<RGBFaker> for RGB {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &RGBFaker, rng: &mut R) -> Self {
+impl Dummy<RgbFaker> for Rgb {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &RgbFaker, rng: &mut R) -> Self {
         let color_range = 0.0f32..=1.0;
         [
             rng.gen_range(color_range.clone()),
@@ -1805,12 +1805,12 @@ impl Dummy<RGBFaker> for RGB {
     }
 }
 
-type RGBA = [f32; 4];
+type Rgba = [f32; 4];
 
-struct RGBAFaker;
+struct RgbaFaker;
 
-impl Dummy<RGBAFaker> for RGBA {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &RGBAFaker, rng: &mut R) -> Self {
+impl Dummy<RgbaFaker> for Rgba {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &RgbaFaker, rng: &mut R) -> Self {
         let color_range = 0.0f32..=1.0;
         [
             rng.gen_range(color_range.clone()),
@@ -1951,7 +1951,7 @@ impl<'cm> TextureBuilder<'cm> {
     }
 
     fn border_color(mut self) -> Self {
-        self.0.border_color = Some(RGBAFaker.fake());
+        self.0.border_color = Some(RgbaFaker.fake());
         self
     }
 
@@ -2158,8 +2158,7 @@ impl<'cm> MetadataBuilder<'cm> {
         let code = match authority {
             "EPSG" => {
                 let a = rand::thread_rng().gen_range(2000..10500);
-                let str = a.to_string();
-                str
+                a.to_string()
             }
             "OGC" => CRS_OGC_CODES
                 .choose(&mut rand::thread_rng())
@@ -2283,14 +2282,14 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
             let af64: Vec<f64> = (F64Faker, 3..5).fake();
             value_array_number = serde_json::Value::Array(
                 af64.into_iter()
-                    .map(|f| serde_json::Value::from(f))
+                    .map(serde_json::Value::from)
                     .collect::<Vec<_>>(),
             );
             let astring: Vec<String> = (Word(EN), 3..5).fake();
             value_array_string = serde_json::Value::Array(
                 astring
                     .into_iter()
-                    .map(|f| serde_json::Value::from(f))
+                    .map(serde_json::Value::from)
                     .collect::<Vec<_>>(),
             );
         }
