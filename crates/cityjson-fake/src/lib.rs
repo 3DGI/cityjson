@@ -905,45 +905,27 @@ impl Dummy<MultiSolidFaker> for Boundary {
         };
 
         // Counters
-        let mut ring_i = 0u32;
-        let mut surface_i = 0u32;
-        let mut shell_i = 0u32;
+        let ring_i = 0u32;
+        let surface_i = 0u32;
+        let shell_i = 0u32;
         let mut solid_i = 0u32;
 
         let nr_solids = rng.gen_range(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID);
         for _solid in MIN_MEMBERS_MULTISOLID..=nr_solids {
             boundary.solids.push(LargeIndex::from(solid_i));
-            let solid_len = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
-            solid_i += solid_len;
+            let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
+            solid_i += nr_shells;
 
-            for _shell in MIN_MEMBERS_SOLID..=solid_len {
-                boundary.shells.push(LargeIndex::from(shell_i));
-                let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
-                shell_i += shell_len;
-
-                // Add the surfaces for each shell
-                for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
-                    boundary.surfaces.push(LargeIndex::from(surface_i));
-                    let surface_len =
-                        rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-                    surface_i += surface_len;
-
-                    // Add the rings for each surface
-                    for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
-                        boundary.rings.push(LargeIndex::from(ring_i));
-                        let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-                        ring_i += ring_len;
-
-                        // Add the vertices for each ring
-                        let nr_vertices: IndexType =
-                            rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-                        boundary.vertices.extend(
-                            (0..nr_vertices)
-                                .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
-                        );
-                    }
-                }
-            }
+            fake_boundary(
+                config.nr_vertices,
+                rng,
+                &mut boundary,
+                min_linestring_len,
+                ring_i,
+                surface_i,
+                shell_i,
+                nr_shells,
+            );
         }
 
         boundary
@@ -987,41 +969,63 @@ impl Dummy<SolidFaker> for Boundary {
         };
 
         // Counters
-        let mut ring_i = 0u32;
-        let mut surface_i = 0u32;
-        let mut shell_i = 0u32;
+        let ring_i = 0u32;
+        let surface_i = 0u32;
+        let shell_i = 0u32;
 
         let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
-        for _shell in MIN_MEMBERS_SOLID..=nr_shells {
-            boundary.shells.push(LargeIndex::from(shell_i));
-            let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
-            shell_i += shell_len;
-
-            // Add the surfaces for each shell
-            for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
-                boundary.surfaces.push(LargeIndex::from(surface_i));
-                let surface_len =
-                    rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-                surface_i += surface_len;
-
-                // Add the rings for each surface
-                for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
-                    boundary.rings.push(LargeIndex::from(ring_i));
-                    let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-                    ring_i += ring_len;
-
-                    // Add the vertices for each ring
-                    let nr_vertices: IndexType =
-                        rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-                    boundary.vertices.extend(
-                        (0..nr_vertices)
-                            .map(|_| IndexFaker::new(config.nr_vertices).fake::<LargeIndex>()),
-                    );
-                }
-            }
-        }
+        fake_boundary(
+            config.nr_vertices,
+            rng,
+            &mut boundary,
+            min_linestring_len,
+            ring_i,
+            surface_i,
+            shell_i,
+            nr_shells,
+        );
 
         boundary
+    }
+}
+
+fn fake_boundary<R: Rng + ?Sized>(
+    nr_vertices_citymodel: IndexType,
+    rng: &mut R,
+    boundary: &mut Boundary,
+    min_linestring_len: IndexType,
+    mut ring_i: u32,
+    mut surface_i: u32,
+    mut shell_i: u32,
+    nr_shells: IndexType,
+) {
+    for _shell in MIN_MEMBERS_SOLID..=nr_shells {
+        boundary.shells.push(LargeIndex::from(shell_i));
+        let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+        shell_i += shell_len;
+
+        // Add the surfaces for each shell
+        for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
+            boundary.surfaces.push(LargeIndex::from(surface_i));
+            let surface_len =
+                rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            surface_i += surface_len;
+
+            // Add the rings for each surface
+            for _ring in MIN_MEMBERS_MULTILINESTRING..=surface_len {
+                boundary.rings.push(LargeIndex::from(ring_i));
+                let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+                ring_i += ring_len;
+
+                // Add the vertices for each ring
+                let nr_vertices: IndexType =
+                    rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
+                boundary.vertices.extend(
+                    (0..nr_vertices)
+                        .map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
+                );
+            }
+        }
     }
 }
 
