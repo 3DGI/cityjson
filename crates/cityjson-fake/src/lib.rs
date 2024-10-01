@@ -1,4 +1,4 @@
-//! # cjmock
+//! # cjfake
 //!
 //! CityJSON generator with fake data.
 //!
@@ -34,10 +34,8 @@ use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
 // TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
-// TODO: attributes
-// TODO: object hierarchy
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
-// FIXME: vertices unused
+// todo: vertices unused
 // TODO: exact configuration for reproducible models (same types, config etc)
 // TODO: CLI/API
 // TODO: exe/docker/server
@@ -122,7 +120,7 @@ impl<'cm> Default for CityModelBuilder<'cm> {
             .materials(None)
             .textures(None)
             .attributes()
-            .cityobjects(None)
+            .cityobjects(None, true)
     }
 }
 
@@ -149,30 +147,92 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 
     /// Generate 1 CityObject if `nr_cityobjects` is `None`, else generate the number of CityObjects
-    /// within the provided range.
+    /// within the provided range. If the `nr_cityobjects` is 1 and `cityobject_hierarchy` is
+    /// `true` and the generated CityObject has 2nd-level types, then one additional 2nd-level
+    /// CityObject will be created too.
+    /// If the `nr_cityobject` is set to a range and `cityobject_hierarchy` is `true`, then the
+    /// total number of 1st- and 2nd-level CityObjects will be in the provided range.
     /// If the vertices haven't been generated yet, they will be created, so that the geometry
     /// boundaries can index them.
-    pub fn cityobjects(mut self, nr_cityobjects: Option<Range<usize>>) -> Self {
+    pub fn cityobjects(
+        mut self,
+        nr_cityobjects: Option<Range<usize>>,
+        cityobject_hierarchy: bool,
+    ) -> Self {
         let use_templates = true;
-        let _nr_cos = nr_cityobjects.unwrap_or(1..2);
+        let mut nr_cos_range = nr_cityobjects.unwrap_or(1..2);
+        if nr_cos_range.is_empty() {
+            nr_cos_range = 1..2;
+        }
+        let nr_parents_range: Range<usize> = if (nr_cos_range.end - nr_cos_range.start) == 1 {
+            // Create one parent and one child.
+            1..2
+        } else {
+            // Half of the range's end becomes parents, then for each eligible parent a child is
+            // created. Some 1st-level types don't have sub-types, so they won't have children.
+            // In case the total number of created objects is less than the range's start, then
+            // additional objects are created so to reach the range's start.
+            if cityobject_hierarchy {
+                let _n = nr_cos_range.end.div_ceil(2);
+                _n.._n + 1
+            } else {
+                nr_cos_range
+            }
+        };
+
         if self.vertices.is_none() {
             self.vertices = Some(fake_vertices());
         }
         let nr_vertices = self.vertices.as_ref().unwrap().len();
-        let cof = CityObjectFaker::new(
+        let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
             self.appearance.clone(),
             self.themes_material.clone(),
             self.themes_texture.clone(),
             &self.attributes_cityobject,
             &self.attributes_semantic,
+            CityObjectLevel::First,
+            None,
         );
-        let cos: Vec<CityObject> = (cof, _nr_cos).fake();
+        let cos_parents: Vec<CityObject> = (cof_parents, nr_parents_range).fake();
+        let estimate_total_nr = if cityobject_hierarchy {
+            cos_parents.len() * 2
+        } else {
+            // Hierarchy is off, so only parents are generated
+            cos_parents.len()
+        };
+        let mut cityobjects = CityObjects::with_capacity(estimate_total_nr);
+        if cityobject_hierarchy {
+            for mut co_parent in cos_parents.into_iter() {
+                let parent_id = Cow::from(Word(EN).fake::<&str>());
+                if let Some(subtypes) = get_cityobject_subtype(&co_parent.type_co) {
+                    let mut co_child: CityObject = CityObjectFaker::new(
+                        nr_vertices as IndexType,
+                        self.appearance.clone(),
+                        self.themes_material.clone(),
+                        self.themes_texture.clone(),
+                        &self.attributes_cityobject,
+                        &self.attributes_semantic,
+                        CityObjectLevel::Second,
+                        Some(subtypes),
+                    )
+                    .fake();
+                    let child_id = Cow::from(Word(EN).fake::<&str>());
+                    co_child.parents = Some(vec![parent_id.clone()]);
+                    co_parent.children = Some(vec![child_id.clone()]);
+                    cityobjects.insert(child_id, co_child);
+                }
+                cityobjects.insert(parent_id, co_parent);
+            }
+        } else {
+            cityobjects = CityObjects::from_iter(
+                cos_parents
+                    .into_iter()
+                    .map(|co| (Cow::from(Word(EN).fake::<&str>()), co)),
+            );
+        }
         // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
-        self.cityobjects =
-            Some(CityObjects::from_iter(cos.iter().map(|co| {
-                (Cow::from(Word(EN).fake::<&str>()), co.to_owned())
-            })));
+        self.cityobjects = Some(cityobjects);
         if use_templates {
             let vertices_templates: VerticesTemplates = VerticesTemplatesFaker.fake();
             // The 8th geometry type is GeometryInstance, which cannot be a template
@@ -318,9 +378,12 @@ struct CityObjectFaker<'cmbuild, 'cm> {
     themes_texture: Option<Vec<String>>,
     attributes_cityobject: &'cmbuild Option<Attributes<'cm>>,
     attributes_semantic: &'cmbuild Option<Attributes<'cm>>,
+    cityobject_level: CityObjectLevel,
+    allowed_types: Option<Vec<CityObjectType>>,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         nr_vertices: IndexType,
         appearance: Option<Appearance<'cmbuild>>,
@@ -328,6 +391,8 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
         themes_texture: Option<Vec<String>>,
         attributes_cityobject: &'cmbuild Option<Attributes<'cm>>,
         attributes_semantic: &'cmbuild Option<Attributes<'cm>>,
+        cityobject_level: CityObjectLevel,
+        allowed_types: Option<Vec<CityObjectType>>,
     ) -> Self {
         Self {
             nr_vertices,
@@ -336,15 +401,29 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
             themes_texture,
             attributes_cityobject,
             attributes_semantic,
+            cityobject_level,
+            allowed_types,
         }
     }
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObject<'cm> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectFaker<'cmbuild, 'cm>, _: &mut R) -> Self {
-        let cotype: CityObjectType = CityObjectTypeFaker.fake();
-        // TODO: add hierarchy
+    fn dummy_with_rng<R: Rng + ?Sized>(
+        config: &CityObjectFaker<'cmbuild, 'cm>,
+        rnd: &mut R,
+    ) -> Self {
+        let cotype: CityObjectType = if let Some(types) = &config.allowed_types {
+            // Safe to unwrap, because allowed_types is never empty
+            types.choose(rnd).unwrap().clone()
+        } else {
+            CityObjectTypeFaker {
+                cityobject_level: config.cityobject_level,
+            }
+            .fake()
+        };
         // TODO: add "address" to the type where possible
+        // todo: add geographical_extent
+        // todo: add extra
         let gf = GeometryFaker::new(
             config.nr_vertices,
             cotype.clone(),
@@ -366,43 +445,89 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
     }
 }
 
-struct CityObjectTypeFaker;
+#[derive(Clone, Copy, Debug, Default)]
+enum CityObjectLevel {
+    #[default]
+    First,
+    Second,
+    #[allow(dead_code)]
+    Any,
+}
+
+fn get_cityobject_subtype(cityobject_type: &CityObjectType) -> Option<Vec<CityObjectType>> {
+    match cityobject_type {
+        CityObjectType::Bridge => Some(vec![
+            CityObjectType::BridgePart,
+            CityObjectType::BridgeInstallation,
+            CityObjectType::BridgeConstructiveElement,
+            CityObjectType::BridgeRoom,
+            CityObjectType::BridgeFurniture,
+        ]),
+        CityObjectType::Building => Some(vec![
+            CityObjectType::BuildingPart,
+            CityObjectType::BuildingInstallation,
+            CityObjectType::BuildingConstructiveElement,
+            CityObjectType::BuildingFurniture,
+            CityObjectType::BuildingStorey,
+            CityObjectType::BuildingRoom,
+            CityObjectType::BuildingUnit,
+        ]),
+        CityObjectType::Tunnel => Some(vec![
+            CityObjectType::TunnelPart,
+            CityObjectType::TunnelInstallation,
+            CityObjectType::TunnelConstructiveElement,
+            CityObjectType::TunnelHollowSpace,
+            CityObjectType::TunnelFurniture,
+        ]),
+        _ => None,
+    }
+}
+
+struct CityObjectTypeFaker {
+    cityobject_level: CityObjectLevel,
+}
 
 impl Dummy<CityObjectTypeFaker> for CityObjectType {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &CityObjectTypeFaker, rng: &mut R) -> Self {
-        match rng.gen_range(0..=31) {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectTypeFaker, rng: &mut R) -> Self {
+        // todo: add GenericCityObject for v2.0
+        // todo: add CityObjectGroup
+        let type_idx: u8 = match config.cityobject_level {
+            CityObjectLevel::First => rng.gen_range(0..14),
+            CityObjectLevel::Second => rng.gen_range(14..31),
+            CityObjectLevel::Any => rng.gen_range(0..31),
+        };
+        match type_idx {
             0 => CityObjectType::Bridge,
-            1 => CityObjectType::BridgePart,
-            2 => CityObjectType::BridgeInstallation,
-            3 => CityObjectType::BridgeConstructiveElement,
-            4 => CityObjectType::BridgeRoom,
-            5 => CityObjectType::BridgeFurniture,
-            6 => CityObjectType::Building,
-            7 => CityObjectType::BuildingPart,
-            8 => CityObjectType::BuildingInstallation,
-            9 => CityObjectType::BuildingConstructiveElement,
-            10 => CityObjectType::BuildingFurniture,
-            11 => CityObjectType::BuildingStorey,
-            12 => CityObjectType::BuildingRoom,
-            13 => CityObjectType::BuildingUnit,
-            14 => CityObjectType::CityFurniture,
-            15 => CityObjectType::LandUse,
-            16 => CityObjectType::OtherConstruction,
-            17 => CityObjectType::PlantCover,
-            18 => CityObjectType::SolitaryVegetationObject,
-            19 => CityObjectType::TINRelief,
-            20 => CityObjectType::WaterBody,
-            21 => CityObjectType::Road,
-            22 => CityObjectType::Railway,
-            23 => CityObjectType::Waterway,
-            24 => CityObjectType::TransportSquare,
-            25 => CityObjectType::Tunnel,
+            1 => CityObjectType::Building,
+            2 => CityObjectType::CityFurniture,
+            3 => CityObjectType::LandUse,
+            4 => CityObjectType::OtherConstruction,
+            5 => CityObjectType::PlantCover,
+            6 => CityObjectType::SolitaryVegetationObject,
+            7 => CityObjectType::TINRelief,
+            8 => CityObjectType::TransportSquare,
+            9 => CityObjectType::Railway,
+            10 => CityObjectType::Road,
+            11 => CityObjectType::Tunnel,
+            12 => CityObjectType::WaterBody,
+            13 => CityObjectType::Waterway,
+            14 => CityObjectType::BridgePart,
+            15 => CityObjectType::BridgeInstallation,
+            16 => CityObjectType::BridgeConstructiveElement,
+            17 => CityObjectType::BridgeRoom,
+            18 => CityObjectType::BridgeFurniture,
+            19 => CityObjectType::BuildingPart,
+            20 => CityObjectType::BuildingInstallation,
+            21 => CityObjectType::BuildingConstructiveElement,
+            22 => CityObjectType::BuildingFurniture,
+            23 => CityObjectType::BuildingStorey,
+            24 => CityObjectType::BuildingRoom,
+            25 => CityObjectType::BuildingUnit,
             26 => CityObjectType::TunnelPart,
             27 => CityObjectType::TunnelInstallation,
             28 => CityObjectType::TunnelConstructiveElement,
             29 => CityObjectType::TunnelHollowSpace,
             30 => CityObjectType::TunnelFurniture,
-            // 31 => CityObjectType::GenericCityObject,
             _ => unreachable!(),
         }
     }
@@ -2306,6 +2431,7 @@ impl Dummy<F64Faker> for f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cjval::CJValidator;
 
     #[test]
     fn attributes() {
@@ -2348,15 +2474,15 @@ mod tests {
         let cm: CityModel = CityModelBuilder::default().into();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
-        // let mut val = CJValidator::from_str(&cj_str);
-        // // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
-        // for (criterion, summary) in val.validate().iter() {
-        //     assert!(
-        //         summary.is_valid(),
-        //         "{} is not valid with {}",
-        //         criterion,
-        //         summary
-        //     )
-        // }
+        let val = CJValidator::from_str(&cj_str);
+        // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
+        for (criterion, summary) in val.validate().iter() {
+            assert!(
+                summary.is_valid(),
+                "{} is not valid with {}",
+                criterion,
+                summary
+            )
+        }
     }
 }
