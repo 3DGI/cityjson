@@ -160,6 +160,7 @@ impl<'cm> CityModelBuilder<'cm> {
         cityobject_hierarchy: bool,
     ) -> Self {
         let use_templates = true;
+        let texture_allow_none = false;
         let mut nr_cos_range = nr_cityobjects.unwrap_or(1..2);
         if nr_cos_range.is_empty() {
             nr_cos_range = 1..2;
@@ -193,6 +194,7 @@ impl<'cm> CityModelBuilder<'cm> {
             &self.attributes_semantic,
             CityObjectLevel::First,
             None,
+            texture_allow_none,
         );
         let cos_parents: Vec<CityObject> = (cof_parents, nr_parents_range).fake();
         let estimate_total_nr = if cityobject_hierarchy {
@@ -215,6 +217,7 @@ impl<'cm> CityModelBuilder<'cm> {
                         &self.attributes_semantic,
                         CityObjectLevel::Second,
                         Some(subtypes),
+                        texture_allow_none,
                     )
                     .fake();
                     let child_id = Cow::from(Word(EN).fake::<&str>());
@@ -247,6 +250,7 @@ impl<'cm> CityModelBuilder<'cm> {
                 themes_texture: self.themes_texture.clone(),
                 geometry_types,
                 semantics_attributes: &self.attributes_semantic,
+                texture_allow_none,
             };
             self.geometry_templates = Some(GeometryTemplates {
                 templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake(),
@@ -380,6 +384,7 @@ struct CityObjectFaker<'cmbuild, 'cm> {
     attributes_semantic: &'cmbuild Option<Attributes<'cm>>,
     cityobject_level: CityObjectLevel,
     allowed_types: Option<Vec<CityObjectType>>,
+    texture_allow_none: bool,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
@@ -393,6 +398,7 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
         attributes_semantic: &'cmbuild Option<Attributes<'cm>>,
         cityobject_level: CityObjectLevel,
         allowed_types: Option<Vec<CityObjectType>>,
+        texture_allow_none: bool,
     ) -> Self {
         Self {
             nr_vertices,
@@ -403,6 +409,7 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
             attributes_semantic,
             cityobject_level,
             allowed_types,
+            texture_allow_none,
         }
     }
 }
@@ -432,6 +439,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             config.themes_texture.clone(),
             None,
             config.attributes_semantic,
+            config.texture_allow_none,
         );
         Self::new(
             cotype,
@@ -533,6 +541,7 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
     }
 }
 
+/// If `texture_allow_none` is `true`, null values are allowed in the texture UV-indices.
 struct GeometryFaker<'cmbuild, 'cm> {
     nr_vertices: IndexType,
     cotype: CityObjectType,
@@ -541,6 +550,7 @@ struct GeometryFaker<'cmbuild, 'cm> {
     themes_texture: Option<Vec<String>>,
     geometry_types: Option<Vec<usize>>,
     semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
+    texture_allow_none: bool,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
@@ -552,6 +562,7 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
         themes_texture: Option<Vec<String>>,
         geometry_types: Option<Vec<usize>>,
         semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
+        texture_allow_none: bool,
     ) -> Self {
         Self {
             nr_vertices,
@@ -561,6 +572,7 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
             themes_texture,
             geometry_types,
             semantics_attributes,
+            texture_allow_none,
         }
     }
 }
@@ -757,6 +769,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
+                        config.texture_allow_none,
                     )
                     .fake()
                 });
@@ -798,6 +811,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
+                        config.texture_allow_none,
                     )
                     .fake()
                 });
@@ -838,6 +852,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
+                        config.texture_allow_none,
                     )
                     .fake()
                 });
@@ -878,6 +893,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
+                        config.texture_allow_none,
                     )
                     .fake()
                 });
@@ -918,6 +934,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
+                        config.texture_allow_none,
                     )
                     .fake()
                 });
@@ -1628,7 +1645,7 @@ fn fake_depth_three_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Size
         attributes,
     );
     // semantics.values
-    let idxf = OptionalIndexFaker::new(nr_semantic);
+    let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let surfaces_values =
         (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
     (
@@ -1658,7 +1675,7 @@ fn fake_depth_two_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Sized>
         attributes,
     );
     // semantics.values
-    let idxf = OptionalIndexFaker::new(nr_semantic);
+    let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let surfaces_values =
         (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
     (
@@ -1680,7 +1697,7 @@ fn fake_depth_one_semantics<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
     attributes: &'cmbuild Option<Attributes<'cm>>,
 ) -> (Vec<Semantic<'cm>>, Vec<OptionalLargeIndex>) {
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng, attributes);
-    let idxf = OptionalIndexFaker::new(nr_semantic);
+    let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let values =
         (idxf, nr_members as usize..=nr_members as usize).fake::<Vec<OptionalLargeIndex>>();
     (surfaces, values)
@@ -1786,11 +1803,15 @@ impl Dummy<SemanticTypeFaker> for Option<SemanticType> {
 #[derive(Clone, Copy)]
 struct OptionalIndexFaker {
     max: IndexType,
+    allow_none: bool,
 }
 
 impl OptionalIndexFaker {
-    fn new(max_index: IndexType) -> Self {
-        Self { max: max_index }
+    fn new(max_index: IndexType, allow_none: bool) -> Self {
+        Self {
+            max: max_index,
+            allow_none,
+        }
     }
 }
 
@@ -1798,7 +1819,7 @@ impl OptionalIndexFaker {
 impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &OptionalIndexFaker, rng: &mut R) -> Self {
         // Probability of having a semantic for the surface, instead of a null
-        let prob = 0.8;
+        let prob = if config.allow_none { 0.8 } else { 1.0 };
         let d = Bernoulli::new(prob).unwrap();
         let has_semantic = d.sample(&mut thread_rng());
         if has_semantic {
@@ -1968,7 +1989,7 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
             Self::new()
         } else {
             let idxf = IndexFaker::new(config.nr_materials);
-            let oidxf = OptionalIndexFaker::new(config.nr_materials);
+            let oidxf = OptionalIndexFaker::new(config.nr_materials, true);
             let mut matmap = MaterialMap::new();
             for theme in &config.themes_material {
                 if config.single_material {
@@ -2139,6 +2160,7 @@ struct TextureMapFaker<'texmapfaker> {
     nr_vertices_texture: IndexType,
     themes_texture: Vec<String>,
     boundary: &'texmapfaker Boundary,
+    allow_none: bool,
 }
 
 impl<'texmapfaker> TextureMapFaker<'texmapfaker> {
@@ -2147,12 +2169,14 @@ impl<'texmapfaker> TextureMapFaker<'texmapfaker> {
         nr_vertices_texture: IndexType,
         themes_texture: Vec<String>,
         boundary: &'texmapfaker Boundary,
+        allow_none: bool,
     ) -> Self {
         Self {
             nr_textures,
             nr_vertices_texture,
             themes_texture,
             boundary,
+            allow_none,
         }
     }
 }
@@ -2165,14 +2189,15 @@ impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
         if nr_surfaces == 0 {
             Self::new()
         } else {
-            let uv_idx_faker = OptionalIndexFaker::new(config.nr_vertices_texture - 1);
-            let tex_idx_faker = OptionalIndexFaker::new(config.nr_textures - 1);
+            let tex_idx_faker = OptionalIndexFaker::new(config.nr_textures - 1, false);
+            let uv_idx_faker =
+                OptionalIndexFaker::new(config.nr_vertices_texture - 1, config.allow_none);
             let mut texmap = TextureMap::new();
             for theme in &config.themes_texture {
-                let uv_coord_indices =
-                    (uv_idx_faker, nr_vertices..=nr_vertices).fake::<Vec<OptionalLargeIndex>>();
                 let tex_indices =
                     (tex_idx_faker, nr_rings..=nr_rings).fake::<Vec<OptionalLargeIndex>>();
+                let uv_coord_indices =
+                    (uv_idx_faker, nr_vertices..=nr_vertices).fake::<Vec<OptionalLargeIndex>>();
                 let textureindex = TextureIndex {
                     vertices: uv_coord_indices,
                     rings: config.boundary.rings.clone(),
@@ -2451,8 +2476,17 @@ mod tests {
 
     #[test]
     fn geometry() {
-        let geom: Geometry =
-            GeometryFaker::new(12, CityObjectType::Building, None, None, None, None, &None).fake();
+        let geom: Geometry = GeometryFaker::new(
+            12,
+            CityObjectType::Building,
+            None,
+            None,
+            None,
+            None,
+            &None,
+            true,
+        )
+        .fake();
         dbg!(geom);
     }
 
