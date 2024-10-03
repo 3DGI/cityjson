@@ -53,7 +53,6 @@ use serde_cityjson::v1_1::*;
 // todo scj: LargeIndexVec::with_capacity should be initialized with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
 // todo: MultiPoint, lod 3, Building --> semantics don't make sense
 
-
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
 const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
@@ -1990,8 +1989,9 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
         if nr_surfaces == 0 {
             Self::new()
         } else {
+            let max_material_idx = config.nr_materials - 1;
             let idxf = IndexFaker::new(config.nr_materials);
-            let oidxf = OptionalIndexFaker::new(config.nr_materials, true);
+            let oidxf = OptionalIndexFaker::new(max_material_idx, true);
             let mut matmap = MaterialMap::new();
             for theme in &config.themes_material {
                 if config.single_material {
@@ -2541,7 +2541,7 @@ mod tests {
         let invalids: Vec<(String, String)> = val
             .validate()
             .into_iter()
-            .filter(|(criterion, summary)| summary.is_valid())
+            .filter(|(_, summary)| summary.is_valid())
             .map(|(criterion, summary)| (criterion, summary.to_string()))
             .collect();
         if invalids.len() > 0 {
