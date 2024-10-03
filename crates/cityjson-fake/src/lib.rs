@@ -191,9 +191,8 @@ impl<'cm> CityModelBuilder<'cm> {
             }
         };
 
-        if self.vertices.is_none() {
-            self.vertices = Some(fake_vertices());
-        }
+        self = self.vertices();
+
         let nr_vertices = self.vertices.as_ref().unwrap().len();
         let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
@@ -263,7 +262,7 @@ impl<'cm> CityModelBuilder<'cm> {
             };
             self.geometry_templates = Some(GeometryTemplates {
                 templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake(),
-                vertices_templates,
+                vertices_templates: Some(vertices_templates),
             });
         }
         self
@@ -447,9 +446,14 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             config.attributes_semantic,
             config.texture_allow_none,
         );
+        let geometry = if config.nr_vertices == 0 {
+            None
+        } else {
+            Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake())
+        };
         Self::new(
             cotype,
-            Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake()),
+            geometry,
             config.attributes_cityobject.clone(),
             None,
             None,
@@ -1157,7 +1161,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
             surface_i += nr_rings;
 
             // Add the rings for each surface
-            fake_surface_boundary(
+            fake_ring_boundary(
                 nr_vertices_citymodel,
                 rng,
                 boundary,
@@ -1211,7 +1215,7 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
             surface_i += nr_rings;
 
             // Add the rings for each surface
-            fake_surface_boundary(
+            fake_ring_boundary(
                 config.nr_vertices,
                 rng,
                 &mut boundary,
@@ -1247,18 +1251,17 @@ impl Dummy<MultiLineStringFaker> for Boundary {
         };
 
         // A linestring must have at least two vertices, otherwise it's not a line.
-        // Here I assume that MIN_MEMBERS_MULTIPOINT is always > 0.
         let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
             MIN_MEMBERS_MULTIPOINT
         } else {
-            MIN_MEMBERS_MULTIPOINT + 1
+            2
         };
 
         // Counters
         let ring_i = 0u32;
 
         let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-        fake_surface_boundary(
+        fake_ring_boundary(
             config.nr_vertices,
             rng,
             &mut boundary,
@@ -1270,7 +1273,7 @@ impl Dummy<MultiLineStringFaker> for Boundary {
     }
 }
 
-fn fake_surface_boundary<R: Rng + ?Sized>(
+fn fake_ring_boundary<R: Rng + ?Sized>(
     nr_vertices_citymodel: IndexType,
     rng: &mut R,
     boundary: &mut Boundary,
@@ -1284,9 +1287,10 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
         ring_i += ring_len;
 
         // Add the vertices for each ring
+        // Cannot have an empty ring, so we start at 1 (https://github.com/cityjson/specs/issues/189)
         let nr_vertices: IndexType = rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
         boundary.vertices.extend(
-            (0..nr_vertices).map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
+            (1..nr_vertices).map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
         );
     }
 }
@@ -1304,9 +1308,19 @@ impl MultiPointFaker {
 impl Dummy<MultiPointFaker> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, _: &mut R) -> Self {
         let vf = IndexFaker::new(config.nr_vertices);
+        // If the number of vertices is 0, create an empty range, which will cause
+        // LargeIndexVecFaker to generate an empty vector.
+        let range_members_multipoint = if config.nr_vertices == 0 {
+            config.nr_vertices + 1..=config.nr_vertices
+        } else {
+            MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT
+        };
         Boundary {
-            vertices: LargeIndexVecFaker(vf, MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT)
-                .fake(),
+            vertices: LargeIndexVecFaker {
+                index_faker: vf,
+                range: range_members_multipoint,
+            }
+            .fake(),
             rings: Default::default(),
             surfaces: Default::default(),
             shells: Default::default(),
@@ -1315,17 +1329,42 @@ impl Dummy<MultiPointFaker> for Boundary {
     }
 }
 
-struct LargeIndexVecFaker(IndexFaker, RangeInclusive<u32>);
+#[test]
+fn bla() {
+    let nr_vertices = 0;
+    let vf = IndexFaker::new(nr_vertices);
+    let range_members_multipoint = if nr_vertices == 0 {
+        nr_vertices + 1..=nr_vertices
+    } else {
+        MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT
+    };
+    dbg!(range_members_multipoint.is_empty());
+    let boundary_vertices: LargeIndexVec = LargeIndexVecFaker {
+        index_faker: vf,
+        range: range_members_multipoint,
+    }
+    .fake();
+    dbg!(boundary_vertices);
+}
+
+struct LargeIndexVecFaker {
+    index_faker: IndexFaker,
+    range: RangeInclusive<u32>,
+}
 
 impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, _: &mut R) -> Self {
-        LargeIndexVec::from(
-            (
-                config.0,
-                *config.1.start() as usize..*config.1.end() as usize,
+        if config.range.is_empty() {
+            LargeIndexVec::default()
+        } else {
+            LargeIndexVec::from(
+                (
+                    config.index_faker,
+                    *config.range.start() as usize..*config.range.end() as usize,
+                )
+                    .fake::<Vec<u32>>(),
             )
-                .fake::<Vec<u32>>(),
-        )
+        }
     }
 }
 
