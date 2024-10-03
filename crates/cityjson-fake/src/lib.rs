@@ -40,6 +40,19 @@ use serde_cityjson::v1_1::*;
 // TODO: CLI/API
 // TODO: exe/docker/server
 // TODO: docs
+// todo cj: templates are added under the 'kebab-case' root member
+// TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
+// TODO: Maybe I could have MIN_COORDINATE/MAX_COORDINATE configurable, to that it'll be possible to emulate triangulated surfaces with a range of min=3 max=3.
+// TODO: CityObject add "address" to the type where possible
+// todo: CityObject add geographical_extent
+// todo: CityObject add extra
+// TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included with https://doc.rust-lang.org/std/macro.include_str.html
+// todo cj: need to use the proper coordinate type and add to CoordinateFaker
+// todo: CityObjectTypeFaker add GenericCityObject for v2.0
+// todo: CityObjectTypeFaker add CityObjectGroup
+// todo scj: LargeIndexVec::with_capacity should be initialized with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
+// todo: MultiPoint, lod 3, Building --> semantics don't make sense
+
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
@@ -47,8 +60,6 @@ const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 type IndexType = u32;
-// TODO: Maybe I could have this configurable, to that it'll be possible to emulate triangulated
-//  surfaces with a range of min=3 max=3.
 const MIN_COORDINATE: i64 = i64::MIN;
 const MAX_COORDINATE: i64 = i64::MAX;
 const MIN_NR_VERTICES: IndexType = 1;
@@ -234,7 +245,6 @@ impl<'cm> CityModelBuilder<'cm> {
                     .map(|co| (Cow::from(Word(EN).fake::<&str>()), co)),
             );
         }
-        // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
         self.cityobjects = Some(cityobjects);
         if use_templates {
             let vertices_templates: VerticesTemplates = VerticesTemplatesFaker.fake();
@@ -428,9 +438,6 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             }
             .fake()
         };
-        // TODO: add "address" to the type where possible
-        // todo: add geographical_extent
-        // todo: add extra
         let gf = GeometryFaker::new(
             config.nr_vertices,
             cotype.clone(),
@@ -497,8 +504,6 @@ struct CityObjectTypeFaker {
 
 impl Dummy<CityObjectTypeFaker> for CityObjectType {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CityObjectTypeFaker, rng: &mut R) -> Self {
-        // todo: add GenericCityObject for v2.0
-        // todo: add CityObjectGroup
         let type_idx: u8 = match config.cityobject_level {
             CityObjectLevel::First => rng.gen_range(0..14),
             CityObjectLevel::Second => rng.gen_range(14..31),
@@ -590,7 +595,6 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
         if let Some(ref gt) = config.geometry_types {
             geometry_types = gt.clone()
         } else {
-            // todo: MultiPoint, lod 3, Building --> semantics don't make sense
             // Choose a Geometry type that is allowed for the given CityObject type
             if config.cotype == CityObjectType::Bridge
                 || config.cotype == CityObjectType::BridgePart
@@ -1179,7 +1183,6 @@ impl MultiSurfaceFaker {
 impl Dummy<MultiSurfaceFaker> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            // todo scj: ::with_capacity should with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
             vertices: LargeIndexVec::with_capacity(
                 (MIN_MEMBERS_MULTIPOINT * MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE)
                     as usize,
@@ -1375,7 +1378,6 @@ impl Dummy<TemplateVertexFaker> for TemplateVertex {
     }
 }
 
-// todo scj: need to use the proper coordinate type
 struct CoordinateFaker {
     min: i64,
     max: i64,
@@ -2288,8 +2290,6 @@ impl<'cm> MetadataBuilder<'cm> {
             "OGC" => *CRS_OGC_VERSIONS.choose(&mut thread_rng()).unwrap_or(&"0"),
             _ => "0",
         };
-        // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included
-        //  with https://doc.rust-lang.org/std/macro.include_str.html
         let code = match authority {
             "EPSG" => {
                 let a = thread_rng().gen_range(2000..10500);
