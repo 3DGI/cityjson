@@ -21,6 +21,21 @@ fn citymodel_dummy_complete() {
     assert_eq_roundtrip::<CityModel>(&json_input);
 }
 
+// Can we deserialize all objects as they should be?
+#[test]
+fn citymodel_dummy_complete_deserialize() {
+    let json_input = read_to_string(DATA_DIR.join("dummy_complete.city.json"));
+    let cm: CityModel = serde_json::from_str(&json_input).unwrap();
+    assert!(cm.vertices.len() > 0);
+    assert!(cm.extensions.is_some());
+    assert!(cm.metadata.is_some());
+    assert!(cm.cityobjects.len() > 0);
+    assert!(cm.appearance.is_some());
+    assert!(cm.geometry_templates.is_some());
+    // todo: I think this should be None if there are no extra root properties, but that might not be possible with serde flatten etc.
+    // assert!(cm.extra.is_none());
+}
+
 #[test]
 fn citymodel_minimal_complete() {
     let json_input = read_to_string(DATA_DIR.join("minimal_complete.city.json"));

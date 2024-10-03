@@ -18,6 +18,7 @@ use serde_json::value::RawValue;
 use std::result;
 // use ahash::AHashMap as Map;
 
+use crate::attributes::{deserialize_attributes, serialize_attributes, Attributes};
 use crate::boundary::{
     Boundary, ExtendRingsVisitor, ExtendShellsVisitor, ExtendSolidsVisitor, ExtendSurfacesVisitor,
     ExtendVerticesVisitor,
@@ -27,7 +28,6 @@ use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
 use crate::indices::{LargeIndex, OptionalLargeIndex};
 use crate::labels;
-use crate::attributes::{Attributes, deserialize_attributes, serialize_attributes};
 
 // TODO: rename all type_X to type_
 
@@ -94,7 +94,7 @@ pub struct CityModel<'cm> {
     pub metadata: Option<Metadata<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appearance: Option<Appearance<'cm>>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "geometry-templates")]
     pub geometry_templates: Option<GeometryTemplates<'cm>>,
     #[serde(
         borrow,
@@ -1049,9 +1049,10 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates<'cm> {
-    #[serde(borrow)]
-    pub templates: Vec<Geometry<'cm>>,
-    pub vertices_templates: VerticesTemplates,
+    #[serde(borrow, skip_serializing_if = "Option::is_none")]
+    pub templates: Option<Vec<Geometry<'cm>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vertices_templates: Option<VerticesTemplates>,
 }
 
 /// The `vertices_templates` member of `geometry-templates` of CityJSON.
