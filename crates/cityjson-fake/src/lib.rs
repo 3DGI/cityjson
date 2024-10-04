@@ -270,7 +270,7 @@ impl<'cm> CityModelBuilder<'cm> {
             };
             self.geometry_templates = Some(GeometryTemplates {
                 templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake(),
-                vertices_templates: Some(vertices_templates),
+                vertices_templates,
             });
         }
         self
@@ -655,15 +655,9 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
             } else if config.cotype == CityObjectType::Road
                 || config.cotype == CityObjectType::Railway
                 || config.cotype == CityObjectType::Waterway
+                || config.cotype == CityObjectType::TransportSquare
             {
                 geometry_types = vec![
-                    GeometryType::MultiLineString,
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                ];
-            } else if config.cotype == CityObjectType::TransportSquare {
-                geometry_types = vec![
-                    GeometryType::MultiPoint,
                     GeometryType::MultiLineString,
                     GeometryType::MultiSurface,
                     GeometryType::CompositeSurface,
@@ -2643,7 +2637,7 @@ mod tests {
         let invalids: Vec<(String, String)> = val
             .validate()
             .into_iter()
-            .filter(|(_, summary)| summary.is_valid())
+            .filter(|(_, summary)| !summary.is_valid())
             .map(|(criterion, summary)| (criterion, summary.to_string()))
             .collect();
         if invalids.len() > 0 {
