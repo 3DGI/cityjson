@@ -10,5 +10,8 @@
   "CityObjects": {},
   "vertices": [],
   "appearance": {},
-  "geometry-templates": {}
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  }
 }

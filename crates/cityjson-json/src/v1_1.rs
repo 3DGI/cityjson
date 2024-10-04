@@ -1049,10 +1049,9 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 )]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct GeometryTemplates<'cm> {
-    #[serde(borrow, skip_serializing_if = "Option::is_none")]
-    pub templates: Option<Vec<Geometry<'cm>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vertices_templates: Option<VerticesTemplates>,
+    #[serde(borrow)]
+    pub templates: Vec<Geometry<'cm>>,
+    pub vertices_templates: VerticesTemplates,
 }
 
 /// The `vertices_templates` member of `geometry-templates` of CityJSON.

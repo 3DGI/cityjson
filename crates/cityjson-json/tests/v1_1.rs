@@ -17,14 +17,14 @@ static DATA_DIR: Lazy<PathBuf> = Lazy::new(|| {
 
 #[test]
 fn citymodel_dummy_complete() {
-    let json_input = read_to_string(DATA_DIR.join("dummy_complete.city.json"));
+    let json_input = read_to_string(DATA_DIR.join("cityjson_dummy_complete.city.json"));
     assert_eq_roundtrip::<CityModel>(&json_input);
 }
 
 // Can we deserialize all objects as they should be?
 #[test]
 fn citymodel_dummy_complete_deserialize() {
-    let json_input = read_to_string(DATA_DIR.join("dummy_complete.city.json"));
+    let json_input = read_to_string(DATA_DIR.join("cityjson_dummy_complete.city.json"));
     let cm: CityModel = serde_json::from_str(&json_input).unwrap();
     assert!(cm.vertices.len() > 0);
     assert!(cm.extensions.is_some());
@@ -38,13 +38,13 @@ fn citymodel_dummy_complete_deserialize() {
 
 #[test]
 fn citymodel_minimal_complete() {
-    let json_input = read_to_string(DATA_DIR.join("minimal_complete.city.json"));
+    let json_input = read_to_string(DATA_DIR.join("cityjson_minimal_complete.city.json"));
     assert_eq_roundtrip::<CityModel>(&json_input);
 }
 
 #[test]
 fn cityjsonfeature_minimal_complete() {
-    let json_input = read_to_string(DATA_DIR.join("minimal_complete.city.jsonl"));
+    let json_input = read_to_string(DATA_DIR.join("cityjsonfeature_minimal_complete.city.jsonl"));
     assert_eq_roundtrip::<CityModel>(&json_input);
 }
 
