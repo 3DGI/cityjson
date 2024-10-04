@@ -213,7 +213,7 @@ pub struct CityObject<'cm> {
     )]
     #[cfg_attr(feature = "datasize", data_size(with = sizeof_attributes_option))]
     pub attributes: Option<Attributes<'cm>>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "camelCase")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "geographicalExtent")]
     pub geographical_extent: Option<BBox>,
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<Cow<'cm, str>>>,
