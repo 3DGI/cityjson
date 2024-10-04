@@ -247,7 +247,15 @@ impl<'cm> CityModelBuilder<'cm> {
         if use_templates {
             let vertices_templates: VerticesTemplates = VerticesTemplatesFaker.fake();
             // The 8th geometry type is GeometryInstance, which cannot be a template
-            let geometry_types = Some(vec![0usize, 1, 2, 3, 4, 5, 6]);
+            let geometry_types = Some(vec![
+                GeometryType::MultiPoint,
+                GeometryType::MultiLineString,
+                GeometryType::MultiSurface,
+                GeometryType::CompositeSurface,
+                GeometryType::Solid,
+                GeometryType::MultiSolid,
+                GeometryType::CompositeSolid,
+            ]);
             let gf = GeometryFaker {
                 nr_vertices: IndexType::try_from(vertices_templates.len()).unwrap(),
                 // All templates are Buildings, to make our life easier, and so that semantics,
@@ -550,25 +558,29 @@ impl Dummy<CityObjectTypeFaker> for CityObjectType {
 }
 
 /// If `texture_allow_none` is `true`, null values are allowed in the texture UV-indices.
+/// If `geometry_types` is set, choose from the provided geometry types. If `geometry_types` is
+/// `None`, the generated geometry type is chosen randomly from the geometry types that are allowed
+/// by the CityObject type.
 struct GeometryFaker<'cmbuild, 'cm> {
     nr_vertices: IndexType,
     cotype: CityObjectType,
     appearance: Option<Appearance<'cmbuild>>,
     themes_material: Option<Vec<String>>,
     themes_texture: Option<Vec<String>>,
-    geometry_types: Option<Vec<usize>>,
+    geometry_types: Option<Vec<GeometryType>>,
     semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
     texture_allow_none: bool,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         nr_vertices: IndexType,
         cotype: CityObjectType,
         appearance: Option<Appearance<'cmbuild>>,
         themes_material: Option<Vec<String>>,
         themes_texture: Option<Vec<String>>,
-        geometry_types: Option<Vec<usize>>,
+        geometry_types: Option<Vec<GeometryType>>,
         semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
         texture_allow_none: bool,
     ) -> Self {
@@ -594,7 +606,18 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
             || config.cotype == CityObjectType::BuildingStorey
             || config.cotype == CityObjectType::BuildingRoom
             || config.cotype == CityObjectType::BuildingUnit;
-        let mut geometry_types: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+
+        let mut geometry_types = vec![
+            GeometryType::MultiPoint,
+            GeometryType::MultiLineString,
+            GeometryType::MultiSurface,
+            GeometryType::CompositeSurface,
+            GeometryType::Solid,
+            GeometryType::MultiSolid,
+            GeometryType::CompositeSolid,
+            GeometryType::GeometryInstance,
+        ];
+
         if let Some(ref gt) = config.geometry_types {
             geometry_types = gt.clone()
         } else {
@@ -602,33 +625,71 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
             if config.cotype == CityObjectType::Bridge
                 || config.cotype == CityObjectType::BridgePart
             {
-                geometry_types = vec![2, 3, 4, 6];
+                geometry_types = vec![
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                    GeometryType::Solid,
+                    GeometryType::CompositeSolid,
+                ];
             } else if building_types {
-                geometry_types = vec![2, 3, 4, 6];
+                geometry_types = vec![
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                    GeometryType::Solid,
+                    GeometryType::CompositeSolid,
+                ];
             // } else if config.cotype == CityObjectType::GenericCityObject {
             //     geometry_types = vec![0, 1, 2, 3, 4, 6];
             } else if config.cotype == CityObjectType::LandUse {
-                geometry_types = vec![2, 3];
+                geometry_types = vec![GeometryType::MultiSurface, GeometryType::CompositeSurface];
             } else if config.cotype == CityObjectType::PlantCover {
-                geometry_types = vec![2, 3, 4, 5, 6];
+                geometry_types = vec![
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                    GeometryType::Solid,
+                    GeometryType::MultiSolid,
+                    GeometryType::CompositeSolid,
+                ];
             } else if config.cotype == CityObjectType::TINRelief {
-                geometry_types = vec![3];
+                geometry_types = vec![GeometryType::CompositeSurface];
             } else if config.cotype == CityObjectType::Road
                 || config.cotype == CityObjectType::Railway
                 || config.cotype == CityObjectType::Waterway
             {
-                geometry_types = vec![1, 2, 3];
+                geometry_types = vec![
+                    GeometryType::MultiLineString,
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                ];
             } else if config.cotype == CityObjectType::TransportSquare {
-                geometry_types = vec![0, 1, 2, 3];
+                geometry_types = vec![
+                    GeometryType::MultiPoint,
+                    GeometryType::MultiLineString,
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                ];
             } else if config.cotype == CityObjectType::Tunnel
                 || config.cotype == CityObjectType::TunnelPart
             {
-                geometry_types = vec![2, 3, 4, 6];
+                geometry_types = vec![
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                    GeometryType::Solid,
+                    GeometryType::CompositeSolid,
+                ];
             } else if config.cotype == CityObjectType::WaterBody {
-                geometry_types = vec![1, 2, 3, 4, 6];
+                geometry_types = vec![
+                    GeometryType::MultiLineString,
+                    GeometryType::MultiSurface,
+                    GeometryType::CompositeSurface,
+                    GeometryType::Solid,
+                    GeometryType::CompositeSolid,
+                ];
             }
         }
-        let geometry_type_chosen = geometry_types.choose(rng).unwrap_or(&0_usize);
+        let geometry_type_chosen = geometry_types
+            .choose(rng)
+            .unwrap_or(&GeometryType::MultiPoint);
         // Decide if we can generate semantics for the given CityObject type
         let mut generate_semantics = false;
         if lod >= LoD::LoD2
@@ -704,7 +765,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
         let template_transformation_matrix: Option<[f64; 16]>;
 
         match geometry_type_chosen {
-            0 => {
+            GeometryType::MultiPoint => {
                 let boundaries: Boundary = MultiPointFaker::new(config.nr_vertices).fake();
                 let nr_points = IndexType::try_from(boundaries.vertices.len()).unwrap();
                 semantics = generate_semantics.then(|| {
@@ -727,7 +788,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            1 => {
+            GeometryType::MultiLineString => {
                 let boundaries: Boundary = MultiLineStringFaker::new(config.nr_vertices).fake();
                 let nr_linestrings = IndexType::try_from(boundaries.rings.len()).unwrap();
                 semantics = generate_semantics.then(|| {
@@ -750,7 +811,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            2 => {
+            GeometryType::MultiSurface => {
                 let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
@@ -792,7 +853,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            3 => {
+            GeometryType::CompositeSurface => {
                 let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
@@ -834,7 +895,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            4 => {
+            GeometryType::Solid => {
                 let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake();
                 semantics = generate_semantics.then(|| {
                     SolidSemanticsFaker::new(
@@ -875,7 +936,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            5 => {
+            GeometryType::MultiSolid => {
                 let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
@@ -916,7 +977,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            6 => {
+            GeometryType::CompositeSolid => {
                 let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
@@ -957,7 +1018,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix: None,
                 }
             }
-            7 => {
+            GeometryType::GeometryInstance => {
                 let reference_point: u32 = IndexFaker {
                     max: config.nr_vertices,
                 }
@@ -977,7 +1038,6 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                     template_transformation_matrix,
                 }
             }
-            _ => unreachable!("There are only eight geometry types"),
         }
     }
 }
@@ -2549,9 +2609,9 @@ mod tests {
             None,
             None,
             None,
-            None,
+            Some(vec![GeometryType::CompositeSurface]),
             &None,
-            true,
+            false,
         )
         .fake();
         dbg!(geom);
