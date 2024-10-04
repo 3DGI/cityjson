@@ -1347,6 +1347,7 @@ pub struct Contact {
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ContactRole {
     Author,
+    #[serde(rename = "co-author")]
     CoAuthor,
     Collaborator,
     Contributor,

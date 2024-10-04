@@ -1,6 +1,7 @@
 {
   "pointOfContact": {
     "contactName": "3DGI",
-    "emailAddress": "email@3dgi.nl"
+    "emailAddress": "email@3dgi.nl",
+    "role": "co-author"
   }
 }
