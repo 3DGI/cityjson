@@ -1114,9 +1114,9 @@ impl Dummy<MultiSolidFaker> for Boundary {
         };
 
         // Counters
-        let ring_i = 0u32;
-        let surface_i = 0u32;
-        let shell_i = 0u32;
+        let mut ring_i = 0u32;
+        let mut surface_i = 0u32;
+        let mut shell_i = 0u32;
         let mut solid_i = 0u32;
 
         let nr_solids = rng.gen_range(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID);
@@ -1130,9 +1130,9 @@ impl Dummy<MultiSolidFaker> for Boundary {
                 rng,
                 &mut boundary,
                 min_linestring_len,
-                ring_i,
-                surface_i,
-                shell_i,
+                &mut ring_i,
+                &mut surface_i,
+                &mut shell_i,
                 nr_shells,
             );
         }
@@ -1178,9 +1178,9 @@ impl Dummy<SolidFaker> for Boundary {
         };
 
         // Counters
-        let ring_i = 0u32;
-        let surface_i = 0u32;
-        let shell_i = 0u32;
+        let mut ring_i = 0u32;
+        let mut surface_i = 0u32;
+        let mut shell_i = 0u32;
 
         let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
         fake_solid_boundary(
@@ -1188,9 +1188,9 @@ impl Dummy<SolidFaker> for Boundary {
             rng,
             &mut boundary,
             min_linestring_len,
-            ring_i,
-            surface_i,
-            shell_i,
+            &mut ring_i,
+            &mut surface_i,
+            &mut shell_i,
             nr_shells,
         );
 
@@ -1204,24 +1204,24 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
     rng: &mut R,
     boundary: &mut Boundary,
     min_linestring_len: IndexType,
-    ring_i: u32,
-    mut surface_i: u32,
-    mut shell_i: u32,
+    ring_i: &mut u32,
+    surface_i: &mut u32,
+    shell_i: &mut u32,
     nr_shells: IndexType,
 ) {
     for _shell in MIN_MEMBERS_SOLID..=nr_shells {
-        boundary.shells.push(LargeIndex::from(shell_i));
+        boundary.shells.push(LargeIndex::from(*shell_i));
         let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
-        shell_i += shell_len;
+        *shell_i += shell_len;
 
         // Add the surfaces for each shell
         for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
-            boundary.surfaces.push(LargeIndex::from(surface_i));
+            boundary.surfaces.push(LargeIndex::from(*surface_i));
             let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-            surface_i += nr_rings;
+            *surface_i += nr_rings;
 
             // Add the rings for each surface
-            fake_ring_boundary(
+            fake_surface_boundary(
                 nr_vertices_citymodel,
                 rng,
                 boundary,
@@ -1265,7 +1265,7 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
         };
 
         // Counters
-        let ring_i = 0u32;
+        let mut ring_i = 0u32;
         let mut surface_i = 0u32;
 
         let nr_surfaces = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
@@ -1275,12 +1275,12 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
             surface_i += nr_rings;
 
             // Add the rings for each surface
-            fake_ring_boundary(
+            fake_surface_boundary(
                 config.nr_vertices,
                 rng,
                 &mut boundary,
                 min_linestring_len,
-                ring_i,
+                &mut ring_i,
                 nr_rings,
             );
         }
@@ -1318,33 +1318,34 @@ impl Dummy<MultiLineStringFaker> for Boundary {
         };
 
         // Counters
-        let ring_i = 0u32;
+        let mut ring_i = 0u32;
 
         let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-        fake_ring_boundary(
+        fake_surface_boundary(
             config.nr_vertices,
             rng,
             &mut boundary,
             min_linestring_len,
-            ring_i,
+            &mut ring_i,
             nr_rings,
         );
         boundary
     }
 }
 
-fn fake_ring_boundary<R: Rng + ?Sized>(
+/// Generate one surface and add it to the boundary.
+fn fake_surface_boundary<R: Rng + ?Sized>(
     nr_vertices_citymodel: IndexType,
     rng: &mut R,
     boundary: &mut Boundary,
     min_linestring_len: IndexType,
-    mut ring_i: u32,
+    ring_i: &mut u32,
     nr_rings: IndexType,
 ) {
     for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
-        boundary.rings.push(LargeIndex::from(ring_i));
+        boundary.rings.push(LargeIndex::from(*ring_i));
         let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-        ring_i += ring_len;
+        *ring_i += ring_len;
 
         // Add the vertices for each ring
         // Cannot have an empty ring, so we start at 1 (https://github.com/cityjson/specs/issues/189)
@@ -2614,7 +2615,9 @@ mod tests {
             false,
         )
         .fake();
-        dbg!(geom);
+        // dbg!(&geom);
+        let g = serde_json::to_string(&geom).unwrap();
+        dbg!(g);
     }
 
     #[test]
