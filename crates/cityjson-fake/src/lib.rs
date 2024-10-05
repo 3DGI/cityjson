@@ -25,7 +25,9 @@ use fake::locales::*;
 use fake::uuid::UUIDv1;
 use fake::{Dummy, Fake, Faker};
 use rand::distributions::{Bernoulli, Distribution};
+use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use rand::{thread_rng, Rng};
 use serde_cityjson::attributes::Attributes;
 use serde_cityjson::boundary::Boundary;
@@ -33,18 +35,15 @@ use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
-// TODO: Probably should use https://docs.rs/rand/0.8.5/rand/rngs/struct.SmallRng.html for its speed
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // todo: vertices unused
 // TODO: exact configuration for reproducible models (same types, config etc)
 // TODO: CLI/API
 // TODO: exe/docker/server
 // TODO: docs
-// todo cj: templates are added under the 'kebab-case' root member
 // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
 // TODO: Maybe I could have MIN_COORDINATE/MAX_COORDINATE configurable, to that it'll be possible to emulate triangulated surfaces with a range of min=3 max=3.
 // TODO: CityObject add "address" to the type where possible
-// todo: CityObject add geographical_extent
 // todo: CityObject add extra
 // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included with https://doc.rust-lang.org/std/macro.include_str.html
 // todo cj: need to use the proper coordinate type and add to CoordinateFaker
@@ -102,6 +101,7 @@ struct CityModelBuilder<'cm> {
     themes_texture: Option<Vec<String>>,
     attributes_cityobject: Option<Attributes<'cm>>,
     attributes_semantic: Option<Attributes<'cm>>,
+    rng: SmallRng,
 }
 
 impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
@@ -124,7 +124,7 @@ impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
 
 impl<'cm> Default for CityModelBuilder<'cm> {
     fn default() -> Self {
-        CityModelBuilder::new()
+        CityModelBuilder::new(None)
             .metadata(None)
             .vertices()
             .materials(None)
@@ -136,8 +136,13 @@ impl<'cm> Default for CityModelBuilder<'cm> {
 
 impl<'cm> CityModelBuilder<'cm> {
     #[must_use]
-    pub fn new() -> Self {
-        CityModelBuilder {
+    pub fn new(seed: Option<u64>) -> Self {
+        let rng = if let Some(state) = seed {
+            SmallRng::seed_from_u64(state)
+        } else {
+            SmallRng::from_entropy()
+        };
+        Self {
             id: None,
             type_cm: None,
             version: None,
@@ -153,6 +158,7 @@ impl<'cm> CityModelBuilder<'cm> {
             themes_texture: None,
             attributes_cityobject: None,
             attributes_semantic: None,
+            rng,
         }
     }
 
@@ -205,7 +211,8 @@ impl<'cm> CityModelBuilder<'cm> {
             None,
             texture_allow_none,
         );
-        let cos_parents: Vec<CityObject> = (cof_parents, nr_parents_range).fake();
+        let cos_parents: Vec<CityObject> =
+            (cof_parents, nr_parents_range).fake_with_rng(&mut self.rng);
         let estimate_total_nr = if cityobject_hierarchy {
             cos_parents.len() * 2
         } else {
@@ -215,7 +222,8 @@ impl<'cm> CityModelBuilder<'cm> {
         let mut cityobjects = CityObjects::with_capacity(estimate_total_nr);
         if cityobject_hierarchy {
             for mut co_parent in cos_parents.into_iter() {
-                let parent_id = Cow::from(Word(EN).fake::<&str>());
+                let _pid: &str = Word(EN).fake_with_rng(&mut self.rng);
+                let parent_id = Cow::from(_pid);
                 if let Some(subtypes) = get_cityobject_subtype(&co_parent.type_co) {
                     let mut co_child: CityObject = CityObjectFaker::new(
                         nr_vertices as IndexType,
@@ -228,8 +236,9 @@ impl<'cm> CityModelBuilder<'cm> {
                         Some(subtypes),
                         texture_allow_none,
                     )
-                    .fake();
-                    let child_id = Cow::from(Word(EN).fake::<&str>());
+                    .fake_with_rng(&mut self.rng);
+                    let _cid: &str = Word(EN).fake_with_rng(&mut self.rng);
+                    let child_id = Cow::from(_cid);
                     co_child.parents = Some(vec![parent_id.clone()]);
                     co_parent.children = Some(vec![child_id.clone()]);
                     cityobjects.insert(child_id, co_child);
@@ -237,15 +246,15 @@ impl<'cm> CityModelBuilder<'cm> {
                 cityobjects.insert(parent_id, co_parent);
             }
         } else {
-            cityobjects = CityObjects::from_iter(
-                cos_parents
-                    .into_iter()
-                    .map(|co| (Cow::from(Word(EN).fake::<&str>()), co)),
-            );
+            cityobjects = CityObjects::from_iter(cos_parents.into_iter().map(|co| {
+                let _id: &str = Word(EN).fake_with_rng(&mut self.rng);
+                (Cow::from(_id), co)
+            }));
         }
         self.cityobjects = Some(cityobjects);
         if use_templates {
-            let vertices_templates: VerticesTemplates = VerticesTemplatesFaker.fake();
+            let vertices_templates: VerticesTemplates =
+                VerticesTemplatesFaker.fake_with_rng(&mut self.rng);
             // The 8th geometry type is GeometryInstance, which cannot be a template
             let geometry_types = Some(vec![
                 GeometryType::MultiPoint,
@@ -269,7 +278,7 @@ impl<'cm> CityModelBuilder<'cm> {
                 texture_allow_none,
             };
             self.geometry_templates = Some(GeometryTemplates {
-                templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake(),
+                templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake_with_rng(&mut self.rng),
                 vertices_templates,
             });
         }
@@ -282,21 +291,21 @@ impl<'cm> CityModelBuilder<'cm> {
                 random_values: false,
                 random_keys: false,
             }
-            .fake(),
+            .fake_with_rng(&mut self.rng),
         );
         self.attributes_semantic = Some(
             AttributesFaker {
                 random_values: false,
                 random_keys: false,
             }
-            .fake(),
+            .fake_with_rng(&mut self.rng),
         );
         // self.extra = Some(
         //     AttributesFaker {
         //         random_values: false,
         //         random_keys: false,
         //     }
-        //     .fake(),
+        //     .fake_with_rng(&mut self.rng),
         // );
         self
     }
@@ -312,7 +321,7 @@ impl<'cm> CityModelBuilder<'cm> {
                 .map(|_| MaterialBuilder::default().into())
                 .collect()
         }
-        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_MATERIALS).fake();
+        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_MATERIALS).fake_with_rng(&mut self.rng);
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_material = Some(themes);
         if let Some(ref mut appearance) = self.appearance {
@@ -341,11 +350,11 @@ impl<'cm> CityModelBuilder<'cm> {
                 .map(|_| TextureBuilder::default().into())
                 .collect()
         }
-        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_TEXTURES).fake();
+        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_TEXTURES).fake_with_rng(&mut self.rng);
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_texture = Some(themes);
         let vertices_texture: VerticesTexture =
-            (UVCoordinateFaker, 0..=MAX_NR_VERTICES_TEXTURE).fake();
+            (UVCoordinateFaker, 0..=MAX_NR_VERTICES_TEXTURE).fake_with_rng(&mut self.rng);
         if let Some(ref mut appearance) = self.appearance {
             appearance.textures = Some(tex);
             appearance.vertices_texture = Some(vertices_texture);
@@ -374,7 +383,7 @@ impl<'cm> CityModelBuilder<'cm> {
     /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
     pub fn vertices(mut self) -> Self {
         if self.vertices.is_none() {
-            self.vertices = Some(fake_vertices());
+            self.vertices = Some(fake_vertices(&mut self.rng));
         }
         self
     }
@@ -442,7 +451,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             CityObjectTypeFaker {
                 cityobject_level: config.cityobject_level,
             }
-            .fake()
+            .fake_with_rng(rnd)
         };
         let gf = GeometryFaker::new(
             config.nr_vertices,
@@ -457,13 +466,14 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
         let geometry = if config.nr_vertices == 0 {
             None
         } else {
-            Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake())
+            Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake_with_rng(rnd))
         };
+        let geographical_extent: BBox = Faker.fake_with_rng(rnd);
         Self::new(
             cotype,
             geometry,
             config.attributes_cityobject.clone(),
-            None,
+            Some(geographical_extent),
             None,
             None,
             None,
@@ -599,7 +609,7 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker<'cmbuild, 'cm>, rng: &mut R) -> Self {
-        let lod: LoD = LoDFaker.fake();
+        let lod: LoD = LoDFaker.fake_with_rng(rng);
         // todo: move this type setup to compile time
         let building_types = config.cotype == CityObjectType::Building
             || config.cotype == CityObjectType::BuildingPart
@@ -760,7 +770,8 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
 
         match geometry_type_chosen {
             GeometryType::MultiPoint => {
-                let boundaries: Boundary = MultiPointFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiPointFaker::new(config.nr_vertices).fake_with_rng(rng);
                 let nr_points = IndexType::try_from(boundaries.vertices.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiPointSemanticsFaker::new(
@@ -768,7 +779,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::MultiPoint,
@@ -783,7 +794,8 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiLineString => {
-                let boundaries: Boundary = MultiLineStringFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiLineStringFaker::new(config.nr_vertices).fake_with_rng(rng);
                 let nr_linestrings = IndexType::try_from(boundaries.rings.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiLineStringSemanticsFaker::new(
@@ -791,7 +803,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::MultiLineString,
@@ -806,7 +818,8 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiSurface => {
-                let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiSurfaceFaker::new(config.nr_vertices).fake_with_rng(rng);
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(
@@ -814,7 +827,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 material = generate_materials.then(|| {
                     MaterialMapFaker::new(
@@ -823,7 +836,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         single_material,
                         &boundaries,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 texture = generate_textures.then(|| {
                     TextureMapFaker::new(
@@ -833,7 +846,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         &boundaries,
                         config.texture_allow_none,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::MultiSurface,
@@ -848,7 +861,8 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::CompositeSurface => {
-                let boundaries: Boundary = MultiSurfaceFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiSurfaceFaker::new(config.nr_vertices).fake_with_rng(rng);
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(
@@ -856,7 +870,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 material = generate_materials.then(|| {
                     MaterialMapFaker::new(
@@ -865,7 +879,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         single_material,
                         &boundaries,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 texture = generate_textures.then(|| {
                     TextureMapFaker::new(
@@ -875,7 +889,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         &boundaries,
                         config.texture_allow_none,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::CompositeSurface,
@@ -890,14 +904,14 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::Solid => {
-                let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     SolidSemanticsFaker::new(
                         &boundaries,
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 material = generate_materials.then(|| {
                     MaterialMapFaker::new(
@@ -906,7 +920,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         single_material,
                         &boundaries,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 texture = generate_textures.then(|| {
                     TextureMapFaker::new(
@@ -916,7 +930,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         &boundaries,
                         config.texture_allow_none,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::Solid,
@@ -931,14 +945,15 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiSolid => {
-                let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiSolidFaker::new(config.nr_vertices).fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
                         &boundaries,
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 material = generate_materials.then(|| {
                     MaterialMapFaker::new(
@@ -947,7 +962,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         single_material,
                         &boundaries,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 texture = generate_textures.then(|| {
                     TextureMapFaker::new(
@@ -957,7 +972,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         &boundaries,
                         config.texture_allow_none,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::MultiSolid,
@@ -972,14 +987,15 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::CompositeSolid => {
-                let boundaries: Boundary = MultiSolidFaker::new(config.nr_vertices).fake();
+                let boundaries: Boundary =
+                    MultiSolidFaker::new(config.nr_vertices).fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
                         &boundaries,
                         config.cotype.clone(),
                         config.semantics_attributes,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 material = generate_materials.then(|| {
                     MaterialMapFaker::new(
@@ -988,7 +1004,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         single_material,
                         &boundaries,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 texture = generate_textures.then(|| {
                     TextureMapFaker::new(
@@ -998,7 +1014,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         &boundaries,
                         config.texture_allow_none,
                     )
-                    .fake()
+                    .fake_with_rng(rng)
                 });
                 Geometry {
                     type_: GeometryType::CompositeSolid,
@@ -1016,10 +1032,10 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 let reference_point: u32 = IndexFaker {
                     max: config.nr_vertices,
                 }
-                .fake();
+                .fake_with_rng(rng);
                 template_boundaries = Some([reference_point as usize]);
                 template = Some(0);
-                template_transformation_matrix = Some((0.0..f64::MAX).fake());
+                template_transformation_matrix = Some((0.0..f64::MAX).fake_with_rng(rng));
                 Geometry {
                     type_: GeometryType::GeometryInstance,
                     lod: None,
@@ -1344,9 +1360,10 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
         // Add the vertices for each ring
         // Cannot have an empty ring, so we start at 1 (https://github.com/cityjson/specs/issues/189)
         let nr_vertices: IndexType = rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-        boundary.vertices.extend(
-            (1..nr_vertices).map(|_| IndexFaker::new(nr_vertices_citymodel).fake::<LargeIndex>()),
-        );
+        boundary.vertices.extend((1..nr_vertices).map(|_| {
+            let li: LargeIndex = IndexFaker::new(nr_vertices_citymodel).fake_with_rng(rng);
+            li
+        }));
     }
 }
 
@@ -1361,7 +1378,7 @@ impl MultiPointFaker {
 }
 
 impl Dummy<MultiPointFaker> for Boundary {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, rng: &mut R) -> Self {
         let vf = IndexFaker::new(config.nr_vertices);
         // If the number of vertices is 0, create an empty range, which will cause
         // LargeIndexVecFaker to generate an empty vector.
@@ -1375,7 +1392,7 @@ impl Dummy<MultiPointFaker> for Boundary {
                 index_faker: vf,
                 range: range_members_multipoint,
             }
-            .fake(),
+            .fake_with_rng(rng),
             rings: Default::default(),
             surfaces: Default::default(),
             shells: Default::default(),
@@ -1408,17 +1425,16 @@ struct LargeIndexVecFaker {
 }
 
 impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, rng: &mut R) -> Self {
         if config.range.is_empty() {
             LargeIndexVec::default()
         } else {
-            LargeIndexVec::from(
-                (
-                    config.index_faker,
-                    *config.range.start() as usize..*config.range.end() as usize,
-                )
-                    .fake::<Vec<u32>>(),
+            let l: Vec<u32> = (
+                config.index_faker,
+                *config.range.start() as usize..*config.range.end() as usize,
             )
+                .fake_with_rng(rng);
+            LargeIndexVec::from(l)
         }
     }
 }
@@ -1450,24 +1466,24 @@ impl Dummy<IndexFaker> for LargeIndex {
     }
 }
 
-// FIXME: this can generate an empty vertices vec. Should be able to set the amount of vertices
+// todo: this can generate an empty vertices vec. Should be able to set the amount of vertices
 //  needed, with the minimum of 1.
-fn fake_vertices() -> Vertices {
-    Faker.fake::<Vertices>()
+fn fake_vertices<R: Rng + ?Sized>(rng: &mut R) -> Vertices {
+    Faker.fake_with_rng(rng)
 }
 
 struct VerticesTemplatesFaker;
 impl Dummy<VerticesTemplatesFaker> for VerticesTemplates {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesTemplatesFaker, _: &mut R) -> Self {
-        (TemplateVertexFaker, 1..=MAX_NR_VERTICES as usize).fake()
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesTemplatesFaker, rng: &mut R) -> Self {
+        (TemplateVertexFaker, 1..=MAX_NR_VERTICES as usize).fake_with_rng(rng)
     }
 }
 
 type TemplateVertex = [f64; 3];
 struct TemplateVertexFaker;
 impl Dummy<TemplateVertexFaker> for TemplateVertex {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &TemplateVertexFaker, _: &mut R) -> Self {
-        Faker.fake()
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &TemplateVertexFaker, rng: &mut R) -> Self {
+        Faker.fake_with_rng(rng)
     }
 }
 
@@ -1488,12 +1504,12 @@ impl Dummy<CoordinateFaker> for [i64; 3] {
 
 struct VerticesFaker;
 impl Dummy<VerticesFaker> for Vertices {
-    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesFaker, rng: &mut R) -> Self {
         let cf = CoordinateFaker {
             min: MIN_COORDINATE,
             max: MAX_COORDINATE,
         };
-        (cf, MIN_NR_VERTICES as usize..=MAX_NR_VERTICES as usize).fake()
+        (cf, MIN_NR_VERTICES as usize..=MAX_NR_VERTICES as usize).fake_with_rng(rng)
     }
 }
 
@@ -1741,8 +1757,8 @@ fn fake_depth_three_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Size
     );
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let surfaces_values =
-        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
+    let surfaces_values: Vec<OptionalLargeIndex> =
+        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -1771,8 +1787,8 @@ fn fake_depth_two_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Sized>
     );
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let surfaces_values =
-        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake::<Vec<OptionalLargeIndex>>();
+    let surfaces_values: Vec<OptionalLargeIndex> =
+        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -1793,8 +1809,8 @@ fn fake_depth_one_semantics<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
 ) -> (Vec<Semantic<'cm>>, Vec<OptionalLargeIndex>) {
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng, attributes);
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let values =
-        (idxf, nr_members as usize..=nr_members as usize).fake::<Vec<OptionalLargeIndex>>();
+    let values: Vec<OptionalLargeIndex> =
+        (idxf, nr_members as usize..=nr_members as usize).fake_with_rng(rng);
     (surfaces, values)
 }
 
@@ -1808,7 +1824,10 @@ fn fake_semantics_surfaces<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
     // We have max. as many different Semantics as there are geometry members
     let nr_semantic: IndexType = (1..=nr_members).fake_with_rng(rng);
     let surfaces: Vec<Semantic> = (0..=nr_semantic)
-        .filter_map(|_| sf.fake::<Option<Semantic>>())
+        .filter_map(|_| {
+            let s: Option<Semantic> = sf.fake_with_rng(rng);
+            s
+        })
         .collect();
     (nr_semantic, surfaces)
 }
@@ -1825,15 +1844,15 @@ impl<'cm: 'cmbuild, 'cmbuild> SemanticFaker<'cmbuild, 'cm> {
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<SemanticFaker<'cmbuild, 'cm>> for Option<Semantic<'cm>> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker<'cmbuild, 'cm>, _: &mut R) -> Self {
-        SemanticTypeFaker::new(config.cotype.clone())
-            .fake::<Option<SemanticType>>()
-            .map(|semtype| Semantic {
-                type_sem: semtype,
-                children: None,
-                parent: None,
-                attributes: config.attributes.clone(),
-            })
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &SemanticFaker<'cmbuild, 'cm>, rng: &mut R) -> Self {
+        let st: Option<SemanticType> =
+            SemanticTypeFaker::new(config.cotype.clone()).fake_with_rng(rng);
+        st.map(|semtype| Semantic {
+            type_sem: semtype,
+            children: None,
+            parent: None,
+            attributes: config.attributes.clone(),
+        })
     }
 }
 
@@ -2078,7 +2097,7 @@ impl<'matmapfaker> MaterialMapFaker<'matmapfaker> {
 }
 
 impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &MaterialMapFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &MaterialMapFaker, rng: &mut R) -> Self {
         let nr_surfaces = config.boundary.surfaces.len();
         if nr_surfaces == 0 {
             Self::new()
@@ -2092,13 +2111,13 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
                     matmap.insert(
                         Cow::Owned(theme.to_string()),
                         MaterialValues {
-                            value: Some(idxf.fake()),
+                            value: Some(idxf.fake_with_rng(rng)),
                             values: None,
                         },
                     );
                 } else {
-                    let values =
-                        (oidxf, nr_surfaces..=nr_surfaces).fake::<Vec<OptionalLargeIndex>>();
+                    let values: Vec<OptionalLargeIndex> =
+                        (oidxf, nr_surfaces..=nr_surfaces).fake_with_rng(rng);
                     // Only the surfaces vec contains the pointers to the Materials, shells and
                     // solids are just pointers to the boundary arrays. In case of
                     // Multi/CompositeSurface the empty Vec-s are cloned, for more complex geoms
@@ -2278,7 +2297,7 @@ impl<'texmapfaker> TextureMapFaker<'texmapfaker> {
 }
 
 impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &TextureMapFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &TextureMapFaker, rng: &mut R) -> Self {
         let nr_vertices = config.boundary.vertices.len();
         let nr_rings = config.boundary.rings.len();
         let nr_surfaces = config.boundary.surfaces.len();
@@ -2290,10 +2309,10 @@ impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
                 OptionalIndexFaker::new(config.nr_vertices_texture - 1, config.allow_none);
             let mut texmap = TextureMap::new();
             for theme in &config.themes_texture {
-                let tex_indices =
-                    (tex_idx_faker, nr_rings..=nr_rings).fake::<Vec<OptionalLargeIndex>>();
-                let uv_coord_indices =
-                    (uv_idx_faker, nr_vertices..=nr_vertices).fake::<Vec<OptionalLargeIndex>>();
+                let tex_indices: Vec<OptionalLargeIndex> =
+                    (tex_idx_faker, nr_rings..=nr_rings).fake_with_rng(rng);
+                let uv_coord_indices: Vec<OptionalLargeIndex> =
+                    (uv_idx_faker, nr_vertices..=nr_vertices).fake_with_rng(rng);
                 let textureindex = TextureIndex {
                     vertices: uv_coord_indices,
                     rings: config.boundary.rings.clone(),
@@ -2460,7 +2479,7 @@ struct AttributesFaker {
 
 /// Generate owned attributes.
 impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &AttributesFaker, _: &mut R) -> Self {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &AttributesFaker, rng: &mut R) -> Self {
         let mut attributes_map = serde_json::Map::new();
         let mut key_null = "null".to_string();
         let mut key_bool = "bool".to_string();
@@ -2473,16 +2492,16 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
         let mut key_array_string = "array_string".to_string();
         let mut key_object = "object".to_string();
         if config.random_keys {
-            key_null = Word(EN).fake();
-            key_bool = Word(EN).fake();
-            key_number_int = Word(EN).fake();
-            key_number_float = Word(EN).fake();
-            key_string = Word(EN).fake();
-            key_array_null = Word(EN).fake();
-            key_array_bool = Word(EN).fake();
-            key_array_number = Word(EN).fake();
-            key_array_string = Word(EN).fake();
-            key_object = Word(EN).fake();
+            key_null = Word(EN).fake_with_rng(rng);
+            key_bool = Word(EN).fake_with_rng(rng);
+            key_number_int = Word(EN).fake_with_rng(rng);
+            key_number_float = Word(EN).fake_with_rng(rng);
+            key_string = Word(EN).fake_with_rng(rng);
+            key_array_null = Word(EN).fake_with_rng(rng);
+            key_array_bool = Word(EN).fake_with_rng(rng);
+            key_array_number = Word(EN).fake_with_rng(rng);
+            key_array_string = Word(EN).fake_with_rng(rng);
+            key_object = Word(EN).fake_with_rng(rng);
         }
         let value_null = serde_json::Value::Null;
         let mut value_bool = serde_json::Value::Bool(true);
@@ -2504,17 +2523,17 @@ impl<'cm> Dummy<AttributesFaker> for Attributes<'cm> {
             serde_json::Value::String("äáßüóíéöűőú".into()),
         ]);
         if config.random_values {
-            value_bool = serde_json::Value::Bool(Faker.fake());
+            value_bool = serde_json::Value::Bool(Faker.fake_with_rng(rng));
             value_number_int = serde_json::Value::from(Faker.fake::<i64>());
             value_number_float = serde_json::Value::from(Faker.fake::<f64>());
-            value_string = serde_json::Value::String(Faker.fake());
-            let af64: Vec<f64> = (F64Faker, 3..5).fake();
+            value_string = serde_json::Value::String(Faker.fake_with_rng(rng));
+            let af64: Vec<f64> = (F64Faker, 3..5).fake_with_rng(rng);
             value_array_number = serde_json::Value::Array(
                 af64.into_iter()
                     .map(serde_json::Value::from)
                     .collect::<Vec<_>>(),
             );
-            let astring: Vec<String> = (Word(EN), 3..5).fake();
+            let astring: Vec<String> = (Word(EN), 3..5).fake_with_rng(rng);
             value_array_string = serde_json::Value::Array(
                 astring
                     .into_iter()
@@ -2604,7 +2623,7 @@ mod tests {
             None,
             None,
             None,
-            Some(vec![GeometryType::CompositeSurface]),
+            Some(vec![GeometryType::MultiSurface]),
             &None,
             false,
         )
