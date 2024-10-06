@@ -1181,10 +1181,11 @@ impl Dummy<SolidFaker> for Boundary {
             solids: LargeIndexVec::default(),
         };
 
-        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+        // A ring must have at least three members.
+        let min_ring_len = if MIN_MEMBERS_MULTIPOINT > 2 {
             MIN_MEMBERS_MULTIPOINT
         } else {
-            MIN_MEMBERS_MULTIPOINT + 1
+            3
         };
 
         // Counters
@@ -1197,7 +1198,7 @@ impl Dummy<SolidFaker> for Boundary {
             config.nr_vertices,
             rng,
             &mut boundary,
-            min_linestring_len,
+            min_ring_len,
             &mut ring_i,
             &mut surface_i,
             &mut shell_i,
@@ -1213,7 +1214,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
     nr_vertices_citymodel: IndexType,
     rng: &mut R,
     boundary: &mut Boundary,
-    min_linestring_len: IndexType,
+    min_ring_len: IndexType,
     ring_i: &mut u32,
     surface_i: &mut u32,
     shell_i: &mut u32,
@@ -1235,7 +1236,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
                 nr_vertices_citymodel,
                 rng,
                 boundary,
-                min_linestring_len,
+                min_ring_len,
                 ring_i,
                 nr_rings,
             );
@@ -1267,11 +1268,11 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
             shells: LargeIndexVec::default(),
             solids: LargeIndexVec::default(),
         };
-
-        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
+        // A ring must have at least three members.
+        let min_ring_len = if MIN_MEMBERS_MULTIPOINT > 2 {
             MIN_MEMBERS_MULTIPOINT
         } else {
-            MIN_MEMBERS_MULTIPOINT + 1
+            3
         };
 
         // Counters
@@ -1280,19 +1281,22 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
 
         let nr_surfaces = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
         for _surface in MIN_MEMBERS_MULTISURFACE..=nr_surfaces {
+            // Add the index of the current surface, which is a pointer to the first ring of the
+            // surface.
             boundary.surfaces.push(LargeIndex::from(surface_i));
+            // Determine the number of rings for the current surface.
             let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
-            surface_i += nr_rings;
-
-            // Add the rings for each surface
+            // Generate the rings and add them to the surface
             fake_surface_boundary(
                 config.nr_vertices,
                 rng,
                 &mut boundary,
-                min_linestring_len,
+                min_ring_len,
                 &mut ring_i,
                 nr_rings,
             );
+            // Starting index of the next surface
+            surface_i += nr_rings;
         }
         boundary
     }
@@ -1353,17 +1357,18 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
     nr_rings: IndexType,
 ) {
     for _ring in MIN_MEMBERS_MULTILINESTRING..=nr_rings {
+        // ring_i is the starting index of the current ring, which is the index of it's first vertex
+        // in the vertices vector
         boundary.rings.push(LargeIndex::from(*ring_i));
+        // Determine how many vertices does this ring have.
         let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
-        *ring_i += ring_len;
-
-        // Add the vertices for each ring
-        // Cannot have an empty ring, so we start at 1 (https://github.com/cityjson/specs/issues/189)
-        let nr_vertices: IndexType = rng.gen_range(MIN_MEMBERS_MULTIPOINT..=MAX_MEMBERS_MULTIPOINT);
-        boundary.vertices.extend((1..nr_vertices).map(|_| {
+        // Generate the vertices for the ring and add them to the boundary
+        boundary.vertices.extend((1..=ring_len).map(|_| {
             let li: LargeIndex = IndexFaker::new(nr_vertices_citymodel).fake_with_rng(rng);
             li
         }));
+        // Starting index of the next ring
+        *ring_i += ring_len;
     }
 }
 
@@ -1439,12 +1444,17 @@ impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
     }
 }
 
+/// Fake indices that point to a collection, eg. to the CityJSON vertices.
+/// The `max` is the maximum allowed index value, which would be the number of items in the target
+/// collection minus one.
 #[derive(Clone, Copy)]
 struct IndexFaker {
     max: IndexType,
 }
 
 impl IndexFaker {
+    /// The `nr_vertices` is the number of vertices in the target collection
+    /// (eg. the CityJSON vertices).
     fn new(nr_vertices: IndexType) -> Self {
         Self {
             max: if nr_vertices > 0 { nr_vertices - 1 } else { 0 },
@@ -2617,6 +2627,7 @@ mod tests {
 
     #[test]
     fn geometry() {
+        let mut rng = SmallRng::seed_from_u64(123);
         let geom: Geometry = GeometryFaker::new(
             12,
             CityObjectType::Building,
@@ -2627,7 +2638,7 @@ mod tests {
             &None,
             false,
         )
-        .fake();
+        .fake_with_rng(&mut rng);
         // dbg!(&geom);
         let g = serde_json::to_string(&geom).unwrap();
         dbg!(g);
