@@ -10,6 +10,7 @@
 //!
 //! See the [design doc] for details on how this crate works under the hood.
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
@@ -36,7 +37,7 @@ use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
-// todo: vertices unused
+// todo cj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exact configuration for reproducible models (same types, config etc)
 // TODO: CLI/API
 // TODO: exe/docker/server
@@ -46,7 +47,6 @@ use serde_cityjson::v1_1::*;
 // TODO: CityObject add "address" to the type where possible
 // todo: CityObject add extra
 // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included with https://doc.rust-lang.org/std/macro.include_str.html
-// todo cj: need to use the proper coordinate type and add to CoordinateFaker
 // todo: CityObjectTypeFaker add GenericCityObject for v2.0
 // todo: CityObjectTypeFaker add CityObjectGroup
 // todo scj: LargeIndexVec::with_capacity should be initialized with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
@@ -106,19 +106,7 @@ struct CityModelBuilder<'cm> {
 
 impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
     fn from(val: CityModelBuilder<'cm>) -> Self {
-        CityModel::new(
-            val.id,
-            val.type_cm,
-            Some(val.version.unwrap_or(CityJSONVersion::V1_1)),
-            Some(val.transform.unwrap_or_default()),
-            val.cityobjects,
-            val.vertices,
-            val.metadata,
-            val.appearance,
-            val.geometry_templates,
-            val.extra,
-            val.extensions,
-        )
+        val.build()
     }
 }
 
@@ -386,6 +374,86 @@ impl<'cm> CityModelBuilder<'cm> {
             self.vertices = Some(fake_vertices(&mut self.rng));
         }
         self
+    }
+
+    pub fn build(mut self) -> CityModel<'cm> {
+        // Handle unused vertices. If we have generated at least one geometry, then append all the
+        // unused vertices to the first geometry. Depending on the geometry type, this will
+        // increase the nr. of points in a MultiPoint, increase the nr. vertices of the last
+        // linestring in a MultiLineString, or do the same in the last ring of higher order
+        // geometries.
+        let vertices_indices: HashSet<LargeIndex> = if let Some(ref vertices) = self.vertices {
+            // Unwrapping here, because I assume that there are less nr. of vertices generated than
+            // MAX::u32 (LargeIndex)
+            HashSet::from_iter(
+                vertices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| LargeIndex::try_from(i).unwrap()),
+            )
+        } else {
+            HashSet::new()
+        };
+        let mut used_vertices: HashSet<LargeIndex> = if let Some(ref vertices) = self.vertices {
+            HashSet::with_capacity(vertices.len())
+        } else {
+            HashSet::new()
+        };
+        // This could be any geometry, doesn't matter which one we take, so we take the first.
+        let mut geometry_ref: Option<(String, usize)> = None;
+        if let Some(ref cityobjects) = self.cityobjects {
+            for (co_id, co) in cityobjects {
+                if let Some(ref geometry) = co.geometry {
+                    for (geom_idx, geom) in geometry.iter().enumerate() {
+                        if let Some(ref boundary) = geom.boundaries {
+                            if geometry_ref.is_none() {
+                                geometry_ref = Some((co_id.to_string(), geom_idx));
+                            }
+                            for v in boundary.vertices.iter() {
+                                used_vertices.insert(*v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if used_vertices.is_empty() {
+            // This means that we didn't generate any geometry, so we have to remove the vertices
+            // too.
+            if let Some(ref mut vertices) = self.vertices {
+                vertices.clear();
+                vertices.shrink_to_fit();
+            }
+        } else {
+            // We expect that self.vertices is not empty.
+            let unused_verties = vertices_indices.difference(&used_vertices);
+            if let Some((co_id, geom_idx)) = geometry_ref {
+                if let Some(ref mut cityobjects) = self.cityobjects {
+                    // We can unwrap here, because geometry_ref has value, so the co_id is
+                    // definitely among the cityobjects.
+                    let co = cityobjects.get_mut(co_id.as_str()).unwrap();
+                    // Same here.
+                    let geom = co.geometry.as_mut().unwrap().get_mut(geom_idx).unwrap();
+                    if let Some(ref mut boundary) = geom.boundaries {
+                        boundary.vertices.extend(unused_verties);
+                    }
+                }
+            }
+        }
+
+        CityModel::new(
+            self.id,
+            self.type_cm,
+            Some(self.version.unwrap_or(CityJSONVersion::V1_1)),
+            Some(self.transform.unwrap_or_default()),
+            self.cityobjects,
+            self.vertices,
+            self.metadata,
+            self.appearance,
+            self.geometry_templates,
+            self.extra,
+            self.extensions,
+        )
     }
 
     #[allow(dead_code)]
@@ -2659,7 +2727,7 @@ mod tests {
 
     #[test]
     fn default() {
-        let cm: CityModel = CityModelBuilder::default().into();
+        let cm: CityModel = CityModelBuilder::default().build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
         let val = CJValidator::from_str(&cj_str);
