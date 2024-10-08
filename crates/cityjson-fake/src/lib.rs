@@ -28,7 +28,7 @@ use fake::{Dummy, Fake, Faker};
 use rand::distributions::{Bernoulli, Distribution};
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
-use rand::SeedableRng;
+use rand::{random, SeedableRng};
 use rand::{thread_rng, Rng};
 use serde_cityjson::attributes::Attributes;
 use serde_cityjson::boundary::Boundary;
@@ -51,6 +51,9 @@ use serde_cityjson::v1_1::*;
 // todo: CityObjectTypeFaker add CityObjectGroup
 // todo scj: LargeIndexVec::with_capacity should be initialized with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
 // todo: MultiPoint, lod 3, Building --> semantics don't make sense
+// todo: get rid of all the useless new() methods and init the structs directly, because that would be more clear for the structs with many members. However, then what about a public API?
+// todo: scj: geometry.template_boundaries needs to be [LargeIndex; 1] instead of [usize; 1];
+// todo: make sure that seed does what is should do for the whole citymodel
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
@@ -128,7 +131,9 @@ impl<'cm> CityModelBuilder<'cm> {
         let rng = if let Some(state) = seed {
             SmallRng::seed_from_u64(state)
         } else {
-            SmallRng::from_entropy()
+            let state: u64 = random();
+            println!("PRNG seed: {}", state);
+            SmallRng::seed_from_u64(state)
         };
         Self {
             id: None,
@@ -188,6 +193,10 @@ impl<'cm> CityModelBuilder<'cm> {
         self = self.vertices();
 
         let nr_vertices = self.vertices.as_ref().unwrap().len();
+
+        let allowed_types_cityobject = Some(vec![CityObjectType::SolitaryVegetationObject]);
+        let allowed_types_geometry = Some(vec![GeometryType::GeometryInstance]);
+
         let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
             self.appearance.clone(),
@@ -196,8 +205,9 @@ impl<'cm> CityModelBuilder<'cm> {
             &self.attributes_cityobject,
             &self.attributes_semantic,
             CityObjectLevel::First,
-            None,
+            allowed_types_cityobject,
             texture_allow_none,
+            allowed_types_geometry.clone(),
         );
         let cos_parents: Vec<CityObject> =
             (cof_parents, nr_parents_range).fake_with_rng(&mut self.rng);
@@ -223,6 +233,7 @@ impl<'cm> CityModelBuilder<'cm> {
                         CityObjectLevel::Second,
                         Some(subtypes),
                         texture_allow_none,
+                        allowed_types_geometry.clone(),
                     )
                     .fake_with_rng(&mut self.rng);
                     let _cid: &str = Word(EN).fake_with_rng(&mut self.rng);
@@ -399,7 +410,9 @@ impl<'cm> CityModelBuilder<'cm> {
         } else {
             HashSet::new()
         };
-        // This could be any geometry, doesn't matter which one we take, so we take the first.
+        // This could be any geometry, doesn't matter which one we take, so we take the first
+        // geometry that is not a GeometryInstance. Cannot be a GeometryInstance, becaues we need
+        // to extend the last ring of its boundary.
         let mut geometry_ref: Option<(String, usize)> = None;
         if let Some(ref cityobjects) = self.cityobjects {
             for (co_id, co) in cityobjects {
@@ -412,6 +425,15 @@ impl<'cm> CityModelBuilder<'cm> {
                             for v in boundary.vertices.iter() {
                                 used_vertices.insert(*v);
                             }
+                        }
+                        if let Some(ref boundary) = geom.template_boundaries {
+                            // if geometry_ref.is_none() {
+                            //     geometry_ref = Some((co_id.to_string(), geom_idx));
+                            // }
+                            // We only get a geometry_ref for non-GeometryInstance geometries,
+                            // because we cannot extend the boundary of a GeometryInstance with
+                            // the unused vertices.
+                            used_vertices.insert(LargeIndex::try_from(boundary[0]).unwrap());
                         }
                     }
                 }
@@ -427,15 +449,26 @@ impl<'cm> CityModelBuilder<'cm> {
         } else {
             // We expect that self.vertices is not empty.
             let unused_verties = vertices_indices.difference(&used_vertices);
-            if let Some((co_id, geom_idx)) = geometry_ref {
-                if let Some(ref mut cityobjects) = self.cityobjects {
-                    // We can unwrap here, because geometry_ref has value, so the co_id is
-                    // definitely among the cityobjects.
-                    let co = cityobjects.get_mut(co_id.as_str()).unwrap();
-                    // Same here.
-                    let geom = co.geometry.as_mut().unwrap().get_mut(geom_idx).unwrap();
-                    if let Some(ref mut boundary) = geom.boundaries {
-                        boundary.vertices.extend(unused_verties);
+            if unused_verties.clone().count() != 0 {
+                if let Some((co_id, geom_idx)) = geometry_ref {
+                    if let Some(ref mut cityobjects) = self.cityobjects {
+                        // We can unwrap here, because geometry_ref has value, so the co_id is
+                        // definitely among the cityobjects.
+                        let co = cityobjects.get_mut(co_id.as_str()).unwrap();
+                        // Same here.
+                        let geom = co.geometry.as_mut().unwrap().get_mut(geom_idx).unwrap();
+                        if let Some(ref mut boundary) = geom.boundaries {
+                            boundary.vertices.extend(unused_verties);
+                        }
+                    }
+                } else {
+                    // We know that there are unused vertices, but the geometry_ref is None, which
+                    // means that all geometries are GeometryInstance. In this case, we need to
+                    // remove the unused vertices from the vertices collection, instead of adding
+                    // them to a Geometry. We know that a GeometryInstance always uses the first
+                    // vertex as the reference point.
+                    if let Some(ref mut vertices) = self.vertices {
+                        vertices.truncate(1);
                     }
                 }
             }
@@ -478,6 +511,7 @@ struct CityObjectFaker<'cmbuild, 'cm> {
     cityobject_level: CityObjectLevel,
     allowed_types: Option<Vec<CityObjectType>>,
     texture_allow_none: bool,
+    allowed_types_geometry: Option<Vec<GeometryType>>,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
@@ -492,6 +526,7 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
         cityobject_level: CityObjectLevel,
         allowed_types: Option<Vec<CityObjectType>>,
         texture_allow_none: bool,
+        allowed_types_geometry: Option<Vec<GeometryType>>,
     ) -> Self {
         Self {
             nr_vertices,
@@ -503,6 +538,7 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
             cityobject_level,
             allowed_types,
             texture_allow_none,
+            allowed_types_geometry,
         }
     }
 }
@@ -527,7 +563,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             config.appearance.clone(),
             config.themes_material.clone(),
             config.themes_texture.clone(),
-            None,
+            config.allowed_types_geometry.clone(),
             config.attributes_semantic,
             config.texture_allow_none,
         );
@@ -1097,10 +1133,17 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::GeometryInstance => {
-                let reference_point: u32 = IndexFaker {
-                    max: config.nr_vertices,
-                }
-                .fake_with_rng(rng);
+                // The reference point is always the first vertex of the vertices, because in the
+                // case when only GeometryInstances are created in the CityModel, we cannot add the
+                // unused vertices to the Geometry boundary (in order to get rid of the unused
+                // vertices cjval warning). So then, if all the Geometries use only the first
+                // vertex, we can safely remove the rest of the vertices from the vertices
+                // collection.
+                let reference_point: u32 = 0;
+                // let reference_point: u32 = IndexFaker {
+                //     max: config.nr_vertices - 1,
+                // }
+                // .fake_with_rng(rng);
                 template_boundaries = Some([reference_point as usize]);
                 template = Some(0);
                 template_transformation_matrix = Some((0.0..f64::MAX).fake_with_rng(rng));
@@ -2723,6 +2766,39 @@ mod tests {
             .title()
             .build();
         dbg!(m);
+    }
+
+    #[test]
+    fn with_seed() {
+        let seed = Some(5313445132970691754_u64);
+        let cm_builder = CityModelBuilder::new(seed);
+        let cm: CityModel = cm_builder.cityobjects(None, true).build();
+        let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
+        println!("{}", &cj_str);
+        let val = CJValidator::from_str(&cj_str);
+        // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
+        let invalids: Vec<(String, String)> = val
+            .validate()
+            .into_iter()
+            .filter(|(_, summary)| !summary.is_valid())
+            .map(|(criterion, summary)| (criterion, summary.to_string()))
+            .collect();
+        if invalids.len() > 0 {
+            // Serialize invalid citymodels for later analysis
+            let idir = invalids_dir();
+            let invalids_count = count_invalids(&idir);
+            let current_invalid_nr = invalids_count + 1;
+            let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
+            std::fs::write(idir.join(fname), cj_str).unwrap();
+        }
+        for (criterion, summary) in val.validate().iter() {
+            assert!(
+                summary.is_valid(),
+                "{} is not valid with {}",
+                criterion,
+                summary
+            )
+        }
     }
 
     #[test]
