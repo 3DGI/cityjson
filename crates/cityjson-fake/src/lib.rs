@@ -353,7 +353,7 @@ impl<'cm> CityModelBuilder<'cm> {
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_texture = Some(themes);
         let vertices_texture: VerticesTexture =
-            (UVCoordinateFaker, 0..=MAX_NR_VERTICES_TEXTURE).fake_with_rng(&mut self.rng);
+            (UVCoordinateFaker, 1..=MAX_NR_VERTICES_TEXTURE).fake_with_rng(&mut self.rng);
         if let Some(ref mut appearance) = self.appearance {
             appearance.textures = Some(tex);
             appearance.vertices_texture = Some(vertices_texture);
@@ -2770,7 +2770,7 @@ mod tests {
 
     #[test]
     fn with_seed() {
-        let seed = Some(5313445132970691754_u64);
+        let seed = Some(6349189387323158799_u64);
         let cm_builder = CityModelBuilder::new(seed);
         let cm: CityModel = cm_builder.cityobjects(None, true).build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
@@ -2829,6 +2829,33 @@ mod tests {
                 criterion,
                 summary
             )
+        }
+    }
+
+    #[test]
+    fn default_iterate() {
+        let nr_iterations = 10;
+        for _ in 0..nr_iterations {
+            let cm: CityModel = CityModelBuilder::default().build();
+            let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
+            println!("{}", &cj_str);
+            let val = CJValidator::from_str(&cj_str);
+            // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
+            let invalids: Vec<(String, String)> = val
+                .validate()
+                .into_iter()
+                .filter(|(_, summary)| !summary.is_valid())
+                .map(|(criterion, summary)| (criterion, summary.to_string()))
+                .collect();
+            if invalids.len() > 0 {
+                // Serialize invalid citymodels for later analysis
+                let idir = invalids_dir();
+                let invalids_count = count_invalids(&idir);
+                let current_invalid_nr = invalids_count + 1;
+                let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
+                println!("invalid citymodel generated, saving it to {}", &fname);
+                std::fs::write(idir.join(fname), cj_str).unwrap();
+            }
         }
     }
 }
