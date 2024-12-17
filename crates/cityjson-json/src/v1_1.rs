@@ -253,7 +253,7 @@ pub struct CityObject<'cm> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Default, Display, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Default, Display, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum CityObjectType {
     Bridge,
@@ -743,7 +743,7 @@ struct IntermediateGeometry<'a> {
     template_transformation_matrix: Option<[f64; 16]>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Display, Clone, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum GeometryType {
     MultiPoint,
@@ -1154,7 +1154,7 @@ pub struct Semantic<'cm> {
 /// Semantic surface type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum SemanticType {
     RoofSurface,
