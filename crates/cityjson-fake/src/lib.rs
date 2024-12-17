@@ -10,7 +10,7 @@
 //!
 //! See the [design doc] for details on how this crate works under the hood.
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
 
@@ -25,6 +25,7 @@ use fake::faker::phone_number::raw::PhoneNumber;
 use fake::locales::*;
 use fake::uuid::UUIDv1;
 use fake::{Dummy, Fake, Faker};
+use once_cell::sync::Lazy;
 use rand::distributions::{Bernoulli, Distribution};
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
@@ -54,6 +55,7 @@ use serde_cityjson::v1_1::*;
 // todo: get rid of all the useless new() methods and init the structs directly, because that would be more clear for the structs with many members. However, then what about a public API?
 // todo: scj: geometry.template_boundaries needs to be [LargeIndex; 1] instead of [usize; 1];
 // todo: make sure that seed does what is should do for the whole citymodel
+// todo: if templates builder is used, make sure that at least one GeometryInstance is generated
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
 const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
@@ -87,6 +89,25 @@ const NR_THEMES_TEXTURES: usize = 3;
 const MAX_NR_VERTICES_TEXTURE: usize = 10;
 const MIN_NR_TEMPLATES: usize = 1;
 const MAX_NR_TEMPLATES: usize = 10;
+
+type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
+
+static CITYJSON_GEOMETRY_TYPES_BYTES: &[u8] = include_bytes!("data/cityjson_geometry_types.json");
+
+static CITYJSON_GEOMETRY_TYPES: Lazy<CityObjectGeometryTypes> = Lazy::new(|| {
+    serde_json::from_slice(CITYJSON_GEOMETRY_TYPES_BYTES)
+        .expect("Failed to deserialize cityjson_geometry_types.json")
+});
+
+type CityObjectsWithSemantics = Vec<CityObjectType>;
+
+static CITYOBJECTS_WITH_SEMANTICS_BYTES: &[u8] =
+    include_bytes!("data/cityjson_semantics_allowed.json");
+
+static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(|| {
+    serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
+        .expect("Failed to deserialize cityjson_semantics_allowed.json")
+});
 
 struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
@@ -194,8 +215,10 @@ impl<'cm> CityModelBuilder<'cm> {
 
         let nr_vertices = self.vertices.as_ref().unwrap().len();
 
-        let allowed_types_cityobject = Some(vec![CityObjectType::SolitaryVegetationObject]);
-        let allowed_types_geometry = Some(vec![GeometryType::GeometryInstance]);
+        // let allowed_types_cityobject = Some(vec![CityObjectType::SolitaryVegetationObject]);
+        // let allowed_types_geometry = Some(vec![GeometryType::GeometryInstance]);
+        let allowed_types_cityobject = None;
+        let allowed_types_geometry = None;
 
         let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
@@ -714,14 +737,7 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker<'cmbuild, 'cm>, rng: &mut R) -> Self {
         let lod: LoD = LoDFaker.fake_with_rng(rng);
-        // todo: move this type setup to compile time
-        let building_types = config.cotype == CityObjectType::Building
-            || config.cotype == CityObjectType::BuildingPart
-            || config.cotype == CityObjectType::BuildingStorey
-            || config.cotype == CityObjectType::BuildingRoom
-            || config.cotype == CityObjectType::BuildingUnit;
-
-        let mut geometry_types = vec![
+        let default_geometry_types = vec![
             GeometryType::MultiPoint,
             GeometryType::MultiLineString,
             GeometryType::MultiSurface,
@@ -731,83 +747,16 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
             GeometryType::CompositeSolid,
             GeometryType::GeometryInstance,
         ];
+        let geometry_types = CITYJSON_GEOMETRY_TYPES
+            .get(&config.cotype)
+            .unwrap_or(&default_geometry_types);
 
-        if let Some(ref gt) = config.geometry_types {
-            geometry_types = gt.clone()
-        } else {
-            // Choose a Geometry type that is allowed for the given CityObject type
-            if config.cotype == CityObjectType::Bridge
-                || config.cotype == CityObjectType::BridgePart
-            {
-                geometry_types = vec![
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                    GeometryType::Solid,
-                    GeometryType::CompositeSolid,
-                ];
-            } else if building_types {
-                geometry_types = vec![
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                    GeometryType::Solid,
-                    GeometryType::CompositeSolid,
-                ];
-            // } else if config.cotype == CityObjectType::GenericCityObject {
-            //     geometry_types = vec![0, 1, 2, 3, 4, 6];
-            } else if config.cotype == CityObjectType::LandUse {
-                geometry_types = vec![GeometryType::MultiSurface, GeometryType::CompositeSurface];
-            } else if config.cotype == CityObjectType::PlantCover {
-                geometry_types = vec![
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                    GeometryType::Solid,
-                    GeometryType::MultiSolid,
-                    GeometryType::CompositeSolid,
-                ];
-            } else if config.cotype == CityObjectType::TINRelief {
-                geometry_types = vec![GeometryType::CompositeSurface];
-            } else if config.cotype == CityObjectType::Road
-                || config.cotype == CityObjectType::Railway
-                || config.cotype == CityObjectType::Waterway
-                || config.cotype == CityObjectType::TransportSquare
-            {
-                geometry_types = vec![
-                    GeometryType::MultiLineString,
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                ];
-            } else if config.cotype == CityObjectType::Tunnel
-                || config.cotype == CityObjectType::TunnelPart
-            {
-                geometry_types = vec![
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                    GeometryType::Solid,
-                    GeometryType::CompositeSolid,
-                ];
-            } else if config.cotype == CityObjectType::WaterBody {
-                geometry_types = vec![
-                    GeometryType::MultiLineString,
-                    GeometryType::MultiSurface,
-                    GeometryType::CompositeSurface,
-                    GeometryType::Solid,
-                    GeometryType::CompositeSolid,
-                ];
-            }
-        }
         let geometry_type_chosen = geometry_types
             .choose(rng)
             .unwrap_or(&GeometryType::MultiPoint);
         // Decide if we can generate semantics for the given CityObject type
         let mut generate_semantics = false;
-        if lod >= LoD::LoD2
-            && (building_types
-                || config.cotype == CityObjectType::BuildingInstallation
-                || config.cotype == CityObjectType::WaterBody
-                || config.cotype == CityObjectType::Road
-                || config.cotype == CityObjectType::Railway
-                || config.cotype == CityObjectType::TransportSquare)
-        {
+        if lod >= LoD::LoD2 && CITYOBJECTS_WITH_SEMANTICS.contains(&config.cotype) {
             generate_semantics = true;
         }
         // Decide if we can generate materials
@@ -2834,13 +2783,11 @@ mod tests {
 
     #[test]
     fn default_iterate() {
-        let nr_iterations = 10;
+        let nr_iterations = 100;
         for _ in 0..nr_iterations {
             let cm: CityModel = CityModelBuilder::default().build();
             let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-            println!("{}", &cj_str);
             let val = CJValidator::from_str(&cj_str);
-            // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
             let invalids: Vec<(String, String)> = val
                 .validate()
                 .into_iter()

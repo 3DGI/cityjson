@@ -1,0 +1,35 @@
+| CityObject type             | Geometry type                                                                                                    |
+|:----------------------------|:-----------------------------------------------------------------------------------------------------------------|
+| Bridge                      | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BridgeConstructiveElement   | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BridgeFurniture             | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BridgeInstallation          | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BridgePart                  | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BridgeRoom                  | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| Building                    | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BuildingConstructiveElement | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BuildingFurniture           | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BuildingInstallation        | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| BuildingPart                | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BuildingRoom                | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BuildingStorey              | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| BuildingUnit                | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| CityFurniture               | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| CityObjectGroup             | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid                   |
+| GenericCityObject           | MultiPoint, MultiLineString, Solid, MultiSolid, CompositeSolid, MultiSurface, CompositeSurface, GeometryInstance |
+| LandUse                     | MultiSurface, CompositeSurface                                                                                   |
+| OtherConstruction           | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| PlantCover                  | MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid                                                |
+| Railway                     | MultiLineString, MultiSurface, CompositeSurface                                                                  |
+| Road                        | MultiLineString, MultiSurface, CompositeSurface                                                                  |
+| SolitaryVegetationObject    | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| TINRelief                   | CompositeSurface                                                                                                 |
+| TransportSquare             | MultiLineString, MultiSurface, CompositeSurface                                                                  |
+| Tunnel                      | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| TunnelConstructiveElement   | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| TunnelFurniture             | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| TunnelHollowSpace           | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| TunnelInstallation          | MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid, GeometryInstance |
+| TunnelPart                  | MultiSurface, CompositeSurface, Solid, CompositeSolid                                                            |
+| WaterBody                   | MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid                                           |
+| Waterway                    | MultiLineString, MultiSurface, CompositeSurface                                                                  |
