@@ -704,6 +704,7 @@ struct GeometryFaker<'cmbuild, 'cm> {
     appearance: Option<Appearance<'cmbuild>>,
     themes_material: Option<Vec<String>>,
     themes_texture: Option<Vec<String>>,
+    #[allow(dead_code)]
     geometry_types: Option<Vec<GeometryType>>,
     semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
     texture_allow_none: bool,
@@ -2719,7 +2720,11 @@ mod tests {
 
     #[test]
     fn with_seed() {
-        let seed = Some(6349189387323158799_u64);
+        // 6349189387323158799_u64
+        //
+        // 7021297168827114108
+        // 17080537365813768153
+        let seed = Some(17080537365813768153_u64);
         let cm_builder = CityModelBuilder::new(seed);
         let cm: CityModel = cm_builder.cityobjects(None, true).build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
