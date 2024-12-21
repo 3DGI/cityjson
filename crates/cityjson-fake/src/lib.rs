@@ -29,14 +29,14 @@ use once_cell::sync::Lazy;
 use rand::distributions::{Bernoulli, Distribution};
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
-use rand::{random, SeedableRng};
+use rand::{SeedableRng};
 use rand::{thread_rng, Rng};
 use serde_cityjson::attributes::Attributes;
 use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
-
+use serde_json::value::Index;
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // todo cj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exact configuration for reproducible models (same types, config etc)
@@ -54,7 +54,6 @@ use serde_cityjson::v1_1::*;
 // todo: MultiPoint, lod 3, Building --> semantics don't make sense
 // todo: get rid of all the useless new() methods and init the structs directly, because that would be more clear for the structs with many members. However, then what about a public API?
 // todo: scj: geometry.template_boundaries needs to be [LargeIndex; 1] instead of [usize; 1];
-// todo: make sure that seed does what is should do for the whole citymodel
 // todo: if templates builder is used, make sure that at least one GeometryInstance is generated
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
@@ -65,30 +64,30 @@ const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 type IndexType = u32;
 const MIN_COORDINATE: i64 = i64::MIN;
 const MAX_COORDINATE: i64 = i64::MAX;
-const MIN_NR_VERTICES: IndexType = 1;
-const MAX_NR_VERTICES: IndexType = 30; // IndexType::MAX;
-const MIN_MEMBERS_MULTIPOINT: IndexType = 1;
-const MAX_MEMBERS_MULTIPOINT: IndexType = 10;
+const MIN_NR_VERTICES: IndexType = 8;
+const MAX_NR_VERTICES: IndexType = 8; // IndexType::MAX;
+const MIN_MEMBERS_MULTIPOINT: IndexType = 11;
+const MAX_MEMBERS_MULTIPOINT: IndexType = 11;
 const MIN_MEMBERS_MULTILINESTRING: IndexType = 1;
-const MAX_MEMBERS_MULTILINESTRING: IndexType = 5;
+const MAX_MEMBERS_MULTILINESTRING: IndexType = 1;
 const MIN_MEMBERS_MULTISURFACE: IndexType = 1;
-const MAX_MEMBERS_MULTISURFACE: IndexType = 5;
+const MAX_MEMBERS_MULTISURFACE: IndexType = 1;
 const MIN_MEMBERS_SOLID: IndexType = 1;
 const MAX_MEMBERS_SOLID: IndexType = 3;
 const MIN_MEMBERS_MULTISOLID: IndexType = 1;
 const MAX_MEMBERS_MULTISOLID: IndexType = 3;
-const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 3;
-const MIN_NR_MATERIALS: usize = 1;
-const MAX_NR_MATERIALS: usize = 3;
+const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 1;
+const MIN_NR_MATERIALS: IndexType = 1;
+const MAX_NR_MATERIALS: IndexType = 3;
 // Must be >= 1
-const NR_THEMES_MATERIALS: usize = 3;
-const MIN_NR_TEXTURES: usize = 1;
-const MAX_NR_TEXTURES: usize = 3;
+const NR_THEMES_MATERIALS: IndexType = 3;
+const MIN_NR_TEXTURES: IndexType = 2;
+const MAX_NR_TEXTURES: IndexType = 2;
 // Must be >= 1
-const NR_THEMES_TEXTURES: usize = 3;
-const MAX_NR_VERTICES_TEXTURE: usize = 10;
-const MIN_NR_TEMPLATES: usize = 1;
-const MAX_NR_TEMPLATES: usize = 10;
+const NR_THEMES_TEXTURES: IndexType = 3;
+const MAX_NR_VERTICES_TEXTURE: IndexType = 10;
+const MIN_NR_TEMPLATES: IndexType = 1;
+const MAX_NR_TEMPLATES: IndexType = 10;
 
 type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
 
@@ -108,6 +107,19 @@ static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(||
     serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
         .expect("Failed to deserialize cityjson_semantics_allowed.json")
 });
+
+
+fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) -> usize {
+    if range.is_empty() {
+        0
+    } else if range.end() - range.start() == 0 {
+        // e.g. MIN=2 MAX=2 should generate exactly 2 items
+        *range.end() as usize
+    } else {
+        rng.gen_range(range) as usize
+    }
+}
+
 
 struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
@@ -152,9 +164,7 @@ impl<'cm> CityModelBuilder<'cm> {
         let rng = if let Some(state) = seed {
             SmallRng::seed_from_u64(state)
         } else {
-            let state: u64 = random();
-            println!("PRNG seed: {}", state);
-            SmallRng::seed_from_u64(state)
+            SmallRng::from_rng(thread_rng()).expect("SmallRng should be seeded from thread_rng()")
         };
         Self {
             id: None,
@@ -186,28 +196,22 @@ impl<'cm> CityModelBuilder<'cm> {
     /// boundaries can index them.
     pub fn cityobjects(
         mut self,
-        nr_cityobjects: Option<Range<usize>>,
+        range_cityobjects: Option<Range<usize>>,
         cityobject_hierarchy: bool,
     ) -> Self {
         let use_templates = true;
         let texture_allow_none = false;
-        let mut nr_cos_range = nr_cityobjects.unwrap_or(1..2);
-        if nr_cos_range.is_empty() {
-            nr_cos_range = 1..2;
-        }
-        let nr_parents_range: Range<usize> = if (nr_cos_range.end - nr_cos_range.start) == 1 {
-            // Create one parent and one child.
-            1..2
+        let range_cos = range_cityobjects.unwrap_or(0..1);
+        let nr_cityobjects = get_nr_items(range_cos.start as IndexType..=range_cos.end as IndexType, &mut self.rng);
+        let nr_parents = if nr_cityobjects <= 1 {
+            nr_cityobjects
         } else {
-            // Half of the range's end becomes parents, then for each eligible parent a child is
+            // Half of the cityobjects become parents, then for each eligible parent a child is
             // created. Some 1st-level types don't have sub-types, so they won't have children.
-            // In case the total number of created objects is less than the range's start, then
-            // additional objects are created so to reach the range's start.
             if cityobject_hierarchy {
-                let _n = nr_cos_range.end.div_ceil(2);
-                _n.._n + 1
+                nr_cityobjects.div_ceil(2)
             } else {
-                nr_cos_range
+                nr_cityobjects
             }
         };
 
@@ -215,10 +219,10 @@ impl<'cm> CityModelBuilder<'cm> {
 
         let nr_vertices = self.vertices.as_ref().unwrap().len();
 
-        // let allowed_types_cityobject = Some(vec![CityObjectType::SolitaryVegetationObject]);
-        // let allowed_types_geometry = Some(vec![GeometryType::GeometryInstance]);
-        let allowed_types_cityobject = None;
-        let allowed_types_geometry = None;
+        let allowed_types_cityobject = Some(vec![CityObjectType::TINRelief]);
+        let allowed_types_geometry = Some(vec![GeometryType::CompositeSurface]);
+        // let allowed_types_cityobject = None;
+        // let allowed_types_geometry = None;
 
         let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
@@ -233,7 +237,7 @@ impl<'cm> CityModelBuilder<'cm> {
             allowed_types_geometry.clone(),
         );
         let cos_parents: Vec<CityObject> =
-            (cof_parents, nr_parents_range).fake_with_rng(&mut self.rng);
+            (cof_parents, nr_parents).fake_with_rng(&mut self.rng);
         let estimate_total_nr = if cityobject_hierarchy {
             cos_parents.len() * 2
         } else {
@@ -299,8 +303,9 @@ impl<'cm> CityModelBuilder<'cm> {
                 semantics_attributes: &self.attributes_semantic,
                 texture_allow_none,
             };
+            let nr_templates = get_nr_items(MIN_NR_TEMPLATES..=MAX_NR_TEMPLATES, &mut self.rng);
             self.geometry_templates = Some(GeometryTemplates {
-                templates: (gf, MIN_NR_TEMPLATES..MAX_NR_TEMPLATES).fake_with_rng(&mut self.rng),
+                templates: (gf, nr_templates).fake_with_rng(&mut self.rng),
                 vertices_templates,
             });
         }
@@ -334,16 +339,18 @@ impl<'cm> CityModelBuilder<'cm> {
 
     pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
         let mat: Vec<Material>;
+        let nr_materials = get_nr_items(MIN_NR_MATERIALS..=MAX_NR_MATERIALS, &mut self.rng);
+        let nr_themes = get_nr_items(1..=NR_THEMES_MATERIALS, &mut self.rng);
         if let Some(mb) = material_builder {
-            mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
+            mat = (1..=nr_materials)
                 .map(|_| mb.clone().build())
                 .collect()
         } else {
-            mat = (MIN_NR_MATERIALS..=MAX_NR_MATERIALS)
+            mat = (1..=nr_materials)
                 .map(|_| MaterialBuilder::default().into())
                 .collect()
         }
-        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_MATERIALS).fake_with_rng(&mut self.rng);
+        let themes: Vec<String> = (Word(EN), nr_themes).fake_with_rng(&mut self.rng);
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_material = Some(themes);
         if let Some(ref mut appearance) = self.appearance {
@@ -363,20 +370,22 @@ impl<'cm> CityModelBuilder<'cm> {
 
     pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
         let tex: Vec<Texture>;
+        let nr_textures = get_nr_items(MIN_NR_TEXTURES..=MAX_NR_TEXTURES, &mut self.rng);
+        let nr_themes = get_nr_items(1..=NR_THEMES_TEXTURES, &mut self.rng);
+        let nr_vertices_texture = get_nr_items(1..=MAX_NR_VERTICES_TEXTURE, &mut self.rng);
         if let Some(tb) = texture_builder {
-            tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
+            tex = (1..=nr_textures)
                 .map(|_| tb.clone().build())
                 .collect()
         } else {
-            tex = (MIN_NR_TEXTURES..=MAX_NR_TEXTURES)
+            tex = (1..=nr_textures)
                 .map(|_| TextureBuilder::default().into())
                 .collect()
         }
-        let themes: Vec<String> = (Word(EN), 1..=NR_THEMES_TEXTURES).fake_with_rng(&mut self.rng);
+        let themes: Vec<String> = (Word(EN), nr_themes).fake_with_rng(&mut self.rng);
         let default_theme = themes.first().map(|t| Cow::from(t.clone()));
         self.themes_texture = Some(themes);
-        let vertices_texture: VerticesTexture =
-            (UVCoordinateFaker, 1..=MAX_NR_VERTICES_TEXTURE).fake_with_rng(&mut self.rng);
+        let vertices_texture: VerticesTexture = (UVCoordinateFaker, nr_vertices_texture).fake_with_rng(&mut self.rng);
         if let Some(ref mut appearance) = self.appearance {
             appearance.textures = Some(tex);
             appearance.vertices_texture = Some(vertices_texture);
@@ -405,7 +414,7 @@ impl<'cm> CityModelBuilder<'cm> {
     /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
     pub fn vertices(mut self) -> Self {
         if self.vertices.is_none() {
-            self.vertices = Some(fake_vertices(&mut self.rng));
+            self.vertices = Some(VerticesFaker.fake_with_rng(&mut self.rng));
         }
         self
     }
@@ -569,16 +578,16 @@ impl<'cm: 'cmbuild, 'cmbuild> CityObjectFaker<'cmbuild, 'cm> {
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObject<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(
         config: &CityObjectFaker<'cmbuild, 'cm>,
-        rnd: &mut R,
+        rng: &mut R,
     ) -> Self {
         let cotype: CityObjectType = if let Some(types) = &config.allowed_types {
             // Safe to unwrap, because allowed_types is never empty
-            types.choose(rnd).unwrap().clone()
+            types.choose(rng).unwrap().clone()
         } else {
             CityObjectTypeFaker {
                 cityobject_level: config.cityobject_level,
             }
-            .fake_with_rng(rnd)
+            .fake_with_rng(rng)
         };
         let gf = GeometryFaker::new(
             config.nr_vertices,
@@ -593,9 +602,10 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
         let geometry = if config.nr_vertices == 0 {
             None
         } else {
-            Some((gf, 0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES as usize).fake_with_rng(rnd))
+            let nr_geometries_cityobject = get_nr_items(0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES, rng);
+            Some((gf, nr_geometries_cityobject).fake_with_rng(rng))
         };
-        let geographical_extent: BBox = Faker.fake_with_rng(rnd);
+        let geographical_extent: BBox = Faker.fake_with_rng(rng);
         Self::new(
             cotype,
             geometry,
@@ -737,7 +747,8 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
 
 impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'cm> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryFaker<'cmbuild, 'cm>, rng: &mut R) -> Self {
-        let lod: LoD = LoDFaker.fake_with_rng(rng);
+        // let lod: LoD = LoDFaker.fake_with_rng(rng);
+        let lod = LoD::LoD2_3;
         let default_geometry_types = vec![
             GeometryType::MultiPoint,
             GeometryType::MultiLineString,
@@ -1190,7 +1201,8 @@ impl Dummy<MultiSolidFaker> for Boundary {
         let mut shell_i = 0u32;
         let mut solid_i = 0u32;
 
-        let nr_solids = rng.gen_range(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID);
+        let nr_solids_usize = get_nr_items(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID, rng);
+        let nr_solids = IndexType::try_from(nr_solids_usize).unwrap_or_default();
         for _solid in MIN_MEMBERS_MULTISOLID..=nr_solids {
             boundary.solids.push(LargeIndex::from(solid_i));
             let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
@@ -1254,7 +1266,8 @@ impl Dummy<SolidFaker> for Boundary {
         let mut surface_i = 0u32;
         let mut shell_i = 0u32;
 
-        let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
+        let nr_shells_usize = get_nr_items(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID, rng);
+        let nr_shells = IndexType::try_from(nr_shells_usize).unwrap_or_default();
         fake_solid_boundary(
             config.nr_vertices,
             rng,
@@ -1283,13 +1296,15 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
 ) {
     for _shell in MIN_MEMBERS_SOLID..=nr_shells {
         boundary.shells.push(LargeIndex::from(*shell_i));
-        let shell_len = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+        let shell_len_usize = get_nr_items(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE, rng);
+        let shell_len = IndexType::try_from(shell_len_usize).unwrap();
         *shell_i += shell_len;
 
         // Add the surfaces for each shell
         for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
             boundary.surfaces.push(LargeIndex::from(*surface_i));
-            let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            let nr_rings_usize = get_nr_items(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING, rng);
+            let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
             *surface_i += nr_rings;
 
             // Add the rings for each surface
@@ -1340,13 +1355,15 @@ impl Dummy<MultiSurfaceFaker> for Boundary {
         let mut ring_i = 0u32;
         let mut surface_i = 0u32;
 
-        let nr_surfaces = rng.gen_range(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE);
+        let nr_surfaces_usize = get_nr_items(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE, rng);
+        let nr_surfaces = IndexType::try_from(nr_surfaces_usize).unwrap_or_default();
         for _surface in MIN_MEMBERS_MULTISURFACE..=nr_surfaces {
             // Add the index of the current surface, which is a pointer to the first ring of the
             // surface.
             boundary.surfaces.push(LargeIndex::from(surface_i));
             // Determine the number of rings for the current surface.
-            let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            let nr_rings_usize = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+            let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
             // Generate the rings and add them to the surface
             fake_surface_boundary(
                 config.nr_vertices,
@@ -1395,7 +1412,8 @@ impl Dummy<MultiLineStringFaker> for Boundary {
         // Counters
         let mut ring_i = 0u32;
 
-        let nr_rings = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+        let nr_rings_usize = rng.gen_range(MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING);
+        let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
         fake_surface_boundary(
             config.nr_vertices,
             rng,
@@ -1422,14 +1440,15 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
         // in the vertices vector
         boundary.rings.push(LargeIndex::from(*ring_i));
         // Determine how many vertices does this ring have.
-        let ring_len = rng.gen_range(min_linestring_len..=MAX_MEMBERS_MULTIPOINT);
+        let nr_vertices_usize = get_nr_items(min_linestring_len..=MAX_MEMBERS_MULTIPOINT, rng);
+        let nr_vertices = IndexType::try_from(nr_vertices_usize).unwrap_or_default();
         // Generate the vertices for the ring and add them to the boundary
-        boundary.vertices.extend((1..=ring_len).map(|_| {
+        boundary.vertices.extend((1..=nr_vertices).map(|_| {
             let li: LargeIndex = IndexFaker::new(nr_vertices_citymodel).fake_with_rng(rng);
             li
         }));
         // Starting index of the next ring
-        *ring_i += ring_len;
+        *ring_i += nr_vertices;
     }
 }
 
@@ -1537,16 +1556,11 @@ impl Dummy<IndexFaker> for LargeIndex {
     }
 }
 
-// todo: this can generate an empty vertices vec. Should be able to set the amount of vertices
-//  needed, with the minimum of 1.
-fn fake_vertices<R: Rng + ?Sized>(rng: &mut R) -> Vertices {
-    Faker.fake_with_rng(rng)
-}
-
 struct VerticesTemplatesFaker;
 impl Dummy<VerticesTemplatesFaker> for VerticesTemplates {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &VerticesTemplatesFaker, rng: &mut R) -> Self {
-        (TemplateVertexFaker, 1..=MAX_NR_VERTICES as usize).fake_with_rng(rng)
+        let nr_vertices = get_nr_items(1..=MAX_NR_VERTICES, rng);
+        (TemplateVertexFaker, nr_vertices).fake_with_rng(rng)
     }
 }
 
@@ -1567,8 +1581,8 @@ impl Dummy<CoordinateFaker> for [i64; 3] {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &CoordinateFaker, rng: &mut R) -> Self {
         [
             rng.gen_range(config.min..=config.max),
-            rng.gen_range(0..=config.max),
-            rng.gen_range(0..=config.max),
+            rng.gen_range(config.min..=config.max),
+            rng.gen_range(config.min..=config.max),
         ]
     }
 }
@@ -1580,7 +1594,8 @@ impl Dummy<VerticesFaker> for Vertices {
             min: MIN_COORDINATE,
             max: MAX_COORDINATE,
         };
-        (cf, MIN_NR_VERTICES as usize..=MAX_NR_VERTICES as usize).fake_with_rng(rng)
+        let nr_vertices = get_nr_items(MIN_NR_VERTICES..=MAX_NR_VERTICES, rng);
+        (cf, nr_vertices).fake_with_rng(rng)
     }
 }
 
@@ -1829,7 +1844,7 @@ fn fake_depth_three_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Size
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let surfaces_values: Vec<OptionalLargeIndex> =
-        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake_with_rng(rng);
+        (idxf, boundary.surfaces.len()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -1859,7 +1874,7 @@ fn fake_depth_two_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Sized>
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let surfaces_values: Vec<OptionalLargeIndex> =
-        (idxf, boundary.surfaces.len()..=boundary.surfaces.len()).fake_with_rng(rng);
+        (idxf, boundary.surfaces.len()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -1881,7 +1896,7 @@ fn fake_depth_one_semantics<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng, attributes);
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
     let values: Vec<OptionalLargeIndex> =
-        (idxf, nr_members as usize..=nr_members as usize).fake_with_rng(rng);
+        (idxf, nr_members as usize).fake_with_rng(rng);
     (surfaces, values)
 }
 
@@ -2642,6 +2657,7 @@ mod tests {
     use super::*;
     use cjval::CJValidator;
     use std::env;
+    use rand::RngCore;
 
     fn invalids_dir() -> PathBuf {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2720,17 +2736,21 @@ mod tests {
 
     #[test]
     fn with_seed() {
-        // 6349189387323158799_u64
-        //
-        // 7021297168827114108
-        // 17080537365813768153
-        let seed = Some(17080537365813768153_u64);
+        // Iteration 72
+        // PRNG seed: 3493134470016091330
+        // invalid citymodel generated, saving it to cjfake_invalid_1.city.json
+        // Iteration 74
+        // PRNG seed: 5314496677585855116
+        // invalid citymodel generated, saving it to cjfake_invalid_2.city.json
+        // Iteration 83
+        // PRNG seed: 1398851588772436775
+        // invalid citymodel generated, saving it to cjfake_invalid_3.city.json
+        let seed = Some(1398851588772436775_u64);
         let cm_builder = CityModelBuilder::new(seed);
         let cm: CityModel = cm_builder.cityobjects(None, true).build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
         let val = CJValidator::from_str(&cj_str);
-        // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
         let invalids: Vec<(String, String)> = val
             .validate()
             .into_iter()
@@ -2787,9 +2807,36 @@ mod tests {
     }
 
     #[test]
+    fn seed_iterate() {
+        let nr_iterations = 100;
+        for i in 0..nr_iterations {
+            let seed: u64 = thread_rng().next_u64();
+            println!("Iteration {}, seed {}", i, seed);
+            let cm: CityModel = CityModelBuilder::new(Some(seed)).build();
+            let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
+            let val = CJValidator::from_str(&cj_str);
+            let invalids: Vec<(String, String)> = val
+                .validate()
+                .into_iter()
+                .filter(|(_, summary)| !summary.is_valid())
+                .map(|(criterion, summary)| (criterion, summary.to_string()))
+                .collect();
+            if invalids.len() > 0 {
+                // Serialize invalid citymodels for later analysis
+                let idir = invalids_dir();
+                let invalids_count = count_invalids(&idir);
+                let current_invalid_nr = invalids_count + 1;
+                let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
+                println!("invalid citymodel generated, saving it to {}", &fname);
+                std::fs::write(idir.join(fname), cj_str).unwrap();
+            }
+        }
+    }
+    #[test]
     fn default_iterate() {
         let nr_iterations = 100;
-        for _ in 0..nr_iterations {
+        for i in 0..nr_iterations {
+            println!("Iteration {}", i);
             let cm: CityModel = CityModelBuilder::default().build();
             let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
             let val = CJValidator::from_str(&cj_str);
