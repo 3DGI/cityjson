@@ -122,7 +122,7 @@ fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) 
 }
 
 
-struct CityModelBuilder<'cm> {
+pub struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
     type_cm: Option<CityModelType>,
     version: Option<CityJSONVersion>,
