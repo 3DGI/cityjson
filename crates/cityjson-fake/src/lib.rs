@@ -36,7 +36,7 @@ use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
-use serde_json::value::Index;
+
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // todo cj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exact configuration for reproducible models (same types, config etc)
@@ -76,6 +76,7 @@ const MIN_MEMBERS_SOLID: IndexType = 1;
 const MAX_MEMBERS_SOLID: IndexType = 3;
 const MIN_MEMBERS_MULTISOLID: IndexType = 1;
 const MAX_MEMBERS_MULTISOLID: IndexType = 3;
+const MIN_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 1;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 1;
 const MIN_NR_MATERIALS: IndexType = 1;
 const MAX_NR_MATERIALS: IndexType = 3;
@@ -201,7 +202,7 @@ impl<'cm> CityModelBuilder<'cm> {
     ) -> Self {
         let use_templates = true;
         let texture_allow_none = false;
-        let range_cos = range_cityobjects.unwrap_or(0..1);
+        let range_cos = range_cityobjects.unwrap_or(1..1);
         let nr_cityobjects = get_nr_items(range_cos.start as IndexType..=range_cos.end as IndexType, &mut self.rng);
         let nr_parents = if nr_cityobjects <= 1 {
             nr_cityobjects
@@ -432,7 +433,7 @@ impl<'cm> CityModelBuilder<'cm> {
                 vertices
                     .iter()
                     .enumerate()
-                    .map(|(i, _)| LargeIndex::try_from(i).unwrap()),
+                    .map(|(i, _)| LargeIndex::try_from(i).expect("nr. of vertices should be less than MAX::u32")),
             )
         } else {
             HashSet::new()
@@ -443,7 +444,7 @@ impl<'cm> CityModelBuilder<'cm> {
             HashSet::new()
         };
         // This could be any geometry, doesn't matter which one we take, so we take the first
-        // geometry that is not a GeometryInstance. Cannot be a GeometryInstance, becaues we need
+        // geometry that is not a GeometryInstance. Cannot be a GeometryInstance, because we need
         // to extend the last ring of its boundary.
         let mut geometry_ref: Option<(String, usize)> = None;
         if let Some(ref cityobjects) = self.cityobjects {
@@ -474,6 +475,7 @@ impl<'cm> CityModelBuilder<'cm> {
         if used_vertices.is_empty() {
             // This means that we didn't generate any geometry, so we have to remove the vertices
             // too.
+            dbg!("did not generate any geometry, have to remove the vertices");
             if let Some(ref mut vertices) = self.vertices {
                 vertices.clear();
                 vertices.shrink_to_fit();
@@ -481,7 +483,8 @@ impl<'cm> CityModelBuilder<'cm> {
         } else {
             // We expect that self.vertices is not empty.
             let unused_verties = vertices_indices.difference(&used_vertices);
-            if unused_verties.clone().count() != 0 {
+            let unused_vertices_cnt = unused_verties.clone().count();
+            if unused_vertices_cnt != 0 {
                 if let Some((co_id, geom_idx)) = geometry_ref {
                     if let Some(ref mut cityobjects) = self.cityobjects {
                         // We can unwrap here, because geometry_ref has value, so the co_id is
@@ -489,15 +492,28 @@ impl<'cm> CityModelBuilder<'cm> {
                         let co = cityobjects.get_mut(co_id.as_str()).unwrap();
                         // Same here.
                         let geom = co.geometry.as_mut().unwrap().get_mut(geom_idx).unwrap();
+                        // Append the unused vertices to the boundary.
+                        // Extending boundary.vertices effectively extends the last ring
+                        // of the boundary. See serde_cityjson for details.
                         if let Some(ref mut boundary) = geom.boundaries {
                             boundary.vertices.extend(unused_verties);
+                        }
+                        // Also need to update the textures, because the texture mapping is per vertex
+                        if let Some(ref mut textures) = geom.texture {
+                            for (_name, texture_values) in textures.iter_mut() {
+                                if let Some(ref mut texture_index) = texture_values.values {
+                                    for _ in 0..unused_vertices_cnt {
+                                        texture_index.vertices.push(texture_index.vertices[0]);
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
                     // We know that there are unused vertices, but the geometry_ref is None, which
                     // means that all geometries are GeometryInstance. In this case, we need to
                     // remove the unused vertices from the vertices collection, instead of adding
-                    // them to a Geometry. We know that a GeometryInstance always uses the first
+                    // them to a Geometry. We know that a faked GeometryInstance always uses the first
                     // vertex as the reference point.
                     if let Some(ref mut vertices) = self.vertices {
                         vertices.truncate(1);
@@ -602,7 +618,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
         let geometry = if config.nr_vertices == 0 {
             None
         } else {
-            let nr_geometries_cityobject = get_nr_items(0..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES, rng);
+            let nr_geometries_cityobject = get_nr_items(MIN_MEMBERS_CITYOBJECT_GEOMETRIES..=MAX_MEMBERS_CITYOBJECT_GEOMETRIES, rng);
             Some((gf, nr_geometries_cityobject).fake_with_rng(rng))
         };
         let geographical_extent: BBox = Faker.fake_with_rng(rng);
