@@ -13,7 +13,7 @@ mod cli;
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::ops::{Range, RangeInclusive};
+use std::ops::{RangeInclusive};
 use std::path::PathBuf;
 
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
@@ -91,8 +91,6 @@ const MAX_NR_TEXTURES: IndexType = 2;
 // Must be >= 1
 const NR_THEMES_TEXTURES: IndexType = 3;
 const MAX_NR_VERTICES_TEXTURE: IndexType = 10;
-const MIN_NR_TEMPLATES: IndexType = 1;
-const MAX_NR_TEMPLATES: IndexType = 10;
 
 type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
 
@@ -160,7 +158,7 @@ impl<'cm> Default for CityModelBuilder<'cm> {
             .materials(None)
             .textures(None)
             .attributes()
-            .cityobjects(None, true)
+            .cityobjects()
     }
 }
 
@@ -203,19 +201,14 @@ impl<'cm> CityModelBuilder<'cm> {
     /// boundaries can index them.
     pub fn cityobjects(
         mut self,
-        range_cityobjects: Option<Range<usize>>,
-        cityobject_hierarchy: bool,
     ) -> Self {
-        let use_templates = true;
-        let texture_allow_none = false;
-        let range_cos = range_cityobjects.unwrap_or(1..1);
-        let nr_cityobjects = get_nr_items(range_cos.start as IndexType..=range_cos.end as IndexType, &mut self.rng);
+        let nr_cityobjects = get_nr_items(self.config.min_cityobjects..=self.config.max_cityobjects, &mut self.rng);
         let nr_parents = if nr_cityobjects <= 1 {
             nr_cityobjects
         } else {
             // Half of the cityobjects become parents, then for each eligible parent a child is
             // created. Some 1st-level types don't have sub-types, so they won't have children.
-            if cityobject_hierarchy {
+            if self.config.cityobject_hierarchy {
                 nr_cityobjects.div_ceil(2)
             } else {
                 nr_cityobjects
@@ -226,11 +219,6 @@ impl<'cm> CityModelBuilder<'cm> {
 
         let nr_vertices = self.vertices.as_ref().unwrap().len();
 
-        let allowed_types_cityobject = Some(vec![CityObjectType::TINRelief]);
-        let allowed_types_geometry = Some(vec![GeometryType::CompositeSurface]);
-        // let allowed_types_cityobject = None;
-        // let allowed_types_geometry = None;
-
         let cof_parents = CityObjectFaker::new(
             nr_vertices as IndexType,
             self.appearance.clone(),
@@ -239,20 +227,20 @@ impl<'cm> CityModelBuilder<'cm> {
             &self.attributes_cityobject,
             &self.attributes_semantic,
             CityObjectLevel::First,
-            allowed_types_cityobject,
-            texture_allow_none,
-            allowed_types_geometry.clone(),
+            self.config.allowed_types_cityobject.clone(),
+            self.config.texture_allow_none,
+            self.config.allowed_types_geometry.clone(),
         );
         let cos_parents: Vec<CityObject> =
             (cof_parents, nr_parents).fake_with_rng(&mut self.rng);
-        let estimate_total_nr = if cityobject_hierarchy {
+        let estimate_total_nr = if self.config.cityobject_hierarchy {
             cos_parents.len() * 2
         } else {
             // Hierarchy is off, so only parents are generated
             cos_parents.len()
         };
         let mut cityobjects = CityObjects::with_capacity(estimate_total_nr);
-        if cityobject_hierarchy {
+        if self.config.cityobject_hierarchy {
             for mut co_parent in cos_parents.into_iter() {
                 let _pid: &str = Word(EN).fake_with_rng(&mut self.rng);
                 let parent_id = Cow::from(_pid);
@@ -262,12 +250,12 @@ impl<'cm> CityModelBuilder<'cm> {
                         self.appearance.clone(),
                         self.themes_material.clone(),
                         self.themes_texture.clone(),
-                        &self.attributes_cityobject,
+                        &self.attributes_cityobject.clone(),
                         &self.attributes_semantic,
                         CityObjectLevel::Second,
                         Some(subtypes),
-                        texture_allow_none,
-                        allowed_types_geometry.clone(),
+                        self.config.texture_allow_none,
+                        self.config.allowed_types_geometry.clone(),
                     )
                     .fake_with_rng(&mut self.rng);
                     let _cid: &str = Word(EN).fake_with_rng(&mut self.rng);
@@ -285,7 +273,7 @@ impl<'cm> CityModelBuilder<'cm> {
             }));
         }
         self.cityobjects = Some(cityobjects);
-        if use_templates {
+        if self.config.use_templates {
             let vertices_templates: VerticesTemplates =
                 VerticesTemplatesFaker.fake_with_rng(&mut self.rng);
             // The 8th geometry type is GeometryInstance, which cannot be a template
@@ -308,9 +296,9 @@ impl<'cm> CityModelBuilder<'cm> {
                 themes_texture: self.themes_texture.clone(),
                 geometry_types,
                 semantics_attributes: &self.attributes_semantic,
-                texture_allow_none,
+                texture_allow_none: self.config.texture_allow_none
             };
-            let nr_templates = get_nr_items(MIN_NR_TEMPLATES..=MAX_NR_TEMPLATES, &mut self.rng);
+            let nr_templates = get_nr_items(self.config.min_templates..=self.config.max_templates, &mut self.rng);
             self.geometry_templates = Some(GeometryTemplates {
                 templates: (gf, nr_templates).fake_with_rng(&mut self.rng),
                 vertices_templates,
@@ -2769,7 +2757,7 @@ mod tests {
         // invalid citymodel generated, saving it to cjfake_invalid_3.city.json
         let seed = Some(1398851588772436775_u64);
         let cm_builder = CityModelBuilder::new(CJFakeConfig::default(), seed);
-        let cm: CityModel = cm_builder.cityobjects(None, true).build();
+        let cm: CityModel = cm_builder.cityobjects().build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
         let val = CJValidator::from_str(&cj_str);
