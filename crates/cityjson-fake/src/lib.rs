@@ -74,8 +74,6 @@ const MIN_MEMBERS_MULTISURFACE: IndexType = 1;
 const MAX_MEMBERS_MULTISURFACE: IndexType = 1;
 const MIN_MEMBERS_SOLID: IndexType = 1;
 const MAX_MEMBERS_SOLID: IndexType = 3;
-const MIN_MEMBERS_MULTISOLID: IndexType = 1;
-const MAX_MEMBERS_MULTISOLID: IndexType = 3;
 
 type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
 
@@ -277,9 +275,8 @@ impl<'cm> CityModelBuilder<'cm> {
                 appearance: self.appearance.clone(),
                 themes_material: self.themes_material.clone(),
                 themes_texture: self.themes_texture.clone(),
-                geometry_types,
                 semantics_attributes: &self.attributes_semantic,
-                texture_allow_none: self.config.texture_allow_none,
+                cjfake: &self.config,
             };
             let nr_templates = get_nr_items(
                 self.config.min_templates..=self.config.max_templates,
@@ -590,9 +587,8 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<CityObjectFaker<'cmbuild, 'cm>> for CityObje
             config.appearance.clone(),
             config.themes_material.clone(),
             config.themes_texture.clone(),
-            config.cjfake.allowed_types_geometry.clone(),
             config.attributes_semantic,
-            config.cjfake.texture_allow_none,
+            config.cjfake,
         );
         let geometry = if config.nr_vertices == 0 {
             None
@@ -713,10 +709,8 @@ struct GeometryFaker<'cmbuild, 'cm> {
     appearance: Option<Appearance<'cmbuild>>,
     themes_material: Option<Vec<String>>,
     themes_texture: Option<Vec<String>>,
-    #[allow(dead_code)]
-    geometry_types: Option<Vec<GeometryType>>,
     semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
-    texture_allow_none: bool,
+    cjfake: &'cmbuild CJFakeConfig,
 }
 
 impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
@@ -727,9 +721,8 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
         appearance: Option<Appearance<'cmbuild>>,
         themes_material: Option<Vec<String>>,
         themes_texture: Option<Vec<String>>,
-        geometry_types: Option<Vec<GeometryType>>,
         semantics_attributes: &'cmbuild Option<Attributes<'cm>>,
-        texture_allow_none: bool,
+        cjfake: &'cmbuild CJFakeConfig,
     ) -> Self {
         Self {
             nr_vertices,
@@ -737,9 +730,8 @@ impl<'cm: 'cmbuild, 'cmbuild> GeometryFaker<'cmbuild, 'cm> {
             appearance,
             themes_material,
             themes_texture,
-            geometry_types,
             semantics_attributes,
-            texture_allow_none,
+            cjfake,
         }
     }
 }
@@ -907,7 +899,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
-                        config.texture_allow_none,
+                        config.cjfake.texture_allow_none,
                     )
                     .fake_with_rng(rng)
                 });
@@ -950,7 +942,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
-                        config.texture_allow_none,
+                        config.cjfake.texture_allow_none,
                     )
                     .fake_with_rng(rng)
                 });
@@ -991,7 +983,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
-                        config.texture_allow_none,
+                        config.cjfake.texture_allow_none,
                     )
                     .fake_with_rng(rng)
                 });
@@ -1008,8 +1000,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiSolid => {
-                let boundaries: Boundary =
-                    MultiSolidFaker::new(config.nr_vertices).fake_with_rng(rng);
+                let boundaries: Boundary = MultiSolidFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
                         &boundaries,
@@ -1033,7 +1028,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
-                        config.texture_allow_none,
+                        config.cjfake.texture_allow_none,
                     )
                     .fake_with_rng(rng)
                 });
@@ -1050,8 +1045,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::CompositeSolid => {
-                let boundaries: Boundary =
-                    MultiSolidFaker::new(config.nr_vertices).fake_with_rng(rng);
+                let boundaries: Boundary = MultiSolidFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     MultiSolidSemanticsFaker::new(
                         &boundaries,
@@ -1075,7 +1073,7 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                         nr_vertices_texture,
                         themes_texture,
                         &boundaries,
-                        config.texture_allow_none,
+                        config.cjfake.texture_allow_none,
                     )
                     .fake_with_rng(rng)
                 });
@@ -1152,45 +1150,43 @@ impl Dummy<LoDFaker> for LoD {
     }
 }
 
-struct MultiSolidFaker {
+struct MultiSolidFaker<'cmbuild> {
     nr_vertices: IndexType,
+    cjfake: &'cmbuild CJFakeConfig,
 }
 
-impl MultiSolidFaker {
-    fn new(nr_vertices: IndexType) -> Self {
-        Self { nr_vertices }
-    }
-}
 // FIXME: shouldn't have empty arrays
-impl Dummy<MultiSolidFaker> for Boundary {
+impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
             vertices: LargeIndexVec::with_capacity(
-                (MIN_MEMBERS_MULTIPOINT
-                    * MAX_MEMBERS_MULTILINESTRING
-                    * MAX_MEMBERS_MULTISURFACE
-                    * MAX_MEMBERS_SOLID
-                    * MAX_MEMBERS_MULTISOLID) as usize,
+                (config.cjfake.min_members_multipoint
+                    * config.cjfake.max_members_multilinestring
+                    * config.cjfake.max_members_multisurface
+                    * config.cjfake.max_members_solid
+                    * config.cjfake.max_members_multisolid) as usize,
             ),
             rings: LargeIndexVec::with_capacity(
-                (MAX_MEMBERS_MULTILINESTRING
-                    * MAX_MEMBERS_MULTISURFACE
-                    * MAX_MEMBERS_SOLID
-                    * MAX_MEMBERS_MULTISOLID) as usize,
+                (config.cjfake.max_members_multilinestring
+                    * config.cjfake.max_members_multisurface
+                    * config.cjfake.max_members_solid
+                    * config.cjfake.max_members_multisolid) as usize,
             ),
             surfaces: LargeIndexVec::with_capacity(
-                (MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID * MAX_MEMBERS_MULTISOLID) as usize,
+                (config.cjfake.max_members_multisurface
+                    * config.cjfake.max_members_solid
+                    * config.cjfake.max_members_multisolid) as usize,
             ),
             shells: LargeIndexVec::with_capacity(
-                (MAX_MEMBERS_SOLID * MAX_MEMBERS_MULTISOLID) as usize,
+                (config.cjfake.max_members_solid * config.cjfake.max_members_multisolid) as usize,
             ),
-            solids: LargeIndexVec::with_capacity(MAX_MEMBERS_MULTISOLID as usize),
+            solids: LargeIndexVec::with_capacity(config.cjfake.max_members_multisolid as usize),
         };
 
-        let min_linestring_len = if MIN_MEMBERS_MULTIPOINT > 1 {
-            MIN_MEMBERS_MULTIPOINT
+        let min_linestring_len = if config.cjfake.min_members_multipoint > 1 {
+            config.cjfake.min_members_multipoint
         } else {
-            MIN_MEMBERS_MULTIPOINT + 1
+            config.cjfake.min_members_multipoint + 1
         };
 
         // Counters
@@ -1199,11 +1195,15 @@ impl Dummy<MultiSolidFaker> for Boundary {
         let mut shell_i = 0u32;
         let mut solid_i = 0u32;
 
-        let nr_solids_usize = get_nr_items(MIN_MEMBERS_MULTISOLID..=MAX_MEMBERS_MULTISOLID, rng);
+        let nr_solids_usize = get_nr_items(
+            config.cjfake.min_members_multisolid..=config.cjfake.max_members_multisolid,
+            rng,
+        );
         let nr_solids = IndexType::try_from(nr_solids_usize).unwrap_or_default();
-        for _solid in MIN_MEMBERS_MULTISOLID..=nr_solids {
+        for _solid in config.cjfake.min_members_multisolid..=nr_solids {
             boundary.solids.push(LargeIndex::from(solid_i));
-            let nr_shells = rng.gen_range(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID);
+            let nr_shells =
+                rng.gen_range(config.cjfake.min_members_solid..=config.cjfake.max_members_solid);
             solid_i += nr_shells;
 
             fake_solid_boundary(
@@ -2710,25 +2710,6 @@ mod tests {
     fn test_fake() {
         let a: [f64; 16] = (1.0..5.0).fake();
         dbg!(a);
-    }
-
-    #[test]
-    fn geometry() {
-        let mut rng = SmallRng::seed_from_u64(123);
-        let geom: Geometry = GeometryFaker::new(
-            12,
-            CityObjectType::Building,
-            None,
-            None,
-            None,
-            Some(vec![GeometryType::MultiSurface]),
-            &None,
-            false,
-        )
-        .fake_with_rng(&mut rng);
-        // dbg!(&geom);
-        let g = serde_json::to_string(&geom).unwrap();
-        dbg!(g);
     }
 
     #[test]
