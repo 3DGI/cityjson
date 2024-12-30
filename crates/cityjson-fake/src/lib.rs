@@ -72,8 +72,6 @@ const MIN_MEMBERS_MULTILINESTRING: IndexType = 1;
 const MAX_MEMBERS_MULTILINESTRING: IndexType = 1;
 const MIN_MEMBERS_MULTISURFACE: IndexType = 1;
 const MAX_MEMBERS_MULTISURFACE: IndexType = 1;
-const MIN_MEMBERS_SOLID: IndexType = 1;
-const MAX_MEMBERS_SOLID: IndexType = 3;
 
 type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
 
@@ -959,7 +957,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::Solid => {
-                let boundaries: Boundary = SolidFaker::new(config.nr_vertices).fake_with_rng(rng);
+                let boundaries: Boundary = SolidFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 semantics = generate_semantics.then(|| {
                     SolidSemanticsFaker::new(
                         &boundaries,
@@ -1215,6 +1217,7 @@ impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
                 &mut surface_i,
                 &mut shell_i,
                 nr_shells,
+                config.cjfake
             );
         }
 
@@ -1222,39 +1225,35 @@ impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
     }
 }
 
-struct SolidFaker {
+struct SolidFaker<'cmbuild> {
     nr_vertices: IndexType,
+    cjfake: &'cmbuild CJFakeConfig,
 }
 
-impl SolidFaker {
-    fn new(nr_vertices: IndexType) -> Self {
-        Self { nr_vertices }
-    }
-}
-
-impl Dummy<SolidFaker> for Boundary {
+impl<'cmbuild> Dummy<SolidFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
             vertices: LargeIndexVec::with_capacity(
-                (MIN_MEMBERS_MULTIPOINT
-                    * MAX_MEMBERS_MULTILINESTRING
-                    * MAX_MEMBERS_MULTISURFACE
-                    * MAX_MEMBERS_SOLID) as usize,
+                (config.cjfake.min_members_multipoint
+                    * config.cjfake.max_members_multilinestring
+                    * config.cjfake.max_members_multisurface
+                    * config.cjfake.max_members_solid) as usize,
             ),
             rings: LargeIndexVec::with_capacity(
-                (MAX_MEMBERS_MULTILINESTRING * MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID)
-                    as usize,
+                (config.cjfake.max_members_multilinestring
+                    * config.cjfake.max_members_multisurface
+                    * config.cjfake.max_members_solid) as usize,
             ),
             surfaces: LargeIndexVec::with_capacity(
-                (MAX_MEMBERS_MULTISURFACE * MAX_MEMBERS_SOLID) as usize,
+                (config.cjfake.max_members_multisurface * config.cjfake.max_members_solid) as usize,
             ),
-            shells: LargeIndexVec::with_capacity(MAX_MEMBERS_SOLID as usize),
+            shells: LargeIndexVec::with_capacity(config.cjfake.max_members_solid as usize),
             solids: LargeIndexVec::default(),
         };
 
         // A ring must have at least three members.
-        let min_ring_len = if MIN_MEMBERS_MULTIPOINT > 2 {
-            MIN_MEMBERS_MULTIPOINT
+        let min_ring_len = if config.cjfake.min_members_multipoint > 2 {
+            config.cjfake.min_members_multipoint
         } else {
             3
         };
@@ -1264,7 +1263,10 @@ impl Dummy<SolidFaker> for Boundary {
         let mut surface_i = 0u32;
         let mut shell_i = 0u32;
 
-        let nr_shells_usize = get_nr_items(MIN_MEMBERS_SOLID..=MAX_MEMBERS_SOLID, rng);
+        let nr_shells_usize = get_nr_items(
+            config.cjfake.min_members_solid..=config.cjfake.max_members_solid,
+            rng,
+        );
         let nr_shells = IndexType::try_from(nr_shells_usize).unwrap_or_default();
         fake_solid_boundary(
             config.nr_vertices,
@@ -1275,6 +1277,7 @@ impl Dummy<SolidFaker> for Boundary {
             &mut surface_i,
             &mut shell_i,
             nr_shells,
+            config.cjfake
         );
 
         boundary
@@ -1291,19 +1294,22 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
     surface_i: &mut u32,
     shell_i: &mut u32,
     nr_shells: IndexType,
+    cjfake: &CJFakeConfig,
 ) {
-    for _shell in MIN_MEMBERS_SOLID..=nr_shells {
+    for _shell in cjfake.min_members_solid..=nr_shells {
         boundary.shells.push(LargeIndex::from(*shell_i));
-        let shell_len_usize =
-            get_nr_items(MIN_MEMBERS_MULTISURFACE..=MAX_MEMBERS_MULTISURFACE, rng);
+        let shell_len_usize = get_nr_items(
+            cjfake.min_members_multisurface..=cjfake.max_members_multisurface,
+            rng,
+        );
         let shell_len = IndexType::try_from(shell_len_usize).unwrap();
         *shell_i += shell_len;
 
         // Add the surfaces for each shell
-        for _surface in MIN_MEMBERS_MULTISURFACE..=shell_len {
+        for _surface in cjfake.min_members_multisurface..=shell_len {
             boundary.surfaces.push(LargeIndex::from(*surface_i));
             let nr_rings_usize = get_nr_items(
-                MIN_MEMBERS_MULTILINESTRING..=MAX_MEMBERS_MULTILINESTRING,
+                cjfake.min_members_multilinestring..=cjfake.max_members_multilinestring,
                 rng,
             );
             let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
