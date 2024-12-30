@@ -6,6 +6,18 @@ type IndexType = u32;
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about)]
 pub struct CJFakeConfig {
+    /// Minimum number of CityObjects to generate
+    #[arg(long, default_value_t = 1)]
+    pub min_nr_cityobjects: IndexType,
+
+    /// Maximum number of CityObjects to generate
+    #[arg(long, default_value_t = 1)]
+    pub max_nr_cityobjects: IndexType,
+
+    /// Whether to generate hierarchical CityObjects (parent-child relationships)
+    #[arg(long, default_value_t = true)]
+    pub cityobject_hierarchy: bool,
+
     /// Minimum coordinate value for geometry vertices
     #[arg(long, default_value_t = i64::MIN)]
     pub min_coordinate: i64,
@@ -110,6 +122,9 @@ pub struct CJFakeConfig {
 impl Default for CJFakeConfig {
     fn default() -> Self {
         Self {
+            min_nr_cityobjects: 1,
+            max_nr_cityobjects: 1,
+            cityobject_hierarchy: true,
             min_coordinate: i64::MIN,
             max_coordinate: i64::MAX,
             min_nr_vertices: 8,

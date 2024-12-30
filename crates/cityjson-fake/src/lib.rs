@@ -9,6 +9,8 @@
 //! -
 //!
 //! See the [design doc] for details on how this crate works under the hood.
+mod cli;
+
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Range, RangeInclusive};
@@ -36,6 +38,8 @@ use serde_cityjson::boundary::Boundary;
 use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
+
+use cli::CJFakeConfig;
 
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // todo cj: need to use the proper coordinate type and add to CoordinateFaker
@@ -139,6 +143,7 @@ pub struct CityModelBuilder<'cm> {
     attributes_cityobject: Option<Attributes<'cm>>,
     attributes_semantic: Option<Attributes<'cm>>,
     rng: SmallRng,
+    config: CJFakeConfig,
 }
 
 impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
@@ -149,7 +154,7 @@ impl<'cm> From<CityModelBuilder<'cm>> for CityModel<'cm> {
 
 impl<'cm> Default for CityModelBuilder<'cm> {
     fn default() -> Self {
-        CityModelBuilder::new(None)
+        CityModelBuilder::new(CJFakeConfig::default(), None)
             .metadata(None)
             .vertices()
             .materials(None)
@@ -161,7 +166,7 @@ impl<'cm> Default for CityModelBuilder<'cm> {
 
 impl<'cm> CityModelBuilder<'cm> {
     #[must_use]
-    pub fn new(seed: Option<u64>) -> Self {
+    pub fn new(config: CJFakeConfig, seed: Option<u64>) -> Self {
         let rng = if let Some(state) = seed {
             SmallRng::seed_from_u64(state)
         } else {
@@ -184,6 +189,7 @@ impl<'cm> CityModelBuilder<'cm> {
             attributes_cityobject: None,
             attributes_semantic: None,
             rng,
+            config
         }
     }
 
@@ -2762,7 +2768,7 @@ mod tests {
         // PRNG seed: 1398851588772436775
         // invalid citymodel generated, saving it to cjfake_invalid_3.city.json
         let seed = Some(1398851588772436775_u64);
-        let cm_builder = CityModelBuilder::new(seed);
+        let cm_builder = CityModelBuilder::new(CJFakeConfig::default(), seed);
         let cm: CityModel = cm_builder.cityobjects(None, true).build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         println!("{}", &cj_str);
@@ -2828,7 +2834,7 @@ mod tests {
         for i in 0..nr_iterations {
             let seed: u64 = thread_rng().next_u64();
             println!("Iteration {}, seed {}", i, seed);
-            let cm: CityModel = CityModelBuilder::new(Some(seed)).build();
+            let cm: CityModel = CityModelBuilder::new(CJFakeConfig::default(), Some(seed)).build();
             let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
             let val = CJValidator::from_str(&cj_str);
             let invalids: Vec<(String, String)> = val
