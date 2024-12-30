@@ -82,15 +82,6 @@ const MIN_MEMBERS_MULTISOLID: IndexType = 1;
 const MAX_MEMBERS_MULTISOLID: IndexType = 3;
 const MIN_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 1;
 const MAX_MEMBERS_CITYOBJECT_GEOMETRIES: IndexType = 1;
-const MIN_NR_MATERIALS: IndexType = 1;
-const MAX_NR_MATERIALS: IndexType = 3;
-// Must be >= 1
-const NR_THEMES_MATERIALS: IndexType = 3;
-const MIN_NR_TEXTURES: IndexType = 2;
-const MAX_NR_TEXTURES: IndexType = 2;
-// Must be >= 1
-const NR_THEMES_TEXTURES: IndexType = 3;
-const MAX_NR_VERTICES_TEXTURE: IndexType = 10;
 
 type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
 
@@ -334,8 +325,8 @@ impl<'cm> CityModelBuilder<'cm> {
 
     pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
         let mat: Vec<Material>;
-        let nr_materials = get_nr_items(MIN_NR_MATERIALS..=MAX_NR_MATERIALS, &mut self.rng);
-        let nr_themes = get_nr_items(1..=NR_THEMES_MATERIALS, &mut self.rng);
+        let nr_materials = get_nr_items(self.config.min_materials..=self.config.max_materials, &mut self.rng);
+        let nr_themes = get_nr_items(1..=self.config.nr_themes_materials, &mut self.rng);
         if let Some(mb) = material_builder {
             mat = (1..=nr_materials)
                 .map(|_| mb.clone().build())
@@ -365,9 +356,9 @@ impl<'cm> CityModelBuilder<'cm> {
 
     pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
         let tex: Vec<Texture>;
-        let nr_textures = get_nr_items(MIN_NR_TEXTURES..=MAX_NR_TEXTURES, &mut self.rng);
-        let nr_themes = get_nr_items(1..=NR_THEMES_TEXTURES, &mut self.rng);
-        let nr_vertices_texture = get_nr_items(1..=MAX_NR_VERTICES_TEXTURE, &mut self.rng);
+        let nr_textures = get_nr_items(self.config.min_textures..=self.config.max_textures, &mut self.rng);
+        let nr_themes = get_nr_items(1..=self.config.nr_themes_textures, &mut self.rng);
+        let nr_vertices_texture = get_nr_items(1..=self.config.max_vertices_texture, &mut self.rng);
         if let Some(tb) = texture_builder {
             tex = (1..=nr_textures)
                 .map(|_| tb.clone().build())

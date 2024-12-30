@@ -99,7 +99,7 @@ pub struct CJFakeConfig {
     pub max_materials: IndexType,
 
     /// Number of material themes
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(IndexType).range(1..))]
     pub nr_themes_materials: IndexType,
 
     /// Minimum number of textures
@@ -111,12 +111,12 @@ pub struct CJFakeConfig {
     pub max_textures: IndexType,
 
     /// Number of texture themes
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(IndexType).range(1..))]
     pub nr_themes_textures: IndexType,
 
     /// Maximum number of vertices in texture coordinates
     #[arg(long, default_value_t = 10)]
-    pub max_vertices_textures: IndexType,
+    pub max_vertices_texture: IndexType,
 
     /// Minimum number of templates
     #[arg(long, default_value_t = 1)]
@@ -165,7 +165,7 @@ impl Default for CJFakeConfig {
             min_textures: 2,
             max_textures: 2,
             nr_themes_textures: 3,
-            max_vertices_textures: 10,
+            max_vertices_texture: 10,
             min_templates: 1,
             max_templates: 10,
             use_templates: true,
@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(config.min_textures, 2);
         assert_eq!(config.max_textures, 2);
         assert_eq!(config.nr_themes_textures, 3);
-        assert_eq!(config.max_vertices_textures, 10);
+        assert_eq!(config.max_vertices_texture, 10);
         assert_eq!(config.min_templates, 1);
         assert_eq!(config.max_templates, 10);
         assert_eq!(config.use_templates, true);
@@ -279,7 +279,7 @@ mod tests {
             "3",
             "--nr-themes-textures",
             "2",
-            "--max-vertices-textures",
+            "--max-vertices-texture",
             "15",
             "--min-templates",
             "2",
@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(config.min_textures, 1);
         assert_eq!(config.max_textures, 3);
         assert_eq!(config.nr_themes_textures, 2);
-        assert_eq!(config.max_vertices_textures, 15);
+        assert_eq!(config.max_vertices_texture, 15);
         assert_eq!(config.min_templates, 2);
         assert_eq!(config.max_templates, 5);
         assert_eq!(config.use_templates, true);
