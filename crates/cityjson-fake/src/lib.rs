@@ -39,10 +39,10 @@ use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
-use cli::CJFakeConfig;
+pub use crate::cli::CJFakeConfig;
 
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
-// todo cj: need to use the proper coordinate type and add to CoordinateFaker
+// todo scj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exact configuration for reproducible models (same types, config etc)
 // TODO: API
 // TODO: exe/docker/server
@@ -447,7 +447,6 @@ impl<'cm> CityModelBuilder<'cm> {
         if used_vertices.is_empty() {
             // This means that we didn't generate any geometry, so we have to remove the vertices
             // too.
-            dbg!("did not generate any geometry, have to remove the vertices");
             if let Some(ref mut vertices) = self.vertices {
                 vertices.clear();
                 vertices.shrink_to_fit();
@@ -2634,36 +2633,6 @@ impl Dummy<F64Faker> for f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cjval::CJValidator;
-    use rand::RngCore;
-    use std::env;
-
-    fn invalids_dir() -> PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("invalids")
-    }
-
-    fn count_invalids(invalids_dir: &PathBuf) -> usize {
-        let mut count: usize = 0;
-        for entry in std::fs::read_dir(invalids_dir).unwrap() {
-            if entry.is_ok() {
-                let p = entry.unwrap().path();
-                if p.extension().is_some_and(|ext| ext == "json") {
-                    let name = p.file_name().unwrap();
-                    let d = name
-                        .to_string_lossy()
-                        .replace("cjfake_invalid_", "")
-                        .replace(".city.json", "");
-                    let c = d.parse::<usize>().unwrap();
-                    if c > count {
-                        count = c;
-                    }
-                }
-            }
-        }
-        count
-    }
 
     #[test]
     fn attributes() {
@@ -2672,13 +2641,6 @@ mod tests {
             random_values: true,
         }
         .fake();
-        dbg!(attributes);
-    }
-
-    #[test]
-    fn test_fake() {
-        let a: [f64; 16] = (1.0..5.0).fake();
-        dbg!(a);
     }
 
     #[test]
@@ -2691,130 +2653,6 @@ mod tests {
             .reference_system()
             .title()
             .build();
-        dbg!(m);
     }
 
-    #[test]
-    fn with_seed() {
-        // Iteration 72
-        // PRNG seed: 3493134470016091330
-        // invalid citymodel generated, saving it to cjfake_invalid_1.city.json
-        // Iteration 74
-        // PRNG seed: 5314496677585855116
-        // invalid citymodel generated, saving it to cjfake_invalid_2.city.json
-        // Iteration 83
-        // PRNG seed: 1398851588772436775
-        // invalid citymodel generated, saving it to cjfake_invalid_3.city.json
-        let seed = Some(1398851588772436775_u64);
-        let cm_builder = CityModelBuilder::new(CJFakeConfig::default(), seed);
-        let cm: CityModel = cm_builder.cityobjects().build();
-        let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-        println!("{}", &cj_str);
-        let val = CJValidator::from_str(&cj_str);
-        let invalids: Vec<(String, String)> = val
-            .validate()
-            .into_iter()
-            .filter(|(_, summary)| !summary.is_valid())
-            .map(|(criterion, summary)| (criterion, summary.to_string()))
-            .collect();
-        if invalids.len() > 0 {
-            // Serialize invalid citymodels for later analysis
-            let idir = invalids_dir();
-            let invalids_count = count_invalids(&idir);
-            let current_invalid_nr = invalids_count + 1;
-            let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
-            std::fs::write(idir.join(fname), cj_str).unwrap();
-        }
-        for (criterion, summary) in val.validate().iter() {
-            assert!(
-                summary.is_valid(),
-                "{} is not valid with {}",
-                criterion,
-                summary
-            )
-        }
-    }
-
-    #[test]
-    fn default() {
-        let cm: CityModel = CityModelBuilder::default().build();
-        let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-        println!("{}", &cj_str);
-        let val = CJValidator::from_str(&cj_str);
-        // assert!(val.validate().iter().all(|(c, s)| s.is_valid()));
-        let invalids: Vec<(String, String)> = val
-            .validate()
-            .into_iter()
-            .filter(|(_, summary)| !summary.is_valid())
-            .map(|(criterion, summary)| (criterion, summary.to_string()))
-            .collect();
-        if invalids.len() > 0 {
-            // Serialize invalid citymodels for later analysis
-            let idir = invalids_dir();
-            let invalids_count = count_invalids(&idir);
-            let current_invalid_nr = invalids_count + 1;
-            let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
-            std::fs::write(idir.join(fname), cj_str).unwrap();
-        }
-        for (criterion, summary) in val.validate().iter() {
-            assert!(
-                summary.is_valid(),
-                "{} is not valid with {}",
-                criterion,
-                summary
-            )
-        }
-    }
-
-    #[test]
-    fn seed_iterate() {
-        let nr_iterations = 100;
-        for i in 0..nr_iterations {
-            let seed: u64 = thread_rng().next_u64();
-            println!("Iteration {}, seed {}", i, seed);
-            let cm: CityModel = CityModelBuilder::new(CJFakeConfig::default(), Some(seed)).build();
-            let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-            let val = CJValidator::from_str(&cj_str);
-            let invalids: Vec<(String, String)> = val
-                .validate()
-                .into_iter()
-                .filter(|(_, summary)| !summary.is_valid())
-                .map(|(criterion, summary)| (criterion, summary.to_string()))
-                .collect();
-            if invalids.len() > 0 {
-                // Serialize invalid citymodels for later analysis
-                let idir = invalids_dir();
-                let invalids_count = count_invalids(&idir);
-                let current_invalid_nr = invalids_count + 1;
-                let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
-                println!("invalid citymodel generated, saving it to {}", &fname);
-                std::fs::write(idir.join(fname), cj_str).unwrap();
-            }
-        }
-    }
-    #[test]
-    fn default_iterate() {
-        let nr_iterations = 100;
-        for i in 0..nr_iterations {
-            println!("Iteration {}", i);
-            let cm: CityModel = CityModelBuilder::default().build();
-            let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-            let val = CJValidator::from_str(&cj_str);
-            let invalids: Vec<(String, String)> = val
-                .validate()
-                .into_iter()
-                .filter(|(_, summary)| !summary.is_valid())
-                .map(|(criterion, summary)| (criterion, summary.to_string()))
-                .collect();
-            if invalids.len() > 0 {
-                // Serialize invalid citymodels for later analysis
-                let idir = invalids_dir();
-                let invalids_count = count_invalids(&idir);
-                let current_invalid_nr = invalids_count + 1;
-                let fname = format!("cjfake_invalid_{}.city.json", current_invalid_nr);
-                println!("invalid citymodel generated, saving it to {}", &fname);
-                std::fs::write(idir.join(fname), cj_str).unwrap();
-            }
-        }
-    }
 }

@@ -22,3 +22,4 @@ clap = { version = "4.5.23", features = ["derive"] }
 
 [dev-dependencies]
 cjval = "0.8.1"
+proptest = "1.0"
