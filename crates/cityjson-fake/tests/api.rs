@@ -78,10 +78,10 @@ fn geometry_type_strategy() -> impl Strategy<Value = Vec<GeometryType>> {
     vec(select(types), 1..nr_types)
 }
 
-/// Can we fake valid CityJSON with various parameters?
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
 
+    /// Can we fake valid CityJSON with various parameters?
     #[test]
     fn fuzz_config(
         allowed_types_cityobject in city_object_type_strategy(),

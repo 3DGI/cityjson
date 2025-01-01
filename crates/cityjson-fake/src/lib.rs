@@ -248,7 +248,8 @@ impl<'cm> CityModelBuilder<'cm> {
             }
             .fake_with_rng(&mut self.rng);
             // The 8th geometry type is GeometryInstance, which cannot be a template
-            let geometry_types = Some(vec![
+            let mut config_geometry = self.config.clone();
+            config_geometry.allowed_types_geometry = Some(vec![
                 GeometryType::MultiPoint,
                 GeometryType::MultiLineString,
                 GeometryType::MultiSurface,
@@ -305,7 +306,7 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
+    pub(crate) fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
         let mat: Vec<Material>;
         let nr_materials = get_nr_items(
             self.config.min_materials..=self.config.max_materials,
@@ -337,7 +338,7 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
+    pub(crate) fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
         let tex: Vec<Texture>;
         let nr_textures = get_nr_items(
             self.config.min_textures..=self.config.max_textures,
@@ -373,7 +374,7 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder<'cm>>) -> Self {
+    pub(crate) fn metadata(mut self, metadata_builder: Option<MetadataBuilder<'cm>>) -> Self {
         if let Some(mb) = metadata_builder {
             self.metadata = Some(mb.build());
         } else {
@@ -383,7 +384,7 @@ impl<'cm> CityModelBuilder<'cm> {
     }
 
     /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
-    pub fn vertices(mut self) -> Self {
+    pub(crate) fn vertices(mut self) -> Self {
         if self.vertices.is_none() {
             self.vertices = Some(
                 VerticesFaker {
@@ -814,8 +815,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
 
         match geometry_type_chosen {
             GeometryType::MultiPoint => {
-                let boundaries: Boundary =
-                    MultiPointFaker{nr_vertices: config.nr_vertices, cjfake: config.cjfake}.fake_with_rng(rng);
+                let boundaries: Boundary = MultiPointFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 let nr_points = IndexType::try_from(boundaries.vertices.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiPointSemanticsFaker::new(
@@ -838,8 +842,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiLineString => {
-                let boundaries: Boundary =
-                    MultiLineStringFaker{nr_vertices: config.nr_vertices, cjfake: config.cjfake}.fake_with_rng(rng);
+                let boundaries: Boundary = MultiLineStringFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 let nr_linestrings = IndexType::try_from(boundaries.rings.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiLineStringSemanticsFaker::new(
@@ -862,8 +869,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::MultiSurface => {
-                let boundaries: Boundary =
-                    MultiSurfaceFaker{nr_vertices: config.nr_vertices, cjfake: config.cjfake}.fake_with_rng(rng);
+                let boundaries: Boundary = MultiSurfaceFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(
@@ -905,8 +915,11 @@ impl<'cm: 'cmbuild, 'cmbuild> Dummy<GeometryFaker<'cmbuild, 'cm>> for Geometry<'
                 }
             }
             GeometryType::CompositeSurface => {
-                let boundaries: Boundary =
-                    MultiSurfaceFaker{nr_vertices: config.nr_vertices, cjfake: config.cjfake}.fake_with_rng(rng);
+                let boundaries: Boundary = MultiSurfaceFaker {
+                    nr_vertices: config.nr_vertices,
+                    cjfake: config.cjfake,
+                }
+                .fake_with_rng(rng);
                 let nr_surfaces = IndexType::try_from(boundaries.surfaces.len()).unwrap();
                 semantics = generate_semantics.then(|| {
                     MultiSurfaceSemanticsFaker::new(
@@ -1208,7 +1221,7 @@ impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
                 &mut surface_i,
                 &mut shell_i,
                 nr_shells,
-                config.cjfake
+                config.cjfake,
             );
         }
 
@@ -1268,7 +1281,7 @@ impl<'cmbuild> Dummy<SolidFaker<'cmbuild>> for Boundary {
             &mut surface_i,
             &mut shell_i,
             nr_shells,
-            config.cjfake
+            config.cjfake,
         );
 
         boundary
@@ -1314,7 +1327,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
                 min_ring_len,
                 ring_i,
                 nr_rings,
-                cjfake
+                cjfake,
             );
         }
     }
@@ -1331,12 +1344,11 @@ impl<'cmbuild> Dummy<MultiSurfaceFaker<'cmbuild>> for Boundary {
             vertices: LargeIndexVec::with_capacity(
                 (config.cjfake.min_members_multipoint
                     * config.cjfake.max_members_multilinestring
-                    * config.cjfake.max_members_multisurface)
-                    as usize,
+                    * config.cjfake.max_members_multisurface) as usize,
             ),
             rings: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multilinestring
-                    * config.cjfake.max_members_multisurface) as usize,
+                (config.cjfake.max_members_multilinestring * config.cjfake.max_members_multisurface)
+                    as usize,
             ),
             surfaces: LargeIndexVec::with_capacity(config.cjfake.max_members_multisurface as usize),
             shells: LargeIndexVec::default(),
@@ -1353,16 +1365,20 @@ impl<'cmbuild> Dummy<MultiSurfaceFaker<'cmbuild>> for Boundary {
         let mut ring_i = 0u32;
         let mut surface_i = 0u32;
 
-        let nr_surfaces_usize =
-            get_nr_items(config.cjfake.min_members_multisurface..=config.cjfake.max_members_multisurface, rng);
+        let nr_surfaces_usize = get_nr_items(
+            config.cjfake.min_members_multisurface..=config.cjfake.max_members_multisurface,
+            rng,
+        );
         let nr_surfaces = IndexType::try_from(nr_surfaces_usize).unwrap_or_default();
         for _surface in config.cjfake.min_members_multisurface..=nr_surfaces {
             // Add the index of the current surface, which is a pointer to the first ring of the
             // surface.
             boundary.surfaces.push(LargeIndex::from(surface_i));
             // Determine the number of rings for the current surface.
-            let nr_rings_usize =
-                rng.gen_range(config.cjfake.min_members_multilinestring..=config.cjfake.max_members_multilinestring);
+            let nr_rings_usize = rng.gen_range(
+                config.cjfake.min_members_multilinestring
+                    ..=config.cjfake.max_members_multilinestring,
+            );
             let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
             // Generate the rings and add them to the surface
             fake_surface_boundary(
@@ -1372,7 +1388,7 @@ impl<'cmbuild> Dummy<MultiSurfaceFaker<'cmbuild>> for Boundary {
                 min_ring_len,
                 &mut ring_i,
                 nr_rings,
-                config.cjfake
+                config.cjfake,
             );
             // Starting index of the next surface
             surface_i += nr_rings;
@@ -1390,7 +1406,8 @@ impl<'cmbuild> Dummy<MultiLineStringFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
             vertices: LargeIndexVec::with_capacity(
-                (config.cjfake.min_members_multipoint * config.cjfake.max_members_multilinestring) as usize,
+                (config.cjfake.min_members_multipoint * config.cjfake.max_members_multilinestring)
+                    as usize,
             ),
             rings: LargeIndexVec::with_capacity(config.cjfake.max_members_multilinestring as usize),
             surfaces: LargeIndexVec::default(),
@@ -1406,7 +1423,9 @@ impl<'cmbuild> Dummy<MultiLineStringFaker<'cmbuild>> for Boundary {
 
         let mut ring_i = 0u32;
 
-        let nr_rings_usize = rng.gen_range(config.cjfake.min_members_multilinestring..=config.cjfake.max_members_multilinestring);
+        let nr_rings_usize = rng.gen_range(
+            config.cjfake.min_members_multilinestring..=config.cjfake.max_members_multilinestring,
+        );
         let nr_rings = IndexType::try_from(nr_rings_usize).unwrap_or_default();
         fake_surface_boundary(
             config.nr_vertices,
@@ -1436,7 +1455,8 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
         // in the vertices vector
         boundary.rings.push(LargeIndex::from(*ring_i));
         // Determine how many vertices does this ring have.
-        let nr_vertices_usize = get_nr_items(min_linestring_len..=cjfake.max_members_multipoint, rng);
+        let nr_vertices_usize =
+            get_nr_items(min_linestring_len..=cjfake.max_members_multipoint, rng);
         let nr_vertices = IndexType::try_from(nr_vertices_usize).unwrap_or_default();
         // Generate the vertices for the ring and add them to the boundary
         boundary.vertices.extend((1..=nr_vertices).map(|_| {
@@ -2635,8 +2655,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn material() {
+        let _: Material = MaterialBuilder::new()
+            .ambient_intensity()
+            .diffuse_color()
+            .emissive_color()
+            .name()
+            .shininess()
+            .smooth()
+            .specular_color()
+            .transparency()
+            .build();
+    }
+
+    #[test]
+    fn texture() {
+        let _: Texture = TextureBuilder::new()
+            .image()
+            .border_color()
+            .image_type()
+            .wrap_mode()
+            .texture_type()
+            .build();
+    }
+
+    #[test]
     fn attributes() {
-        let attributes: Attributes = AttributesFaker {
+        let _: Attributes = AttributesFaker {
             random_keys: false,
             random_values: true,
         }
@@ -2645,7 +2690,7 @@ mod tests {
 
     #[test]
     fn metadata() {
-        let m = MetadataBuilder::new()
+        let _ = MetadataBuilder::new()
             .geographical_extent()
             .identifier()
             .point_of_contact()
@@ -2654,5 +2699,4 @@ mod tests {
             .title()
             .build();
     }
-
 }
