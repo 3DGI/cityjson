@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use cjval::CJValidator;
+use std::path::PathBuf;
 
 pub fn invalids_dir() -> PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

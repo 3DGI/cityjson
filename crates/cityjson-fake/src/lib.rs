@@ -1,14 +1,141 @@
 //! # cjfake
 //!
-//! CityJSON generator with fake data.
+//! A library for generating fake [CityJSON](https://www.cityjson.org/) data for testing purposes.
 //!
-//! - You can control the number of vertices it the surfaces, for instance to fake triangulated
-//!   surfaces.
-//! - The generated CityJSON is valid according to the specifications. However, the generated
-//!   vertices and geometries are random, they have no resemblance to real-world and they are invalid.
-//! -
+//! ## Overview
 //!
-//! See the [design doc] for details on how this crate works under the hood.
+//! CityJSON is a JSON-based encoding format for 3D city models. While there are many publicly
+//! available datasets, they have limitations that make them unsuitable for automated testing:
+//!
+//! - Files are often large and slow to download/process
+//! - Models contain irrelevant information for specific test cases
+//! - Certain CityObject types are rare or nonexistent
+//! - Advanced features like Appearances or Geometry-templates are rarely modeled
+//!
+//! This library allows you to generate valid CityJSON test data quickly and efficiently,
+//! with precise control over the model contents and structure.
+//!
+//! ## Features
+//!
+//! - Generate complete CityJSON documents that pass validation with [cjval](https://github.com/cityjson/cjval)
+//! - Control the number of vertices in surfaces (e.g. for triangulated surfaces)
+//! - Support for all CityJSON object types and features
+//! - Generate random but valid values for all properties
+//! - Builder pattern for intuitive model construction
+//!
+//! Note: While the generated CityJSON is schema-valid, the geometric values are random and
+//! do not represent valid real-world objects.
+//!
+//! ## Basic Usage
+//!
+//! ```rust
+//! use cjfake::{CityModelBuilder, CJFakeConfig};
+//!
+//! // Create a basic CityJSON model with defaults
+//! let model = CityModelBuilder::default().build();
+//!
+//! // Create a customized model
+//! let config = CJFakeConfig::default();
+//! let model = CityModelBuilder::new(config, None)
+//!     .metadata(None)
+//!     .vertices()
+//!     .materials(None)
+//!     .textures(None)
+//!     .attributes()
+//!     .cityobjects()
+//!     .build();
+//! ```
+//!
+//! ## Configuration
+//!
+//! The [`CJFakeConfig`] struct provides extensive control over the generated content:
+//!
+//! ```rust
+//! use serde_cityjson::v1_1::CityObjectType;
+//! use cjfake::CJFakeConfig;
+//!
+//! let config = CJFakeConfig {
+//!     // Restrict to specific CityObject types
+//!     allowed_types_cityobject: Some(vec![CityObjectType::Building, CityObjectType::Bridge]),
+//!
+//!     // Control number of objects
+//!     min_cityobjects: 5,
+//!     max_cityobjects: 10,
+//!
+//!     // Enable parent-child relationships
+//!     cityobject_hierarchy: true,
+//!
+//!     // Control geometry complexity
+//!     min_vertices: 4,
+//!     max_vertices: 20,
+//!
+//!     ..Default::default()
+//! };
+//! ```
+//!
+//! ## Builders
+//!
+//! The library provides several builders for creating different components:
+//!
+//! - [`CityModelBuilder`] - Main builder for complete CityJSON models
+//! - [`MaterialBuilder`] - Creates material appearances with properties like color and shininess
+//! - [`TextureBuilder`] - Creates texture appearances with image mappings and wrap modes
+//! - [`MetadataBuilder`] - Creates metadata with contact info, dates, and references
+//!
+//! ### Material Example
+//!
+//! ```rust
+//! use cjfake::MaterialBuilder;
+//!
+//! let material = MaterialBuilder::new()
+//!     .name()
+//!     .diffuse_color()
+//!     .shininess()
+//!     .transparency()
+//!     .build();
+//! ```
+//!
+//! ### Texture Example
+//!
+//! ```rust
+//! use cjfake::TextureBuilder;
+//!
+//! let texture = TextureBuilder::new()
+//!     .image_type()
+//!     .image()
+//!     .wrap_mode()
+//!     .border_color()
+//!     .build();
+//! ```
+//!
+//! ### Metadata Example
+//!
+//! ```rust
+//! use cjfake::MetadataBuilder;
+//!
+//! let metadata = MetadataBuilder::new()
+//!     .geographical_extent()
+//!     .identifier()
+//!     .point_of_contact()
+//!     .reference_system()
+//!     .build();
+//! ```
+//!
+//! ## Implementation Details
+//!
+//! The library uses the [fake](https://docs.rs/fake/) crate to generate random but realistic
+//! values for properties like names, dates, and colors. Geometric values are generated within
+//! configurable ranges to ensure they are valid according to the CityJSON specification.
+//!
+//! The generated CityJSON can be output as either JSON strings or UTF-8 encoded byte vectors,
+//! making it suitable for both file-based and in-memory testing scenarios.
+//!
+//! ## Limitations
+//!
+//! - Generated geometric values are random and do not form valid 3D shapes
+//! - Semantic relationships may not make real-world sense
+//! - Generated file paths for textures do not point to real files
+//!
 mod cli;
 
 use std::borrow::Cow;
@@ -43,10 +170,7 @@ pub use crate::cli::CJFakeConfig;
 
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
 // todo scj: need to use the proper coordinate type and add to CoordinateFaker
-// TODO: exact configuration for reproducible models (same types, config etc)
-// TODO: API
 // TODO: exe/docker/server
-// TODO: docs
 // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
 // TODO: CityObject add "address" to the type where possible
 // todo: CityObject add extra
@@ -95,6 +219,31 @@ fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) 
     }
 }
 
+/// Builder for creating CityJSON models with fake data.
+///
+/// The builder provides methods to configure and generate different aspects of a CityJSON model,
+/// such as vertices, cityobjects, materials, textures, etc. The generated data is valid according
+/// to the CityJSON specification, though the geometric values are random.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::{CityModelBuilder, CJFakeConfig};
+///
+/// // Create a basic CityJSON model with default settings
+/// let model = CityModelBuilder::default().build();
+///
+/// // Create a customized model
+/// let config = CJFakeConfig::default();
+/// let model = CityModelBuilder::new(config, None)
+///     .metadata(None)
+///     .vertices()
+///     .materials(None)
+///     .textures(None)
+///     .attributes()
+///     .cityobjects()
+///     .build();
+/// ```
 pub struct CityModelBuilder<'cm> {
     id: Option<Cow<'cm, str>>,
     type_cm: Option<CityModelType>,
@@ -134,6 +283,16 @@ impl<'cm> Default for CityModelBuilder<'cm> {
 }
 
 impl<'cm> CityModelBuilder<'cm> {
+    /// Creates a new CityModelBuilder with the given configuration and optional random seed.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration options for generating fake data
+    /// * `seed` - Optional seed for random number generation. If None, uses thread RNG
+    ///
+    /// # Returns
+    ///
+    /// A new CityModelBuilder instance
     #[must_use]
     pub fn new(config: CJFakeConfig, seed: Option<u64>) -> Self {
         let rng = if let Some(state) = seed {
@@ -162,14 +321,18 @@ impl<'cm> CityModelBuilder<'cm> {
         }
     }
 
-    /// Generate 1 CityObject if `nr_cityobjects` is `None`, else generate the number of CityObjects
-    /// within the provided range. If the `nr_cityobjects` is 1 and `cityobject_hierarchy` is
-    /// `true` and the generated CityObject has 2nd-level types, then one additional 2nd-level
-    /// CityObject will be created too.
-    /// If the `nr_cityobject` is set to a range and `cityobject_hierarchy` is `true`, then the
-    /// total number of 1st- and 2nd-level CityObjects will be in the provided range.
-    /// If the vertices haven't been generated yet, they will be created, so that the geometry
-    /// boundaries can index them.
+    /// Generates CityObjects for the model.
+    ///
+    /// This method will:
+    /// - Generate 1 CityObject if `nr_cityobjects` in config is None
+    /// - Otherwise generate the number of CityObjects within the provided range
+    /// - If `cityobject_hierarchy` is true and generating one object, an additional 2nd-level object may be created
+    /// - If generating multiple objects with hierarchy, the total number of 1st and 2nd level objects will be in range
+    /// - Automatically generates vertices if not already present
+    ///
+    /// # Returns
+    ///
+    /// Self with CityObjects added
     pub fn cityobjects(mut self) -> Self {
         let nr_cityobjects = get_nr_items(
             self.config.min_cityobjects..=self.config.max_cityobjects,
@@ -281,6 +444,13 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
+    /// Generates attributes for both CityObjects and semantic surfaces.
+    ///
+    /// Creates random but valid attribute values for use in CityObjects and semantic surface elements.
+    ///
+    /// # Returns
+    ///
+    /// Self with attributes added
     pub fn attributes(mut self) -> Self {
         self.attributes_cityobject = Some(
             AttributesFaker {
@@ -306,7 +476,19 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub(crate) fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
+    /// Adds materials to the model using an optional MaterialBuilder.
+    ///
+    /// If no builder is provided, generates default materials. The number of materials generated
+    /// is controlled by the configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `material_builder` - Optional MaterialBuilder to customize material generation
+    ///
+    /// # Returns
+    ///
+    /// Self with materials added
+    pub fn materials(mut self, material_builder: Option<MaterialBuilder<'cm>>) -> Self {
         let mat: Vec<Material>;
         let nr_materials = get_nr_items(
             self.config.min_materials..=self.config.max_materials,
@@ -338,7 +520,19 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub(crate) fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
+    /// Adds textures to the model using an optional TextureBuilder.
+    ///
+    /// If no builder is provided, generates default textures. The number of textures and vertices
+    /// is controlled by the configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `texture_builder` - Optional TextureBuilder to customize texture generation
+    ///
+    /// # Returns
+    ///
+    /// Self with textures added
+    pub fn textures(mut self, texture_builder: Option<TextureBuilder<'cm>>) -> Self {
         let tex: Vec<Texture>;
         let nr_textures = get_nr_items(
             self.config.min_textures..=self.config.max_textures,
@@ -374,7 +568,18 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    pub(crate) fn metadata(mut self, metadata_builder: Option<MetadataBuilder<'cm>>) -> Self {
+    /// Adds metadata to the model using an optional MetadataBuilder.
+    ///
+    /// If no builder is provided, generates default metadata with fake values for all fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `metadata_builder` - Optional MetadataBuilder to customize metadata generation
+    ///
+    /// # Returns
+    ///
+    /// Self with metadata added
+    pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder<'cm>>) -> Self {
         if let Some(mb) = metadata_builder {
             self.metadata = Some(mb.build());
         } else {
@@ -383,8 +588,14 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
-    /// If the vertices are already set so `Some(Vertices)`, then this method does nothing.
-    pub(crate) fn vertices(mut self) -> Self {
+    /// Generates vertices for the model if not already present.
+    ///
+    /// The number and range of vertex coordinates is controlled by the configuration.
+    ///
+    /// # Returns
+    ///
+    /// Self with vertices added
+    pub fn vertices(mut self) -> Self {
         if self.vertices.is_none() {
             self.vertices = Some(
                 VerticesFaker {
@@ -396,6 +607,16 @@ impl<'cm> CityModelBuilder<'cm> {
         self
     }
 
+    /// Builds the final CityJSON model.
+    ///
+    /// Handles any unused vertices by either:
+    /// - Appending them to an existing geometry if possible
+    /// - Removing them if only GeometryInstance objects exist
+    /// - Removing vertices entirely if no geometries were generated
+    ///
+    /// # Returns
+    ///
+    /// The complete CityJSON model
     pub fn build(mut self) -> CityModel<'cm> {
         // Handle unused vertices. If we have generated at least one geometry, then append all the
         // unused vertices to the first geometry. Depending on the geometry type, this will
@@ -509,11 +730,21 @@ impl<'cm> CityModelBuilder<'cm> {
         )
     }
 
+    /// Builds the model and converts it to a JSON string.
+    ///
+    /// # Returns
+    ///
+    /// Result containing the JSON string or a serialization error
     #[allow(dead_code)]
     pub fn build_string(self) -> serde_json::Result<String> {
         serde_json::to_string::<CityModel>(&self.into())
     }
 
+    /// Builds the model and converts it to a byte vector.
+    ///
+    /// # Returns
+    ///
+    /// Result containing the byte vector or a serialization error
     #[allow(dead_code)]
     pub fn build_vec(self) -> serde_json::Result<Vec<u8>> {
         serde_json::to_vec::<CityModel>(&self.into())
@@ -2029,16 +2260,61 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
     }
 }
 
+/// Builder for creating CityJSON material appearances with fake data.
+///
+/// The builder provides methods to configure different aspects of a CityJSON material object
+/// including names, colors, shininess, transparency and other visual properties. When fields
+/// are not explicitly configured, they will receive random but valid values when built.
+///
+/// Materials are used in the CityJSON Appearance object to define the visual properties
+/// of geometry surfaces.
+///
+/// # Examples
+///
+/// ```
+/// use cjfake::MaterialBuilder;
+///
+/// // Create material with all default fake values
+/// let material = MaterialBuilder::default().build();
+///
+/// // Create material with custom configuration
+/// let material = MaterialBuilder::new()
+///     .name()
+///     .ambient_intensity()
+///     .diffuse_color()
+///     .emissive_color()
+///     .specular_color()
+///     .shininess()
+///     .transparency()
+///     .smooth()
+///     .build();
+/// ```
 #[derive(Clone)]
-struct MaterialBuilder<'cm>(Material<'cm>);
+pub struct MaterialBuilder<'cm>(Material<'cm>);
 
 impl<'cm> From<MaterialBuilder<'cm>> for Material<'cm> {
+    /// Converts the builder into a Material object by returning the inner value.
     fn from(val: MaterialBuilder<'cm>) -> Self {
         val.0
     }
 }
 
 impl<'cm> Default for MaterialBuilder<'cm> {
+    /// Creates a MaterialBuilder with all properties configured to generate random values.
+    ///
+    /// Equivalent to:
+    /// ```rust
+    /// # use cjfake::MaterialBuilder;
+    /// MaterialBuilder::new()
+    ///     .name()
+    ///     .ambient_intensity()
+    ///     .diffuse_color()
+    ///     .emissive_color()
+    ///     .specular_color()
+    ///     .shininess()
+    ///     .transparency()
+    ///     .smooth();
+    /// ```
     fn default() -> Self {
         Self::new()
             .name()
@@ -2053,52 +2329,127 @@ impl<'cm> Default for MaterialBuilder<'cm> {
 }
 
 impl<'cm> MaterialBuilder<'cm> {
-    fn new() -> Self {
+    /// Creates a new MaterialBuilder with an empty material object.
+    ///
+    /// # Returns
+    ///
+    /// A new MaterialBuilder instance
+    pub fn new() -> Self {
         Self(Material::new())
     }
 
-    fn name(mut self) -> Self {
+    /// Sets a random name for the material.
+    ///
+    /// Generates a single random word to use as the material name.
+    ///
+    /// # Returns
+    ///
+    /// Self with name set
+    pub fn name(mut self) -> Self {
         self.0.name = Cow::from(Word(EN).fake::<&str>());
         self
     }
 
-    fn ambient_intensity(mut self) -> Self {
+    /// Sets a random ambient intensity value.
+    ///
+    /// Generates a random float between 0.0 and 0.1 to define how much ambient light
+    /// the material reflects.
+    ///
+    /// # Returns
+    ///
+    /// Self with ambient_intensity set
+    pub fn ambient_intensity(mut self) -> Self {
         self.0.ambient_intensity = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
-    fn diffuse_color(mut self) -> Self {
+    /// Sets a random diffuse color.
+    ///
+    /// Generates random RGB values between 0.0 and 1.0 to define the material's main color
+    /// under direct light.
+    ///
+    /// # Returns
+    ///
+    /// Self with diffuse_color set to [R, G, B] array
+    pub fn diffuse_color(mut self) -> Self {
         self.0.diffuse_color = Some(RgbFaker.fake());
         self
     }
 
-    fn emissive_color(mut self) -> Self {
+    /// Sets a random emissive color.
+    ///
+    /// Generates random RGB values between 0.0 and 1.0 to define the color the material
+    /// emits regardless of lighting.
+    ///
+    /// # Returns
+    ///
+    /// Self with emissive_color set to [R, G, B] array
+    pub fn emissive_color(mut self) -> Self {
         self.0.emissive_color = Some(RgbFaker.fake());
         self
     }
 
-    fn specular_color(mut self) -> Self {
+    /// Sets a random specular color.
+    ///
+    /// Generates random RGB values between 0.0 and 1.0 to define the color of highlights
+    /// (specular reflections) on the material.
+    ///
+    /// # Returns
+    ///
+    /// Self with specular_color set to [R, G, B] array
+    pub fn specular_color(mut self) -> Self {
         self.0.diffuse_color = Some(RgbFaker.fake());
         self
     }
 
-    fn shininess(mut self) -> Self {
+    /// Sets a random shininess value.
+    ///
+    /// Generates a random float between 0.0 and 0.1 to define how sharp/focused the
+    /// specular highlights appear.
+    ///
+    /// # Returns
+    ///
+    /// Self with shininess set
+    pub fn shininess(mut self) -> Self {
         self.0.shininess = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
-    fn transparency(mut self) -> Self {
+    /// Sets a random transparency value.
+    ///
+    /// Generates a random float between 0.0 and 0.1 to define how transparent the
+    /// material appears (0.0 = opaque, 1.0 = fully transparent).
+    ///
+    /// # Returns
+    ///
+    /// Self with transparency set
+    pub fn transparency(mut self) -> Self {
         self.0.transparency = Some(thread_rng().gen_range(0.0f32..=0.1));
         self
     }
 
-    fn smooth(mut self) -> Self {
+    /// Sets a random smooth value.
+    ///
+    /// Randomly sets whether the material should be rendered smooth (true) or flat (false).
+    /// Has 50% probability for each option.
+    ///
+    /// # Returns
+    ///
+    /// Self with is_smooth set
+    pub fn smooth(mut self) -> Self {
         self.0.is_smooth = Some(thread_rng().gen_bool(0.5));
         self
     }
 
-    /// Builds a Material with new values set for the members that are configured in the builder.
-    fn build(self) -> Material<'cm> {
+    /// Builds the final Material object.
+    ///
+    /// Takes the current configuration and generates new random values for any properties
+    /// that were configured in the builder but not explicitly set.
+    ///
+    /// # Returns
+    ///
+    /// The complete Material object
+    pub fn build(self) -> Material<'cm> {
         let mut mb = self.name();
         if mb.0.ambient_intensity.is_some() {
             mb = mb.ambient_intensity();
@@ -2225,16 +2576,56 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
     }
 }
 
+/// Builder for creating CityJSON texture appearances with fake data.
+///
+/// The builder provides methods to configure different aspects of a CityJSON texture object
+/// including image type, file paths, wrapping modes, texture types and border colors.
+/// Textures are used in the CityJSON Appearance object to define image-based surface
+/// appearances by mapping image files onto geometry surfaces.
+///
+/// When fields are not explicitly configured, they will receive random but valid values
+/// when built.
+///
+/// # Examples
+///
+/// ```
+/// use cjfake::TextureBuilder;
+///
+/// // Create texture with all default fake values
+/// let texture = TextureBuilder::default().build();
+///
+/// // Create texture with custom configuration
+/// let texture = TextureBuilder::new()
+///     .image_type()
+///     .image()
+///     .wrap_mode()
+///     .texture_type()
+///     .border_color()
+///     .build();
+/// ```
 #[derive(Clone)]
-struct TextureBuilder<'cm>(Texture<'cm>);
+pub struct TextureBuilder<'cm>(Texture<'cm>);
 
 impl<'cm> From<TextureBuilder<'cm>> for Texture<'cm> {
+    /// Converts the builder into a Texture object by returning the inner value.
     fn from(val: TextureBuilder<'cm>) -> Self {
         val.0
     }
 }
 
 impl<'cm> Default for TextureBuilder<'cm> {
+    /// Creates a TextureBuilder with all properties configured to generate random values.
+    ///
+    /// Equivalent to:
+    /// ```
+    /// # use cjfake::TextureBuilder;
+    /// TextureBuilder::new()
+    ///     .image_type()
+    ///     .image()
+    ///     .wrap_mode()
+    ///     .texture_type()
+    ///     .border_color();
+    /// ```
     fn default() -> Self {
         Self::new()
             .image_type()
@@ -2246,11 +2637,24 @@ impl<'cm> Default for TextureBuilder<'cm> {
 }
 
 impl<'cm> TextureBuilder<'cm> {
-    fn new() -> Self {
+    /// Creates a new TextureBuilder with an empty texture object.
+    ///
+    /// # Returns
+    ///
+    /// A new TextureBuilder instance
+    pub fn new() -> Self {
         Self(Texture::new())
     }
 
-    fn image_type(mut self) -> Self {
+    /// Sets a random image type.
+    ///
+    /// Randomly selects either JPG or PNG format with equal probability.
+    /// This affects what file extension will be generated by the `image()` method.
+    ///
+    /// # Returns
+    ///
+    /// Self with image_type set
+    pub fn image_type(mut self) -> Self {
         self.0.image_type = if thread_rng().gen_bool(0.5) {
             ImageType::Jpg
         } else {
@@ -2259,7 +2663,16 @@ impl<'cm> TextureBuilder<'cm> {
         self
     }
 
-    fn image(mut self) -> Self {
+    /// Sets a random image file path.
+    ///
+    /// Generates a realistic-looking file path with the extension matching the
+    /// previously set image_type (jpg/png). The path includes randomly generated
+    /// directory names and a file name.
+    ///
+    /// # Returns
+    ///
+    /// Self with image path set
+    pub fn image(mut self) -> Self {
         let fp: PathBuf = FilePath(EN).fake();
         match &self.0.image_type {
             ImageType::Png => {
@@ -2276,23 +2689,63 @@ impl<'cm> TextureBuilder<'cm> {
         self
     }
 
-    fn wrap_mode(mut self) -> Self {
+    /// Sets a random wrap mode.
+    ///
+    /// Randomly selects one of the following texture wrapping modes:
+    /// - `Wrap` - Texture repeats in both directions
+    /// - `Mirror` - Texture repeats and mirrors alternately
+    /// - `Clamp` - Texture edges are stretched
+    /// - `Border` - Uses border color beyond texture edges
+    /// - `None` - No wrapping specified
+    ///
+    /// This controls how the texture behaves when UV coordinates go beyond \[0,1\] range.
+    ///
+    /// # Returns
+    ///
+    /// Self with wrap_mode set
+    pub fn wrap_mode(mut self) -> Self {
         self.0.wrap_mode = Some(WrapModeFaker.fake());
         self
     }
 
-    fn texture_type(mut self) -> Self {
+    /// Sets a random texture type.
+    ///
+    /// Randomly selects one of the following types:
+    /// - `Unknown` - Type not specified
+    /// - `Typical` - Standard texture mapping
+    /// - `Specific` - Special case texture mapping
+    ///
+    /// # Returns
+    ///
+    /// Self with texture_type set
+    pub fn texture_type(mut self) -> Self {
         self.0.texture_type = Some(TextureTypeFaker.fake());
         self
     }
 
-    fn border_color(mut self) -> Self {
+    /// Sets a random border color.
+    ///
+    /// Generates random RGBA values between 0.0 and 1.0 to define the color used
+    /// when wrap_mode is set to Border. The alpha channel controls transparency.
+    ///
+    /// # Returns
+    ///
+    /// Self with border_color set to [R, G, B, A] array
+    pub fn border_color(mut self) -> Self {
         self.0.border_color = Some(RgbaFaker.fake());
         self
     }
 
-    /// Builds a Texture with new values set for the members that are configured in the builder.
-    fn build(self) -> Texture<'cm> {
+    /// Builds the final Texture object.
+    ///
+    /// Takes the current configuration and generates new random values for any
+    /// properties that were configured in the builder but not explicitly set.
+    /// Ensures that the image file path extension matches the image_type.
+    ///
+    /// # Returns
+    ///
+    /// The complete Texture object
+    pub fn build(self) -> Texture<'cm> {
         let mut tb = self.image_type();
         tb = tb.image();
         if tb.0.wrap_mode.is_some() {
@@ -2415,16 +2868,55 @@ impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
     }
 }
 
+/// Builder for creating CityJSON metadata with fake data.
+///
+/// The builder provides methods to configure different aspects of a CityJSON metadata object
+/// including geographical extent, identifiers, contact information, references and titles.
+/// When fields are not explicitly configured, they will receive random but valid fake data
+/// when built.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::MetadataBuilder;
+///
+/// // Create metadata with all default fake values
+/// let metadata = MetadataBuilder::default().build();
+///
+/// // Create metadata with custom values
+/// let metadata = MetadataBuilder::new()
+///     .geographical_extent()
+///     .identifier()
+///     .point_of_contact()
+///     .reference_date()
+///     .reference_system()
+///     .title()
+///     .build();
+/// ```
 #[derive(Clone)]
-struct MetadataBuilder<'cm>(Metadata<'cm>);
+pub struct MetadataBuilder<'cm>(Metadata<'cm>);
 
 impl<'cm> From<MetadataBuilder<'cm>> for Metadata<'cm> {
+    /// Converts the builder into a Metadata object by returning the inner value.
     fn from(val: MetadataBuilder<'cm>) -> Self {
         val.0
     }
 }
 
 impl<'cm> Default for MetadataBuilder<'cm> {
+    /// Creates a MetadataBuilder with all fields configured to generate random values.
+    ///
+    /// Equivalent to:
+    /// ```
+    /// # use cjfake::MetadataBuilder;
+    /// MetadataBuilder::new()
+    ///     .geographical_extent()
+    ///     .identifier()
+    ///     .point_of_contact()
+    ///     .reference_date()
+    ///     .reference_system()
+    ///     .title();
+    /// ```
     fn default() -> Self {
         MetadataBuilder::new()
             .geographical_extent()
@@ -2437,21 +2929,56 @@ impl<'cm> Default for MetadataBuilder<'cm> {
 }
 
 impl<'cm> MetadataBuilder<'cm> {
-    fn new() -> Self {
+    /// Creates a new MetadataBuilder with an empty metadata object.
+    ///
+    /// # Returns
+    ///
+    /// A new MetadataBuilder instance
+    pub fn new() -> Self {
         MetadataBuilder(Metadata::new())
     }
 
-    fn geographical_extent(mut self) -> Self {
+    /// Sets the geographical extent with randomly generated coordinates.
+    ///
+    /// Generates a valid bounding box with random coordinates for the model extent.
+    /// The coordinates represent [minx, miny, minz, maxx, maxy, maxz].
+    ///
+    /// # Returns
+    ///
+    /// Self with geographical extent set
+    pub fn geographical_extent(mut self) -> Self {
         self.0.set_geographical_extent(Faker.fake::<BBox>());
         self
     }
 
-    fn identifier(mut self) -> Self {
+    /// Sets a random UUID as the identifier.
+    ///
+    /// Generates a valid UUIDv1 string to uniquely identify the model.
+    ///
+    /// # Returns
+    ///
+    /// Self with identifier set
+    pub fn identifier(mut self) -> Self {
         self.0.set_identifier(UUIDv1.fake::<String>());
         self
     }
 
-    fn point_of_contact(mut self) -> Self {
+    /// Sets contact information with randomly generated but realistic data.
+    ///
+    /// Generates and sets:
+    /// - Contact name (random person name)
+    /// - Email address (random but valid format)
+    /// - Role (random valid CityJSON contact role)
+    /// - Website (random but valid URL)
+    /// - Contact type (Individual or Organization)
+    /// - Physical address (random but realistic address)
+    /// - Phone number (random but valid format)
+    /// - Organization name (random company name)
+    ///
+    /// # Returns
+    ///
+    /// Self with contact information set
+    pub fn point_of_contact(mut self) -> Self {
         self.0.set_contact_name(FakeName(EN).fake::<String>());
         self.0.set_email_address(SafeEmail(EN).fake::<String>());
         self.0.set_role(ContactRoleFaker.fake());
@@ -2474,12 +3001,29 @@ impl<'cm> MetadataBuilder<'cm> {
         self
     }
 
-    fn reference_date(mut self) -> Self {
+    /// Sets a random reference date.
+    ///
+    /// Generates and sets a date string in a valid format.
+    ///
+    /// # Returns
+    ///
+    /// Self with reference date set
+    pub fn reference_date(mut self) -> Self {
         self.0.set_reference_date(FakeDate(EN).fake::<String>());
         self
     }
 
-    fn reference_system(mut self) -> Self {
+    /// Sets a random but valid coordinate reference system URI.
+    ///
+    /// Generates a CRS URI using either EPSG or OGC authority with valid:
+    /// - Authority (EPSG or OGC)
+    /// - Version
+    /// - Code (valid EPSG code range or OGC CRS identifier)
+    ///
+    /// # Returns
+    ///
+    /// Self with reference system set
+    pub fn reference_system(mut self) -> Self {
         let ogc_def_crs = "http://www.opengis.net/def/crs";
         let authority = *CRS_AUTHORITIES.choose(&mut thread_rng()).unwrap_or(&"EPSG");
         let version = match authority {
@@ -2503,13 +3047,25 @@ impl<'cm> MetadataBuilder<'cm> {
         self
     }
 
-    fn title(mut self) -> Self {
+    /// Sets a random title using 1-5 words.
+    ///
+    /// # Returns
+    ///
+    /// Self with title set
+    pub fn title(mut self) -> Self {
         let words: Vec<String> = Words(EN, 0..6).fake();
         self.0.set_title(words.join(" "));
         self
     }
 
-    fn build(self) -> Metadata<'cm> {
+    /// Builds the final Metadata object.
+    ///
+    /// Any fields that were not explicitly set will receive random but valid values.
+    ///
+    /// # Returns
+    ///
+    /// The complete Metadata object
+    pub fn build(self) -> Metadata<'cm> {
         self.into()
     }
 }
@@ -2655,48 +3211,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn material() {
-        let _: Material = MaterialBuilder::new()
-            .ambient_intensity()
-            .diffuse_color()
-            .emissive_color()
-            .name()
-            .shininess()
-            .smooth()
-            .specular_color()
-            .transparency()
-            .build();
-    }
-
-    #[test]
-    fn texture() {
-        let _: Texture = TextureBuilder::new()
-            .image()
-            .border_color()
-            .image_type()
-            .wrap_mode()
-            .texture_type()
-            .build();
-    }
-
-    #[test]
     fn attributes() {
         let _: Attributes = AttributesFaker {
             random_keys: false,
             random_values: true,
         }
         .fake();
-    }
-
-    #[test]
-    fn metadata() {
-        let _ = MetadataBuilder::new()
-            .geographical_extent()
-            .identifier()
-            .point_of_contact()
-            .reference_date()
-            .reference_system()
-            .title()
-            .build();
     }
 }

@@ -1,7 +1,7 @@
 use clap::Parser;
 use serde_cityjson::v1_1::CityModel;
 
-use cjfake::{CityModelBuilder, CJFakeConfig};
+use cjfake::{CJFakeConfig, CityModelBuilder};
 
 fn main() {
     let config = CJFakeConfig::parse();

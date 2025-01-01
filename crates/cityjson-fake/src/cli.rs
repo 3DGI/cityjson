@@ -175,11 +175,13 @@ impl Default for CJFakeConfig {
 }
 
 fn parse_cityobject_type(s: &str) -> Result<CityObjectType, String> {
-    serde_json::from_str(&format!(r#""{}""#, s)).map_err(|e| format!("Failed to parse CityObjectType: {}", e))
+    serde_json::from_str(&format!(r#""{}""#, s))
+        .map_err(|e| format!("Failed to parse CityObjectType: {}", e))
 }
 
 fn parse_geometry_type(s: &str) -> Result<GeometryType, String> {
-    serde_json::from_str(&format!(r#""{}""#, s)).map_err(|e| format!("Failed to parse GeometryType: {}", e))
+    serde_json::from_str(&format!(r#""{}""#, s))
+        .map_err(|e| format!("Failed to parse GeometryType: {}", e))
 }
 
 #[cfg(test)]

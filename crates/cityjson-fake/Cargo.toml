@@ -2,14 +2,19 @@
 name = "cjfake"
 version = "0.1.0"
 edition = "2021"
+authors = ["Balázs Dukai"]
+description = "Generate fake CityJSON data for testing purposes"
+documentation = "https://docs.rs/cjfake"
+repository = "https://github.com/balazsdukai/cjfake"
+license = "Apache-2.0"
+keywords = ["cityjson", "testing", "faker"]
+categories = ["development-tools::testing", "simulation"]
+readme = "README.md"
 
 [[bin]]
 name = "cjfake"
 test = false
 bench = false
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
@@ -23,3 +28,10 @@ clap = { version = "4.5.23", features = ["derive"] }
 [dev-dependencies]
 cjval = "0.8.1"
 proptest = "1.0"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+no-deps = true
+
+[badges]
+maintenance = { status = "actively-developed" }
