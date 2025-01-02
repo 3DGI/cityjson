@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize, Serializer};
-use serde_json_borrow::Value;
+use serde_json_borrow::{OwnedValue, Value};
 use std::fmt::{Display, Formatter};
 
 /// Attributes of CityModel, CityObjects, Semantics.
@@ -9,13 +9,22 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Attributes<'cm> {
     Borrowed(Value<'cm>),
-    Owned(serde_json::Value),
+    Owned(OwnedValue),
 }
 
 impl Default for Attributes<'_> {
     fn default() -> Self {
-        Self::Owned(Default::default())
+        Self::Owned(OwnedValue::from_str("").unwrap())
     }
+}
+
+impl<'cm> Attributes<'cm> {
+   pub fn as_value(&self) -> &Value {
+       match self {
+           Attributes::Borrowed(value) => value,
+           Attributes::Owned(value) => value.get_value(),
+       }
+   }
 }
 
 impl Display for Attributes<'_> {

@@ -14,7 +14,7 @@ use std::process::Command;
 
 use datasize::{data_size, DataSize};
 use serde::{Deserialize, Serialize};
-
+use crate::attributes::Attributes;
 use crate::v1_1::*;
 
 /// Returns the Cargo target directory, possibly calling `cargo metadata` to
@@ -224,7 +224,7 @@ impl CityModelDataSize {
                 }
             }
             if let Some(ref attributes) = co.attributes {
-                if let Some(a) = attributes.as_object() {
+                if let Some(a) = attributes.as_value().as_object() {
                     co_size.count_attributes += a.len();
                 }
             }
@@ -335,9 +335,10 @@ pub fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
 }
 
 /// Compute the heap size of the optional Attributes that use serde_json_borrow::Value.
-pub(crate) fn sizeof_attributes_option(a: &Option<serde_json_borrow::Value>) -> usize {
+pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
     if let Some(ref attributes) = a {
         attributes
+            .as_value()
             .as_object()
             .unwrap()
             .iter()
@@ -406,7 +407,7 @@ pub(crate) fn sizeof_serde_borrow_value(v: &serde_json_borrow::Value) -> usize {
             serde_json_borrow::Value::Str(_) => size_of::<Cow<str>>(),
             serde_json_borrow::Value::Array(a) => a.iter().map(sizeof_serde_borrow_value).sum(),
             serde_json_borrow::Value::Object(o) => o
-                .into_iter()
+                .iter()
                 .map(|(_, v)| {
                     size_of::<&str>()
                         + sizeof_serde_borrow_value(v)

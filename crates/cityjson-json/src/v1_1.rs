@@ -7,7 +7,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap as Map;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Formatter};
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
@@ -190,7 +190,7 @@ pub type CityObjects<'cm> = Map<Cow<'cm, str>, CityObject<'cm>>;
 /// ```
 #[derive(Debug, Display, Clone, Deserialize, Serialize)]
 #[display(
-    fmt = "type: {}, geometry: {:?}, attributes: {:?}, geographical_extent: {:?}, children: {:?}, parents: {:?}",
+    "type: {}, geometry: {:?}, attributes: {:?}, geographical_extent: {:?}, children: {:?}, parents: {:?}",
     type_co,
     geometry,
     attributes,
@@ -786,7 +786,7 @@ pub enum LoD {
 
 pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
-#[display(fmt = "value: {:?}, values: {:?}", value, values)]
+#[display("value: {:?}, values: {:?}", value, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MaterialValues {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -797,7 +797,7 @@ pub struct MaterialValues {
 
 pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
 #[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
-#[display(fmt = "values: {:?}", values)]
+#[display("values: {:?}", values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct TextureValues {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -827,7 +827,7 @@ pub struct TextureValues {
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[display(
-    fmt = "materials: {:?}, textures: {:?}, vertices-texture: {:?}, default-theme-texture: {:?}, default-theme-material: {:?}",
+    "materials: {:?}, textures: {:?}, vertices-texture: {:?}, default-theme-texture: {:?}, default-theme-material: {:?}",
     materials,
     textures,
     vertices_texture,
@@ -882,7 +882,7 @@ struct IntermediateAppearanceValues<'a> {
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[display(
-    fmt = "name: {}, ambient_intensity: {:?}, diffuse_color: {:?}, emissive_color: {:?}, specular_color: {:?}, shininess: {:?}, transparency: {:?}, is_smooth: {:?}",
+    "name: {}, ambient_intensity: {:?}, diffuse_color: {:?}, emissive_color: {:?}, specular_color: {:?}, shininess: {:?}, transparency: {:?}, is_smooth: {:?}",
     name,
     ambient_intensity,
     diffuse_color,
@@ -935,7 +935,7 @@ pub struct Material<'cm> {
 #[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[display(
-    fmt = "type: {:?}, image: {:?}, wrap_mode: {:?}, texture_type: {:?}, border_color: {:?}",
+    "type: {:?}, image: {:?}, wrap_mode: {:?}, texture_type: {:?}, border_color: {:?}",
     image_type,
     image,
     wrap_mode,
@@ -1043,7 +1043,7 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 #[derive(Clone, Default, Debug, Display, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[display(
-    fmt = "templates: {:?}, vertices-templates: {:?}",
+    "templates: {:?}, vertices-templates: {:?}",
     templates,
     vertices_templates
 )]
@@ -1086,7 +1086,7 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 /// # }
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
-#[display(fmt = "surfaces: {:?}, values: {:?}", surfaces, values)]
+#[display("surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Semantics<'cm> {
     #[serde(borrow)]
@@ -1126,7 +1126,7 @@ struct IntermediateSemantics<'a> {
 /// ```
 #[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
 #[display(
-    fmt = "type: {:?}, children: {:?}, parent: {:?}, attributes: {:?}",
+    "type: {:?}, children: {:?}, parent: {:?}, attributes: {:?}",
     type_sem,
     children,
     parent,

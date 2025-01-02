@@ -66,7 +66,7 @@ fn real_data(c: &mut Criterion) {
     let mut group_3dbvz = c.benchmark_group("3D Basisvoorziening");
     let p_json = data_dir.join("30gz1_04.json");
     // Measured about 7-8s of runtime per test on a laptop.
-    let expected_time_per_test = Duration::new(5, 0);
+    let _expected_time_per_test = Duration::new(5, 0);
     group_3dbvz.sample_size(sample_size as usize);
     // group_3dbvz.warm_up_time(expected_time_per_test * warm_up_multiplier);
     // group_3dbvz.measurement_time(calculate_measurement_time(

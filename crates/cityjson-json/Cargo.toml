@@ -13,11 +13,11 @@ path = "src/lib.rs"
 datasize = ["dep:datasize"]
 
 [dependencies]
-derive_more = { version = "0.99.17", features = ["display"] }
+derive_more = { version = "1.0.0", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 datasize = { version = "0.2.15", optional = true }
-serde_json_borrow = "0.6.0"
+serde_json_borrow = "0.7.1"
 ahash = { version = "0.8.11", features = ["serde"] }
 
 [dev-dependencies]
