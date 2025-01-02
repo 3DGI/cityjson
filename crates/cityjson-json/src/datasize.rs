@@ -224,7 +224,8 @@ impl CityModelDataSize {
                 }
             }
             if let Some(ref attributes) = co.attributes {
-                if let Some(a) = attributes.as_value().as_object() {
+
+                if let Some(a) = attributes.as_borrowed().unwrap().as_object() {
                     co_size.count_attributes += a.len();
                 }
             }
@@ -338,7 +339,8 @@ pub fn total_heap_stack_size<T: DataSize>(data: &T) -> usize {
 pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
     if let Some(ref attributes) = a {
         attributes
-            .as_value()
+            .as_borrowed()
+            .unwrap()
             .as_object()
             .unwrap()
             .iter()
