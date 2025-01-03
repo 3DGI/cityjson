@@ -7,7 +7,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap as Map;
-use std::fmt::{Formatter};
+use std::fmt::Formatter;
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;

@@ -184,7 +184,9 @@ impl From<BoundaryNestedMultiOrCompositeSurface> for Boundary {
         let mut vertex_idx = GeometryIndex::new(0);
 
         for surface in value {
-            boundary.surfaces.push(GeometryIndex::from(boundary.rings.len()));
+            boundary
+                .surfaces
+                .push(GeometryIndex::from(boundary.rings.len()));
 
             for ring in surface {
                 boundary.rings.push(vertex_idx);
@@ -234,10 +236,14 @@ impl From<BoundaryNestedSolid> for Boundary {
         let mut vertex_idx = GeometryIndex::new(0);
 
         for shell in value {
-            boundary.shells.push(GeometryIndex::from(boundary.surfaces.len()));
+            boundary
+                .shells
+                .push(GeometryIndex::from(boundary.surfaces.len()));
 
             for surface in shell {
-                boundary.surfaces.push(GeometryIndex::from(boundary.rings.len()));
+                boundary
+                    .surfaces
+                    .push(GeometryIndex::from(boundary.rings.len()));
 
                 for ring in surface {
                     boundary.rings.push(vertex_idx);
@@ -303,13 +309,19 @@ impl From<BoundaryNestedMultiOrCompositeSolid> for Boundary {
         let mut vertex_idx = GeometryIndex::new(0);
 
         for solid in value {
-            boundary.solids.push(GeometryIndex::from(boundary.shells.len()));
+            boundary
+                .solids
+                .push(GeometryIndex::from(boundary.shells.len()));
 
             for shell in solid {
-                boundary.shells.push(GeometryIndex::from(boundary.surfaces.len()));
+                boundary
+                    .shells
+                    .push(GeometryIndex::from(boundary.surfaces.len()));
 
                 for surface in shell {
-                    boundary.surfaces.push(GeometryIndex::from(boundary.rings.len()));
+                    boundary
+                        .surfaces
+                        .push(GeometryIndex::from(boundary.rings.len()));
 
                     for ring in surface {
                         boundary.rings.push(vertex_idx);

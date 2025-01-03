@@ -12,10 +12,10 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use datasize::{data_size, DataSize};
-use serde::{Deserialize, Serialize};
 use crate::attributes::Attributes;
 use crate::v1_1::*;
+use datasize::{data_size, DataSize};
+use serde::{Deserialize, Serialize};
 
 /// Returns the Cargo target directory, possibly calling `cargo metadata` to
 /// figure it out.
@@ -224,7 +224,6 @@ impl CityModelDataSize {
                 }
             }
             if let Some(ref attributes) = co.attributes {
-
                 if let Some(a) = attributes.as_borrowed().unwrap().as_object() {
                     co_size.count_attributes += a.len();
                 }
@@ -344,11 +343,7 @@ pub(crate) fn sizeof_attributes_option(a: &Option<Attributes>) -> usize {
             .as_object()
             .unwrap()
             .iter()
-            .map(|(_, v)| {
-                size_of::<&str>()
-                    + sizeof_serde_borrow_value(v)
-                    + size_of::<usize>() * 3
-            })
+            .map(|(_, v)| size_of::<&str>() + sizeof_serde_borrow_value(v) + size_of::<usize>() * 3)
             .sum()
     } else {
         0
@@ -411,9 +406,8 @@ pub(crate) fn sizeof_serde_borrow_value(v: &serde_json_borrow::Value) -> usize {
             serde_json_borrow::Value::Object(o) => o
                 .iter()
                 .map(|(_, v)| {
-                    size_of::<&str>()
-                        + sizeof_serde_borrow_value(v)
-                        + size_of::<usize>() * 3 // As a crude approximation, I pretend each map entry has 3 words of overhead
+                    size_of::<&str>() + sizeof_serde_borrow_value(v) + size_of::<usize>() * 3
+                    // As a crude approximation, I pretend each map entry has 3 words of overhead
                 })
                 .sum(),
         }

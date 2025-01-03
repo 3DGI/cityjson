@@ -187,7 +187,9 @@ impl Serialize for TextureIndex {
                         for vertices_start_i in rings {
                             let vertices_len =
                                 GeometryIndex::try_from(self.vertices.len()).unwrap();
-                            if let Some(ring_texture) = self.rings_textures.get(counter.ring_i as usize) {
+                            if let Some(ring_texture) =
+                                self.rings_textures.get(counter.ring_i as usize)
+                            {
                                 let vertices_end_i = self
                                     .rings
                                     .get(counter.next_ring_i())
@@ -719,19 +721,17 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendLabelIndexSolids<'a> {
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: unify with semantics/material nested as
 pub type NestedMultiSolidTextureValues = Vec<Vec<Vec<Vec<Vec<OptionalIndex>>>>>;
 pub type NestedSolidTextureValues = Vec<Vec<Vec<Vec<OptionalIndex>>>>;
 pub type NestedShellTextureValues = Vec<Vec<Vec<OptionalIndex>>>;
 pub type NestedSurfaceTextureValues = Vec<Vec<OptionalIndex>>;
 pub type NestedRingTextureValues = Vec<OptionalIndex>;
 
-// TODO: these are used for the Materials too
 pub type NestedMultiSolidSemanticsValues = Vec<Vec<Vec<OptionalIndex>>>;
 pub type NestedSolidSemanticsValues = Vec<Vec<OptionalIndex>>;
 pub type NestedShellSemanticsValues = Vec<OptionalIndex>;
 
-// TODO: this can easily be u8, because I don't expect to have more than 255 different Semantic object
+// This can easily be u8, because I don't expect to have more than 255 different Semantic object
 //  on a single geometry...but if the shitty code does not dedup the Semantic objects then I could
 //  have a problem, because there will be as many Semantic objects as geometry primitives.
 pub type OptionalIndex = Option<u32>;

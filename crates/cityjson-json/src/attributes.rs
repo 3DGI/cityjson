@@ -276,18 +276,36 @@ mod tests {
         let attrs = Attributes::Owned(value);
 
         // Test primitive type access
-        assert_eq!(attrs.get_owned("string").and_then(|v| v.as_str()), Some("text"));
-        assert_eq!(attrs.get_owned("float").and_then(|v| v.as_f64()), Some(9.74));
-        assert_eq!(attrs.get_owned("integer").and_then(|v| v.as_i64()), Some(42));
-        assert_eq!(attrs.get_owned("unsigned").and_then(|v| v.as_u64()), Some(123));
-        assert_eq!(attrs.get_owned("boolean").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            attrs.get_owned("string").and_then(|v| v.as_str()),
+            Some("text")
+        );
+        assert_eq!(
+            attrs.get_owned("float").and_then(|v| v.as_f64()),
+            Some(9.74)
+        );
+        assert_eq!(
+            attrs.get_owned("integer").and_then(|v| v.as_i64()),
+            Some(42)
+        );
+        assert_eq!(
+            attrs.get_owned("unsigned").and_then(|v| v.as_u64()),
+            Some(123)
+        );
+        assert_eq!(
+            attrs.get_owned("boolean").and_then(|v| v.as_bool()),
+            Some(true)
+        );
 
         // Test array access
         let array = attrs.get_owned("array").and_then(|v| v.as_array()).unwrap();
         assert_eq!(array.len(), 3);
 
         // Test object access
-        let object = attrs.get_owned("object").and_then(|v| v.as_object()).unwrap();
+        let object = attrs
+            .get_owned("object")
+            .and_then(|v| v.as_object())
+            .unwrap();
         assert_eq!(object.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
