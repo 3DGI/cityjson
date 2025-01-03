@@ -26,7 +26,7 @@ use crate::boundary::{
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
 use crate::errors::{Error, Result};
-use crate::indices::{LargeIndex, OptionalLargeIndex};
+use crate::indices::{GeometryIndex, OptionalGeometryIndex};
 use crate::labels;
 
 // TODO: rename all type_X to type_
@@ -469,7 +469,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             materialvalues.values = Some(values);
                         } else {
                             materialvalues.value =
-                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                                v.value.map(|v| GeometryIndex::try_from(v).unwrap());
                         }
                         let _ = materialindex.insert(k, materialvalues);
                     }
@@ -523,7 +523,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             materialvalues.values = Some(values);
                         } else {
                             materialvalues.value =
-                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                                v.value.map(|v| GeometryIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -575,7 +575,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             materialvalues.values = Some(values);
                         } else {
                             materialvalues.value =
-                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                                v.value.map(|v| GeometryIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -627,7 +627,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             materialvalues.values = Some(values);
                         } else {
                             materialvalues.value =
-                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                                v.value.map(|v| GeometryIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -679,7 +679,7 @@ impl<'a: 'cm, 'cm> TryFrom<IntermediateGeometry<'a>> for Geometry<'cm> {
                             materialvalues.values = Some(values);
                         } else {
                             materialvalues.value =
-                                v.value.map(|v| LargeIndex::try_from(v).unwrap());
+                                v.value.map(|v| GeometryIndex::try_from(v).unwrap());
                         }
                         let _ = materialmap.insert(k, materialvalues);
                     }
@@ -790,7 +790,7 @@ pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MaterialValues {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: OptionalLargeIndex,
+    pub value: OptionalGeometryIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<labels::LabelIndex>,
 }
