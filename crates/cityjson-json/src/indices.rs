@@ -20,7 +20,6 @@ use std::ops::{Index, IndexMut, Range};
 /// let _: GeometryIndex = 0u32.into();
 /// let _: GeometryIndex = 0usize.try_into().unwrap();
 /// assert_eq!(GeometryIndex::new(0), 0u32.into());
-/// assert_eq!(*GeometryIndex::new(0), 0u32);
 /// let _ = GeometryIndex::from(0u32);
 /// let _ = GeometryIndex::try_from(0usize).unwrap();
 /// let _: usize = usize::try_from(GeometryIndex::new(0)).unwrap();

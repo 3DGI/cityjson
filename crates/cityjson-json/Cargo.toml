@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [features]
 datasize = ["dep:datasize"]
+simd = []
 
 [dependencies]
 derive_more = { version = "1.0.0", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }

@@ -31,61 +31,69 @@ impl Serialize for TextureIndex {
     {
         match self.check_type() {
             BoundaryType::MultiOrCompositeSolid => {
-                let mut nested_json = serializer.serialize_seq(Some(self.solids.len()))?;
+                let mut nested_json = serializer.serialize_seq(Some(self.solids.len_usize()))?;
                 let mut counter = BoundaryCounter::default();
                 for shells_start_i in &self.solids {
-                    let shells_len = GeometryIndex::try_from(self.shells.len()).unwrap();
+                    let shells_len = GeometryIndex::try_from(self.shells.len_usize()).unwrap();
                     let shells_end_i = self
                         .solids
                         .get(counter.next_solid_i())
                         .unwrap_or(&shells_len);
-                    let s_usize = usize::try_from(*shells_start_i).unwrap();
-                    let e_usize = usize::try_from(*shells_end_i).unwrap();
-                    if let Some(shells) = self.shells.get(s_usize..e_usize) {
+
+                    if let Some(shells) = self
+                        .shells
+                        .get_range(shells_start_i.value()..shells_end_i.value())
+                    {
                         let mut solid = NestedSolidTextureValues::with_capacity(shells.len());
                         for surfaces_start_i in shells {
-                            let surfaces_len = GeometryIndex::try_from(self.surfaces.len()).unwrap();
-                            let _nshi = counter.next_shell_i();
-                            let _srf_e_i_op = self.shells.get(_nshi);
-                            let surfaces_end_i = _srf_e_i_op.unwrap_or(&surfaces_len);
-                            let s_usize = usize::try_from(*surfaces_start_i).unwrap();
-                            let e_usize = usize::try_from(*surfaces_end_i).unwrap();
-                            if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
+                            let surfaces_len =
+                                GeometryIndex::try_from(self.surfaces.len_usize()).unwrap();
+                            let surfaces_end_i = self
+                                .shells
+                                .get(counter.next_shell_i())
+                                .unwrap_or(&surfaces_len);
+
+                            if let Some(surfaces) = self
+                                .surfaces
+                                .get_range(surfaces_start_i.value()..surfaces_end_i.value())
+                            {
                                 let mut shell =
                                     NestedShellTextureValues::with_capacity(surfaces.len());
                                 for rings_start_i in surfaces {
-                                    let rings_len = GeometryIndex::try_from(self.rings.len()).unwrap();
+                                    let rings_len =
+                                        GeometryIndex::try_from(self.rings.len_usize()).unwrap();
                                     let rings_end_i = self
                                         .surfaces
                                         .get(counter.next_surface_i())
                                         .unwrap_or(&rings_len);
-                                    let s_usize = usize::try_from(*rings_start_i).unwrap();
-                                    let e_usize = usize::try_from(*rings_end_i).unwrap();
-                                    if let Some(rings) = self.rings.get(s_usize..e_usize) {
+
+                                    if let Some(rings) = self
+                                        .rings
+                                        .get_range(rings_start_i.value()..rings_end_i.value())
+                                    {
                                         let mut surface =
                                             NestedSurfaceTextureValues::with_capacity(rings.len());
                                         for vertices_start_i in rings {
                                             let vertices_len =
-                                                GeometryIndex::try_from(self.vertices.len()).unwrap();
+                                                GeometryIndex::try_from(self.vertices.len())
+                                                    .unwrap();
                                             if let Some(ring_texture) =
-                                                self.rings_textures.get(counter.ring_i)
+                                                self.rings_textures.get(counter.ring_i as usize)
                                             {
                                                 let vertices_end_i = self
                                                     .rings
                                                     .get(counter.next_ring_i())
                                                     .unwrap_or(&vertices_len);
-                                                let s_usize =
-                                                    usize::try_from(*vertices_start_i).unwrap();
-                                                let e_usize =
-                                                    usize::try_from(*vertices_end_i).unwrap();
-                                                if let Some(vertices) =
-                                                    self.vertices.get(s_usize..e_usize)
-                                                {
+
+                                                if let Some(vertices) = self.vertices.get(
+                                                    vertices_start_i.value() as usize
+                                                        ..vertices_end_i.value() as usize,
+                                                ) {
                                                     let ring =
                                                         [&[*ring_texture], vertices].concat();
                                                     surface.push(
                                                         ring.iter()
-                                                            .map(|v| v.map(|i| u32::from(&i)))
+                                                            .map(|v| v.map(|i| i.value()))
                                                             .collect(),
                                                     );
                                                 }
@@ -103,48 +111,52 @@ impl Serialize for TextureIndex {
                 nested_json.end()
             }
             BoundaryType::Solid => {
-                let mut nested_json = serializer.serialize_seq(Some(self.shells.len()))?;
+                let mut nested_json = serializer.serialize_seq(Some(self.shells.len_usize()))?;
                 let mut counter = BoundaryCounter::default();
                 for surfaces_start_i in &self.shells {
-                    let surfaces_len = GeometryIndex::try_from(self.surfaces.len()).unwrap();
+                    let surfaces_len = GeometryIndex::try_from(self.surfaces.len_usize()).unwrap();
                     let surfaces_end_i = self
                         .shells
                         .get(counter.next_shell_i())
                         .unwrap_or(&surfaces_len);
-                    let s_usize = usize::try_from(*surfaces_start_i).unwrap();
-                    let e_usize = usize::try_from(*surfaces_end_i).unwrap();
-                    if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
+
+                    if let Some(surfaces) = self
+                        .surfaces
+                        .get_range(surfaces_start_i.value()..surfaces_end_i.value())
+                    {
                         let mut shell = NestedShellTextureValues::with_capacity(surfaces.len());
                         for rings_start_i in surfaces {
-                            let rings_len = GeometryIndex::try_from(self.rings.len()).unwrap();
+                            let rings_len =
+                                GeometryIndex::try_from(self.rings.len_usize()).unwrap();
                             let rings_end_i = self
                                 .surfaces
                                 .get(counter.next_surface_i())
                                 .unwrap_or(&rings_len);
-                            let s_usize = usize::try_from(*rings_start_i).unwrap();
-                            let e_usize = usize::try_from(*rings_end_i).unwrap();
-                            if let Some(rings) = self.rings.get(s_usize..e_usize) {
+
+                            if let Some(rings) = self
+                                .rings
+                                .get_range(rings_start_i.value()..rings_end_i.value())
+                            {
                                 let mut surface =
                                     NestedSurfaceTextureValues::with_capacity(rings.len());
                                 for vertices_start_i in rings {
                                     let vertices_len =
                                         GeometryIndex::try_from(self.vertices.len()).unwrap();
                                     if let Some(ring_texture) =
-                                        self.rings_textures.get(counter.ring_i)
+                                        self.rings_textures.get(counter.ring_i as usize)
                                     {
                                         let vertices_end_i = self
                                             .rings
                                             .get(counter.next_ring_i())
                                             .unwrap_or(&vertices_len);
-                                        let s_usize = usize::try_from(*vertices_start_i).unwrap();
-                                        let e_usize = usize::try_from(*vertices_end_i).unwrap();
-                                        if let Some(vertices) = self.vertices.get(s_usize..e_usize)
-                                        {
+
+                                        if let Some(vertices) = self.vertices.get(
+                                            vertices_start_i.value() as usize
+                                                ..vertices_end_i.value() as usize,
+                                        ) {
                                             let ring = [&[*ring_texture], vertices].concat();
                                             surface.push(
-                                                ring.iter()
-                                                    .map(|v| v.map(|i| u32::from(&i)))
-                                                    .collect(),
+                                                ring.iter().map(|v| v.map(|i| i.value())).collect(),
                                             );
                                         }
                                     }
@@ -158,32 +170,36 @@ impl Serialize for TextureIndex {
                 nested_json.end()
             }
             BoundaryType::MultiOrCompositeSurface => {
-                let mut nested_json = serializer.serialize_seq(Some(self.surfaces.len()))?;
+                let mut nested_json = serializer.serialize_seq(Some(self.surfaces.len_usize()))?;
                 let mut counter = BoundaryCounter::default();
                 for rings_start_i in &self.surfaces {
-                    let rings_len = GeometryIndex::try_from(self.rings.len()).unwrap();
+                    let rings_len = GeometryIndex::try_from(self.rings.len_usize()).unwrap();
                     let rings_end_i = self
                         .surfaces
                         .get(counter.next_surface_i())
                         .unwrap_or(&rings_len);
-                    let s_usize = usize::try_from(*rings_start_i).unwrap();
-                    let e_usize = usize::try_from(*rings_end_i).unwrap();
-                    if let Some(rings) = self.rings.get(s_usize..e_usize) {
+
+                    if let Some(rings) = self
+                        .rings
+                        .get_range(rings_start_i.value()..rings_end_i.value())
+                    {
                         let mut surface = NestedSurfaceTextureValues::with_capacity(rings.len());
                         for vertices_start_i in rings {
-                            let vertices_len = GeometryIndex::try_from(self.vertices.len()).unwrap();
-                            if let Some(ring_texture) = self.rings_textures.get(counter.ring_i) {
+                            let vertices_len =
+                                GeometryIndex::try_from(self.vertices.len()).unwrap();
+                            if let Some(ring_texture) = self.rings_textures.get(counter.ring_i as usize) {
                                 let vertices_end_i = self
                                     .rings
                                     .get(counter.next_ring_i())
                                     .unwrap_or(&vertices_len);
-                                let s_usize = usize::try_from(*vertices_start_i).unwrap();
-                                let e_usize = usize::try_from(*vertices_end_i).unwrap();
-                                if let Some(vertices) = self.vertices.get(s_usize..e_usize) {
+
+                                if let Some(vertices) = self.vertices.get(
+                                    vertices_start_i.value() as usize
+                                        ..vertices_end_i.value() as usize,
+                                ) {
                                     let ring = [&[*ring_texture], vertices].concat();
-                                    surface.push(
-                                        ring.iter().map(|v| v.map(|i| u32::from(&i))).collect(),
-                                    );
+                                    surface
+                                        .push(ring.iter().map(|v| v.map(|i| i.value())).collect());
                                 }
                             }
                         }
@@ -320,12 +336,12 @@ impl<'de, 'a> Visitor<'de> for ExtendTextureIndexSurfacesVisitor<'a> {
         // Add the start index of the first surface of the aggregate
         self.0
             .surfaces
-            .push(GeometryIndex::try_from(self.0.rings.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.rings.len_usize()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendTextureIndexRings(self.0))? {
             self.0
                 .surfaces
-                .push(GeometryIndex::try_from(self.0.rings.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.rings.len_usize()).unwrap());
         }
         if !self.0.surfaces.is_empty() {
             let last_idx = self.0.surfaces.len() - 1;
@@ -363,12 +379,12 @@ impl<'de, 'a> Visitor<'de> for ExtendTextureIndexShellsVisitor<'a> {
         // Add the start index of the first surface of the aggregate
         self.0
             .shells
-            .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.surfaces.len_usize()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendTextureIndexSurfaces(self.0))? {
             self.0
                 .shells
-                .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.surfaces.len_usize()).unwrap());
         }
         if !self.0.shells.is_empty() {
             let last_idx = self.0.shells.len() - 1;
@@ -407,12 +423,12 @@ impl<'de, 'a> Visitor<'de> for ExtendTextureIndexSolidsVisitor<'a> {
         // Add the start index of the first shell of the aggregate
         self.0
             .solids
-            .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendTextureIndexShells(self.0))? {
             self.0
                 .solids
-                .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
         }
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;
@@ -464,31 +480,35 @@ impl Serialize for LabelIndex {
     {
         match self.check_type() {
             BoundaryType::MultiOrCompositeSolid => {
-                let mut nested_json = serializer.serialize_seq(Some(self.solids.len()))?;
+                let mut nested_json = serializer.serialize_seq(Some(self.solids.len_usize()))?;
                 let mut counter = BoundaryCounter::default();
                 for shells_start_i in &self.solids {
-                    let shells_len = GeometryIndex::try_from(self.shells.len()).unwrap();
+                    let shells_len = GeometryIndex::try_from(self.shells.len_usize()).unwrap();
                     let shells_end_i = self
                         .solids
                         .get(counter.next_solid_i())
                         .unwrap_or(&shells_len);
-                    let s_usize = usize::try_from(*shells_start_i).unwrap();
-                    let e_usize = usize::try_from(*shells_end_i).unwrap();
-                    if let Some(shells) = self.shells.get(s_usize..e_usize) {
+
+                    if let Some(shells) = self
+                        .shells
+                        .get_range(shells_start_i.value()..shells_end_i.value())
+                    {
                         let mut solid = NestedSolidSemanticsValues::with_capacity(shells.len());
                         for surfaces_start_i in shells {
-                            let surfaces_len = GeometryIndex::try_from(self.surfaces.len()).unwrap();
+                            let surfaces_len =
+                                GeometryIndex::try_from(self.surfaces.len()).unwrap();
                             let surfaces_end_i = self
                                 .shells
                                 .get(counter.next_shell_i())
                                 .unwrap_or(&surfaces_len);
-                            let s_usize = usize::try_from(*surfaces_start_i).unwrap();
-                            let e_usize = usize::try_from(*surfaces_end_i).unwrap();
-                            if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
+
+                            if let Some(surfaces) = self.surfaces.get(
+                                surfaces_start_i.value() as usize..surfaces_end_i.value() as usize,
+                            ) {
                                 let mut shell =
                                     NestedShellSemanticsValues::with_capacity(surfaces.len());
                                 for op_idx in surfaces {
-                                    shell.push(op_idx.map(|v| u32::from(&v)));
+                                    shell.push(op_idx.map(|v| v.value()));
                                 }
                                 solid.push(shell);
                             }
@@ -499,21 +519,22 @@ impl Serialize for LabelIndex {
                 nested_json.end()
             }
             BoundaryType::Solid => {
-                let mut nested_json = serializer.serialize_seq(Some(self.shells.len()))?;
+                let mut nested_json = serializer.serialize_seq(Some(self.shells.len_usize()))?;
                 let mut counter = BoundaryCounter::default();
-                // For the semantics.values of a Solid, we need a two-level deep array
                 for surfaces_start_i in &self.shells {
                     let surfaces_len = GeometryIndex::try_from(self.surfaces.len()).unwrap();
                     let surfaces_end_i = self
                         .shells
                         .get(counter.next_shell_i())
                         .unwrap_or(&surfaces_len);
-                    let s_usize = usize::try_from(*surfaces_start_i).unwrap();
-                    let e_usize = usize::try_from(*surfaces_end_i).unwrap();
-                    if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
+
+                    if let Some(surfaces) = self
+                        .surfaces
+                        .get(surfaces_start_i.value() as usize..surfaces_end_i.value() as usize)
+                    {
                         let mut shell = NestedShellSemanticsValues::with_capacity(surfaces.len());
                         for op_idx in surfaces {
-                            shell.push(op_idx.map(|v| u32::from(&v)));
+                            shell.push(op_idx.map(|v| v.value()));
                         }
                         nested_json.serialize_element(&shell)?;
                     }
@@ -523,21 +544,21 @@ impl Serialize for LabelIndex {
             BoundaryType::MultiOrCompositeSurface => {
                 let mut nested_json = serializer.serialize_seq(Some(self.surfaces.len()))?;
                 for member in &self.surfaces {
-                    nested_json.serialize_element(member)?;
+                    nested_json.serialize_element(&member.map(|v| v.value()))?;
                 }
                 nested_json.end()
             }
             BoundaryType::MultiLineString => {
                 let mut nested_json = serializer.serialize_seq(Some(self.linestrings.len()))?;
                 for member in &self.linestrings {
-                    nested_json.serialize_element(member)?;
+                    nested_json.serialize_element(&member.map(|v| v.value()))?;
                 }
                 nested_json.end()
             }
             BoundaryType::MultiPoint => {
                 let mut nested_json = serializer.serialize_seq(Some(self.points.len()))?;
                 for member in &self.points {
-                    nested_json.serialize_element(member)?;
+                    nested_json.serialize_element(&member.map(|v| v.value()))?;
                 }
                 nested_json.end()
             }
@@ -606,6 +627,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendLabelIndexSurfaces<'a> {
 
 struct ExtendLabelIndexShells<'a>(&'a mut LabelIndex);
 pub(crate) struct ExtendLabelIndexShellsVisitor<'a>(pub(crate) &'a mut LabelIndex);
+
 impl<'de, 'a> Visitor<'de> for ExtendLabelIndexShellsVisitor<'a> {
     type Value = ();
 
@@ -620,18 +642,16 @@ impl<'de, 'a> Visitor<'de> for ExtendLabelIndexShellsVisitor<'a> {
     where
         A: SeqAccess<'de>,
     {
-        // Add the start index of the first ring of the surface.
         self.0
             .shells
             .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
-        // Each iteration through this loop is one ring.
+
         while let Some(()) = seq.next_element_seed(ExtendLabelIndexSurfaces(self.0))? {
             self.0
                 .shells
                 .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
         }
-        // The last shell index needs to be removed, because that is surfaces.len()
-        // after the last iteration.
+
         if !self.0.shells.is_empty() {
             let last_idx = self.0.shells.len() - 1;
             self.0.shells.remove(last_idx);
@@ -639,6 +659,7 @@ impl<'de, 'a> Visitor<'de> for ExtendLabelIndexShellsVisitor<'a> {
         Ok(())
     }
 }
+
 impl<'de, 'a> DeserializeSeed<'de> for ExtendLabelIndexShells<'a> {
     type Value = ();
 
@@ -668,16 +689,16 @@ impl<'de, 'a> Visitor<'de> for ExtendLabelIndexSolidsVisitor<'a> {
     where
         A: SeqAccess<'de>,
     {
-        // Add the start index of the first surface of the aggregate
         self.0
             .solids
-            .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
-        // Each iteration through this loop is one inner array.
+            .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
+
         while let Some(()) = seq.next_element_seed(ExtendLabelIndexShells(self.0))? {
             self.0
                 .solids
-                .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
         }
+
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;
             self.0.solids.remove(last_idx);

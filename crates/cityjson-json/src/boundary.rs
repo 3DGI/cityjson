@@ -1,7 +1,7 @@
 //! CityJSON Geometry objects.
 //!
 //! # Boundary representations
-//! Internally `serde_cityjson` uses a different a different boundary representation than what is
+//! Internally `serde_cityjson` uses a different boundary representation than what is
 //! defined in the
 //! [CityJSON specification](https://www.cityjson.org/specs/1.1.3/#arrays-to-represent-boundaries),
 //! and each boundary type is represented by the [Boundary] type.
@@ -106,9 +106,7 @@ impl Serialize for Boundary {
             }
             BoundaryType::MultiLineString => {
                 let mut nested_json = serializer.serialize_seq(Some(self.rings.len_usize()))?;
-                let nested = self
-                    .to_nested_multilinestring()
-                    .map_err(Error::custom)?;
+                let nested = self.to_nested_multilinestring().map_err(Error::custom)?;
                 for member in &nested {
                     nested_json.serialize_element(member)?;
                 }
@@ -135,10 +133,7 @@ impl From<BoundaryNestedMultiPoint> for Boundary {
             Self::default()
         } else {
             Self {
-                vertices: value
-                    .iter()
-                    .map(|v| GeometryIndex::from(*v))
-                    .collect(),
+                vertices: value.iter().map(|v| GeometryIndex::new(*v)).collect(),
                 ..Self::default()
             }
         }
@@ -156,7 +151,7 @@ impl From<BoundaryNestedMultiLineString> for Boundary {
             for ring in &value {
                 rings.push(ring_start);
                 for vertex in ring {
-                    vertices.push(GeometryIndex::from(*vertex));
+                    vertices.push(GeometryIndex::new(*vertex));
                     ring_start += GeometryIndex::new(1);
                 }
             }
@@ -188,21 +183,12 @@ impl From<BoundaryNestedMultiOrCompositeSolid> for Boundary {
 }
 
 impl Boundary {
-    // Prefix conversion to nested types with `to_nested_` because,
-    //  - it is an expensive conversion, since we need to iterate the boundaries and check the indices,
-    //  - we stay at the same level of abstraction, just convert from one representation to another,
-    //  - the conversion is fallible, since the Boundary might not contain the data for the target type,
-    //  - we borrow the input and returned owned output.
-
-    // TODO: add to_nested_<geom>_unchecked() methods that skip the boundary type check, because
-    //  the boundary type is already checked in the Serialize implementation
-
     /// Convert to a nested MultiPoint boundary representation, if the Boundary can be interpreted
     /// as a MultiPoint boundary.
     pub fn to_nested_multipoint(&self) -> errors::Result<BoundaryNestedMultiPoint> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
-            Ok(self.vertices.iter().map(|v| v.into()).collect())
+            Ok(self.vertices.iter().map(|v| v.value()).collect())
         } else {
             Err(errors::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
@@ -277,17 +263,20 @@ impl Boundary {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSolid {
             let mut counter = BoundaryCounter::default();
-            let mut mcsolid = BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len_usize());
+            let mut mcsolid =
+                BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len_usize());
             for shells_start_i in &self.solids {
                 let shells_len = GeometryIndex::try_from(self.shells.len_usize()).unwrap();
                 let shells_end_i = self
                     .solids
                     .get(counter.next_solid_i())
                     .unwrap_or(&shells_len);
-                let s_usize = usize::try_from(*shells_start_i).unwrap();
-                let e_usize = usize::try_from(*shells_end_i).unwrap();
-                if let Some(shells) = self.shells.get_range(s_usize..e_usize) {
-                    let mut solid = BoundaryNestedSolid::with_capacity(shells.len_usize());
+
+                if let Some(shells) = self
+                    .shells
+                    .get_range(shells_start_i.value()..shells_end_i.value())
+                {
+                    let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
                     self.push_shells_to_solid(shells, &mut solid, &mut counter);
                     mcsolid.push(solid);
                 }
@@ -313,11 +302,13 @@ impl Boundary {
                 .shells
                 .get(counter.next_shell_i())
                 .unwrap_or(&surfaces_len);
-            let s_usize = usize::try_from(*surfaces_start_i).unwrap();
-            let e_usize = usize::try_from(*surfaces_end_i).unwrap();
-            if let Some(surfaces) = self.surfaces.get(s_usize..e_usize) {
+
+            if let Some(surfaces) = self
+                .surfaces
+                .get_range(surfaces_start_i.value()..surfaces_end_i.value())
+            {
                 let mut mcsurface =
-                    BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len_usize());
+                    BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
                 self.push_surfaces_to_multisurface(surfaces, &mut mcsurface, counter);
                 solid.push(mcsurface);
             }
@@ -336,10 +327,12 @@ impl Boundary {
                 .surfaces
                 .get(counter.next_surface_i())
                 .unwrap_or(&rings_len);
-            let s_usize = usize::try_from(*ring_start_i).unwrap();
-            let e_usize = usize::try_from(*ring_end_i).unwrap();
-            if let Some(rings) = self.rings.get(s_usize..e_usize) {
-                let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len_usize());
+
+            if let Some(rings) = self
+                .rings
+                .get_range(ring_start_i.value()..ring_end_i.value())
+            {
+                let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
                 self.push_rings_to_surface(rings, &mut surface, counter);
                 mcsurface.push(surface);
             }
@@ -358,15 +351,12 @@ impl Boundary {
                 .rings
                 .get(counter.next_ring_i())
                 .unwrap_or(&vertices_len);
-            // At the last ring we are out of bounds of the rings vec with v_endi, so
-            // we get all the remaining vertices.
-            let s_usize = usize::try_from(*vertices_start_i).unwrap();
-            let e_usize = usize::try_from(*vertices_end_i).unwrap();
-            // TODO: since I deref LargeIndexVec to Vec<LargeIndex>, the get() method here is the
-            //  method of Vec, which take a Range of usize. I would need to somehow get() that takes
-            //  a Range of LargeIndex.
-            if let Some(vertices) = self.vertices.get(s_usize..e_usize) {
-                surface.push(vertices.iter().map(|v| v.into()).collect());
+
+            if let Some(vertices) = self
+                .vertices
+                .get_range(vertices_start_i.value()..vertices_end_i.value())
+            {
+                surface.push(vertices.iter().map(|v| v.value()).collect());
             }
         }
     }
@@ -445,11 +435,11 @@ impl<'de, 'a> Visitor<'de> for ExtendVerticesVisitor<'a> {
         A: SeqAccess<'de>,
     {
         if let Some(size_hint) = seq.size_hint() {
-            self.0.vertices.reserve(size_hint);
+            self.0.vertices.reserve(size_hint as u32);
         }
 
         while let Some(elem) = seq.next_element()? {
-            self.0.vertices.push(elem);
+            self.0.vertices.push(GeometryIndex::new(elem));
         }
 
         Ok(())
@@ -469,6 +459,7 @@ impl<'de, 'a> DeserializeSeed<'de> for ExtendVertices<'a> {
 
 struct ExtendRings<'a>(&'a mut Boundary);
 pub(crate) struct ExtendRingsVisitor<'a>(pub(crate) &'a mut Boundary);
+
 impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
     type Value = ();
 
@@ -484,12 +475,14 @@ impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
         self.0
             .rings
             .push(GeometryIndex::try_from(self.0.vertices.len_usize()).unwrap());
+
         // Each iteration through this loop is one ring.
         while let Some(()) = seq.next_element_seed(ExtendVertices(self.0))? {
             self.0
                 .rings
-                .push(GeometryIndex::try_from(self.0.vertices.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.vertices.len_usize()).unwrap());
         }
+
         // The last ring index needs to be removed, because that is vertices.len()
         // after the last iteration.
         if !self.0.rings.is_empty() {
@@ -499,6 +492,7 @@ impl<'de, 'a> Visitor<'de> for ExtendRingsVisitor<'a> {
         Ok(())
     }
 }
+
 impl<'de, 'a> DeserializeSeed<'de> for ExtendRings<'a> {
     type Value = ();
 
@@ -530,13 +524,15 @@ impl<'de, 'a> Visitor<'de> for ExtendSurfacesVisitor<'a> {
         // Add the start index of the first surface of the aggregate
         self.0
             .surfaces
-            .push(GeometryIndex::try_from(self.0.rings.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.rings.len_usize()).unwrap());
+
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendRings(self.0))? {
             self.0
                 .surfaces
-                .push(GeometryIndex::try_from(self.0.rings.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.rings.len_usize()).unwrap());
         }
+
         if !self.0.surfaces.is_empty() {
             let last_idx = self.0.surfaces.len() - 1;
             self.0.surfaces.remove(last_idx);
@@ -573,13 +569,15 @@ impl<'de, 'a> Visitor<'de> for ExtendShellsVisitor<'a> {
         // Add the start index of the first surface of the aggregate
         self.0
             .shells
-            .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.surfaces.len_usize()).unwrap());
+
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendSurfaces(self.0))? {
             self.0
                 .shells
-                .push(GeometryIndex::try_from(self.0.surfaces.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.surfaces.len_usize()).unwrap());
         }
+
         if !self.0.shells.is_empty() {
             let last_idx = self.0.shells.len() - 1;
             self.0.shells.remove(last_idx);
@@ -617,13 +615,15 @@ impl<'de, 'a> Visitor<'de> for ExtendSolidsVisitor<'a> {
         // Add the start index of the first shell of the aggregate
         self.0
             .solids
-            .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
+            .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
+
         // Each iteration through this loop is one inner array.
         while let Some(()) = seq.next_element_seed(ExtendShells(self.0))? {
             self.0
                 .solids
-                .push(GeometryIndex::try_from(self.0.shells.len()).unwrap());
+                .push(GeometryIndex::try_from(self.0.shells.len_usize()).unwrap());
         }
+
         if !self.0.solids.is_empty() {
             let last_idx = self.0.solids.len() - 1;
             self.0.solids.remove(last_idx);

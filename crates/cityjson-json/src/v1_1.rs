@@ -44,16 +44,19 @@ use crate::labels;
 /// let json_str = r#"{
 ///   "type": "CityJSON",
 ///   "version": "1.1",
-///   "extensions": {},
 ///   "transform": {
 ///     "scale": [1.0, 1.0, 1.0],
 ///     "translate": [0.0, 0.0, 0.0]
 ///   },
-///   "metadata": {},
 ///   "CityObjects": {},
 ///   "vertices": [],
+///   "metadata": {},
 ///   "appearance": {},
-///   "geometry-templates": {}
+///   "geometry-templates": {
+///     "templates": [],
+///     "vertices-templates": []
+///   },
+///   "extensions": {}
 /// }"#;
 /// let cm: CityModel = serde_json::from_str(json_str)?;
 /// let cm_json = serde_json::to_string(&cm)?;

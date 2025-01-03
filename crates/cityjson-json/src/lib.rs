@@ -215,7 +215,7 @@
 //! # use std::io::Read;
 //! # use std::path::PathBuf;
 //! # fn main() -> Result<(), String> {
-//! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
+//! # let dummy_complete = PathBuf::from("tests").join("data").join("v1_1").join("cityjson_dummy_complete.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
 //! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
@@ -242,7 +242,7 @@
 //! # use std::io::Read;
 //! # use std::path::PathBuf;
 //! # fn main() -> Result<(), String> {
-//! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
+//! # let dummy_complete = PathBuf::from("tests").join("data").join("v1_1").join("cityjson_dummy_complete.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
 //! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
@@ -264,7 +264,7 @@
 //! # use std::io::Read;
 //! # use std::path::PathBuf;
 //! # fn main() -> Result<(), String> {
-//! # let dummy_complete = PathBuf::from("resources").join("data").join("dummy_complete_v11.city.json");
+//! # let dummy_complete = PathBuf::from("tests").join("data").join("v1_1").join("cityjson_dummy_complete.city.json");
 //! # let mut file = File::open(dummy_complete).map_err(|e| e.to_string())?;
 //! # let mut cityjson_json = String::new();
 //! # file.read_to_string(&mut cityjson_json).map_err(|e| e.to_string())?;
