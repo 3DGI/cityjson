@@ -310,6 +310,14 @@ impl GeometryIndices {
     }
 }
 
+impl Extend<GeometryIndex> for GeometryIndices {
+    /// Extends the GeometryIndices with elements from an iterator
+    #[inline]
+    fn extend<T: IntoIterator<Item = GeometryIndex>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
 /// Iterator over chunks of a GeometryIndices
 pub struct GeometryIndicesChunks<'a> {
     vec: &'a GeometryIndices,
