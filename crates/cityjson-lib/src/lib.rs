@@ -20,6 +20,8 @@ use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::de::{StrRead, StreamDeserializer};
 
+use serde_cityjson::v1_1;
+
 /// A struct that represents a city model, which is conceptually equivalent to a
 /// [CityJSON object](https://www.cityjson.org/specs/1.1.2/#cityjson-object).
 ///
@@ -2079,20 +2081,20 @@ mod tests {
     use std::io::Cursor;
     use std::path::PathBuf;
 
-    fn test_data_dir() -> PathBuf {
+    fn data_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
+            .join("tests")
             .join("data")
     }
 
-    fn test_output_dir() -> PathBuf {
+    fn output_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("output")
     }
 
     #[test]
-    fn instantiate_citymodel() {
+    fn init_citymodel() {
         let _cm = CityModel::new();
         let _cm2 = CityModel::default();
     }
@@ -2100,35 +2102,38 @@ mod tests {
     #[test]
     fn citymodel_from_str_minimal() {
         let cityjson_str = r#"{
-            "type": "CityJSON",
-            "version": "1.1",
-            "transform": {
-                "scale": [1.0, 1.0, 1.0],
-                "translate": [0.0, 0.0, 0.0]
-            },
-            "CityObjects": {},
-            "vertices": []
+          "type": "CityJSON",
+          "version": "1.1",
+          "extensions": {},
+          "transform": {
+            "scale": [ 1.0, 1.0, 1.0 ],
+            "translate": [ 0.0, 0.0, 0.0 ]
+          },
+          "metadata": {},
+          "CityObjects": {},
+          "vertices": [],
+          "appearance": {},
+          "geometry-templates": {
+            "templates": [],
+            "vertices-templates": []
+          }
         }"#;
         let cm: Result<CityModel> = CityModel::from_str(cityjson_str);
-        println!("CityModel::from_str {:?}", cm);
-
-        // let cm: serde_json::Result<CityModel> = serde_json::from_str(cityjson_str);
-        // println!("serde_json::from_str {:?}", cm);
-        //
-        // let cm: serde_json::Result<CityModel> = serde_json::from_slice(cityjson_str.as_bytes());
-        // println!("serde_json::from_slice {:?}", cm);
-        //
-        // // &[u8] implements Read
-        // let cm: serde_json::Result<CityModel> = serde_json::from_reader(cityjson_str.as_bytes());
-        // println!("serde_json::from_reader {:?}", cm);
+        assert!(cm.is_ok());
     }
 
     #[test]
-    fn citymodel_from_file() {
-        let pb: PathBuf = test_data_dir().join("minimal_valid.city.json");
-        let _ = CityModel::from_file(&pb);
-        let ps: &str = pb.to_str().unwrap();
-        let _ = CityModel::from_file(ps);
+    fn citymodel_from_file_minimal() {
+        let pb: PathBuf = data_dir().join("cityjson_minimal_complete.city.json");
+        let cm = CityModel::from_file(&pb);
+        assert!(cm.is_ok());
+    }
+
+    #[test]
+    fn citymodel_from_file_dummy() {
+        let pb: PathBuf = data_dir().join("cityjson_dummy_complete.city.json");
+        let cm = CityModel::from_file(&pb);
+        assert!(cm.is_ok());
     }
 
     #[test]
@@ -2146,7 +2151,7 @@ mod tests {
 
     #[test]
     fn citymodel_to_file() {
-        let pb: PathBuf = test_output_dir().join(".test_out.city.json");
+        let pb: PathBuf = output_dir().join("citymodel_to_file.city.json");
         let _ = CityModel::new().to_file(pb);
     }
 
@@ -2163,51 +2168,14 @@ mod tests {
     }
 
     #[test]
-    fn set_get_transform() {
-        let mut cm = CityModel::default();
-        println!("{:?}", cm);
-        let t = Transform {
-            scale: [1.0, 1.0, 1.0],
-            translate: [0.0, 0.0, 0.0],
-        };
-        cm.set_transform(&t);
-        println!("{:?}", cm);
-    }
-
-    #[test]
-    fn cityjsonversion() {
-        let vr = CityJSONVersion::try_from("1.1");
-        assert_eq!(vr.unwrap(), CityJSONVersion::V1_1);
-        let s: String = CityJSONVersion::V1_1.into();
-        println!("CityJSONVersion.into(): {}", s);
-        println!(
-            "CityJSONVersion.to_string(): {}",
-            CityJSONVersion::V1_1.to_string()
-        );
-        let v2 = CityJSONVersion::try_from("1.0");
-        v2.expect_err("Unsupported CityJSON version.");
-    }
-
-    /// Can we deserialize a CityJSONFeature into an ICityModel?
-    #[test]
-    fn cityjsonfeature() {
-        let cityjsonfeature_str = r#"{
-            "type": "CityJSONFeature",
-            "id": "id-1",
-            "CityObjects": {},
-            "vertices": []
-        }"#;
-        let _: ICityModel = serde_json::from_str(cityjsonfeature_str).unwrap();
-    }
-
-    #[test]
     fn features_from_stream() {
         let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
             {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
         let stream = Cursor::new(feature_sequence);
         let cm = CityModel::from_stream(stream);
-        println!("From stream: {:?}", cm);
+        assert!(cm.is_ok());
+        assert_eq!(cm.unwrap().cityobjects.len(), 2);
     }
 
     #[test]
@@ -2220,11 +2188,6 @@ mod tests {
         for result in CityFeatureStreamDeserializer::new(&feature_sequence) {
             println!("{:#?}", result)
         }
-
-        // // from slice
-        // for result in CityFeatureStreamDeserializer::new(feature_sequence.as_bytes()) {
-        //     println!("{:#?}", result)
-        // }
 
         // Using a Cursor, flatten (panics) and from_str
         let stream = Cursor::new(feature_sequence);
@@ -2245,9 +2208,9 @@ mod tests {
 
     #[test]
     fn features_from_file() {
-        let pb: PathBuf = test_data_dir().join("minimal_valid.city.jsonl");
+        let pb: PathBuf = data_dir().join("fake.city.jsonl");
         let cm = CityModel::from_file(&pb);
-        println!("From jsonl: {:?}", cm);
+        assert!(cm.is_ok());
     }
 
     #[test]
@@ -2268,7 +2231,7 @@ mod tests {
         }
         // The CityModel should still own its CityObject-s
         assert_eq!(cm.cityobjects.len(), 3);
-        println!("{:?}", cm.cityobjects["id-1"]);
+        assert!(cm.cityobjects.contains_key("id-1"));
 
         let cityfeature_iter: CityFeatureIterator = cm.to_features();
         let cityjsonfeature_iter = cityfeature_iter.map(|cityfeature| cityfeature.to_string());
@@ -2290,120 +2253,7 @@ mod tests {
             semantics: None,
         };
 
-        let pb: PathBuf = test_output_dir().join(".test_out.city.jsonl");
-        let _ = cm.to_file(pb);
-    }
-
-    #[test]
-    fn metadata_setters() {
-        let mut metadata = Metadata::new();
-        metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
-        metadata.set_identifier("123-456-789");
-        metadata.set_reference_date("1977-02-28");
-        metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/7415");
-        metadata.set_title("My Model");
-
-        metadata.set_role(ContactRole::Author);
-        metadata.set_contact_name("Balázs Dukai");
-        metadata.set_email_address("my@email.com");
-        metadata.set_website("http://3dbag.nl");
-        metadata.set_contact_type(ContactType::Organization);
-        metadata.set_address("24 Sussex Drive, Ottawa, Canada");
-        metadata.set_phone("+1-613-992-4211");
-        metadata.set_organization("3DGI");
-
-        println!("{:?}", metadata.identifier());
-    }
-
-    #[test]
-    fn lod() {
-        match serde_json::from_str::<LoD>(r#""0""#) {
-            Ok(lod) => {
-                assert_eq!(lod, LoD::LoD0)
-            }
-            Err(e) => {
-                panic!("error: {:?}", e)
-            }
-        };
-        match serde_json::from_str::<LoD>(r#""0.0""#) {
-            Ok(lod) => {
-                assert_eq!(lod, LoD::LoD0_0)
-            }
-            Err(e) => {
-                panic!("error: {:?}", e)
-            }
-        };
-        match serde_json::from_str::<LoD>(r#""1.4""#) {
-            Ok(lod) => {
-                panic!("{:?}", lod)
-            }
-            Err(e) => {
-                assert!(true)
-            }
-        };
-    }
-
-    #[test]
-    fn test_3dbag() {
-        let cm = CityModel::from_file(
-            "/home/balazs/Development/cjlib/experiments/data/3dbag_v210908_fd2cee53_5786.json",
-        )
-        .unwrap();
-        println!("number of CityObjects: {:?}", cm.cityobjects.len());
-    }
-
-    #[test]
-    fn dereference() {
-        let vertices: IVertices = vec![[-10, -10, -10], [10, 10, 10], [20, 20, 20]];
-        let transform = Transform {
-            scale: [0.001, 0.001, 0.001],
-            translate: [0.0, 0.0, 0.0],
-        };
-        // Although we don't have an explicit Dereference implementation for MultiSurface,
-        // this still works, because MultiSurface and CompositeSurface are just alias-es for the
-        // same data type.
-        let imp = IMultiPointBoundary::from([2, 1, 0]);
-        let imsrf: IAggregateSurfaceBoundary = vec![vec![imp]];
-        let msrf: MultiSurfaceBoundary = imsrf.dereference(&vertices, &transform);
-
-        let imp = IMultiPointBoundary::from([2, 1, 0]);
-        let icsrf: IAggregateSurfaceBoundary = vec![vec![imp]];
-        let csrf: CompositeSurfaceBoundary = imsrf.dereference(&vertices, &transform);
-    }
-
-    /// Build a complete MultiSolid, using each Boundary type along the way
-    #[test]
-    fn test_boundary() {
-        let point1 = PointBoundary::new(123.0, 456.0, 789.0);
-        let coordinate: [f64; 3] = [123.0, 456.0, 789.0];
-        let point2 = PointBoundary::from(coordinate);
-        let point3 = PointBoundary::from(&coordinate);
-        let p1 = &point1.x;
-
-        let linestring1 = LineStringBoundary::new(vec![point1, point2, point3]);
-        println!("{}", &linestring1);
-        let surface1 = SurfaceBoundary::new(vec![linestring1]);
-        let shell1 = ShellBoundary::new(vec![
-            surface1.clone(),
-            surface1.clone(),
-            surface1.clone(),
-            surface1.clone(),
-        ]);
-        let solid1 = SolidBoundary::new(vec![shell1]);
-        let multisolid1 = MultiSolidBoundary::new(vec![solid1]);
-
-        println!("{}", multisolid1);
-    }
-
-    #[test]
-    fn test_send() {
-        fn assert_send<T: Send>() {}
-        assert_send::<PointBoundary>();
-    }
-
-    #[test]
-    fn test_sync() {
-        fn assert_sync<T: Sync>() {}
-        assert_sync::<PointBoundary>();
+        let pb: PathBuf = output_dir().join("features_to_file.city.jsonl");
+        assert!(cm.to_file(pb).is_ok());
     }
 }

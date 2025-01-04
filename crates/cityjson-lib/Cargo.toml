@@ -9,9 +9,10 @@ exclude = ["/tests/output/*.json"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [lib]
-name="cjlib"
-path= "src/lib.rs"
+name = "cjlib"
+path = "src/lib.rs"
