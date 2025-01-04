@@ -5,6 +5,7 @@ use cjfake::{CJFakeConfig, CityModelBuilder};
 
 fn main() {
     let config = CJFakeConfig::parse();
+    dbg!(&config);
     let cm: CityModel = CityModelBuilder::new(config, None).build();
     let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
     println!("{}", cj_str);

@@ -162,7 +162,7 @@ use rand::SeedableRng;
 use rand::{thread_rng, Rng};
 use serde_cityjson::attributes::Attributes;
 use serde_cityjson::boundary::Boundary;
-use serde_cityjson::indices::{LargeIndex, LargeIndexVec, OptionalLargeIndex};
+use serde_cityjson::indices::{GeometryIndex, GeometryIndices, OptionalGeometryIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
 
@@ -177,9 +177,9 @@ pub use crate::cli::CJFakeConfig;
 // TODO: use real EPSG codes, to get existing CRS URIs. Text file contents can be included with https://doc.rust-lang.org/std/macro.include_str.html
 // todo: CityObjectTypeFaker add GenericCityObject for v2.0
 // todo: CityObjectTypeFaker add CityObjectGroup
-// todo scj: LargeIndexVec::with_capacity should be initialized with the type that LargeIndex holds, because it doesn't make sense for LargeIndexVec to hold more items than max LargeIndex
+// todo scj: GeometryIndices::with_capacity should be initialized with the type that GeometryIndex holds, because it doesn't make sense for GeometryIndices to hold more items than max GeometryIndex
 // todo: MultiPoint, lod 3, Building --> semantics don't make sense
-// todo: scj: geometry.template_boundaries needs to be [LargeIndex; 1] instead of [usize; 1];
+// todo: scj: geometry.template_boundaries needs to be [GeometryIndex; 1] instead of [usize; 1];
 // todo: if templates builder is used, make sure that at least one GeometryInstance is generated
 
 const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
@@ -623,16 +623,16 @@ impl<'cm> CityModelBuilder<'cm> {
         // increase the nr. of points in a MultiPoint, increase the nr. vertices of the last
         // linestring in a MultiLineString, or do the same in the last ring of higher order
         // geometries.
-        let vertices_indices: HashSet<LargeIndex> = if let Some(ref vertices) = self.vertices {
+        let vertices_indices: HashSet<GeometryIndex> = if let Some(ref vertices) = self.vertices {
             // Unwrapping here, because I assume that there are less nr. of vertices generated than
-            // MAX::u32 (LargeIndex)
+            // MAX::u32 (GeometryIndex)
             HashSet::from_iter(vertices.iter().enumerate().map(|(i, _)| {
-                LargeIndex::try_from(i).expect("nr. of vertices should be less than MAX::u32")
+                GeometryIndex::try_from(i).expect("nr. of vertices should be less than MAX::u32")
             }))
         } else {
             HashSet::new()
         };
-        let mut used_vertices: HashSet<LargeIndex> = if let Some(ref vertices) = self.vertices {
+        let mut used_vertices: HashSet<GeometryIndex> = if let Some(ref vertices) = self.vertices {
             HashSet::with_capacity(vertices.len())
         } else {
             HashSet::new()
@@ -660,7 +660,7 @@ impl<'cm> CityModelBuilder<'cm> {
                             // We only get a geometry_ref for non-GeometryInstance geometries,
                             // because we cannot extend the boundary of a GeometryInstance with
                             // the unused vertices.
-                            used_vertices.insert(LargeIndex::try_from(boundary[0]).unwrap());
+                            used_vertices.insert(GeometryIndex::try_from(boundary[0]).unwrap());
                         }
                     }
                 }
@@ -675,9 +675,9 @@ impl<'cm> CityModelBuilder<'cm> {
             }
         } else {
             // We expect that self.vertices is not empty.
-            let unused_verties = vertices_indices.difference(&used_vertices);
-            let unused_vertices_cnt = unused_verties.clone().count();
-            if unused_vertices_cnt != 0 {
+            let unused_vertices = vertices_indices.difference(&used_vertices);
+            let unused_vertices_len = unused_vertices.clone().count();
+            if unused_vertices_len != 0 {
                 if let Some((co_id, geom_idx)) = geometry_ref {
                     if let Some(ref mut cityobjects) = self.cityobjects {
                         // We can unwrap here, because geometry_ref has value, so the co_id is
@@ -689,13 +689,13 @@ impl<'cm> CityModelBuilder<'cm> {
                         // Extending boundary.vertices effectively extends the last ring
                         // of the boundary. See serde_cityjson for details.
                         if let Some(ref mut boundary) = geom.boundaries {
-                            boundary.vertices.extend(unused_verties);
+                            boundary.vertices.extend(unused_vertices.map(|v| *v));
                         }
                         // Also need to update the textures, because the texture mapping is per vertex
                         if let Some(ref mut textures) = geom.texture {
                             for (_name, texture_values) in textures.iter_mut() {
                                 if let Some(ref mut texture_index) = texture_values.values {
-                                    for _ in 0..unused_vertices_cnt {
+                                    for _ in 0..unused_vertices_len {
                                         texture_index.vertices.push(texture_index.vertices[0]);
                                     }
                                 }
@@ -1396,28 +1396,28 @@ struct MultiSolidFaker<'cmbuild> {
 impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSolidFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            vertices: LargeIndexVec::with_capacity(
-                (config.cjfake.min_members_multipoint
+            vertices: GeometryIndices::with_capacity(
+                config.cjfake.min_members_multipoint
                     * config.cjfake.max_members_multilinestring
                     * config.cjfake.max_members_multisurface
                     * config.cjfake.max_members_solid
-                    * config.cjfake.max_members_multisolid) as usize,
+                    * config.cjfake.max_members_multisolid,
             ),
-            rings: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multilinestring
+            rings: GeometryIndices::with_capacity(
+                config.cjfake.max_members_multilinestring
                     * config.cjfake.max_members_multisurface
                     * config.cjfake.max_members_solid
-                    * config.cjfake.max_members_multisolid) as usize,
+                    * config.cjfake.max_members_multisolid,
             ),
-            surfaces: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multisurface
+            surfaces: GeometryIndices::with_capacity(
+                config.cjfake.max_members_multisurface
                     * config.cjfake.max_members_solid
-                    * config.cjfake.max_members_multisolid) as usize,
+                    * config.cjfake.max_members_multisolid,
             ),
-            shells: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_solid * config.cjfake.max_members_multisolid) as usize,
+            shells: GeometryIndices::with_capacity(
+                config.cjfake.max_members_solid * config.cjfake.max_members_multisolid,
             ),
-            solids: LargeIndexVec::with_capacity(config.cjfake.max_members_multisolid as usize),
+            solids: GeometryIndices::with_capacity(config.cjfake.max_members_multisolid),
         };
 
         let min_linestring_len = if config.cjfake.min_members_multipoint > 1 {
@@ -1438,7 +1438,7 @@ impl<'cmbuild> Dummy<MultiSolidFaker<'cmbuild>> for Boundary {
         );
         let nr_solids = IndexType::try_from(nr_solids_usize).unwrap_or_default();
         for _solid in config.cjfake.min_members_multisolid..=nr_solids {
-            boundary.solids.push(LargeIndex::from(solid_i));
+            boundary.solids.push(GeometryIndex::from(solid_i));
             let nr_shells =
                 rng.gen_range(config.cjfake.min_members_solid..=config.cjfake.max_members_solid);
             solid_i += nr_shells;
@@ -1468,22 +1468,22 @@ struct SolidFaker<'cmbuild> {
 impl<'cmbuild> Dummy<SolidFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &SolidFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            vertices: LargeIndexVec::with_capacity(
-                (config.cjfake.min_members_multipoint
+            vertices: GeometryIndices::with_capacity(
+                config.cjfake.min_members_multipoint
                     * config.cjfake.max_members_multilinestring
                     * config.cjfake.max_members_multisurface
-                    * config.cjfake.max_members_solid) as usize,
+                    * config.cjfake.max_members_solid,
             ),
-            rings: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multilinestring
+            rings: GeometryIndices::with_capacity(
+                config.cjfake.max_members_multilinestring
                     * config.cjfake.max_members_multisurface
-                    * config.cjfake.max_members_solid) as usize,
+                    * config.cjfake.max_members_solid,
             ),
-            surfaces: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multisurface * config.cjfake.max_members_solid) as usize,
+            surfaces: GeometryIndices::with_capacity(
+                config.cjfake.max_members_multisurface * config.cjfake.max_members_solid,
             ),
-            shells: LargeIndexVec::with_capacity(config.cjfake.max_members_solid as usize),
-            solids: LargeIndexVec::default(),
+            shells: GeometryIndices::with_capacity(config.cjfake.max_members_solid),
+            solids: GeometryIndices::default(),
         };
 
         // A ring must have at least three members.
@@ -1532,7 +1532,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
     cjfake: &CJFakeConfig,
 ) {
     for _shell in cjfake.min_members_solid..=nr_shells {
-        boundary.shells.push(LargeIndex::from(*shell_i));
+        boundary.shells.push(GeometryIndex::from(*shell_i));
         let shell_len_usize = get_nr_items(
             cjfake.min_members_multisurface..=cjfake.max_members_multisurface,
             rng,
@@ -1542,7 +1542,7 @@ fn fake_solid_boundary<R: Rng + ?Sized>(
 
         // Add the surfaces for each shell
         for _surface in cjfake.min_members_multisurface..=shell_len {
-            boundary.surfaces.push(LargeIndex::from(*surface_i));
+            boundary.surfaces.push(GeometryIndex::from(*surface_i));
             let nr_rings_usize = get_nr_items(
                 cjfake.min_members_multilinestring..=cjfake.max_members_multilinestring,
                 rng,
@@ -1572,18 +1572,17 @@ struct MultiSurfaceFaker<'cmbuild> {
 impl<'cmbuild> Dummy<MultiSurfaceFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiSurfaceFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            vertices: LargeIndexVec::with_capacity(
-                (config.cjfake.min_members_multipoint
+            vertices: GeometryIndices::with_capacity(
+                config.cjfake.min_members_multipoint
                     * config.cjfake.max_members_multilinestring
-                    * config.cjfake.max_members_multisurface) as usize,
+                    * config.cjfake.max_members_multisurface,
             ),
-            rings: LargeIndexVec::with_capacity(
-                (config.cjfake.max_members_multilinestring * config.cjfake.max_members_multisurface)
-                    as usize,
+            rings: GeometryIndices::with_capacity(
+                config.cjfake.max_members_multilinestring * config.cjfake.max_members_multisurface,
             ),
-            surfaces: LargeIndexVec::with_capacity(config.cjfake.max_members_multisurface as usize),
-            shells: LargeIndexVec::default(),
-            solids: LargeIndexVec::default(),
+            surfaces: GeometryIndices::with_capacity(config.cjfake.max_members_multisurface),
+            shells: GeometryIndices::default(),
+            solids: GeometryIndices::default(),
         };
         // A ring must have at least three members.
         let min_ring_len = if config.cjfake.min_members_multipoint > 2 {
@@ -1604,7 +1603,7 @@ impl<'cmbuild> Dummy<MultiSurfaceFaker<'cmbuild>> for Boundary {
         for _surface in config.cjfake.min_members_multisurface..=nr_surfaces {
             // Add the index of the current surface, which is a pointer to the first ring of the
             // surface.
-            boundary.surfaces.push(LargeIndex::from(surface_i));
+            boundary.surfaces.push(GeometryIndex::from(surface_i));
             // Determine the number of rings for the current surface.
             let nr_rings_usize = rng.gen_range(
                 config.cjfake.min_members_multilinestring
@@ -1636,14 +1635,13 @@ struct MultiLineStringFaker<'cmbuild> {
 impl<'cmbuild> Dummy<MultiLineStringFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiLineStringFaker, rng: &mut R) -> Self {
         let mut boundary = Boundary {
-            vertices: LargeIndexVec::with_capacity(
-                (config.cjfake.min_members_multipoint * config.cjfake.max_members_multilinestring)
-                    as usize,
+            vertices: GeometryIndices::with_capacity(
+                config.cjfake.min_members_multipoint * config.cjfake.max_members_multilinestring,
             ),
-            rings: LargeIndexVec::with_capacity(config.cjfake.max_members_multilinestring as usize),
-            surfaces: LargeIndexVec::default(),
-            shells: LargeIndexVec::default(),
-            solids: LargeIndexVec::default(),
+            rings: GeometryIndices::with_capacity(config.cjfake.max_members_multilinestring),
+            surfaces: GeometryIndices::default(),
+            shells: GeometryIndices::default(),
+            solids: GeometryIndices::default(),
         };
 
         let min_linestring_len = if config.cjfake.min_members_multipoint > 1 {
@@ -1684,14 +1682,14 @@ fn fake_surface_boundary<R: Rng + ?Sized>(
     for _ring in cjfake.min_members_multilinestring..=nr_rings {
         // ring_i is the starting index of the current ring, which is the index of it's first vertex
         // in the vertices vector
-        boundary.rings.push(LargeIndex::from(*ring_i));
+        boundary.rings.push(GeometryIndex::from(*ring_i));
         // Determine how many vertices does this ring have.
         let nr_vertices_usize =
             get_nr_items(min_linestring_len..=cjfake.max_members_multipoint, rng);
         let nr_vertices = IndexType::try_from(nr_vertices_usize).unwrap_or_default();
         // Generate the vertices for the ring and add them to the boundary
         boundary.vertices.extend((1..=nr_vertices).map(|_| {
-            let li: LargeIndex = IndexFaker::new(nr_vertices_citymodel).fake_with_rng(rng);
+            let li: GeometryIndex = IndexFaker::new(nr_vertices_citymodel).fake_with_rng(rng);
             li
         }));
         // Starting index of the next ring
@@ -1708,14 +1706,14 @@ impl<'cmbuild> Dummy<MultiPointFaker<'cmbuild>> for Boundary {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &MultiPointFaker, rng: &mut R) -> Self {
         let vf = IndexFaker::new(config.nr_vertices);
         // If the number of vertices is 0, create an empty range, which will cause
-        // LargeIndexVecFaker to generate an empty vector.
+        // GeometryIndicesFaker to generate an empty vector.
         let range_members_multipoint = if config.nr_vertices == 0 {
             config.nr_vertices + 1..=config.nr_vertices
         } else {
             config.cjfake.min_members_multipoint..=config.cjfake.max_members_multipoint
         };
         Boundary {
-            vertices: LargeIndexVecFaker {
+            vertices: GeometryIndicesFaker {
                 index_faker: vf,
                 range: range_members_multipoint,
             }
@@ -1728,22 +1726,22 @@ impl<'cmbuild> Dummy<MultiPointFaker<'cmbuild>> for Boundary {
     }
 }
 
-struct LargeIndexVecFaker {
+struct GeometryIndicesFaker {
     index_faker: IndexFaker,
     range: RangeInclusive<u32>,
 }
 
-impl Dummy<LargeIndexVecFaker> for LargeIndexVec {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &LargeIndexVecFaker, rng: &mut R) -> Self {
+impl Dummy<GeometryIndicesFaker> for GeometryIndices {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &GeometryIndicesFaker, rng: &mut R) -> Self {
         if config.range.is_empty() {
-            LargeIndexVec::default()
+            GeometryIndices::default()
         } else {
             let l: Vec<u32> = (
                 config.index_faker,
                 *config.range.start() as usize..*config.range.end() as usize,
             )
                 .fake_with_rng(rng);
-            LargeIndexVec::from(l)
+            GeometryIndices::from(l)
         }
     }
 }
@@ -1773,10 +1771,10 @@ impl Dummy<IndexFaker> for IndexType {
     }
 }
 
-impl Dummy<IndexFaker> for LargeIndex {
+impl Dummy<IndexFaker> for GeometryIndex {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &IndexFaker, rng: &mut R) -> Self {
         let vidx: IndexType = rng.gen_range(0..=config.max);
-        LargeIndex::from(vidx)
+        GeometryIndex::from(vidx)
     }
 }
 
@@ -2073,8 +2071,8 @@ fn fake_depth_three_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Size
     );
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let surfaces_values: Vec<OptionalLargeIndex> =
-        (idxf, boundary.surfaces.len()).fake_with_rng(rng);
+    let surfaces_values: Vec<OptionalGeometryIndex> =
+        (idxf, boundary.surfaces.len_usize()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -2103,8 +2101,8 @@ fn fake_depth_two_semantics<'cm: 'cmbuild, 'cmbuild, 'semfaker, R: Rng + ?Sized>
     );
     // semantics.values
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let surfaces_values: Vec<OptionalLargeIndex> =
-        (idxf, boundary.surfaces.len()).fake_with_rng(rng);
+    let surfaces_values: Vec<OptionalGeometryIndex> =
+        (idxf, boundary.surfaces.len_usize()).fake_with_rng(rng);
     (
         surfaces,
         LabelIndex {
@@ -2122,10 +2120,10 @@ fn fake_depth_one_semantics<'cm: 'cmbuild, 'cmbuild, R: Rng + ?Sized>(
     nr_members: IndexType,
     rng: &mut R,
     attributes: &'cmbuild Option<Attributes<'cm>>,
-) -> (Vec<Semantic<'cm>>, Vec<OptionalLargeIndex>) {
+) -> (Vec<Semantic<'cm>>, Vec<OptionalGeometryIndex>) {
     let (nr_semantic, surfaces) = fake_semantics_surfaces(cotype, nr_members, rng, attributes);
     let idxf = OptionalIndexFaker::new(nr_semantic, true);
-    let values: Vec<OptionalLargeIndex> = (idxf, nr_members as usize).fake_with_rng(rng);
+    let values: Vec<OptionalGeometryIndex> = (idxf, nr_members as usize).fake_with_rng(rng);
     (surfaces, values)
 }
 
@@ -2244,8 +2242,8 @@ impl OptionalIndexFaker {
     }
 }
 
-// todo: here i have to use Option<LargeIndex>, i cannot use the OptionalLargeIndex for some reason
-impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
+// todo: here i have to use Option<GeometryIndex>, i cannot use the OptionalGeometryIndex for some reason
+impl Dummy<OptionalIndexFaker> for Option<GeometryIndex> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &OptionalIndexFaker, rng: &mut R) -> Self {
         // Probability of having a semantic for the surface, instead of a null
         let prob = if config.allow_none { 0.8 } else { 1.0 };
@@ -2253,7 +2251,7 @@ impl Dummy<OptionalIndexFaker> for Option<LargeIndex> {
         let has_semantic = d.sample(&mut thread_rng());
         if has_semantic {
             let idx: IndexType = rng.gen_range(0..=config.max);
-            Some(LargeIndex::from(idx))
+            Some(GeometryIndex::from(idx))
         } else {
             None
         }
@@ -2551,8 +2549,8 @@ impl Dummy<MaterialMapFaker<'_>> for MaterialMap<'_> {
                         },
                     );
                 } else {
-                    let values: Vec<OptionalLargeIndex> =
-                        (oidxf, nr_surfaces..=nr_surfaces).fake_with_rng(rng);
+                    let values: Vec<OptionalGeometryIndex> =
+                        (oidxf, nr_surfaces as usize..=nr_surfaces as usize).fake_with_rng(rng);
                     // Only the surfaces vec contains the pointers to the Materials, shells and
                     // solids are just pointers to the boundary arrays. In case of
                     // Multi/CompositeSurface the empty Vec-s are cloned, for more complex geoms
@@ -2846,10 +2844,10 @@ impl Dummy<TextureMapFaker<'_>> for TextureMap<'_> {
                 OptionalIndexFaker::new(config.nr_vertices_texture - 1, config.allow_none);
             let mut texmap = TextureMap::new();
             for theme in &config.themes_texture {
-                let tex_indices: Vec<OptionalLargeIndex> =
-                    (tex_idx_faker, nr_rings..=nr_rings).fake_with_rng(rng);
-                let uv_coord_indices: Vec<OptionalLargeIndex> =
-                    (uv_idx_faker, nr_vertices..=nr_vertices).fake_with_rng(rng);
+                let tex_indices: Vec<OptionalGeometryIndex> =
+                    (tex_idx_faker, nr_rings as usize..=nr_rings as usize).fake_with_rng(rng);
+                let uv_coord_indices: Vec<OptionalGeometryIndex> =
+                    (uv_idx_faker, nr_vertices as usize..=nr_vertices as usize).fake_with_rng(rng);
                 let textureindex = TextureIndex {
                     vertices: uv_coord_indices,
                     rings: config.boundary.rings.clone(),

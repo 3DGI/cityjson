@@ -13,8 +13,13 @@ readme = "README.md"
 
 [[bin]]
 name = "cjfake"
+path = "src/main.rs"
 test = false
 bench = false
+
+[lib]
+name = "cjfake"
+path = "src/lib.rs"
 
 [dependencies]
 serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
