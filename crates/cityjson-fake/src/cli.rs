@@ -23,7 +23,7 @@ pub struct CJFakeConfig {
     pub max_cityobjects: IndexType,
 
     /// Whether to generate hierarchical CityObjects (parent-child relationships)
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     pub cityobject_hierarchy: bool,
 
     /// Minimum coordinate value for geometry vertices
@@ -127,7 +127,7 @@ pub struct CJFakeConfig {
     pub max_templates: IndexType,
 
     /// Generate GeometryInstances too
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     pub use_templates: bool,
 
     /// Allow null in the texture values
@@ -142,7 +142,7 @@ impl Default for CJFakeConfig {
             allowed_types_geometry: None,
             min_cityobjects: 1,
             max_cityobjects: 1,
-            cityobject_hierarchy: true,
+            cityobject_hierarchy: false,
             min_coordinate: i64::MIN,
             max_coordinate: i64::MAX,
             min_vertices: 8,
@@ -168,7 +168,7 @@ impl Default for CJFakeConfig {
             max_vertices_texture: 10,
             min_templates: 1,
             max_templates: 10,
-            use_templates: true,
+            use_templates: false,
             texture_allow_none: false,
         }
     }
@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(config.allowed_types_geometry, None);
         assert_eq!(config.min_cityobjects, 1);
         assert_eq!(config.max_cityobjects, 1);
-        assert_eq!(config.cityobject_hierarchy, true);
+        assert_eq!(config.cityobject_hierarchy, false);
         assert_eq!(config.min_coordinate, i64::MIN);
         assert_eq!(config.max_coordinate, i64::MAX);
         assert_eq!(config.min_vertices, 8);
@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(config.max_vertices_texture, 10);
         assert_eq!(config.min_templates, 1);
         assert_eq!(config.max_templates, 10);
-        assert_eq!(config.use_templates, true);
+        assert_eq!(config.use_templates, false);
         assert_eq!(config.texture_allow_none, false);
     }
 

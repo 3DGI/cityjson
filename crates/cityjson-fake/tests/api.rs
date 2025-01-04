@@ -4,12 +4,14 @@ use cjfake::{CJFakeConfig, CityModelBuilder, MaterialBuilder, MetadataBuilder, T
 use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::select;
+use proptest::test_runner::FileFailurePersistence;
 use serde_cityjson::v1_1::{CityModel, CityObjectType, GeometryType};
 
 /// Can we fake a valid CityJSON with the default parameters?
 #[test]
 fn default() {
     let cm: CityModel = CityModelBuilder::default().build();
+    assert_eq!(cm.cityobjects.len(), 1);
     let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
     common::validate(&cj_str, "api_default");
 }
@@ -17,7 +19,15 @@ fn default() {
 /// Can we fake a valid CityJSON with a seed?
 #[test]
 fn seed() {
-    let cm: CityModel = CityModelBuilder::new(CJFakeConfig::default(), Some(10)).build();
+    let cm: CityModel = CityModelBuilder::new(CJFakeConfig::default(), Some(10))
+        .metadata(None)
+        .vertices()
+        .materials(None)
+        .textures(None)
+        .attributes()
+        .cityobjects()
+        .build();
+    assert_eq!(cm.cityobjects.len(), 1);
     let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
     common::validate(&cj_str, "api_seed");
 }
@@ -50,7 +60,7 @@ fn custom_builders() {
     // Configure model generation
     let config = CJFakeConfig {
         min_cityobjects: 2,
-        max_cityobjects: 3,
+        max_cityobjects: 2,
         min_materials: 2,
         max_materials: 2,
         min_textures: 1,
@@ -71,12 +81,10 @@ fn custom_builders() {
         .cityobjects()
         .build();
 
-    // Validate the generated model
-    let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
-    common::validate(&cj_str, "api_custom_builders");
-
     // Additional specific assertions
     assert!(cm.metadata.is_some());
+
+    assert_eq!(cm.cityobjects.len(), 2);
 
     if let Some(ref appearance) = cm.appearance {
         // Check materials were generated
@@ -101,10 +109,19 @@ fn custom_builders() {
     }
 
     // Check that themes were generated
-    assert!(cm.appearance.unwrap().default_theme_material.is_some());
+    assert!(&cm
+        .appearance
+        .as_ref()
+        .unwrap()
+        .default_theme_material
+        .is_some());
+
+    // Validate the generated model
+    let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
+    common::validate(&cj_str, "api_custom_builders");
 }
 
-fn city_object_type_strategy() -> impl Strategy<Value = Vec<CityObjectType>> {
+fn city_object_type_strategy() -> impl Strategy<Value=Vec<CityObjectType>> {
     // Create all possible CityObjectTypes except Extension
     let types = vec![
         CityObjectType::Bridge,
@@ -145,7 +162,7 @@ fn city_object_type_strategy() -> impl Strategy<Value = Vec<CityObjectType>> {
     vec(select(types), 1..nr_types)
 }
 
-fn geometry_type_strategy() -> impl Strategy<Value = Vec<GeometryType>> {
+fn geometry_type_strategy() -> impl Strategy<Value=Vec<GeometryType>> {
     let types = vec![
         GeometryType::MultiPoint,
         GeometryType::MultiLineString,
@@ -161,7 +178,11 @@ fn geometry_type_strategy() -> impl Strategy<Value = Vec<GeometryType>> {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(100))]
+    #![proptest_config(ProptestConfig{
+        cases: 100,
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource("proptest-regressions"))),
+        ..Default::default()
+    })]
 
     /// Can we fake valid CityJSON with various parameters?
     #[test]
@@ -176,9 +197,11 @@ proptest! {
         max_vertices_texture in 4u32..10,
         use_templates in any::<bool>(),
     ) {
+        let min_cityobjects = 2u32;
+        let max_cityobjects = 2u32;
         let config = CJFakeConfig {
-            allowed_types_cityobject: Some(allowed_types_cityobject),
-            allowed_types_geometry: Some(allowed_types_geometry),
+            allowed_types_cityobject: Some(allowed_types_cityobject.clone()),
+            allowed_types_geometry: Some(allowed_types_geometry.clone()),
             cityobject_hierarchy,
             min_coordinate,
             max_coordinate,
@@ -186,13 +209,64 @@ proptest! {
             nr_themes_textures,
             max_vertices_texture,
             use_templates,
-            min_cityobjects: 2,
-            max_cityobjects: 2,
+            min_cityobjects,
+            max_cityobjects,
             ..Default::default()
         };
 
-        let cm: CityModel = CityModelBuilder::new(config, None).build();
+        let cm: CityModel = CityModelBuilder::new(config, None).metadata(None)
+            .vertices()
+            .materials(None)
+            .textures(None)
+            .attributes()
+            .cityobjects().build();
         let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
         common::validate(&cj_str, "api_fuzz");
+
+        // ----- Assertions -----
+        // 1. Vertex coordinate range check
+        for vertex in &cm.vertices {
+            assert_eq!(vertex.len(), 3);
+            for coord in vertex.iter() {
+                let coord = *coord as i64; // Ensure comparison works with i64 bounds
+                assert!(coord >= min_coordinate && coord <= max_coordinate, "Vertex coordinate out of configured range");
+            }
+        }
+
+        // 2. CityObject type is allowed
+        for (id, cityobject) in cm.cityobjects.iter() {
+            assert!(
+                allowed_types_cityobject.contains(&cityobject.type_co),
+                "CityObject (ID: {}) type {:?} is not allowed",
+                id,
+                cityobject.type_co
+            );
+
+            if let Some(ref geometry) = cityobject.geometry {
+                for geom in geometry {
+                    assert!(
+                    allowed_types_geometry.contains(&geom.type_),
+                    "Geometry type {:?} is not allowed",
+                    geom.type_
+                );
+                }
+            }
+        }
+
+        // 4. Verify themes (materials and textures)
+        if let Some(appearance) = cm.appearance {
+            // Validate the number of materials themes
+            if let Some(materials) = appearance.materials {
+                assert!(materials.len() <= nr_themes_materials as usize);
+            }
+
+            // Validate the number of texture themes
+            if let Some(textures) = appearance.textures {
+                assert!(textures.len() <= nr_themes_textures as usize);
+            }
+        }
+
+        // Ensure CityModel contains at least the configured number of city objects
+        assert!(cm.cityobjects.len() >= min_cityobjects as usize && cm.cityobjects.len() <= max_cityobjects as usize, "CityObjects count is out of configured range");
     }
 }
