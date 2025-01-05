@@ -25,7 +25,6 @@ use crate::boundary::{
 };
 #[cfg(feature = "datasize")]
 use crate::datasize::sizeof_attributes_option;
-use crate::errors::{Error, Result};
 use crate::indices::{GeometryIndex, OptionalGeometryIndex};
 use crate::labels;
 
@@ -85,9 +84,9 @@ pub struct CityModel<'cm> {
     #[serde(borrow, skip_serializing_if = "Option::is_none")]
     pub id: Option<Cow<'cm, str>>,
     #[serde(rename = "type")]
-    pub type_cm: CityModelType,
+    pub type_cm: crate::CityModelType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<CityJSONVersion>,
+    pub version: Option<crate::CityJSONVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transform: Option<Transform>,
     #[serde(borrow, rename = "CityObjects")]
@@ -110,27 +109,6 @@ pub struct CityModel<'cm> {
     pub extra: Option<Attributes<'cm>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Extensions>,
-}
-
-/// Version of the CityJSON specifications used for this city model. This module is only for
-/// version `1.1`, thus there is only one version available.
-#[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize)]
-#[serde(tag = "version", try_from = "String", into = "String")]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub enum CityJSONVersion {
-    #[default]
-    V1_1,
-}
-
-/// CityModel type.
-///
-/// Marks if the [CityModel] represents a CityJSON object or a CityJSONFeature object.
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[cfg_attr(feature = "datasize", derive(DataSize))]
-pub enum CityModelType {
-    #[default]
-    CityJSON,
-    CityJSONFeature,
 }
 
 /// Transform.
@@ -1468,8 +1446,8 @@ pub struct Extension {
 impl<'cm> CityModel<'cm> {
     pub fn new(
         id: Option<Cow<'cm, str>>,
-        type_cm: Option<CityModelType>,
-        version: Option<CityJSONVersion>,
+        type_cm: Option<crate::CityModelType>,
+        version: Option<crate::CityJSONVersion>,
         transform: Option<Transform>,
         cityobjects: Option<CityObjects<'cm>>,
         vertices: Option<Vertices>,
@@ -1499,8 +1477,8 @@ impl<'cm> Default for CityModel<'cm> {
     fn default() -> Self {
         Self {
             id: None,
-            type_cm: CityModelType::CityJSON,
-            version: Some(CityJSONVersion::V1_1),
+            type_cm: crate::CityModelType::CityJSON,
+            version: Some(crate::CityJSONVersion::V1_1),
             transform: Some(Transform::default()),
             cityobjects: Default::default(),
             vertices: vec![],
@@ -1509,69 +1487,6 @@ impl<'cm> Default for CityModel<'cm> {
             geometry_templates: None,
             extra: None,
             extensions: None,
-        }
-    }
-}
-
-impl CityJSONVersion {
-    fn _from_str(value: &str) -> Result<CityJSONVersion> {
-        match value {
-            "1.1" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
-            _ => Err(Error::UnsupportedVersion(
-                value.to_string(),
-                "1.1, 1.1.1, 1.1.2, 1.1.3".to_string(),
-            )),
-        }
-    }
-}
-
-impl Display for CityJSONVersion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            CityJSONVersion::V1_1 => {
-                write!(f, "1.1")
-            }
-        }
-    }
-}
-
-impl TryFrom<&str> for CityJSONVersion {
-    type Error = Error;
-
-    fn try_from(value: &str) -> Result<Self> {
-        CityJSONVersion::_from_str(value)
-    }
-}
-
-impl TryFrom<String> for CityJSONVersion {
-    type Error = Error;
-
-    fn try_from(value: String) -> Result<Self> {
-        CityJSONVersion::_from_str(value.as_ref())
-    }
-}
-
-/// This implementation is only used for serializing the CityJSON version, because serde cannot
-/// serialize from 'try_into' (which is provided by the 'try_from' implementations).
-/// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
-#[allow(clippy::from_over_into)]
-impl Into<String> for CityJSONVersion {
-    fn into(self) -> String {
-        match self {
-            CityJSONVersion::V1_1 => String::from("1.1"),
-        }
-    }
-}
-
-impl Display for CityModelType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            CityModelType::CityJSON => {
-                write!(f, "CityJSON")
-            }
-            CityModelType::CityJSONFeature => {
-                write!(f, "CityJSONFeature")
-            }
         }
     }
 }

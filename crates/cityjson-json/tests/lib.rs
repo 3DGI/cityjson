@@ -28,7 +28,7 @@ fn from_str_cityjson_v1_1() {
     let cityjson = from_str(json_input.as_str()).unwrap();
     match cityjson {
         CityJSON::V1_1(cm) => {
-            assert_eq!(cm.version.unwrap(), serde_cityjson::v1_1::CityJSONVersion::V1_1);
+            assert_eq!(cm.version.unwrap(), serde_cityjson::CityJSONVersion::V1_1);
         }
         CityJSON::V2_0(_) => {panic!("CityJSON should be v1.1");}
     }
