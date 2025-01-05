@@ -279,9 +279,13 @@
 //!
 //!
 //!
+use crate::errors::Error;
+#[cfg(feature = "datasize")]
+use datasize::DataSize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
-
-use serde::Deserialize;
+use std::fmt::{Display, Formatter};
+use std::path::Path;
 
 pub mod attributes;
 pub mod boundary;
@@ -294,9 +298,63 @@ pub mod labels;
 pub mod v1_1;
 pub mod v2_0;
 
+/// A register of what file extensions are supported.
+/// It allows comparison for equality with an [`std::ffi::OsStr`](std::ffi::OsStr), which we get when working with
+/// [`std::path::Path`](Path)s.
+/// There are two concepts that are important in this implementation,
+/// [associated constants](https://doc.rust-lang.org/reference/items/associated-items.html#associated-constants)
+/// and the [non_exhaustive attribute](https://doc.rust-lang.org/reference/attributes/type_system.html#the-non_exhaustive-attribute)
+/// which indicates that this type may have more fields or variants added in the future.
+///
+///
+/// Alternative implementations that I considered:
+///
+/// The array of strings. However, I need to distinguish between 'json' and 'jsonl' and probably
+/// other extensions in the future too. Thus, a simple containment test is not enough.
+/// ```
+/// static SUPPORTED_FILE_EXTENSION: [&str; 3] = [ "json", "cityjson", "jsonl" ];
+/// let extension_of_input_file = "json";
+/// let does_contain = SUPPORTED_FILE_EXTENSION.contains(&extension_of_input_file);
+/// ```
+///
+/// An enum. While it achieves the same purpose as the struct implementation, it is much more
+/// verbose.
+/// ```
+/// use std::ffi::OsStr;
+///
+/// #[derive(Debug, Copy, Clone)]
+/// enum SupportedFileExtension {
+///     Json,
+///     CityJson,
+///     Jsonl,
+/// }
+///
+/// impl From<&SupportedFileExtension> for &str {
+///     fn from(value: &SupportedFileExtension) -> Self {
+///         match value {
+///             SupportedFileExtension::Json => "json",
+///             SupportedFileExtension::CityJson => "cityjson",
+///             SupportedFileExtension::Jsonl => "jsonl",
+///         }
+///     }
+/// }
+///
+/// impl SupportedFileExtension {
+///     fn print_all() -> String {
+///         format!("{:?}, {:?}, {:?}", Self::Json, Self::CityJson, Self::Jsonl).to_lowercase()
+///     }
+/// }
+///
+/// impl PartialEq<&OsStr> for SupportedFileExtension {
+///     fn eq(&self, other: &&OsStr) -> bool {
+///         let a: &str = self.into();
+///         *other == a
+///     }
+/// }
+/// ```
 #[non_exhaustive]
 #[derive(Debug)]
-struct SupportedFileExtension;
+pub struct SupportedFileExtension;
 
 impl SupportedFileExtension {
     pub const JSON: &'static str = "json";
@@ -317,32 +375,168 @@ impl fmt::Display for SupportedFileExtension {
 }
 
 #[derive(Deserialize)]
-struct CityJSONVersionString {
-    version: String,
+struct TypeAndVersion {
+    #[serde(rename = "type")]
+    type_model: CityModelType,
+    version: Option<CityJSONVersion>,
+}
+
+/// CityModel type.
+///
+/// Marks if the [CityModel] represents a CityJSON object or a CityJSONFeature object.
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
+pub enum CityModelType {
+    #[default]
+    CityJSON,
+    CityJSONFeature,
+}
+
+impl Display for CityModelType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self {
+            CityModelType::CityJSON => {
+                write!(f, "CityJSON")
+            }
+            CityModelType::CityJSONFeature => {
+                write!(f, "CityJSONFeature")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize)]
+#[serde(tag = "version", try_from = "String", into = "String")]
+pub enum CityJSONVersion {
+    V1_0,
+    #[default]
+    V1_1,
+    V2_0,
+}
+
+impl CityJSONVersion {
+    fn _from_str(value: &str) -> errors::Result<CityJSONVersion> {
+        match value {
+            "1.0" | "1.0.0" | "1.0.1" | "1.0.2" | "1.0.3" => Ok(CityJSONVersion::V1_0),
+            "1.1" | "1.1.0" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
+            "2.0" | "2.0.0" | "2.0.1" => Ok(CityJSONVersion::V2_0),
+            _ => Err(Error::UnsupportedVersion(
+                value.to_string(),
+                "1.0, 1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.1, 1.1.0, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0, 2.0.1".to_string(),
+            )),
+        }
+    }
+}
+
+impl Display for CityJSONVersion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self {
+            CityJSONVersion::V1_0 => {
+                write!(f, "1.0")
+            }
+            CityJSONVersion::V1_1 => {
+                write!(f, "1.1")
+            }
+            CityJSONVersion::V2_0 => {
+                write!(f, "2.0")
+            }
+        }
+    }
+}
+
+impl TryFrom<&str> for CityJSONVersion {
+    type Error = Error;
+
+    fn try_from(value: &str) -> errors::Result<Self> {
+        CityJSONVersion::_from_str(value)
+    }
+}
+
+impl TryFrom<String> for CityJSONVersion {
+    type Error = Error;
+
+    fn try_from(value: String) -> errors::Result<Self> {
+        CityJSONVersion::_from_str(value.as_ref())
+    }
+}
+
+/// This implementation is only used for serializing the CityJSON version, because serde cannot
+/// serialize from 'try_into' (which is provided by the 'try_from' implementations).
+/// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
+#[allow(clippy::from_over_into)]
+impl Into<String> for CityJSONVersion {
+    fn into(self) -> String {
+        match self {
+            CityJSONVersion::V1_0 => String::from("1.0"),
+            CityJSONVersion::V1_1 => String::from("1.1"),
+            CityJSONVersion::V2_0 => String::from("2.0"),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum CityJSON<'cm> {
     V1_1(v1_1::CityModel<'cm>),
-    V2_0(v1_1::CityModel<'cm>),
+    V2_0(v2_0::CityModel<'cm>),
 }
 
 pub fn from_str(cj: &str) -> errors::Result<CityJSON> {
-    let cm: CityJSONVersionString = serde_json::from_str(cj)?;
-    match cm.version.as_str() {
-        "1.0" | "1.0.0" | "1.0.1" | "1.0.2" | "1.0.3" => {
-            todo!()
+    let type_version: TypeAndVersion = serde_json::from_str(cj)?;
+    match type_version.type_model {
+        CityModelType::CityJSON => {
+            if let Some(version) = type_version.version {
+                match version {
+                    CityJSONVersion::V1_0 => {
+                        todo!()
+                    }
+                    CityJSONVersion::V1_1 => {
+                        let cm = serde_json::from_str::<v1_1::CityModel>(cj)?;
+                        Ok(CityJSON::V1_1(cm))
+                    }
+                    CityJSONVersion::V2_0 => {
+                        todo!()
+                    }
+                }
+            } else {
+                Err(Error::MalformedCityJSON(
+                    serde::de::Error::custom("CityJSON object must contain a version member"),
+                    None,
+                ))
+            }
         }
-        "1.1" | "1.1.0" | "1.1.1" | "1.1.2" | "1.1.3" => {
-            let cm = serde_json::from_str::<v1_1::CityModel>(cj)?;
-            Ok(CityJSON::V1_1(cm))
+        CityModelType::CityJSONFeature => feature_form_str(cj, &CityJSONVersion::V2_0),
+    }
+}
+
+pub fn feature_form_str<'a>(cf: &'a str, version: &'a CityJSONVersion) -> errors::Result<CityJSON<'a>> {
+    match version {
+        CityJSONVersion::V2_0 => {
+            if let Ok(cm) = serde_json::from_str::<v2_0::CityModel>(cf) {
+                Ok(CityJSON::V2_0(cm))
+            } else if let Ok(cm) = serde_json::from_str::<v1_1::CityModel>(cf) {
+                Ok(CityJSON::V1_1(cm))
+            } else {
+                Err(Error::ExpectedCityJSONFeature("could not deserialize object as CityJSONFeature with CityJSON version 1.1 or 2.0".to_string()))
+            }
         }
-        "2.0" | "2.0.0" => {
-            todo!()
+        CityJSONVersion::V1_1 => {
+            if let Ok(cm) = serde_json::from_str::<v1_1::CityModel>(cf) {
+                Ok(CityJSON::V1_1(cm))
+            } else if let Ok(cm) = serde_json::from_str::<v2_0::CityModel>(cf) {
+                Ok(CityJSON::V2_0(cm))
+            } else {
+                Err(Error::ExpectedCityJSONFeature("could not deserialize object as CityJSONFeature with CityJSON version 1.1 or 2.0".to_string()))
+            }
         }
-        _ => Err(errors::Error::UnsupportedVersion(
-            cm.version,
-            "1.1, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0".to_string(),
+        CityJSONVersion::V1_0 => Err(Error::UnsupportedVersion(
+            "1.1, 2.0".to_string(),
+            "1.0".to_string(),
         )),
+    }
+}
+
+impl From<v1_1::CityModel<'_>> for v2_0::CityModel<'_> {
+    fn from(value: v1_1::CityModel) -> Self {
+        todo!()
     }
 }
