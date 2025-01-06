@@ -1,12 +1,12 @@
 //! When operations on city models go wrong.
-use crate::{CityModelType, SupportedFileExtension};
+use serde_cityjson::SupportedFileExtension;
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
 pub enum Error {
-    ExpectedCityJSON(CityModelType),
-    ExpectedCityJSONFeature(CityModelType),
+    ExpectedCityJSON(String),
+    ExpectedCityJSONFeature(String),
     InvalidExtension(PathBuf),
     Io(std::io::Error),
     MalformedCityJSON(serde_json::Error, Option<serde_json::Value>), // Some(_) if JSON was syntactically valid
@@ -89,6 +89,37 @@ impl From<serde_json::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+impl From<serde_cityjson::errors::Error> for Error {
+    fn from(err: serde_cityjson::errors::Error) -> Self {
+        use serde_cityjson::errors::Error as CityjsonError;
+
+        match err {
+            CityjsonError::UnsupportedVersion(ver, supported) => {
+                Error::UnsupportedVersion(ver, supported)
+            }
+            CityjsonError::IncompatibleBoundary(source, target) => Error::MalformedCityJSON(
+                serde::de::Error::custom(format!(
+                    "incompatible boundary: cannot convert {} boundary to {}",
+                    source, target
+                )),
+                None,
+            ),
+            CityjsonError::ExpectedCityJSON(type_str) => Error::ExpectedCityJSON(type_str),
+            CityjsonError::ExpectedCityJSONFeature(type_str) => {
+                Error::ExpectedCityJSONFeature(type_str)
+            }
+            CityjsonError::InvalidExtension(path) => Error::InvalidExtension(path),
+            CityjsonError::Io(err) => Error::Io(err),
+            CityjsonError::MalformedCityJSON(json_err, value) => {
+                Error::MalformedCityJSON(json_err, value)
+            }
+            CityjsonError::MetadataError(msg) => Error::MetadataError(msg),
+            CityjsonError::StreamingError(msg) => Error::StreamingError(msg),
+            CityjsonError::UnsupportedExtension => Error::UnsupportedExtension,
+        }
     }
 }
 

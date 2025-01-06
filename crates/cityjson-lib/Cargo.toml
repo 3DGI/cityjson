@@ -4,15 +4,20 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.64"
 include = ["/resources"]
-exclude = ["/tests/output/*.json"]
+exclude = ["/tests/output"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "cjlib"
+path = "src/lib.rs"
 
 [dependencies]
 serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+once_cell = "1.20.2"
 
-[lib]
-name = "cjlib"
-path = "src/lib.rs"
+[dev-dependencies]
+cjval = "0.8.1"
+pretty_assertions = "1.4.1"
