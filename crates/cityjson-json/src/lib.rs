@@ -285,7 +285,6 @@ use datasize::DataSize;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::path::Path;
 
 pub mod attributes;
 pub mod boundary;
@@ -405,7 +404,7 @@ impl Display for CityModelType {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize)]
+#[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize, PartialOrd, Ord)]
 #[serde(tag = "version", try_from = "String", into = "String")]
 pub enum CityJSONVersion {
     V1_0,
@@ -536,7 +535,7 @@ pub fn feature_form_str<'a>(cf: &'a str, version: &'a CityJSONVersion) -> errors
 }
 
 impl From<v1_1::CityModel<'_>> for v2_0::CityModel<'_> {
-    fn from(value: v1_1::CityModel) -> Self {
+    fn from(_: v1_1::CityModel) -> Self {
         todo!()
     }
 }

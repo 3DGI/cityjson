@@ -128,7 +128,7 @@ pub struct CityModel<'cm> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Transform {
     pub scale: [f64; 3],
