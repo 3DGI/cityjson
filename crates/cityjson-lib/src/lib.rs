@@ -72,7 +72,7 @@ impl CityModel {
         Ok(Self {
             extensions: cm.extensions.map(|e| Extensions::from(e)),
             id: cm.id.map(|cow| cow.into_owned()),
-            transform: cm.transform.map(|t| Transform(t)),
+            transform: cm.transform.map(|t| Transform::from(t)),
             type_model: cm.type_cm,
             version: cm.version,
         })
@@ -282,27 +282,39 @@ impl Extension {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Transform(v1_1::Transform);
+pub struct Transform {
+    scale: [f64; 3],
+    translate: [f64; 3],
+}
 
 impl Transform {
     pub fn new(scale: [f64; 3], translate: [f64; 3]) -> Self {
-        Self(v1_1::Transform { scale, translate })
-    }
-
-    pub fn set_scale(&mut self, scale: [f64; 3]) {
-        self.0.scale = scale;
-    }
-
-    pub fn set_translate(&mut self, translate: [f64; 3]) {
-        self.0.translate = translate;
+        Self { scale, translate }
     }
 
     pub fn scale(&self) -> &[f64; 3] {
-        &self.0.scale
+        &self.scale
     }
 
     pub fn translate(&self) -> &[f64; 3] {
-        &self.0.translate
+        &self.translate
+    }
+
+    pub fn set_scale(&mut self, scale: [f64; 3]) {
+        self.scale = scale;
+    }
+
+    pub fn set_translate(&mut self, translate: [f64; 3]) {
+        self.translate = translate;
+    }
+}
+
+impl From<v1_1::Transform> for Transform {
+    fn from(transform: v1_1::Transform) -> Self {
+        Self {
+            scale: transform.scale,
+            translate: transform.translate,
+        }
     }
 }
 
@@ -311,7 +323,7 @@ impl fmt::Display for Transform {
         write!(
             f,
             "Transform(scale: {:?}, translate: {:?})",
-            self.0.scale, self.0.translate
+            self.scale, self.translate
         )
     }
 }

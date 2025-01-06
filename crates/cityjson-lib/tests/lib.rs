@@ -57,47 +57,27 @@ fn test_version_get_set() {
 }
 
 #[test]
-fn test_transform_get_set() {
-    let mut cm = CityModel::default();
-    assert!(cm.transform().is_none());
-
-    let transform = Transform::new([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]);
-    cm.set_transform(&transform);
-    assert_eq!(cm.transform(), Some(&transform));
-}
-
-#[test]
-fn test_transform_new() {
+fn test_transform() {
+    // Test Transform construction and getters
     let scale = [1.0, 1.0, 1.0];
     let translate = [0.0, 0.0, 0.0];
-    let transform = Transform::new(scale, translate);
-
+    let mut transform = Transform::new(scale, translate);
     assert_eq!(transform.scale(), &scale);
     assert_eq!(transform.translate(), &translate);
-}
 
-#[test]
-fn test_transform_set_scale() {
-    let scale = [1.0, 1.0, 1.0];
-    let translate = [0.0, 0.0, 0.0];
-    let mut transform = Transform::new(scale, translate);
-
+    // Test setters
     let new_scale = [2.0, 2.0, 2.0];
-    transform.set_scale(new_scale);
-
-    assert_eq!(transform.scale(), &new_scale);
-}
-
-#[test]
-fn test_transform_set_translate() {
-    let scale = [1.0, 1.0, 1.0];
-    let translate = [0.0, 0.0, 0.0];
-    let mut transform = Transform::new(scale, translate);
-
     let new_translate = [5.0, 5.0, 5.0];
+    transform.set_scale(new_scale);
     transform.set_translate(new_translate);
-
+    assert_eq!(transform.scale(), &new_scale);
     assert_eq!(transform.translate(), &new_translate);
+
+    // Test Transform in CityModel
+    let mut cm = CityModel::default();
+    assert!(cm.transform().is_none());
+    cm.set_transform(&transform);
+    assert_eq!(cm.transform(), Some(&transform));
 }
 
 #[test]
