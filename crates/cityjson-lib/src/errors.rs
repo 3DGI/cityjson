@@ -66,8 +66,10 @@ impl Display for Error {
             Error::UnsupportedExtension => {
                 write!(
                     f,
-                    "the file extension should be one of {}",
-                    SupportedFileExtension
+                    "the file extension should be one of {}, {}, {}",
+                    SupportedFileExtension::CITYJSON,
+                    SupportedFileExtension::JSONL,
+                    SupportedFileExtension::JSON
                 )
             }
         }

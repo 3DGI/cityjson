@@ -1,11 +1,37 @@
 pub mod errors;
 
-use errors::{Error, Result};
+use errors::Result;
 use serde_cityjson::v1_1;
 use serde_cityjson::{from_str, CityJSON};
 use std::fmt;
 use std::io::BufRead;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
+
+pub use serde_cityjson::{CityJSONVersion, CityModelType};
+
+#[test]
+fn citymodel_from_str_minimal() {
+    let cityjson_str = r#"{
+      "type": "CityJSON",
+      "version": "1.1",
+      "extensions": {},
+      "transform": {
+        "scale": [ 1.0, 1.0, 1.0 ],
+        "translate": [ 0.0, 0.0, 0.0 ]
+      },
+      "metadata": {},
+      "CityObjects": {},
+      "vertices": [],
+      "appearance": {},
+      "geometry-templates": {
+        "templates": [],
+        "vertices-templates": []
+      }
+    }"#;
+    let cm = CityModel::from_str(cityjson_str).unwrap();
+    println!("{cm}");
+}
 
 pub struct CityModel {
     id: Option<String>,
@@ -16,10 +42,10 @@ pub struct CityModel {
 }
 
 impl CityModel {
-    pub fn new() -> Self {
+    pub fn new(type_model: CityModelType) -> Self {
         Self {
             id: None,
-            type_model: CityModelType(serde_cityjson::CityModelType::default()),
+            type_model,
             version: None,
             transform: None,
             extensions: None,
@@ -27,7 +53,7 @@ impl CityModel {
     }
 
     /// Deserialize a CityJSON object from a `&[u8]`.
-    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
+    pub fn from_slice(_bytes: &[u8]) -> Result<Self> {
         todo!()
     }
 
@@ -39,14 +65,14 @@ impl CityModel {
                 // todo: v2_0::CityModel::from(cm)
                 cm
             }
-            CityJSON::V2_0(cm) => {
+            CityJSON::V2_0(_cm) => {
                 todo!()
             }
         };
         Ok(Self {
             id: cm.id.map(|cow| cow.into_owned()),
-            type_model: CityModelType(cm.type_cm),
-            version: cm.version.map(|v| CityJSONVersion(v)),
+            type_model: cm.type_cm,
+            version: cm.version,
             transform: cm.transform.map(|t| Transform(t)),
             extensions: cm.extensions.map(|e| Extensions(e)),
         })
@@ -55,13 +81,13 @@ impl CityModel {
     /// Deserialize a CityJSON object or CityJSONFeatures from a file.
     /// If the file contains CityJSONFeatures, the first JSON object is expected to be a
     /// CityJSON object.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(_path: P) -> Result<Self> {
         todo!();
     }
 
     /// Create a CityModel from a stream of CityJSONFeatures, aggregating them into the CityModel's
     /// CityObjects. Assumes that the first item in the stream is a CityJSON object.
-    pub fn from_stream<R>(cursor: R) -> Result<Self>
+    pub fn from_stream<R>(_cursor: R) -> Result<Self>
     where
         R: BufRead,
     {
@@ -72,7 +98,7 @@ impl CityModel {
         &self.version
     }
 
-    fn set_version(&mut self, version: CityJSONVersion) {
+    pub fn set_version(&mut self, version: CityJSONVersion) {
         self.version = Some(version);
     }
 
@@ -89,8 +115,8 @@ impl Default for CityModel {
     fn default() -> Self {
         Self {
             id: None,
-            type_model: CityModelType(serde_cityjson::CityModelType::default()),
-            version: Some(CityJSONVersion(serde_cityjson::CityJSONVersion::default())),
+            type_model: CityModelType::default(),
+            version: Some(CityJSONVersion::default()),
             transform: None,
             extensions: None,
         }
@@ -108,13 +134,20 @@ impl fmt::Debug for CityModel {
 
 impl fmt::Display for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(\n\tversion: {}\n\tnr. cityobjects: )", &self.version)
+        write!(
+            f,
+            "(\n\tversion: {}\n\tnr. cityobjects: \n)",
+            format_version_option(&self.version)
+        )
     }
 }
 
-pub struct CityModelType(serde_cityjson::CityModelType);
-
-pub struct CityJSONVersion(serde_cityjson::CityJSONVersion);
+fn format_version_option(version: &Option<CityJSONVersion>) -> String {
+    version
+        .as_ref()
+        .map(|v| v.to_string())
+        .unwrap_or("None".to_string())
+}
 
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct Extensions(v1_1::Extensions);

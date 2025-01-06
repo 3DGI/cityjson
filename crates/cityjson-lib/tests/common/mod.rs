@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use cjval::CJValidator;
-use once_cell::unsync::Lazy;
+use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
