@@ -5,7 +5,6 @@ use serde_cityjson::v1_1;
 use serde_cityjson::{from_str, CityJSON};
 use std::fmt;
 use std::io::BufRead;
-use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 pub use serde_cityjson::{CityJSONVersion, CityModelType};
@@ -34,21 +33,21 @@ fn citymodel_from_str_minimal() {
 }
 
 pub struct CityModel {
+    extensions: Option<Extensions>,
     id: Option<String>,
+    transform: Option<Transform>,
     type_model: CityModelType,
     version: Option<CityJSONVersion>,
-    transform: Option<Transform>,
-    extensions: Option<Extensions>,
 }
 
 impl CityModel {
     pub fn new(type_model: CityModelType) -> Self {
         Self {
+            extensions: None,
             id: None,
+            transform: None,
             type_model,
             version: None,
-            transform: None,
-            extensions: None,
         }
     }
 
@@ -70,11 +69,11 @@ impl CityModel {
             }
         };
         Ok(Self {
+            extensions: cm.extensions.map(|e| Extensions(e)),
             id: cm.id.map(|cow| cow.into_owned()),
+            transform: cm.transform.map(|t| Transform(t)),
             type_model: cm.type_cm,
             version: cm.version,
-            transform: cm.transform.map(|t| Transform(t)),
-            extensions: cm.extensions.map(|e| Extensions(e)),
         })
     }
 
@@ -107,18 +106,18 @@ impl CityModel {
     }
 
     pub fn set_transform(&mut self, transform: &Transform) {
-        self.transform = Some(*transform);
+        self.transform = Some(transform.clone());
     }
 }
 
 impl Default for CityModel {
     fn default() -> Self {
         Self {
+            extensions: None,
             id: None,
+            transform: None,
             type_model: CityModelType::default(),
             version: Some(CityJSONVersion::default()),
-            transform: None,
-            extensions: None,
         }
     }
 }
@@ -126,8 +125,11 @@ impl Default for CityModel {
 impl fmt::Debug for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CityModel")
-            .field("version", &self.version)
+            .field("extensions", &self.extensions)
+            .field("id", &self.id)
             .field("transform", &self.transform)
+            .field("type_model", &self.type_model)
+            .field("version", &self.version)
             .finish()
     }
 }
@@ -136,8 +138,9 @@ impl fmt::Display for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(\n\tversion: {}\n\tnr. cityobjects: \n)",
-            format_version_option(&self.version)
+            "(\n\tversion: {}\n\tnr. cityobjects: \n\ttransform: {}\n)",
+            format_version_option(&self.version),
+            format_transform_option(&self.transform)
         )
     }
 }
@@ -149,11 +152,50 @@ fn format_version_option(version: &Option<CityJSONVersion>) -> String {
         .unwrap_or("None".to_string())
 }
 
+fn format_transform_option(transform: &Option<Transform>) -> String {
+    transform
+        .as_ref()
+        .map(|t| t.to_string())
+        .unwrap_or("None".to_string())
+}
+
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct Extensions(v1_1::Extensions);
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Extension(v1_1::Extension);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transform(v1_1::Transform);
+
+impl Transform {
+    pub fn new(scale: [f64; 3], translate: [f64; 3]) -> Self {
+        Self(v1_1::Transform { scale, translate })
+    }
+
+    pub fn set_scale(&mut self, scale: [f64; 3]) {
+        self.0.scale = scale;
+    }
+
+    pub fn set_translate(&mut self, translate: [f64; 3]) {
+        self.0.translate = translate;
+    }
+
+    pub fn scale(&self) -> &[f64; 3] {
+        &self.0.scale
+    }
+
+    pub fn translate(&self) -> &[f64; 3] {
+        &self.0.translate
+    }
+}
+
+impl fmt::Display for Transform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Transform(scale: {:?}, translate: {:?})",
+            self.0.scale, self.0.translate
+        )
+    }
+}
