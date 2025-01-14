@@ -7,6 +7,7 @@
 Cargo.lock
 /experiments/.ipynb_checkpoints/
 /experiments/*/target/
+site
 
 # Profiling
 /experiments/profiling/massif*
