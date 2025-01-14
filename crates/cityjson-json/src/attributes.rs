@@ -60,6 +60,11 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json_borrow::Value;
 use std::fmt::{Display, Formatter};
 
+// NOTE OPTIMIZATION:
+// - Consider using `smallvec` for small arrays/objects
+// - Add capacity hints for iterators
+// - Consider adding a compact representation for small string values
+
 /// Represents CityJSON attributes that can be either borrowed or owned.
 ///
 /// - `Borrowed` variant uses zero-copy deserialization with [`serde_json_borrow::Value`]
@@ -284,7 +289,7 @@ impl<'cm> Iterator for AttributesObjectIter<'cm> {
 }
 
 /// A reference type that mirrors Attributes but holds references
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AttributesRef<'cm> {
     Borrowed(&'cm Value<'cm>),
     Owned(&'cm serde_json::Value),
@@ -352,6 +357,16 @@ impl<'cm> AttributesRef<'cm> {
         match self {
             Self::Borrowed(v) => v.as_i64(),
             Self::Owned(v) => v.as_i64(),
+        }
+    }
+}
+
+impl<'cm> PartialEq for AttributesRef<'cm> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Borrowed(a), Self::Borrowed(b)) => a == b,
+            (Self::Owned(a), Self::Owned(b)) => a == b,
+            _ => false,
         }
     }
 }
