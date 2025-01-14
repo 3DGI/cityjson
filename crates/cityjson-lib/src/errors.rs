@@ -5,6 +5,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
 pub enum Error {
+    AttributeConversionError(String),
     ExpectedCityJSON(String),
     ExpectedCityJSONFeature(String),
     InvalidExtension(PathBuf),
@@ -21,6 +22,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Error::AttributeConversionError(s) => {
+                write!(f, "{}", s)
+            }
             Error::ExpectedCityJSON(t) => {
                 write!(f, "the CityModel type should be CityJSON, but got {}", t)
             }
