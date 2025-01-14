@@ -129,6 +129,13 @@ impl<'cm> Attributes<'cm> {
         }
     }
 
+    pub fn is_null(&self) -> bool {
+        match self {
+            Self::Borrowed(v) => v.is_null(),
+            Self::Owned(v) => v.is_null(),
+        }
+    }
+
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::Borrowed(v) => v.as_str(),
