@@ -359,6 +359,38 @@ impl<'cm> AttributesRef<'cm> {
             Self::Owned(v) => v.as_i64(),
         }
     }
+
+    /// Returns an iterator over array elements as references
+    pub fn array_iter(&'cm self) -> AttributesArrayIter<'cm> {
+        // Static empty Vec to avoid temporary allocation issues
+        static EMPTY_VEC: Vec<serde_json::Value> = Vec::new();
+        match self {
+            Self::Borrowed(v) => AttributesArrayIter::Borrowed(v.as_array().unwrap_or(&[]).iter()),
+            Self::Owned(v) => AttributesArrayIter::Owned(v.as_array().unwrap_or(&EMPTY_VEC).iter()),
+        }
+    }
+
+    /// Returns an iterator over object key-value pairs as references
+    pub fn object_iter(&'cm self) -> AttributesObjectIter<'cm> {
+        match self {
+            Self::Borrowed(v) => {
+                if let Some(obj) = v.as_object() {
+                    AttributesObjectIter::Borrowed(Box::new(
+                        obj.iter().map(|(k, v)| (k, AttributesRef::Borrowed(v))),
+                    ))
+                } else {
+                    AttributesObjectIter::Borrowed(Box::new(std::iter::empty()))
+                }
+            }
+            Self::Owned(v) => match v.as_object() {
+                Some(obj) => AttributesObjectIter::Owned(Box::new(
+                    obj.iter()
+                        .map(|(k, v)| (k.as_ref(), AttributesRef::Owned(v))),
+                )),
+                None => AttributesObjectIter::Owned(Box::new(std::iter::empty())),
+            },
+        }
+    }
 }
 
 impl<'cm> PartialEq for AttributesRef<'cm> {
@@ -502,5 +534,50 @@ mod tests {
 
         let attrs = Attributes::Borrowed(from_str("null").unwrap());
         assert!(attrs.is_null());
+    }
+
+    #[test]
+    fn test_attributesref_array_iteration() {
+        let json = "[1, \"text\", true]";
+        let attrs = Attributes::Borrowed(from_str(json).unwrap());
+
+        // Get array reference and iterate
+        if let Some(arr_ref) = attrs.get("0").map(AttributesRef::Borrowed) {
+            let mut iter = arr_ref.array_iter();
+            assert_eq!(iter.next().unwrap().as_i64(), Some(1));
+            assert_eq!(iter.next().unwrap().as_str(), Some("text"));
+            assert_eq!(iter.next().unwrap().as_bool(), Some(true));
+            assert!(iter.next().is_none());
+        }
+    }
+
+    #[test]
+    fn test_attributesref_object_iteration() {
+        let json = r#"{"nested": {"a": 1, "b": "text", "c": true}}"#;
+        let attrs = Attributes::Borrowed(from_str(json).unwrap());
+
+        // Get object reference and iterate
+        if let Some(obj_ref) = attrs.get("nested").map(AttributesRef::Borrowed) {
+            let mut entries: Vec<_> = obj_ref.object_iter().collect();
+            entries.sort_by_key(|(k, _)| *k);
+
+            assert_eq!(entries.len(), 3);
+            assert_eq!(entries[0].1.as_i64(), Some(1));
+            assert_eq!(entries[1].1.as_str(), Some("text"));
+            assert_eq!(entries[2].1.as_bool(), Some(true));
+        }
+    }
+
+    #[test]
+    fn test_attributesref_empty_iterations() {
+        // Test empty array
+        let attrs = Attributes::Borrowed(from_str("[]").unwrap());
+        let arr_ref = AttributesRef::Borrowed(&attrs.as_borrowed().unwrap());
+        assert!(arr_ref.array_iter().next().is_none());
+
+        // Test empty object
+        let attrs = Attributes::Borrowed(from_str("{}").unwrap());
+        let obj_ref = AttributesRef::Borrowed(&attrs.as_borrowed().unwrap());
+        assert!(obj_ref.object_iter().next().is_none());
     }
 }
