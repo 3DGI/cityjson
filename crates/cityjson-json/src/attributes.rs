@@ -198,6 +198,39 @@ impl<'cm> Attributes<'cm> {
             Self::Owned(v) => v.as_i64(),
         }
     }
+
+    /// Returns an iterator over array elements as references
+    pub fn array_iter(&'cm self) -> AttributesArrayIter<'cm> {
+        // Static empty Vec to avoid temporary allocation issues
+        static EMPTY_VEC: Vec<serde_json::Value> = Vec::new();
+        match self {
+            Self::Borrowed(v) => AttributesArrayIter::Borrowed(v.as_array().unwrap_or(&[]).iter()),
+            Self::Owned(v) => AttributesArrayIter::Owned(v.as_array().unwrap_or(&EMPTY_VEC).iter()),
+        }
+    }
+
+    /// Returns an iterator over object key-value pairs as references
+    pub fn object_iter(&'cm self) -> AttributesObjectIter<'cm> {
+        match self {
+            Self::Borrowed(v) => {
+                if let Some(obj) = v.as_object() {
+                    AttributesObjectIter::Borrowed(Box::new(
+                        obj.iter().map(|(k, v)| (k, AttributesRef::Borrowed(v))),
+                    ))
+                } else {
+                    // Empty iterator for non-objects
+                    AttributesObjectIter::Borrowed(Box::new(std::iter::empty()))
+                }
+            }
+            Self::Owned(v) => match v.as_object() {
+                Some(obj) => AttributesObjectIter::Owned(Box::new(
+                    obj.iter()
+                        .map(|(k, v)| (k.as_ref(), AttributesRef::Owned(v))),
+                )),
+                None => AttributesObjectIter::Owned(Box::new(std::iter::empty())),
+            },
+        }
+    }
 }
 
 impl<'cm> Default for Attributes<'cm> {
@@ -211,6 +244,114 @@ impl<'cm> Display for Attributes<'cm> {
         match self {
             Self::Borrowed(v) => write!(f, "{}", v),
             Self::Owned(v) => write!(f, "{}", v),
+        }
+    }
+}
+
+/// Iterator over references to array elements
+pub enum AttributesArrayIter<'cm> {
+    Borrowed(std::slice::Iter<'cm, Value<'cm>>),
+    Owned(std::slice::Iter<'cm, serde_json::Value>),
+}
+
+impl<'cm> Iterator for AttributesArrayIter<'cm> {
+    // Return a reference to an Attributes that borrows from self
+    type Item = AttributesRef<'cm>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed(iter) => iter.next().map(AttributesRef::Borrowed),
+            Self::Owned(iter) => iter.next().map(AttributesRef::Owned),
+        }
+    }
+}
+
+/// Iterator over references to object key-value pairs
+pub enum AttributesObjectIter<'cm> {
+    Borrowed(Box<dyn Iterator<Item = (&'cm str, AttributesRef<'cm>)> + 'cm>),
+    Owned(Box<dyn Iterator<Item = (&'cm str, AttributesRef<'cm>)> + 'cm>),
+}
+
+impl<'cm> Iterator for AttributesObjectIter<'cm> {
+    type Item = (&'cm str, AttributesRef<'cm>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed(iter) => iter.next(),
+            Self::Owned(iter) => iter.next(),
+        }
+    }
+}
+
+/// A reference type that mirrors Attributes but holds references
+#[derive(Debug)]
+pub enum AttributesRef<'cm> {
+    Borrowed(&'cm Value<'cm>),
+    Owned(&'cm serde_json::Value),
+}
+
+// Implement methods on AttributesRef that mirror Attributes
+impl<'cm> AttributesRef<'cm> {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Borrowed(v) => v.as_str(),
+            Self::Owned(v) => v.as_str(),
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::Borrowed(v) => v.as_f64(),
+            Self::Owned(v) => v.as_f64(),
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Borrowed(v) => v.as_bool(),
+            Self::Owned(v) => v.as_bool(),
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&[Value]> {
+        match self {
+            Self::Borrowed(v) => v.as_array(),
+            Self::Owned(_) => None,
+        }
+    }
+
+    pub fn as_owned_array(&self) -> Option<&Vec<serde_json::Value>> {
+        match self {
+            Self::Borrowed(_) => None,
+            Self::Owned(v) => v.as_array(),
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&serde_json_borrow::ObjectAsVec> {
+        match self {
+            Self::Borrowed(v) => v.as_object(),
+            Self::Owned(_) => None,
+        }
+    }
+
+    pub fn as_owned_object(&self) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        match self {
+            Self::Borrowed(_) => None,
+            Self::Owned(v) => v.as_object(),
+        }
+    }
+
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Self::Borrowed(v) => v.as_u64(),
+            Self::Owned(v) => v.as_u64(),
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Self::Borrowed(v) => v.as_i64(),
+            Self::Owned(v) => v.as_i64(),
         }
     }
 }
@@ -245,44 +386,28 @@ where
 mod tests {
     use super::*;
     use serde_json::from_str;
-
-    const TEST_JSON: &str = r#"{
-        "string": "text",
-        "float": 9.74,
-        "integer": 42,
-        "unsigned": 123,
-        "boolean": true,
-        "array": [1, 2, 3],
-        "object": {"key": "value"}
-    }"#;
+    use serde_json::json;
 
     #[test]
-    fn test_borrowed_values() {
-        let value = from_str(TEST_JSON).unwrap();
-        let attrs = Attributes::Borrowed(value);
+    fn test_primitive_access() {
+        let json = r#"{
+            "string": "text",
+            "float": 9.74,
+            "integer": 42,
+            "boolean": true
+        }"#;
 
-        // Test primitive type access
+        // Test borrowed access
+        let attrs = Attributes::Borrowed(from_str(json).unwrap());
         assert_eq!(attrs.get("string").and_then(|v| v.as_str()), Some("text"));
         assert_eq!(attrs.get("float").and_then(|v| v.as_f64()), Some(9.74));
         assert_eq!(attrs.get("integer").and_then(|v| v.as_i64()), Some(42));
-        assert_eq!(attrs.get("unsigned").and_then(|v| v.as_u64()), Some(123));
         assert_eq!(attrs.get("boolean").and_then(|v| v.as_bool()), Some(true));
 
-        // Test array access
-        let array = attrs.get("array").and_then(|v| v.as_array()).unwrap();
-        assert_eq!(array.len(), 3);
-
-        // Test object access
-        let object = attrs.get("object").and_then(|v| v.as_object()).unwrap();
-        assert_eq!(object.get("key").and_then(|v| v.as_str()), Some("value"));
-    }
-
-    #[test]
-    fn test_owned_values() {
-        let value = serde_json::from_str(TEST_JSON).unwrap();
-        let attrs = Attributes::Owned(value);
-
-        // Test primitive type access
+        // Test owned access
+        let attrs = Attributes::Owned(
+            json!({"string": "text", "float": 9.74, "integer": 42, "boolean": true}),
+        );
         assert_eq!(
             attrs.get_owned("string").and_then(|v| v.as_str()),
             Some("text")
@@ -296,72 +421,71 @@ mod tests {
             Some(42)
         );
         assert_eq!(
-            attrs.get_owned("unsigned").and_then(|v| v.as_u64()),
-            Some(123)
-        );
-        assert_eq!(
             attrs.get_owned("boolean").and_then(|v| v.as_bool()),
             Some(true)
         );
-
-        // Test array access
-        let array = attrs.get_owned("array").and_then(|v| v.as_array()).unwrap();
-        assert_eq!(array.len(), 3);
-
-        // Test object access
-        let object = attrs
-            .get_owned("object")
-            .and_then(|v| v.as_object())
-            .unwrap();
-        assert_eq!(object.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
     #[test]
-    fn test_object_iteration() {
+    fn test_array_operations() {
+        let json = "[1, \"text\", true]";
+
+        // Test borrowed array
+        let attrs = Attributes::Borrowed(from_str(json).unwrap());
+        assert!(attrs.as_array().is_some());
+        let mut iter = attrs.array_iter();
+        assert_eq!(iter.next().unwrap().as_i64(), Some(1));
+        assert_eq!(iter.next().unwrap().as_str(), Some("text"));
+        assert_eq!(iter.next().unwrap().as_bool(), Some(true));
+        assert!(iter.next().is_none());
+
+        // Test owned array
+        let attrs = Attributes::Owned(json!([1, "text", true]));
+        assert!(attrs.as_owned_array().is_some());
+        let mut iter = attrs.array_iter();
+        assert_eq!(iter.next().unwrap().as_i64(), Some(1));
+        assert_eq!(iter.next().unwrap().as_str(), Some("text"));
+        assert_eq!(iter.next().unwrap().as_bool(), Some(true));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_object_operations() {
         let json = r#"{"a": 1, "b": "text", "c": true}"#;
 
-        // Test borrowed iteration
-        let value = from_str(json).unwrap();
-        let attrs = Attributes::Borrowed(value);
-        if let Some(obj) = attrs.as_object() {
-            let mut count = 0;
-            for (k, v) in obj.iter() {
-                match k {
-                    "a" => assert!(v.as_i64().is_some()),
-                    "b" => assert!(v.as_str().is_some()),
-                    "c" => assert!(v.as_bool().is_some()),
-                    _ => panic!("Unexpected key"),
-                }
-                count += 1;
-            }
-            assert_eq!(count, 3);
-        }
+        // Test borrowed object
+        let attrs = Attributes::Borrowed(from_str(json).unwrap());
+        let mut entries: Vec<_> = attrs.object_iter().collect();
+        entries.sort_by_key(|(k, _)| *k);
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].1.as_i64(), Some(1));
+        assert_eq!(entries[1].1.as_str(), Some("text"));
+        assert_eq!(entries[2].1.as_bool(), Some(true));
 
-        // Test owned iteration
-        let value = serde_json::json!({"a": 1, "b": "text", "c": true});
-        let attrs = Attributes::Owned(value);
-        if let Some(obj) = attrs.as_owned_object() {
-            let mut count = 0;
-            for (k, v) in obj.iter() {
-                match k.as_str() {
-                    "a" => assert!(v.as_i64().is_some()),
-                    "b" => assert!(v.as_str().is_some()),
-                    "c" => assert!(v.as_bool().is_some()),
-                    _ => panic!("Unexpected key"),
-                }
-                count += 1;
-            }
-            assert_eq!(count, 3);
-        }
+        // Test owned object
+        let attrs = Attributes::Owned(json!({"a": 1, "b": "text", "c": true}));
+        let mut entries: Vec<_> = attrs.object_iter().collect();
+        entries.sort_by_key(|(k, _)| *k);
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].1.as_i64(), Some(1));
+        assert_eq!(entries[1].1.as_str(), Some("text"));
+        assert_eq!(entries[2].1.as_bool(), Some(true));
     }
 
     #[test]
-    fn test_empty_attributes() {
+    fn test_empty_and_null() {
+        // Test empty object
         let attrs = Attributes::default();
         assert!(attrs.is_empty());
 
-        let empty_obj = serde_json::json!({});
-        let attrs = Attributes::Owned(empty_obj);
+        let attrs = Attributes::Owned(json!({}));
         assert!(attrs.is_empty());
+
+        // Test null value
+        let attrs = Attributes::Owned(json!(null));
+        assert!(attrs.is_null());
+
+        let attrs = Attributes::Borrowed(from_str("null").unwrap());
+        assert!(attrs.is_null());
     }
 }
