@@ -1,6 +1,7 @@
 use crate::common::DATA_DIR;
 use cjlib::{
-    Attributes, CityJSONVersion, CityModel, Extension, ExtensionName, Extensions, Transform,
+    Attributes, CityJSONVersion, CityModel, CityModelIdentifier, Contact, ContactRole, ContactType,
+    Date, Extension, ExtensionName, Extensions, Transform, CRS,
 };
 use serde_cityjson::CityModelType;
 use std::collections::HashMap;
@@ -229,4 +230,86 @@ fn test_extra_root_properties() {
     } else {
         panic!("Expected Map variant");
     }
+}
+
+#[test]
+fn test_metadata() {
+    let mut cm = CityModel::default();
+
+    // Initially, metadata should be None
+    assert!(cm.metadata().is_none());
+
+    // Getting mutable reference should create default Metadata
+    let metadata = cm.metadata_mut();
+
+    // Test setting and getting geographical extent
+    let bbox = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+    metadata.set_geographical_extent(bbox);
+    assert_eq!(metadata.geographical_extent(), Some(&bbox));
+
+    // Test setting and getting identifier
+    metadata.set_identifier("test-id");
+    assert_eq!(
+        metadata.identifier(),
+        Some(&CityModelIdentifier::from("test-id"))
+    );
+
+    // Test setting and getting title
+    metadata.set_title("Test Title");
+    assert_eq!(metadata.title(), Some(&"Test Title".to_string()));
+
+    // Test setting and getting reference system
+    metadata.set_reference_system("EPSG:4326");
+    assert_eq!(metadata.reference_system(), Some(&CRS::from("EPSG:4326")));
+
+    // Test setting and getting reference date
+    metadata.set_reference_date("2023-01-01");
+    assert_eq!(metadata.reference_date(), Some(&Date::from("2023-01-01")));
+
+    // Test setting and getting point of contact
+    let mut contact = Contact::new();
+    contact.set_contact_name("John Doe");
+    contact.set_email_address("john@example.com");
+    contact.set_role(ContactRole::Author);
+    contact.set_organization("Test Org");
+    metadata.set_point_of_contact(contact);
+
+    // Verify contact information
+    if let Some(contact) = metadata.point_of_contact() {
+        assert_eq!(contact.contact_name(), "John Doe");
+        assert_eq!(contact.email_address(), "john@example.com");
+        assert_eq!(contact.role(), Some(&ContactRole::Author));
+        assert_eq!(contact.organization(), Some("Test Org"));
+    } else {
+        panic!("Expected contact information");
+    }
+
+    // Test modifying contact through mutable reference
+    let contact = metadata.point_of_contact_mut();
+    contact.set_website("https://example.com");
+    contact.set_phone("+1234567890");
+    contact.set_contact_type(ContactType::Individual);
+
+    // Verify modified contact information
+    if let Some(contact) = metadata.point_of_contact() {
+        assert_eq!(contact.website(), Some("https://example.com"));
+        assert_eq!(contact.phone(), Some("+1234567890"));
+        assert_eq!(contact.contact_type(), Some(&ContactType::Individual));
+    }
+
+    // Test extra attributes
+    let mut map = HashMap::new();
+    map.insert("key1".to_string(), Attributes::String("value1".to_string()));
+    metadata.set_extra(Attributes::Map(map));
+
+    if let Some(Attributes::Map(map)) = metadata.extra() {
+        assert_eq!(map.get("key1").unwrap().as_str(), Some("value1"));
+    } else {
+        panic!("Expected Map variant for extra attributes");
+    }
+
+    // Test Display implementation
+    println!();
+    println!("Metadata: {}", metadata);
+    println!("Contact: {}", metadata.point_of_contact().unwrap());
 }

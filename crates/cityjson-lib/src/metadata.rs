@@ -10,25 +10,25 @@ pub type CRS = String;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Metadata {
-    pub geographical_extent: Option<BBox>,
-    pub identifier: Option<CityModelIdentifier>,
-    pub point_of_contact: Option<Contact>,
-    pub reference_date: Option<Date>,
-    pub reference_system: Option<CRS>,
-    pub title: Option<String>,
-    pub extra: Option<Attributes>,
+    geographical_extent: Option<BBox>,
+    identifier: Option<CityModelIdentifier>,
+    point_of_contact: Option<Contact>,
+    reference_date: Option<Date>,
+    reference_system: Option<CRS>,
+    title: Option<String>,
+    extra: Option<Attributes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Contact {
-    pub contact_name: String,
-    pub email_address: String,
-    pub role: Option<ContactRole>,
-    pub website: Option<String>,
-    pub contact_type: Option<ContactType>,
-    pub address: Option<String>,
-    pub phone: Option<String>,
-    pub organization: Option<String>,
+    contact_name: String,
+    email_address: String,
+    role: Option<ContactRole>,
+    website: Option<String>,
+    contact_type: Option<ContactType>,
+    address: Option<String>,
+    phone: Option<String>,
+    organization: Option<String>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -73,6 +73,73 @@ impl Metadata {
             extra: None,
         }
     }
+
+    // Getters
+    pub fn geographical_extent(&self) -> Option<&BBox> {
+        self.geographical_extent.as_ref()
+    }
+
+    pub fn identifier(&self) -> Option<&CityModelIdentifier> {
+        self.identifier.as_ref()
+    }
+
+    pub fn point_of_contact(&self) -> Option<&Contact> {
+        self.point_of_contact.as_ref()
+    }
+
+    pub fn reference_date(&self) -> Option<&Date> {
+        self.reference_date.as_ref()
+    }
+
+    pub fn reference_system(&self) -> Option<&CRS> {
+        self.reference_system.as_ref()
+    }
+
+    pub fn title(&self) -> Option<&String> {
+        self.title.as_ref()
+    }
+
+    pub fn extra(&self) -> Option<&Attributes> {
+        self.extra.as_ref()
+    }
+
+    // Setters
+    pub fn set_geographical_extent(&mut self, extent: BBox) {
+        self.geographical_extent = Some(extent);
+    }
+
+    pub fn set_identifier(&mut self, identifier: impl Into<String>) {
+        self.identifier = Some(identifier.into());
+    }
+
+    pub fn set_point_of_contact(&mut self, contact: Contact) {
+        self.point_of_contact = Some(contact);
+    }
+
+    pub fn set_reference_date(&mut self, date: impl Into<String>) {
+        self.reference_date = Some(date.into());
+    }
+
+    pub fn set_reference_system(&mut self, crs: impl Into<String>) {
+        self.reference_system = Some(crs.into());
+    }
+
+    pub fn set_title(&mut self, title: impl Into<String>) {
+        self.title = Some(title.into());
+    }
+
+    pub fn set_extra(&mut self, extra: Attributes) {
+        self.extra = Some(extra);
+    }
+
+    // Mutable access
+    pub fn point_of_contact_mut(&mut self) -> &mut Contact {
+        self.point_of_contact.get_or_insert_with(Contact::new)
+    }
+
+    pub fn extra_mut(&mut self) -> &mut Attributes {
+        self.extra.get_or_insert_with(Attributes::default)
+    }
 }
 
 impl Default for Metadata {
@@ -85,33 +152,159 @@ impl<'a> TryFrom<cityjson::Metadata<'a>> for Metadata {
     type Error = errors::Error;
 
     fn try_from(metadata: cityjson::Metadata<'a>) -> errors::Result<Self> {
-        Ok(Self {
-            geographical_extent: metadata.geographical_extent,
-            identifier: metadata.identifier.map(|s| s.to_string()),
-            point_of_contact: metadata.point_of_contact.map(Contact::from),
-            reference_date: metadata.reference_date.map(|s| s.to_string()),
-            reference_system: metadata.reference_system.map(|s| s.to_string()),
-            title: metadata.title.map(|s| s.to_string()),
-            extra: metadata
-                .extra
-                .map(|e| Attributes::try_from(e))
-                .transpose()?,
-        })
+        let mut new_metadata = Metadata::new();
+
+        if let Some(extent) = metadata.geographical_extent {
+            new_metadata.set_geographical_extent(extent);
+        }
+
+        if let Some(id) = metadata.identifier {
+            new_metadata.set_identifier(id.to_string());
+        }
+
+        if let Some(contact) = metadata.point_of_contact {
+            new_metadata.set_point_of_contact(Contact::from(contact));
+        }
+
+        if let Some(date) = metadata.reference_date {
+            new_metadata.set_reference_date(date.to_string());
+        }
+
+        if let Some(crs) = metadata.reference_system {
+            new_metadata.set_reference_system(crs.to_string());
+        }
+
+        if let Some(title) = metadata.title {
+            new_metadata.set_title(title.to_string());
+        }
+
+        if let Some(extra) = metadata.extra {
+            new_metadata.set_extra(Attributes::try_from(extra)?);
+        }
+
+        Ok(new_metadata)
+    }
+}
+
+impl Contact {
+    pub fn new() -> Self {
+        Self {
+            contact_name: String::new(),
+            email_address: String::new(),
+            role: None,
+            website: None,
+            contact_type: None,
+            address: None,
+            phone: None,
+            organization: None,
+        }
+    }
+
+    // Getters
+    pub fn contact_name(&self) -> &str {
+        &self.contact_name
+    }
+
+    pub fn email_address(&self) -> &str {
+        &self.email_address
+    }
+
+    pub fn role(&self) -> Option<&ContactRole> {
+        self.role.as_ref()
+    }
+
+    pub fn website(&self) -> Option<&str> {
+        self.website.as_deref()
+    }
+
+    pub fn contact_type(&self) -> Option<&ContactType> {
+        self.contact_type.as_ref()
+    }
+
+    pub fn address(&self) -> Option<&str> {
+        self.address.as_deref()
+    }
+
+    pub fn phone(&self) -> Option<&str> {
+        self.phone.as_deref()
+    }
+
+    pub fn organization(&self) -> Option<&str> {
+        self.organization.as_deref()
+    }
+
+    // Setters
+    pub fn set_contact_name(&mut self, name: impl Into<String>) {
+        self.contact_name = name.into();
+    }
+
+    pub fn set_email_address(&mut self, email: impl Into<String>) {
+        self.email_address = email.into();
+    }
+
+    pub fn set_role(&mut self, role: ContactRole) {
+        self.role = Some(role);
+    }
+
+    pub fn set_website(&mut self, website: impl Into<String>) {
+        self.website = Some(website.into());
+    }
+
+    pub fn set_contact_type(&mut self, contact_type: ContactType) {
+        self.contact_type = Some(contact_type);
+    }
+
+    pub fn set_address(&mut self, address: impl Into<String>) {
+        self.address = Some(address.into());
+    }
+
+    pub fn set_phone(&mut self, phone: impl Into<String>) {
+        self.phone = Some(phone.into());
+    }
+
+    pub fn set_organization(&mut self, organization: impl Into<String>) {
+        self.organization = Some(organization.into());
+    }
+}
+
+impl Default for Contact {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl From<cityjson::Contact> for Contact {
     fn from(contact: cityjson::Contact) -> Self {
-        Self {
-            contact_name: contact.contact_name.to_string(),
-            email_address: contact.email_address.to_string(),
-            role: contact.role.map(ContactRole::from),
-            website: contact.website.map(|s| s.to_string()),
-            contact_type: contact.contact_type.map(ContactType::from),
-            address: contact.address.map(|s| s.to_string()),
-            phone: contact.phone.map(|s| s.to_string()),
-            organization: contact.organization.map(|s| s.to_string()),
+        let mut new_contact = Contact::new();
+
+        new_contact.set_contact_name(contact.contact_name.to_string());
+        new_contact.set_email_address(contact.email_address.to_string());
+
+        if let Some(role) = contact.role {
+            new_contact.set_role(ContactRole::from(role));
         }
+
+        if let Some(website) = contact.website {
+            new_contact.set_website(website.to_string());
+        }
+
+        if let Some(contact_type) = contact.contact_type {
+            new_contact.set_contact_type(ContactType::from(contact_type));
+        }
+
+        if let Some(address) = contact.address {
+            new_contact.set_address(address.to_string());
+        }
+
+        if let Some(phone) = contact.phone {
+            new_contact.set_phone(phone.to_string());
+        }
+
+        if let Some(organization) = contact.organization {
+            new_contact.set_organization(organization.to_string());
+        }
+
+        new_contact
     }
 }
 
@@ -156,7 +349,7 @@ impl fmt::Display for Metadata {
         write!(f, "{{")?;
         let mut first = true;
 
-        if let Some(extent) = &self.geographical_extent {
+        if let Some(extent) = self.geographical_extent() {
             write!(
                 f,
                 "\"geographical_extent\": [{}, {}, {}, {}, {}, {}]",
@@ -165,7 +358,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(id) = &self.identifier {
+        if let Some(id) = self.identifier() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -173,7 +366,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(contact) = &self.point_of_contact {
+        if let Some(contact) = self.point_of_contact() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -181,7 +374,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(date) = &self.reference_date {
+        if let Some(date) = self.reference_date() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -189,7 +382,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(crs) = &self.reference_system {
+        if let Some(crs) = self.reference_system() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -197,7 +390,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(title) = &self.title {
+        if let Some(title) = self.title() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -205,7 +398,7 @@ impl fmt::Display for Metadata {
             first = false;
         }
 
-        if let Some(extra) = &self.extra {
+        if let Some(extra) = self.extra() {
             if !first {
                 write!(f, ", ")?;
             }
@@ -222,30 +415,31 @@ impl fmt::Display for Contact {
         write!(
             f,
             "\"contact_name\": \"{}\", \"email_address\": \"{}\"",
-            self.contact_name, self.email_address
+            self.contact_name(),
+            self.email_address()
         )?;
 
-        if let Some(role) = &self.role {
+        if let Some(role) = self.role() {
             write!(f, ", \"role\": \"{}\"", role)?;
         }
 
-        if let Some(website) = &self.website {
+        if let Some(website) = self.website() {
             write!(f, ", \"website\": \"{}\"", website)?;
         }
 
-        if let Some(contact_type) = &self.contact_type {
+        if let Some(contact_type) = self.contact_type() {
             write!(f, ", \"contact_type\": \"{}\"", contact_type)?;
         }
 
-        if let Some(address) = &self.address {
+        if let Some(address) = self.address() {
             write!(f, ", \"address\": \"{}\"", address)?;
         }
 
-        if let Some(phone) = &self.phone {
+        if let Some(phone) = self.phone() {
             write!(f, ", \"phone\": \"{}\"", phone)?;
         }
 
-        if let Some(organization) = &self.organization {
+        if let Some(organization) = self.organization() {
             write!(f, ", \"organization\": \"{}\"", organization)?;
         }
 

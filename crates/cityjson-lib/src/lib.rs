@@ -13,7 +13,9 @@ use std::path::Path;
 
 pub use attributes::Attributes;
 pub use extensions::{Extension, ExtensionName, Extensions};
-pub use metadata::{Contact, ContactRole, ContactType, Metadata};
+pub use metadata::{
+    BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
+};
 pub use serde_cityjson::{CityJSONVersion, CityModelType};
 pub use transform::Transform;
 
@@ -137,6 +139,14 @@ impl CityModel {
 
     pub fn extra_root_properties_mut(&mut self) -> &mut Attributes {
         self.extra.get_or_insert_with(Attributes::default)
+    }
+
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.as_ref()
+    }
+
+    pub fn metadata_mut(&mut self) -> &mut Metadata {
+        self.metadata.get_or_insert_with(Metadata::default)
     }
 }
 
