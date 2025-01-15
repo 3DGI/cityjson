@@ -40,19 +40,19 @@ fn citymodel_from_str_dummy() {
     let cityjson_str = std::fs::read_to_string(DATA_DIR.join("cityjson_dummy_complete.city.json"))
         .expect("Failed to read the file");
     let cm = CityModel::from_str(cityjson_str.as_str()).unwrap();
-    println!("{}", &cm);
+    println!("\nDummy:\n{}", &cm);
 }
 
 #[test]
 fn debug_citymodel() {
     let cm = CityModel::new(CityModelType::CityJSON);
-    println!("Debug CityModel:\n{:?}", cm);
+    println!("\nDebug CityModel:\n{:?}", cm);
 }
 
 #[test]
 fn display_citymodel() {
     let cm = CityModel::new(CityModelType::CityJSON);
-    println!("Display CityModel:\n{}", cm);
+    println!("\nDisplay CityModel:\n{}", cm);
 }
 
 #[test]

@@ -1,7 +1,8 @@
 mod attributes;
 pub mod errors;
 mod extensions;
-pub mod transform;
+mod metadata;
+mod transform;
 
 use errors::Result;
 use serde_cityjson::v1_1;
@@ -12,6 +13,7 @@ use std::path::Path;
 
 pub use attributes::Attributes;
 pub use extensions::{Extension, ExtensionName, Extensions};
+pub use metadata::{Contact, ContactRole, ContactType, Metadata};
 pub use serde_cityjson::{CityJSONVersion, CityModelType};
 pub use transform::Transform;
 
@@ -42,6 +44,7 @@ pub struct CityModel {
     extensions: Option<Extensions>,
     extra: Option<Attributes>,
     id: Option<String>,
+    metadata: Option<Metadata>,
     transform: Option<Transform>,
     type_model: CityModelType,
     version: Option<CityJSONVersion>,
@@ -53,6 +56,7 @@ impl CityModel {
             extensions: None,
             extra: None,
             id: None,
+            metadata: None,
             transform: None,
             type_model,
             version: None,
@@ -80,6 +84,7 @@ impl CityModel {
             extensions: cm.extensions.map(|e| Extensions::from(e)),
             extra: cm.extra.map(|e| Attributes::try_from(e)).transpose()?,
             id: cm.id.map(|cow| cow.into_owned()),
+            metadata: cm.metadata.map(|m| Metadata::try_from(m)).transpose()?,
             transform: cm.transform.map(|t| Transform::from(t)),
             type_model: cm.type_cm,
             version: cm.version,
@@ -140,6 +145,7 @@ impl Default for CityModel {
         Self {
             extensions: None,
             id: None,
+            metadata: None,
             transform: None,
             type_model: CityModelType::default(),
             version: Some(CityJSONVersion::default()),
@@ -152,11 +158,12 @@ impl fmt::Debug for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CityModel")
             .field("extensions", &self.extensions)
+            .field("extra", &self.extra)
             .field("id", &self.id)
+            .field("metadata", &self.metadata)
             .field("transform", &self.transform)
             .field("type_model", &self.type_model)
             .field("version", &self.version)
-            .field("extra", &self.extra)
             .finish()
     }
 }
@@ -170,11 +177,13 @@ impl fmt::Display for CityModel {
                 "\tversion: {}\n",
                 "\tnr. cityobjects: \n",
                 "\ttransform: {}\n",
+                "\tmetadata: {}\n",
                 "\textra_root_properties: {}\n",
                 ")"
             ),
             format_option(&self.version),
             format_option(&self.transform),
+            format_option(&self.metadata),
             format_option(&self.extra)
         )
     }
