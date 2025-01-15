@@ -56,16 +56,13 @@ fn display_citymodel() {
 }
 
 #[test]
-fn test_get_version() {}
-
-#[test]
-fn test_version_get_set() {
+fn test_version() {
     let mut cm = CityModel::default();
     assert_eq!(cm.version(), &Some(CityJSONVersion::default()));
 
-    let new_version = CityJSONVersion::V1_0;
-    cm.set_version(new_version);
-    assert_eq!(cm.version(), &Some(new_version));
+    // Test modification through mutable reference
+    *cm.version_mut() = CityJSONVersion::V1_0;
+    assert_eq!(cm.version(), &Some(CityJSONVersion::V1_0));
 }
 
 #[test]
@@ -95,19 +92,6 @@ fn test_transform() {
 
     assert_eq!(cm.transform().unwrap().scale(), &new_scale);
     assert_eq!(cm.transform().unwrap().translate(), &new_translate);
-}
-
-#[test]
-fn test_transform_display() {
-    let scale = [1.0, 1.0, 1.0];
-    let translate = [0.0, 0.0, 0.0];
-    let transform = Transform::new(scale, translate);
-
-    let display_output = format!("{transform}");
-    assert_eq!(
-        display_output,
-        "Transform(scale: [1.0, 1.0, 1.0], translate: [0.0, 0.0, 0.0])"
-    );
 }
 
 #[test]

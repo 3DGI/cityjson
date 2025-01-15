@@ -40,22 +40,22 @@ fn citymodel_from_str_minimal() {
 
 pub struct CityModel {
     extensions: Option<Extensions>,
+    extra: Option<Attributes>,
     id: Option<String>,
     transform: Option<Transform>,
     type_model: CityModelType,
     version: Option<CityJSONVersion>,
-    extra: Option<Attributes>,
 }
 
 impl CityModel {
     pub fn new(type_model: CityModelType) -> Self {
         Self {
             extensions: None,
+            extra: None,
             id: None,
             transform: None,
             type_model,
             version: None,
-            extra: None,
         }
     }
 
@@ -78,11 +78,11 @@ impl CityModel {
         };
         Ok(Self {
             extensions: cm.extensions.map(|e| Extensions::from(e)),
+            extra: cm.extra.map(|e| Attributes::try_from(e)).transpose()?,
             id: cm.id.map(|cow| cow.into_owned()),
             transform: cm.transform.map(|t| Transform::from(t)),
             type_model: cm.type_cm,
             version: cm.version,
-            extra: cm.extra.map(|e| Attributes::try_from(e)).transpose()?,
         })
     }
 
@@ -106,8 +106,8 @@ impl CityModel {
         &self.version
     }
 
-    pub fn set_version(&mut self, version: CityJSONVersion) {
-        self.version = Some(version);
+    pub fn version_mut(&mut self) -> &mut CityJSONVersion {
+        self.version.get_or_insert_with(CityJSONVersion::default)
     }
 
     pub fn transform(&self) -> Option<&Transform> {
