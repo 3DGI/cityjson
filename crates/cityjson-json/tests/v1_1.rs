@@ -39,6 +39,8 @@ fn citymodel_dummy_complete_deserialize() {
 #[test]
 fn citymodel_minimal_complete() {
     let json_input = read_to_string(DATA_DIR.join("cityjson_minimal_complete.city.json"));
+    let cm: CityModel = serde_json::from_str(&json_input).unwrap();
+    assert!(cm.extra.is_none());
     assert_eq_roundtrip::<CityModel>(&json_input);
 }
 

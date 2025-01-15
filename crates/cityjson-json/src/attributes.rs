@@ -410,7 +410,10 @@ where
     D: serde::de::Deserializer<'de>,
 {
     let s = Value::deserialize(deserializer)?;
-    Ok((!s.is_null()).then_some(Attributes::Borrowed(s)))
+    Ok(
+        (!s.is_null() && !(s.is_object() && s.as_object().unwrap().is_empty()))
+            .then_some(Attributes::Borrowed(s)),
+    )
 }
 
 pub fn serialize_attributes<S>(
