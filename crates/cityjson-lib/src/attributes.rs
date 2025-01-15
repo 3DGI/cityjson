@@ -1,6 +1,7 @@
 use crate::errors;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Attributes {
@@ -117,12 +118,43 @@ impl Default for Attributes {
     }
 }
 
+impl fmt::Display for Attributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Null => write!(f, "null"),
+            Self::Bool(b) => write!(f, "{}", b),
+            Self::Unsigned(u) => write!(f, "{}", u),
+            Self::Integer(i) => write!(f, "{}", i),
+            Self::Float(fl) => write!(f, "{}", fl),
+            Self::String(s) => write!(f, "\"{}\"", s),
+            Self::Vec(v) => {
+                write!(f, "[")?;
+                for (i, item) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", item)?;
+                }
+                write!(f, "]")
+            }
+            Self::Map(m) => {
+                write!(f, "{{")?;
+                for (i, (key, value)) in m.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "\"{}\": {}", key, value)?;
+                }
+                write!(f, "}}")
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<&'a serde_cityjson::attributes::Attributes<'a>> for Attributes {
     type Error = errors::Error;
 
-    fn try_from(
-        value: &'a serde_cityjson::attributes::Attributes<'a>,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a serde_cityjson::attributes::Attributes<'a>) -> errors::Result<Self> {
         // Handle null
         if value.is_null() {
             return Ok(Self::Null);
@@ -172,7 +204,7 @@ impl<'a> TryFrom<&'a serde_cityjson::attributes::Attributes<'a>> for Attributes 
 impl<'a> TryFrom<serde_cityjson::attributes::Attributes<'a>> for Attributes {
     type Error = errors::Error;
 
-    fn try_from(value: serde_cityjson::attributes::Attributes<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: serde_cityjson::attributes::Attributes<'a>) -> errors::Result<Self> {
         Self::try_from(&value)
     }
 }
@@ -180,9 +212,7 @@ impl<'a> TryFrom<serde_cityjson::attributes::Attributes<'a>> for Attributes {
 impl<'a> TryFrom<&serde_cityjson::attributes::AttributesRef<'a>> for Attributes {
     type Error = errors::Error;
 
-    fn try_from(
-        value: &serde_cityjson::attributes::AttributesRef<'a>,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(value: &serde_cityjson::attributes::AttributesRef<'a>) -> errors::Result<Self> {
         // Handle primitive types
         if let Some(b) = value.as_bool() {
             return Ok(Self::Bool(b));

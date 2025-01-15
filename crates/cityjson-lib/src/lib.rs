@@ -10,6 +10,7 @@ use std::fmt;
 use std::io::BufRead;
 use std::path::Path;
 
+pub use attributes::Attributes;
 pub use extensions::{Extension, ExtensionName, Extensions};
 pub use serde_cityjson::{CityJSONVersion, CityModelType};
 pub use transform::Transform;
@@ -43,6 +44,7 @@ pub struct CityModel {
     transform: Option<Transform>,
     type_model: CityModelType,
     version: Option<CityJSONVersion>,
+    extra: Option<Attributes>,
 }
 
 impl CityModel {
@@ -53,6 +55,7 @@ impl CityModel {
             transform: None,
             type_model,
             version: None,
+            extra: None,
         }
     }
 
@@ -79,6 +82,7 @@ impl CityModel {
             transform: cm.transform.map(|t| Transform::from(t)),
             type_model: cm.type_cm,
             version: cm.version,
+            extra: cm.extra.map(|e| Attributes::try_from(e)).transpose()?,
         })
     }
 
@@ -121,6 +125,14 @@ impl CityModel {
     pub fn extensions_mut(&mut self) -> &mut Extensions {
         self.extensions.get_or_insert_with(Extensions::new)
     }
+
+    pub fn extra_root_properties(&self) -> Option<&Attributes> {
+        self.extra.as_ref()
+    }
+
+    pub fn extra_root_properties_mut(&mut self) -> &mut Attributes {
+        self.extra.get_or_insert_with(Attributes::default)
+    }
 }
 
 impl Default for CityModel {
@@ -131,6 +143,7 @@ impl Default for CityModel {
             transform: None,
             type_model: CityModelType::default(),
             version: Some(CityJSONVersion::default()),
+            extra: None,
         }
     }
 }
@@ -143,6 +156,7 @@ impl fmt::Debug for CityModel {
             .field("transform", &self.transform)
             .field("type_model", &self.type_model)
             .field("version", &self.version)
+            .field("extra", &self.extra)
             .finish()
     }
 }
@@ -151,23 +165,24 @@ impl fmt::Display for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(\n\tversion: {}\n\tnr. cityobjects: \n\ttransform: {}\n)",
-            format_version_option(&self.version),
-            format_transform_option(&self.transform)
+            concat!(
+                "(\n",
+                "\tversion: {}\n",
+                "\tnr. cityobjects: \n",
+                "\ttransform: {}\n",
+                "\textra_root_properties: {}\n",
+                ")"
+            ),
+            format_option(&self.version),
+            format_option(&self.transform),
+            format_option(&self.extra)
         )
     }
 }
 
-fn format_version_option(version: &Option<CityJSONVersion>) -> String {
-    version
+fn format_option<T: std::fmt::Display>(option: &Option<T>) -> String {
+    option
         .as_ref()
-        .map(|v| v.to_string())
-        .unwrap_or("None".to_string())
-}
-
-fn format_transform_option(transform: &Option<Transform>) -> String {
-    transform
-        .as_ref()
-        .map(|t| t.to_string())
-        .unwrap_or("None".to_string())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "None".to_string())
 }

@@ -1,5 +1,9 @@
-use cjlib::{CityJSONVersion, CityModel, Extension, ExtensionName, Extensions, Transform};
+use crate::common::DATA_DIR;
+use cjlib::{
+    Attributes, CityJSONVersion, CityModel, Extension, ExtensionName, Extensions, Transform,
+};
 use serde_cityjson::CityModelType;
+use std::collections::HashMap;
 
 mod common;
 
@@ -29,6 +33,14 @@ fn citymodel_from_str_minimal() {
       }
     }"#;
     assert!(CityModel::from_str(cityjson_str).is_ok());
+}
+
+#[test]
+fn citymodel_from_str_dummy() {
+    let cityjson_str = std::fs::read_to_string(DATA_DIR.join("cityjson_dummy_complete.city.json"))
+        .expect("Failed to read the file");
+    let cm = CityModel::from_str(cityjson_str.as_str()).unwrap();
+    println!("{}", &cm);
 }
 
 #[test]
@@ -174,4 +186,58 @@ fn test_extension() {
 
     assert_eq!(ext.url(), new_url);
     assert_eq!(ext.version(), new_version);
+}
+
+#[test]
+fn test_extra_root_properties() {
+    let mut cm = CityModel::default();
+
+    // Initially, extra root properties should be None
+    assert!(cm.extra_root_properties().is_none());
+
+    // Getting mutable reference should create empty Attributes
+    let extra = cm.extra_root_properties_mut();
+    assert!(extra.is_null()); // Default is Null
+
+    // Create a map with various types
+    let mut map = HashMap::new();
+    map.insert("string".to_string(), Attributes::String("test".to_string()));
+    map.insert("number".to_string(), Attributes::Integer(42));
+    map.insert("boolean".to_string(), Attributes::Bool(true));
+    map.insert("float".to_string(), Attributes::Float(3.14));
+
+    *extra = Attributes::Map(map);
+
+    // Test reading values through immutable reference
+    if let Some(extra) = cm.extra_root_properties() {
+        if let Some(map) = extra.as_map() {
+            assert_eq!(map.get("string").unwrap().as_str(), Some("test"));
+            assert_eq!(map.get("number").unwrap().as_integer(), Some(42));
+            assert_eq!(map.get("boolean").unwrap().as_bool(), Some(true));
+            assert_eq!(map.get("float").unwrap().as_float(), Some(3.14));
+        } else {
+            panic!("Expected Map variant");
+        }
+    } else {
+        panic!("Extra root properties should exist");
+    }
+
+    // Test modification through mutable reference
+    if let Some(map) = cm.extra_root_properties_mut().as_map_mut() {
+        map.insert(
+            "new_value".to_string(),
+            Attributes::String("added later".to_string()),
+        );
+    }
+
+    // Verify all values including the new one
+    if let Some(map) = cm.extra_root_properties().unwrap().as_map() {
+        assert_eq!(map.get("string").unwrap().as_str(), Some("test"));
+        assert_eq!(map.get("number").unwrap().as_integer(), Some(42));
+        assert_eq!(map.get("boolean").unwrap().as_bool(), Some(true));
+        assert_eq!(map.get("float").unwrap().as_float(), Some(3.14));
+        assert_eq!(map.get("new_value").unwrap().as_str(), Some("added later"));
+    } else {
+        panic!("Expected Map variant");
+    }
 }
