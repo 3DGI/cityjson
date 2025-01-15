@@ -1,7 +1,7 @@
 use serde_cityjson::v1_1;
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Transform {
     scale: [f64; 3],
     translate: [f64; 3],

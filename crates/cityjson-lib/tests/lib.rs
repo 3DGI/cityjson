@@ -46,13 +46,13 @@ fn citymodel_from_str_dummy() {
 #[test]
 fn debug_citymodel() {
     let cm = CityModel::new(CityModelType::CityJSON);
-    println!("{:?}", cm);
+    println!("Debug CityModel:\n{:?}", cm);
 }
 
 #[test]
 fn display_citymodel() {
     let cm = CityModel::new(CityModelType::CityJSON);
-    println!("{}", cm);
+    println!("Display CityModel:\n{}", cm);
 }
 
 #[test]
@@ -88,8 +88,13 @@ fn test_transform() {
     // Test Transform in CityModel
     let mut cm = CityModel::default();
     assert!(cm.transform().is_none());
-    cm.set_transform(&transform);
-    assert_eq!(cm.transform(), Some(&transform));
+
+    let cm_transform = cm.transform_mut();
+    cm_transform.set_scale(new_scale);
+    cm_transform.set_translate(new_translate);
+
+    assert_eq!(cm.transform().unwrap().scale(), &new_scale);
+    assert_eq!(cm.transform().unwrap().translate(), &new_translate);
 }
 
 #[test]

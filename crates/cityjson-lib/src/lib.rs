@@ -114,8 +114,8 @@ impl CityModel {
         self.transform.as_ref()
     }
 
-    pub fn set_transform(&mut self, transform: &Transform) {
-        self.transform = Some(transform.clone());
+    pub fn transform_mut(&mut self) -> &mut Transform {
+        self.transform.get_or_insert_with(Transform::default)
     }
 
     pub fn extensions(&self) -> Option<&Extensions> {
