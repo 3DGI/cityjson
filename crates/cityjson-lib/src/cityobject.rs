@@ -7,7 +7,7 @@ pub type CityObjects = HashMap<String, CityObject>;
 pub type CityObjectId = String;
 #[derive(Debug, Default, Clone)]
 pub struct CityObject {
-    type_co: CityObjectType,
+    type_object: CityObjectType,
     attributes: Option<Attributes>,
     geographical_extent: Option<BBox>,
     children: Option<Vec<CityObjectId>>,
@@ -18,7 +18,7 @@ pub struct CityObject {
 impl CityObject {
     pub fn new(type_co: CityObjectType) -> Self {
         Self {
-            type_co,
+            type_object: type_co,
             attributes: None,
             geographical_extent: None,
             children: None,
@@ -27,8 +27,8 @@ impl CityObject {
         }
     }
 
-    pub fn type_co(&self) -> &CityObjectType {
-        &self.type_co
+    pub fn type_object(&self) -> &CityObjectType {
+        &self.type_object
     }
 
     pub fn attributes(&self) -> Option<&Attributes> {
@@ -96,7 +96,7 @@ impl CityObject {
 impl fmt::Display for CityObject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CityObject {{")?;
-        write!(f, "\n  type: {:?}", self.type_co)?;
+        write!(f, "\n  type: {:?}", self.type_object)?;
 
         if let Some(attrs) = &self.attributes {
             write!(f, "\n  attributes: {}", attrs)?;

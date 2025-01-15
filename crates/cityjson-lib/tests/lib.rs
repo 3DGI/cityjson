@@ -319,7 +319,7 @@ fn test_cityobject_creation() {
     let co = CityObject::new(CityObjectType::Building);
 
     // Test initial state
-    assert_eq!(co.type_co(), &CityObjectType::Building);
+    assert_eq!(co.type_object(), &CityObjectType::Building);
     assert!(co.attributes().is_none());
     assert!(co.geographical_extent().is_none());
     assert!(co.children().is_none());
