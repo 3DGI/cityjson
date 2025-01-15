@@ -1,7 +1,7 @@
 use crate::common::DATA_DIR;
 use cjlib::{
-    Attributes, CityJSONVersion, CityModel, CityModelIdentifier, Contact, ContactRole, ContactType,
-    Date, Extension, ExtensionName, Extensions, Transform, CRS,
+    Attributes, BBox, CityJSONVersion, CityModel, CityModelIdentifier, CityObject, CityObjectType,
+    Contact, ContactRole, ContactType, Date, Extension, ExtensionName, Extensions, Transform, CRS,
 };
 use serde_cityjson::CityModelType;
 use std::collections::HashMap;
@@ -312,4 +312,92 @@ fn test_metadata() {
     println!();
     println!("Metadata: {}", metadata);
     println!("Contact: {}", metadata.point_of_contact().unwrap());
+}
+
+#[test]
+fn test_cityobject_creation() {
+    let co = CityObject::new(CityObjectType::Building);
+
+    // Test initial state
+    assert_eq!(co.type_co(), &CityObjectType::Building);
+    assert!(co.attributes().is_none());
+    assert!(co.geographical_extent().is_none());
+    assert!(co.children().is_none());
+    assert!(co.parents().is_none());
+    assert!(co.extra().is_none());
+}
+
+#[test]
+fn test_cityobject_setters() {
+    let mut co = CityObject::new(CityObjectType::Building);
+
+    // Test attributes
+    let mut attrs = HashMap::new();
+    attrs.insert("height".to_string(), Attributes::Float(10.5));
+    attrs.insert("year".to_string(), Attributes::Integer(2023));
+    co.set_attributes(Attributes::Map(attrs));
+
+    // Test geographical extent
+    let bbox: BBox = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+    co.set_geographical_extent(bbox);
+
+    // Test children and parents
+    let children = vec!["child1".to_string(), "child2".to_string()];
+    let parents = vec!["parent1".to_string(), "parent2".to_string()];
+    co.set_children(children.clone());
+    co.set_parents(parents.clone());
+
+    // Test extra attributes
+    let mut extra = HashMap::new();
+    extra.insert("note".to_string(), Attributes::String("test".to_string()));
+    co.set_extra(Attributes::Map(extra));
+
+    // Verify all values
+    if let Some(Attributes::Map(map)) = co.attributes() {
+        assert_eq!(map.get("height").unwrap().as_float(), Some(10.5));
+        assert_eq!(map.get("year").unwrap().as_integer(), Some(2023));
+    } else {
+        panic!("Expected Map variant for attributes");
+    }
+
+    assert_eq!(co.geographical_extent(), Some(&bbox));
+    assert_eq!(co.children(), Some(&children));
+    assert_eq!(co.parents(), Some(&parents));
+
+    if let Some(Attributes::Map(map)) = co.extra() {
+        assert_eq!(map.get("note").unwrap().as_str(), Some("test"));
+    } else {
+        panic!("Expected Map variant for extra");
+    }
+}
+
+#[test]
+fn test_cityobject_mutable_access() {
+    let mut co = CityObject::new(CityObjectType::Building);
+
+    // Test attributes modification
+    let mut map = HashMap::new();
+    map.insert("height".to_string(), Attributes::Float(10.5));
+    *co.attributes_mut() = Some(Attributes::Map(map));
+
+    // Test geographical extent modification
+    let bbox: BBox = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+    *co.geographical_extent_mut() = Some(bbox);
+
+    // Test children and parents modification
+    let children = vec!["child1".to_string()];
+    let parents = vec!["parent1".to_string()];
+    *co.children_mut() = Some(children.clone());
+    *co.parents_mut() = Some(parents.clone());
+
+    // Verify modifications
+    if let Some(Attributes::Map(map)) = co.attributes() {
+        assert_eq!(map.get("height").unwrap().as_float(), Some(10.5));
+    } else {
+        panic!("Expected Map variant for attributes");
+    }
+
+    assert_eq!(co.geographical_extent(), Some(&bbox));
+    assert_eq!(co.children(), Some(&children));
+    assert_eq!(co.parents(), Some(&parents));
 }

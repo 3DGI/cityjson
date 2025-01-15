@@ -1,4 +1,5 @@
 mod attributes;
+mod cityobject;
 pub mod errors;
 mod extensions;
 mod metadata;
@@ -12,6 +13,7 @@ use std::io::BufRead;
 use std::path::Path;
 
 pub use attributes::Attributes;
+pub use cityobject::{CityObject, CityObjectType, CityObjects};
 pub use extensions::{Extension, ExtensionName, Extensions};
 pub use metadata::{
     BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
@@ -43,6 +45,7 @@ fn citymodel_from_str_minimal() {
 }
 
 pub struct CityModel {
+    cityobjects: CityObjects,
     extensions: Option<Extensions>,
     extra: Option<Attributes>,
     id: Option<String>,
@@ -55,6 +58,7 @@ pub struct CityModel {
 impl CityModel {
     pub fn new(type_model: CityModelType) -> Self {
         Self {
+            cityobjects: CityObjects::new(),
             extensions: None,
             extra: None,
             id: None,
@@ -83,6 +87,11 @@ impl CityModel {
             }
         };
         Ok(Self {
+            cityobjects: CityObjects::from_iter(
+                cm.cityobjects
+                    .into_iter()
+                    .map(|(coid, co)| (coid.to_string(), CityObject::try_from(co).unwrap())),
+            ),
             extensions: cm.extensions.map(|e| Extensions::from(e)),
             extra: cm.extra.map(|e| Attributes::try_from(e)).transpose()?,
             id: cm.id.map(|cow| cow.into_owned()),
@@ -153,13 +162,14 @@ impl CityModel {
 impl Default for CityModel {
     fn default() -> Self {
         Self {
+            cityobjects: CityObjects::default(),
             extensions: None,
+            extra: None,
             id: None,
             metadata: None,
             transform: None,
             type_model: CityModelType::default(),
             version: Some(CityJSONVersion::default()),
-            extra: None,
         }
     }
 }
@@ -167,6 +177,7 @@ impl Default for CityModel {
 impl fmt::Debug for CityModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CityModel")
+            .field("cityobjects", &self.cityobjects)
             .field("extensions", &self.extensions)
             .field("extra", &self.extra)
             .field("id", &self.id)
@@ -185,13 +196,14 @@ impl fmt::Display for CityModel {
             concat!(
                 "(\n",
                 "\tversion: {}\n",
-                "\tnr. cityobjects: \n",
+                "\tnr. cityobjects: {}\n",
                 "\ttransform: {}\n",
                 "\tmetadata: {}\n",
                 "\textra_root_properties: {}\n",
                 ")"
             ),
             format_option(&self.version),
+            self.cityobjects.len(),
             format_option(&self.transform),
             format_option(&self.metadata),
             format_option(&self.extra)
