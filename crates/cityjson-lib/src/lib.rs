@@ -15,7 +15,7 @@ use std::io::BufRead;
 use std::path::Path;
 
 use crate::geometry::{Material, Semantic, Texture};
-use crate::resource_pool::ResourcePool;
+use crate::resource_pool::{ResourceId, ResourcePool};
 pub use attributes::Attributes;
 pub use cityobject::{CityObject, CityObjectType, CityObjects};
 pub use extensions::{Extension, ExtensionName, Extensions};
@@ -170,6 +170,48 @@ impl CityModel {
 
     pub fn metadata_mut(&mut self) -> &mut Metadata {
         self.metadata.get_or_insert_with(Metadata::default)
+    }
+
+    pub fn add_cityobject(&mut self, id: String, object: CityObject) -> Result<()> {
+        self.cityobjects.insert(id, object);
+        Ok(())
+    }
+
+    pub fn get_cityobject(&self, id: &str) -> Option<&CityObject> {
+        self.cityobjects.get(id)
+    }
+
+    pub fn get_cityobject_mut(&mut self, id: &str) -> Option<&mut CityObject> {
+        self.cityobjects.get_mut(id)
+    }
+
+    pub fn remove_cityobject(&mut self, id: &str) -> Option<CityObject> {
+        let object = self.cityobjects.remove(id)?;
+        Some(object)
+    }
+
+    pub fn add_material(&mut self, material: Material) -> ResourceId {
+        self.materials.add(material)
+    }
+
+    pub fn add_semantic(&mut self, semantic: Semantic) -> ResourceId {
+        self.semantics.add(semantic)
+    }
+
+    pub fn add_texture(&mut self, texture: Texture) -> ResourceId {
+        self.textures.add(texture)
+    }
+
+    pub fn get_material(&self, id: ResourceId) -> Option<&Material> {
+        self.materials.get(id)
+    }
+
+    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic> {
+        self.semantics.get(id)
+    }
+
+    pub fn get_texture(&self, id: ResourceId) -> Option<&Texture> {
+        self.textures.get(id)
     }
 }
 
