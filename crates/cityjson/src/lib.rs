@@ -25,6 +25,8 @@ pub struct Geometry<V: Vertex, S: SemanticReference, M: MaterialReference, T: Te
     material_values: Option<SemanticMaterialMapping>,
     texture_surfaces: Option<Vec<T>>,
     texture_values: Option<TextureMapping>,
+    template_boundaries: Option<[usize; 1]>,
+    template_transformation_matrix: Option<[f64; 16]>,
 }
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
