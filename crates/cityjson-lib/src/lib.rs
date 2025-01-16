@@ -2,7 +2,9 @@ mod attributes;
 mod cityobject;
 pub mod errors;
 mod extensions;
+mod geometry;
 mod metadata;
+mod resource_pool;
 mod transform;
 
 use errors::Result;
@@ -12,6 +14,8 @@ use std::fmt;
 use std::io::BufRead;
 use std::path::Path;
 
+use crate::geometry::{Material, Semantic, Texture};
+use crate::resource_pool::ResourcePool;
 pub use attributes::Attributes;
 pub use cityobject::{CityObject, CityObjectType, CityObjects};
 pub use extensions::{Extension, ExtensionName, Extensions};
@@ -53,6 +57,10 @@ pub struct CityModel {
     transform: Option<Transform>,
     type_model: CityModelType,
     version: Option<CityJSONVersion>,
+    // Resource pools
+    materials: ResourcePool<Material>,
+    semantics: ResourcePool<Semantic>,
+    textures: ResourcePool<Texture>,
 }
 
 impl CityModel {
@@ -66,6 +74,9 @@ impl CityModel {
             transform: None,
             type_model,
             version: None,
+            materials: ResourcePool::new(),
+            semantics: ResourcePool::new(),
+            textures: ResourcePool::new(),
         }
     }
 
@@ -99,6 +110,9 @@ impl CityModel {
             transform: cm.transform.map(|t| Transform::from(t)),
             type_model: cm.type_cm,
             version: cm.version,
+            materials: ResourcePool::new(),
+            textures: ResourcePool::new(),
+            semantics: ResourcePool::new(),
         })
     }
 
@@ -170,6 +184,9 @@ impl Default for CityModel {
             transform: None,
             type_model: CityModelType::default(),
             version: Some(CityJSONVersion::default()),
+            materials: ResourcePool::new(),
+            semantics: ResourcePool::new(),
+            textures: ResourcePool::new(),
         }
     }
 }

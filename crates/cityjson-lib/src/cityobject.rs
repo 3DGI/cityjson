@@ -1,3 +1,4 @@
+use crate::geometry::Geometry;
 use crate::{errors, Attributes, BBox};
 use std::collections::HashMap;
 use std::fmt;
@@ -10,6 +11,7 @@ pub struct CityObject {
     type_object: CityObjectType,
     attributes: Option<Attributes>,
     geographical_extent: Option<BBox>,
+    geometry: Option<Vec<Geometry>>,
     children: Option<Vec<CityObjectId>>,
     parents: Option<Vec<CityObjectId>>,
     extra: Option<Attributes>,
@@ -21,6 +23,7 @@ impl CityObject {
             type_object: type_co,
             attributes: None,
             geographical_extent: None,
+            geometry: None,
             children: None,
             parents: None,
             extra: None,
