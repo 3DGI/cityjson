@@ -11,7 +11,7 @@ use crate::Boundary;
 /// # fn main() -> Result<(), errors::Error> {
 /// let mp_nested: BoundaryNestedMultiPoint = vec![0, 1, 2, 3];
 /// let boundary = Boundary::from(mp_nested.clone());
-/// let mp_nested_rev: BoundaryNestedMultiPoint = boundary.to_nested_multipoint()?;
+/// let mp_nested_rev: BoundaryNestedMultiPoint = boundary.to_nested_multi_point()?;
 /// assert_eq!(mp_nested, mp_nested_rev);
 /// # Ok(())
 /// # }
@@ -27,7 +27,7 @@ pub type BoundaryNestedMultiPoint = Vec<u32>;
 /// # fn main() -> Result<(), errors::Error> {
 /// let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3]];
 /// let boundary = Boundary::from(ml_nested.clone());
-/// let ml_nested_rev: BoundaryNestedMultiLineString = boundary.to_nested_multilinestring()?;
+/// let ml_nested_rev: BoundaryNestedMultiLineString = boundary.to_nested_multi_linestring()?;
 /// assert_eq!(ml_nested, ml_nested_rev);
 /// # Ok(())
 /// # }

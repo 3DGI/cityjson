@@ -46,7 +46,7 @@ impl Boundary {
 
     /// Convert to a nested MultiPoint boundary representation, if the Boundary can be interpreted
     /// as a MultiPoint boundary.
-    pub fn to_nested_multipoint(&self) -> errors::Result<BoundaryNestedMultiPoint> {
+    pub fn to_nested_multi_point(&self) -> errors::Result<BoundaryNestedMultiPoint> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
             Ok(self.vertices.iter().map(|v| v.value()).collect())
@@ -60,7 +60,7 @@ impl Boundary {
 
     /// Convert to a nested MultiLineString boundary representation, if the Boundary can be
     /// interpreted as a MultiLineString boundary.
-    pub fn to_nested_multilinestring(&self) -> errors::Result<BoundaryNestedMultiLineString> {
+    pub fn to_nested_multi_linestring(&self) -> errors::Result<BoundaryNestedMultiLineString> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
             let mut counter = BoundaryCounter::default();
@@ -361,5 +361,138 @@ impl BoundaryCounter {
     pub(crate) fn next_solid_i(&mut self) -> u32 {
         self.solid_i += 1;
         self.solid_i
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn from_multilinestring_empty_last() {
+        let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3], vec![]];
+        let boundary = Boundary::from(ml_nested);
+        assert_eq!(boundary.rings, GeometryIndices::from(vec![0_u32, 4]))
+    }
+
+    #[test]
+    fn from_multilinestring_empty_inner() {
+        let ml_nested: BoundaryNestedMultiLineString =
+            vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
+        let boundary = Boundary::from(ml_nested);
+        assert_eq!(boundary.rings, GeometryIndices::from(vec![0u32, 4, 4, 8]))
+    }
+
+    #[test]
+    fn multipoint() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![0_usize, 3, 2, 1]).unwrap(),
+            ..Default::default()
+        };
+        let nested = boundary.to_nested_multi_point().unwrap();
+        assert_eq!(nested, vec![0, 3, 2, 1]);
+    }
+
+    #[test]
+    fn multilinestring_basic() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7, 8]).unwrap(),
+            rings: GeometryIndices::try_from(vec![0_usize, 4, 7]).unwrap(),
+            ..Default::default()
+        };
+        let nested = boundary.to_nested_multi_linestring().unwrap();
+        assert_eq!(nested, vec![vec![0, 3, 2, 1], vec![4, 5, 6], vec![7, 8]]);
+    }
+
+    #[test]
+    fn multilinestring_empty() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![0_usize, 3, 2, 1, 4, 5, 6, 7]).unwrap(),
+            rings: GeometryIndices::try_from(vec![0_usize, 4, 4, 8]).unwrap(),
+            ..Default::default()
+        };
+        let nested = boundary.to_nested_multi_linestring().unwrap();
+        assert_eq!(
+            nested,
+            vec![vec![0, 3, 2, 1], vec![], vec![4, 5, 6, 7], vec![]]
+        );
+    }
+
+    #[test]
+    fn multi_or_composite_surface_inner_ring() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![
+                0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                22,
+            ])
+            .unwrap(),
+            rings: GeometryIndices::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
+            surfaces: GeometryIndices::try_from(vec![0_usize, 3, 4]).unwrap(),
+            ..Default::default()
+        };
+        let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
+        assert_eq!(
+            nested,
+            vec![
+                vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+                vec![vec![12, 13, 14, 15]],
+                vec![vec![16, 17, 18], vec![19, 20, 21, 22]]
+            ]
+        );
+    }
+
+    #[test]
+    fn solid() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![
+                0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                22,
+            ])
+            .unwrap(),
+            rings: GeometryIndices::try_from(vec![0_usize, 4, 8, 12, 16, 19]).unwrap(),
+            surfaces: GeometryIndices::try_from(vec![0_usize, 3, 4]).unwrap(),
+            shells: GeometryIndices::try_from(vec![0_usize, 2]).unwrap(),
+            ..Default::default()
+        };
+        let nested = boundary.to_nested_solid().unwrap();
+        assert_eq!(
+            nested,
+            vec![
+                vec![
+                    vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+                    vec![vec![12, 13, 14, 15]]
+                ],
+                vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
+            ]
+        );
+    }
+
+    #[test]
+    fn multi_or_composite_solid() {
+        let boundary = Boundary {
+            vertices: GeometryIndices::try_from(vec![
+                0_usize, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                22, 23, 24, 25, 26, 27, 28,
+            ])
+            .unwrap(),
+            rings: GeometryIndices::try_from(vec![0_usize, 4, 8, 12, 16, 19, 23, 26]).unwrap(),
+            surfaces: GeometryIndices::try_from(vec![0_usize, 3, 4, 6, 7]).unwrap(),
+            shells: GeometryIndices::try_from(vec![0_usize, 2, 3]).unwrap(),
+            solids: GeometryIndices::try_from(vec![0_usize, 2]).unwrap(),
+        };
+        let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
+        assert_eq!(
+            nested,
+            vec![
+                vec![
+                    vec![
+                        vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+                        vec![vec![12, 13, 14, 15]]
+                    ],
+                    vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
+                ],
+                vec![vec![vec![vec![23, 24, 25]], vec![vec![26, 27, 28]]]]
+            ]
+        );
     }
 }
