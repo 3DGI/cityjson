@@ -1,9 +1,3 @@
-//! Coordinate and index definitions for CityJSON geometry boundaries, semantics, and appearance indices.
-//!
-//! The indices are stored internally as u32 values to reduce memory usage while maintaining
-//! compatibility with typical CityJSON datasets. The implementation is optimized for performance
-//! with SIMD operations where available and specialized methods for common operations.
-
 use std::fmt;
 use std::ops::{AddAssign, Index, IndexMut, Range};
 
@@ -23,18 +17,19 @@ use std::ops::{AddAssign, Index, IndexMut, Range};
 /// # Ok(())
 /// # }
 /// ```
+/// A GeometryIndex wraps a u32 and is used for indexing geometry elements.
 #[derive(Copy, Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-
 pub struct GeometryIndex(u32);
 
+/// Type alias for optional geometry elements.
+pub type OptionalGeometryIndex = Option<GeometryIndex>;
+
 impl GeometryIndex {
-    /// Create a new GeometryIndex
     #[inline]
     pub fn new(value: u32) -> Self {
         Self(value)
     }
 
-    /// Get the underlying u32 value
     #[inline]
     pub fn value(&self) -> u32 {
         self.0
@@ -81,219 +76,280 @@ impl fmt::Display for GeometryIndex {
     }
 }
 
-/// A vector of geometry indices, optimized for u32-based indexing.
+/// A generic container for items of type T, stored in a Vec<T>.
+///
+/// It allows up to u32::MAX elements, and all indexing and length checks are done with u32.
 #[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-pub struct GeometryIndices(Vec<GeometryIndex>);
+pub struct GenericIndices<T>(Vec<T>);
 
-impl GeometryIndices {
-    /// Create a new empty vector
+impl<T> GenericIndices<T> {
+    /// Create a new empty container.
     #[inline]
     pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    /// Create a new vector with the specified capacity
+    /// Create a new container with the specified capacity (in u32).
     #[inline]
     pub fn with_capacity(capacity: u32) -> Self {
         Self(Vec::with_capacity(capacity as usize))
     }
 
-    /// Returns the number of elements in the vector
+    /// Returns the number of elements in the container (as u32).
     #[inline]
     pub fn len(&self) -> u32 {
         self.0.len().try_into().unwrap_or(u32::MAX)
     }
 
-    /// Returns the number of elements in the vector as usize
+    /// Returns the number of elements in the container as usize (for internal Rust usage).
     #[inline]
     pub fn len_usize(&self) -> usize {
         self.0.len()
     }
 
-    /// Returns true if the vector contains no elements
+    /// Returns true if the container contains no elements.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Returns the number of elements the vector can hold without reallocating
+    /// Returns the capacity of the underlying Vec (in u32).
     #[inline]
     pub fn capacity(&self) -> u32 {
         self.0.capacity().try_into().unwrap_or(u32::MAX)
     }
 
-    /// Appends an element to the back of the vector
-    #[inline]
-    pub fn push(&mut self, value: GeometryIndex) {
-        self.0.push(value)
-    }
-
-    /// Removes the last element and returns it
-    #[inline]
-    pub fn pop(&mut self) -> Option<GeometryIndex> {
-        self.0.pop()
-    }
-
-    /// Removes and returns the element at position index
-    #[inline]
-    pub fn remove(&mut self, index: u32) -> GeometryIndex {
-        self.0.remove(index as usize)
-    }
-
-    /// Returns a slice containing the entire vector
-    #[inline]
-    pub fn as_slice(&self) -> &[GeometryIndex] {
-        self.0.as_slice()
-    }
-
-    /// Returns a mutable slice containing the entire vector
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [GeometryIndex] {
-        self.0.as_mut_slice()
-    }
-
-    /// Returns a reference to an element at the given index
-    #[inline]
-    pub fn get(&self, index: u32) -> Option<&GeometryIndex> {
-        self.0.get(index as usize)
-    }
-
-    /// Returns a reference to an element at the given index without bounds checking
-    #[inline]
-    pub unsafe fn get_unchecked(&self, index: u32) -> &GeometryIndex {
-        self.0.get_unchecked(index as usize)
-    }
-
-    /// Returns a mutable reference to an element at the given index
-    #[inline]
-    pub fn get_mut(&mut self, index: u32) -> Option<&mut GeometryIndex> {
-        self.0.get_mut(index as usize)
-    }
-
-    /// Returns a mutable reference to an element at the given index without bounds checking
-    #[inline]
-    pub unsafe fn get_unchecked_mut(&mut self, index: u32) -> &mut GeometryIndex {
-        self.0.get_unchecked_mut(index as usize)
-    }
-
-    /// Returns a reference to a contiguous sequence of elements
-    #[inline]
-    pub fn get_range(&self, range: Range<u32>) -> Option<&[GeometryIndex]> {
-        self.0.get(range.start as usize..range.end as usize)
-    }
-
-    /// Returns a reference to a contiguous sequence of elements without bounds checking
-    #[inline]
-    pub unsafe fn get_range_unchecked(&self, range: Range<u32>) -> &[GeometryIndex] {
-        self.0
-            .get_unchecked(range.start as usize..range.end as usize)
-    }
-
-    /// Reserves capacity for at least additional more elements
+    /// Reserves capacity for at least additional more elements.
     #[inline]
     pub fn reserve(&mut self, additional: u32) {
         self.0.reserve(additional as usize)
     }
 
-    /// Reserves the minimum capacity for exactly additional more elements
+    /// Reserves the minimum capacity for exactly additional more elements.
     #[inline]
     pub fn reserve_exact(&mut self, additional: u32) {
         self.0.reserve_exact(additional as usize)
     }
 
-    /// Shrinks the capacity of the vector as much as possible
+    /// Shrinks the capacity of the vector as much as possible.
     #[inline]
     pub fn shrink_to_fit(&mut self) {
         self.0.shrink_to_fit()
     }
 
-    /// Shrinks the capacity of the vector with a lower bound
+    /// Shrinks the capacity of the vector with a lower bound.
     #[inline]
     pub fn shrink_to(&mut self, min_capacity: u32) {
         self.0.shrink_to(min_capacity as usize)
     }
 
-    /// Clears the vector, removing all elements
+    /// Clears the container, removing all elements.
     #[inline]
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
-    /// Returns an iterator over chunks of size chunk_size
+    /// Appends an element to the back of the container.
     #[inline]
-    pub fn chunks(&self, chunk_size: u32) -> GeometryIndicesChunks<'_> {
-        GeometryIndicesChunks {
+    pub fn push(&mut self, value: T) {
+        self.0.push(value)
+    }
+
+    /// Removes the last element and returns it, or None if it is empty.
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop()
+    }
+
+    /// Removes and returns the element at position index (u32).
+    #[inline]
+    pub fn remove(&mut self, index: u32) -> T {
+        self.0.remove(index as usize)
+    }
+
+    /// Returns a reference to an element at the given index (u32).
+    #[inline]
+    pub fn get(&self, index: u32) -> Option<&T> {
+        self.0.get(index as usize)
+    }
+
+    /// Returns a reference to an element at the given index without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    #[inline]
+    pub unsafe fn get_unchecked(&self, index: u32) -> &T {
+        self.0.get_unchecked(index as usize)
+    }
+
+    /// Returns a mutable reference to an element at the given index (u32).
+    #[inline]
+    pub fn get_mut(&mut self, index: u32) -> Option<&mut T> {
+        self.0.get_mut(index as usize)
+    }
+
+    /// Returns a mutable reference to an element at the given index without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    #[inline]
+    pub unsafe fn get_unchecked_mut(&mut self, index: u32) -> &mut T {
+        self.0.get_unchecked_mut(index as usize)
+    }
+
+    /// Returns a slice containing the entire underlying vector.
+    #[inline]
+    pub fn as_slice(&self) -> &[T] {
+        self.0.as_slice()
+    }
+
+    /// Returns a mutable slice containing the entire underlying vector.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.0.as_mut_slice()
+    }
+
+    /// Returns a reference to a contiguous subsequence, given a Range of u32 indices.
+    #[inline]
+    pub fn get_range(&self, range: Range<u32>) -> Option<&[T]> {
+        self.0.get(range.start as usize..range.end as usize)
+    }
+
+    /// Returns a reference to a contiguous subsequence without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with an out-of-bounds range is undefined behavior.
+    #[inline]
+    pub unsafe fn get_range_unchecked(&self, range: Range<u32>) -> &[T] {
+        self.0
+            .get_unchecked(range.start as usize..range.end as usize)
+    }
+
+    /// Extends the container with elements from a slice of T.
+    #[inline]
+    pub fn extend_from_slice(&mut self, other: &[T])
+    where
+        T: Clone,
+    {
+        self.0.extend_from_slice(other)
+    }
+
+    /// Returns an iterator over the container.
+    #[inline]
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.0.iter()
+    }
+
+    /// Returns a mutable iterator over the container.
+    #[inline]
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
+        self.0.iter_mut()
+    }
+
+    /// Returns an iterator over chunks of size chunk_size (in u32) of the container.
+    #[inline]
+    pub fn chunks(&self, chunk_size: u32) -> GenericIndicesChunks<'_, T> {
+        GenericIndicesChunks {
             vec: self,
             chunk_size,
             index: 0,
         }
     }
 
-    /// Returns an iterator over windows of size window_size
+    /// Returns an iterator over windows of size window_size (in u32) of the container.
+    ///
+    /// # Panics
+    ///
+    /// Panics if window_size == 0.
     #[inline]
-    pub fn windows(&self, window_size: u32) -> GeometryIndicesWindows<'_> {
+    pub fn windows(&self, window_size: u32) -> GenericIndicesWindows<'_, T> {
         assert!(window_size > 0);
-        GeometryIndicesWindows {
+        GenericIndicesWindows {
             vec: self,
             window_size,
             index: 0,
         }
     }
-
-    /// Extends the vector with elements from a slice
-    #[inline]
-    pub fn extend_from_slice(&mut self, other: &[GeometryIndex]) {
-        self.0.extend_from_slice(other)
-    }
-
-    /// Returns an iterator over the vector
-    #[inline]
-    pub fn iter(&self) -> std::slice::Iter<'_, GeometryIndex> {
-        self.0.iter()
-    }
-
-    /// Returns a mutable iterator over the vector
-    #[inline]
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, GeometryIndex> {
-        self.0.iter_mut()
-    }
 }
 
-impl Extend<GeometryIndex> for GeometryIndices {
-    /// Extends the GeometryIndices with elements from an iterator
-    #[inline]
-    fn extend<T: IntoIterator<Item = GeometryIndex>>(&mut self, iter: T) {
-        self.0.extend(iter);
-    }
-}
-
-impl Index<u32> for GeometryIndices {
-    type Output = GeometryIndex;
+impl<T> Index<u32> for GenericIndices<T> {
+    type Output = T;
 
     fn index(&self, index: u32) -> &Self::Output {
         &self.0[index as usize]
     }
 }
 
-impl IndexMut<u32> for GeometryIndices {
+impl<T> IndexMut<u32> for GenericIndices<T> {
     fn index_mut(&mut self, index: u32) -> &mut Self::Output {
         &mut self.0[index as usize]
     }
 }
 
-impl FromIterator<GeometryIndex> for GeometryIndices {
-    fn from_iter<T: IntoIterator<Item = GeometryIndex>>(iter: T) -> Self {
+impl<'a, T> IntoIterator for &'a GenericIndices<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut GenericIndices<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
+impl<T> Extend<T> for GenericIndices<T> {
+    fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        self.0.extend(iter);
+    }
+}
+
+/// Allows collecting an iterator of T into a GenericIndices<T>.
+impl<T> FromIterator<T> for GenericIndices<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self(iter.into_iter().collect())
     }
 }
 
-impl From<Vec<u32>> for GeometryIndices {
+/// From<Vec<T>> is an infallible conversion if T in Vec<T> matches our T.
+impl<T> From<Vec<T>> for GenericIndices<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self(value)
+    }
+}
+
+/// Specialization for building GeometryIndices from Vec<u32>.
+impl From<Vec<u32>> for GenericIndices<GeometryIndex> {
     fn from(value: Vec<u32>) -> Self {
         Self(value.into_iter().map(GeometryIndex::new).collect())
     }
 }
 
-impl TryFrom<Vec<usize>> for GeometryIndices {
+/// Specialization for infallibly building OptionalGeometryIndices from Vec<Option<u32>>,
+/// or more commonly you might want to accept a Vec<Option<u32>>. Here we just show how
+/// one might do it if needed. If not needed, you can remove or adapt this.
+impl From<Vec<Option<u32>>> for GenericIndices<Option<GeometryIndex>> {
+    fn from(value: Vec<Option<u32>>) -> Self {
+        Self(
+            value
+                .into_iter()
+                .map(|maybe_val| maybe_val.map(GeometryIndex::new))
+                .collect(),
+        )
+    }
+}
+
+/// Allows building GeometryIndices from a Vec<usize> with possible overflow checks.
+impl TryFrom<Vec<usize>> for GenericIndices<GeometryIndex> {
     type Error = std::num::TryFromIntError;
 
     fn try_from(value: Vec<usize>) -> Result<Self, Self::Error> {
@@ -305,33 +361,21 @@ impl TryFrom<Vec<usize>> for GeometryIndices {
     }
 }
 
-impl IntoIterator for GeometryIndices {
-    type Item = GeometryIndex;
-    type IntoIter = std::vec::IntoIter<GeometryIndex>;
+/// Type alias for the "regular" geometry indices = GenericIndices<GeometryIndex>.
+pub type GeometryIndices = GenericIndices<GeometryIndex>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
+/// Type alias for an optional-geometry variant = GenericIndices<Option<GeometryIndex>>.
+pub type OptionalGeometryIndices = GenericIndices<OptionalGeometryIndex>;
 
-impl<'a> IntoIterator for &'a GeometryIndices {
-    type Item = &'a GeometryIndex;
-    type IntoIter = std::slice::Iter<'a, GeometryIndex>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-/// Iterator over chunks of a GeometryIndices
-pub struct GeometryIndicesChunks<'a> {
-    vec: &'a GeometryIndices,
+/// Iterator over chunks of a GenericIndices<T>.
+pub struct GenericIndicesChunks<'a, T> {
+    vec: &'a GenericIndices<T>,
     chunk_size: u32,
     index: u32,
 }
 
-impl<'a> Iterator for GeometryIndicesChunks<'a> {
-    type Item = &'a [GeometryIndex];
+impl<'a, T> Iterator for GenericIndicesChunks<'a, T> {
+    type Item = &'a [T];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.vec.len() {
@@ -349,15 +393,15 @@ impl<'a> Iterator for GeometryIndicesChunks<'a> {
     }
 }
 
-/// Iterator over windows of a GeometryIndices
-pub struct GeometryIndicesWindows<'a> {
-    vec: &'a GeometryIndices,
+/// Iterator over windows of a GenericIndices<T>.
+pub struct GenericIndicesWindows<'a, T> {
+    vec: &'a GenericIndices<T>,
     window_size: u32,
     index: u32,
 }
 
-impl<'a> Iterator for GeometryIndicesWindows<'a> {
-    type Item = &'a [GeometryIndex];
+impl<'a, T> Iterator for GenericIndicesWindows<'a, T> {
+    type Item = &'a [T];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index + self.window_size > self.vec.len() {
@@ -371,9 +415,6 @@ impl<'a> Iterator for GeometryIndicesWindows<'a> {
         Some(window)
     }
 }
-
-/// Optional index for geometry elements
-pub type OptionalGeometryIndex = Option<GeometryIndex>;
 
 #[cfg(test)]
 mod tests {
@@ -410,10 +451,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "attempt to add with overflow")]
     fn test_geometry_index_addition_overflow() {
-        // Test addition overflow for GeometryIndex
+        // Test addition overflow for GeometryIndex (will panic in debug mode)
         let mut index1 = GeometryIndex::new(u32::MAX);
         let index2 = GeometryIndex::new(1);
-        index1 += index2; // This should panic due to overflow, but only in debug. In release, it wraps around.
+        index1 += index2; // Overflows in debug, wrapping in release
     }
 
     #[test]
@@ -459,8 +500,6 @@ mod tests {
 
     #[test]
     fn test_geometry_indices_edge_cases() {
-        let mut indices = GeometryIndices::new();
-
         // Test removing from an empty vector, which should panic
         let result = std::panic::catch_unwind(|| {
             let mut indices = GeometryIndices::new();
@@ -469,6 +508,7 @@ mod tests {
         assert!(result.is_err()); // Should panic
 
         // Test getting a range that exceeds the vector length
+        let mut indices = GeometryIndices::new();
         indices.push(GeometryIndex::new(1));
         let result = indices.get_range(0..2);
         assert!(result.is_none()); // Should return None
@@ -583,5 +623,17 @@ mod tests {
         let vec = vec![usize::MAX];
         let result = GeometryIndices::try_from(vec);
         assert!(result.is_err()); // Should fail due to overflow
+    }
+
+    #[test]
+    fn test_optional_geometry_indices() {
+        let mut indices = OptionalGeometryIndices::new();
+        indices.push(Some(GeometryIndex::new(10)));
+        indices.push(None);
+        indices.push(Some(GeometryIndex::new(20)));
+        assert_eq!(indices.len(), 3);
+        assert_eq!(indices[0], Some(GeometryIndex::new(10)));
+        assert_eq!(indices[1], None);
+        assert_eq!(indices[2], Some(GeometryIndex::new(20)));
     }
 }
