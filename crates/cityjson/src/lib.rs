@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
-mod boundary;
+pub mod boundary;
 mod materials;
 mod reference_mapping;
 mod semantics;
 mod textures;
 pub mod vertex;
 pub mod indices;
+pub mod errors;
+pub mod boundary_nested;
 
 pub use boundary::Boundary;
 pub use materials::MaterialReference;
