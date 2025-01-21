@@ -1,20 +1,16 @@
 use std::fmt::Debug;
 
 pub mod boundary;
-mod materials;
-mod reference_mapping;
-mod semantics;
-mod textures;
+mod resources_semantics_materials;
 pub mod vertex;
 pub mod indices;
 pub mod errors;
 pub mod boundary_nested;
+mod resources_textures;
 
 pub use boundary::Boundary;
-pub use materials::MaterialReference;
-pub use reference_mapping::{SemanticMaterialMapping, TextureMapping};
-pub use semantics::SemanticReference;
-pub use textures::TextureReference;
+pub use resources_semantics_materials::SemanticMaterialMap;
+pub use resources_textures::TextureMap;
 pub use vertex::{Coordinate, Index, Vertex, VertexCoordinate, VertexIndex};
 
 #[derive(Clone)]
@@ -23,6 +19,7 @@ pub struct Geometry {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary>,
+    semantics: Option<SemanticMaterialMap>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }

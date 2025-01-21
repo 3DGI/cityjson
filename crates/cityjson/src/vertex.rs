@@ -21,6 +21,12 @@ pub trait Index: Vertex {
     fn to_usize(&self) -> Option<usize>;
 }
 
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub struct Vertices(Vec<VertexCoordinate>);
+
+/// Align to 32 bytes to work well with arrow.
+#[repr(C, align(32))]
 #[derive(Clone, Debug)]
 pub struct VertexCoordinate {
     pub(crate) x: f64,
