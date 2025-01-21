@@ -5,9 +5,9 @@ use crate::Boundary;
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::boundary_nested::*;
-/// # use cjgeometry::Boundary;
-/// # use cjgeometry::errors;
+/// # use cityjson::boundary_nested::*;
+/// # use cityjson::Boundary;
+/// # use cityjson::errors;
 /// # fn main() -> Result<(), errors::Error> {
 /// let mp_nested: BoundaryNestedMultiPoint = vec![0, 1, 2, 3];
 /// let boundary = Boundary::from(mp_nested.clone());
@@ -21,9 +21,9 @@ pub type BoundaryNestedMultiPoint = Vec<u32>;
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::boundary_nested::*;
-/// # use cjgeometry::Boundary;
-/// # use cjgeometry::errors;
+/// # use cityjson::boundary_nested::*;
+/// # use cityjson::Boundary;
+/// # use cityjson::errors;
 /// # fn main() -> Result<(), errors::Error> {
 /// let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3]];
 /// let boundary = Boundary::from(ml_nested.clone());
@@ -37,9 +37,9 @@ pub type BoundaryNestedMultiLineString = Vec<BoundaryNestedMultiPoint>;
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::boundary_nested::*;
-/// # use cjgeometry::Boundary;
-/// # use cjgeometry::errors;
+/// # use cityjson::boundary_nested::*;
+/// # use cityjson::Boundary;
+/// # use cityjson::errors;
 /// # fn main() -> Result<(), errors::Error> {
 /// let aggregatesurface_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
 /// let boundary = Boundary::from(aggregatesurface_nested.clone());
@@ -53,9 +53,9 @@ pub type BoundaryNestedMultiOrCompositeSurface = Vec<BoundaryNestedMultiLineStri
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::boundary_nested::*;
-/// # use cjgeometry::Boundary;
-/// # use cjgeometry::errors;
+/// # use cityjson::boundary_nested::*;
+/// # use cityjson::Boundary;
+/// # use cityjson::errors;
 /// # fn main() -> Result<(), errors::Error> {
 /// let so_nested: BoundaryNestedSolid = vec![vec![vec![vec![0, 1, 2, 3]]]];
 /// let boundary = Boundary::from(so_nested.clone());
@@ -69,9 +69,9 @@ pub type BoundaryNestedSolid = Vec<BoundaryNestedMultiOrCompositeSurface>;
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::boundary_nested::*;
-/// # use cjgeometry::Boundary;
-/// # use cjgeometry::errors;
+/// # use cityjson::boundary_nested::*;
+/// # use cityjson::Boundary;
+/// # use cityjson::errors;
 /// # fn main() -> Result<(), errors::Error> {
 /// let aso_nested: BoundaryNestedMultiOrCompositeSolid = vec![vec![vec![vec![vec![0, 1, 2, 3]]]]];
 /// let boundary = Boundary::from(aso_nested.clone());

@@ -6,7 +6,7 @@ use std::ops::{AddAssign, Index, IndexMut, Range};
 ///
 /// # Examples
 /// ```
-/// # use cjgeometry::indices::*;
+/// # use cityjson::indices::*;
 /// # fn main() -> Result<(), String> {
 /// let _: GeometryIndex = 0u32.into();
 /// let _: GeometryIndex = 0usize.try_into().unwrap();

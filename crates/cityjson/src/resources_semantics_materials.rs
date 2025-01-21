@@ -2,19 +2,7 @@ use std::fmt::Debug;
 use crate::boundary::BoundaryType;
 use crate::indices::{GeometryIndices, OptionalGeometryIndices};
 
-pub trait SemanticType{}
-
-pub trait Semantic: Clone + Debug {
-    fn type_semantic<ST: SemanticType>(&self) -> ST;
-
-    /// Access to the Semantic attributes.
-    fn attributes<A>(&self) -> Option<A>;
-
-    /// Mutable access to the Semantic attributes.
-    fn attributes_mut<A>(&mut self) -> &mut A;
-}
-
-pub struct Semantics<S: Semantic>(Vec<S>);
+pub struct Semantics;
 
 /// Stores the Semantic and Material indices of a Boundary and maps them to the
 /// boundary primitives.
