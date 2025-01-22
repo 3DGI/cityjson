@@ -1,113 +1,61 @@
-use crate::indices::{GeometryIndex, GeometryIndices};
 use crate::Boundary;
+use crate::vertex::{VertexInteger, VertexIndex, VertexIndices};
 
-/// The boundary of a `MultiPoint`, `LineString` or `Ring` represented as nested vectors.
-///
-/// # Examples
-/// ```
-/// # use cityjson::boundary_nested::*;
-/// # use cityjson::Boundary;
-/// # use cityjson::errors;
-/// # fn main() -> Result<(), errors::Error> {
-/// let mp_nested: BoundaryNestedMultiPoint = vec![0, 1, 2, 3];
-/// let boundary = Boundary::from(mp_nested.clone());
-/// let mp_nested_rev: BoundaryNestedMultiPoint = boundary.to_nested_multi_point()?;
-/// assert_eq!(mp_nested, mp_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiPoint = Vec<u32>;
+// Type aliases for u16
+pub type BoundaryNestedMultiPoint16 = Vec<u16>;
+pub type BoundaryNestedMultiLineString16 = Vec<BoundaryNestedMultiPoint16>;
+pub type BoundaryNestedMultiOrCompositeSurface16 = Vec<BoundaryNestedMultiLineString16>;
+pub type BoundaryNestedSolid16 = Vec<BoundaryNestedMultiOrCompositeSurface16>;
+pub type BoundaryNestedMultiOrCompositeSolid16 = Vec<BoundaryNestedSolid16>;
 
-/// The boundary of a `MultiLineString`, or `Surface` represented as nested vectors.
-///
-/// # Examples
-/// ```
-/// # use cityjson::boundary_nested::*;
-/// # use cityjson::Boundary;
-/// # use cityjson::errors;
-/// # fn main() -> Result<(), errors::Error> {
-/// let ml_nested: BoundaryNestedMultiLineString = vec![vec![0, 1, 2, 3]];
-/// let boundary = Boundary::from(ml_nested.clone());
-/// let ml_nested_rev: BoundaryNestedMultiLineString = boundary.to_nested_multi_linestring()?;
-/// assert_eq!(ml_nested, ml_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiLineString = Vec<BoundaryNestedMultiPoint>;
+// Type aliases for u32
+pub type BoundaryNestedMultiPoint32 = Vec<u32>;
+pub type BoundaryNestedMultiLineString32 = Vec<BoundaryNestedMultiPoint32>;
+pub type BoundaryNestedMultiOrCompositeSurface32 = Vec<BoundaryNestedMultiLineString32>;
+pub type BoundaryNestedSolid32 = Vec<BoundaryNestedMultiOrCompositeSurface32>;
+pub type BoundaryNestedMultiOrCompositeSolid32 = Vec<BoundaryNestedSolid32>;
 
-/// The boundary of a `MultiSurface`, `CompositeSurface` or `Shell` represented as nested vectors.
-///
-/// # Examples
-/// ```
-/// # use cityjson::boundary_nested::*;
-/// # use cityjson::Boundary;
-/// # use cityjson::errors;
-/// # fn main() -> Result<(), errors::Error> {
-/// let aggregatesurface_nested: BoundaryNestedMultiOrCompositeSurface = vec![vec![vec![0, 1, 2, 3]]];
-/// let boundary = Boundary::from(aggregatesurface_nested.clone());
-/// let aggregatesurface_nested_rev: BoundaryNestedMultiOrCompositeSurface = boundary.to_nested_multi_or_composite_surface()?;
-/// assert_eq!(aggregatesurface_nested, aggregatesurface_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiOrCompositeSurface = Vec<BoundaryNestedMultiLineString>;
+// Type aliases for u64
+pub type BoundaryNestedMultiPoint64 = Vec<u64>;
+pub type BoundaryNestedMultiLineString64 = Vec<BoundaryNestedMultiPoint64>;
+pub type BoundaryNestedMultiOrCompositeSurface64 = Vec<BoundaryNestedMultiLineString64>;
+pub type BoundaryNestedSolid64 = Vec<BoundaryNestedMultiOrCompositeSurface64>;
+pub type BoundaryNestedMultiOrCompositeSolid64 = Vec<BoundaryNestedSolid64>;
 
-/// The boundary of a `Solid`, represented as nested vectors.
-///
-/// # Examples
-/// ```
-/// # use cityjson::boundary_nested::*;
-/// # use cityjson::Boundary;
-/// # use cityjson::errors;
-/// # fn main() -> Result<(), errors::Error> {
-/// let so_nested: BoundaryNestedSolid = vec![vec![vec![vec![0, 1, 2, 3]]]];
-/// let boundary = Boundary::from(so_nested.clone());
-/// let so_nested_rev: BoundaryNestedSolid = boundary.to_nested_solid()?;
-/// assert_eq!(so_nested, so_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedSolid = Vec<BoundaryNestedMultiOrCompositeSurface>;
-
-/// The boundary of a `MultiSolid` or a `CompositeSolid`, represented as nested vectors.
-///
-/// # Examples
-/// ```
-/// # use cityjson::boundary_nested::*;
-/// # use cityjson::Boundary;
-/// # use cityjson::errors;
-/// # fn main() -> Result<(), errors::Error> {
-/// let aso_nested: BoundaryNestedMultiOrCompositeSolid = vec![vec![vec![vec![vec![0, 1, 2, 3]]]]];
-/// let boundary = Boundary::from(aso_nested.clone());
-/// let aso_nested_rev: BoundaryNestedMultiOrCompositeSolid = boundary.to_nested_multi_or_composite_solid()?;
-/// assert_eq!(aso_nested, aso_nested_rev);
-/// # Ok(())
-/// # }
-pub type BoundaryNestedMultiOrCompositeSolid = Vec<BoundaryNestedSolid>;
+// Generic type aliases (for use in trait implementations)
+pub type BoundaryNestedMultiPoint<T> = Vec<T>;
+pub type BoundaryNestedMultiLineString<T> = Vec<BoundaryNestedMultiPoint<T>>;
+pub type BoundaryNestedMultiOrCompositeSurface<T> = Vec<BoundaryNestedMultiLineString<T>>;
+pub type BoundaryNestedSolid<T> = Vec<BoundaryNestedMultiOrCompositeSurface<T>>;
+pub type BoundaryNestedMultiOrCompositeSolid<T> = Vec<BoundaryNestedSolid<T>>;
 
 
-impl From<BoundaryNestedMultiPoint> for Boundary {
-    fn from(value: BoundaryNestedMultiPoint) -> Self {
+impl<T: VertexInteger> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
+    fn from(value: BoundaryNestedMultiPoint<T>) -> Self {
         if value.is_empty() {
             Self::default()
         } else {
             Self {
-                vertices: value.iter().map(|v| GeometryIndex::new(*v)).collect(),
+                vertices: value.iter().map(|v| VertexIndex::new(*v)).collect(),
                 ..Self::default()
             }
         }
     }
 }
 
-impl From<BoundaryNestedMultiLineString> for Boundary {
-    fn from(value: BoundaryNestedMultiLineString) -> Self {
+impl<T: VertexInteger> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
+    fn from(value: BoundaryNestedMultiLineString<T>) -> Self {
         if value.is_empty() {
             Self::default()
         } else {
-            let mut vertices = GeometryIndices::new();
-            let mut rings = GeometryIndices::with_capacity(value.len() as u32);
-            let mut ring_start = GeometryIndex::new(0);
+            let mut vertices = VertexIndices::new();
+            let mut rings = VertexIndices::with_capacity(T::try_from(value.len()).unwrap());
+            let mut ring_start = VertexIndex::new(T::zero());
             for ring in &value {
                 rings.push(ring_start);
                 for vertex in ring {
-                    vertices.push(GeometryIndex::new(*vertex));
-                    ring_start += GeometryIndex::new(1);
+                    vertices.push(VertexIndex::new(*vertex));
+                    ring_start += VertexIndex::new(T::one());
                 }
             }
             Self {
@@ -119,8 +67,8 @@ impl From<BoundaryNestedMultiLineString> for Boundary {
     }
 }
 
-impl From<BoundaryNestedMultiOrCompositeSurface> for Boundary {
-    fn from(value: BoundaryNestedMultiOrCompositeSurface) -> Self {
+impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
+    fn from(value: BoundaryNestedMultiOrCompositeSurface<T>) -> Self {
         if value.is_empty() {
             return Self::default();
         }
@@ -129,25 +77,25 @@ impl From<BoundaryNestedMultiOrCompositeSurface> for Boundary {
             value
                 .iter()
                 .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
-                .sum::<usize>() as u32,
-            value.iter().map(|surface| surface.len()).sum::<usize>() as u32,
-            value.len() as u32,
-            0,
-            0,
+                .sum::<usize>().try_into().unwrap(),
+            value.iter().map(|surface| surface.len()).sum::<usize>().try_into().unwrap(),
+            value.len().try_into().unwrap(),
+            T::zero(),
+            T::zero(),
         );
 
-        let mut vertex_idx = GeometryIndex::new(0);
+        let mut vertex_idx = VertexIndex::new(T::zero());
 
         for surface in value {
             boundary
                 .surfaces
-                .push(GeometryIndex::from(boundary.rings.len()));
+                .push(VertexIndex::new(boundary.rings.len()));
 
             for ring in surface {
                 boundary.rings.push(vertex_idx);
                 for vertex in ring {
-                    boundary.vertices.push(GeometryIndex::new(vertex));
-                    vertex_idx += GeometryIndex::new(1);
+                    boundary.vertices.push(VertexIndex::new(vertex));
+                    vertex_idx += VertexIndex::new(T::one());
                 }
             }
         }
@@ -156,8 +104,8 @@ impl From<BoundaryNestedMultiOrCompositeSurface> for Boundary {
     }
 }
 
-impl From<BoundaryNestedSolid> for Boundary {
-    fn from(value: BoundaryNestedSolid) -> Self {
+impl<T: VertexInteger> From<BoundaryNestedSolid<T>> for Boundary<T> {
+    fn from(value: BoundaryNestedSolid<T>) -> Self {
         if value.is_empty() {
             return Self::default();
         }
@@ -181,30 +129,30 @@ impl From<BoundaryNestedSolid> for Boundary {
         let surfaces_cap = value.iter().map(|shell| shell.len()).sum::<usize>();
 
         let mut boundary = Self::with_capacity(
-            vertices_cap as u32,
-            rings_cap as u32,
-            surfaces_cap as u32,
-            value.len() as u32,
-            0,
+            vertices_cap.try_into().unwrap(),
+            rings_cap.try_into().unwrap(),
+            surfaces_cap.try_into().unwrap(),
+            value.len().try_into().unwrap(),
+            T::zero(),
         );
 
-        let mut vertex_idx = GeometryIndex::new(0);
+        let mut vertex_idx = VertexIndex::new(T::zero());
 
         for shell in value {
             boundary
                 .shells
-                .push(GeometryIndex::from(boundary.surfaces.len()));
+                .push(VertexIndex::new(boundary.surfaces.len()));
 
             for surface in shell {
                 boundary
                     .surfaces
-                    .push(GeometryIndex::from(boundary.rings.len()));
+                    .push(VertexIndex::new(boundary.rings.len()));
 
                 for ring in surface {
                     boundary.rings.push(vertex_idx);
                     for vertex in ring {
-                        boundary.vertices.push(GeometryIndex::new(vertex));
-                        vertex_idx += GeometryIndex::new(1);
+                        boundary.vertices.push(VertexIndex::new(vertex));
+                        vertex_idx += VertexIndex::new(T::one());
                     }
                 }
             }
@@ -214,8 +162,8 @@ impl From<BoundaryNestedSolid> for Boundary {
     }
 }
 
-impl From<BoundaryNestedMultiOrCompositeSolid> for Boundary {
-    fn from(value: BoundaryNestedMultiOrCompositeSolid) -> Self {
+impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
+    fn from(value: BoundaryNestedMultiOrCompositeSolid<T>) -> Self {
         if value.is_empty() {
             return Self::default();
         }
@@ -254,35 +202,35 @@ impl From<BoundaryNestedMultiOrCompositeSolid> for Boundary {
         let shells_cap = value.iter().map(|solid| solid.len()).sum::<usize>();
 
         let mut boundary = Self::with_capacity(
-            vertices_cap as u32,
-            rings_cap as u32,
-            surfaces_cap as u32,
-            shells_cap as u32,
-            value.len() as u32,
+            vertices_cap.try_into().unwrap(),
+            rings_cap.try_into().unwrap(),
+            surfaces_cap.try_into().unwrap(),
+            shells_cap.try_into().unwrap(),
+            value.len().try_into().unwrap(),
         );
 
-        let mut vertex_idx = GeometryIndex::new(0);
+        let mut vertex_idx = VertexIndex::new(T::zero());
 
         for solid in value {
             boundary
                 .solids
-                .push(GeometryIndex::from(boundary.shells.len()));
+                .push(VertexIndex::new(boundary.shells.len()));
 
             for shell in solid {
                 boundary
                     .shells
-                    .push(GeometryIndex::from(boundary.surfaces.len()));
+                    .push(VertexIndex::new(boundary.surfaces.len()));
 
                 for surface in shell {
                     boundary
                         .surfaces
-                        .push(GeometryIndex::from(boundary.rings.len()));
+                        .push(VertexIndex::new(boundary.rings.len()));
 
                     for ring in surface {
                         boundary.rings.push(vertex_idx);
                         for vertex in ring {
-                            boundary.vertices.push(GeometryIndex::new(vertex));
-                            vertex_idx += GeometryIndex::new(1);
+                            boundary.vertices.push(VertexIndex::new(vertex));
+                            vertex_idx += VertexIndex::new(T::one());
                         }
                     }
                 }

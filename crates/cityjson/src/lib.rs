@@ -12,13 +12,14 @@ pub use boundary::Boundary;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
 pub use vertex::{VertexCoordinate, VertexIndex};
+use crate::vertex::VertexInteger;
 
 #[derive(Clone)]
 #[allow(unused)]
-pub struct Geometry {
+pub struct Geometry<T: VertexInteger> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    boundaries: Option<Boundary>,
+    boundaries: Option<Boundary<T>>,
     semantics: Option<SemanticMaterialMap>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
