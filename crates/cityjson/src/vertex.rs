@@ -137,7 +137,7 @@ impl<T: VertexInteger> VertexIndex<T> {
     /// SAFETY: This is safe on 64-bit platforms as all our integer types
     /// (u16, u32, u64) fit within usize (u64)
     #[inline(always)]
-    fn to_usize(&self) -> usize {
+    pub fn to_usize(&self) -> usize {
         unsafe {
             match size_of::<T>() {
                 2 => {

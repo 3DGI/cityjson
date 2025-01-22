@@ -11,6 +11,10 @@ pub enum Error {
         index_type: String,
         value: String,
     },
+    TooManyVertices {
+        attempted: usize,
+        maximum: usize,
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -38,6 +42,9 @@ impl Display for Error {
             }
             Error::IndexOverflow { index_type, value } => {
                 write!(f, "index overflow for {}: value {}", index_type, value)
+            }
+            Error::TooManyVertices {attempted, maximum} => {
+                write!(f, "attempted to store {} vertices in a container with capacity {}", attempted, maximum)
             }
         }
     }

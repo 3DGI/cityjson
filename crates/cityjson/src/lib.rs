@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 pub mod boundary;
 pub mod boundary_nested;
-mod coordinate;
+pub mod coordinate;
 pub mod errors;
 mod resources_semantics_materials;
 mod resources_textures;
