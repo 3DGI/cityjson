@@ -4,7 +4,6 @@ pub mod boundary;
 pub mod boundary_nested;
 mod coordinate;
 pub mod errors;
-pub mod indices;
 mod resources_semantics_materials;
 mod resources_textures;
 pub mod vertex;
