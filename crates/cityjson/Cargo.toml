@@ -3,5 +3,9 @@ name = "cityjson"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata]
+# Document platform requirements
+platform_support = "64-bit platforms only (x86_64, aarch64, etc.)"
+
 [dependencies]
 num = "0.4.3"

@@ -11,7 +11,7 @@ mod resources_textures;
 pub use boundary::Boundary;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
-pub use vertex::{Coordinate, Index, Vertex, VertexCoordinate, VertexIndex};
+pub use vertex::{VertexCoordinate, VertexIndex};
 
 #[derive(Clone)]
 #[allow(unused)]

@@ -2,8 +2,6 @@ use std::fmt::Debug;
 use crate::boundary::BoundaryType;
 use crate::indices::{GeometryIndices, OptionalGeometryIndices};
 
-pub struct Semantics;
-
 /// Stores the Semantic and Material indices of a Boundary and maps them to the
 /// boundary primitives.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
