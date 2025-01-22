@@ -11,7 +11,6 @@ pub enum Error {
         index_type: String,
         value: String,
     },
-
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

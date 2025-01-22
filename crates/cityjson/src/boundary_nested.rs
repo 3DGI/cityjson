@@ -1,5 +1,5 @@
+use crate::vertex::{VertexIndex, VertexIndices, VertexInteger};
 use crate::Boundary;
-use crate::vertex::{VertexInteger, VertexIndex, VertexIndices};
 
 // Type aliases for u16
 pub type BoundaryNestedMultiPoint16 = Vec<u16>;
@@ -29,7 +29,6 @@ pub type BoundaryNestedMultiOrCompositeSurface<T> = Vec<BoundaryNestedMultiLineS
 pub type BoundaryNestedSolid<T> = Vec<BoundaryNestedMultiOrCompositeSurface<T>>;
 pub type BoundaryNestedMultiOrCompositeSolid<T> = Vec<BoundaryNestedSolid<T>>;
 
-
 impl<T: VertexInteger> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     fn from(value: BoundaryNestedMultiPoint<T>) -> Self {
         if value.is_empty() {
@@ -49,7 +48,8 @@ impl<T: VertexInteger> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
             Self::default()
         } else {
             let mut vertices = VertexIndices::new();
-            let mut rings = VertexIndices::with_capacity(T::try_from(value.len()).unwrap());
+            let vi = VertexIndex::<T>::try_from(value.len()).unwrap();
+            let mut rings = VertexIndices::with_capacity(vi);
             let mut ring_start = VertexIndex::new(T::zero());
             for ring in &value {
                 rings.push(ring_start);
@@ -77,11 +77,18 @@ impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSurface<T>> for Bounda
             value
                 .iter()
                 .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
-                .sum::<usize>().try_into().unwrap(),
-            value.iter().map(|surface| surface.len()).sum::<usize>().try_into().unwrap(),
+                .sum::<usize>()
+                .try_into()
+                .unwrap(),
+            value
+                .iter()
+                .map(|surface| surface.len())
+                .sum::<usize>()
+                .try_into()
+                .unwrap(),
             value.len().try_into().unwrap(),
-            T::zero(),
-            T::zero(),
+            VertexIndex::<T>::new(T::zero()),
+            VertexIndex::<T>::new(T::zero()),
         );
 
         let mut vertex_idx = VertexIndex::new(T::zero());
@@ -133,7 +140,7 @@ impl<T: VertexInteger> From<BoundaryNestedSolid<T>> for Boundary<T> {
             rings_cap.try_into().unwrap(),
             surfaces_cap.try_into().unwrap(),
             value.len().try_into().unwrap(),
-            T::zero(),
+            VertexIndex::<T>::new(T::zero()),
         );
 
         let mut vertex_idx = VertexIndex::new(T::zero());

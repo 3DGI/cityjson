@@ -244,6 +244,148 @@ impl TryFrom<VertexIndex<u64>> for VertexIndex<u16> {
 }
 
 //------------------------------------------------------------------------------
+// Integer to VertexIndex conversions
+//------------------------------------------------------------------------------
+
+// u16 conversions
+impl From<u16> for VertexIndex<u16> {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl From<u16> for VertexIndex<u32> {
+    fn from(value: u16) -> Self {
+        Self(u32::from(value))
+    }
+}
+
+impl From<u16> for VertexIndex<u64> {
+    fn from(value: u16) -> Self {
+        Self(u64::from(value))
+    }
+}
+
+// u32 conversions
+impl From<u32> for VertexIndex<u32> {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<u32> for VertexIndex<u16> {
+    type Error = Error;
+
+    fn try_from(value: u32) -> Result<Self> {
+        u16::try_from(value)
+            .map(Self)
+            .map_err(|_| Error::IndexConversion {
+                source_type: "u32".to_string(),
+                target_type: "u16".to_string(),
+                value: value.to_string(),
+            })
+    }
+}
+
+impl From<u32> for VertexIndex<u64> {
+    fn from(value: u32) -> Self {
+        Self(u64::from(value))
+    }
+}
+
+// u64 conversions
+impl From<u64> for VertexIndex<u64> {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<u64> for VertexIndex<u16> {
+    type Error = Error;
+
+    fn try_from(value: u64) -> Result<Self> {
+        u16::try_from(value)
+            .map(Self)
+            .map_err(|_| Error::IndexConversion {
+                source_type: "u64".to_string(),
+                target_type: "u16".to_string(),
+                value: value.to_string(),
+            })
+    }
+}
+
+impl TryFrom<u64> for VertexIndex<u32> {
+    type Error = Error;
+
+    fn try_from(value: u64) -> Result<Self> {
+        u32::try_from(value)
+            .map(Self)
+            .map_err(|_| Error::IndexConversion {
+                source_type: "u64".to_string(),
+                target_type: "u32".to_string(),
+                value: value.to_string(),
+            })
+    }
+}
+
+// usize conversions
+impl<T: VertexInteger> TryFrom<usize> for VertexIndex<T> {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self> {
+        T::try_from(value)
+            .map(Self)
+            .map_err(|_| Error::IndexConversion {
+                source_type: "usize".to_string(),
+                target_type: std::any::type_name::<T>().to_string(),
+                value: value.to_string(),
+            })
+    }
+}
+
+// impl TryFrom<usize> for VertexIndex<u16> {
+//     type Error = Error;
+//
+//     fn try_from(value: usize) -> Result<Self> {
+//         u16::try_from(value)
+//             .map(Self)
+//             .map_err(|_| Error::IndexConversion {
+//                 source_type: "usize".to_string(),
+//                 target_type: "u16".to_string(),
+//                 value: value.to_string(),
+//             })
+//     }
+// }
+//
+// impl TryFrom<usize> for VertexIndex<u32> {
+//     type Error = Error;
+//
+//     fn try_from(value: usize) -> Result<Self> {
+//         u32::try_from(value)
+//             .map(Self)
+//             .map_err(|_| Error::IndexConversion {
+//                 source_type: "usize".to_string(),
+//                 target_type: "u32".to_string(),
+//                 value: value.to_string(),
+//             })
+//     }
+// }
+//
+// impl TryFrom<usize> for VertexIndex<u64> {
+//     type Error = Error;
+//
+//     fn try_from(value: usize) -> Result<Self> {
+//         u64::try_from(value)
+//             .map(Self)
+//             .map_err(|_| Error::IndexConversion {
+//                 source_type: "usize".to_string(),
+//                 target_type: "u64".to_string(),
+//                 value: value.to_string(),
+//             })
+//     }
+// }
+
+//------------------------------------------------------------------------------
 // Collection types and implementations
 //------------------------------------------------------------------------------
 
@@ -281,8 +423,8 @@ impl<T: VertexInteger> VertexIndices<T> {
     }
 
     #[inline]
-    pub fn with_capacity(capacity: T) -> Self {
-        Self(Vec::with_capacity(VertexIndex::new(capacity).to_usize()))
+    pub fn with_capacity(capacity: VertexIndex<T>) -> Self {
+        Self(Vec::with_capacity(capacity.to_usize()))
     }
 
     #[inline]
@@ -326,8 +468,8 @@ impl<T: VertexInteger> VertexIndices<T> {
     }
 
     #[inline]
-    pub fn get_mut(&mut self, index: T) -> Option<&mut VertexIndex<T>> {
-        self.0.get_mut(VertexIndex::new(index).to_usize())
+    pub fn get_mut(&mut self, index: VertexIndex<T>) -> Option<&mut VertexIndex<T>> {
+        self.0.get_mut(index.to_usize())
     }
 
     /// Get a reference to an element without bounds checking.
@@ -336,8 +478,8 @@ impl<T: VertexInteger> VertexIndices<T> {
     ///
     /// Calling this method with an out-of-bounds index is undefined behavior.
     #[inline]
-    pub unsafe fn get_unchecked(&self, index: T) -> &VertexIndex<T> {
-        self.0.get_unchecked(VertexIndex::new(index).to_usize())
+    pub unsafe fn get_unchecked(&self, index: VertexIndex<T>) -> &VertexIndex<T> {
+        self.0.get_unchecked(index.to_usize())
     }
 
     /// Get a mutable reference to an element without bounds checking.
@@ -346,8 +488,8 @@ impl<T: VertexInteger> VertexIndices<T> {
     ///
     /// Calling this method with an out-of-bounds index is undefined behavior.
     #[inline]
-    pub unsafe fn get_unchecked_mut(&mut self, index: T) -> &mut VertexIndex<T> {
-        self.0.get_unchecked_mut(VertexIndex::new(index).to_usize())
+    pub unsafe fn get_unchecked_mut(&mut self, index: VertexIndex<T>) -> &mut VertexIndex<T> {
+        self.0.get_unchecked_mut(index.to_usize())
     }
 
     #[inline]
@@ -362,8 +504,7 @@ impl<T: VertexInteger> VertexIndices<T> {
 
     #[inline]
     pub fn get_range(&self, range: Range<VertexIndex<T>>) -> Option<&[VertexIndex<T>]> {
-        self.0
-            .get(range.start.to_usize()..range.end.to_usize())
+        self.0.get(range.start.to_usize()..range.end.to_usize())
     }
 
     /// Removes and returns the element at position `index`.
@@ -385,10 +526,7 @@ impl<T: VertexInteger> VertexIndices<T> {
     ///
     /// Calling this method with an out-of-bounds range is undefined behavior.
     #[inline]
-    pub unsafe fn get_range_unchecked(
-        &self,
-        range: Range<VertexIndex<T>>,
-    ) -> &[VertexIndex<T>] {
+    pub unsafe fn get_range_unchecked(&self, range: Range<VertexIndex<T>>) -> &[VertexIndex<T>] {
         self.0
             .get_unchecked(range.start.to_usize()..range.end.to_usize())
     }
@@ -523,165 +661,322 @@ impl<'a, T: VertexInteger> Iterator for VertexIndicesWindows<'a, T> {
 }
 
 //------------------------------------------------------------------------------
-// Integer to VertexIndex conversions
+// Collection types with optional values and their implementations
 //------------------------------------------------------------------------------
-
-// u16 conversions
-impl From<u16> for VertexIndex<u16> {
-    fn from(value: u16) -> Self {
-        Self(value)
-    }
+/// A container for optional vertex indices that maintains both the indices and their presence.
+#[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
+pub struct OptionalVertexIndices<T: VertexInteger> {
+    indices: VertexIndices<T>,
+    mask: Vec<bool>,
 }
 
-impl From<u16> for VertexIndex<u32> {
-    fn from(value: u16) -> Self {
-        Self(u32::from(value))
-    }
-}
-
-impl From<u16> for VertexIndex<u64> {
-    fn from(value: u16) -> Self {
-        Self(u64::from(value))
-    }
-}
-
-// u32 conversions
-impl From<u32> for VertexIndex<u32> {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl TryFrom<u32> for VertexIndex<u16> {
-    type Error = Error;
-
-    fn try_from(value: u32) -> Result<Self> {
-        u16::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "u32".to_string(),
-                target_type: "u16".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-impl From<u32> for VertexIndex<u64> {
-    fn from(value: u32) -> Self {
-        Self(u64::from(value))
-    }
-}
-
-// u64 conversions
-impl From<u64> for VertexIndex<u64> {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl TryFrom<u64> for VertexIndex<u16> {
-    type Error = Error;
-
-    fn try_from(value: u64) -> Result<Self> {
-        u16::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "u64".to_string(),
-                target_type: "u16".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-impl TryFrom<u64> for VertexIndex<u32> {
-    type Error = Error;
-
-    fn try_from(value: u64) -> Result<Self> {
-        u32::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "u64".to_string(),
-                target_type: "u32".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-// usize conversions
-impl TryFrom<usize> for VertexIndex<u16> {
-    type Error = Error;
-
-    fn try_from(value: usize) -> Result<Self> {
-        u16::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "usize".to_string(),
-                target_type: "u16".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-impl TryFrom<usize> for VertexIndex<u32> {
-    type Error = Error;
-
-    fn try_from(value: usize) -> Result<Self> {
-        u32::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "usize".to_string(),
-                target_type: "u32".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-impl TryFrom<usize> for VertexIndex<u64> {
-    type Error = Error;
-
-    fn try_from(value: usize) -> Result<Self> {
-        u64::try_from(value)
-            .map(Self)
-            .map_err(|_| Error::IndexConversion {
-                source_type: "usize".to_string(),
-                target_type: "u64".to_string(),
-                value: value.to_string(),
-            })
-    }
-}
-
-//------------------------------------------------------------------------------
-// Coordinate types
-//------------------------------------------------------------------------------
-
-/// Container for vertex coordinates.
-#[repr(C)]
-#[derive(Clone, Debug)]
-pub struct Vertices(Vec<VertexCoordinate>);
-
-/// 3D vertex coordinate
-#[repr(C, align(32))]
-#[derive(Clone, Debug)]
-pub struct VertexCoordinate {
-    pub(crate) x: f64,
-    pub(crate) y: f64,
-    pub(crate) z: f64,
-}
-
-impl VertexCoordinate {
+impl<T: VertexInteger> OptionalVertexIndices<T> {
+    /// Creates a new empty OptionalVertexIndices.
     #[inline]
-    pub fn x(&self) -> f64 {
-        self.x
+    pub fn new() -> Self {
+        Self {
+            indices: VertexIndices::new(),
+            mask: Vec::new(),
+        }
     }
 
+    /// Creates a new OptionalVertexIndices with the specified capacity.
     #[inline]
-    pub fn y(&self) -> f64 {
-        self.y
+    pub fn with_capacity(capacity: VertexIndex<T>) -> Self {
+        Self {
+            indices: VertexIndices::with_capacity(capacity),
+            mask: Vec::with_capacity(capacity.to_usize()),
+        }
     }
 
+    /// Returns the number of elements.
     #[inline]
-    pub fn z(&self) -> f64 {
-        self.z
+    pub fn len(&self) -> T {
+        self.indices.len()
+    }
+
+    /// Returns true if the container is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.indices.is_empty()
+    }
+
+    /// Returns the capacity of the container.
+    #[inline]
+    pub fn capacity(&self) -> T {
+        self.indices.capacity()
+    }
+
+    /// Adds an optional vertex index to the end of the container.
+    #[inline]
+    pub fn push(&mut self, value: Option<VertexIndex<T>>) {
+        match value {
+            Some(idx) => {
+                self.indices.push(idx);
+                self.mask.push(true);
+            }
+            None => {
+                self.indices.push(VertexIndex::new(T::MIN));
+                self.mask.push(false);
+            }
+        }
+    }
+
+    /// Removes and returns the last element.
+    #[inline]
+    pub fn pop(&mut self) -> Option<Option<VertexIndex<T>>> {
+        self.mask.pop().map(|present| {
+            let idx = self.indices.pop().unwrap();
+            if present {
+                Some(idx)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Removes all elements from the container.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.indices.clear();
+        self.mask.clear();
+    }
+
+    /// Returns a reference to the element at the given index, or None if the index is out of bounds.
+    #[inline]
+    pub fn get(&self, index: VertexIndex<T>) -> Option<Option<&VertexIndex<T>>> {
+        let idx = index.to_usize();
+        if idx >= self.mask.len() {
+            return None;
+        }
+        Some(if self.mask[idx] {
+            Some(&self.indices[index])
+        } else {
+            None
+        })
+    }
+
+    /// Returns a mutable reference to the element at the given index.
+    #[inline]
+    pub fn get_mut(&mut self, index: VertexIndex<T>) -> Option<Option<&mut VertexIndex<T>>> {
+        let idx = index.to_usize();
+        if idx >= self.mask.len() {
+            return None;
+        }
+        Some(if self.mask[idx] {
+            Some(self.indices.get_mut(index).unwrap())
+        } else {
+            None
+        })
+    }
+
+    /// Returns a slice of the underlying indices.
+    #[inline]
+    pub fn as_slice(&self) -> &[VertexIndex<T>] {
+        self.indices.as_slice()
+    }
+
+    /// Returns a mutable slice of the underlying indices.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [VertexIndex<T>] {
+        self.indices.as_mut_slice()
+    }
+
+    /// Returns an iterator over the optional references to indices.
+    #[inline]
+    pub fn iter(&self) -> OptionalVertexIndicesIter<'_, T> {
+        OptionalVertexIndicesIter {
+            indices: &self.indices,
+            mask: &self.mask,
+            index: 0,
+        }
+    }
+
+    /// Returns an iterator over mutable optional references to indices.
+    #[inline]
+    pub fn iter_mut(&mut self) -> OptionalVertexIndicesIterMut<'_, T> {
+        OptionalVertexIndicesIterMut {
+            indices: self.indices.as_mut_slice(),
+            mask: &self.mask,
+            index: 0,
+        }
+    }
+
+    /// Returns a range of optional indices.
+    #[inline]
+    pub fn get_range(
+        &self,
+        range: Range<VertexIndex<T>>,
+    ) -> Option<OptionalVertexIndicesRange<'_, T>> {
+        let start = range.start.to_usize();
+        let end = range.end.to_usize();
+        if end > self.mask.len() {
+            return None;
+        }
+        Some(OptionalVertexIndicesRange {
+            indices: self.indices.get_range(range)?,
+            mask: &self.mask[start..end],
+        })
+    }
+
+    /// Returns an iterator over chunks of optional indices.
+    #[inline]
+    pub fn chunks(&self, chunk_size: usize) -> OptionalVertexIndicesChunks<'_, T> {
+        OptionalVertexIndicesChunks {
+            indices: self.indices.chunks(chunk_size),
+            mask: self.mask.chunks(chunk_size),
+        }
+    }
+
+    /// Sets whether an index is present or not.
+    #[inline]
+    pub fn set_present(&mut self, index: VertexIndex<T>, present: bool) {
+        let idx = index.to_usize();
+        if idx < self.mask.len() {
+            self.mask[idx] = present;
+        }
+    }
+
+    /// Returns whether an index is present.
+    #[inline]
+    pub fn is_present(&self, index: VertexIndex<T>) -> bool {
+        let idx = index.to_usize();
+        idx < self.mask.len() && self.mask[idx]
+    }
+}
+
+// Iterator implementations
+pub struct OptionalVertexIndicesIter<'a, T: VertexInteger> {
+    indices: &'a VertexIndices<T>,
+    mask: &'a [bool],
+    index: usize,
+}
+
+impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIter<'a, T> {
+    type Item = Option<&'a VertexIndex<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.mask.len() {
+            return None;
+        }
+        let current = if self.mask[self.index] {
+            Some(&self.indices[T::try_from(self.index).unwrap()])
+        } else {
+            None
+        };
+        self.index += 1;
+        Some(current)
+    }
+}
+
+pub struct OptionalVertexIndicesIterMut<'a, T: VertexInteger> {
+    indices: &'a mut [VertexIndex<T>],
+    mask: &'a [bool],
+    index: usize,
+}
+
+impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIterMut<'a, T> {
+    type Item = Option<&'a mut VertexIndex<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.mask.len() {
+            return None;
+        }
+        let index = self.index;
+        self.index += 1;
+
+        // SAFETY: We're maintaining the invariant that we never return multiple mutable references
+        // to the same element because we increment the index each time.
+        Some(if self.mask[index] {
+            Some(unsafe {
+                let indices = &mut *(self.indices as *mut [VertexIndex<T>]);
+                &mut indices[index]
+            })
+        } else {
+            None
+        })
+    }
+}
+
+pub struct OptionalVertexIndicesRange<'a, T: VertexInteger> {
+    indices: &'a [VertexIndex<T>],
+    mask: &'a [bool],
+}
+
+impl<'a, T: VertexInteger> OptionalVertexIndicesRange<'a, T> {
+    #[inline]
+    pub fn iter(&self) -> OptionalVertexIndicesRangeIter<'a, T> {
+        OptionalVertexIndicesRangeIter {
+            indices: self.indices,
+            mask: self.mask,
+            index: 0,
+        }
+    }
+}
+
+pub struct OptionalVertexIndicesRangeIter<'a, T: VertexInteger> {
+    indices: &'a [VertexIndex<T>],
+    mask: &'a [bool],
+    index: usize,
+}
+
+impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesRangeIter<'a, T> {
+    type Item = Option<&'a VertexIndex<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.mask.len() {
+            return None;
+        }
+        let current = if self.mask[self.index] {
+            Some(&self.indices[self.index])
+        } else {
+            None
+        };
+        self.index += 1;
+        Some(current)
+    }
+}
+
+pub struct OptionalVertexIndicesChunks<'a, T: VertexInteger> {
+    indices: VertexIndicesChunks<'a, T>,
+    mask: std::slice::Chunks<'a, bool>,
+}
+
+impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesChunks<'a, T> {
+    type Item = OptionalVertexIndicesRange<'a, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let indices = self.indices.next()?;
+        let mask = self.mask.next()?;
+        Some(OptionalVertexIndicesRange { indices, mask })
+    }
+}
+
+// Implementation of common traits
+impl<T: VertexInteger> FromIterator<Option<VertexIndex<T>>> for OptionalVertexIndices<T> {
+    fn from_iter<I: IntoIterator<Item = Option<VertexIndex<T>>>>(iter: I) -> Self {
+        let mut indices = Self::new();
+        for item in iter {
+            indices.push(item);
+        }
+        indices
+    }
+}
+
+impl<'a, T: VertexInteger> IntoIterator for &'a OptionalVertexIndices<T> {
+    type Item = Option<&'a VertexIndex<T>>;
+    type IntoIter = OptionalVertexIndicesIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<T: VertexInteger> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
+    type Output = Option<VertexIndex<T>>;
+
+    fn index(&self, _: VertexIndex<T>) -> &Self::Output {
+        unimplemented!("Cannot directly index OptionalVertexIndices. Use get() instead.")
     }
 }
 
@@ -692,6 +987,7 @@ impl VertexCoordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::coordinate::VertexCoordinate;
 
     #[test]
     fn test_vertex_index_creation() {
@@ -796,22 +1092,22 @@ mod tests {
 
         // Test unchecked access (only in unsafe block)
         unsafe {
-            assert_eq!(indices.get_unchecked(0u32).value(), 0u32);
-            assert_eq!(indices.get_unchecked(1u32).value(), 1u32);
+            assert_eq!(indices.get_unchecked(0u32.into()).value(), 0u32);
+            assert_eq!(indices.get_unchecked(1u32.into()).value(), 1u32);
         }
     }
 
     #[test]
     fn test_vertex_indices_capacity() {
-        let indices = VertexIndices32::with_capacity(10u32);
+        let indices = VertexIndices32::with_capacity(10u32.into());
         assert!(indices.capacity() >= 10u32);
         assert!(indices.is_empty());
 
         // Test with different sizes
-        let indices16 = VertexIndices16::with_capacity(10u16);
+        let indices16 = VertexIndices16::with_capacity(10u16.into());
         assert!(indices16.capacity() >= 10u16);
 
-        let indices64 = VertexIndices64::with_capacity(10u64);
+        let indices64 = VertexIndices64::with_capacity(10u64.into());
         assert!(indices64.capacity() >= 10u64);
     }
 
@@ -839,23 +1135,6 @@ mod tests {
         assert_eq!(coord.z(), 3.0);
     }
 
-    #[test]
-    fn test_vertices_container() {
-        let vertices = Vertices(vec![
-            VertexCoordinate {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            VertexCoordinate {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-        ]);
-
-        assert_eq!(vertices.0.len(), 2);
-    }
     #[test]
     fn test_vertex_indices_remove() {
         let mut indices = VertexIndices32::new();
@@ -1017,5 +1296,87 @@ mod tests {
         let idx64: Result<VertexIndex<u64>> = 42usize.try_into();
         assert!(idx64.is_ok());
         assert_eq!(idx64.unwrap().value(), 42);
+    }
+}
+
+#[cfg(test)]
+mod tests_optional {
+    use super::*;
+
+    #[test]
+    fn test_optional_vertex_indices_basic() {
+        let mut indices = OptionalVertexIndices::<u32>::new();
+
+        indices.push(Some(VertexIndex32::new(1)));
+        indices.push(None);
+        indices.push(Some(VertexIndex32::new(3)));
+
+        assert_eq!(indices.len(), 3u32);
+        assert!(!indices.is_empty());
+
+        // Test get
+        assert_eq!(
+            indices.get(VertexIndex32::new(0)).unwrap().unwrap().value(),
+            1
+        );
+        assert_eq!(indices.get(VertexIndex32::new(1)).unwrap(), None);
+        assert_eq!(
+            indices.get(VertexIndex32::new(2)).unwrap().unwrap().value(),
+            3
+        );
+    }
+
+    #[test]
+    fn test_optional_vertex_indices_iteration() {
+        let mut indices = OptionalVertexIndices::<u32>::new();
+        indices.push(Some(VertexIndex32::new(1)));
+        indices.push(None);
+        indices.push(Some(VertexIndex32::new(3)));
+
+        let mut iter = indices.iter();
+        assert_eq!(iter.next().unwrap().unwrap().value(), 1);
+        assert_eq!(iter.next().unwrap(), None);
+        assert_eq!(iter.next().unwrap().unwrap().value(), 3);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_optional_vertex_indices_chunks() {
+        let mut indices = OptionalVertexIndices::<u32>::new();
+        for i in 0..6 {
+            indices.push(if i % 2 == 0 {
+                Some(VertexIndex32::new(i))
+            } else {
+                None
+            });
+        }
+
+        let chunks: Vec<_> = indices.chunks(2).collect();
+        assert_eq!(chunks.len(), 3);
+    }
+
+    #[test]
+    fn test_optional_vertex_indices_clear() {
+        let mut indices = OptionalVertexIndices::<u32>::new();
+        indices.push(Some(VertexIndex32::new(1)));
+        indices.push(None);
+
+        assert_eq!(indices.len(), 2u32);
+        indices.clear();
+        assert_eq!(indices.len(), 0u32);
+        assert!(indices.is_empty());
+    }
+
+    #[test]
+    fn test_optional_vertex_indices_presence() {
+        let mut indices = OptionalVertexIndices::<u32>::new();
+        indices.push(Some(VertexIndex32::new(1)));
+        indices.push(None);
+
+        assert!(indices.is_present(VertexIndex32::new(0)));
+        assert!(!indices.is_present(VertexIndex32::new(1)));
+
+        indices.set_present(VertexIndex32::new(1), true);
+        assert!(indices.is_present(VertexIndex32::new(1)));
     }
 }

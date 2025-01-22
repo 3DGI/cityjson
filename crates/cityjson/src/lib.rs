@@ -1,18 +1,20 @@
 use std::fmt::Debug;
 
 pub mod boundary;
-mod resources_semantics_materials;
-pub mod vertex;
-pub mod indices;
-pub mod errors;
 pub mod boundary_nested;
+mod coordinate;
+pub mod errors;
+pub mod indices;
+mod resources_semantics_materials;
 mod resources_textures;
+pub mod vertex;
 
+use crate::vertex::VertexInteger;
 pub use boundary::Boundary;
+pub use coordinate::VertexCoordinate;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
-pub use vertex::{VertexCoordinate, VertexIndex};
-use crate::vertex::VertexInteger;
+pub use vertex::VertexIndex;
 
 #[derive(Clone)]
 #[allow(unused)]
@@ -20,7 +22,7 @@ pub struct Geometry<T: VertexInteger> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary<T>>,
-    semantics: Option<SemanticMaterialMap>,
+    semantics: Option<SemanticMaterialMap<T>>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -64,9 +66,6 @@ pub enum LoD {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-
-
 
     #[test]
     fn test_geometry_type_equality() {

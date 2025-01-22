@@ -1,25 +1,25 @@
-use std::fmt::Debug;
 use crate::boundary::BoundaryType;
-use crate::indices::{GeometryIndices, OptionalGeometryIndices};
+use crate::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
+use std::fmt::Debug;
 
 /// Stores the Semantic and Material indices of a Boundary and maps them to the
 /// boundary primitives.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct SemanticMaterialMap {
+pub struct SemanticMaterialMap<T: VertexInteger> {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
     /// of the item is the index of the Semantic or Material object.
-    pub points: OptionalGeometryIndices,
+    pub points: OptionalVertexIndices<T>,
     /// Each item corresponds to the linestring with the same index in a MultiLineString boundary,
     /// the value of the item is the index of the Semantic or Material object.
-    pub linestrings: OptionalGeometryIndices,
+    pub linestrings: OptionalVertexIndices<T>,
     /// Each item corresponds to the surface with the same index, the value
     /// of the item is the index of the Semantic or Material object.
-    pub surfaces: OptionalGeometryIndices,
-    pub shells: GeometryIndices,
-    pub solids: GeometryIndices,
+    pub surfaces: OptionalVertexIndices<T>,
+    pub shells: VertexIndices<T>,
+    pub solids: VertexIndices<T>,
 }
 
-impl SemanticMaterialMap {
+impl<T: VertexInteger> SemanticMaterialMap<T> {
     /// Hint what [BoundaryType] does the SemanticMaterialMap belong to.
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {

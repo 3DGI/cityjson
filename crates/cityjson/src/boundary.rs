@@ -28,7 +28,13 @@ impl<T: VertexInteger> Boundary<T> {
     }
 
     #[inline]
-    pub fn with_capacity(vertices: T, rings: T, surfaces: T, shells: T, solids: T) -> Self {
+    pub fn with_capacity(
+        vertices: VertexIndex<T>,
+        rings: VertexIndex<T>,
+        surfaces: VertexIndex<T>,
+        shells: VertexIndex<T>,
+        solids: VertexIndex<T>,
+    ) -> Self {
         Self {
             vertices: VertexIndices::with_capacity(vertices),
             rings: VertexIndices::with_capacity(rings),
@@ -202,7 +208,7 @@ impl<T: VertexInteger> Boundary<T> {
                 .copied()
                 .unwrap_or(vertices_len);
             if let Some(vertices) = self.vertices.get_range(vertices_start_i..vertices_end_i) {
-                surface.push(vertices.iter().map(|v| {dbg!(&v); v.value()}).collect());
+                surface.push(vertices.iter().map(|v| v.value()).collect());
             }
         }
     }
