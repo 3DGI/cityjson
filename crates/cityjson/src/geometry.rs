@@ -320,26 +320,70 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
 
         // Create boundary structure
         let mut boundary = Boundary::new();
+        let mut counter = BoundaryCounter::default();
 
-        // Add vertex indices
-        let mut vertex_index_list = Vec::new();
-
-        // Process rings and their vertices
+        // Process vertices and rings
+        let mut vertex_list = Vec::new();
         let mut ring_indices = Vec::new();
-        let mut current_vertex_idx = T::zero();
 
         for ring in &self.rings {
-            ring_indices.push(VertexIndex::new(current_vertex_idx));
+            // Mark the start of this ring
+            ring_indices.push(counter.vertex_offset());
 
-            // Add all vertices for this ring
+            // Add vertices for this ring
             for &vertex_idx in ring {
-                vertex_index_list.push(vertex_indices[vertex_idx]);
-                current_vertex_idx = current_vertex_idx.checked_add(&T::one()).unwrap();
+                vertex_list.push(vertex_indices[vertex_idx]);
+                counter.increment_vertex_idx();
             }
         }
-
-        boundary.vertices = VertexIndices::from_iter(vertex_index_list);
+        boundary.vertices = VertexIndices::from_iter(vertex_list);
         boundary.rings = VertexIndices::from_iter(ring_indices);
+
+        // Process surfaces with their rings
+        let mut surface_indices = Vec::new();
+        for surface in &self.surfaces {
+            if let Some(outer_ring) = surface.outer_ring {
+                // Add index to the outer ring
+                surface_indices.push(VertexIndex::new(T::try_from(outer_ring).unwrap()));
+                // Account for inner rings
+                for &inner_ring in &surface.inner_rings {
+                    surface_indices.push(VertexIndex::new(T::try_from(inner_ring).unwrap()));
+                    counter.increment_ring_idx();
+                }
+            }
+        }
+        boundary.surfaces = VertexIndices::from_iter(surface_indices);
+
+        // Process shells with their surfaces
+        let mut shell_indices = Vec::new();
+        for shell in &self.shells {
+            shell_indices.push(counter.surface_offset());
+
+            // Account for all surfaces in this shell
+            for _ in 0..shell.outer_surfaces.len() + shell.inner_surfaces.len() {
+                counter.increment_surface_idx();
+            }
+        }
+        if !shell_indices.is_empty() {
+            boundary.shells = VertexIndices::from_iter(shell_indices);
+        }
+
+        // Process solids with their shells
+        let mut solid_indices = Vec::new();
+        for solid in &self.solids {
+            if let Some(_) = solid.outer_shell {
+                solid_indices.push(counter.shell_offset());
+                counter.increment_shell_idx(); // Outer shell
+
+                // Account for inner shells
+                for _ in &solid.inner_shells {
+                    counter.increment_shell_idx();
+                }
+            }
+        }
+        if !solid_indices.is_empty() {
+            boundary.solids = VertexIndices::from_iter(solid_indices);
+        }
 
         // Create semantic mappings
         let mut semantic_map = SemanticMaterialMap::default();
@@ -355,61 +399,6 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
             })
             .collect::<Vec<_>>();
         semantic_map.surfaces = OptionalVertexIndices::from_iter(surface_semantic_indices);
-
-        // Process surfaces
-        let mut surface_indices = Vec::new();
-        let mut current_ring = T::zero();
-
-        for surface in &self.surfaces {
-            if let Some(outer_ring) = surface.outer_ring {
-                surface_indices.push(VertexIndex::new(current_ring));
-                current_ring = current_ring.checked_add(&T::one()).unwrap();
-
-                // Add indices for inner rings
-                for _ in &surface.inner_rings {
-                    current_ring = current_ring.checked_add(&T::one()).unwrap();
-                }
-            }
-        }
-        boundary.surfaces = VertexIndices::from_iter(surface_indices);
-
-        // Process shells
-        let mut shell_indices = Vec::new();
-        let mut current_surface = T::zero();
-
-        for shell in &self.shells {
-            shell_indices.push(VertexIndex::new(current_surface));
-            current_surface = current_surface
-                .checked_add(&T::try_from(shell.outer_surfaces.len()).unwrap())
-                .unwrap();
-            if !shell.inner_surfaces.is_empty() {
-                current_surface = current_surface
-                    .checked_add(&T::try_from(shell.inner_surfaces.len()).unwrap())
-                    .unwrap();
-            }
-        }
-        if !shell_indices.is_empty() {
-            boundary.shells = VertexIndices::from_iter(shell_indices);
-        }
-
-        // Process solids
-        let mut solid_indices = Vec::new();
-        let mut current_shell = T::zero();
-
-        for solid in &self.solids {
-            if let Some(_) = solid.outer_shell {
-                solid_indices.push(VertexIndex::new(current_shell));
-                current_shell = current_shell.checked_add(&T::one()).unwrap();
-
-                // Account for inner shells
-                current_shell = current_shell
-                    .checked_add(&T::try_from(solid.inner_shells.len()).unwrap())
-                    .unwrap();
-            }
-        }
-        if !solid_indices.is_empty() {
-            boundary.solids = VertexIndices::from_iter(solid_indices);
-        }
 
         // Create the geometry
         let geometry = Geometry {

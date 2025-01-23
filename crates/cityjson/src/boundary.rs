@@ -130,7 +130,7 @@ impl<T: VertexInteger> Boundary<T> {
                 let shells_len = VertexIndex::new(self.shells.len());
                 let shells_end_i = self
                     .solids
-                    .get(counter.next_solid_i())
+                    .get(counter.increment_solid_idx())
                     .copied()
                     .unwrap_or(shells_len);
 
@@ -159,7 +159,7 @@ impl<T: VertexInteger> Boundary<T> {
             let surfaces_len = VertexIndex::new(self.surfaces.len());
             let surfaces_end_i = self
                 .shells
-                .get(counter.next_shell_i())
+                .get(counter.increment_shell_idx())
                 .copied()
                 .unwrap_or(surfaces_len);
 
@@ -182,7 +182,7 @@ impl<T: VertexInteger> Boundary<T> {
             let rings_len = VertexIndex::new(self.rings.len());
             let ring_end_i = self
                 .surfaces
-                .get(counter.next_surface_i())
+                .get(counter.increment_surface_idx())
                 .copied()
                 .unwrap_or(rings_len);
 
@@ -204,7 +204,7 @@ impl<T: VertexInteger> Boundary<T> {
             let vertices_len = VertexIndex::new(self.vertices.len());
             let vertices_end_i = self
                 .rings
-                .get(counter.next_ring_i())
+                .get(counter.increment_ring_idx())
                 .copied()
                 .unwrap_or(vertices_len);
             if let Some(vertices) = self.vertices.get_range(vertices_start_i..vertices_end_i) {
@@ -311,31 +311,59 @@ impl std::fmt::Display for BoundaryType {
 
 #[derive(Default)]
 pub(crate) struct BoundaryCounter<T: VertexInteger> {
-    pub(crate) ring_i: VertexIndex<T>,
-    pub(crate) surface_i: VertexIndex<T>,
-    pub(crate) shell_i: VertexIndex<T>,
-    pub(crate) solid_i: VertexIndex<T>,
+    pub(crate) vertex_offset: VertexIndex<T>,  // Current position in vertex list
+    pub(crate) ring_offset: VertexIndex<T>,    // Current position in ring list
+    pub(crate) surface_offset: VertexIndex<T>, // Current position in surface list
+    pub(crate) shell_offset: VertexIndex<T>,   // Current position in shell list
+    pub(crate) solid_offset: VertexIndex<T>,   // Current position in solid list
 }
 
 impl<T: VertexInteger> BoundaryCounter<T> {
-    pub(crate) fn next_ring_i(&mut self) -> VertexIndex<T> {
-        self.ring_i += VertexIndex::new(T::one());
-        self.ring_i
+    // Increment methods - return new position after incrementing
+    pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<T> {
+        self.vertex_offset += VertexIndex::new(T::one());
+        self.vertex_offset
     }
 
-    pub(crate) fn next_surface_i(&mut self) -> VertexIndex<T> {
-        self.surface_i += VertexIndex::new(T::one());
-        self.surface_i
+    pub(crate) fn increment_ring_idx(&mut self) -> VertexIndex<T> {
+        self.ring_offset += VertexIndex::new(T::one());
+        self.ring_offset
     }
 
-    pub(crate) fn next_shell_i(&mut self) -> VertexIndex<T> {
-        self.shell_i += VertexIndex::new(T::one());
-        self.shell_i
+    pub(crate) fn increment_surface_idx(&mut self) -> VertexIndex<T> {
+        self.surface_offset += VertexIndex::new(T::one());
+        self.surface_offset
     }
 
-    pub(crate) fn next_solid_i(&mut self) -> VertexIndex<T> {
-        self.solid_i += VertexIndex::new(T::one());
-        self.solid_i
+    pub(crate) fn increment_shell_idx(&mut self) -> VertexIndex<T> {
+        self.shell_offset += VertexIndex::new(T::one());
+        self.shell_offset
+    }
+
+    pub(crate) fn increment_solid_idx(&mut self) -> VertexIndex<T> {
+        self.solid_offset += VertexIndex::new(T::one());
+        self.solid_offset
+    }
+
+    // Get current offsets without incrementing
+    pub(crate) fn vertex_offset(&self) -> VertexIndex<T> {
+        self.vertex_offset
+    }
+
+    pub(crate) fn ring_offset(&self) -> VertexIndex<T> {
+        self.ring_offset
+    }
+
+    pub(crate) fn surface_offset(&self) -> VertexIndex<T> {
+        self.surface_offset
+    }
+
+    pub(crate) fn shell_offset(&self) -> VertexIndex<T> {
+        self.shell_offset
+    }
+
+    pub(crate) fn solid_offset(&self) -> VertexIndex<T> {
+        self.solid_offset
     }
 }
 
