@@ -7,6 +7,7 @@ pub mod errors;
 mod resources_semantics_materials;
 mod resources_textures;
 pub mod vertex;
+pub mod geometry;
 
 mod resource_pool;
 pub mod v1_1;
@@ -21,6 +22,7 @@ pub use coordinate::VertexCoordinate;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
 pub use vertex::VertexIndex;
+pub use geometry::Geometry;
 
 
 pub type CityModel<T> = GenericCityModel<T, DefaultResourcePool<Semantic<T>>>;
@@ -111,17 +113,6 @@ impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> Default for GenericCityMode
     }
 }
 
-#[derive(Clone, Debug)]
-#[allow(unused)]
-pub struct Geometry<T: VertexInteger> {
-    type_geometry: GeometryType,
-    lod: Option<LoD>,
-    boundaries: Option<Boundary<T>>,
-    semantics: Option<SemanticMaterialMap<T>>,
-    template_boundaries: Option<usize>,
-    template_transformation_matrix: Option<[f64; 16]>,
-}
-
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {
     MultiPoint,
@@ -161,10 +152,6 @@ pub enum LoD {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::boundary::Boundary;
-    use crate::resources_semantics_materials::SemanticMaterialMap;
-    use crate::v1_1::semantics::SemanticType;
-    use crate::vertex::{OptionalVertexIndices, VertexIndices};
 
     #[test]
     fn test_geometry_type_equality() {
@@ -179,110 +166,5 @@ mod tests {
         assert!(LoD::LoD2 < LoD::LoD3);
         assert!(LoD::LoD0_1 > LoD::LoD0);
         assert!(LoD::LoD1_2 > LoD::LoD1);
-    }
-
-    #[test]
-    fn test_city_model_with_semantic_surface() {
-        // Create a new CityModel using u32 for indices
-        let mut model = CityModel::<u32>::new();
-
-        // Add some vertices for a simple cube (front face only)
-        let v0 = model
-            .add_vertex(VertexCoordinate {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            })
-            .unwrap();
-        let v1 = model
-            .add_vertex(VertexCoordinate {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-            })
-            .unwrap();
-        let v2 = model
-            .add_vertex(VertexCoordinate {
-                x: 1.0,
-                y: 1.0,
-                z: 0.0,
-            })
-            .unwrap();
-        let v3 = model
-            .add_vertex(VertexCoordinate {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
-            })
-            .unwrap();
-
-        // Create a boundary representing a MultiSurface with one surface (square)
-        let mut boundary = Boundary::new();
-        boundary.vertices = VertexIndices::from_iter([v0, v1, v2, v3]);
-        boundary.rings = VertexIndices::from_iter([VertexIndex::new(0u32)]);
-        boundary.surfaces = VertexIndices::from_iter([VertexIndex::new(0u32)]);
-
-        // Create a wall surface semantic
-        let wall_semantic = Semantic::new(SemanticType::WallSurface);
-        let wall_id = model.add_semantic(wall_semantic);
-
-        // Create semantic mapping for the surface
-        let mut semantic_map = SemanticMaterialMap::<u32>::default();
-        semantic_map.surfaces =
-            OptionalVertexIndices::from_iter([Some(VertexIndex::new(wall_id.index()))]);
-
-        // Create the geometry
-        let geometry = Geometry {
-            type_geometry: GeometryType::MultiSurface,
-            lod: Some(LoD::LoD2),
-            boundaries: Some(boundary),
-            semantics: Some(semantic_map),
-            template_boundaries: None,
-            template_transformation_matrix: None,
-        };
-
-        // Add geometry to model
-        model.add_geometry(geometry);
-
-        // Verify the model
-        assert_eq!(model.vertex_count(), 4);
-        assert_eq!(model.semantic_count(), 1);
-        assert_eq!(model.geometry_count(), 1);
-
-        // Verify geometry and semantics
-        if let Some(geometry) = model.geometries.get(0) {
-            // Check the geometry type
-            assert_eq!(geometry.type_geometry, GeometryType::MultiSurface);
-
-            // Check boundary
-            if let Some(boundary) = &geometry.boundaries {
-                assert_eq!(boundary.vertices.len(), 4u32);
-                assert_eq!(boundary.rings.len(), 1u32);
-                assert_eq!(boundary.surfaces.len(), 1u32);
-            } else {
-                panic!("Expected boundary");
-            }
-
-            // Check semantic mapping
-            if let Some(semantic_map) = &geometry.semantics {
-                let surfaces = &semantic_map.surfaces;
-                assert_eq!(surfaces.len(), 1u32);
-
-                // Verify semantic reference
-                if let Some(Some(semantic_idx)) = surfaces.get(VertexIndex::new(0u32)) {
-                    let semantic = model
-                        .get_semantic(ResourceId::new(semantic_idx.value(), 0))
-                        .expect("Semantic should exist");
-
-                    assert!(matches!(semantic.type_semantic, SemanticType::WallSurface));
-                } else {
-                    panic!("Expected semantic mapping");
-                }
-            } else {
-                panic!("Expected semantic map");
-            }
-        } else {
-            panic!("Expected geometry");
-        }
     }
 }

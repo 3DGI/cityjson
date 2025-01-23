@@ -14,7 +14,28 @@ pub enum Error {
     TooManyVertices {
         attempted: usize,
         maximum: usize,
-    }
+    },
+    InvalidGeometry(String),
+    InvalidRing {
+        reason: String,
+        vertex_count: usize,
+    },
+    NoCurrentElement {
+        element_type: String, // "surface", "shell", or "solid"
+    },
+    InvalidReference {
+        element_type: String, // "surface", "shell"
+        index: usize,
+        max_index: usize,
+    },
+    MissingOuterElement {
+        context: String, // e.g., "Cannot add inner ring before outer ring is set"
+    },
+    InvalidGeometryType {
+        expected: String,
+        found: String,
+    },
+    IncompleteGeometry(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -43,8 +64,52 @@ impl Display for Error {
             Error::IndexOverflow { index_type, value } => {
                 write!(f, "index overflow for {}: value {}", index_type, value)
             }
-            Error::TooManyVertices {attempted, maximum} => {
-                write!(f, "attempted to store {} vertices in a container with capacity {}", attempted, maximum)
+            Error::TooManyVertices { attempted, maximum } => {
+                write!(
+                    f,
+                    "attempted to store {} vertices in a container with capacity {}",
+                    attempted, maximum
+                )
+            }
+            Error::InvalidGeometry(msg) => {
+                write!(f, "{}", msg)
+            }
+            Error::InvalidRing {
+                reason,
+                vertex_count,
+            } => {
+                write!(
+                    f,
+                    "Invalid ring: {} (vertex count: {})",
+                    reason, vertex_count
+                )
+            }
+            Error::NoCurrentElement { element_type } => {
+                write!(f, "No {} in progress", element_type)
+            }
+            Error::InvalidReference {
+                element_type,
+                index,
+                max_index,
+            } => {
+                write!(
+                    f,
+                    "Invalid {} index: {} (max: {})",
+                    element_type, index, max_index
+                )
+            }
+            Error::MissingOuterElement { context } => {
+                write!(f, "{}", context)
+            }
+            Error::InvalidGeometryType { expected, found } => {
+                write!(
+                    f,
+                    "Invalid geometry type: expected {}, found {}",
+                    expected, found
+                )
+            }
+            Error::IncompleteGeometry(msg) => {
+                write!(f, "Incomplete geometry: {}", msg)
             }
         }
     }
