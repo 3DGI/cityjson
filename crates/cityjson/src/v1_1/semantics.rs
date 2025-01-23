@@ -1,5 +1,6 @@
 use crate::vertex::{VertexIndices, VertexInteger};
 use crate::VertexIndex;
+use crate::attributes::{AttributeStorage, Attributes};
 
 /// Semantic surface type.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -26,10 +27,7 @@ pub enum SemanticType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Attributes;
-
-#[derive(Debug, Clone)]
-pub struct Semantic<T: VertexInteger> {
+pub struct Semantic<T: VertexInteger, AS: AttributeStorage> {
     /// The type of the semantic surface
     pub type_semantic: SemanticType,
     /// Indices to child semantics in the global semantics pool
@@ -37,10 +35,10 @@ pub struct Semantic<T: VertexInteger> {
     /// Index to parent semantic in the global semantics pool
     pub parent: Option<VertexIndex<T>>,
     /// Additional attributes of the semantic surface
-    pub attributes: Option<Attributes>,
+    pub attributes: Option<Attributes<AS>>,
 }
 
-impl<T: VertexInteger> Semantic<T> {
+impl<T: VertexInteger, AS: AttributeStorage> Semantic<T, AS> {
     /// Create a new semantic with the given type
     #[inline]
     pub fn new(type_semantic: SemanticType) -> Self {

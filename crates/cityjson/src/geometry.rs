@@ -7,6 +7,7 @@ use crate::{
     Boundary, GenericCityModel, GeometryType, LoD, SemanticMaterialMap, VertexCoordinate,
     VertexIndex,
 };
+use crate::attributes::AttributeStorage;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -39,8 +40,8 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
-pub struct GeometryBuilder<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> {
-    model: &'a mut GenericCityModel<T, P>,
+pub struct GeometryBuilder<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> {
+    model: &'a mut GenericCityModel<T, P, AS>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<VertexCoordinate>,
@@ -53,8 +54,8 @@ pub struct GeometryBuilder<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> {
     current_solid: Option<usize>,     // current solid being built
 }
 
-impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, P> {
-    pub fn new(model: &'a mut GenericCityModel<T, P>, type_geometry: GeometryType) -> Self {
+impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> GeometryBuilder<'a, T, P, AS> {
+    pub fn new(model: &'a mut GenericCityModel<T, P, AS>, type_geometry: GeometryType) -> Self {
         Self {
             model,
             type_geometry,
@@ -491,13 +492,14 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
 
 #[cfg(test)]
 mod tests {
+    use crate::attributes::{OwnedStorage};
     use super::*;
     use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::CityModel;
 
     #[test]
     fn test_build_complex_multisolid() -> Result<()> {
-        let mut model = CityModel::<u32>::new();
+        let mut model = CityModel::<u32, OwnedStorage>::new();
         let mut builder =
             GeometryBuilder::new(&mut model, GeometryType::MultiSolid).with_lod(LoD::LoD2);
 

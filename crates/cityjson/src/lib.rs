@@ -11,6 +11,7 @@ pub mod geometry;
 
 mod resource_pool;
 pub mod v1_1;
+pub mod attributes;
 
 use crate::coordinate::Vertices;
 use crate::errors::Result;
@@ -23,27 +24,29 @@ pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
 pub use vertex::VertexIndex;
 pub use geometry::Geometry;
+use crate::attributes::{AttributeStorage, Attributes, OwnedStorage};
 
-
-pub type CityModel<T> = GenericCityModel<T, DefaultResourcePool<Semantic<T>>>;
+pub type CityModel<T, AS> = GenericCityModel<T, DefaultResourcePool<Semantic<T, AS>>, OwnedStorage>;
 
 #[derive(Debug)]
-pub struct GenericCityModel<T: VertexInteger, P: ResourcePool<Semantic<T>>> {
+pub struct GenericCityModel<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> {
     /// Pool of vertex coordinates
     vertices: Vertices<T>,
     /// Pool of semantic objects
     semantics: P,
     /// Collection of geometries
     geometries: Vec<Geometry<T>>,
+    extra: Option<Attributes<AS>>
 }
 
-impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> GenericCityModel<T, P> {
+impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> GenericCityModel<T, P, AS> {
     /// Create a new empty CityModel
     pub fn new() -> Self {
         Self {
             vertices: Vertices::new(),
             semantics: P::new(),
             geometries: Vec::new(),
+            extra: None,
         }
     }
 
@@ -57,21 +60,22 @@ impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> GenericCityModel<T, P> {
             vertices: Vertices::new(), // Vertices handle capacity internally
             semantics: P::with_capacity(semantic_capacity),
             geometries: Vec::with_capacity(geometry_capacity),
+            extra: None,
         }
     }
 
     /// Add a semantic object to the pool
-    pub fn add_semantic(&mut self, semantic: Semantic<T>) -> ResourceId {
+    pub fn add_semantic(&mut self, semantic: Semantic<T, AS>) -> ResourceId {
         self.semantics.add(semantic)
     }
 
     /// Get a reference to a semantic object
-    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic<T>> {
+    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic<T, AS>> {
         self.semantics.get(id)
     }
 
     /// Get a mutable reference to a semantic object
-    pub fn get_semantic_mut(&mut self, id: ResourceId) -> Option<&mut Semantic<T>> {
+    pub fn get_semantic_mut(&mut self, id: ResourceId) -> Option<&mut Semantic<T, AS>> {
         self.semantics.get_mut(id)
     }
 
@@ -107,7 +111,7 @@ impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> GenericCityModel<T, P> {
 }
 
 // Implement default for convenience
-impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> Default for GenericCityModel<T, P> {
+impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> Default for GenericCityModel<T, P, AS> {
     fn default() -> Self {
         Self::new()
     }
