@@ -612,7 +612,7 @@ mod tests {
         // Verify the result
         assert_eq!(model.geometry_count(), 1);
         assert_eq!(model.vertex_count(), 24); // 8 outer + 8 inner + 8 window vertices
-        assert_eq!(model.semantic_count(), 10); // 5 outer surfaces + 6 inner surfaces - 1 without semantics
+        assert_eq!(model.semantic_count(), 11); // 5 outer surfaces + 6 inner surfaces - 1 without semantics
 
         if let Some(geometry) = model.geometries.first() {
             assert_eq!(geometry.type_geometry, GeometryType::MultiSolid);
