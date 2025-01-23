@@ -1,34 +1,58 @@
+pub trait ResourcePool<T> {
+    fn new() -> Self;
+    fn with_capacity(capacity: usize) -> Self;
+    fn add(&mut self, resource: T) -> ResourceId;
+    fn get(&self, id: ResourceId) -> Option<&T>;
+    fn get_mut(&mut self, id: ResourceId) -> Option<&mut T>;
+    fn remove(&mut self, id: ResourceId) -> Option<T>;
+    fn is_valid(&self, id: ResourceId) -> bool;
+    // Iterator support
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)> where T: 'a;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ResourceId {
-    pub(crate) index: u32,
-    pub(crate) generation: u16,
+    index: u32,
+    generation: u16,
+}
+
+impl ResourceId {
+    pub fn new(index: u32, generation: u16) -> Self {
+        Self { index, generation }
+    }
+
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
+    pub fn generation(&self) -> u16 {
+        self.generation
+    }
 }
 
 #[derive(Debug)]
-pub struct ResourcePool<T> {
+pub struct DefaultResourcePool<T> {
     resources: Vec<Option<T>>,
     generations: Vec<u16>,
     free_list: Vec<u32>,
 }
 
-impl<T> ResourcePool<T> {
-    pub fn new() -> Self {
+impl<T> ResourcePool<T> for DefaultResourcePool<T> {
+    fn new() -> Self {
         Self {
             resources: Vec::new(),
             generations: Vec::new(),
             free_list: Vec::new(),
         }
     }
-
-    pub fn with_capacity(capacity: usize) -> Self {
+    fn with_capacity(capacity: usize) -> Self {
         Self {
             resources: Vec::with_capacity(capacity),
             generations: Vec::with_capacity(capacity),
             free_list: Vec::new(),
         }
     }
-
-    pub fn add(&mut self, resource: T) -> ResourceId {
+    fn add(&mut self, resource: T) -> ResourceId {
         let index = if let Some(free_index) = self.free_list.pop() {
             // Reuse a freed slot
             let generation = self.generations[free_index as usize] + 1;
@@ -48,24 +72,21 @@ impl<T> ResourcePool<T> {
             generation: self.generations[index as usize],
         }
     }
-
-    pub fn get(&self, id: ResourceId) -> Option<&T> {
+    fn get(&self, id: ResourceId) -> Option<&T> {
         if self.is_valid(id) {
             self.resources.get(id.index as usize)?.as_ref()
         } else {
             None
         }
     }
-
-    pub fn get_mut(&mut self, id: ResourceId) -> Option<&mut T> {
+    fn get_mut(&mut self, id: ResourceId) -> Option<&mut T> {
         if self.is_valid(id) {
             self.resources.get_mut(id.index as usize)?.as_mut()
         } else {
             None
         }
     }
-
-    pub fn remove(&mut self, id: ResourceId) -> Option<T> {
+    fn remove(&mut self, id: ResourceId) -> Option<T> {
         if !self.is_valid(id) {
             return None;
         }
@@ -74,14 +95,12 @@ impl<T> ResourcePool<T> {
         self.free_list.push(id.index);
         Some(resource)
     }
-
     fn is_valid(&self, id: ResourceId) -> bool {
         (id.index as usize) < self.generations.len()
             && self.generations[id.index as usize] == id.generation
     }
-
     // Iterator support
-    pub fn iter(&self) -> impl Iterator<Item = (ResourceId, &T)> {
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)> where T: 'a {
         self.resources
             .iter()
             .enumerate()
@@ -127,18 +146,19 @@ mod tests {
     }
 
     // Helper function to create a pool with some initial values
-    fn setup_test_pool() -> (ResourcePool<i32>, Vec<ResourceId>) {
-        let mut pool = ResourcePool::new();
+    fn setup_test_pool() -> (DefaultResourcePool<i32>, Vec<ResourceId>) {
+        let mut pool = DefaultResourcePool::new();
         let ids = (1..=3).map(|i| pool.add(i)).collect();
         (pool, ids)
     }
 
     mod initialization {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_new_pool() {
-            let pool: ResourcePool<i32> = ResourcePool::new();
+            let pool: DefaultResourcePool<i32> = DefaultResourcePool::new();
             assert!(pool.resources.is_empty());
             assert!(pool.generations.is_empty());
             assert!(pool.free_list.is_empty());
@@ -146,7 +166,7 @@ mod tests {
 
         #[test]
         fn test_with_capacity() {
-            let pool: ResourcePool<i32> = ResourcePool::with_capacity(10);
+            let pool: DefaultResourcePool<i32> = DefaultResourcePool::with_capacity(10);
             assert_eq!(pool.resources.capacity(), 10);
             assert_eq!(pool.generations.capacity(), 10);
             assert!(pool.free_list.is_empty());
@@ -155,10 +175,11 @@ mod tests {
 
     mod basic_operations {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_add_and_get() {
-            let mut pool = ResourcePool::new();
+            let mut pool = DefaultResourcePool::new();
             let id = pool.add(42);
 
             assert_eq!(pool.get(id), Some(&42));
@@ -168,7 +189,7 @@ mod tests {
 
         #[test]
         fn test_get_mut() {
-            let mut pool = ResourcePool::new();
+            let mut pool = DefaultResourcePool::new();
             let id = pool.add(42);
             if let Some(value) = pool.get_mut(id) {
                 *value = 24;
@@ -178,7 +199,7 @@ mod tests {
 
         #[test]
         fn test_remove() {
-            let mut pool = ResourcePool::new();
+            let mut pool = DefaultResourcePool::new();
             let id = pool.add(42);
             assert_eq!(pool.remove(id), Some(42));
             assert_eq!(pool.get(id), None);
@@ -187,7 +208,7 @@ mod tests {
 
         #[test]
         fn test_invalid_id() {
-            let mut pool: ResourcePool<u32> = ResourcePool::new();
+            let mut pool: DefaultResourcePool<u32> = DefaultResourcePool::new();
             let invalid_id = ResourceId {
                 index: 0,
                 generation: 0,
@@ -200,10 +221,11 @@ mod tests {
 
     mod resource_management {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_generation_increment() {
-            let mut pool = ResourcePool::new();
+            let mut pool = DefaultResourcePool::new();
             let id1 = pool.add(42);
             pool.remove(id1);
             let id2 = pool.add(24);
@@ -216,7 +238,7 @@ mod tests {
 
         #[test]
         fn test_reuse_freed_slot() {
-            let mut pool = ResourcePool::new();
+            let mut pool = DefaultResourcePool::new();
             let id1 = pool.add(1);
             pool.add(2); // Add another resource to ensure proper indexing
             pool.remove(id1);
@@ -230,6 +252,7 @@ mod tests {
 
     mod iteration {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_iter() {
@@ -245,10 +268,11 @@ mod tests {
 
     mod concurrency_and_performance {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_concurrent_access() {
-            let pool = Arc::new(Mutex::new(ResourcePool::new()));
+            let pool = Arc::new(Mutex::new(DefaultResourcePool::new()));
             let handles: Vec<_> = (0..10)
                 .map(|_| {
                     let pool = Arc::clone(&pool);
@@ -271,7 +295,7 @@ mod tests {
 
         #[test]
         fn test_performance() {
-            let mut pool = ResourcePool::with_capacity(1_000_000);
+            let mut pool = DefaultResourcePool::with_capacity(1_000_000);
             let start = Instant::now();
             let ids: Vec<_> = (0..1_000_000).map(|i| pool.add(i)).collect();
             let add_time = start.elapsed();
@@ -301,12 +325,13 @@ mod tests {
 
     mod memory_safety {
         use super::*;
+        use crate::resource_pool::ResourcePool;
 
         #[test]
         fn test_memory_leaks() {
             let counter = Rc::new(RefCell::new(0));
             {
-                let mut pool = ResourcePool::new();
+                let mut pool = DefaultResourcePool::new();
                 let mut ids = Vec::new();
 
                 for _ in 0..100 {

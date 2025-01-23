@@ -13,7 +13,7 @@ pub mod v1_1;
 
 use crate::coordinate::Vertices;
 use crate::errors::Result;
-use crate::resource_pool::{ResourceId, ResourcePool};
+use crate::resource_pool::{DefaultResourcePool, ResourceId, ResourcePool};
 use crate::v1_1::semantics::Semantic;
 use crate::vertex::VertexInteger;
 pub use boundary::Boundary;
@@ -22,35 +22,38 @@ pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
 pub use vertex::VertexIndex;
 
+
+pub type CityModel<T> = GenericCityModel<T, DefaultResourcePool<Semantic<T>>>;
+
 #[derive(Debug)]
-pub struct CityModel<T: VertexInteger> {
+pub struct GenericCityModel<T: VertexInteger, P: ResourcePool<Semantic<T>>> {
     /// Pool of vertex coordinates
     vertices: Vertices<T>,
     /// Pool of semantic objects
-    semantics: ResourcePool<Semantic<T>>,
+    semantics: P,
     /// Collection of geometries
     geometries: Vec<Geometry<T>>,
 }
 
-impl<T: VertexInteger> CityModel<T> {
+impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> GenericCityModel<T, P> {
     /// Create a new empty CityModel
     pub fn new() -> Self {
         Self {
             vertices: Vertices::new(),
-            semantics: ResourcePool::new(),
+            semantics: P::new(),
             geometries: Vec::new(),
         }
     }
 
     /// Create a new CityModel with the specified capacity
     pub fn with_capacity(
-        vertex_capacity: usize,
+        _vertex_capacity: usize,
         semantic_capacity: usize,
         geometry_capacity: usize,
     ) -> Self {
         Self {
-            vertices: Vertices::new(), // Vertices handles capacity internally
-            semantics: ResourcePool::with_capacity(semantic_capacity),
+            vertices: Vertices::new(), // Vertices handle capacity internally
+            semantics: P::with_capacity(semantic_capacity),
             geometries: Vec::with_capacity(geometry_capacity),
         }
     }
@@ -102,7 +105,7 @@ impl<T: VertexInteger> CityModel<T> {
 }
 
 // Implement default for convenience
-impl<T: VertexInteger> Default for CityModel<T> {
+impl<T: VertexInteger, P: ResourcePool<Semantic<T>>> Default for GenericCityModel<T, P> {
     fn default() -> Self {
         Self::new()
     }
@@ -226,7 +229,7 @@ mod tests {
         // Create semantic mapping for the surface
         let mut semantic_map = SemanticMaterialMap::<u32>::default();
         semantic_map.surfaces =
-            OptionalVertexIndices::from_iter([Some(VertexIndex::new(wall_id.index))]);
+            OptionalVertexIndices::from_iter([Some(VertexIndex::new(wall_id.index()))]);
 
         // Create the geometry
         let geometry = Geometry {
@@ -248,7 +251,7 @@ mod tests {
 
         // Verify geometry and semantics
         if let Some(geometry) = model.geometries.get(0) {
-            // Check geometry type
+            // Check the geometry type
             assert_eq!(geometry.type_geometry, GeometryType::MultiSurface);
 
             // Check boundary
@@ -268,10 +271,7 @@ mod tests {
                 // Verify semantic reference
                 if let Some(Some(semantic_idx)) = surfaces.get(VertexIndex::new(0u32)) {
                     let semantic = model
-                        .get_semantic(ResourceId {
-                            index: semantic_idx.value(),
-                            generation: 0,
-                        })
+                        .get_semantic(ResourceId::new(semantic_idx.value(), 0))
                         .expect("Semantic should exist");
 
                     assert!(matches!(semantic.type_semantic, SemanticType::WallSurface));
