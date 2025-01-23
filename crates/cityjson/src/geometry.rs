@@ -603,6 +603,38 @@ mod tests {
         // Add the inner shell to the solid
         builder.add_solid_inner_shell(inner_shell_idx)?;
 
+        // Add vertices for a tetrahedron (second solid)
+        let t0 = builder.add_vertex(4.0, 0.0, 0.0); // base point 1
+        let t1 = builder.add_vertex(5.0, 0.0, 0.0); // base point 2
+        let t2 = builder.add_vertex(4.5, 1.0, 0.0); // base point 3
+        let t3 = builder.add_vertex(4.5, 0.5, 1.0); // apex
+
+        // Start building the second solid (tetrahedron)
+        let _second_solid_idx = builder.start_solid();
+        let tetra_shell_idx = builder.start_shell();
+
+        // Create the four triangular faces of the tetrahedron
+        // Base face
+        let tetra_base_idx = builder.start_surface(Some(SemanticType::GroundSurface));
+        builder.set_surface_outer_ring(&[t0, t1, t2])?;
+        builder.add_shell_outer_surface(tetra_base_idx)?;
+
+        // Three side faces
+        let side_vertices = [
+            &[t0, t2, t3], // First side
+            &[t1, t3, t2], // Second side
+            &[t0, t3, t1], // Third side
+        ];
+
+        for vertices in side_vertices {
+            let side_idx = builder.start_surface(Some(SemanticType::WallSurface));
+            builder.set_surface_outer_ring(vertices)?;
+            builder.add_shell_outer_surface(side_idx)?;
+        }
+
+        // Set the outer shell for the tetrahedron
+        builder.set_solid_outer_shell(tetra_shell_idx)?;
+
         // Build the geometry
         builder.build()?;
 
@@ -652,6 +684,18 @@ mod tests {
                     vec![vec![10, 11, 15, 14]],
                     // Left face
                     vec![vec![11, 8, 12, 15]],
+                ],
+            ],
+            // Second solid (tetrahedron)
+            vec![
+                // Outer shell
+                vec![
+                    // Base face
+                    vec![vec![24, 25, 26]],
+                    // Three side faces
+                    vec![vec![24, 26, 27]],
+                    vec![vec![25, 27, 26]],
+                    vec![vec![24, 27, 25]],
                 ],
             ],
         ];
