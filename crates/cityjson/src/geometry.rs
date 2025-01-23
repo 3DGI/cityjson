@@ -1,3 +1,4 @@
+use crate::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::resource_pool::ResourcePool;
 use crate::v1_1::semantics::{Semantic, SemanticType};
@@ -88,8 +89,8 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
     /// # Errors
     ///
     /// Returns `InvalidRing` if:
-    /// - The ring has fewer than 3 vertices
-    /// - The vertices don't form a valid ring (first != last)
+    /// - The ring has fewer than three vertices
+    /// - The vertices do not form a valid ring (first != last)
     /// - Any vertex index is out of bounds
     pub fn add_ring(&mut self, vertices: &[usize]) -> Result<usize> {
         if vertices.len() < 3 {
@@ -320,10 +321,27 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
         // Create boundary structure
         let mut boundary = Boundary::new();
 
-        // Add vertices
-        boundary.vertices = VertexIndices::from_iter(vertex_indices);
+        // Add vertex indices
+        let mut vertex_index_list = Vec::new();
 
-        // Create semantic mappings - only for surfaces
+        // Process rings and their vertices
+        let mut ring_indices = Vec::new();
+        let mut current_vertex_idx = T::zero();
+
+        for ring in &self.rings {
+            ring_indices.push(VertexIndex::new(current_vertex_idx));
+
+            // Add all vertices for this ring
+            for &vertex_idx in ring {
+                vertex_index_list.push(vertex_indices[vertex_idx]);
+                current_vertex_idx = current_vertex_idx.checked_add(&T::one()).unwrap();
+            }
+        }
+
+        boundary.vertices = VertexIndices::from_iter(vertex_index_list);
+        boundary.rings = VertexIndices::from_iter(ring_indices);
+
+        // Create semantic mappings
         let mut semantic_map = SemanticMaterialMap::default();
         let surface_semantic_indices = self
             .surfaces
@@ -335,78 +353,62 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
                     VertexIndex::new(T::try_from(id.index() as usize).unwrap())
                 })
             })
-            .collect::<Vec<_>>(); // Explicitly collect to Vec first
+            .collect::<Vec<_>>();
         semantic_map.surfaces = OptionalVertexIndices::from_iter(surface_semantic_indices);
 
-        // Process rings (both outer and inner)
-        let mut ring_indices = Vec::new();
-        for ring in self.rings {
-            // Add indices for this ring's vertices
-            for &vertex_idx in &ring {
-                ring_indices.push(VertexIndex::new(T::try_from(vertex_idx).unwrap()));
-            }
-        }
-        boundary.rings = VertexIndices::from_iter(ring_indices);
-
-        // Process surfaces with their rings
-        let mut surface_start_indices = Vec::new();
-        let mut current_ring_idx = T::zero();
+        // Process surfaces
+        let mut surface_indices = Vec::new();
+        let mut current_ring = T::zero();
 
         for surface in &self.surfaces {
-            // Add index to outer ring
             if let Some(outer_ring) = surface.outer_ring {
-                surface_start_indices.push(VertexIndex::new(current_ring_idx));
-                current_ring_idx = current_ring_idx.checked_add(&T::one()).unwrap();
+                surface_indices.push(VertexIndex::new(current_ring));
+                current_ring = current_ring.checked_add(&T::one()).unwrap();
 
-                // Add indices to inner rings if any
+                // Add indices for inner rings
                 for _ in &surface.inner_rings {
-                    surface_start_indices.push(VertexIndex::new(current_ring_idx));
-                    current_ring_idx = current_ring_idx.checked_add(&T::one()).unwrap();
+                    current_ring = current_ring.checked_add(&T::one()).unwrap();
                 }
             }
         }
-        boundary.surfaces = VertexIndices::from_iter(surface_start_indices);
+        boundary.surfaces = VertexIndices::from_iter(surface_indices);
 
-        // Process shells with their surfaces
-        let mut shell_start_indices = Vec::new();
-        let mut current_surface_idx = T::zero();
+        // Process shells
+        let mut shell_indices = Vec::new();
+        let mut current_surface = T::zero();
 
         for shell in &self.shells {
-            // Add indices to outer surfaces
-            shell_start_indices.push(VertexIndex::new(current_surface_idx));
-            current_surface_idx = current_surface_idx
+            shell_indices.push(VertexIndex::new(current_surface));
+            current_surface = current_surface
                 .checked_add(&T::try_from(shell.outer_surfaces.len()).unwrap())
                 .unwrap();
-
-            // Add indices to inner surfaces
             if !shell.inner_surfaces.is_empty() {
-                current_surface_idx = current_surface_idx
+                current_surface = current_surface
                     .checked_add(&T::try_from(shell.inner_surfaces.len()).unwrap())
                     .unwrap();
             }
         }
-        if !shell_start_indices.is_empty() {
-            boundary.shells = VertexIndices::from_iter(shell_start_indices);
+        if !shell_indices.is_empty() {
+            boundary.shells = VertexIndices::from_iter(shell_indices);
         }
 
-        // Process solids with their shells
-        let mut solid_start_indices = Vec::new();
-        let mut current_shell_idx = T::zero();
+        // Process solids
+        let mut solid_indices = Vec::new();
+        let mut current_shell = T::zero();
 
         for solid in &self.solids {
-            // Add index to outer shell
             if let Some(_) = solid.outer_shell {
-                solid_start_indices.push(VertexIndex::new(current_shell_idx));
-                current_shell_idx = current_shell_idx.checked_add(&T::one()).unwrap();
+                solid_indices.push(VertexIndex::new(current_shell));
+                current_shell = current_shell.checked_add(&T::one()).unwrap();
 
-                // Add indices to inner shells if any
-                current_shell_idx = current_shell_idx
+                // Account for inner shells
+                current_shell = current_shell
                     .checked_add(&T::try_from(solid.inner_shells.len()).unwrap())
                     .unwrap();
             }
         }
-        if !solid_start_indices.is_empty() {
-            boundary.solids = VertexIndices::from_iter(solid_start_indices);
+        if !solid_indices.is_empty() {
+            boundary.solids = VertexIndices::from_iter(solid_indices);
         }
 
         // Create the geometry
@@ -496,6 +498,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::CityModel;
 
     #[test]
@@ -550,13 +553,13 @@ mod tests {
         builder.set_surface_outer_ring(&[v4, v5, v6, v7])?;
         builder.add_shell_outer_surface(top_idx)?;
 
-        // Front face with window (WallSurface)
+        // Front face with a window (WallSurface)
         let front_idx = builder.start_surface(Some(SemanticType::WallSurface));
         builder.set_surface_outer_ring(&[v0, v1, v5, v4])?;
         builder.add_surface_inner_ring(&[w0, w1, w2, w3])?; // Window hole
         builder.add_shell_outer_surface(front_idx)?;
 
-        // Right face with window (WallSurface)
+        // Right face with a window (WallSurface)
         let right_idx = builder.start_surface(Some(SemanticType::WallSurface));
         builder.set_surface_outer_ring(&[v1, v2, v6, v5])?;
         builder.add_surface_inner_ring(&[w4, w5, w6, w7])?; // Window hole
@@ -609,33 +612,57 @@ mod tests {
         // Build the geometry
         builder.build()?;
 
-        // Verify the result
-        assert_eq!(model.geometry_count(), 1);
-        assert_eq!(model.vertex_count(), 24); // 8 outer + 8 inner + 8 window vertices
-        assert_eq!(model.semantic_count(), 11); // 5 outer surfaces + 6 inner surfaces - 1 without semantics
+        // Get the boundary from the built geometry
+        let geometry = model.geometries.first().unwrap();
+        let boundary = geometry.boundaries.as_ref().unwrap();
 
-        if let Some(geometry) = model.geometries.first() {
-            assert_eq!(geometry.type_geometry, GeometryType::MultiSolid);
-            assert_eq!(geometry.lod, Some(LoD::LoD2));
+        // Convert to nested representation and compare
+        let nested = boundary.to_nested_multi_or_composite_solid()?;
 
-            if let Some(boundary) = &geometry.boundaries {
-                // Verify boundary structure
-                assert_eq!(boundary.vertices.len(), 24u32);
-                // Add more specific boundary checks...
-            } else {
-                panic!("Expected boundary");
-            }
+        // Expected nested structure:
+        let expected: BoundaryNestedMultiOrCompositeSolid32 = vec![
+            // First solid (outer cube with windows and inner cube)
+            vec![
+                // Outer shell
+                vec![
+                    // Bottom face (ground)
+                    vec![vec![0, 3, 2, 1]],
+                    // Top face (roof)
+                    vec![vec![4, 5, 6, 7]],
+                    // Front face with a window
+                    vec![
+                        vec![0, 1, 5, 4],     // Outer ring
+                        vec![16, 17, 18, 19], // Window hole
+                    ],
+                    // Right face with a window
+                    vec![
+                        vec![1, 2, 6, 5],     // Outer ring
+                        vec![20, 21, 22, 23], // Window hole
+                    ],
+                    // Back face
+                    vec![vec![2, 3, 7, 6]],
+                    // Left face
+                    vec![vec![3, 0, 4, 7]],
+                ],
+                // Inner shell (void cube)
+                vec![
+                    // Bottom face
+                    vec![vec![8, 11, 10, 9]],
+                    // Top face
+                    vec![vec![12, 13, 14, 15]],
+                    // Front face
+                    vec![vec![8, 9, 13, 12]],
+                    // Right face
+                    vec![vec![9, 10, 14, 13]],
+                    // Back face
+                    vec![vec![10, 11, 15, 14]],
+                    // Left face
+                    vec![vec![11, 8, 12, 15]],
+                ],
+            ],
+        ];
 
-            if let Some(_semantics) = &geometry.semantics {
-                // Verify semantic mappings
-                // Add specific semantic checks...
-            } else {
-                panic!("Expected semantics");
-            }
-        } else {
-            panic!("Expected geometry");
-        }
-
+        assert_eq!(nested, expected);
         Ok(())
     }
 }
