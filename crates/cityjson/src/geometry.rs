@@ -337,17 +337,22 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T>>> GeometryBuilder<'a, T, 
             }
         }
         boundary.vertices = VertexIndices::from_iter(vertex_list);
-        boundary.rings = VertexIndices::from_iter(ring_indices);
+        boundary.rings = VertexIndices::from_iter(ring_indices.clone());
 
         // Process surfaces with their rings
         let mut surface_indices = Vec::new();
         for surface in &self.surfaces {
             if let Some(outer_ring) = surface.outer_ring {
-                // Add index to the outer ring
-                surface_indices.push(VertexIndex::new(T::try_from(outer_ring).unwrap()));
-                // Account for inner rings
+                // Start of this surface's rings
+                surface_indices.push(counter.ring_offset());
+
+                // Add outer ring
+                ring_indices.push(VertexIndex::new(T::try_from(outer_ring).unwrap()));
+                counter.increment_ring_idx();
+
+                // Add inner rings if any
                 for &inner_ring in &surface.inner_rings {
-                    surface_indices.push(VertexIndex::new(T::try_from(inner_ring).unwrap()));
+                    ring_indices.push(VertexIndex::new(T::try_from(inner_ring).unwrap()));
                     counter.increment_ring_idx();
                 }
             }
