@@ -1,3 +1,9 @@
+use crate::errors::{Error, Result};
+use crate::vertex::VertexInteger;
+use crate::VertexIndex;
+
+// todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.
+
 pub trait ResourcePool<T> {
     fn new() -> Self;
     fn with_capacity(capacity: usize) -> Self;
@@ -7,7 +13,9 @@ pub trait ResourcePool<T> {
     fn remove(&mut self, id: ResourceId) -> Option<T>;
     fn is_valid(&self, id: ResourceId) -> bool;
     // Iterator support
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)> where T: 'a;
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)>
+    where
+        T: 'a;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,6 +35,17 @@ impl ResourceId {
 
     pub fn generation(&self) -> u16 {
         self.generation
+    }
+
+    /// Convert the resource index to a [VertexIndex].
+    pub fn to_vertex_index<T: VertexInteger>(&self) -> Result<VertexIndex<T>> {
+        T::from_u32(self.index)
+            .map(|v| VertexIndex::new(v))
+            .ok_or(Error::IndexConversion {
+                source_type: "u32".to_string(),
+                target_type: std::any::type_name::<T>().to_string(),
+                value: self.index.to_string(),
+            })
     }
 }
 
@@ -100,7 +119,10 @@ impl<T> ResourcePool<T> for DefaultResourcePool<T> {
             && self.generations[id.index as usize] == id.generation
     }
     // Iterator support
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)> where T: 'a {
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)>
+    where
+        T: 'a,
+    {
         self.resources
             .iter()
             .enumerate()
@@ -150,6 +172,16 @@ mod tests {
         let mut pool = DefaultResourcePool::new();
         let ids = (1..=3).map(|i| pool.add(i)).collect();
         (pool, ids)
+    }
+
+    mod resource_id {
+        use super::*;
+        use crate::resource_pool::ResourceId;
+
+        #[test]
+        fn test_conversion(){
+            let v: VertexIndex<u16> = ResourceId::new(1,1).to_vertex_index().unwrap();
+        }
     }
 
     mod initialization {

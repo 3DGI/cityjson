@@ -1,13 +1,14 @@
+use crate::attributes::AttributeStorage;
 use crate::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
-use crate::resource_pool::ResourcePool;
+use crate::resource_pool::{ResourceId, ResourcePool};
 use crate::v1_1::semantics::{Semantic, SemanticType};
-use crate::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
+use crate::vertex::{VertexIndices, VertexInteger};
 use crate::{
     Boundary, GenericCityModel, GeometryType, LoD, SemanticMaterialMap, VertexCoordinate,
     VertexIndex,
 };
-use crate::attributes::AttributeStorage;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -40,7 +41,12 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
-pub struct GeometryBuilder<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> {
+pub struct GeometryBuilder<
+    'a,
+    T: VertexInteger,
+    P: ResourcePool<Semantic<T, AS>>,
+    AS: AttributeStorage,
+> {
     model: &'a mut GenericCityModel<T, P, AS>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
@@ -49,12 +55,20 @@ pub struct GeometryBuilder<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // shells with their surfaces
     solids: Vec<SolidInProgress>,     // solids with their shells
-    current_surface: Option<usize>,   // current surface being built
-    current_shell: Option<usize>,     // current shell being built
-    current_solid: Option<usize>,     // current solid being built
+    // Current element tracking
+    current_linestring: Option<usize>, // current linestring being built
+    current_surface: Option<usize>,    // current surface being built
+    current_shell: Option<usize>,      // current shell being built
+    current_solid: Option<usize>,      // current solid being built
+    // Semantic storage
+    point_semantics: HashMap<usize, ResourceId>,
+    linestring_semantics: HashMap<usize, ResourceId>,
+    surface_semantics: HashMap<usize, ResourceId>,
 }
 
-impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> GeometryBuilder<'a, T, P, AS> {
+impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage>
+    GeometryBuilder<'a, T, P, AS>
+{
     pub fn new(model: &'a mut GenericCityModel<T, P, AS>, type_geometry: GeometryType) -> Self {
         Self {
             model,
@@ -65,9 +79,13 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
             surfaces: Vec::new(),
             shells: Vec::new(),
             solids: Vec::new(),
+            current_linestring: None,
             current_surface: None,
             current_shell: None,
             current_solid: None,
+            point_semantics: Default::default(),
+            linestring_semantics: Default::default(),
+            surface_semantics: Default::default(),
         }
     }
 
@@ -296,6 +314,46 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
         Ok(())
     }
 
+    // Point semantics
+    pub fn add_point_with_semantic(
+        &mut self,
+        x: f64,
+        y: f64,
+        z: f64,
+        semantic: Option<Semantic<T, AS>>,
+    ) -> usize {
+        let point_idx = self.add_vertex(x, y, z);
+        if let Some(semantic) = semantic {
+            let sem_id = self.model.add_semantic(semantic);
+            self.point_semantics.insert(point_idx, sem_id);
+        }
+        point_idx
+    }
+
+    // LineString semantics
+    pub fn set_linestring_semantic(&mut self, semantic: Semantic<T, AS>) -> Result<()> {
+        let line_idx = self
+            .current_linestring
+            .ok_or_else(|| Error::NoCurrentElement {
+                element_type: "linestring".to_string(),
+            })?;
+        let sem_id = self.model.add_semantic(semantic);
+        self.linestring_semantics.insert(line_idx, sem_id);
+        Ok(())
+    }
+
+    // Surface semantics
+    pub fn set_surface_semantic(&mut self, semantic: Semantic<T, AS>) -> Result<()> {
+        let surface_idx = self
+            .current_surface
+            .ok_or_else(|| Error::NoCurrentElement {
+                element_type: "surface".to_string(),
+            })?;
+        let sem_id = self.model.add_semantic(semantic);
+        self.surface_semantics.insert(surface_idx, sem_id);
+        Ok(())
+    }
+
     /// Builds the geometry and adds it to the model.
     ///
     /// # Errors
@@ -323,88 +381,132 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
         let mut boundary = Boundary::new();
         let mut counter = BoundaryCounter::default();
 
-        // Process vertices and rings
-        let mut vertex_list = Vec::new();
-        let mut ring_indices = Vec::new();
-
-        for ring in &self.rings {
-            // Mark the start of this ring
-            ring_indices.push(counter.vertex_offset());
-
-            // Add vertices for this ring
-            for &vertex_idx in ring {
-                vertex_list.push(vertex_indices[vertex_idx]);
-                counter.increment_vertex_idx();
-            }
-        }
-        boundary.vertices = VertexIndices::from_iter(vertex_list);
-        boundary.rings = VertexIndices::from_iter(ring_indices.clone());
-
-        // Process surfaces with their rings
-        let mut surface_indices = Vec::new();
-        for surface in &self.surfaces {
-            if let Some(outer_ring) = surface.outer_ring {
-                // Start of this surface's rings
-                surface_indices.push(counter.ring_offset());
-
-                // Add outer ring
-                ring_indices.push(VertexIndex::new(T::try_from(outer_ring).unwrap()));
-                counter.increment_ring_idx();
-
-                // Add inner rings if any
-                for &inner_ring in &surface.inner_rings {
-                    ring_indices.push(VertexIndex::new(T::try_from(inner_ring).unwrap()));
-                    counter.increment_ring_idx();
-                }
-            }
-        }
-        boundary.surfaces = VertexIndices::from_iter(surface_indices);
-
-        // Process shells with their surfaces
-        let mut shell_indices = Vec::new();
-        for shell in &self.shells {
-            shell_indices.push(counter.surface_offset());
-
-            // Account for all surfaces in this shell
-            for _ in 0..shell.outer_surfaces.len() + shell.inner_surfaces.len() {
-                counter.increment_surface_idx();
-            }
-        }
-        if !shell_indices.is_empty() {
-            boundary.shells = VertexIndices::from_iter(shell_indices);
-        }
-
-        // Process solids with their shells
-        let mut solid_indices = Vec::new();
-        for solid in &self.solids {
-            if let Some(_) = solid.outer_shell {
-                solid_indices.push(counter.shell_offset());
-                counter.increment_shell_idx(); // Outer shell
-
-                // Account for inner shells
-                for _ in &solid.inner_shells {
-                    counter.increment_shell_idx();
-                }
-            }
-        }
-        if !solid_indices.is_empty() {
-            boundary.solids = VertexIndices::from_iter(solid_indices);
-        }
-
         // Create semantic mappings
         let mut semantic_map = SemanticMaterialMap::default();
-        let surface_semantic_indices = self
-            .surfaces
-            .iter()
-            .map(|surface| {
-                surface.semantic.as_ref().map(|sem_type| {
-                    let semantic = Semantic::new(sem_type.clone());
-                    let id = self.model.add_semantic(semantic);
-                    VertexIndex::new(T::try_from(id.index() as usize).unwrap())
-                })
-            })
-            .collect::<Vec<_>>();
-        semantic_map.surfaces = OptionalVertexIndices::from_iter(surface_semantic_indices);
+
+        match self.type_geometry {
+            GeometryType::MultiPoint => {
+                // Set vertex indices directly for multipoint
+                boundary.vertices = VertexIndices::from_iter(vertex_indices.clone());
+
+                // Create point semantics mapping
+                if !self.point_semantics.is_empty() {
+                    let point_semantics = (0..vertex_indices.len())
+                        .map(|idx| {
+                            self.point_semantics.get(&idx).map(|&sem_id| {
+                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                            })
+                        })
+                        .collect();
+                    semantic_map.points = point_semantics;
+                }
+            }
+            GeometryType::MultiLineString => {
+                // Process vertices for linestrings
+                let mut vertex_list = Vec::new();
+                let mut ring_indices = Vec::new();
+
+                for linestring in &self.rings {
+                    ring_indices.push(counter.vertex_offset());
+                    for &vertex_idx in linestring {
+                        vertex_list.push(vertex_indices[vertex_idx]);
+                        counter.increment_vertex_idx();
+                    }
+                }
+                boundary.vertices = VertexIndices::from_iter(vertex_list);
+                boundary.rings = VertexIndices::from_iter(ring_indices);
+
+                // Create linestring semantics mapping
+                if !self.linestring_semantics.is_empty() {
+                    let linestring_semantics = (0..self.rings.len())
+                        .map(|idx| {
+                            self.linestring_semantics.get(&idx).map(|&sem_id| {
+                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                            })
+                        })
+                        .collect();
+                    semantic_map.linestrings = linestring_semantics;
+                }
+            }
+            _ => {
+                // Process vertices and rings for surfaces/solids
+                let mut vertex_list = Vec::new();
+                let mut ring_indices = Vec::new();
+
+                for ring in &self.rings {
+                    ring_indices.push(counter.vertex_offset());
+                    for &vertex_idx in ring {
+                        vertex_list.push(vertex_indices[vertex_idx]);
+                        counter.increment_vertex_idx();
+                    }
+                }
+                boundary.vertices = VertexIndices::from_iter(vertex_list);
+                boundary.rings = VertexIndices::from_iter(ring_indices.clone());
+
+                // Process surfaces with their rings
+                let mut surface_indices = Vec::new();
+                for surface in &self.surfaces {
+                    if let Some(outer_ring) = surface.outer_ring {
+                        // Start of this surface's rings
+                        surface_indices.push(counter.ring_offset());
+
+                        // Add outer ring
+                        ring_indices.push(VertexIndex::try_from(outer_ring)?);
+                        counter.increment_ring_idx();
+
+                        // Add inner rings if any
+                        for &inner_ring in &surface.inner_rings {
+                            ring_indices.push(VertexIndex::try_from(inner_ring)?);
+                            counter.increment_ring_idx();
+                        }
+                    }
+                }
+                boundary.surfaces = VertexIndices::from_iter(surface_indices);
+
+                // Create surface semantics mapping
+                if !self.surface_semantics.is_empty() {
+                    let surface_semantics = (0..self.surfaces.len())
+                        .map(|idx| {
+                            self.surface_semantics.get(&idx).map(|&sem_id| {
+                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                            })
+                        })
+                        .collect();
+                    semantic_map.surfaces = surface_semantics;
+                }
+
+                // Process shells with their surfaces
+                let mut shell_indices = Vec::new();
+                for shell in &self.shells {
+                    shell_indices.push(counter.surface_offset());
+
+                    // Account for all surfaces in this shell
+                    for _ in 0..shell.outer_surfaces.len() + shell.inner_surfaces.len() {
+                        counter.increment_surface_idx();
+                    }
+                }
+                if !shell_indices.is_empty() {
+                    boundary.shells = VertexIndices::from_iter(shell_indices);
+                }
+
+                // Process solids with their shells
+                let mut solid_indices = Vec::new();
+                for solid in &self.solids {
+                    if let Some(_) = solid.outer_shell {
+                        solid_indices.push(counter.shell_offset());
+                        counter.increment_shell_idx(); // Outer shell
+
+                        // Account for inner shells
+                        for _ in &solid.inner_shells {
+                            counter.increment_shell_idx();
+                        }
+                    }
+                }
+                if !solid_indices.is_empty() {
+                    boundary.solids = VertexIndices::from_iter(solid_indices);
+                }
+            }
+        }
 
         // Create the geometry
         let geometry = Geometry {
@@ -492,8 +594,8 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
 
 #[cfg(test)]
 mod tests {
-    use crate::attributes::{OwnedStorage};
     use super::*;
+    use crate::attributes::OwnedStorage;
     use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::CityModel;
 

@@ -36,9 +36,10 @@
 compile_error!("This crate only supports 64-bit platforms");
 
 use crate::errors::{Error, Result};
-use num::{CheckedAdd, Unsigned};
+use num::{CheckedAdd, FromPrimitive, Unsigned};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::mem::size_of;
 use std::num::TryFromIntError;
 use std::ops::{AddAssign, Index as IndexOp, IndexMut, Range};
 //------------------------------------------------------------------------------
@@ -53,6 +54,8 @@ pub trait VertexInteger:
     Unsigned
     + TryInto<usize>
     + TryFrom<usize, Error = TryFromIntError>
+    + TryFrom<u32>
+    + FromPrimitive
     + CheckedAdd
     + Copy
     + Debug
@@ -136,6 +139,7 @@ impl<T: VertexInteger> VertexIndex<T> {
     ///
     /// SAFETY: This is safe on 64-bit platforms as all our integer types
     /// (u16, u32, u64) fit within usize (u64)
+    /// todo: fix this as self.0 as usize
     #[inline(always)]
     pub fn to_usize(&self) -> usize {
         unsafe {
@@ -158,6 +162,11 @@ impl<T: VertexInteger> VertexIndex<T> {
                 _ => unreachable!("Only u16, u32, or u64 are allowed"),
             }
         }
+    }
+
+    #[inline(always)]
+    pub fn from_u32(value: u32) -> Option<Self> {
+        T::from_u32(value).map(|v|Self::new(v))
     }
 }
 
@@ -247,7 +256,6 @@ impl TryFrom<VertexIndex<u64>> for VertexIndex<u16> {
 // Integer to VertexIndex conversions
 //------------------------------------------------------------------------------
 
-// u16 conversions
 impl From<u16> for VertexIndex<u16> {
     fn from(value: u16) -> Self {
         Self(value)
@@ -266,13 +274,25 @@ impl From<u16> for VertexIndex<u64> {
     }
 }
 
-// u32 conversions
 impl From<u32> for VertexIndex<u32> {
     fn from(value: u32) -> Self {
         Self(value)
     }
 }
 
+impl From<u32> for VertexIndex<u64> {
+    fn from(value: u32) -> Self {
+        Self(u64::from(value))
+    }
+}
+
+impl From<u64> for VertexIndex<u64> {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+// Fallible conversions (TryFrom)
 impl TryFrom<u32> for VertexIndex<u16> {
     type Error = Error;
 
@@ -284,19 +304,6 @@ impl TryFrom<u32> for VertexIndex<u16> {
                 target_type: "u16".to_string(),
                 value: value.to_string(),
             })
-    }
-}
-
-impl From<u32> for VertexIndex<u64> {
-    fn from(value: u32) -> Self {
-        Self(u64::from(value))
-    }
-}
-
-// u64 conversions
-impl From<u64> for VertexIndex<u64> {
-    fn from(value: u64) -> Self {
-        Self(value)
     }
 }
 
@@ -342,48 +349,6 @@ impl<T: VertexInteger> TryFrom<usize> for VertexIndex<T> {
             })
     }
 }
-
-// impl TryFrom<usize> for VertexIndex<u16> {
-//     type Error = Error;
-//
-//     fn try_from(value: usize) -> Result<Self> {
-//         u16::try_from(value)
-//             .map(Self)
-//             .map_err(|_| Error::IndexConversion {
-//                 source_type: "usize".to_string(),
-//                 target_type: "u16".to_string(),
-//                 value: value.to_string(),
-//             })
-//     }
-// }
-//
-// impl TryFrom<usize> for VertexIndex<u32> {
-//     type Error = Error;
-//
-//     fn try_from(value: usize) -> Result<Self> {
-//         u32::try_from(value)
-//             .map(Self)
-//             .map_err(|_| Error::IndexConversion {
-//                 source_type: "usize".to_string(),
-//                 target_type: "u32".to_string(),
-//                 value: value.to_string(),
-//             })
-//     }
-// }
-//
-// impl TryFrom<usize> for VertexIndex<u64> {
-//     type Error = Error;
-//
-//     fn try_from(value: usize) -> Result<Self> {
-//         u64::try_from(value)
-//             .map(Self)
-//             .map_err(|_| Error::IndexConversion {
-//                 source_type: "usize".to_string(),
-//                 target_type: "u64".to_string(),
-//                 value: value.to_string(),
-//             })
-//     }
-// }
 
 //------------------------------------------------------------------------------
 // Collection types and implementations
