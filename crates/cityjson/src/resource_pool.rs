@@ -180,7 +180,8 @@ mod tests {
 
         #[test]
         fn test_conversion(){
-            let v: VertexIndex<u16> = ResourceId::new(1,1).to_vertex_index().unwrap();
+            let vi: VertexIndex<u16> = ResourceId::new(1,0).to_vertex_index().unwrap();
+            assert_eq!(vi.value(), 1u16)
         }
     }
 

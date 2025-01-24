@@ -394,7 +394,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                     let point_semantics = (0..vertex_indices.len())
                         .map(|idx| {
                             self.point_semantics.get(&idx).map(|&sem_id| {
-                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                                sem_id.to_vertex_index().unwrap()
                             })
                         })
                         .collect();
@@ -421,7 +421,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                     let linestring_semantics = (0..self.rings.len())
                         .map(|idx| {
                             self.linestring_semantics.get(&idx).map(|&sem_id| {
-                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                                sem_id.to_vertex_index().unwrap()
                             })
                         })
                         .collect();
@@ -468,7 +468,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                     let surface_semantics = (0..self.surfaces.len())
                         .map(|idx| {
                             self.surface_semantics.get(&idx).map(|&sem_id| {
-                                VertexIndex::from_u32(sem_id.index()).unwrap()
+                                sem_id.to_vertex_index().unwrap()
                             })
                         })
                         .collect();

@@ -4,15 +4,16 @@ pub mod boundary;
 pub mod boundary_nested;
 pub mod coordinate;
 pub mod errors;
+pub mod geometry;
 mod resources_semantics_materials;
 mod resources_textures;
 pub mod vertex;
-pub mod geometry;
 
+pub mod attributes;
 mod resource_pool;
 pub mod v1_1;
-pub mod attributes;
 
+use crate::attributes::{AttributeStorage, Attributes, OwnedStorage};
 use crate::coordinate::Vertices;
 use crate::errors::Result;
 use crate::resource_pool::{DefaultResourcePool, ResourceId, ResourcePool};
@@ -20,31 +21,41 @@ use crate::v1_1::semantics::Semantic;
 use crate::vertex::VertexInteger;
 pub use boundary::Boundary;
 pub use coordinate::VertexCoordinate;
+pub use geometry::Geometry;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
 pub use vertex::VertexIndex;
-pub use geometry::Geometry;
-use crate::attributes::{AttributeStorage, Attributes, OwnedStorage};
 
-pub type CityModel<T, AS> = GenericCityModel<T, DefaultResourcePool<Semantic<T, AS>>, OwnedStorage>;
+pub type CityModel<VI, AS> =
+    GenericCityModel<VI, DefaultResourcePool<Semantic<VI, AS>>, OwnedStorage>;
 
 #[derive(Debug)]
-pub struct GenericCityModel<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> {
+pub struct GenericCityModel<VI, RPS, AS>
+where
+    VI: VertexInteger,
+    RPS: ResourcePool<Semantic<VI, AS>>,
+    AS: AttributeStorage,
+{
     /// Pool of vertex coordinates
-    vertices: Vertices<T>,
+    vertices: Vertices<VI>,
     /// Pool of semantic objects
-    semantics: P,
+    semantics: RPS,
     /// Collection of geometries
-    geometries: Vec<Geometry<T>>,
-    extra: Option<Attributes<AS>>
+    geometries: Vec<Geometry<VI>>,
+    extra: Option<Attributes<AS>>,
 }
 
-impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> GenericCityModel<T, P, AS> {
+impl<VI, RPS, AS> GenericCityModel<VI, RPS, AS>
+where
+    VI: VertexInteger,
+    RPS: ResourcePool<Semantic<VI, AS>>,
+    AS: AttributeStorage,
+{
     /// Create a new empty CityModel
     pub fn new() -> Self {
         Self {
             vertices: Vertices::new(),
-            semantics: P::new(),
+            semantics: RPS::new(),
             geometries: Vec::new(),
             extra: None,
         }
@@ -58,39 +69,39 @@ impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> G
     ) -> Self {
         Self {
             vertices: Vertices::new(), // Vertices handle capacity internally
-            semantics: P::with_capacity(semantic_capacity),
+            semantics: RPS::with_capacity(semantic_capacity),
             geometries: Vec::with_capacity(geometry_capacity),
             extra: None,
         }
     }
 
     /// Add a semantic object to the pool
-    pub fn add_semantic(&mut self, semantic: Semantic<T, AS>) -> ResourceId {
+    pub fn add_semantic(&mut self, semantic: Semantic<VI, AS>) -> ResourceId {
         self.semantics.add(semantic)
     }
 
     /// Get a reference to a semantic object
-    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic<T, AS>> {
+    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic<VI, AS>> {
         self.semantics.get(id)
     }
 
     /// Get a mutable reference to a semantic object
-    pub fn get_semantic_mut(&mut self, id: ResourceId) -> Option<&mut Semantic<T, AS>> {
+    pub fn get_semantic_mut(&mut self, id: ResourceId) -> Option<&mut Semantic<VI, AS>> {
         self.semantics.get_mut(id)
     }
 
     /// Add a geometry to the model
-    pub fn add_geometry(&mut self, geometry: Geometry<T>) {
+    pub fn add_geometry(&mut self, geometry: Geometry<VI>) {
         self.geometries.push(geometry);
     }
 
     /// Add a vertex coordinate
-    pub fn add_vertex(&mut self, coordinate: VertexCoordinate) -> Result<VertexIndex<T>> {
+    pub fn add_vertex(&mut self, coordinate: VertexCoordinate) -> Result<VertexIndex<VI>> {
         self.vertices.push(coordinate)
     }
 
     /// Get a reference to a vertex coordinate
-    pub fn get_vertex(&self, index: VertexIndex<T>) -> Option<&VertexCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&VertexCoordinate> {
         self.vertices.get(index)
     }
 
@@ -111,7 +122,12 @@ impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> G
 }
 
 // Implement default for convenience
-impl<T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage> Default for GenericCityModel<T, P, AS> {
+impl<VI, RPS, AS> Default for GenericCityModel<VI, RPS, AS>
+where
+    VI: VertexInteger,
+    RPS: ResourcePool<Semantic<VI, AS>>,
+    AS: AttributeStorage,
+{
     fn default() -> Self {
         Self::new()
     }
