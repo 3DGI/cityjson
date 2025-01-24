@@ -2,6 +2,8 @@ use crate::attributes::Attributes;
 use crate::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::resource_pool::{ResourceId, ResourcePool};
+use crate::storage::StringStorage;
+use crate::v1_1::materials::Material;
 use crate::v1_1::semantics::{Semantic, SemanticType};
 use crate::vertex::{VertexIndices, VertexInteger};
 use crate::{
@@ -9,7 +11,6 @@ use crate::{
     VertexIndex,
 };
 use std::collections::HashMap;
-use crate::storage::StringStorage;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -46,9 +47,10 @@ pub struct GeometryBuilder<
     'a,
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
+    RPM: ResourcePool<Material<S>>,
     S: StringStorage,
 > {
-    model: &'a mut GenericCityModel<VI, RPS, S>,
+    model: &'a mut GenericCityModel<VI, RPS, RPM, S>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<VertexCoordinate>,
@@ -65,12 +67,21 @@ pub struct GeometryBuilder<
     point_semantics: HashMap<usize, ResourceId>,
     linestring_semantics: HashMap<usize, ResourceId>,
     surface_semantics: HashMap<usize, ResourceId>,
+    // Material storage
+    surface_materials: HashMap<usize, ResourceId>,
 }
 
-impl<'a, VI: VertexInteger, RPS: ResourcePool<Semantic<VI, S>>, S: StringStorage>
-    GeometryBuilder<'a, VI, RPS, S>
+impl<'a, VI, RPS, RPM, S> GeometryBuilder<'a, VI, RPS, RPM, S>
+where
+    VI: VertexInteger,
+    RPS: ResourcePool<Semantic<VI, S>>,
+    RPM: ResourcePool<Material<S>>,
+    S: StringStorage,
 {
-    pub fn new(model: &'a mut GenericCityModel<VI, RPS, S>, type_geometry: GeometryType) -> Self {
+    pub fn new(
+        model: &'a mut GenericCityModel<VI, RPS, RPM, S>,
+        type_geometry: GeometryType,
+    ) -> Self {
         Self {
             model,
             type_geometry,
@@ -87,6 +98,7 @@ impl<'a, VI: VertexInteger, RPS: ResourcePool<Semantic<VI, S>>, S: StringStorage
             point_semantics: Default::default(),
             linestring_semantics: Default::default(),
             surface_semantics: Default::default(),
+            surface_materials: Default::default(),
         }
     }
 
@@ -355,6 +367,17 @@ impl<'a, VI: VertexInteger, RPS: ResourcePool<Semantic<VI, S>>, S: StringStorage
         Ok(())
     }
 
+    pub fn set_surface_material(&mut self, material: Material<S>) -> Result<()> {
+        let surface_idx = self
+            .current_surface
+            .ok_or_else(|| Error::NoCurrentElement {
+                element_type: "surface".to_string(),
+            })?;
+        let mat_id = self.model.add_material(material);
+        self.surface_materials.insert(surface_idx, mat_id);
+        Ok(())
+    }
+
     /// Builds the geometry and adds it to the model.
     ///
     /// # Errors
@@ -474,6 +497,18 @@ impl<'a, VI: VertexInteger, RPS: ResourcePool<Semantic<VI, S>>, S: StringStorage
                         })
                         .collect();
                     semantic_map.surfaces = surface_semantics;
+                }
+
+                // Add surface materials
+                if !self.surface_materials.is_empty() {
+                    let surface_materials = (0..self.surfaces.len())
+                        .map(|idx| {
+                            self.surface_materials
+                                .get(&idx)
+                                .map(|&mat_id| mat_id.to_vertex_index().unwrap())
+                        })
+                        .collect();
+                    semantic_map.materials_surfaces = surface_materials;
                 }
 
                 // Process shells with their surfaces
@@ -598,8 +633,8 @@ mod tests {
     use super::*;
     use crate::attributes::{AttributeValue, Attributes};
     use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
-    use crate::CityModel;
     use crate::storage::OwnedStringStorage;
+    use crate::CityModel;
 
     #[test]
     fn test_multipoint_with_semantics() -> Result<()> {

@@ -1,2 +1,2 @@
 pub mod semantics;
-mod materials;
+pub mod materials;
