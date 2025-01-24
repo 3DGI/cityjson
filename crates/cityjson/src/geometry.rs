@@ -393,9 +393,9 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                 if !self.point_semantics.is_empty() {
                     let point_semantics = (0..vertex_indices.len())
                         .map(|idx| {
-                            self.point_semantics.get(&idx).map(|&sem_id| {
-                                sem_id.to_vertex_index().unwrap()
-                            })
+                            self.point_semantics
+                                .get(&idx)
+                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
                         })
                         .collect();
                     semantic_map.points = point_semantics;
@@ -420,9 +420,9 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                 if !self.linestring_semantics.is_empty() {
                     let linestring_semantics = (0..self.rings.len())
                         .map(|idx| {
-                            self.linestring_semantics.get(&idx).map(|&sem_id| {
-                                sem_id.to_vertex_index().unwrap()
-                            })
+                            self.linestring_semantics
+                                .get(&idx)
+                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
                         })
                         .collect();
                     semantic_map.linestrings = linestring_semantics;
@@ -467,9 +467,9 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
                 if !self.surface_semantics.is_empty() {
                     let surface_semantics = (0..self.surfaces.len())
                         .map(|idx| {
-                            self.surface_semantics.get(&idx).map(|&sem_id| {
-                                sem_id.to_vertex_index().unwrap()
-                            })
+                            self.surface_semantics
+                                .get(&idx)
+                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
                         })
                         .collect();
                     semantic_map.surfaces = surface_semantics;
@@ -595,9 +595,55 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attributes::OwnedStorage;
+    use crate::attributes::{AttributeValue, Attributes, OwnedStorage};
     use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::CityModel;
+
+    #[test]
+    fn test_multipoint_with_semantics() -> Result<()> {
+        // Create a city model
+        let mut model = CityModel::<u32, OwnedStorage>::new();
+        let mut builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint).with_lod(LoD::LoD2);
+
+        // Create vertices with semantics
+        // First point - TransportationMarking
+        let v0 = builder.add_point_with_semantic(
+            0.0,
+            0.0,
+            0.0,
+            Some(Semantic::new(SemanticType::TransportationMarking)),
+        );
+
+        // Second point - no semantic
+        let _v1 = builder.add_vertex(1.0, 0.0, 0.0);
+
+        // Third point - TransportationHole with diameter attribute
+        let mut hole_semantic = Semantic::new(SemanticType::TransportationHole);
+        let mut attrs = Attributes::new();
+        attrs.insert("diameter".to_string(), AttributeValue::Float(1.5));
+        hole_semantic.attributes = Some(attrs);
+        let v2 = builder.add_point_with_semantic(2.0, 0.0, 0.0, Some(hole_semantic));
+
+        // Fourth point - no semantic
+        let _v3 = builder.add_vertex(3.0, 0.0, 0.0);
+
+        // Fifth point - TransportationMarking
+        let v4 = builder.add_point_with_semantic(
+            4.0,
+            0.0,
+            0.0,
+            Some(Semantic::new(SemanticType::TransportationMarking)),
+        );
+
+        // Build the geometry
+        builder.build()?;
+
+        // Get the built geometry and test filtering
+        let geometry = &model.geometries[0];
+
+        Ok(())
+    }
 
     #[test]
     fn test_build_complex_multisolid() -> Result<()> {
