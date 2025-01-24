@@ -1,4 +1,4 @@
-use crate::attributes::AttributeStorage;
+use crate::attributes::Attributes;
 use crate::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::resource_pool::{ResourceId, ResourcePool};
@@ -9,14 +9,15 @@ use crate::{
     VertexIndex,
 };
 use std::collections::HashMap;
+use crate::storage::StringStorage;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
-pub struct Geometry<T: VertexInteger> {
+pub struct Geometry<VI: VertexInteger> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    boundaries: Option<Boundary<T>>,
-    semantics: Option<SemanticMaterialMap<T>>,
+    boundaries: Option<Boundary<VI>>,
+    semantics: Option<SemanticMaterialMap<VI>>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -43,11 +44,11 @@ struct SolidInProgress {
 
 pub struct GeometryBuilder<
     'a,
-    T: VertexInteger,
-    P: ResourcePool<Semantic<T, AS>>,
-    AS: AttributeStorage,
+    VI: VertexInteger,
+    RPS: ResourcePool<Semantic<VI, S>>,
+    S: StringStorage,
 > {
-    model: &'a mut GenericCityModel<T, P, AS>,
+    model: &'a mut GenericCityModel<VI, RPS, S>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<VertexCoordinate>,
@@ -66,10 +67,10 @@ pub struct GeometryBuilder<
     surface_semantics: HashMap<usize, ResourceId>,
 }
 
-impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorage>
-    GeometryBuilder<'a, T, P, AS>
+impl<'a, VI: VertexInteger, RPS: ResourcePool<Semantic<VI, S>>, S: StringStorage>
+    GeometryBuilder<'a, VI, RPS, S>
 {
-    pub fn new(model: &'a mut GenericCityModel<T, P, AS>, type_geometry: GeometryType) -> Self {
+    pub fn new(model: &'a mut GenericCityModel<VI, RPS, S>, type_geometry: GeometryType) -> Self {
         Self {
             model,
             type_geometry,
@@ -320,7 +321,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
         x: f64,
         y: f64,
         z: f64,
-        semantic: Option<Semantic<T, AS>>,
+        semantic: Option<Semantic<VI, S>>,
     ) -> usize {
         let point_idx = self.add_vertex(x, y, z);
         if let Some(semantic) = semantic {
@@ -331,7 +332,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
     }
 
     // LineString semantics
-    pub fn set_linestring_semantic(&mut self, semantic: Semantic<T, AS>) -> Result<()> {
+    pub fn set_linestring_semantic(&mut self, semantic: Semantic<VI, S>) -> Result<()> {
         let line_idx = self
             .current_linestring
             .ok_or_else(|| Error::NoCurrentElement {
@@ -343,7 +344,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
     }
 
     // Surface semantics
-    pub fn set_surface_semantic(&mut self, semantic: Semantic<T, AS>) -> Result<()> {
+    pub fn set_surface_semantic(&mut self, semantic: Semantic<VI, S>) -> Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -371,7 +372,7 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
         self.validate_structure()?;
 
         // Add all vertices to the model and get their indices
-        let vertex_indices: Vec<VertexIndex<T>> = self
+        let vertex_indices: Vec<VertexIndex<VI>> = self
             .vertices
             .into_iter()
             .map(|v| self.model.add_vertex(v))
@@ -595,14 +596,15 @@ impl<'a, T: VertexInteger, P: ResourcePool<Semantic<T, AS>>, AS: AttributeStorag
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attributes::{AttributeValue, Attributes, OwnedStorage};
+    use crate::attributes::{AttributeValue, Attributes};
     use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::CityModel;
+    use crate::storage::OwnedStringStorage;
 
     #[test]
     fn test_multipoint_with_semantics() -> Result<()> {
         // Create a city model
-        let mut model = CityModel::<u32, OwnedStorage>::new();
+        let mut model = CityModel::<u32, OwnedStringStorage>::new();
         let mut builder =
             GeometryBuilder::new(&mut model, GeometryType::MultiPoint).with_lod(LoD::LoD2);
 
@@ -647,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_build_complex_multisolid() -> Result<()> {
-        let mut model = CityModel::<u32, OwnedStorage>::new();
+        let mut model = CityModel::<u32, OwnedStringStorage>::new();
         let mut builder =
             GeometryBuilder::new(&mut model, GeometryType::MultiSolid).with_lod(LoD::LoD2);
 

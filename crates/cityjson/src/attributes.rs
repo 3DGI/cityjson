@@ -1,120 +1,51 @@
+use crate::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeValue<S: Eq + Hash> {
+pub enum AttributeValue<S: StringStorage> {
     Null,
     Bool(bool),
     Unsigned(u64),
     Integer(i64),
     Float(f64),
-    String(S),
+    String(S::String),
     Vec(Vec<Box<AttributeValue<S>>>),
-    Map(HashMap<S, Box<AttributeValue<S>>>),
-}
-
-/// Storage backend for attributes with either owned or borrowed strings
-pub trait AttributeStorage: Clone + Debug {
-    type String: AsRef<str> + Eq + Hash;
-
-    fn new() -> Self;
-    fn get(&self, key: &str) -> Option<&AttributeValue<Self::String>>;
-    fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<Self::String>>;
-    fn insert(&mut self, key: Self::String, value: AttributeValue<Self::String>);
-    fn remove(&mut self, key: &str) -> Option<AttributeValue<Self::String>>;
+    Map(HashMap<S::String, Box<AttributeValue<S>>>),
 }
 
 /// Container for attributes using a specific storage strategy
 #[derive(Clone, Debug)]
-pub struct Attributes<S: AttributeStorage> {
-    storage: S,
+pub struct Attributes<S: StringStorage> {
+    values: HashMap<S::String, AttributeValue<S>>,
 }
 
-impl<S: AttributeStorage> Attributes<S> {
+impl<S: StringStorage> Attributes<S> {
     pub fn new() -> Self {
-        Self { storage: S::new() }
-    }
-
-    pub fn get(&self, key: &str) -> Option<&AttributeValue<S::String>> {
-        self.storage.get(key)
-    }
-
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<S::String>> {
-        self.storage.get_mut(key)
-    }
-
-    pub fn insert(&mut self, key: S::String, value: AttributeValue<S::String>) {
-        self.storage.insert(key, value)
-    }
-
-    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<S::String>> {
-        self.storage.remove(key)
-    }
-}
-
-/// Storage implementation for owned strings
-#[derive(Clone, Debug, Default)]
-pub struct OwnedStorage {
-    values: HashMap<String, AttributeValue<String>>,
-}
-
-impl AttributeStorage for OwnedStorage {
-    type String = String;
-
-    fn new() -> Self {
         Self { values: HashMap::new() }
     }
 
-    fn get(&self, key: &str) -> Option<&AttributeValue<Self::String>> {
-        self.values.get(key)
+    pub fn get(&self, key: &str) -> Option<&AttributeValue<S>> {
+        self.values.get(key.borrow())
     }
 
-    fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<Self::String>> {
-        self.values.get_mut(key)
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<S>> {
+        self.values.get_mut(key.borrow())
     }
 
-    fn insert(&mut self, key: Self::String, value: AttributeValue<Self::String>) {
-        self.values.insert(key, value);
+    pub fn insert(&mut self, key: S::String, value: AttributeValue<S>) -> Option<AttributeValue<S>> {
+        self.values.insert(key, value)
     }
 
-    fn remove(&mut self, key: &str) -> Option<AttributeValue<Self::String>> {
-        self.values.remove(key)
-    }
-}
-
-/// Storage implementation for borrowed strings
-#[derive(Clone, Debug, Default)]
-pub struct BorrowedStorage<'a> {
-    values: HashMap<&'a str, AttributeValue<&'a str>>,
-}
-
-impl<'a> AttributeStorage for BorrowedStorage<'a> {
-    type String = &'a str;
-
-    fn new() -> Self {
-        Self { values: HashMap::new() }
-    }
-
-    fn get(&self, key: &str) -> Option<&AttributeValue<Self::String>> {
-        self.values.get(key)
-    }
-
-    fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<Self::String>> {
-        self.values.get_mut(key)
-    }
-
-    fn insert(&mut self, key: Self::String, value: AttributeValue<Self::String>) {
-        self.values.insert(key, value);
-    }
-
-    fn remove(&mut self, key: &str) -> Option<AttributeValue<Self::String>> {
-        self.values.remove(key)
+    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<S>> {
+        self.values.remove(key.borrow())
     }
 }
 
-pub type OwnedAttributes = Attributes<OwnedStorage>;
-pub type BorrowedAttributes<'a> = Attributes<BorrowedStorage<'a>>;
+pub type OwnedAttributes = Attributes<OwnedStringStorage>;
+pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>>;
 
 #[cfg(test)]
 mod tests {
