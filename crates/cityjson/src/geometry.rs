@@ -508,7 +508,7 @@ where
                                 .map(|&mat_id| mat_id.to_vertex_index().unwrap())
                         })
                         .collect();
-                    semantic_map.materials_surfaces = surface_materials;
+                    semantic_map.surfaces = surface_materials;
                 }
 
                 // Process shells with their surfaces
