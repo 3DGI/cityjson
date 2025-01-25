@@ -19,6 +19,7 @@ pub struct Geometry<VI: VertexInteger> {
     lod: Option<LoD>,
     boundaries: Option<Boundary<VI>>,
     semantics: Option<SemanticMaterialMap<VI>>,
+    material: Option<SemanticMaterialMap<VI>>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -407,6 +408,8 @@ where
 
         // Create semantic mappings
         let mut semantic_map = SemanticMaterialMap::default();
+        // Create material mappings
+        let mut material_map = SemanticMaterialMap::default();
 
         match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -508,7 +511,7 @@ where
                                 .map(|&mat_id| mat_id.to_vertex_index().unwrap())
                         })
                         .collect();
-                    semantic_map.surfaces = surface_materials;
+                    material_map.surfaces = surface_materials;
                 }
 
                 // Process shells with their surfaces
@@ -550,6 +553,7 @@ where
             lod: self.lod,
             boundaries: Some(boundary),
             semantics: Some(semantic_map),
+            material: Some(material_map),
             template_boundaries: None,
             template_transformation_matrix: None,
         };
