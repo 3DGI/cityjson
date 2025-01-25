@@ -1,4 +1,4 @@
-use crate::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
+use crate::common::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
 
 /// Maps geometry vertices to texture coordinates and textures
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]

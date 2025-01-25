@@ -1,5 +1,5 @@
-use crate::vertex::{VertexIndex, VertexIndices, VertexInteger};
-use crate::Boundary;
+use crate::common::boundary::Boundary;
+use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
 
 // Type aliases for u16
 pub type BoundaryNestedMultiPoint16 = Vec<u16>;

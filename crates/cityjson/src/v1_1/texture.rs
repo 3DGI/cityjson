@@ -1,4 +1,4 @@
-use crate::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedTexture = Texture<OwnedStringStorage>;
 pub type BorrowedTexture<'a> = Texture<BorrowedStringStorage<'a>>;

@@ -1,16 +1,16 @@
-use crate::attributes::Attributes;
-use crate::boundary::BoundaryCounter;
+use crate::common::attributes::Attributes;
+use crate::common::boundary::{Boundary, BoundaryCounter};
+use crate::common::coordinate::GeometryCoordinate;
+use crate::common::storage::StringStorage;
+use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::{GeometryType, LoD};
 use crate::errors::{Error, Result};
-use crate::resource_pool::{ResourceId, ResourcePool};
-use crate::storage::StringStorage;
-use crate::v1_1::materials::Material;
-use crate::v1_1::semantics::{Semantic, SemanticType};
-use crate::v1_1::textures::Texture;
-use crate::vertex::{VertexIndices, VertexInteger};
-use crate::{
-    Boundary, GenericCityModel, GeometryCoordinate, GeometryType, LoD, SemanticMaterialMap,
-    TextureMap, VertexIndex,
-};
+use crate::resources::mapping::{SemanticMaterialMap, TextureMap};
+use crate::resources::pool::{ResourceId, ResourcePool};
+use crate::v1_1::material::Material;
+use crate::v1_1::semantic::{Semantic, SemanticType};
+use crate::v1_1::texture::Texture;
+use crate::GenericCityModel;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -656,9 +656,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attributes::{AttributeValue, Attributes};
-    use crate::boundary_nested::BoundaryNestedMultiOrCompositeSolid32;
-    use crate::storage::OwnedStringStorage;
+    use crate::common::attributes::{AttributeValue, Attributes};
+    use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
+    use crate::common::storage::OwnedStringStorage;
     use crate::CityModel;
 
     #[test]

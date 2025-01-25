@@ -1,7 +1,6 @@
-use crate::vertex::{VertexIndices, VertexInteger};
-use crate::VertexIndex;
-use crate::attributes::{Attributes};
-use crate::storage::StringStorage;
+use crate::common::attributes::Attributes;
+use crate::common::storage::StringStorage;
+use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
 
 /// Semantic surface type.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]

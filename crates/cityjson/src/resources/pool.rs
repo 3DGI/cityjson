@@ -1,6 +1,5 @@
+use crate::common::vertex::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
-use crate::vertex::VertexInteger;
-use crate::VertexIndex;
 
 // todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.
 
@@ -176,18 +175,18 @@ mod tests {
 
     mod resource_id {
         use super::*;
-        use crate::resource_pool::ResourceId;
+        use crate::resources::pool::ResourceId;
 
         #[test]
-        fn test_conversion(){
-            let vi: VertexIndex<u16> = ResourceId::new(1,0).to_vertex_index().unwrap();
+        fn test_conversion() {
+            let vi: VertexIndex<u16> = ResourceId::new(1, 0).to_vertex_index().unwrap();
             assert_eq!(vi.value(), 1u16)
         }
     }
 
     mod initialization {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_new_pool() {
@@ -208,7 +207,7 @@ mod tests {
 
     mod basic_operations {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_add_and_get() {
@@ -254,7 +253,7 @@ mod tests {
 
     mod resource_management {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_generation_increment() {
@@ -285,7 +284,7 @@ mod tests {
 
     mod iteration {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_iter() {
@@ -301,7 +300,7 @@ mod tests {
 
     mod concurrency_and_performance {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_concurrent_access() {
@@ -358,7 +357,7 @@ mod tests {
 
     mod memory_safety {
         use super::*;
-        use crate::resource_pool::ResourcePool;
+        use crate::resources::pool::ResourcePool;
 
         #[test]
         fn test_memory_leaks() {

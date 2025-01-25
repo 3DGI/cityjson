@@ -1,4 +1,4 @@
-use crate::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedMaterial = Material<OwnedStringStorage>;
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;

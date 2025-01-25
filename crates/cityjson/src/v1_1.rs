@@ -1,3 +1,4 @@
-pub mod semantics;
-pub mod materials;
-pub mod textures;
+pub mod geometry;
+pub mod material;
+pub mod semantic;
+pub mod texture;

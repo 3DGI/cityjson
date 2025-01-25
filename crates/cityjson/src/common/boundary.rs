@@ -1,6 +1,8 @@
-use crate::boundary_nested::*;
+pub mod nested;
+
+use crate::common::boundary::nested::*;
+use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
 use crate::errors;
-use crate::vertex::{VertexIndex, VertexIndices, VertexInteger};
 
 /// A generic Boundary type that can represent any CityJSON boundary.
 /// The Boundary does not have the Geometry type information, so it should be used in
@@ -311,11 +313,11 @@ impl std::fmt::Display for BoundaryType {
 
 #[derive(Default)]
 pub(crate) struct BoundaryCounter<T: VertexInteger> {
-    pub(crate) vertex_offset: VertexIndex<T>,  // Current position in vertex list
-    pub(crate) ring_offset: VertexIndex<T>,    // Current position in ring list
+    pub(crate) vertex_offset: VertexIndex<T>, // Current position in vertex list
+    pub(crate) ring_offset: VertexIndex<T>,   // Current position in ring list
     pub(crate) surface_offset: VertexIndex<T>, // Current position in surface list
-    pub(crate) shell_offset: VertexIndex<T>,   // Current position in shell list
-    pub(crate) solid_offset: VertexIndex<T>,   // Current position in solid list
+    pub(crate) shell_offset: VertexIndex<T>,  // Current position in shell list
+    pub(crate) solid_offset: VertexIndex<T>,  // Current position in solid list
 }
 
 impl<T: VertexInteger> BoundaryCounter<T> {
@@ -375,7 +377,7 @@ pub type Boundary64 = Boundary<u64>;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::vertex::VertexIndices32;
+    use crate::common::vertex::VertexIndices32;
 
     #[test]
     fn multipoint() {

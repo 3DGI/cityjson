@@ -1,4 +1,4 @@
-use crate::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -24,7 +24,9 @@ pub struct Attributes<S: StringStorage> {
 
 impl<S: StringStorage> Attributes<S> {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            values: HashMap::new(),
+        }
     }
 
     pub fn get(&self, key: &str) -> Option<&AttributeValue<S>> {
@@ -35,7 +37,11 @@ impl<S: StringStorage> Attributes<S> {
         self.values.get_mut(key.borrow())
     }
 
-    pub fn insert(&mut self, key: S::String, value: AttributeValue<S>) -> Option<AttributeValue<S>> {
+    pub fn insert(
+        &mut self,
+        key: S::String,
+        value: AttributeValue<S>,
+    ) -> Option<AttributeValue<S>> {
         self.values.insert(key, value)
     }
 
@@ -94,10 +100,7 @@ mod tests {
             Box::new(AttributeValue::String("value".to_string())),
         );
 
-        attrs.insert(
-            "nested".to_string(),
-            AttributeValue::Map(map),
-        );
+        attrs.insert("nested".to_string(), AttributeValue::Map(map));
 
         // Test nested mutation
         if let Some(AttributeValue::Map(map)) = attrs.get_mut("nested") {
@@ -110,12 +113,10 @@ mod tests {
 
         // Verify mutation
         match attrs.get("nested") {
-            Some(AttributeValue::Map(map)) => {
-                match &**map.get("inner").unwrap() {
-                    AttributeValue::String(value) => assert_eq!(value, "modified"),
-                    _ => panic!("Expected string value"),
-                }
-            }
+            Some(AttributeValue::Map(map)) => match &**map.get("inner").unwrap() {
+                AttributeValue::String(value) => assert_eq!(value, "modified"),
+                _ => panic!("Expected string value"),
+            },
             _ => panic!("Expected map value"),
         }
     }

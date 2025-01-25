@@ -166,7 +166,7 @@ impl<T: VertexInteger> VertexIndex<T> {
 
     #[inline(always)]
     pub fn from_u32(value: u32) -> Option<Self> {
-        T::from_u32(value).map(|v|Self::new(v))
+        T::from_u32(value).map(|v| Self::new(v))
     }
 }
 
@@ -952,7 +952,7 @@ impl<T: VertexInteger> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coordinate::GeometryCoordinate;
+    use crate::common::coordinate::GeometryCoordinate;
 
     #[test]
     fn test_vertex_index_creation() {

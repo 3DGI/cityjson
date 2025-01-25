@@ -1,6 +1,5 @@
+use crate::common::vertex::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
-use crate::vertex::VertexInteger;
-use crate::VertexIndex;
 use std::marker::PhantomData;
 
 pub trait Vertex {}
@@ -50,11 +49,9 @@ impl UVCoordinate {
     pub fn v(&self) -> f32 {
         self.v
     }
-
 }
 
-impl Vertex for UVCoordinate{}
-
+impl Vertex for UVCoordinate {}
 
 /// Container for vertex coordinates with size limited by the chosen index type.
 #[repr(C)]
