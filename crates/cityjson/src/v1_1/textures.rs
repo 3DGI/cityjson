@@ -7,11 +7,11 @@ pub type RGBA = [f32; 4];
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Texture<S: StringStorage> {
-    pub image_type: ImageType,
-    pub image: S::String,
-    pub wrap_mode: Option<WrapMode>,
-    pub texture_type: Option<TextureType>,
-    pub border_color: Option<RGBA>,
+    image_type: ImageType,
+    image: S::String,
+    wrap_mode: Option<WrapMode>,
+    texture_type: Option<TextureType>,
+    border_color: Option<RGBA>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

@@ -5,10 +5,13 @@ use crate::resource_pool::{ResourceId, ResourcePool};
 use crate::storage::StringStorage;
 use crate::v1_1::materials::Material;
 use crate::v1_1::semantics::{Semantic, SemanticType};
-use crate::vertex::{VertexIndices, VertexInteger};
-use crate::{Boundary, GenericCityModel, GeometryType, LoD, SemanticMaterialMap, TextureMap, GeometryCoordinate, VertexIndex};
-use std::collections::HashMap;
 use crate::v1_1::textures::Texture;
+use crate::vertex::{VertexIndices, VertexInteger};
+use crate::{
+    Boundary, GenericCityModel, GeometryCoordinate, GeometryType, LoD, SemanticMaterialMap,
+    TextureMap, VertexIndex,
+};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -70,6 +73,8 @@ pub struct GeometryBuilder<
     surface_semantics: HashMap<usize, ResourceId>,
     // Material storage
     surface_materials: HashMap<usize, ResourceId>,
+    // Texture storage
+    surface_textures: HashMap<usize, ResourceId>,
 }
 
 impl<'a, VI, RPS, RPM, RPT, S> GeometryBuilder<'a, VI, RPS, RPM, RPT, S>
@@ -101,6 +106,7 @@ where
             linestring_semantics: Default::default(),
             surface_semantics: Default::default(),
             surface_materials: Default::default(),
+            surface_textures: Default::default(),
         }
     }
 
@@ -377,6 +383,17 @@ where
             })?;
         let mat_id = self.model.add_material(material);
         self.surface_materials.insert(surface_idx, mat_id);
+        Ok(())
+    }
+
+    pub fn set_surface_texture(&mut self, texture: Texture<S>) -> Result<()> {
+        let surface_idx = self
+            .current_surface
+            .ok_or_else(|| Error::NoCurrentElement {
+                element_type: "surface".to_string(),
+            })?;
+        let tex_id = self.model.add_texture(texture);
+        self.surface_textures.insert(surface_idx, tex_id);
         Ok(())
     }
 

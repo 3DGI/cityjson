@@ -128,6 +128,18 @@ where
         self.materials.get_mut(id)
     }
 
+    pub fn add_texture(&mut self, texture: Texture<S>) -> ResourceId {
+        self.textures.add(texture)
+    }
+
+    pub fn get_texture(&self, id: ResourceId) -> Option<&Texture<S>> {
+        self.textures.get(id)
+    }
+
+    pub fn get_texture_mut(&mut self, id: ResourceId) -> Option<&mut Texture<S>> {
+        self.textures.get_mut(id)
+    }
+
     /// Add a geometry to the model
     pub fn add_geometry(&mut self, geometry: Geometry<VI>) {
         self.geometries.push(geometry);
