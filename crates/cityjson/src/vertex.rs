@@ -952,7 +952,7 @@ impl<T: VertexInteger> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coordinate::VertexCoordinate;
+    use crate::coordinate::GeometryCoordinate;
 
     #[test]
     fn test_vertex_index_creation() {
@@ -1089,7 +1089,7 @@ mod tests {
 
     #[test]
     fn test_vertex_coordinate() {
-        let coord = VertexCoordinate {
+        let coord = GeometryCoordinate {
             x: 1.0,
             y: 2.0,
             z: 3.0,

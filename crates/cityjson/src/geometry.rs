@@ -6,11 +6,9 @@ use crate::storage::StringStorage;
 use crate::v1_1::materials::Material;
 use crate::v1_1::semantics::{Semantic, SemanticType};
 use crate::vertex::{VertexIndices, VertexInteger};
-use crate::{
-    Boundary, GenericCityModel, GeometryType, LoD, SemanticMaterialMap, VertexCoordinate,
-    VertexIndex,
-};
+use crate::{Boundary, GenericCityModel, GeometryType, LoD, SemanticMaterialMap, TextureMap, GeometryCoordinate, VertexIndex};
 use std::collections::HashMap;
+use crate::v1_1::textures::Texture;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -20,6 +18,7 @@ pub struct Geometry<VI: VertexInteger> {
     boundaries: Option<Boundary<VI>>,
     semantics: Option<SemanticMaterialMap<VI>>,
     material: Option<SemanticMaterialMap<VI>>,
+    texture: Option<TextureMap<VI>>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -49,12 +48,13 @@ pub struct GeometryBuilder<
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
+    RPT: ResourcePool<Texture<S>>,
     S: StringStorage,
 > {
-    model: &'a mut GenericCityModel<VI, RPS, RPM, S>,
+    model: &'a mut GenericCityModel<VI, RPS, RPM, RPT, S>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    vertices: Vec<VertexCoordinate>,
+    vertices: Vec<GeometryCoordinate>,
     rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // shells with their surfaces
@@ -72,15 +72,16 @@ pub struct GeometryBuilder<
     surface_materials: HashMap<usize, ResourceId>,
 }
 
-impl<'a, VI, RPS, RPM, S> GeometryBuilder<'a, VI, RPS, RPM, S>
+impl<'a, VI, RPS, RPM, RPT, S> GeometryBuilder<'a, VI, RPS, RPM, RPT, S>
 where
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
+    RPT: ResourcePool<Texture<S>>,
     S: StringStorage,
 {
     pub fn new(
-        model: &'a mut GenericCityModel<VI, RPS, RPM, S>,
+        model: &'a mut GenericCityModel<VI, RPS, RPM, RPT, S>,
         type_geometry: GeometryType,
     ) -> Self {
         Self {
@@ -113,7 +114,7 @@ where
     ///
     /// Returns the index of the new vertex.
     pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.vertices.push(VertexCoordinate { x, y, z });
+        self.vertices.push(GeometryCoordinate { x, y, z });
         self.vertices.len() - 1
     }
 
@@ -410,6 +411,8 @@ where
         let mut semantic_map = SemanticMaterialMap::default();
         // Create material mappings
         let mut material_map = SemanticMaterialMap::default();
+        // Create texture mappings
+        let mut texture_map = TextureMap::default();
 
         match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -554,6 +557,7 @@ where
             boundaries: Some(boundary),
             semantics: Some(semantic_map),
             material: Some(material_map),
+            texture: Some(texture_map),
             template_boundaries: None,
             template_transformation_matrix: None,
         };

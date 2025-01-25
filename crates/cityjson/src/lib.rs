@@ -15,15 +15,16 @@ mod storage;
 pub mod v1_1;
 
 use crate::attributes::Attributes;
-use crate::coordinate::Vertices;
+use crate::coordinate::{UVCoordinate, Vertices};
 use crate::errors::Result;
 use crate::resource_pool::{DefaultResourcePool, ResourceId, ResourcePool};
 use crate::storage::{OwnedStringStorage, StringStorage};
 use crate::v1_1::materials::Material;
 use crate::v1_1::semantics::Semantic;
+use crate::v1_1::textures::Texture;
 use crate::vertex::VertexInteger;
 pub use boundary::Boundary;
-pub use coordinate::VertexCoordinate;
+pub use coordinate::GeometryCoordinate;
 pub use geometry::Geometry;
 pub use resources_semantics_materials::SemanticMaterialMap;
 pub use resources_textures::TextureMap;
@@ -33,33 +34,39 @@ pub type CityModel<VI, S> = GenericCityModel<
     VI,
     DefaultResourcePool<Semantic<VI, S>>,
     DefaultResourcePool<Material<S>>,
+    DefaultResourcePool<Texture<S>>,
     OwnedStringStorage,
 >;
 
 #[derive(Debug)]
-pub struct GenericCityModel<VI, RPS, RPM, S>
+pub struct GenericCityModel<VI, RPS, RPM, RPT, S>
 where
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
+    RPT: ResourcePool<Texture<S>>,
     S: StringStorage,
 {
     /// Pool of vertex coordinates
-    vertices: Vertices<VI>,
+    vertices: Vertices<VI, GeometryCoordinate>,
     /// Pool of semantic objects
     semantics: RPS,
     /// Pool of material objects
     materials: RPM,
+    /// Pool of texture objects
+    textures: RPT,
+    vertices_texture: Vertices<VI, UVCoordinate>,
     /// Collection of geometries
     geometries: Vec<Geometry<VI>>,
     extra: Option<Attributes<S>>,
 }
 
-impl<VI, RPS, RPM, S> GenericCityModel<VI, RPS, RPM, S>
+impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
 where
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
+    RPT: ResourcePool<Texture<S>>,
     S: StringStorage,
 {
     /// Create a new empty CityModel
@@ -68,6 +75,8 @@ where
             vertices: Vertices::new(),
             semantics: RPS::new(),
             materials: RPM::new(),
+            textures: RPT::new(),
+            vertices_texture: Vertices::new(),
             geometries: Vec::new(),
             extra: None,
         }
@@ -78,12 +87,15 @@ where
         _vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
+        texture_capacity: usize,
         geometry_capacity: usize,
     ) -> Self {
         Self {
             vertices: Vertices::new(),
             semantics: RPS::with_capacity(semantic_capacity),
             materials: RPM::with_capacity(material_capacity),
+            textures: RPT::with_capacity(texture_capacity),
+            vertices_texture: Vertices::new(),
             geometries: Vec::with_capacity(geometry_capacity),
             extra: None,
         }
@@ -122,12 +134,12 @@ where
     }
 
     /// Add a vertex coordinate
-    pub fn add_vertex(&mut self, coordinate: VertexCoordinate) -> Result<VertexIndex<VI>> {
+    pub fn add_vertex(&mut self, coordinate: GeometryCoordinate) -> Result<VertexIndex<VI>> {
         self.vertices.push(coordinate)
     }
 
     /// Get a reference to a vertex coordinate
-    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&VertexCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&GeometryCoordinate> {
         self.vertices.get(index)
     }
 
@@ -148,11 +160,12 @@ where
 }
 
 // Implement default for convenience
-impl<VI, RPS, RPM, S> GenericCityModel<VI, RPS, RPM, S>
+impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
 where
     VI: VertexInteger,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
+    RPT: ResourcePool<Texture<S>>,
     S: StringStorage,
 {
     fn default() -> Self {

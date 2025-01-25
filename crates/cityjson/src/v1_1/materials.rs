@@ -1,14 +1,17 @@
 use crate::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
-pub type Rgb = [f32; 3];
+pub type OwnedMaterial = Material<OwnedStringStorage>;
+pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 
-#[derive(Clone, Debug, PartialEq)]
+pub type RGB = [f32; 3];
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Material<S: StringStorage> {
     pub name: S::String,
     pub ambient_intensity: Option<f32>,
-    pub diffuse_color: Option<Rgb>,
-    pub emissive_color: Option<Rgb>,
-    pub specular_color: Option<Rgb>,
+    pub diffuse_color: Option<RGB>,
+    pub emissive_color: Option<RGB>,
+    pub specular_color: Option<RGB>,
     pub shininess: Option<f32>,
     pub transparency: Option<f32>,
     pub is_smooth: Option<bool>,
@@ -28,9 +31,6 @@ impl<S: StringStorage> Material<S> {
         }
     }
 }
-
-pub type OwnedMaterial = Material<OwnedStringStorage>;
-pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 
 #[cfg(test)]
 mod tests {

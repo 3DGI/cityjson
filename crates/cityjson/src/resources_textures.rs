@@ -2,11 +2,11 @@ use crate::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
 
 /// Maps geometry vertices to texture coordinates and textures
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct TextureMap<T: VertexInteger> {
-    vertices: OptionalVertexIndices<T>,      // Texture vertices
-    rings: VertexIndices<T>,                 // Indices into vertices
-    ring_textures: OptionalVertexIndices<T>, // Texture indices
-    surfaces: VertexIndices<T>,              // Indices into rings
-    shells: VertexIndices<T>,                // Indices into surfaces
-    solids: VertexIndices<T>,                // Indices into shells
+pub struct TextureMap<VI: VertexInteger> {
+    vertices: OptionalVertexIndices<VI>,      // Texture vertices
+    rings: VertexIndices<VI>,                 // Indices into vertices
+    ring_textures: OptionalVertexIndices<VI>, // Texture indices
+    surfaces: VertexIndices<VI>,              // Indices into rings
+    shells: VertexIndices<VI>,                // Indices into surfaces
+    solids: VertexIndices<VI>,                // Indices into shells
 }
