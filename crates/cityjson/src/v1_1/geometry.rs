@@ -3,7 +3,7 @@
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
 use crate::common::attributes::Attributes;
 use crate::common::boundary::{Boundary, BoundaryCounter};
-use crate::common::coordinate::GeometryCoordinate;
+use crate::common::coordinate::RealWorldCoordinate;
 use crate::common::storage::StringStorage;
 use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
 use crate::common::{GeometryType, LoD};
@@ -60,7 +60,7 @@ pub struct GeometryBuilder<
     model: &'a mut GenericCityModel<VI, RPS, RPM, RPT, S>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    vertices: Vec<GeometryCoordinate>,
+    vertices: Vec<RealWorldCoordinate>,
     rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // shells with their surfaces
@@ -123,7 +123,7 @@ where
     ///
     /// Returns the index of the new vertex.
     pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.vertices.push(GeometryCoordinate { x, y, z });
+        self.vertices.push(RealWorldCoordinate { x, y, z });
         self.vertices.len() - 1
     }
 

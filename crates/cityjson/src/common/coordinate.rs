@@ -7,13 +7,13 @@ pub trait Vertex {}
 /// 3D vertex coordinate
 #[repr(C, align(32))]
 #[derive(Clone, Debug)]
-pub struct GeometryCoordinate {
+pub struct RealWorldCoordinate {
     pub(crate) x: f64,
     pub(crate) y: f64,
     pub(crate) z: f64,
 }
 
-impl GeometryCoordinate {
+impl RealWorldCoordinate {
     #[inline]
     pub fn x(&self) -> f64 {
         self.x
@@ -30,7 +30,7 @@ impl GeometryCoordinate {
     }
 }
 
-impl Vertex for GeometryCoordinate {}
+impl Vertex for RealWorldCoordinate {}
 
 #[repr(C, align(32))]
 #[derive(Clone, Debug)]
@@ -104,9 +104,9 @@ impl<VI: VertexInteger, V: Vertex> Vertices<VI, V> {
 }
 
 // Type aliases for convenience
-pub type GeometryVertices16 = Vertices<u16, GeometryCoordinate>;
-pub type GeometryVertices32 = Vertices<u32, GeometryCoordinate>;
-pub type GeometryVertices64 = Vertices<u64, GeometryCoordinate>;
+pub type GeometryVertices16 = Vertices<u16, RealWorldCoordinate>;
+pub type GeometryVertices32 = Vertices<u32, RealWorldCoordinate>;
+pub type GeometryVertices64 = Vertices<u64, RealWorldCoordinate>;
 
 pub type UVVertices16 = Vertices<u16, UVCoordinate>;
 pub type UVVertices32 = Vertices<u32, UVCoordinate>;
@@ -123,7 +123,7 @@ mod tests {
         // Add vertices and get valid indices
         for i in 0..5 {
             let _ = vertices
-                .push(GeometryCoordinate {
+                .push(RealWorldCoordinate {
                     x: i as f64,
                     y: 0.0,
                     z: 0.0,
@@ -134,7 +134,7 @@ mod tests {
         // Fill up to u16::MAX
         for _ in 5..u16::MAX as usize {
             vertices
-                .push(GeometryCoordinate {
+                .push(RealWorldCoordinate {
                     x: 0.0,
                     y: 0.0,
                     z: 0.0,
@@ -143,7 +143,7 @@ mod tests {
         }
 
         // One more should fail
-        let result = vertices.push(GeometryCoordinate {
+        let result = vertices.push(RealWorldCoordinate {
             x: 0.0,
             y: 0.0,
             z: 0.0,
@@ -155,7 +155,7 @@ mod tests {
     fn test_vertices_indexing() {
         let mut vertices = GeometryVertices16::new();
         let idx = vertices
-            .push(GeometryCoordinate {
+            .push(RealWorldCoordinate {
                 x: 1.0,
                 y: 2.0,
                 z: 3.0,

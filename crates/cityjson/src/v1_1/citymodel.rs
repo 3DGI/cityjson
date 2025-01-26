@@ -2,7 +2,7 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 use crate::common::attributes::Attributes;
-use crate::common::coordinate::{GeometryCoordinate, UVCoordinate, Vertices};
+use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::common::storage::{OwnedStringStorage, StringStorage};
 use crate::common::index::{VertexIndex, VertexInteger};
 use crate::errors;
@@ -30,7 +30,7 @@ where
     S: StringStorage,
 {
     /// Pool of vertex coordinates
-    vertices: Vertices<VI, GeometryCoordinate>,
+    vertices: Vertices<VI, RealWorldCoordinate>,
     /// Pool of semantic objects
     semantics: RPS,
     /// Pool of material objects
@@ -128,12 +128,12 @@ where
     }
 
     /// Add a vertex coordinate
-    pub fn add_vertex(&mut self, coordinate: GeometryCoordinate) -> errors::Result<VertexIndex<VI>> {
+    pub fn add_vertex(&mut self, coordinate: RealWorldCoordinate) -> errors::Result<VertexIndex<VI>> {
         self.vertices.push(coordinate)
     }
 
     /// Get a reference to a vertex coordinate
-    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&GeometryCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }
 
