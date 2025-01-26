@@ -1,7 +1,7 @@
 pub mod nested;
 
 use crate::common::boundary::nested::*;
-use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
@@ -10,7 +10,7 @@ use crate::errors;
 #[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(unused)]
-pub struct Boundary<T: VertexInteger> {
+pub struct Boundary<T: VertexRef> {
     /// Vertex indices that point to the global Vertices buffer.
     pub(crate) vertices: VertexIndices<T>,
     /// Vertex offsets that mark the start of each ring. The values point to this Boundary's vertices.
@@ -23,7 +23,7 @@ pub struct Boundary<T: VertexInteger> {
     pub(crate) solids: VertexIndices<T>,
 }
 
-impl<T: VertexInteger> Boundary<T> {
+impl<T: VertexRef> Boundary<T> {
     #[inline]
     pub fn new() -> Self {
         Self::default()
@@ -312,7 +312,7 @@ impl std::fmt::Display for BoundaryType {
 }
 
 #[derive(Default)]
-pub(crate) struct BoundaryCounter<T: VertexInteger> {
+pub(crate) struct BoundaryCounter<T: VertexRef> {
     pub(crate) vertex_offset: VertexIndex<T>, // Current position in vertex list
     pub(crate) ring_offset: VertexIndex<T>,   // Current position in ring list
     pub(crate) surface_offset: VertexIndex<T>, // Current position in surface list
@@ -320,7 +320,7 @@ pub(crate) struct BoundaryCounter<T: VertexInteger> {
     pub(crate) solid_offset: VertexIndex<T>,  // Current position in solid list
 }
 
-impl<T: VertexInteger> BoundaryCounter<T> {
+impl<T: VertexRef> BoundaryCounter<T> {
     // Increment methods - return new position after incrementing
     pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<T> {
         self.vertex_offset += VertexIndex::new(T::one());

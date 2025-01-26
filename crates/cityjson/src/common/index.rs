@@ -46,11 +46,11 @@ use std::ops::{AddAssign, Index as IndexOp, IndexMut, Range};
 // Core integer trait and implementations
 //------------------------------------------------------------------------------
 
-/// Integer types that can be used for vertex indexing.
+/// An integer reference that can be used for vertex indexing.
 ///
 /// This trait is implemented for u16, u32, and u64 to allow flexibility in
 /// memory usage while maintaining performance on 64-bit platforms.
-pub trait VertexInteger:
+pub trait VertexRef:
     Unsigned
     + TryInto<usize>
     + TryFrom<usize, Error = TryFromIntError>
@@ -71,17 +71,17 @@ pub trait VertexInteger:
     const MIN: Self;
 }
 
-impl VertexInteger for u16 {
+impl VertexRef for u16 {
     const MAX: Self = u16::MAX;
     const MIN: Self = u16::MIN;
 }
 
-impl VertexInteger for u32 {
+impl VertexRef for u32 {
     const MAX: Self = u32::MAX;
     const MIN: Self = u32::MIN;
 }
 
-impl VertexInteger for u64 {
+impl VertexRef for u64 {
     const MAX: Self = u64::MAX;
     const MIN: Self = u64::MIN;
 }
@@ -120,9 +120,9 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// ```
 #[derive(Copy, Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
 #[repr(transparent)]
-pub struct VertexIndex<T: VertexInteger>(T);
+pub struct VertexIndex<T: VertexRef>(T);
 
-impl<T: VertexInteger> VertexIndex<T> {
+impl<T: VertexRef> VertexIndex<T> {
     /// Create a new vertex index.
     #[inline]
     pub fn new(value: T) -> Self {
@@ -170,13 +170,13 @@ impl<T: VertexInteger> VertexIndex<T> {
     }
 }
 
-impl<T: VertexInteger> Display for VertexIndex<T> {
+impl<T: VertexRef> Display for VertexIndex<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl<T: VertexInteger> AddAssign for VertexIndex<T> {
+impl<T: VertexRef> AddAssign for VertexIndex<T> {
     fn add_assign(&mut self, other: Self) {
         self.0 = self
             .0
@@ -336,7 +336,7 @@ impl TryFrom<u64> for VertexIndex<u32> {
 }
 
 // usize conversions
-impl<T: VertexInteger> TryFrom<usize> for VertexIndex<T> {
+impl<T: VertexRef> TryFrom<usize> for VertexIndex<T> {
     type Error = Error;
 
     fn try_from(value: usize) -> Result<Self> {
@@ -379,9 +379,9 @@ pub type VertexIndices64 = VertexIndices<u64>;
 /// }
 /// ```
 #[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-pub struct VertexIndices<T: VertexInteger>(Vec<VertexIndex<T>>);
+pub struct VertexIndices<T: VertexRef>(Vec<VertexIndex<T>>);
 
-impl<T: VertexInteger> VertexIndices<T> {
+impl<T: VertexRef> VertexIndices<T> {
     #[inline]
     pub fn new() -> Self {
         Self(Vec::new())
@@ -525,7 +525,7 @@ impl<T: VertexInteger> VertexIndices<T> {
     }
 }
 
-impl<T: VertexInteger> IndexOp<T> for VertexIndices<T> {
+impl<T: VertexRef> IndexOp<T> for VertexIndices<T> {
     type Output = VertexIndex<T>;
 
     #[inline]
@@ -534,14 +534,14 @@ impl<T: VertexInteger> IndexOp<T> for VertexIndices<T> {
     }
 }
 
-impl<T: VertexInteger> IndexMut<T> for VertexIndices<T> {
+impl<T: VertexRef> IndexMut<T> for VertexIndices<T> {
     #[inline]
     fn index_mut(&mut self, index: T) -> &mut Self::Output {
         &mut self.0[VertexIndex::new(index).to_usize()]
     }
 }
 
-impl<T: VertexInteger> IndexOp<VertexIndex<T>> for VertexIndices<T> {
+impl<T: VertexRef> IndexOp<VertexIndex<T>> for VertexIndices<T> {
     type Output = VertexIndex<T>;
 
     #[inline]
@@ -550,32 +550,32 @@ impl<T: VertexInteger> IndexOp<VertexIndex<T>> for VertexIndices<T> {
     }
 }
 
-impl<T: VertexInteger> IndexMut<VertexIndex<T>> for VertexIndices<T> {
+impl<T: VertexRef> IndexMut<VertexIndex<T>> for VertexIndices<T> {
     #[inline]
     fn index_mut(&mut self, index: VertexIndex<T>) -> &mut Self::Output {
         &mut self.0[index.to_usize()]
     }
 }
 
-impl<T: VertexInteger> From<Vec<T>> for VertexIndices<T> {
+impl<T: VertexRef> From<Vec<T>> for VertexIndices<T> {
     fn from(value: Vec<T>) -> Self {
         Self(value.into_iter().map(VertexIndex::new).collect())
     }
 }
 
-impl<T: VertexInteger> FromIterator<VertexIndex<T>> for VertexIndices<T> {
+impl<T: VertexRef> FromIterator<VertexIndex<T>> for VertexIndices<T> {
     fn from_iter<I: IntoIterator<Item = VertexIndex<T>>>(iter: I) -> Self {
         Self(iter.into_iter().collect())
     }
 }
 
-impl<T: VertexInteger> FromIterator<T> for VertexIndices<T> {
+impl<T: VertexRef> FromIterator<T> for VertexIndices<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self(iter.into_iter().map(VertexIndex::new).collect())
     }
 }
 
-impl<'a, T: VertexInteger> IntoIterator for &'a VertexIndices<T> {
+impl<'a, T: VertexRef> IntoIterator for &'a VertexIndices<T> {
     type Item = &'a VertexIndex<T>;
     type IntoIter = std::slice::Iter<'a, VertexIndex<T>>;
 
@@ -584,13 +584,13 @@ impl<'a, T: VertexInteger> IntoIterator for &'a VertexIndices<T> {
     }
 }
 
-pub struct VertexIndicesChunks<'a, T: VertexInteger> {
+pub struct VertexIndicesChunks<'a, T: VertexRef> {
     vec: &'a VertexIndices<T>,
     chunk_size: usize,
     index: usize,
 }
 
-impl<'a, T: VertexInteger> Iterator for VertexIndicesChunks<'a, T> {
+impl<'a, T: VertexRef> Iterator for VertexIndicesChunks<'a, T> {
     type Item = &'a [VertexIndex<T>];
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -606,13 +606,13 @@ impl<'a, T: VertexInteger> Iterator for VertexIndicesChunks<'a, T> {
     }
 }
 
-pub struct VertexIndicesWindows<'a, T: VertexInteger> {
+pub struct VertexIndicesWindows<'a, T: VertexRef> {
     vec: &'a VertexIndices<T>,
     window_size: usize,
     index: usize,
 }
 
-impl<'a, T: VertexInteger> Iterator for VertexIndicesWindows<'a, T> {
+impl<'a, T: VertexRef> Iterator for VertexIndicesWindows<'a, T> {
     type Item = &'a [VertexIndex<T>];
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -630,12 +630,12 @@ impl<'a, T: VertexInteger> Iterator for VertexIndicesWindows<'a, T> {
 //------------------------------------------------------------------------------
 /// A container for optional vertex indices that maintains both the indices and their presence.
 #[derive(Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
-pub struct OptionalVertexIndices<T: VertexInteger> {
+pub struct OptionalVertexIndices<T: VertexRef> {
     indices: VertexIndices<T>,
     mask: Vec<bool>,
 }
 
-impl<T: VertexInteger> OptionalVertexIndices<T> {
+impl<T: VertexRef> OptionalVertexIndices<T> {
     /// Creates a new empty OptionalVertexIndices.
     #[inline]
     pub fn new() -> Self {
@@ -811,13 +811,13 @@ impl<T: VertexInteger> OptionalVertexIndices<T> {
 }
 
 // Iterator implementations
-pub struct OptionalVertexIndicesIter<'a, T: VertexInteger> {
+pub struct OptionalVertexIndicesIter<'a, T: VertexRef> {
     indices: &'a VertexIndices<T>,
     mask: &'a [bool],
     index: usize,
 }
 
-impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIter<'a, T> {
+impl<'a, T: VertexRef> Iterator for OptionalVertexIndicesIter<'a, T> {
     type Item = Option<&'a VertexIndex<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -834,13 +834,13 @@ impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIter<'a, T> {
     }
 }
 
-pub struct OptionalVertexIndicesIterMut<'a, T: VertexInteger> {
+pub struct OptionalVertexIndicesIterMut<'a, T: VertexRef> {
     indices: &'a mut [VertexIndex<T>],
     mask: &'a [bool],
     index: usize,
 }
 
-impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIterMut<'a, T> {
+impl<'a, T: VertexRef> Iterator for OptionalVertexIndicesIterMut<'a, T> {
     type Item = Option<&'a mut VertexIndex<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -863,12 +863,12 @@ impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesIterMut<'a, T> {
     }
 }
 
-pub struct OptionalVertexIndicesRange<'a, T: VertexInteger> {
+pub struct OptionalVertexIndicesRange<'a, T: VertexRef> {
     indices: &'a [VertexIndex<T>],
     mask: &'a [bool],
 }
 
-impl<'a, T: VertexInteger> OptionalVertexIndicesRange<'a, T> {
+impl<'a, T: VertexRef> OptionalVertexIndicesRange<'a, T> {
     #[inline]
     pub fn iter(&self) -> OptionalVertexIndicesRangeIter<'a, T> {
         OptionalVertexIndicesRangeIter {
@@ -879,13 +879,13 @@ impl<'a, T: VertexInteger> OptionalVertexIndicesRange<'a, T> {
     }
 }
 
-pub struct OptionalVertexIndicesRangeIter<'a, T: VertexInteger> {
+pub struct OptionalVertexIndicesRangeIter<'a, T: VertexRef> {
     indices: &'a [VertexIndex<T>],
     mask: &'a [bool],
     index: usize,
 }
 
-impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesRangeIter<'a, T> {
+impl<'a, T: VertexRef> Iterator for OptionalVertexIndicesRangeIter<'a, T> {
     type Item = Option<&'a VertexIndex<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -902,12 +902,12 @@ impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesRangeIter<'a, T> {
     }
 }
 
-pub struct OptionalVertexIndicesChunks<'a, T: VertexInteger> {
+pub struct OptionalVertexIndicesChunks<'a, T: VertexRef> {
     indices: VertexIndicesChunks<'a, T>,
     mask: std::slice::Chunks<'a, bool>,
 }
 
-impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesChunks<'a, T> {
+impl<'a, T: VertexRef> Iterator for OptionalVertexIndicesChunks<'a, T> {
     type Item = OptionalVertexIndicesRange<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -918,7 +918,7 @@ impl<'a, T: VertexInteger> Iterator for OptionalVertexIndicesChunks<'a, T> {
 }
 
 // Implementation of common traits
-impl<T: VertexInteger> FromIterator<Option<VertexIndex<T>>> for OptionalVertexIndices<T> {
+impl<T: VertexRef> FromIterator<Option<VertexIndex<T>>> for OptionalVertexIndices<T> {
     fn from_iter<I: IntoIterator<Item = Option<VertexIndex<T>>>>(iter: I) -> Self {
         let mut indices = Self::new();
         for item in iter {
@@ -928,7 +928,7 @@ impl<T: VertexInteger> FromIterator<Option<VertexIndex<T>>> for OptionalVertexIn
     }
 }
 
-impl<'a, T: VertexInteger> IntoIterator for &'a OptionalVertexIndices<T> {
+impl<'a, T: VertexRef> IntoIterator for &'a OptionalVertexIndices<T> {
     type Item = Option<&'a VertexIndex<T>>;
     type IntoIter = OptionalVertexIndicesIter<'a, T>;
 
@@ -937,7 +937,7 @@ impl<'a, T: VertexInteger> IntoIterator for &'a OptionalVertexIndices<T> {
     }
 }
 
-impl<T: VertexInteger> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
+impl<T: VertexRef> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
     type Output = Option<VertexIndex<T>>;
 
     fn index(&self, _: VertexIndex<T>) -> &Self::Output {

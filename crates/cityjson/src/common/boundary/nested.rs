@@ -1,5 +1,5 @@
 use crate::common::boundary::Boundary;
-use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 
 // Type aliases for u16
 pub type BoundaryNestedMultiPoint16 = Vec<u16>;
@@ -29,7 +29,7 @@ pub type BoundaryNestedMultiOrCompositeSurface<T> = Vec<BoundaryNestedMultiLineS
 pub type BoundaryNestedSolid<T> = Vec<BoundaryNestedMultiOrCompositeSurface<T>>;
 pub type BoundaryNestedMultiOrCompositeSolid<T> = Vec<BoundaryNestedSolid<T>>;
 
-impl<T: VertexInteger> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
+impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     fn from(value: BoundaryNestedMultiPoint<T>) -> Self {
         if value.is_empty() {
             Self::default()
@@ -42,7 +42,7 @@ impl<T: VertexInteger> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     }
 }
 
-impl<T: VertexInteger> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
+impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     fn from(value: BoundaryNestedMultiLineString<T>) -> Self {
         if value.is_empty() {
             Self::default()
@@ -67,7 +67,7 @@ impl<T: VertexInteger> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     }
 }
 
-impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
+impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
     fn from(value: BoundaryNestedMultiOrCompositeSurface<T>) -> Self {
         if value.is_empty() {
             return Self::default();
@@ -111,7 +111,7 @@ impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSurface<T>> for Bounda
     }
 }
 
-impl<T: VertexInteger> From<BoundaryNestedSolid<T>> for Boundary<T> {
+impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
     fn from(value: BoundaryNestedSolid<T>) -> Self {
         if value.is_empty() {
             return Self::default();
@@ -169,7 +169,7 @@ impl<T: VertexInteger> From<BoundaryNestedSolid<T>> for Boundary<T> {
     }
 }
 
-impl<T: VertexInteger> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
+impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
     fn from(value: BoundaryNestedMultiOrCompositeSolid<T>) -> Self {
         if value.is_empty() {
             return Self::default();

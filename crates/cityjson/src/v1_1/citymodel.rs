@@ -4,7 +4,7 @@
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::common::storage::{OwnedStringStorage, StringStorage};
-use crate::common::index::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::resources::pool::{DefaultResourcePool, ResourceId, ResourcePool};
 use crate::v1_1::geometry::Geometry;
@@ -23,7 +23,7 @@ pub type CityModel<VI, S> = GenericCityModel<
 #[derive(Debug)]
 pub struct GenericCityModel<VI, RPS, RPM, RPT, S>
 where
-    VI: VertexInteger,
+    VI: VertexRef,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
     RPT: ResourcePool<Texture<S>>,
@@ -45,7 +45,7 @@ where
 
 impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
 where
-    VI: VertexInteger,
+    VI: VertexRef,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
     RPT: ResourcePool<Texture<S>>,
@@ -156,7 +156,7 @@ where
 // Implement default for convenience
 impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
 where
-    VI: VertexInteger,
+    VI: VertexRef,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
     RPT: ResourcePool<Texture<S>>,

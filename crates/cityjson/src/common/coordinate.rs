@@ -1,4 +1,4 @@
-use crate::common::index::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
 use std::marker::PhantomData;
 
@@ -105,12 +105,12 @@ impl Coordinate for UVCoordinate {}
 /// Container for vertex coordinates with size limited by the chosen index type.
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub struct Vertices<VI: VertexInteger, V: Coordinate> {
+pub struct Vertices<VI: VertexRef, V: Coordinate> {
     coordinates: Vec<V>,
     _phantom: PhantomData<VI>,
 }
 
-impl<VI: VertexInteger, V: Coordinate> Vertices<VI, V> {
+impl<VI: VertexRef, V: Coordinate> Vertices<VI, V> {
     /// Creates a new empty Vertices collection
     #[inline]
     pub fn new() -> Self {

@@ -1,11 +1,11 @@
 use crate::common::boundary::BoundaryType;
-use crate::common::index::{OptionalVertexIndices, VertexIndices, VertexInteger};
+use crate::common::index::{OptionalVertexIndices, VertexIndices, VertexRef};
 use std::fmt::Debug;
 
 /// Stores the Semantic and Material indices of a Boundary and maps them to the
 /// boundary primitives.
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct SemanticMaterialMap<T: VertexInteger> {
+pub struct SemanticMaterialMap<T: VertexRef> {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
     /// of the item is the index of the Semantic or Material object.
     pub points: OptionalVertexIndices<T>,
@@ -19,7 +19,7 @@ pub struct SemanticMaterialMap<T: VertexInteger> {
     pub solids: VertexIndices<T>,
 }
 
-impl<T: VertexInteger> SemanticMaterialMap<T> {
+impl<T: VertexRef> SemanticMaterialMap<T> {
     /// Hint what [BoundaryType] does the SemanticMaterialMap belong to.
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {

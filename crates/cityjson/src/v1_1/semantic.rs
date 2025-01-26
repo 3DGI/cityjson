@@ -2,7 +2,7 @@
 //!
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
 use crate::common::attributes::Attributes;
-use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 use crate::common::storage::StringStorage;
 
 /// Semantic surface type.
@@ -30,7 +30,7 @@ pub enum SemanticType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Semantic<VI: VertexInteger, S: StringStorage> {
+pub struct Semantic<VI: VertexRef, S: StringStorage> {
     /// The type of the semantic surface
     type_semantic: SemanticType,
     /// Indices to child semantics in the global semantics pool
@@ -41,7 +41,7 @@ pub struct Semantic<VI: VertexInteger, S: StringStorage> {
     attributes: Option<Attributes<S>>,
 }
 
-impl<VI: VertexInteger, S: StringStorage> Semantic<VI, S> {
+impl<VI: VertexRef, S: StringStorage> Semantic<VI, S> {
     /// Create a new semantic with the given type
     #[inline]
     pub fn new(type_semantic: SemanticType) -> Self {

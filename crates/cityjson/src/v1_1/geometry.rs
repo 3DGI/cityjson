@@ -5,7 +5,7 @@ use crate::common::attributes::Attributes;
 use crate::common::boundary::{Boundary, BoundaryCounter};
 use crate::common::coordinate::RealWorldCoordinate;
 use crate::common::storage::StringStorage;
-use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 use crate::common::{GeometryType, LoD};
 use crate::errors::{Error, Result};
 use crate::resources::mapping::{SemanticMaterialMap, TextureMap};
@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
-pub struct Geometry<VI: VertexInteger> {
+pub struct Geometry<VI: VertexRef> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary<VI>>,
@@ -51,7 +51,7 @@ struct SolidInProgress {
 
 pub struct GeometryBuilder<
     'a,
-    VI: VertexInteger,
+    VI: VertexRef,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
     RPT: ResourcePool<Texture<S>>,
@@ -82,7 +82,7 @@ pub struct GeometryBuilder<
 
 impl<'a, VI, RPS, RPM, RPT, S> GeometryBuilder<'a, VI, RPS, RPM, RPT, S>
 where
-    VI: VertexInteger,
+    VI: VertexRef,
     RPS: ResourcePool<Semantic<VI, S>>,
     RPM: ResourcePool<Material<S>>,
     RPT: ResourcePool<Texture<S>>,

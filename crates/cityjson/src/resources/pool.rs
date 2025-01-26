@@ -1,6 +1,6 @@
 //! # Resource pool
 
-use crate::common::index::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
 
 // todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.
@@ -39,7 +39,7 @@ impl ResourceId {
     }
 
     /// Convert the resource index to a [VertexIndex].
-    pub fn to_vertex_index<T: VertexInteger>(&self) -> Result<VertexIndex<T>> {
+    pub fn to_vertex_index<T: VertexRef>(&self) -> Result<VertexIndex<T>> {
         T::from_u32(self.index)
             .map(|v| VertexIndex::new(v))
             .ok_or(Error::IndexConversion {

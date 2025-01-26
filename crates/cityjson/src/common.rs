@@ -7,6 +7,8 @@ pub mod coordinate;
 pub mod storage;
 pub mod index;
 
+
+
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {
     MultiPoint,
