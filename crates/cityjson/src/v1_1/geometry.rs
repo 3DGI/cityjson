@@ -685,9 +685,8 @@ mod tests {
 
         // Third point - TransportationHole with diameter attribute
         let mut hole_semantic = Semantic::new(SemanticType::TransportationHole);
-        let mut attrs = Attributes::new();
+        let mut attrs = hole_semantic.attributes_mut();
         attrs.insert("diameter".to_string(), AttributeValue::Float(1.5));
-        hole_semantic.attributes = Some(attrs);
         let v2 = builder.add_point_with_semantic(2.0, 0.0, 0.0, Some(hole_semantic));
 
         // Fourth point - no semantic

@@ -2,8 +2,8 @@
 //!
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
 use crate::common::attributes::Attributes;
-use crate::common::storage::StringStorage;
 use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::storage::StringStorage;
 
 /// Semantic surface type.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -32,13 +32,13 @@ pub enum SemanticType {
 #[derive(Debug, Clone)]
 pub struct Semantic<VI: VertexInteger, S: StringStorage> {
     /// The type of the semantic surface
-    pub type_semantic: SemanticType,
+    type_semantic: SemanticType,
     /// Indices to child semantics in the global semantics pool
-    pub children: Option<VertexIndices<VI>>,
+    children: Option<VertexIndices<VI>>,
     /// Index to parent semantic in the global semantics pool
-    pub parent: Option<VertexIndex<VI>>,
+    parent: Option<VertexIndex<VI>>,
     /// Additional attributes of the semantic surface
-    pub attributes: Option<Attributes<S>>,
+    attributes: Option<Attributes<S>>,
 }
 
 impl<VI: VertexInteger, S: StringStorage> Semantic<VI, S> {
@@ -70,10 +70,13 @@ impl<VI: VertexInteger, S: StringStorage> Semantic<VI, S> {
         self.children.as_ref()
     }
 
-    /// Returns a mutable reference to the children indices if they exist
+    /// Returns a mutable reference to the children indices, creating default indices if they do not exist
     #[inline]
-    pub fn children_mut(&mut self) -> Option<&mut VertexIndices<VI>> {
-        self.children.as_mut()
+    pub fn children_mut(&mut self) -> &mut VertexIndices<VI> {
+        if self.children.is_none() {
+            self.children = Some(VertexIndices::new());
+        }
+        self.children.as_mut().unwrap()
     }
 
     /// Returns a reference to the parent index if it exists
@@ -86,5 +89,20 @@ impl<VI: VertexInteger, S: StringStorage> Semantic<VI, S> {
     #[inline]
     pub fn parent_mut(&mut self) -> Option<&mut VertexIndex<VI>> {
         self.parent.as_mut()
+    }
+
+    /// Returns a reference to the attributes if they exist
+    #[inline]
+    pub fn attributes(&self) -> Option<&Attributes<S>> {
+        self.attributes.as_ref()
+    }
+
+    /// Returns a mutable reference to the attributes, creating default attributes if they do not exist
+    #[inline]
+    pub fn attributes_mut(&mut self) -> &mut Attributes<S> {
+        if self.attributes.is_none() {
+            self.attributes = Some(Attributes::new());
+        }
+        self.attributes.as_mut().unwrap()
     }
 }

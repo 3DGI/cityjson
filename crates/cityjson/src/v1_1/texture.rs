@@ -17,6 +17,58 @@ pub struct Texture<S: StringStorage> {
     border_color: Option<RGBA>,
 }
 
+impl<S: StringStorage> Texture<S> {
+    #[inline]
+    pub fn image_type(&self) -> &ImageType {
+        &self.image_type
+    }
+
+    #[inline]
+    pub fn set_image_type(&mut self, image_type: ImageType) {
+        self.image_type = image_type;
+    }
+
+    #[inline]
+    pub fn image(&self) -> &S::String {
+        &self.image
+    }
+
+    #[inline]
+    pub fn set_image(&mut self, image: S::String) {
+        self.image = image;
+    }
+
+    #[inline]
+    pub fn wrap_mode(&self) -> Option<WrapMode> {
+        self.wrap_mode
+    }
+
+    #[inline]
+    pub fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>) {
+        self.wrap_mode = wrap_mode;
+    }
+
+    #[inline]
+    pub fn texture_type(&self) -> Option<TextureType> {
+        self.texture_type
+    }
+
+    #[inline]
+    pub fn set_texture_type(&mut self, texture_type: Option<TextureType>) {
+        self.texture_type = texture_type;
+    }
+
+    #[inline]
+    pub fn border_color(&self) -> Option<RGBA> {
+        self.border_color
+    }
+
+    #[inline]
+    pub fn set_border_color(&mut self, border_color: Option<RGBA>) {
+        self.border_color = border_color;
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ImageType {
     #[default]

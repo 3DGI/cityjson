@@ -10,14 +10,14 @@ pub type RGB = [f32; 3];
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Material<S: StringStorage> {
-    pub name: S::String,
-    pub ambient_intensity: Option<f32>,
-    pub diffuse_color: Option<RGB>,
-    pub emissive_color: Option<RGB>,
-    pub specular_color: Option<RGB>,
-    pub shininess: Option<f32>,
-    pub transparency: Option<f32>,
-    pub is_smooth: Option<bool>,
+    name: S::String,
+    ambient_intensity: Option<f32>,
+    diffuse_color: Option<RGB>,
+    emissive_color: Option<RGB>,
+    specular_color: Option<RGB>,
+    shininess: Option<f32>,
+    transparency: Option<f32>,
+    is_smooth: Option<bool>,
 }
 
 impl<S: StringStorage> Material<S> {
@@ -32,6 +32,86 @@ impl<S: StringStorage> Material<S> {
             transparency: None,
             is_smooth: None,
         }
+    }
+
+    #[inline]
+    pub fn name(&self) -> &S::String {
+        &self.name
+    }
+
+    #[inline]
+    pub fn set_name(&mut self, name: S::String) {
+        self.name = name;
+    }
+
+    #[inline]
+    pub fn ambient_intensity(&self) -> Option<f32> {
+        self.ambient_intensity
+    }
+
+    #[inline]
+    pub fn set_ambient_intensity(&mut self, ambient_intensity: Option<f32>) {
+        self.ambient_intensity = ambient_intensity;
+    }
+
+    #[inline]
+    pub fn diffuse_color(&self) -> Option<&RGB> {
+        self.diffuse_color.as_ref()
+    }
+
+    #[inline]
+    pub fn set_diffuse_color(&mut self, diffuse_color: Option<RGB>) {
+        self.diffuse_color = diffuse_color;
+    }
+
+    #[inline]
+    pub fn emissive_color(&self) -> Option<&RGB> {
+        self.emissive_color.as_ref()
+    }
+
+    #[inline]
+    pub fn set_emissive_color(&mut self, emissive_color: Option<RGB>) {
+        self.emissive_color = emissive_color;
+    }
+
+    #[inline]
+    pub fn specular_color(&self) -> Option<&RGB> {
+        self.specular_color.as_ref()
+    }
+
+    #[inline]
+    pub fn set_specular_color(&mut self, specular_color: Option<RGB>) {
+        self.specular_color = specular_color;
+    }
+
+    #[inline]
+    pub fn shininess(&self) -> Option<f32> {
+        self.shininess
+    }
+
+    #[inline]
+    pub fn set_shininess(&mut self, shininess: Option<f32>) {
+        self.shininess = shininess;
+    }
+
+    #[inline]
+    pub fn transparency(&self) -> Option<f32> {
+        self.transparency
+    }
+
+    #[inline]
+    pub fn set_transparency(&mut self, transparency: Option<f32>) {
+        self.transparency = transparency;
+    }
+
+    #[inline]
+    pub fn is_smooth(&self) -> Option<bool> {
+        self.is_smooth
+    }
+
+    #[inline]
+    pub fn set_is_smooth(&mut self, is_smooth: Option<bool>) {
+        self.is_smooth = is_smooth;
     }
 }
 
