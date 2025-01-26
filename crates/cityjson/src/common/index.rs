@@ -1089,11 +1089,7 @@ mod tests {
 
     #[test]
     fn test_vertex_coordinate() {
-        let coord = RealWorldCoordinate {
-            x: 1.0,
-            y: 2.0,
-            z: 3.0,
-        };
+        let coord = RealWorldCoordinate::new(1.0, 2.0, 3.0);
 
         assert_eq!(coord.x(), 1.0);
         assert_eq!(coord.y(), 2.0);

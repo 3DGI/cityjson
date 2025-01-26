@@ -2,18 +2,67 @@ use crate::common::index::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
 use std::marker::PhantomData;
 
-pub trait Vertex {}
+pub trait Coordinate {}
 
-/// 3D vertex coordinate
 #[repr(C, align(32))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum FlexibleCoordinate {
+    Quantized(QuantizedCoordinate),
+    RealWorld(RealWorldCoordinate),
+}
+
+impl Default for FlexibleCoordinate {
+    fn default() -> Self {
+        FlexibleCoordinate::Quantized(QuantizedCoordinate::default())
+    }
+}
+
+impl Coordinate for FlexibleCoordinate {}
+
+#[repr(C, align(32))]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+pub struct QuantizedCoordinate {
+    x: i64,
+    y: i64,
+    z: i64,
+}
+
+impl QuantizedCoordinate {
+    #[inline]
+    pub fn new(x: i64, y: i64, z: i64) -> Self {
+        Self { x, y, z }
+    }
+    #[inline]
+    pub fn x(&self) -> i64 {
+        self.x
+    }
+
+    #[inline]
+    pub fn y(&self) -> i64 {
+        self.y
+    }
+
+    #[inline]
+    pub fn z(&self) -> i64 {
+        self.z
+    }
+}
+
+impl Coordinate for QuantizedCoordinate {}
+
+#[repr(C, align(32))]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct RealWorldCoordinate {
-    pub(crate) x: f64,
-    pub(crate) y: f64,
-    pub(crate) z: f64,
+    x: f64,
+    y: f64,
+    z: f64,
 }
 
 impl RealWorldCoordinate {
+    #[inline]
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
     #[inline]
     pub fn x(&self) -> f64 {
         self.x
@@ -30,7 +79,7 @@ impl RealWorldCoordinate {
     }
 }
 
-impl Vertex for RealWorldCoordinate {}
+impl Coordinate for RealWorldCoordinate {}
 
 #[repr(C, align(32))]
 #[derive(Clone, Debug)]
@@ -51,17 +100,17 @@ impl UVCoordinate {
     }
 }
 
-impl Vertex for UVCoordinate {}
+impl Coordinate for UVCoordinate {}
 
 /// Container for vertex coordinates with size limited by the chosen index type.
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub struct Vertices<VI: VertexInteger, V: Vertex> {
+pub struct Vertices<VI: VertexInteger, V: Coordinate> {
     coordinates: Vec<V>,
     _phantom: PhantomData<VI>,
 }
 
-impl<VI: VertexInteger, V: Vertex> Vertices<VI, V> {
+impl<VI: VertexInteger, V: Coordinate> Vertices<VI, V> {
     /// Creates a new empty Vertices collection
     #[inline]
     pub fn new() -> Self {

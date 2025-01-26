@@ -123,7 +123,7 @@ where
     ///
     /// Returns the index of the new vertex.
     pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.vertices.push(RealWorldCoordinate { x, y, z });
+        self.vertices.push(RealWorldCoordinate::new(x,y,z));
         self.vertices.len() - 1
     }
 
