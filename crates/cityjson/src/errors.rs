@@ -1,3 +1,6 @@
+//! # Error types
+//!
+//! When operations go wrong.
 use std::fmt::{Debug, Display, Formatter};
 
 pub enum Error {

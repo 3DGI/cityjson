@@ -1,3 +1,6 @@
+//! # Material
+//!
+//! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedMaterial = Material<OwnedStringStorage>;

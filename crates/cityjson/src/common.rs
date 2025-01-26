@@ -1,3 +1,6 @@
+//! # Common CityJSON types.
+//!
+//! These types are version-agnostic, as they are not expected to change across versions.
 pub mod attributes;
 pub mod boundary;
 pub mod coordinate;

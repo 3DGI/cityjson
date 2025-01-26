@@ -1,3 +1,5 @@
+//! # Resource pool
+
 use crate::common::vertex::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
 

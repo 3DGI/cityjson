@@ -1,3 +1,4 @@
+//! # Resource mapping
 pub mod materials;
 pub mod semantics;
 pub mod textures;

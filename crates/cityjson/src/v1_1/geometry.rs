@@ -1,3 +1,6 @@
+//! # Geometry
+//!
+//! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
 use crate::common::attributes::Attributes;
 use crate::common::boundary::{Boundary, BoundaryCounter};
 use crate::common::coordinate::GeometryCoordinate;
@@ -10,7 +13,7 @@ use crate::resources::pool::{ResourceId, ResourcePool};
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::{Semantic, SemanticType};
 use crate::v1_1::texture::Texture;
-use crate::GenericCityModel;
+use crate::v1_1::citymodel::GenericCityModel;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -659,7 +662,7 @@ mod tests {
     use crate::common::attributes::{AttributeValue, Attributes};
     use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::common::storage::OwnedStringStorage;
-    use crate::CityModel;
+    use crate::v1_1::citymodel::CityModel;
 
     #[test]
     fn test_multipoint_with_semantics() -> Result<()> {

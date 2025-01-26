@@ -1,3 +1,6 @@
+//! # Texture
+//!
+//! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
 use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedTexture = Texture<OwnedStringStorage>;
