@@ -5,7 +5,7 @@ use crate::common::attributes::Attributes;
 use crate::common::boundary::{Boundary, BoundaryCounter};
 use crate::common::coordinate::GeometryCoordinate;
 use crate::common::storage::StringStorage;
-use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
 use crate::common::{GeometryType, LoD};
 use crate::errors::{Error, Result};
 use crate::resources::mapping::{SemanticMaterialMap, TextureMap};

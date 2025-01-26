@@ -1,4 +1,4 @@
-use crate::common::vertex::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
 use std::marker::PhantomData;
 

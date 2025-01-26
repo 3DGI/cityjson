@@ -1,4 +1,4 @@
-//! # Vertex and Index Types
+//! # Index Types
 //!
 //! This module provides efficient vertex indexing functionality for CityJSON geometries.
 //! It supports different integer sizes (u16, u32, u64) for memory efficiency while
@@ -18,7 +18,7 @@
 //! ## Examples
 //!
 //! ```
-//! use cityjson::vertex::*;
+//! use cityjson::index::*;
 //!
 //! // Create indices with different sizes
 //! let small_idx = VertexIndex16::new(42u16);
@@ -105,7 +105,7 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// # Examples
 ///
 /// ```
-/// # use cityjson::vertex::*;
+/// # use cityjson::index::*;
 /// // Create indices of different sizes
 /// let idx16 = VertexIndex16::new(42u16);
 /// let idx32 = VertexIndex32::new(70000u32);
@@ -363,7 +363,7 @@ pub type VertexIndices64 = VertexIndices<u64>;
 /// # Examples
 ///
 /// ```
-/// # use cityjson::vertex::*;
+/// # use cityjson::index::*;
 /// let mut indices = VertexIndices32::new();
 ///
 /// // Add some indices

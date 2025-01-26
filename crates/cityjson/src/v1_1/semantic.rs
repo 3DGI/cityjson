@@ -3,7 +3,7 @@
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
 use crate::common::attributes::Attributes;
 use crate::common::storage::StringStorage;
-use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
 
 /// Semantic surface type.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]

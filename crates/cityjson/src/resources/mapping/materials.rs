@@ -1,5 +1,5 @@
 use crate::common::boundary::BoundaryType;
-use crate::common::vertex::{OptionalVertexIndices, VertexIndices, VertexInteger};
+use crate::common::index::{OptionalVertexIndices, VertexIndices, VertexInteger};
 use std::fmt::Debug;
 
 /// Stores the Semantic and Material indices of a Boundary and maps them to the

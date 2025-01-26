@@ -1,6 +1,6 @@
 //! # Resource pool
 
-use crate::common::vertex::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexInteger};
 use crate::errors::{Error, Result};
 
 // todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.

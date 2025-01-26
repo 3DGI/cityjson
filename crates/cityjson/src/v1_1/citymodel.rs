@@ -4,7 +4,7 @@
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{GeometryCoordinate, UVCoordinate, Vertices};
 use crate::common::storage::{OwnedStringStorage, StringStorage};
-use crate::common::vertex::{VertexIndex, VertexInteger};
+use crate::common::index::{VertexIndex, VertexInteger};
 use crate::errors;
 use crate::resources::pool::{DefaultResourcePool, ResourceId, ResourcePool};
 use crate::v1_1::geometry::Geometry;

@@ -5,7 +5,7 @@ pub mod attributes;
 pub mod boundary;
 pub mod coordinate;
 pub mod storage;
-pub mod vertex;
+pub mod index;
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {

@@ -1,7 +1,7 @@
 pub mod nested;
 
 use crate::common::boundary::nested::*;
-use crate::common::vertex::{VertexIndex, VertexIndices, VertexInteger};
+use crate::common::index::{VertexIndex, VertexIndices, VertexInteger};
 use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
@@ -377,7 +377,7 @@ pub type Boundary64 = Boundary<u64>;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::common::vertex::VertexIndices32;
+    use crate::common::index::VertexIndices32;
 
     #[test]
     fn multipoint() {
