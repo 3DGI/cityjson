@@ -8,18 +8,18 @@ pub type OwnedTexture = Texture<OwnedStringStorage>;
 pub type BorrowedTexture<'a> = Texture<BorrowedStringStorage<'a>>;
 
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Texture<S: StringStorage> {
+pub struct Texture<SS: StringStorage> {
     image_type: ImageType,
-    image: S::String,
+    image: SS::String,
     wrap_mode: Option<WrapMode>,
     texture_type: Option<TextureType>,
     border_color: Option<RGBA>,
 }
 
-impl<S: StringStorage> crate::common::texture::Texture<S> for Texture<S> {
+impl<SS: StringStorage> crate::common::texture::Texture<SS> for Texture<SS> {
     /// Create a new texture with the given image and image type
     #[inline]
-    fn new(image: S::String, image_type: ImageType) -> Self {
+    fn new(image: SS::String, image_type: ImageType) -> Self {
         Self {
             image_type,
             image,
@@ -37,11 +37,11 @@ impl<S: StringStorage> crate::common::texture::Texture<S> for Texture<S> {
         self.image_type = image_type;
     }
     #[inline]
-    fn image(&self) -> &S::String {
+    fn image(&self) -> &SS::String {
         &self.image
     }
     #[inline]
-    fn set_image(&mut self, image: S::String) {
+    fn set_image(&mut self, image: SS::String) {
         self.image = image;
     }
     #[inline]

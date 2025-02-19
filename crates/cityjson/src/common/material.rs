@@ -1,9 +1,9 @@
 use crate::common::storage::StringStorage;
 
-pub trait Material<S: StringStorage> {
-    fn new(name: S::String) -> Self;
-    fn name(&self) -> &S::String;
-    fn set_name(&mut self, name: S::String);
+pub trait Material<SS: StringStorage> {
+    fn new(name: SS::String) -> Self;
+    fn name(&self) -> &SS::String;
+    fn set_name(&mut self, name: SS::String);
     fn ambient_intensity(&self) -> Option<f32>;
     fn set_ambient_intensity(&mut self, ambient_intensity: Option<f32>);
     fn diffuse_color(&self) -> Option<&RGB>;

@@ -7,7 +7,7 @@ use crate::common::semantic::SemanticType;
 use crate::common::storage::StringStorage;
 
 #[derive(Debug, Clone)]
-pub struct Semantic<VI: VertexRef, S: StringStorage> {
+pub struct Semantic<VI: VertexRef, SS: StringStorage> {
     /// The type of the semantic surface
     type_semantic: SemanticType,
     /// Indices to child semantics in the global semantics pool
@@ -15,10 +15,10 @@ pub struct Semantic<VI: VertexRef, S: StringStorage> {
     /// Index to parent semantic in the global semantics pool
     parent: Option<VertexIndex<VI>>,
     /// Additional attributes of the semantic surface
-    attributes: Option<Attributes<S>>,
+    attributes: Option<Attributes<SS>>,
 }
 
-impl<VI: VertexRef, S: StringStorage> crate::common::semantic::Semantic<VI, S> for Semantic<VI, S> {
+impl<VI: VertexRef, SS: StringStorage> crate::common::semantic::Semantic<VI, SS> for Semantic<VI, SS> {
     /// Create a new semantic with the given type
     #[inline]
     fn new(type_semantic: SemanticType) -> Self {
@@ -64,12 +64,12 @@ impl<VI: VertexRef, S: StringStorage> crate::common::semantic::Semantic<VI, S> f
     }
     /// Returns a reference to the attributes if they exist
     #[inline]
-    fn attributes(&self) -> Option<&Attributes<S>> {
+    fn attributes(&self) -> Option<&Attributes<SS>> {
         self.attributes.as_ref()
     }
     /// Returns a mutable reference to the attributes, creating default attributes if they do not exist
     #[inline]
-    fn attributes_mut(&mut self) -> &mut Attributes<S> {
+    fn attributes_mut(&mut self) -> &mut Attributes<SS> {
         if self.attributes.is_none() {
             self.attributes = Some(Attributes::new());
         }

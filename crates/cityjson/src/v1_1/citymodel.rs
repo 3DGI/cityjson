@@ -8,12 +8,12 @@ use crate::v1_1::material::Material;
 use crate::v1_1::semantic::Semantic;
 use crate::v1_1::texture::Texture;
 
-pub type CityModel<VR, RR, S> = GenericCityModel<
+pub type CityModel<VR, RR, SS> = GenericCityModel<
     VR,
     RR,
-    DefaultResourcePool<Semantic<VR, S>, RR>,
-    DefaultResourcePool<Material<S>, RR>,
-    DefaultResourcePool<Texture<S>, RR>,
-    OwnedStringStorage, Semantic<VR, S>, Material<S>, Texture<S>,
+    DefaultResourcePool<Semantic<VR, SS>, RR>,
+    DefaultResourcePool<Material<SS>, RR>,
+    DefaultResourcePool<Texture<SS>, RR>,
+    OwnedStringStorage, Semantic<VR, SS>, Material<SS>, Texture<SS>,
 >;
 

@@ -9,8 +9,8 @@ pub type OwnedMaterial = Material<OwnedStringStorage>;
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Material<S: StringStorage> {
-    name: S::String,
+pub struct Material<SS: StringStorage> {
+    name: SS::String,
     ambient_intensity: Option<f32>,
     diffuse_color: Option<RGB>,
     emissive_color: Option<RGB>,
@@ -20,8 +20,8 @@ pub struct Material<S: StringStorage> {
     is_smooth: Option<bool>,
 }
 
-impl<S: StringStorage> crate::common::material::Material<S> for Material<S> {
-    fn new(name: S::String) -> Self {
+impl<SS: StringStorage> crate::common::material::Material<SS> for Material<SS> {
+    fn new(name: SS::String) -> Self {
         Self {
             name,
             ambient_intensity: None,
@@ -34,11 +34,11 @@ impl<S: StringStorage> crate::common::material::Material<S> for Material<S> {
         }
     }
     #[inline]
-    fn name(&self) -> &S::String {
+    fn name(&self) -> &SS::String {
         &self.name
     }
     #[inline]
-    fn set_name(&mut self, name: S::String) {
+    fn set_name(&mut self, name: SS::String) {
         self.name = name;
     }
     #[inline]

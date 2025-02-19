@@ -53,12 +53,12 @@ pub struct GeometryBuilder<
     'a,
     VR: VertexRef,
     RR: ResourceRef,
-    RPS: ResourcePool<Semantic<VR, S>, RR>,
-    RPM: ResourcePool<Material<S>, RR>,
-    RPT: ResourcePool<Texture<S>, RR>,
-    S: StringStorage,
+    RPS: ResourcePool<Semantic<VR, SS>, RR>,
+    RPM: ResourcePool<Material<SS>, RR>,
+    RPT: ResourcePool<Texture<SS>, RR>,
+    SS: StringStorage,
 > {
-    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S, Semantic<VR, S>, Material<S>, Texture<S>>,
+    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Semantic<VR, SS>, Material<SS>, Texture<SS>>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>,
@@ -81,17 +81,17 @@ pub struct GeometryBuilder<
     surface_textures: HashMap<usize, RR>,
 }
 
-impl<'a, VR, RR, RPS, RPM, RPT, S> GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, S>
+impl<'a, VR, RR, RPS, RPM, RPT, SS> GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, SS>
 where
     VR: VertexRef,
     RR: ResourceRef,
-    RPS: ResourcePool<Semantic<VR, S>, RR>,
-    RPM: ResourcePool<Material<S>, RR>,
-    RPT: ResourcePool<Texture<S>, RR>,
-    S: StringStorage,
+    RPS: ResourcePool<Semantic<VR, SS>, RR>,
+    RPM: ResourcePool<Material<SS>, RR>,
+    RPT: ResourcePool<Texture<SS>, RR>,
+    SS: StringStorage,
 {
     pub fn new(
-        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S, Semantic<VR, S>, Material<S>, Texture<S>>,
+        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Semantic<VR, SS>, Material<SS>, Texture<SS>>,
         type_geometry: GeometryType,
     ) -> Self {
         Self {
@@ -346,7 +346,7 @@ where
         x: f64,
         y: f64,
         z: f64,
-        semantic: Option<Semantic<VR, S>>,
+        semantic: Option<Semantic<VR, SS>>,
     ) -> usize {
         let point_idx = self.add_vertex(x, y, z);
         if let Some(semantic) = semantic {
@@ -357,7 +357,7 @@ where
     }
 
     // LineString semantics
-    pub fn set_linestring_semantic(&mut self, semantic: Semantic<VR, S>) -> Result<()> {
+    pub fn set_linestring_semantic(&mut self, semantic: Semantic<VR, SS>) -> Result<()> {
         let line_idx = self
             .current_linestring
             .ok_or_else(|| Error::NoCurrentElement {
@@ -369,7 +369,7 @@ where
     }
 
     // Surface semantics
-    pub fn set_surface_semantic(&mut self, semantic: Semantic<VR, S>) -> Result<()> {
+    pub fn set_surface_semantic(&mut self, semantic: Semantic<VR, SS>) -> Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -380,7 +380,7 @@ where
         Ok(())
     }
 
-    pub fn set_surface_material(&mut self, material: Material<S>) -> Result<()> {
+    pub fn set_surface_material(&mut self, material: Material<SS>) -> Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -391,7 +391,7 @@ where
         Ok(())
     }
 
-    pub fn set_surface_texture(&mut self, texture: Texture<S>) -> Result<()> {
+    pub fn set_surface_texture(&mut self, texture: Texture<SS>) -> Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {

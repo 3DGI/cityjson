@@ -27,13 +27,13 @@ pub enum TextureType {
     Typical,
 }
 
-pub trait Texture<S: StringStorage> {
+pub trait Texture<SS: StringStorage> {
     /// Create a new texture with the given image and image type
-    fn new(image: S::String, image_type: ImageType) -> Self;
+    fn new(image: SS::String, image_type: ImageType) -> Self;
     fn image_type(&self) -> &ImageType;
     fn set_image_type(&mut self, image_type: ImageType);
-    fn image(&self) -> &S::String;
-    fn set_image(&mut self, image: S::String);
+    fn image(&self) -> &SS::String;
+    fn set_image(&mut self, image: SS::String);
     fn wrap_mode(&self) -> Option<WrapMode>;
     fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>);
     fn texture_type(&self) -> Option<TextureType>;

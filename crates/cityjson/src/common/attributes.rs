@@ -3,47 +3,47 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeValue<S: StringStorage> {
+pub enum AttributeValue<SS: StringStorage> {
     Null,
     Bool(bool),
     Unsigned(u64),
     Integer(i64),
     Float(f64),
-    String(S::String),
-    Vec(Vec<Box<AttributeValue<S>>>),
-    Map(HashMap<S::String, Box<AttributeValue<S>>>),
+    String(SS::String),
+    Vec(Vec<Box<AttributeValue<SS>>>),
+    Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
 }
 
 /// Container for attributes using a specific storage strategy
 #[derive(Clone, Debug)]
-pub struct Attributes<S: StringStorage> {
-    values: HashMap<S::String, AttributeValue<S>>,
+pub struct Attributes<SS: StringStorage> {
+    values: HashMap<SS::String, AttributeValue<SS>>,
 }
 
-impl<S: StringStorage> Attributes<S> {
+impl<SS: StringStorage> Attributes<SS> {
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<&AttributeValue<S>> {
+    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS>> {
         self.values.get(key)
     }
 
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<S>> {
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS>> {
         self.values.get_mut(key)
     }
 
     pub fn insert(
         &mut self,
-        key: S::String,
-        value: AttributeValue<S>,
-    ) -> Option<AttributeValue<S>> {
+        key: SS::String,
+        value: AttributeValue<SS>,
+    ) -> Option<AttributeValue<SS>> {
         self.values.insert(key, value)
     }
 
-    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<S>> {
+    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS>> {
         self.values.remove(key)
     }
 }

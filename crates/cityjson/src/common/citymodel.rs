@@ -11,17 +11,17 @@ use crate::common::semantic::Semantic;
 use crate::common::texture::Texture;
 
 #[derive(Debug)]
-pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
+pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
     RPS: ResourcePool<Sem, RR>,
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
-    S: StringStorage,
-    Sem: Semantic<VR, S>,
-    Mat: Material<S>,
-    Tex: Texture<S>
+    SS: StringStorage,
+    Sem: Semantic<VR, SS>,
+    Mat: Material<SS>,
+    Tex: Texture<SS>
 {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,
@@ -34,23 +34,23 @@ where
     vertices_texture: Vertices<VR, UVCoordinate>,
     /// Collection of geometries
     pub(crate) geometries: Vec<Geometry<VR, RR>>,
-    extra: Option<Attributes<S>>,
+    extra: Option<Attributes<SS>>,
     _phantom_sem: PhantomData<Sem>,
     _phantom_mat: PhantomData<Mat>,
     _phantom_tex: PhantomData<Tex>
 }
 
-impl<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
     RPS: ResourcePool<Sem, RR>,
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
-    S: StringStorage,
-    Sem: Semantic<VR, S>,
-    Mat: Material<S>,
-    Tex: Texture<S>
+    SS: StringStorage,
+    Sem: Semantic<VR, SS>,
+    Mat: Material<SS>,
+    Tex: Texture<SS>
 {
     /// Create a new empty CityModel
     pub fn new() -> Self {
@@ -164,17 +164,17 @@ where
 }
 
 // Implement default for convenience
-impl<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
     RPS: ResourcePool<Sem, RR>,
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
-    S: StringStorage,
-    Sem: Semantic<VR, S>,
-    Mat: Material<S>,
-    Tex: Texture<S>
+    SS: StringStorage,
+    Sem: Semantic<VR, SS>,
+    Mat: Material<SS>,
+    Tex: Texture<SS>
 {
     fn default() -> Self {
         Self::new()

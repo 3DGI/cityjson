@@ -26,7 +26,7 @@ pub enum SemanticType {
     Extension(String),
 }
 
-pub trait Semantic<VR: VertexRef, S: StringStorage> {
+pub trait Semantic<VR: VertexRef, SS: StringStorage> {
     /// Create a new semantic with the given type
     fn new(type_semantic: SemanticType) -> Self;
     /// Check if this semantic has any children
@@ -42,7 +42,7 @@ pub trait Semantic<VR: VertexRef, S: StringStorage> {
     /// Returns a mutable reference to the parent index if it exists
     fn parent_mut(&mut self) -> Option<&mut VertexIndex<VR>>;
     /// Returns a reference to the attributes if they exist
-    fn attributes(&self) -> Option<&Attributes<S>>;
+    fn attributes(&self) -> Option<&Attributes<SS>>;
     /// Returns a mutable reference to the attributes, creating default attributes if they do not exist
-    fn attributes_mut(&mut self) -> &mut Attributes<S>;
+    fn attributes_mut(&mut self) -> &mut Attributes<SS>;
 }
