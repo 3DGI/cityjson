@@ -1,12 +1,13 @@
-use crate::common::index::{OptionalVertexIndices, VertexIndices, VertexRef};
+use crate::common::index::VertexRef;
+use crate::resources::pool::ResourceRef;
 
 /// Maps geometry vertices to texture coordinates and textures
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct TextureMap<VI: VertexRef> {
-    vertices: OptionalVertexIndices<VI>,      // Texture vertices
-    rings: VertexIndices<VI>,                 // Indices into vertices
-    ring_textures: OptionalVertexIndices<VI>, // Texture indices
-    surfaces: VertexIndices<VI>,              // Indices into rings
-    shells: VertexIndices<VI>,                // Indices into surfaces
-    solids: VertexIndices<VI>,                // Indices into shells
+pub struct TextureMap<VR: VertexRef, RR: ResourceRef> {
+    vertices: Vec<Option<VR>>,      // Texture vertices
+    rings: Vec<VR>,                 // Indices into vertices
+    ring_textures: Vec<Option<RR>>, // Texture indices
+    surfaces: Vec<VR>,              // Indices into rings
+    shells: Vec<VR>,                // Indices into surfaces
+    solids: Vec<VR>,                // Indices into shells
 }

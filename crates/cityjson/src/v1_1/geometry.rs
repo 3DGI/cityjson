@@ -1,30 +1,29 @@
 //! # Geometry
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
-use crate::common::attributes::Attributes;
 use crate::common::boundary::{Boundary, BoundaryCounter};
 use crate::common::coordinate::RealWorldCoordinate;
-use crate::common::storage::StringStorage;
 use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
+use crate::common::storage::StringStorage;
 use crate::common::{GeometryType, LoD};
 use crate::errors::{Error, Result};
-use crate::resources::mapping::{SemanticMaterialMap, TextureMap};
-use crate::resources::pool::{ResourceId, ResourcePool};
+use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
+use crate::resources::pool::{ResourcePool, ResourceRef};
+use crate::v1_1::citymodel::GenericCityModel;
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::{Semantic, SemanticType};
 use crate::v1_1::texture::Texture;
-use crate::v1_1::citymodel::GenericCityModel;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
-pub struct Geometry<VI: VertexRef> {
+pub struct Geometry<VR: VertexRef, RR: ResourceRef> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    boundaries: Option<Boundary<VI>>,
-    semantics: Option<SemanticMaterialMap<VI>>,
-    material: Option<SemanticMaterialMap<VI>>,
-    texture: Option<TextureMap<VI>>,
+    boundaries: Option<Boundary<VR>>,
+    semantics: Option<SemanticMap<VR, RR>>,
+    material: Option<MaterialMap<VR, RR>>,
+    texture: Option<TextureMap<VR, RR>>,
     template_boundaries: Option<usize>,
     template_transformation_matrix: Option<[f64; 16]>,
 }
@@ -51,13 +50,14 @@ struct SolidInProgress {
 
 pub struct GeometryBuilder<
     'a,
-    VI: VertexRef,
-    RPS: ResourcePool<Semantic<VI, S>>,
-    RPM: ResourcePool<Material<S>>,
-    RPT: ResourcePool<Texture<S>>,
+    VR: VertexRef,
+    RR: ResourceRef,
+    RPS: ResourcePool<Semantic<VR, S>, RR>,
+    RPM: ResourcePool<Material<S>, RR>,
+    RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 > {
-    model: &'a mut GenericCityModel<VI, RPS, RPM, RPT, S>,
+    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>,
@@ -71,25 +71,26 @@ pub struct GeometryBuilder<
     current_shell: Option<usize>,      // current shell being built
     current_solid: Option<usize>,      // current solid being built
     // Semantic storage
-    point_semantics: HashMap<usize, ResourceId>,
-    linestring_semantics: HashMap<usize, ResourceId>,
-    surface_semantics: HashMap<usize, ResourceId>,
+    point_semantics: HashMap<usize, RR>,
+    linestring_semantics: HashMap<usize, RR>,
+    surface_semantics: HashMap<usize, RR>,
     // Material storage
-    surface_materials: HashMap<usize, ResourceId>,
+    surface_materials: HashMap<usize, RR>,
     // Texture storage
-    surface_textures: HashMap<usize, ResourceId>,
+    surface_textures: HashMap<usize, RR>,
 }
 
-impl<'a, VI, RPS, RPM, RPT, S> GeometryBuilder<'a, VI, RPS, RPM, RPT, S>
+impl<'a, VR, RR, RPS, RPM, RPT, S> GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, S>
 where
-    VI: VertexRef,
-    RPS: ResourcePool<Semantic<VI, S>>,
-    RPM: ResourcePool<Material<S>>,
-    RPT: ResourcePool<Texture<S>>,
+    VR: VertexRef,
+    RR: ResourceRef,
+    RPS: ResourcePool<Semantic<VR, S>, RR>,
+    RPM: ResourcePool<Material<S>, RR>,
+    RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 {
     pub fn new(
-        model: &'a mut GenericCityModel<VI, RPS, RPM, RPT, S>,
+        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S>,
         type_geometry: GeometryType,
     ) -> Self {
         Self {
@@ -123,7 +124,7 @@ where
     ///
     /// Returns the index of the new vertex.
     pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.vertices.push(RealWorldCoordinate::new(x,y,z));
+        self.vertices.push(RealWorldCoordinate::new(x, y, z));
         self.vertices.len() - 1
     }
 
@@ -344,7 +345,7 @@ where
         x: f64,
         y: f64,
         z: f64,
-        semantic: Option<Semantic<VI, S>>,
+        semantic: Option<Semantic<VR, S>>,
     ) -> usize {
         let point_idx = self.add_vertex(x, y, z);
         if let Some(semantic) = semantic {
@@ -355,7 +356,7 @@ where
     }
 
     // LineString semantics
-    pub fn set_linestring_semantic(&mut self, semantic: Semantic<VI, S>) -> Result<()> {
+    pub fn set_linestring_semantic(&mut self, semantic: Semantic<VR, S>) -> Result<()> {
         let line_idx = self
             .current_linestring
             .ok_or_else(|| Error::NoCurrentElement {
@@ -367,7 +368,7 @@ where
     }
 
     // Surface semantics
-    pub fn set_surface_semantic(&mut self, semantic: Semantic<VI, S>) -> Result<()> {
+    pub fn set_surface_semantic(&mut self, semantic: Semantic<VR, S>) -> Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -417,7 +418,7 @@ where
         self.validate_structure()?;
 
         // Add all vertices to the model and get their indices
-        let vertex_indices: Vec<VertexIndex<VI>> = self
+        let vertex_indices: Vec<VertexIndex<VR>> = self
             .vertices
             .into_iter()
             .map(|v| self.model.add_vertex(v))
@@ -428,11 +429,11 @@ where
         let mut counter = BoundaryCounter::default();
 
         // Create semantic mappings
-        let mut semantic_map = SemanticMaterialMap::default();
+        let mut semantic_map = SemanticMap::<VR, RR>::default();
         // Create material mappings
-        let mut material_map = SemanticMaterialMap::default();
+        let mut material_map = MaterialMap::<VR, RR>::default();
         // Create texture mappings
-        let mut texture_map = TextureMap::default();
+        let texture_map = TextureMap::<VR, RR>::default();
 
         match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -441,14 +442,12 @@ where
 
                 // Create point semantics mapping
                 if !self.point_semantics.is_empty() {
-                    let point_semantics = (0..vertex_indices.len())
-                        .map(|idx| {
-                            self.point_semantics
-                                .get(&idx)
-                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
-                        })
+                    // todo: what about None cases?
+                    semantic_map.points = self
+                        .point_semantics
+                        .into_values()
+                        .map(|v| Some(v))
                         .collect();
-                    semantic_map.points = point_semantics;
                 }
             }
             GeometryType::MultiLineString => {
@@ -468,14 +467,11 @@ where
 
                 // Create linestring semantics mapping
                 if !self.linestring_semantics.is_empty() {
-                    let linestring_semantics = (0..self.rings.len())
-                        .map(|idx| {
-                            self.linestring_semantics
-                                .get(&idx)
-                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
-                        })
+                    semantic_map.linestrings = self
+                        .linestring_semantics
+                        .into_values()
+                        .map(|v| Some(v))
                         .collect();
-                    semantic_map.linestrings = linestring_semantics;
                 }
             }
             _ => {
@@ -515,26 +511,20 @@ where
 
                 // Create surface semantics mapping
                 if !self.surface_semantics.is_empty() {
-                    let surface_semantics = (0..self.surfaces.len())
-                        .map(|idx| {
-                            self.surface_semantics
-                                .get(&idx)
-                                .map(|&sem_id| sem_id.to_vertex_index().unwrap())
-                        })
+                    semantic_map.surfaces = self
+                        .surface_semantics
+                        .into_values()
+                        .map(|v| Some(v))
                         .collect();
-                    semantic_map.surfaces = surface_semantics;
                 }
 
                 // Add surface materials
                 if !self.surface_materials.is_empty() {
-                    let surface_materials = (0..self.surfaces.len())
-                        .map(|idx| {
-                            self.surface_materials
-                                .get(&idx)
-                                .map(|&mat_id| mat_id.to_vertex_index().unwrap())
-                        })
+                    material_map.surfaces = self
+                        .surface_materials
+                        .into_values()
+                        .map(|v| Some(v))
                         .collect();
-                    material_map.surfaces = surface_materials;
                 }
 
                 // Process shells with their surfaces
@@ -659,7 +649,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::attributes::{AttributeValue, Attributes};
+    use crate::common::attributes::AttributeValue;
     use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::common::storage::OwnedStringStorage;
     use crate::v1_1::citymodel::CityModel;
@@ -667,7 +657,7 @@ mod tests {
     #[test]
     fn test_multipoint_with_semantics() -> Result<()> {
         // Create a city model
-        let mut model = CityModel::<u32, OwnedStringStorage>::new();
+        let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
         let mut builder =
             GeometryBuilder::new(&mut model, GeometryType::MultiPoint).with_lod(LoD::LoD2);
 
@@ -711,7 +701,7 @@ mod tests {
 
     #[test]
     fn test_build_complex_multisolid() -> Result<()> {
-        let mut model = CityModel::<u32, OwnedStringStorage>::new();
+        let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
         let mut builder =
             GeometryBuilder::new(&mut model, GeometryType::MultiSolid).with_lod(LoD::LoD2);
 

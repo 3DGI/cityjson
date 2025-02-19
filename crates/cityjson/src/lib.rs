@@ -1,9 +1,8 @@
-
 //! The cityjson-rs library defines the types and methods for representing the complete CityJSON data model in Rust.
 //! *cityjson-rs* is meant to be a core dependency in Rust-based CityJSON software, so that the dependent applications can extend the types with their specific functionality.
 //! Therefore, *citjson-rs* is designed with performance, flexibility, and ease-of-use in mind.
 //! The three criteria are implemented in the following features:
-//! 
+//!
 //! - The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality, and enable SIMD operations. This is very different to the nested arrays defined by the CityJSON schema. However, the implementation details are hidden from the API.
 //! - Vertex indices, and consequently boundaries, semantics, and appearances can be specialized with either `u16`, `u32` or `u64` types to enable various use cases and memory optimizations.
 //! - Supports both borrowed and owned values.

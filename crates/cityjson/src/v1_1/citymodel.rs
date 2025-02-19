@@ -3,52 +3,55 @@
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
-use crate::common::storage::{OwnedStringStorage, StringStorage};
 use crate::common::index::{VertexIndex, VertexRef};
+use crate::common::storage::{OwnedStringStorage, StringStorage};
 use crate::errors;
-use crate::resources::pool::{DefaultResourcePool, ResourceId, ResourcePool};
+use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::Semantic;
 use crate::v1_1::texture::Texture;
 
-pub type CityModel<VI, S> = GenericCityModel<
-    VI,
-    DefaultResourcePool<Semantic<VI, S>>,
-    DefaultResourcePool<Material<S>>,
-    DefaultResourcePool<Texture<S>>,
+pub type CityModel<VR, RR, S> = GenericCityModel<
+    VR,
+    RR,
+    DefaultResourcePool<Semantic<VR, S>, RR>,
+    DefaultResourcePool<Material<S>, RR>,
+    DefaultResourcePool<Texture<S>, RR>,
     OwnedStringStorage,
 >;
 
 #[derive(Debug)]
-pub struct GenericCityModel<VI, RPS, RPM, RPT, S>
+pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, S>
 where
-    VI: VertexRef,
-    RPS: ResourcePool<Semantic<VI, S>>,
-    RPM: ResourcePool<Material<S>>,
-    RPT: ResourcePool<Texture<S>>,
+    VR: VertexRef,
+    RR: ResourceRef,
+    RPS: ResourcePool<Semantic<VR, S>, RR>,
+    RPM: ResourcePool<Material<S>, RR>,
+    RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 {
     /// Pool of vertex coordinates
-    vertices: Vertices<VI, RealWorldCoordinate>,
+    vertices: Vertices<VR, RealWorldCoordinate>,
     /// Pool of semantic objects
     semantics: RPS,
     /// Pool of material objects
     materials: RPM,
     /// Pool of texture objects
     textures: RPT,
-    vertices_texture: Vertices<VI, UVCoordinate>,
+    vertices_texture: Vertices<VR, UVCoordinate>,
     /// Collection of geometries
-    pub(crate) geometries: Vec<Geometry<VI>>,
+    pub(crate) geometries: Vec<Geometry<VR, RR>>,
     extra: Option<Attributes<S>>,
 }
 
-impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
+impl<VR, RR, RPS, RPM, RPT, S> GenericCityModel<VR, RR, RPS, RPM, RPT, S>
 where
-    VI: VertexRef,
-    RPS: ResourcePool<Semantic<VI, S>>,
-    RPM: ResourcePool<Material<S>>,
-    RPT: ResourcePool<Texture<S>>,
+    VR: VertexRef,
+    RR: ResourceRef,
+    RPS: ResourcePool<Semantic<VR, S>, RR>,
+    RPM: ResourcePool<Material<S>, RR>,
+    RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 {
     /// Create a new empty CityModel
@@ -84,56 +87,59 @@ where
     }
 
     /// Add a semantic object to the pool
-    pub fn add_semantic(&mut self, semantic: Semantic<VI, S>) -> ResourceId {
+    pub fn add_semantic(&mut self, semantic: Semantic<VR, S>) -> RR {
         self.semantics.add(semantic)
     }
 
     /// Get a reference to a semantic object
-    pub fn get_semantic(&self, id: ResourceId) -> Option<&Semantic<VI, S>> {
+    pub fn get_semantic(&self, id: RR) -> Option<&Semantic<VR, S>> {
         self.semantics.get(id)
     }
 
     /// Get a mutable reference to a semantic object
-    pub fn get_semantic_mut(&mut self, id: ResourceId) -> Option<&mut Semantic<VI, S>> {
+    pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<VR, S>> {
         self.semantics.get_mut(id)
     }
 
-    pub fn add_material(&mut self, material: Material<S>) -> ResourceId {
+    pub fn add_material(&mut self, material: Material<S>) -> RR {
         self.materials.add(material)
     }
 
-    pub fn get_material(&self, id: ResourceId) -> Option<&Material<S>> {
+    pub fn get_material(&self, id: RR) -> Option<&Material<S>> {
         self.materials.get(id)
     }
 
-    pub fn get_material_mut(&mut self, id: ResourceId) -> Option<&mut Material<S>> {
+    pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<S>> {
         self.materials.get_mut(id)
     }
 
-    pub fn add_texture(&mut self, texture: Texture<S>) -> ResourceId {
+    pub fn add_texture(&mut self, texture: Texture<S>) -> RR {
         self.textures.add(texture)
     }
 
-    pub fn get_texture(&self, id: ResourceId) -> Option<&Texture<S>> {
+    pub fn get_texture(&self, id: RR) -> Option<&Texture<S>> {
         self.textures.get(id)
     }
 
-    pub fn get_texture_mut(&mut self, id: ResourceId) -> Option<&mut Texture<S>> {
+    pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<S>> {
         self.textures.get_mut(id)
     }
 
     /// Add a geometry to the model
-    pub fn add_geometry(&mut self, geometry: Geometry<VI>) {
+    pub fn add_geometry(&mut self, geometry: Geometry<VR, RR>) {
         self.geometries.push(geometry);
     }
 
     /// Add a vertex coordinate
-    pub fn add_vertex(&mut self, coordinate: RealWorldCoordinate) -> errors::Result<VertexIndex<VI>> {
+    pub fn add_vertex(
+        &mut self,
+        coordinate: RealWorldCoordinate,
+    ) -> errors::Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
     /// Get a reference to a vertex coordinate
-    pub fn get_vertex(&self, index: VertexIndex<VI>) -> Option<&RealWorldCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }
 
@@ -154,12 +160,13 @@ where
 }
 
 // Implement default for convenience
-impl<VI, RPS, RPM, RPT, S> GenericCityModel<VI, RPS, RPM, RPT, S>
+impl<VR, RR, RPS, RPM, RPT, S> GenericCityModel<VR, RR, RPS, RPM, RPT, S>
 where
-    VI: VertexRef,
-    RPS: ResourcePool<Semantic<VI, S>>,
-    RPM: ResourcePool<Material<S>>,
-    RPT: ResourcePool<Texture<S>>,
+    VR: VertexRef,
+    RR: ResourceRef,
+    RPS: ResourcePool<Semantic<VR, S>, RR>,
+    RPM: ResourcePool<Material<S>, RR>,
+    RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 {
     fn default() -> Self {

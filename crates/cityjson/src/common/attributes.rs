@@ -1,8 +1,6 @@
 use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::hash::Hash;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AttributeValue<S: StringStorage> {
@@ -30,11 +28,11 @@ impl<S: StringStorage> Attributes<S> {
     }
 
     pub fn get(&self, key: &str) -> Option<&AttributeValue<S>> {
-        self.values.get(key.borrow())
+        self.values.get(key)
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<S>> {
-        self.values.get_mut(key.borrow())
+        self.values.get_mut(key)
     }
 
     pub fn insert(
@@ -46,7 +44,7 @@ impl<S: StringStorage> Attributes<S> {
     }
 
     pub fn remove(&mut self, key: &str) -> Option<AttributeValue<S>> {
-        self.values.remove(key.borrow())
+        self.values.remove(key)
     }
 }
 

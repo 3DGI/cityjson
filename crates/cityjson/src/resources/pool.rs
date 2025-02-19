@@ -2,30 +2,51 @@
 
 use crate::common::index::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
-
+use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
+use std::marker::PhantomData;
 // todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.
 
-pub trait ResourcePool<T> {
+/// Trait for a resource pool storing items of type T and using a resource reference RR.
+pub trait ResourcePool<T, RR> {
+    type Iter<'a>: Iterator<Item = (RR, &'a T)>
+    where
+        T: 'a,
+        Self: 'a;
     fn new() -> Self;
     fn with_capacity(capacity: usize) -> Self;
-    fn add(&mut self, resource: T) -> ResourceId;
-    fn get(&self, id: ResourceId) -> Option<&T>;
-    fn get_mut(&mut self, id: ResourceId) -> Option<&mut T>;
-    fn remove(&mut self, id: ResourceId) -> Option<T>;
-    fn is_valid(&self, id: ResourceId) -> bool;
+    fn add(&mut self, resource: T) -> RR;
+    fn get(&self, id: RR) -> Option<&T>;
+    fn get_mut(&mut self, id: RR) -> Option<&mut T>;
+    fn remove(&mut self, id: RR) -> Option<T>;
+    fn is_valid(&self, id: RR) -> bool;
     // Iterator support
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)>
+    fn iter<'a>(&'a self) -> Self::Iter<'a>
     where
         T: 'a;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ResourceId {
+/// Abstraction over a resource identifier.
+pub trait ResourceRef:
+    Copy + Debug + Default + Display + PartialEq + Eq + PartialOrd + Ord + Hash
+{
+    /// Creates an instance of the resource reference with the given index and generation.
+    fn new(index: u32, generation: u16) -> Self;
+
+    /// Returns the underlying index.
+    fn index(&self) -> u32;
+
+    /// Returns the generation.
+    fn generation(&self) -> u16;
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct ResourceId32 {
     index: u32,
     generation: u16,
 }
 
-impl ResourceId {
+impl ResourceId32 {
     pub fn new(index: u32, generation: u16) -> Self {
         Self { index, generation }
     }
@@ -50,29 +71,86 @@ impl ResourceId {
     }
 }
 
+impl Display for ResourceId32 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ResourceId {{ index: {}, generation: {} }}",
+            self.index, self.generation
+        )
+    }
+}
+
+impl ResourceRef for ResourceId32 {
+    fn new(index: u32, generation: u16) -> Self {
+        ResourceId32 { index, generation }
+    }
+    fn index(&self) -> u32 {
+        self.index
+    }
+    fn generation(&self) -> u16 {
+        self.generation
+    }
+}
+
 #[derive(Debug)]
-pub struct DefaultResourcePool<T> {
+pub struct DefaultResourcePool<T, RR: ResourceRef> {
     resources: Vec<Option<T>>,
     generations: Vec<u16>,
     free_list: Vec<u32>,
+    _phantom: PhantomData<RR>,
 }
 
-impl<T> ResourcePool<T> for DefaultResourcePool<T> {
-    fn new() -> Self {
+impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
+    /// Internal helper to create a new (empty) resource pool.
+    pub fn new_pool() -> Self {
         Self {
             resources: Vec::new(),
             generations: Vec::new(),
             free_list: Vec::new(),
+            _phantom: PhantomData,
         }
+    }
+}
+
+pub struct DefaultResourcePoolIter<'a, T, RR: ResourceRef> {
+    inner: std::iter::Enumerate<std::slice::Iter<'a, Option<T>>>,
+    generations: &'a [u16],
+    _phantom: PhantomData<RR>,
+}
+
+impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
+    type Item = (RR, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((index, opt)) = self.inner.next() {
+            if let Some(r) = opt.as_ref() {
+                let id = RR::new(index as u32, self.generations[index]);
+                return Some((id, r));
+            }
+        }
+        None
+    }
+}
+
+impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
+    type Iter<'a>
+        = DefaultResourcePoolIter<'a, T, RR>
+    where
+        T: 'a,
+        RR: 'a;
+    fn new() -> Self {
+        Self::new_pool()
     }
     fn with_capacity(capacity: usize) -> Self {
         Self {
             resources: Vec::with_capacity(capacity),
             generations: Vec::with_capacity(capacity),
             free_list: Vec::new(),
+            _phantom: PhantomData,
         }
     }
-    fn add(&mut self, resource: T) -> ResourceId {
+    fn add(&mut self, resource: T) -> RR {
         let index = if let Some(free_index) = self.free_list.pop() {
             // Reuse a freed slot
             let generation = self.generations[free_index as usize] + 1;
@@ -87,57 +165,45 @@ impl<T> ResourcePool<T> for DefaultResourcePool<T> {
             index
         };
 
-        ResourceId {
-            index,
-            generation: self.generations[index as usize],
-        }
+        RR::new(index, self.generations[index as usize])
     }
-    fn get(&self, id: ResourceId) -> Option<&T> {
+    fn get(&self, id: RR) -> Option<&T> {
         if self.is_valid(id) {
-            self.resources.get(id.index as usize)?.as_ref()
+            self.resources.get(id.index() as usize)?.as_ref()
         } else {
             None
         }
     }
-    fn get_mut(&mut self, id: ResourceId) -> Option<&mut T> {
+    fn get_mut(&mut self, id: RR) -> Option<&mut T> {
         if self.is_valid(id) {
-            self.resources.get_mut(id.index as usize)?.as_mut()
+            self.resources.get_mut(id.index() as usize)?.as_mut()
         } else {
             None
         }
     }
-    fn remove(&mut self, id: ResourceId) -> Option<T> {
+    fn remove(&mut self, id: RR) -> Option<T> {
         if !self.is_valid(id) {
             return None;
         }
 
-        let resource = self.resources[id.index as usize].take()?;
-        self.free_list.push(id.index);
+        let resource = self.resources[id.index() as usize].take()?;
+        self.free_list.push(id.index());
         Some(resource)
     }
-    fn is_valid(&self, id: ResourceId) -> bool {
-        (id.index as usize) < self.generations.len()
-            && self.generations[id.index as usize] == id.generation
+    fn is_valid(&self, id: RR) -> bool {
+        let index = id.index() as usize;
+        index < self.generations.len() && self.generations[index] == id.generation()
     }
     // Iterator support
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (ResourceId, &'a T)>
+    fn iter<'a>(&'a self) -> Self::Iter<'a>
     where
         T: 'a,
     {
-        self.resources
-            .iter()
-            .enumerate()
-            .filter_map(|(index, resource)| {
-                resource.as_ref().map(|r| {
-                    (
-                        ResourceId {
-                            index: index as u32,
-                            generation: self.generations[index],
-                        },
-                        r,
-                    )
-                })
-            })
+        DefaultResourcePoolIter {
+            inner: self.resources.iter().enumerate(),
+            generations: &self.generations,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -169,7 +235,7 @@ mod tests {
     }
 
     // Helper function to create a pool with some initial values
-    fn setup_test_pool() -> (DefaultResourcePool<i32>, Vec<ResourceId>) {
+    fn setup_test_pool() -> (DefaultResourcePool<i32, ResourceId32>, Vec<ResourceId32>) {
         let mut pool = DefaultResourcePool::new();
         let ids = (1..=3).map(|i| pool.add(i)).collect();
         (pool, ids)
@@ -177,11 +243,11 @@ mod tests {
 
     mod resource_id {
         use super::*;
-        use crate::resources::pool::ResourceId;
+        use crate::resources::pool::ResourceId32;
 
         #[test]
         fn test_conversion() {
-            let vi: VertexIndex<u16> = ResourceId::new(1, 0).to_vertex_index().unwrap();
+            let vi: VertexIndex<u16> = ResourceId32::new(1, 0).to_vertex_index().unwrap();
             assert_eq!(vi.value(), 1u16)
         }
     }
@@ -192,7 +258,7 @@ mod tests {
 
         #[test]
         fn test_new_pool() {
-            let pool: DefaultResourcePool<i32> = DefaultResourcePool::new();
+            let pool: DefaultResourcePool<i32, ResourceId32> = DefaultResourcePool::new();
             assert!(pool.resources.is_empty());
             assert!(pool.generations.is_empty());
             assert!(pool.free_list.is_empty());
@@ -200,7 +266,8 @@ mod tests {
 
         #[test]
         fn test_with_capacity() {
-            let pool: DefaultResourcePool<i32> = DefaultResourcePool::with_capacity(10);
+            let pool: DefaultResourcePool<i32, ResourceId32> =
+                DefaultResourcePool::with_capacity(10);
             assert_eq!(pool.resources.capacity(), 10);
             assert_eq!(pool.generations.capacity(), 10);
             assert!(pool.free_list.is_empty());
@@ -242,8 +309,8 @@ mod tests {
 
         #[test]
         fn test_invalid_id() {
-            let mut pool: DefaultResourcePool<u32> = DefaultResourcePool::new();
-            let invalid_id = ResourceId {
+            let mut pool: DefaultResourcePool<u32, ResourceId32> = DefaultResourcePool::new();
+            let invalid_id = ResourceId32 {
                 index: 0,
                 generation: 0,
             };
