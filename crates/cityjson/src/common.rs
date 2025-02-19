@@ -8,6 +8,7 @@ pub mod index;
 pub mod storage;
 pub(crate) mod citymodel;
 pub mod material;
+pub mod texture;
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {
