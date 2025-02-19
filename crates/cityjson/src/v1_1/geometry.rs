@@ -11,9 +11,10 @@ use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::common::citymodel::GenericCityModel;
 use crate::v1_1::material::Material;
-use crate::v1_1::semantic::{Semantic, SemanticType};
+use crate::v1_1::semantic::Semantic;
 use crate::v1_1::texture::Texture;
 use std::collections::HashMap;
+use crate::common::semantic::SemanticType;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
