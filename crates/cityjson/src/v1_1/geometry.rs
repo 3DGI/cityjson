@@ -58,7 +58,7 @@ pub struct GeometryBuilder<
     RPT: ResourcePool<Texture<S>, RR>,
     S: StringStorage,
 > {
-    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S>,
+    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S, Semantic<VR, S>, Material<S>, Texture<S>>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>,
@@ -91,7 +91,7 @@ where
     S: StringStorage,
 {
     pub fn new(
-        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S>,
+        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, S, Semantic<VR, S>, Material<S>, Texture<S>>,
         type_geometry: GeometryType,
     ) -> Self {
         Self {

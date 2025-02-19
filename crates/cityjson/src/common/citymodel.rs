@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::common::storage::StringStorage;
@@ -5,19 +6,22 @@ use crate::errors;
 use crate::index::{VertexIndex, VertexRef};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::v1_1::geometry::Geometry;
-use crate::v1_1::material::Material;
-use crate::v1_1::semantic::Semantic;
-use crate::v1_1::texture::Texture;
+use crate::common::material::Material;
+use crate::common::semantic::Semantic;
+use crate::common::texture::Texture;
 
 #[derive(Debug)]
-pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, S>
+pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
-    RPS: ResourcePool<Semantic<VR, S>, RR>,
-    RPM: ResourcePool<Material<S>, RR>,
-    RPT: ResourcePool<Texture<S>, RR>,
+    RPS: ResourcePool<Sem, RR>,
+    RPM: ResourcePool<Mat, RR>,
+    RPT: ResourcePool<Tex, RR>,
     S: StringStorage,
+    Sem: Semantic<VR, S>,
+    Mat: Material<S>,
+    Tex: Texture<S>
 {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,
@@ -31,16 +35,22 @@ where
     /// Collection of geometries
     pub(crate) geometries: Vec<Geometry<VR, RR>>,
     extra: Option<Attributes<S>>,
+    _phantom_sem: PhantomData<Sem>,
+    _phantom_mat: PhantomData<Mat>,
+    _phantom_tex: PhantomData<Tex>
 }
 
-impl<VR, RR, RPS, RPM, RPT, S> GenericCityModel<VR, RR, RPS, RPM, RPT, S>
+impl<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
-    RPS: ResourcePool<Semantic<VR, S>, RR>,
-    RPM: ResourcePool<Material<S>, RR>,
-    RPT: ResourcePool<Texture<S>, RR>,
+    RPS: ResourcePool<Sem, RR>,
+    RPM: ResourcePool<Mat, RR>,
+    RPT: ResourcePool<Tex, RR>,
     S: StringStorage,
+    Sem: Semantic<VR, S>,
+    Mat: Material<S>,
+    Tex: Texture<S>
 {
     /// Create a new empty CityModel
     pub fn new() -> Self {
@@ -52,6 +62,9 @@ where
             vertices_texture: Vertices::new(),
             geometries: Vec::new(),
             extra: None,
+            _phantom_sem: Default::default(),
+            _phantom_mat: Default::default(),
+            _phantom_tex: Default::default(),
         }
     }
 
@@ -71,45 +84,48 @@ where
             vertices_texture: Vertices::new(),
             geometries: Vec::with_capacity(geometry_capacity),
             extra: None,
+            _phantom_sem: Default::default(),
+            _phantom_mat: Default::default(),
+            _phantom_tex: Default::default(),
         }
     }
 
     /// Add a semantic object to the pool
-    pub fn add_semantic(&mut self, semantic: Semantic<VR, S>) -> RR {
+    pub fn add_semantic(&mut self, semantic: Sem) -> RR {
         self.semantics.add(semantic)
     }
 
     /// Get a reference to a semantic object
-    pub fn get_semantic(&self, id: RR) -> Option<&Semantic<VR, S>> {
+    pub fn get_semantic(&self, id: RR) -> Option<&Sem> {
         self.semantics.get(id)
     }
 
     /// Get a mutable reference to a semantic object
-    pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<VR, S>> {
+    pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Sem> {
         self.semantics.get_mut(id)
     }
 
-    pub fn add_material(&mut self, material: Material<S>) -> RR {
+    pub fn add_material(&mut self, material: Mat) -> RR {
         self.materials.add(material)
     }
 
-    pub fn get_material(&self, id: RR) -> Option<&Material<S>> {
+    pub fn get_material(&self, id: RR) -> Option<&Mat> {
         self.materials.get(id)
     }
 
-    pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<S>> {
+    pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Mat> {
         self.materials.get_mut(id)
     }
 
-    pub fn add_texture(&mut self, texture: Texture<S>) -> RR {
+    pub fn add_texture(&mut self, texture: Tex) -> RR {
         self.textures.add(texture)
     }
 
-    pub fn get_texture(&self, id: RR) -> Option<&Texture<S>> {
+    pub fn get_texture(&self, id: RR) -> Option<&Tex> {
         self.textures.get(id)
     }
 
-    pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<S>> {
+    pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Tex> {
         self.textures.get_mut(id)
     }
 
@@ -148,14 +164,17 @@ where
 }
 
 // Implement default for convenience
-impl<VR, RR, RPS, RPM, RPT, S> GenericCityModel<VR, RR, RPS, RPM, RPT, S>
+impl<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, S, Sem, Mat, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
-    RPS: ResourcePool<Semantic<VR, S>, RR>,
-    RPM: ResourcePool<Material<S>, RR>,
-    RPT: ResourcePool<Texture<S>, RR>,
+    RPS: ResourcePool<Sem, RR>,
+    RPM: ResourcePool<Mat, RR>,
+    RPT: ResourcePool<Tex, RR>,
     S: StringStorage,
+    Sem: Semantic<VR, S>,
+    Mat: Material<S>,
+    Tex: Texture<S>
 {
     fn default() -> Self {
         Self::new()

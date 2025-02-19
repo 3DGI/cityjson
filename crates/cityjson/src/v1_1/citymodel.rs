@@ -14,6 +14,6 @@ pub type CityModel<VR, RR, S> = GenericCityModel<
     DefaultResourcePool<Semantic<VR, S>, RR>,
     DefaultResourcePool<Material<S>, RR>,
     DefaultResourcePool<Texture<S>, RR>,
-    OwnedStringStorage,
+    OwnedStringStorage, Semantic<VR, S>, Material<S>, Texture<S>,
 >;
 
