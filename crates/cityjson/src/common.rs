@@ -6,6 +6,7 @@ pub mod boundary;
 pub mod coordinate;
 pub mod index;
 pub mod storage;
+pub(crate) mod citymodel;
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {

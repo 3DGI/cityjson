@@ -9,7 +9,7 @@ use crate::common::{GeometryType, LoD};
 use crate::errors::{Error, Result};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
-use crate::v1_1::citymodel::GenericCityModel;
+use crate::common::citymodel::GenericCityModel;
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::{Semantic, SemanticType};
 use crate::v1_1::texture::Texture;
