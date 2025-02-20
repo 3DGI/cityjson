@@ -10,20 +10,20 @@ use crate::errors;
 #[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(unused)]
-pub struct Boundary<T: VertexRef> {
+pub struct Boundary<VR: VertexRef> {
     /// Vertex indices that point to the global Vertices buffer.
-    pub(crate) vertices: VertexIndices<T>,
+    pub(crate) vertices: VertexIndices<VR>,
     /// Vertex offsets that mark the start of each ring. The values point to this Boundary's vertices.
-    pub(crate) rings: VertexIndices<T>,
+    pub(crate) rings: VertexIndices<VR>,
     /// Ring offsets that mark the start of each surface. The values point to this Boundary's rings.
-    pub(crate) surfaces: VertexIndices<T>,
+    pub(crate) surfaces: VertexIndices<VR>,
     /// Surface offsets that mark the start of each shell. The values point to this Boundary's surfaces.
-    pub(crate) shells: VertexIndices<T>,
+    pub(crate) shells: VertexIndices<VR>,
     /// Shell offsets that mark the start of each solid. The values point to this Boundary's shells.
-    pub(crate) solids: VertexIndices<T>,
+    pub(crate) solids: VertexIndices<VR>,
 }
 
-impl<T: VertexRef> Boundary<T> {
+impl<VR: VertexRef> Boundary<VR> {
     #[inline]
     pub fn new() -> Self {
         Self::default()
@@ -31,11 +31,11 @@ impl<T: VertexRef> Boundary<T> {
 
     #[inline]
     pub fn with_capacity(
-        vertices: VertexIndex<T>,
-        rings: VertexIndex<T>,
-        surfaces: VertexIndex<T>,
-        shells: VertexIndex<T>,
-        solids: VertexIndex<T>,
+        vertices: VertexIndex<VR>,
+        rings: VertexIndex<VR>,
+        surfaces: VertexIndex<VR>,
+        shells: VertexIndex<VR>,
+        solids: VertexIndex<VR>,
     ) -> Self {
         Self {
             vertices: VertexIndices::with_capacity(vertices),
@@ -48,7 +48,7 @@ impl<T: VertexRef> Boundary<T> {
 
     /// Convert to a nested MultiPoint boundary representation, if the Boundary can be interpreted
     /// as a MultiPoint boundary.
-    pub fn to_nested_multi_point(&self) -> errors::Result<BoundaryNestedMultiPoint<T>> {
+    pub fn to_nested_multi_point(&self) -> errors::Result<BoundaryNestedMultiPoint<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
             Ok(self.vertices.iter().map(|v| v.value()).collect())
@@ -62,10 +62,10 @@ impl<T: VertexRef> Boundary<T> {
 
     /// Convert to a nested MultiLineString boundary representation, if the Boundary can be
     /// interpreted as a MultiLineString boundary.
-    pub fn to_nested_multi_linestring(&self) -> errors::Result<BoundaryNestedMultiLineString<T>> {
+    pub fn to_nested_multi_linestring(&self) -> errors::Result<BoundaryNestedMultiLineString<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
-            let mut counter = BoundaryCounter::<T>::default();
+            let mut counter = BoundaryCounter::<VR>::default();
             let mut ml = BoundaryNestedMultiLineString::with_capacity(self.rings.len_usize());
             self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter);
             Ok(ml)
@@ -81,10 +81,10 @@ impl<T: VertexRef> Boundary<T> {
     /// interpreted as a Multi- or CompositeSurface boundary.
     pub fn to_nested_multi_or_composite_surface(
         &self,
-    ) -> errors::Result<BoundaryNestedMultiOrCompositeSurface<T>> {
+    ) -> errors::Result<BoundaryNestedMultiOrCompositeSurface<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSurface {
-            let mut counter = BoundaryCounter::<T>::default();
+            let mut counter = BoundaryCounter::<VR>::default();
             let mut mc_surface =
                 BoundaryNestedMultiOrCompositeSurface::with_capacity(self.surfaces.len_usize());
             self.push_surfaces_to_multi_surface(
@@ -103,10 +103,10 @@ impl<T: VertexRef> Boundary<T> {
 
     /// Convert to a nested Solid boundary representation, if the Boundary can be
     /// interpreted as a Solid boundary.
-    pub fn to_nested_solid(&self) -> errors::Result<BoundaryNestedSolid<T>> {
+    pub fn to_nested_solid(&self) -> errors::Result<BoundaryNestedSolid<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::Solid {
-            let mut counter = BoundaryCounter::<T>::default();
+            let mut counter = BoundaryCounter::<VR>::default();
             let mut solid = BoundaryNestedSolid::with_capacity(self.shells.len_usize());
             self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter);
             Ok(solid)
@@ -122,10 +122,10 @@ impl<T: VertexRef> Boundary<T> {
     /// interpreted as a Multi- or CompositeSolid boundary.
     pub fn to_nested_multi_or_composite_solid(
         &self,
-    ) -> errors::Result<BoundaryNestedMultiOrCompositeSolid<T>> {
+    ) -> errors::Result<BoundaryNestedMultiOrCompositeSolid<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSolid {
-            let mut counter = BoundaryCounter::<T>::default();
+            let mut counter = BoundaryCounter::<VR>::default();
             let mut mc_solid =
                 BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len_usize());
             for &shells_start_i in &self.solids {
@@ -153,9 +153,9 @@ impl<T: VertexRef> Boundary<T> {
 
     fn push_shells_to_solid(
         &self,
-        shells: &[VertexIndex<T>],
-        solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface<T>>,
-        counter: &mut BoundaryCounter<T>,
+        shells: &[VertexIndex<VR>],
+        solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface<VR>>,
+        counter: &mut BoundaryCounter<VR>,
     ) {
         for &surfaces_start_i in shells {
             let surfaces_len = VertexIndex::new(self.surfaces.len());
@@ -176,9 +176,9 @@ impl<T: VertexRef> Boundary<T> {
 
     fn push_surfaces_to_multi_surface(
         &self,
-        surfaces: &[VertexIndex<T>],
-        mc_surface: &mut BoundaryNestedMultiOrCompositeSurface<T>,
-        counter: &mut BoundaryCounter<T>,
+        surfaces: &[VertexIndex<VR>],
+        mc_surface: &mut BoundaryNestedMultiOrCompositeSurface<VR>,
+        counter: &mut BoundaryCounter<VR>,
     ) {
         for &ring_start_i in surfaces {
             let rings_len = VertexIndex::new(self.rings.len());
@@ -198,9 +198,9 @@ impl<T: VertexRef> Boundary<T> {
 
     fn push_rings_to_surface(
         &self,
-        rings: &[VertexIndex<T>],
-        surface: &mut BoundaryNestedMultiLineString<T>,
-        counter: &mut BoundaryCounter<T>,
+        rings: &[VertexIndex<VR>],
+        surface: &mut BoundaryNestedMultiLineString<VR>,
+        counter: &mut BoundaryCounter<VR>,
     ) {
         for &vertices_start_i in rings {
             let vertices_len = VertexIndex::new(self.vertices.len());
@@ -312,59 +312,59 @@ impl std::fmt::Display for BoundaryType {
 }
 
 #[derive(Default)]
-pub(crate) struct BoundaryCounter<T: VertexRef> {
-    pub(crate) vertex_offset: VertexIndex<T>, // Current position in vertex list
-    pub(crate) ring_offset: VertexIndex<T>,   // Current position in ring list
-    pub(crate) surface_offset: VertexIndex<T>, // Current position in surface list
-    pub(crate) shell_offset: VertexIndex<T>,  // Current position in shell list
-    pub(crate) solid_offset: VertexIndex<T>,  // Current position in solid list
+pub(crate) struct BoundaryCounter<VR: VertexRef> {
+    pub(crate) vertex_offset: VertexIndex<VR>, // Current position in vertex list
+    pub(crate) ring_offset: VertexIndex<VR>,   // Current position in ring list
+    pub(crate) surface_offset: VertexIndex<VR>, // Current position in surface list
+    pub(crate) shell_offset: VertexIndex<VR>,  // Current position in shell list
+    pub(crate) solid_offset: VertexIndex<VR>,  // Current position in solid list
 }
 
-impl<T: VertexRef> BoundaryCounter<T> {
+impl<VR: VertexRef> BoundaryCounter<VR> {
     // Increment methods - return new position after incrementing
-    pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<T> {
-        self.vertex_offset += VertexIndex::new(T::one());
+    pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<VR> {
+        self.vertex_offset += VertexIndex::new(VR::one());
         self.vertex_offset
     }
 
-    pub(crate) fn increment_ring_idx(&mut self) -> VertexIndex<T> {
-        self.ring_offset += VertexIndex::new(T::one());
+    pub(crate) fn increment_ring_idx(&mut self) -> VertexIndex<VR> {
+        self.ring_offset += VertexIndex::new(VR::one());
         self.ring_offset
     }
 
-    pub(crate) fn increment_surface_idx(&mut self) -> VertexIndex<T> {
-        self.surface_offset += VertexIndex::new(T::one());
+    pub(crate) fn increment_surface_idx(&mut self) -> VertexIndex<VR> {
+        self.surface_offset += VertexIndex::new(VR::one());
         self.surface_offset
     }
 
-    pub(crate) fn increment_shell_idx(&mut self) -> VertexIndex<T> {
-        self.shell_offset += VertexIndex::new(T::one());
+    pub(crate) fn increment_shell_idx(&mut self) -> VertexIndex<VR> {
+        self.shell_offset += VertexIndex::new(VR::one());
         self.shell_offset
     }
 
-    pub(crate) fn increment_solid_idx(&mut self) -> VertexIndex<T> {
-        self.solid_offset += VertexIndex::new(T::one());
+    pub(crate) fn increment_solid_idx(&mut self) -> VertexIndex<VR> {
+        self.solid_offset += VertexIndex::new(VR::one());
         self.solid_offset
     }
 
     // Get current offsets without incrementing
-    pub(crate) fn vertex_offset(&self) -> VertexIndex<T> {
+    pub(crate) fn vertex_offset(&self) -> VertexIndex<VR> {
         self.vertex_offset
     }
 
-    pub(crate) fn ring_offset(&self) -> VertexIndex<T> {
+    pub(crate) fn ring_offset(&self) -> VertexIndex<VR> {
         self.ring_offset
     }
 
-    pub(crate) fn surface_offset(&self) -> VertexIndex<T> {
+    pub(crate) fn surface_offset(&self) -> VertexIndex<VR> {
         self.surface_offset
     }
 
-    pub(crate) fn shell_offset(&self) -> VertexIndex<T> {
+    pub(crate) fn shell_offset(&self) -> VertexIndex<VR> {
         self.shell_offset
     }
 
-    pub(crate) fn solid_offset(&self) -> VertexIndex<T> {
+    pub(crate) fn solid_offset(&self) -> VertexIndex<VR> {
         self.solid_offset
     }
 }
