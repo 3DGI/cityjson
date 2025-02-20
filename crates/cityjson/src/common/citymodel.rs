@@ -19,7 +19,7 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
-    Sem: Semantic<VR, SS>,
+    Sem: Semantic<RR, SS>,
     Mat: Material<SS>,
     Tex: Texture<SS>
 {
@@ -48,7 +48,7 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
-    Sem: Semantic<VR, SS>,
+    Sem: Semantic<RR, SS>,
     Mat: Material<SS>,
     Tex: Texture<SS>
 {
@@ -172,7 +172,7 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
-    Sem: Semantic<VR, SS>,
+    Sem: Semantic<RR, SS>,
     Mat: Material<SS>,
     Tex: Texture<SS>
 {

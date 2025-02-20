@@ -5,20 +5,21 @@ use crate::common::attributes::Attributes;
 use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 use crate::common::semantic::SemanticType;
 use crate::common::storage::StringStorage;
+use crate::resources::pool::ResourceRef;
 
 #[derive(Debug, Clone)]
-pub struct Semantic<VR: VertexRef, SS: StringStorage> {
+pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// The type of the semantic surface
     type_semantic: SemanticType,
     /// Indices to child semantics in the global semantics pool
-    children: Option<VertexIndices<VR>>,
+    children: Option<Vec<RR>>,
     /// Index to parent semantic in the global semantics pool
-    parent: Option<VertexIndex<VR>>,
+    parent: Option<RR>,
     /// Additional attributes of the semantic surface
     attributes: Option<Attributes<SS>>,
 }
 
-impl<VR: VertexRef, SS: StringStorage> crate::common::semantic::Semantic<VR, SS> for Semantic<VR, SS> {
+impl<RR: ResourceRef, SS: StringStorage> crate::common::semantic::Semantic<RR, SS> for Semantic<RR, SS> {
     /// Create a new semantic with the given type
     #[inline]
     fn new(type_semantic: SemanticType) -> Self {
@@ -41,25 +42,25 @@ impl<VR: VertexRef, SS: StringStorage> crate::common::semantic::Semantic<VR, SS>
     }
     /// Returns a reference to the children indices if they exist
     #[inline]
-    fn children(&self) -> Option<&VertexIndices<VR>> {
+    fn children(&self) -> Option<&Vec<RR>> {
         self.children.as_ref()
     }
     /// Returns a mutable reference to the children indices, creating default indices if they do not exist
     #[inline]
-    fn children_mut(&mut self) -> &mut VertexIndices<VR> {
+    fn children_mut(&mut self) -> &mut Vec<RR> {
         if self.children.is_none() {
-            self.children = Some(VertexIndices::new());
+            self.children = Some(Vec::new());
         }
         self.children.as_mut().unwrap()
     }
     /// Returns a reference to the parent index if it exists
     #[inline]
-    fn parent(&self) -> Option<&VertexIndex<VR>> {
+    fn parent(&self) -> Option<&RR> {
         self.parent.as_ref()
     }
     /// Returns a mutable reference to the parent index if it exists
     #[inline]
-    fn parent_mut(&mut self) -> Option<&mut VertexIndex<VR>> {
+    fn parent_mut(&mut self) -> Option<&mut RR> {
         self.parent.as_mut()
     }
     /// Returns a reference to the attributes if they exist
