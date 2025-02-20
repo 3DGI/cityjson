@@ -3,7 +3,8 @@
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 use crate::common::citymodel::GenericCityModel;
 use crate::common::storage::OwnedStringStorage;
-use crate::resources::pool::{DefaultResourcePool, ResourceRef};
+use crate::resources::pool::DefaultResourcePool;
+use crate::v1_1::geometry::Geometry;
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::Semantic;
 use crate::v1_1::texture::Texture;
@@ -14,6 +15,9 @@ pub type CityModel<VR, RR, SS> = GenericCityModel<
     DefaultResourcePool<Semantic<VR, SS>, RR>,
     DefaultResourcePool<Material<SS>, RR>,
     DefaultResourcePool<Texture<SS>, RR>,
-    OwnedStringStorage, Semantic<VR, SS>, Material<SS>, Texture<SS>,
+    OwnedStringStorage,
+    Geometry<VR, RR>,
+    Semantic<VR, SS>,
+    Material<SS>,
+    Texture<SS>,
 >;
-

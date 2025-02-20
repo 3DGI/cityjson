@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
+use crate::common::geometry::GeometryTrait;
 use crate::common::storage::StringStorage;
 use crate::errors;
 use crate::index::{VertexIndex, VertexRef};
@@ -11,7 +12,7 @@ use crate::common::semantic::Semantic;
 use crate::common::texture::Texture;
 
 #[derive(Debug)]
-pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
+pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -19,6 +20,7 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
+    Geo: GeometryTrait<VR, RR, SS>,
     Sem: Semantic<RR, SS>,
     Mat: Material<SS>,
     Tex: Texture<SS>
@@ -33,14 +35,15 @@ where
     textures: RPT,
     vertices_texture: Vertices<VR, UVCoordinate>,
     /// Collection of geometries
-    pub(crate) geometries: Vec<Geometry<VR, RR>>,
+    pub(crate) geometries: Vec<Geo>,
     extra: Option<Attributes<SS>>,
+    _phantom_rr: PhantomData<RR>,
     _phantom_sem: PhantomData<Sem>,
     _phantom_mat: PhantomData<Mat>,
     _phantom_tex: PhantomData<Tex>
 }
 
-impl<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -48,8 +51,9 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
-    Sem: Semantic<RR, SS>,
+    Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
+    Sem: Semantic<RR, SS>,
     Tex: Texture<SS>
 {
     /// Create a new empty CityModel
@@ -62,6 +66,7 @@ where
             vertices_texture: Vertices::new(),
             geometries: Vec::new(),
             extra: None,
+            _phantom_rr: Default::default(),
             _phantom_sem: Default::default(),
             _phantom_mat: Default::default(),
             _phantom_tex: Default::default(),
@@ -84,6 +89,7 @@ where
             vertices_texture: Vertices::new(),
             geometries: Vec::with_capacity(geometry_capacity),
             extra: None,
+            _phantom_rr: Default::default(),
             _phantom_sem: Default::default(),
             _phantom_mat: Default::default(),
             _phantom_tex: Default::default(),
@@ -130,7 +136,7 @@ where
     }
 
     /// Add a geometry to the model
-    pub fn add_geometry(&mut self, geometry: Geometry<VR, RR>) {
+    pub fn add_geometry(&mut self, geometry: Geo) {
         self.geometries.push(geometry);
     }
 
@@ -164,7 +170,7 @@ where
 }
 
 // Implement default for convenience
-impl<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Sem, Mat, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -172,8 +178,9 @@ where
     RPM: ResourcePool<Mat, RR>,
     RPT: ResourcePool<Tex, RR>,
     SS: StringStorage,
-    Sem: Semantic<RR, SS>,
+    Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
+    Sem: Semantic<RR, SS>,
     Tex: Texture<SS>
 {
     fn default() -> Self {
