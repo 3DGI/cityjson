@@ -652,6 +652,7 @@ mod tests {
     use super::*;
     use crate::common::attributes::AttributeValue;
     use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
+    use crate::common::semantic::Semantic;
     use crate::common::storage::OwnedStringStorage;
     use crate::resources::pool::ResourceId32;
     use crate::v1_1::citymodel::CityModel;
