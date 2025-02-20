@@ -2,7 +2,6 @@
 //!
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
 use crate::common::attributes::Attributes;
-use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
 use crate::common::semantic::SemanticType;
 use crate::common::storage::StringStorage;
 use crate::resources::pool::ResourceRef;

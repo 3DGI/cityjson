@@ -4,7 +4,7 @@ pub mod semantics;
 pub mod textures;
 
 use crate::common::boundary::BoundaryType;
-use crate::index::VertexRef;
+use crate::common::index::{VertexIndex, VertexRef};
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;
@@ -23,8 +23,8 @@ pub(crate) struct SemanticOrMaterialMap<VR: VertexRef, RR: ResourceRef> {
     /// Each item corresponds to the surface with the same index, the value
     /// of the item is the index of the Semantic or Material object.
     pub(crate) surfaces: Vec<Option<RR>>,
-    pub(crate) shells: Vec<VR>,
-    pub(crate) solids: Vec<VR>,
+    pub(crate) shells: Vec<VertexIndex<VR>>,
+    pub(crate) solids: Vec<VertexIndex<VR>>,
 }
 
 impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
