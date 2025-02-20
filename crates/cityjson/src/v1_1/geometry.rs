@@ -439,7 +439,7 @@ where
         match self.type_geometry {
             GeometryType::MultiPoint => {
                 // Set vertex indices directly for multipoint
-                boundary.vertices = VertexIndices::from_iter(vertex_indices.clone());
+                boundary.vertices = vertex_indices.clone();
 
                 // Create point semantics mapping
                 if !self.point_semantics.is_empty() {
@@ -463,8 +463,8 @@ where
                         counter.increment_vertex_idx();
                     }
                 }
-                boundary.vertices = VertexIndices::from_iter(vertex_list);
-                boundary.rings = VertexIndices::from_iter(ring_indices);
+                boundary.vertices = vertex_list;
+                boundary.rings = ring_indices;
 
                 // Create linestring semantics mapping
                 if !self.linestring_semantics.is_empty() {
@@ -487,8 +487,8 @@ where
                         counter.increment_vertex_idx();
                     }
                 }
-                boundary.vertices = VertexIndices::from_iter(vertex_list);
-                boundary.rings = VertexIndices::from_iter(ring_indices.clone());
+                boundary.vertices = vertex_list;
+                boundary.rings = ring_indices.clone();
 
                 // Process surfaces with their rings
                 let mut surface_indices = Vec::new();
@@ -508,7 +508,7 @@ where
                         }
                     }
                 }
-                boundary.surfaces = VertexIndices::from_iter(surface_indices);
+                boundary.surfaces = surface_indices;
 
                 // Create surface semantics mapping
                 if !self.surface_semantics.is_empty() {
@@ -539,7 +539,7 @@ where
                     }
                 }
                 if !shell_indices.is_empty() {
-                    boundary.shells = VertexIndices::from_iter(shell_indices);
+                    boundary.shells = shell_indices;
                 }
 
                 // Process solids with their shells
@@ -556,7 +556,7 @@ where
                     }
                 }
                 if !solid_indices.is_empty() {
-                    boundary.solids = VertexIndices::from_iter(solid_indices);
+                    boundary.solids = solid_indices;
                 }
             }
         }
@@ -653,6 +653,7 @@ mod tests {
     use crate::common::attributes::AttributeValue;
     use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     use crate::common::storage::OwnedStringStorage;
+    use crate::resources::pool::ResourceId32;
     use crate::v1_1::citymodel::CityModel;
 
     #[test]

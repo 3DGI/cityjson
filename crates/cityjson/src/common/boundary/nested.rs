@@ -1,5 +1,5 @@
 use crate::common::boundary::Boundary;
-use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
+use crate::common::index::{VertexIndex, VertexRef};
 
 // Type aliases for u16
 pub type BoundaryNestedMultiPoint16 = Vec<u16>;
@@ -47,9 +47,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
         if value.is_empty() {
             Self::default()
         } else {
-            let mut vertices = VertexIndices::new();
-            let vi = VertexIndex::<T>::try_from(value.len()).unwrap();
-            let mut rings = VertexIndices::with_capacity(vi);
+            let mut vertices = Vec::new();
+            let mut rings = Vec::with_capacity(value.len());
             let mut ring_start = VertexIndex::new(T::zero());
             for ring in &value {
                 rings.push(ring_start);
@@ -96,7 +95,7 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
         for surface in value {
             boundary
                 .surfaces
-                .push(VertexIndex::new(boundary.rings.len()));
+                .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
 
             for ring in surface {
                 boundary.rings.push(vertex_idx);
@@ -148,12 +147,12 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
         for shell in value {
             boundary
                 .shells
-                .push(VertexIndex::new(boundary.surfaces.len()));
+                .push(VertexIndex::<T>::try_from(boundary.surfaces.len()).unwrap());
 
             for surface in shell {
                 boundary
                     .surfaces
-                    .push(VertexIndex::new(boundary.rings.len()));
+                    .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
 
                 for ring in surface {
                     boundary.rings.push(vertex_idx);
@@ -221,17 +220,17 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
         for solid in value {
             boundary
                 .solids
-                .push(VertexIndex::new(boundary.shells.len()));
+                .push(VertexIndex::<T>::try_from(boundary.shells.len()).unwrap());
 
             for shell in solid {
                 boundary
                     .shells
-                    .push(VertexIndex::new(boundary.surfaces.len()));
+                    .push(VertexIndex::<T>::try_from(boundary.surfaces.len()).unwrap());
 
                 for surface in shell {
                     boundary
                         .surfaces
-                        .push(VertexIndex::new(boundary.rings.len()));
+                        .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
 
                     for ring in surface {
                         boundary.rings.push(vertex_idx);

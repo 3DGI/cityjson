@@ -354,6 +354,26 @@ impl<T: VertexRef> TryFrom<usize> for VertexIndex<T> {
 // Collection types and implementations
 //------------------------------------------------------------------------------
 
+/// A trait for converting a `Vec<T>` to a `Vec<VertexIndex<T>>`.
+///
+/// This trait provides a convenient way to convert a vector of raw indices into a vector of wrapped indices.
+pub trait VertexIndexVec<T>
+where
+    T: VertexRef,
+{
+    /// Convert a `Vec<T>` into a `Vec<VertexIndex<T>>`.
+    fn to_vertex_indices(self) -> Vec<VertexIndex<T>>;
+}
+
+impl<T> VertexIndexVec<T> for Vec<T>
+where
+    T: VertexRef,
+{
+    fn to_vertex_indices(self) -> Vec<VertexIndex<T>> {
+        self.into_iter().map(VertexIndex::new).collect()
+    }
+}
+
 pub type VertexIndices16 = VertexIndices<u16>;
 pub type VertexIndices32 = VertexIndices<u32>;
 pub type VertexIndices64 = VertexIndices<u64>;

@@ -1,7 +1,7 @@
 pub mod nested;
 
 use crate::common::boundary::nested::*;
-use crate::common::index::{VertexIndex, VertexIndices, VertexRef};
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
@@ -12,15 +12,15 @@ use crate::errors;
 #[allow(unused)]
 pub struct Boundary<VR: VertexRef> {
     /// Vertex indices that point to the global Vertices buffer.
-    pub(crate) vertices: VertexIndices<VR>,
+    pub(crate) vertices: Vec<VertexIndex<VR>>,
     /// Vertex offsets that mark the start of each ring. The values point to this Boundary's vertices.
-    pub(crate) rings: VertexIndices<VR>,
+    pub(crate) rings: Vec<VertexIndex<VR>>,
     /// Ring offsets that mark the start of each surface. The values point to this Boundary's rings.
-    pub(crate) surfaces: VertexIndices<VR>,
+    pub(crate) surfaces: Vec<VertexIndex<VR>>,
     /// Surface offsets that mark the start of each shell. The values point to this Boundary's surfaces.
-    pub(crate) shells: VertexIndices<VR>,
+    pub(crate) shells: Vec<VertexIndex<VR>>,
     /// Shell offsets that mark the start of each solid. The values point to this Boundary's shells.
-    pub(crate) solids: VertexIndices<VR>,
+    pub(crate) solids: Vec<VertexIndex<VR>>,
 }
 
 impl<VR: VertexRef> Boundary<VR> {
@@ -38,11 +38,11 @@ impl<VR: VertexRef> Boundary<VR> {
         solids: VertexIndex<VR>,
     ) -> Self {
         Self {
-            vertices: VertexIndices::with_capacity(vertices),
-            rings: VertexIndices::with_capacity(rings),
-            surfaces: VertexIndices::with_capacity(surfaces),
-            shells: VertexIndices::with_capacity(shells),
-            solids: VertexIndices::with_capacity(solids),
+            vertices: Vec::with_capacity(vertices.to_usize()),
+            rings: Vec::with_capacity(rings.to_usize()),
+            surfaces: Vec::with_capacity(surfaces.to_usize()),
+            shells: Vec::with_capacity(shells.to_usize()),
+            solids: Vec::with_capacity(solids.to_usize()),
         }
     }
 
@@ -66,7 +66,7 @@ impl<VR: VertexRef> Boundary<VR> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
             let mut counter = BoundaryCounter::<VR>::default();
-            let mut ml = BoundaryNestedMultiLineString::with_capacity(self.rings.len_usize());
+            let mut ml = BoundaryNestedMultiLineString::with_capacity(self.rings.len());
             self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter);
             Ok(ml)
         } else {
@@ -86,7 +86,7 @@ impl<VR: VertexRef> Boundary<VR> {
         if boundary_type == BoundaryType::MultiOrCompositeSurface {
             let mut counter = BoundaryCounter::<VR>::default();
             let mut mc_surface =
-                BoundaryNestedMultiOrCompositeSurface::with_capacity(self.surfaces.len_usize());
+                BoundaryNestedMultiOrCompositeSurface::with_capacity(self.surfaces.len());
             self.push_surfaces_to_multi_surface(
                 self.surfaces.as_slice(),
                 &mut mc_surface,
@@ -107,7 +107,7 @@ impl<VR: VertexRef> Boundary<VR> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::Solid {
             let mut counter = BoundaryCounter::<VR>::default();
-            let mut solid = BoundaryNestedSolid::with_capacity(self.shells.len_usize());
+            let mut solid = BoundaryNestedSolid::with_capacity(self.shells.len());
             self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter);
             Ok(solid)
         } else {
@@ -127,16 +127,16 @@ impl<VR: VertexRef> Boundary<VR> {
         if boundary_type == BoundaryType::MultiOrCompositeSolid {
             let mut counter = BoundaryCounter::<VR>::default();
             let mut mc_solid =
-                BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len_usize());
+                BoundaryNestedMultiOrCompositeSolid::with_capacity(self.solids.len());
             for &shells_start_i in &self.solids {
-                let shells_len = VertexIndex::new(self.shells.len());
+                let shells_len = VertexIndex::<VR>::try_from(self.shells.len())?;
                 let shells_end_i = self
                     .solids
-                    .get(counter.increment_solid_idx())
+                    .get(counter.increment_solid_idx().to_usize())
                     .copied()
                     .unwrap_or(shells_len);
 
-                if let Some(shells) = self.shells.get_range(shells_start_i..shells_end_i) {
+                if let Some(shells) = self.shells.get(shells_start_i.to_usize()..shells_end_i.to_usize()) {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
                     self.push_shells_to_solid(shells, &mut solid, &mut counter);
                     mc_solid.push(solid);
@@ -158,14 +158,14 @@ impl<VR: VertexRef> Boundary<VR> {
         counter: &mut BoundaryCounter<VR>,
     ) {
         for &surfaces_start_i in shells {
-            let surfaces_len = VertexIndex::new(self.surfaces.len());
+            let surfaces_len = VertexIndex::<VR>::try_from(self.surfaces.len()).unwrap();
             let surfaces_end_i = self
                 .shells
-                .get(counter.increment_shell_idx())
+                .get(counter.increment_shell_idx().to_usize())
                 .copied()
                 .unwrap_or(surfaces_len);
 
-            if let Some(surfaces) = self.surfaces.get_range(surfaces_start_i..surfaces_end_i) {
+            if let Some(surfaces) = self.surfaces.get(surfaces_start_i.to_usize()..surfaces_end_i.to_usize()) {
                 let mut mc_surface =
                     BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
                 self.push_surfaces_to_multi_surface(surfaces, &mut mc_surface, counter);
@@ -181,14 +181,14 @@ impl<VR: VertexRef> Boundary<VR> {
         counter: &mut BoundaryCounter<VR>,
     ) {
         for &ring_start_i in surfaces {
-            let rings_len = VertexIndex::new(self.rings.len());
+            let rings_len = VertexIndex::<VR>::try_from(self.rings.len()).unwrap();
             let ring_end_i = self
                 .surfaces
-                .get(counter.increment_surface_idx())
+                .get(counter.increment_surface_idx().to_usize())
                 .copied()
                 .unwrap_or(rings_len);
 
-            if let Some(rings) = self.rings.get_range(ring_start_i..ring_end_i) {
+            if let Some(rings) = self.rings.get(ring_start_i.to_usize()..ring_end_i.to_usize()) {
                 let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
                 self.push_rings_to_surface(rings, &mut surface, counter);
                 mc_surface.push(surface);
@@ -203,13 +203,13 @@ impl<VR: VertexRef> Boundary<VR> {
         counter: &mut BoundaryCounter<VR>,
     ) {
         for &vertices_start_i in rings {
-            let vertices_len = VertexIndex::new(self.vertices.len());
+            let vertices_len = VertexIndex::<VR>::try_from(self.vertices.len()).unwrap();
             let vertices_end_i = self
                 .rings
-                .get(counter.increment_ring_idx())
+                .get(counter.increment_ring_idx().to_usize())
                 .copied()
                 .unwrap_or(vertices_len);
-            if let Some(vertices) = self.vertices.get_range(vertices_start_i..vertices_end_i) {
+            if let Some(vertices) = self.vertices.get(vertices_start_i.to_usize()..vertices_end_i.to_usize()) {
                 surface.push(vertices.iter().map(|v| v.value()).collect());
             }
         }
@@ -243,8 +243,8 @@ impl<VR: VertexRef> Boundary<VR> {
 
         // Check ring indices point to valid vertices
         for window in self.rings.windows(2) {
-            let start = window[0].value();
-            let end = window[1].value();
+            let start = window[0].to_usize();
+            let end = window[1].to_usize();
 
             if start >= end || end > vertices_len {
                 return false;
@@ -253,8 +253,8 @@ impl<VR: VertexRef> Boundary<VR> {
 
         // Check surface indices point to valid rings
         for window in self.surfaces.windows(2) {
-            let start = window[0].value();
-            let end = window[1].value();
+            let start = window[0].to_usize();
+            let end = window[1].to_usize();
 
             if start >= end || end > rings_len {
                 return false;
@@ -263,8 +263,8 @@ impl<VR: VertexRef> Boundary<VR> {
 
         // Check shell indices point to valid surfaces
         for window in self.shells.windows(2) {
-            let start = window[0].value();
-            let end = window[1].value();
+            let start = window[0].to_usize();
+            let end = window[1].to_usize();
 
             if start >= end || end > surfaces_len {
                 return false;
@@ -273,8 +273,8 @@ impl<VR: VertexRef> Boundary<VR> {
 
         // Check solid indices point to valid shells
         for window in self.solids.windows(2) {
-            let start = window[0].value();
-            let end = window[1].value();
+            let start = window[0].to_usize();
+            let end = window[1].to_usize();
 
             if start >= end || end > shells_len {
                 return false;
@@ -377,12 +377,12 @@ pub type Boundary64 = Boundary<u64>;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::common::index::VertexIndices32;
+    use crate::index::VertexIndexVec;
 
     #[test]
     fn multipoint() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![0u32, 3, 2, 1]),
+            vertices: vec![0u32, 3, 2, 1].to_vertex_indices(),
             ..Default::default()
         };
         let mp_nested = boundary.to_nested_multi_point().unwrap();
@@ -392,8 +392,8 @@ mod test {
     #[test]
     fn multilinestring_basic() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![0, 3, 2, 1, 4, 5, 6, 7, 8]),
-            rings: VertexIndices32::from(vec![0, 4, 7]),
+            vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7, 8].to_vertex_indices(),
+            rings: vec![0u32, 4, 7].to_vertex_indices(),
             ..Default::default()
         };
         let nested = boundary.to_nested_multi_linestring().unwrap();
@@ -403,8 +403,8 @@ mod test {
     #[test]
     fn multilinestring_empty() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![0, 3, 2, 1, 4, 5, 6, 7]),
-            rings: VertexIndices32::from(vec![0, 4, 4, 8]),
+            vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7].to_vertex_indices(),
+            rings: vec![0u32, 4, 4, 8].to_vertex_indices(),
             ..Default::default()
         };
         let nested = boundary.to_nested_multi_linestring().unwrap();
@@ -418,7 +418,7 @@ mod test {
     fn from_multilinestring_empty_last() {
         let ml_nested: BoundaryNestedMultiLineString<u32> = vec![vec![0, 1, 2, 3], vec![]];
         let boundary = Boundary::from(ml_nested);
-        assert_eq!(boundary.rings, VertexIndices32::from_iter(vec![0_u32, 4]))
+        assert_eq!(boundary.rings, vec![0u32, 4].to_vertex_indices())
     }
 
     #[test]
@@ -428,18 +428,18 @@ mod test {
         let boundary = Boundary::from(ml_nested);
         assert_eq!(
             boundary.rings,
-            VertexIndices32::from_iter(vec![0u32, 4, 4, 8])
+            vec![0u32, 4, 4, 8].to_vertex_indices()
         )
     }
 
     #[test]
     fn multi_or_composite_surface_inner_ring() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ]),
-            rings: VertexIndices32::from(vec![0, 4, 8, 12, 16, 19]),
-            surfaces: VertexIndices32::from(vec![0, 3, 4]),
+            vertices: vec![
+                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            ].to_vertex_indices(),
+            rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
+            surfaces: vec![0u32, 3, 4].to_vertex_indices(),
             ..Default::default()
         };
         let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
@@ -456,12 +456,12 @@ mod test {
     #[test]
     fn solid() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ]),
-            rings: VertexIndices32::from(vec![0, 4, 8, 12, 16, 19]),
-            surfaces: VertexIndices32::from(vec![0, 3, 4]),
-            shells: VertexIndices32::from(vec![0, 2]),
+            vertices: vec![
+                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            ].to_vertex_indices(),
+            rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
+            surfaces: vec![0u32, 3, 4].to_vertex_indices(),
+            shells: vec![0u32, 2].to_vertex_indices(),
             ..Default::default()
         };
         let nested = boundary.to_nested_solid().unwrap();
@@ -480,14 +480,14 @@ mod test {
     #[test]
     fn multi_or_composite_solid() {
         let boundary = Boundary {
-            vertices: VertexIndices32::from(vec![
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            vertices: vec![
+                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28,
-            ]),
-            rings: VertexIndices32::from(vec![0, 4, 8, 12, 16, 19, 23, 26]),
-            surfaces: VertexIndices32::from(vec![0, 3, 4, 6, 7]),
-            shells: VertexIndices32::from(vec![0, 2, 3]),
-            solids: VertexIndices32::from(vec![0, 2]),
+            ].to_vertex_indices(),
+            rings: vec![0u32, 4, 8, 12, 16, 19, 23, 26].to_vertex_indices(),
+            surfaces: vec![0u32, 3, 4, 6, 7].to_vertex_indices(),
+            shells: vec![0u32, 2, 3].to_vertex_indices(),
+            solids: vec![0u32, 2].to_vertex_indices(),
         };
         let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
         assert_eq!(
