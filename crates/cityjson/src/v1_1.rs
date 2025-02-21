@@ -4,8 +4,9 @@
 pub mod citymodel;
 pub mod cityobject;
 pub mod geometry;
-pub mod material;
+
 pub mod metadata;
 pub mod semantic;
-pub mod texture;
+
+pub mod appearance;
 pub mod transform;

@@ -11,8 +11,8 @@ use crate::resources::storage::StringStorage;
 use std::collections::HashMap;
 
 use crate::cityjson::appearance::material::Material;
-use crate::cityjson::geometry::semantic::Semantic;
 use crate::cityjson::appearance::texture::Texture;
+use crate::cityjson::geometry::semantic::Semantic;
 
 pub mod boundary;
 pub mod semantic;

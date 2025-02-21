@@ -1,8 +1,8 @@
+use crate::cityjson::appearance::material::Material;
+use crate::cityjson::appearance::texture::Texture;
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
-use crate::cityjson::appearance::material::Material;
 use crate::cityjson::geometry::semantic::Semantic;
-use crate::cityjson::appearance::texture::Texture;
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;

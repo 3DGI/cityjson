@@ -4,10 +4,10 @@
 use crate::cityjson::citymodel::GenericCityModel;
 use crate::resources::pool::DefaultResourcePool;
 use crate::resources::storage::OwnedStringStorage;
+use crate::v1_1::appearance::material::Material;
+use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::Geometry;
-use crate::v1_1::material::Material;
 use crate::v1_1::semantic::Semantic;
-use crate::v1_1::texture::Texture;
 
 pub type CityModel<VR, RR, SS> = GenericCityModel<
     VR,
