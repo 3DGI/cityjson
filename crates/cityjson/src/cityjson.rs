@@ -1,15 +1,15 @@
 //! # CityJSON types and traits
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
+pub mod appearance;
 pub mod attributes;
 pub mod citymodel;
 pub mod cityobject;
 pub mod coordinate;
 pub mod geometry;
-pub mod vertex;
 pub mod metadata;
-pub mod appearance;
 pub mod transform;
+pub mod vertex;
 
 #[cfg(test)]
 mod tests {

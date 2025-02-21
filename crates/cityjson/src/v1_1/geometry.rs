@@ -10,6 +10,8 @@ use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 
+pub mod semantic;
+
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub struct Geometry<VR: VertexRef, RR: ResourceRef> {

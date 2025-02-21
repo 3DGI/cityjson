@@ -6,7 +6,6 @@ pub mod cityobject;
 pub mod geometry;
 
 pub mod metadata;
-pub mod semantic;
 
 pub mod appearance;
 pub mod transform;
