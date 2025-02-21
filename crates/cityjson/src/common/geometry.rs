@@ -7,7 +7,7 @@ use crate::common::semantic::SemanticType;
 use crate::common::storage::StringStorage;
 use crate::errors;
 use crate::errors::Error;
-use crate::index::{VertexIndex, VertexRef};
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 

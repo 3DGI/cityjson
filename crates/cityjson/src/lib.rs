@@ -15,5 +15,3 @@ pub mod common;
 pub mod errors;
 pub mod resources;
 pub mod v1_1;
-
-pub use crate::common::index;

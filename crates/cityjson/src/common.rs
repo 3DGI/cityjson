@@ -3,14 +3,17 @@
 //! These types are version-agnostic, as they are not expected to change across versions.
 pub mod attributes;
 pub mod boundary;
+pub mod citymodel;
+pub mod cityobject;
 pub mod coordinate;
-pub mod index;
-pub mod storage;
-pub(crate) mod citymodel;
-pub mod material;
-pub mod texture;
-pub mod semantic;
 pub mod geometry;
+pub mod index;
+pub mod material;
+pub mod metadata;
+pub mod semantic;
+pub mod storage;
+pub mod texture;
+pub mod transform;
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {

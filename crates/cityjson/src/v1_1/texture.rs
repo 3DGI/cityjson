@@ -17,7 +17,6 @@ pub struct Texture<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> crate::common::texture::Texture<SS> for Texture<SS> {
-    /// Create a new texture with the given image and image type
     #[inline]
     fn new(image: SS::String, image_type: ImageType) -> Self {
         Self {
