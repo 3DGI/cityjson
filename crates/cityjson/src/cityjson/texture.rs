@@ -1,4 +1,4 @@
-use crate::common::storage::StringStorage;
+use crate::cityjson::storage::StringStorage;
 
 pub type RGBA = [f32; 4];
 

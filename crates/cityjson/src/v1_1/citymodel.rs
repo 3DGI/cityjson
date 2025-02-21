@@ -1,8 +1,8 @@
 //! # CityModel
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
-use crate::common::citymodel::GenericCityModel;
-use crate::common::storage::OwnedStringStorage;
+use crate::cityjson::citymodel::GenericCityModel;
+use crate::cityjson::storage::OwnedStringStorage;
 use crate::resources::pool::DefaultResourcePool;
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::material::Material;

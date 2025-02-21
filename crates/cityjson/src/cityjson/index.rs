@@ -972,7 +972,7 @@ impl<T: VertexRef> IndexOp<VertexIndex<T>> for OptionalVertexIndices<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::coordinate::RealWorldCoordinate;
+    use crate::cityjson::coordinate::RealWorldCoordinate;
 
     #[test]
     fn test_vertex_index_creation() {

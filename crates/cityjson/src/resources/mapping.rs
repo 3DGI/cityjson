@@ -3,8 +3,8 @@ pub mod materials;
 pub mod semantics;
 pub mod textures;
 
-use crate::common::boundary::BoundaryType;
-use crate::common::index::{VertexIndex, VertexRef};
+use crate::cityjson::boundary::BoundaryType;
+use crate::cityjson::index::{VertexIndex, VertexRef};
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;

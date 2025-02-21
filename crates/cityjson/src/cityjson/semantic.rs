@@ -1,5 +1,5 @@
-use crate::common::attributes::Attributes;
-use crate::common::storage::StringStorage;
+use crate::cityjson::attributes::Attributes;
+use crate::cityjson::storage::StringStorage;
 use crate::resources::pool::ResourceRef;
 
 /// Semantic surface type.

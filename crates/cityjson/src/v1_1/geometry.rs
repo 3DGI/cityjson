@@ -1,12 +1,12 @@
 //! # Geometry
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
-use crate::common::boundary::Boundary;
-use crate::common::geometry::GeometryTrait;
-use crate::common::index::VertexRef;
-use crate::common::semantic::SemanticType;
-use crate::common::storage::StringStorage;
-use crate::common::{GeometryType, LoD};
+use crate::cityjson::boundary::Boundary;
+use crate::cityjson::geometry::GeometryTrait;
+use crate::cityjson::index::VertexRef;
+use crate::cityjson::semantic::SemanticType;
+use crate::cityjson::storage::StringStorage;
+use crate::cityjson::{GeometryType, LoD};
 use crate::errors::Result;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
@@ -56,11 +56,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::attributes::AttributeValue;
-    use crate::common::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
-    use crate::common::geometry::GeometryBuilder;
-    use crate::common::semantic::Semantic;
-    use crate::common::storage::OwnedStringStorage;
+    use crate::cityjson::attributes::AttributeValue;
+    use crate::cityjson::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
+    use crate::cityjson::geometry::GeometryBuilder;
+    use crate::cityjson::semantic::Semantic;
+    use crate::cityjson::storage::OwnedStringStorage;
     use crate::resources::pool::ResourceId32;
     use crate::v1_1::citymodel::CityModel;
 

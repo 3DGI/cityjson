@@ -1,19 +1,19 @@
-use crate::common::boundary::{Boundary, BoundaryCounter};
-use crate::common::citymodel::GenericCityModel;
-use crate::common::coordinate::RealWorldCoordinate;
-use crate::common::index::{VertexIndex, VertexRef};
-use crate::common::semantic::SemanticType;
-use crate::common::storage::StringStorage;
-use crate::common::{GeometryType, LoD};
+use crate::cityjson::boundary::{Boundary, BoundaryCounter};
+use crate::cityjson::citymodel::GenericCityModel;
+use crate::cityjson::coordinate::RealWorldCoordinate;
+use crate::cityjson::index::{VertexIndex, VertexRef};
+use crate::cityjson::semantic::SemanticType;
+use crate::cityjson::storage::StringStorage;
+use crate::cityjson::{GeometryType, LoD};
 use crate::errors;
 use crate::errors::Error;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use std::collections::HashMap;
 
-use crate::common::material::Material;
-use crate::common::semantic::Semantic;
-use crate::common::texture::Texture;
+use crate::cityjson::material::Material;
+use crate::cityjson::semantic::Semantic;
+use crate::cityjson::texture::Texture;
 
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Create a new geometry given the parts

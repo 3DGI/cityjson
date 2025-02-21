@@ -1,6 +1,6 @@
 //! # Resource pool
 
-use crate::common::index::{VertexIndex, VertexRef};
+use crate::cityjson::index::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;

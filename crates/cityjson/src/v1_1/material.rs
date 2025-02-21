@@ -2,8 +2,8 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-use crate::common::material::RGB;
-use crate::common::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::cityjson::material::RGB;
+use crate::cityjson::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedMaterial = Material<OwnedStringStorage>;
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
@@ -20,7 +20,7 @@ pub struct Material<SS: StringStorage> {
     is_smooth: Option<bool>,
 }
 
-impl<SS: StringStorage> crate::common::material::Material<SS> for Material<SS> {
+impl<SS: StringStorage> crate::cityjson::material::Material<SS> for Material<SS> {
     fn new(name: SS::String) -> Self {
         Self {
             name,
@@ -102,7 +102,7 @@ impl<SS: StringStorage> crate::common::material::Material<SS> for Material<SS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::material::Material;
+    use crate::cityjson::material::Material;
 
     #[test]
     fn test_owned_material() {

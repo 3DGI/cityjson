@@ -1,9 +1,9 @@
 //! # Semantics
 //!
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
-use crate::common::attributes::Attributes;
-use crate::common::semantic::SemanticType;
-use crate::common::storage::StringStorage;
+use crate::cityjson::attributes::Attributes;
+use crate::cityjson::semantic::SemanticType;
+use crate::cityjson::storage::StringStorage;
 use crate::resources::pool::ResourceRef;
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     attributes: Option<Attributes<SS>>,
 }
 
-impl<RR: ResourceRef, SS: StringStorage> crate::common::semantic::Semantic<RR, SS>
+impl<RR: ResourceRef, SS: StringStorage> crate::cityjson::semantic::Semantic<RR, SS>
     for Semantic<RR, SS>
 {
     /// Create a new semantic with the given type

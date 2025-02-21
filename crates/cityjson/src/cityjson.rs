@@ -1,4 +1,4 @@
-//! # Common CityJSON types.
+//! # CityJSON types and traits
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
 pub mod attributes;
@@ -53,7 +53,7 @@ pub enum LoD {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::{GeometryType, LoD};
+    use crate::cityjson::{GeometryType, LoD};
     #[test]
     fn test_geometry_type_equality() {
         assert_eq!(GeometryType::MultiPoint, GeometryType::MultiPoint);

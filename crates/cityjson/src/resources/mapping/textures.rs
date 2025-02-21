@@ -1,4 +1,4 @@
-use crate::common::index::{VertexIndex, VertexRef};
+use crate::cityjson::index::{VertexIndex, VertexRef};
 use crate::resources::pool::ResourceRef;
 
 /// Maps geometry vertices to texture coordinates and textures
