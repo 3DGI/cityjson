@@ -101,8 +101,8 @@ impl<SS: StringStorage> crate::common::material::Material<SS> for Material<SS> {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::material::Material;
     use super::*;
+    use crate::common::material::Material;
 
     #[test]
     fn test_owned_material() {

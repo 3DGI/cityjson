@@ -1,18 +1,18 @@
-use std::collections::HashMap;
-use crate::common::citymodel::GenericCityModel;
-use crate::common::{GeometryType, LoD};
 use crate::common::boundary::{Boundary, BoundaryCounter};
+use crate::common::citymodel::GenericCityModel;
 use crate::common::coordinate::RealWorldCoordinate;
+use crate::common::index::{VertexIndex, VertexRef};
 use crate::common::semantic::SemanticType;
 use crate::common::storage::StringStorage;
+use crate::common::{GeometryType, LoD};
 use crate::errors;
 use crate::errors::Error;
-use crate::common::index::{VertexIndex, VertexRef};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
+use std::collections::HashMap;
 
-use crate::common::semantic::Semantic;
 use crate::common::material::Material;
+use crate::common::semantic::Semantic;
 use crate::common::texture::Texture;
 
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
@@ -60,7 +60,7 @@ pub struct GeometryBuilder<
     Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
     Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>
+    Tex: Texture<SS>,
 > {
     model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>,
     type_geometry: GeometryType,
@@ -85,7 +85,8 @@ pub struct GeometryBuilder<
     surface_textures: HashMap<usize, RR>,
 }
 
-impl<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex> GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+impl<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+    GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -96,7 +97,7 @@ where
     Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
     Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>
+    Tex: Texture<SS>,
 {
     pub fn new(
         model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>,

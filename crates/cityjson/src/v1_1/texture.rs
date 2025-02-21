@@ -68,4 +68,3 @@ impl<SS: StringStorage> crate::common::texture::Texture<SS> for Texture<SS> {
         self.border_color = border_color;
     }
 }
-

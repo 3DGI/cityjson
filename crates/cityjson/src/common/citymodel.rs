@@ -1,14 +1,14 @@
-use std::marker::PhantomData;
 use crate::common::attributes::Attributes;
 use crate::common::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::common::geometry::GeometryTrait;
-use crate::common::storage::StringStorage;
-use crate::errors;
 use crate::common::index::{VertexIndex, VertexRef};
-use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::common::material::Material;
 use crate::common::semantic::Semantic;
+use crate::common::storage::StringStorage;
 use crate::common::texture::Texture;
+use crate::errors;
+use crate::resources::pool::{ResourcePool, ResourceRef};
+use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
@@ -22,7 +22,7 @@ where
     Geo: GeometryTrait<VR, RR, SS>,
     Sem: Semantic<RR, SS>,
     Mat: Material<SS>,
-    Tex: Texture<SS>
+    Tex: Texture<SS>,
 {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,
@@ -39,10 +39,11 @@ where
     _phantom_rr: PhantomData<RR>,
     _phantom_sem: PhantomData<Sem>,
     _phantom_mat: PhantomData<Mat>,
-    _phantom_tex: PhantomData<Tex>
+    _phantom_tex: PhantomData<Tex>,
 }
 
-impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+    GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -53,7 +54,7 @@ where
     Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
     Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>
+    Tex: Texture<SS>,
 {
     /// Create a new empty CityModel
     pub fn new() -> Self {
@@ -169,7 +170,8 @@ where
 }
 
 // Implement default for convenience
-impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex> GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+impl<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
+    GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
 where
     VR: VertexRef,
     RR: ResourceRef,
@@ -180,7 +182,7 @@ where
     Geo: GeometryTrait<VR, RR, SS>,
     Mat: Material<SS>,
     Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>
+    Tex: Texture<SS>,
 {
     fn default() -> Self {
         Self::new()

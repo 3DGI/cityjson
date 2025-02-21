@@ -1,1 +1,1 @@
-pub trait Metadata{}
+pub trait Metadata {}

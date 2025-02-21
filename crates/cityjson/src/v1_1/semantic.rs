@@ -18,7 +18,9 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     attributes: Option<Attributes<SS>>,
 }
 
-impl<RR: ResourceRef, SS: StringStorage> crate::common::semantic::Semantic<RR, SS> for Semantic<RR, SS> {
+impl<RR: ResourceRef, SS: StringStorage> crate::common::semantic::Semantic<RR, SS>
+    for Semantic<RR, SS>
+{
     /// Create a new semantic with the given type
     #[inline]
     fn new(type_semantic: SemanticType) -> Self {
@@ -76,4 +78,3 @@ impl<RR: ResourceRef, SS: StringStorage> crate::common::semantic::Semantic<RR, S
         self.attributes.as_mut().unwrap()
     }
 }
-

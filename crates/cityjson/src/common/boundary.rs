@@ -136,7 +136,10 @@ impl<VR: VertexRef> Boundary<VR> {
                     .copied()
                     .unwrap_or(shells_len);
 
-                if let Some(shells) = self.shells.get(shells_start_i.to_usize()..shells_end_i.to_usize()) {
+                if let Some(shells) = self
+                    .shells
+                    .get(shells_start_i.to_usize()..shells_end_i.to_usize())
+                {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
                     self.push_shells_to_solid(shells, &mut solid, &mut counter);
                     mc_solid.push(solid);
@@ -165,7 +168,10 @@ impl<VR: VertexRef> Boundary<VR> {
                 .copied()
                 .unwrap_or(surfaces_len);
 
-            if let Some(surfaces) = self.surfaces.get(surfaces_start_i.to_usize()..surfaces_end_i.to_usize()) {
+            if let Some(surfaces) = self
+                .surfaces
+                .get(surfaces_start_i.to_usize()..surfaces_end_i.to_usize())
+            {
                 let mut mc_surface =
                     BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
                 self.push_surfaces_to_multi_surface(surfaces, &mut mc_surface, counter);
@@ -188,7 +194,10 @@ impl<VR: VertexRef> Boundary<VR> {
                 .copied()
                 .unwrap_or(rings_len);
 
-            if let Some(rings) = self.rings.get(ring_start_i.to_usize()..ring_end_i.to_usize()) {
+            if let Some(rings) = self
+                .rings
+                .get(ring_start_i.to_usize()..ring_end_i.to_usize())
+            {
                 let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
                 self.push_rings_to_surface(rings, &mut surface, counter);
                 mc_surface.push(surface);
@@ -209,7 +218,10 @@ impl<VR: VertexRef> Boundary<VR> {
                 .get(counter.increment_ring_idx().to_usize())
                 .copied()
                 .unwrap_or(vertices_len);
-            if let Some(vertices) = self.vertices.get(vertices_start_i.to_usize()..vertices_end_i.to_usize()) {
+            if let Some(vertices) = self
+                .vertices
+                .get(vertices_start_i.to_usize()..vertices_end_i.to_usize())
+            {
                 surface.push(vertices.iter().map(|v| v.value()).collect());
             }
         }
@@ -426,10 +438,7 @@ mod test {
         let ml_nested: BoundaryNestedMultiLineString<u32> =
             vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
         let boundary = Boundary::from(ml_nested);
-        assert_eq!(
-            boundary.rings,
-            vec![0u32, 4, 4, 8].to_vertex_indices()
-        )
+        assert_eq!(boundary.rings, vec![0u32, 4, 4, 8].to_vertex_indices())
     }
 
     #[test]
@@ -437,7 +446,8 @@ mod test {
         let boundary = Boundary {
             vertices: vec![
                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ].to_vertex_indices(),
+            ]
+            .to_vertex_indices(),
             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
             ..Default::default()
@@ -458,7 +468,8 @@ mod test {
         let boundary = Boundary {
             vertices: vec![
                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ].to_vertex_indices(),
+            ]
+            .to_vertex_indices(),
             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
             shells: vec![0u32, 2].to_vertex_indices(),
@@ -481,9 +492,10 @@ mod test {
     fn multi_or_composite_solid() {
         let boundary = Boundary {
             vertices: vec![
-                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-                23, 24, 25, 26, 27, 28,
-            ].to_vertex_indices(),
+                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                22, 23, 24, 25, 26, 27, 28,
+            ]
+            .to_vertex_indices(),
             rings: vec![0u32, 4, 8, 12, 16, 19, 23, 26].to_vertex_indices(),
             surfaces: vec![0u32, 3, 4, 6, 7].to_vertex_indices(),
             shells: vec![0u32, 2, 3].to_vertex_indices(),

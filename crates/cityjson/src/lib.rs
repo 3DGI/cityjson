@@ -14,4 +14,6 @@
 pub mod common;
 pub mod errors;
 pub mod resources;
+pub mod v1_0;
 pub mod v1_1;
+pub mod v2_0;
