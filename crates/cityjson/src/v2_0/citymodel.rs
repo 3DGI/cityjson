@@ -2,8 +2,8 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 use crate::cityjson::citymodel::GenericCityModel;
-use crate::cityjson::storage::OwnedStringStorage;
 use crate::resources::pool::DefaultResourcePool;
+use crate::resources::storage::OwnedStringStorage;
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::material::Material;
 use crate::v1_1::semantic::Semantic;

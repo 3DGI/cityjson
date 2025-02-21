@@ -1,3 +1,4 @@
+//! # String storage
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;

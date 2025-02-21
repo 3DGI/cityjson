@@ -1,6 +1,6 @@
 pub mod nested;
 
-use crate::cityjson::boundary::nested::*;
+use crate::cityjson::geometry::boundary::nested::*;
 use crate::cityjson::index::{VertexIndex, VertexRef};
 use crate::errors;
 

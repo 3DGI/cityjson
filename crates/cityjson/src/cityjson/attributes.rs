@@ -1,4 +1,4 @@
-use crate::cityjson::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::Debug;
 

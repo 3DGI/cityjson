@@ -1,19 +1,23 @@
-use crate::cityjson::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::citymodel::GenericCityModel;
 use crate::cityjson::coordinate::RealWorldCoordinate;
+use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
+use crate::cityjson::geometry::semantic::SemanticType;
 use crate::cityjson::index::{VertexIndex, VertexRef};
-use crate::cityjson::semantic::SemanticType;
-use crate::cityjson::storage::StringStorage;
-use crate::cityjson::{GeometryType, LoD};
 use crate::errors;
 use crate::errors::Error;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
+use crate::resources::storage::StringStorage;
 use std::collections::HashMap;
 
-use crate::cityjson::material::Material;
-use crate::cityjson::semantic::Semantic;
-use crate::cityjson::texture::Texture;
+use crate::cityjson::geometry::material::Material;
+use crate::cityjson::geometry::semantic::Semantic;
+use crate::cityjson::geometry::texture::Texture;
+
+pub mod boundary;
+pub mod material;
+pub mod semantic;
+pub mod texture;
 
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Create a new geometry given the parts
@@ -654,4 +658,40 @@ where
 
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum GeometryType {
+    MultiPoint,
+    MultiLineString,
+    MultiSurface,
+    CompositeSurface,
+    Solid,
+    MultiSolid,
+    CompositeSolid,
+    GeometryInstance,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LoD {
+    LoD0,
+    LoD0_0,
+    LoD0_1,
+    LoD0_2,
+    LoD0_3,
+    LoD1,
+    LoD1_0,
+    LoD1_1,
+    LoD1_2,
+    LoD1_3,
+    LoD2,
+    LoD2_0,
+    LoD2_1,
+    LoD2_2,
+    LoD2_3,
+    LoD3,
+    LoD3_0,
+    LoD3_1,
+    LoD3_2,
+    LoD3_3,
 }

@@ -2,8 +2,8 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-use crate::cityjson::material::RGB;
-use crate::cityjson::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::cityjson::geometry::material::RGB;
+use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedMaterial = Material<OwnedStringStorage>;
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
@@ -20,7 +20,7 @@ pub struct Material<SS: StringStorage> {
     is_smooth: Option<bool>,
 }
 
-impl<SS: StringStorage> crate::cityjson::material::Material<SS> for Material<SS> {
+impl<SS: StringStorage> crate::cityjson::geometry::material::Material<SS> for Material<SS> {
     fn new(name: SS::String) -> Self {
         Self {
             name,

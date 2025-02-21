@@ -1,4 +1,4 @@
-//! # Geometry resources and their management.
+//! # Resource management utilities
 //!
 //! The semantics, materials and textures are commonly referred to as *resources*.
 //! The resources are mapped to geometry boundaries with [mapping::SemanticMap], [mapping::MaterialMap] and [mapping::TextureMap].
@@ -6,3 +6,4 @@
 //! The resources are managed by resource pools that are stored in the CityModel.
 pub mod mapping;
 pub mod pool;
+pub mod storage;

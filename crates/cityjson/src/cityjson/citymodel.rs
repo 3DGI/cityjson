@@ -1,13 +1,13 @@
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
+use crate::cityjson::geometry::material::Material;
+use crate::cityjson::geometry::semantic::Semantic;
+use crate::cityjson::geometry::texture::Texture;
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::index::{VertexIndex, VertexRef};
-use crate::cityjson::material::Material;
-use crate::cityjson::semantic::Semantic;
-use crate::cityjson::storage::StringStorage;
-use crate::cityjson::texture::Texture;
 use crate::errors;
 use crate::resources::pool::{ResourcePool, ResourceRef};
+use crate::resources::storage::StringStorage;
 use std::marker::PhantomData;
 
 #[derive(Debug)]

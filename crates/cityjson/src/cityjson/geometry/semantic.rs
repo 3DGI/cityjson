@@ -1,6 +1,6 @@
 use crate::cityjson::attributes::Attributes;
-use crate::cityjson::storage::StringStorage;
 use crate::resources::pool::ResourceRef;
+use crate::resources::storage::StringStorage;
 
 /// Semantic surface type.
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]

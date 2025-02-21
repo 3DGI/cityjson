@@ -1,4 +1,4 @@
-use crate::cityjson::boundary::Boundary;
+use crate::cityjson::geometry::boundary::Boundary;
 use crate::cityjson::index::{VertexIndex, VertexRef};
 
 // Type aliases for u16

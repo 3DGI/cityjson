@@ -1,4 +1,4 @@
-use crate::cityjson::storage::StringStorage;
+use crate::resources::storage::StringStorage;
 
 pub trait Material<SS: StringStorage> {
     fn new(name: SS::String) -> Self;
