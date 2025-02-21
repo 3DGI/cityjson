@@ -1,4 +1,4 @@
-use crate::cityjson::index::{VertexIndex, VertexRef};
+use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
 use std::marker::PhantomData;
 

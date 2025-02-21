@@ -1,4 +1,4 @@
-//! # Index Types
+//! # Vertex types
 //!
 //! This module provides efficient vertex indexing functionality for CityJSON geometries.
 //! It supports different integer sizes (u16, u32, u64) for memory efficiency while

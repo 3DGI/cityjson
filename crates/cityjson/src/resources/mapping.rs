@@ -4,7 +4,7 @@ pub mod semantics;
 pub mod textures;
 
 use crate::cityjson::geometry::boundary::BoundaryType;
-use crate::cityjson::index::{VertexIndex, VertexRef};
+use crate::cityjson::vertex::{VertexIndex, VertexRef};
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;

@@ -2,7 +2,7 @@ use crate::cityjson::citymodel::GenericCityModel;
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticType;
-use crate::cityjson::index::{VertexIndex, VertexRef};
+use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::errors::Error;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
@@ -10,14 +10,12 @@ use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use std::collections::HashMap;
 
-use crate::cityjson::geometry::material::Material;
+use crate::cityjson::appearance::material::Material;
 use crate::cityjson::geometry::semantic::Semantic;
-use crate::cityjson::geometry::texture::Texture;
+use crate::cityjson::appearance::texture::Texture;
 
 pub mod boundary;
-pub mod material;
 pub mod semantic;
-pub mod texture;
 
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Create a new geometry given the parts

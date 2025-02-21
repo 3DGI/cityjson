@@ -2,7 +2,7 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-use crate::cityjson::geometry::material::RGB;
+use crate::cityjson::appearance::material::RGB;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedMaterial = Material<OwnedStringStorage>;
@@ -20,7 +20,7 @@ pub struct Material<SS: StringStorage> {
     is_smooth: Option<bool>,
 }
 
-impl<SS: StringStorage> crate::cityjson::geometry::material::Material<SS> for Material<SS> {
+impl<SS: StringStorage> crate::cityjson::appearance::material::Material<SS> for Material<SS> {
     fn new(name: SS::String) -> Self {
         Self {
             name,

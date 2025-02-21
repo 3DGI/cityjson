@@ -7,11 +7,12 @@ pub mod citymodel;
 pub mod cityobject;
 pub mod coordinate;
 pub mod geometry;
-pub mod index;
+pub mod vertex;
 
 pub mod metadata;
 
 pub mod transform;
+pub mod appearance;
 
 #[cfg(test)]
 mod tests {

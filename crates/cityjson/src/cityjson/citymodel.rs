@@ -1,10 +1,10 @@
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
-use crate::cityjson::geometry::material::Material;
+use crate::cityjson::appearance::material::Material;
 use crate::cityjson::geometry::semantic::Semantic;
-use crate::cityjson::geometry::texture::Texture;
+use crate::cityjson::appearance::texture::Texture;
 use crate::cityjson::geometry::GeometryTrait;
-use crate::cityjson::index::{VertexIndex, VertexRef};
+use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;

@@ -1,7 +1,7 @@
 //! # Texture
 //!
 //! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
-use crate::cityjson::geometry::texture::{ImageType, TextureType, WrapMode, RGBA};
+use crate::cityjson::appearance::texture::{ImageType, TextureType, WrapMode, RGBA};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 pub type OwnedTexture = Texture<OwnedStringStorage>;
@@ -16,7 +16,7 @@ pub struct Texture<SS: StringStorage> {
     border_color: Option<RGBA>,
 }
 
-impl<SS: StringStorage> crate::cityjson::geometry::texture::Texture<SS> for Texture<SS> {
+impl<SS: StringStorage> crate::cityjson::appearance::texture::Texture<SS> for Texture<SS> {
     #[inline]
     fn new(image: SS::String, image_type: ImageType) -> Self {
         Self {
