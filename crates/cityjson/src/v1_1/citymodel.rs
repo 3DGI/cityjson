@@ -32,6 +32,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion
     type Texture = Texture<SS>;
     type Geometry = Geometry<VR, RR>;
     type Metadata = Metadata<SS>;
+    type GeometryPool = DefaultResourcePool<Geometry<VR, RR>, RR>;
     type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
     type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
     type TexturePool = DefaultResourcePool<Texture<SS>, RR>;

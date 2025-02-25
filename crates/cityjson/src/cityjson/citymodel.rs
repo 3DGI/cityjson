@@ -24,6 +24,7 @@ pub trait CityModelVersion {
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
     type Metadata: Metadata<Self::StringStorage>;
 
+    type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;
     type TexturePool: ResourcePool<Self::Texture, Self::ResourceRef>;
@@ -33,6 +34,8 @@ pub trait CityModelVersion {
 pub struct GenericCityModel<V: CityModelVersion> {
     /// Pool of vertex coordinates
     vertices: Vertices<V::VertexRef, RealWorldCoordinate>,
+    /// Pool of geometries
+    geometries: V::GeometryPool,
     /// Pool of semantic objects
     semantics: V::SemanticPool,
     /// Pool of material objects
@@ -40,8 +43,6 @@ pub struct GenericCityModel<V: CityModelVersion> {
     /// Pool of texture objects
     textures: V::TexturePool,
     vertices_texture: Vertices<V::VertexRef, UVCoordinate>,
-    /// Collection of geometries
-    geometries: Vec<V::Geometry>,
     extra: Option<Attributes<V::StringStorage>>,
     metadata: Option<V::Metadata>,
 }
@@ -55,7 +56,7 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             materials: V::MaterialPool::new(),
             textures: V::TexturePool::new(),
             vertices_texture: Vertices::new(),
-            geometries: Vec::new(),
+            geometries: V::GeometryPool::new(),
             extra: None,
             metadata: None,
         }
@@ -75,7 +76,7 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             materials: V::MaterialPool::with_capacity(material_capacity),
             textures: V::TexturePool::with_capacity(texture_capacity),
             vertices_texture: Vertices::new(),
-            geometries: Vec::with_capacity(geometry_capacity),
+            geometries: V::GeometryPool::with_capacity(geometry_capacity),
             extra: None,
             metadata: None
         }
@@ -122,7 +123,7 @@ impl<V: CityModelVersion> GenericCityModel<V> {
 
     /// Add a geometry to the model
     pub fn add_geometry(&mut self, geometry: V::Geometry) {
-        self.geometries.push(geometry);
+        self.geometries.add(geometry);
     }
 
     /// Add a vertex coordinate

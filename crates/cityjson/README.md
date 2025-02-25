@@ -20,3 +20,8 @@ Below is a non-exhaustive list of CityJSON software that depends on *cityjson-rs
 - serde_cityjson
 - cjfake
 - cjlib
+
+# Notes
+
+- containers setters are `get_*_mut`
+- scalar member setters are `set_*`

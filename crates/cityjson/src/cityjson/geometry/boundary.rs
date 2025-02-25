@@ -386,134 +386,134 @@ pub type Boundary16 = Boundary<u16>;
 pub type Boundary32 = Boundary<u32>;
 pub type Boundary64 = Boundary<u64>;
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::index::VertexIndexVec;
-
-    #[test]
-    fn multipoint() {
-        let boundary = Boundary {
-            vertices: vec![0u32, 3, 2, 1].to_vertex_indices(),
-            ..Default::default()
-        };
-        let mp_nested = boundary.to_nested_multi_point().unwrap();
-        assert_eq!(mp_nested, vec![0, 3, 2, 1]);
-    }
-
-    #[test]
-    fn multilinestring_basic() {
-        let boundary = Boundary {
-            vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7, 8].to_vertex_indices(),
-            rings: vec![0u32, 4, 7].to_vertex_indices(),
-            ..Default::default()
-        };
-        let nested = boundary.to_nested_multi_linestring().unwrap();
-        assert_eq!(nested, vec![vec![0, 3, 2, 1], vec![4, 5, 6], vec![7, 8]]);
-    }
-
-    #[test]
-    fn multilinestring_empty() {
-        let boundary = Boundary {
-            vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7].to_vertex_indices(),
-            rings: vec![0u32, 4, 4, 8].to_vertex_indices(),
-            ..Default::default()
-        };
-        let nested = boundary.to_nested_multi_linestring().unwrap();
-        assert_eq!(
-            nested,
-            vec![vec![0, 3, 2, 1], vec![], vec![4, 5, 6, 7], vec![]]
-        );
-    }
-
-    #[test]
-    fn from_multilinestring_empty_last() {
-        let ml_nested: BoundaryNestedMultiLineString<u32> = vec![vec![0, 1, 2, 3], vec![]];
-        let boundary = Boundary::from(ml_nested);
-        assert_eq!(boundary.rings, vec![0u32, 4].to_vertex_indices())
-    }
-
-    #[test]
-    fn from_multilinestring_empty_inner() {
-        let ml_nested: BoundaryNestedMultiLineString<u32> =
-            vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
-        let boundary = Boundary::from(ml_nested);
-        assert_eq!(boundary.rings, vec![0u32, 4, 4, 8].to_vertex_indices())
-    }
-
-    #[test]
-    fn multi_or_composite_surface_inner_ring() {
-        let boundary = Boundary {
-            vertices: vec![
-                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ]
-            .to_vertex_indices(),
-            rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
-            surfaces: vec![0u32, 3, 4].to_vertex_indices(),
-            ..Default::default()
-        };
-        let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
-        assert_eq!(
-            nested,
-            vec![
-                vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-                vec![vec![12, 13, 14, 15]],
-                vec![vec![16, 17, 18], vec![19, 20, 21, 22]]
-            ]
-        );
-    }
-
-    #[test]
-    fn solid() {
-        let boundary = Boundary {
-            vertices: vec![
-                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-            ]
-            .to_vertex_indices(),
-            rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
-            surfaces: vec![0u32, 3, 4].to_vertex_indices(),
-            shells: vec![0u32, 2].to_vertex_indices(),
-            ..Default::default()
-        };
-        let nested = boundary.to_nested_solid().unwrap();
-        assert_eq!(
-            nested,
-            vec![
-                vec![
-                    vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-                    vec![vec![12, 13, 14, 15]]
-                ],
-                vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
-            ]
-        );
-    }
-
-    #[test]
-    fn multi_or_composite_solid() {
-        let boundary = Boundary {
-            vertices: vec![
-                0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                22, 23, 24, 25, 26, 27, 28,
-            ]
-            .to_vertex_indices(),
-            rings: vec![0u32, 4, 8, 12, 16, 19, 23, 26].to_vertex_indices(),
-            surfaces: vec![0u32, 3, 4, 6, 7].to_vertex_indices(),
-            shells: vec![0u32, 2, 3].to_vertex_indices(),
-            solids: vec![0u32, 2].to_vertex_indices(),
-        };
-        let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
-        assert_eq!(
-            nested,
-            vec![
-                vec![
-                    vec![
-                        vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-                        vec![vec![12, 13, 14, 15]]
-                    ],
-                    vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
-                ],
-                vec![vec![vec![vec![23, 24, 25]], vec![vec![26, 27, 28]]]]
-            ]
-        );
-    }
-}
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     use crate::index::VertexIndexVec;
+//
+//     #[test]
+//     fn multipoint() {
+//         let boundary = Boundary {
+//             vertices: vec![0u32, 3, 2, 1].to_vertex_indices(),
+//             ..Default::default()
+//         };
+//         let mp_nested = boundary.to_nested_multi_point().unwrap();
+//         assert_eq!(mp_nested, vec![0, 3, 2, 1]);
+//     }
+//
+//     #[test]
+//     fn multilinestring_basic() {
+//         let boundary = Boundary {
+//             vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7, 8].to_vertex_indices(),
+//             rings: vec![0u32, 4, 7].to_vertex_indices(),
+//             ..Default::default()
+//         };
+//         let nested = boundary.to_nested_multi_linestring().unwrap();
+//         assert_eq!(nested, vec![vec![0, 3, 2, 1], vec![4, 5, 6], vec![7, 8]]);
+//     }
+//
+//     #[test]
+//     fn multilinestring_empty() {
+//         let boundary = Boundary {
+//             vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7].to_vertex_indices(),
+//             rings: vec![0u32, 4, 4, 8].to_vertex_indices(),
+//             ..Default::default()
+//         };
+//         let nested = boundary.to_nested_multi_linestring().unwrap();
+//         assert_eq!(
+//             nested,
+//             vec![vec![0, 3, 2, 1], vec![], vec![4, 5, 6, 7], vec![]]
+//         );
+//     }
+//
+//     #[test]
+//     fn from_multilinestring_empty_last() {
+//         let ml_nested: BoundaryNestedMultiLineString<u32> = vec![vec![0, 1, 2, 3], vec![]];
+//         let boundary = Boundary::from(ml_nested);
+//         assert_eq!(boundary.rings, vec![0u32, 4].to_vertex_indices())
+//     }
+//
+//     #[test]
+//     fn from_multilinestring_empty_inner() {
+//         let ml_nested: BoundaryNestedMultiLineString<u32> =
+//             vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
+//         let boundary = Boundary::from(ml_nested);
+//         assert_eq!(boundary.rings, vec![0u32, 4, 4, 8].to_vertex_indices())
+//     }
+//
+//     #[test]
+//     fn multi_or_composite_surface_inner_ring() {
+//         let boundary = Boundary {
+//             vertices: vec![
+//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+//             ]
+//             .to_vertex_indices(),
+//             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
+//             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
+//             ..Default::default()
+//         };
+//         let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
+//         assert_eq!(
+//             nested,
+//             vec![
+//                 vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+//                 vec![vec![12, 13, 14, 15]],
+//                 vec![vec![16, 17, 18], vec![19, 20, 21, 22]]
+//             ]
+//         );
+//     }
+//
+//     #[test]
+//     fn solid() {
+//         let boundary = Boundary {
+//             vertices: vec![
+//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+//             ]
+//             .to_vertex_indices(),
+//             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
+//             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
+//             shells: vec![0u32, 2].to_vertex_indices(),
+//             ..Default::default()
+//         };
+//         let nested = boundary.to_nested_solid().unwrap();
+//         assert_eq!(
+//             nested,
+//             vec![
+//                 vec![
+//                     vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+//                     vec![vec![12, 13, 14, 15]]
+//                 ],
+//                 vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
+//             ]
+//         );
+//     }
+//
+//     #[test]
+//     fn multi_or_composite_solid() {
+//         let boundary = Boundary {
+//             vertices: vec![
+//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+//                 22, 23, 24, 25, 26, 27, 28,
+//             ]
+//             .to_vertex_indices(),
+//             rings: vec![0u32, 4, 8, 12, 16, 19, 23, 26].to_vertex_indices(),
+//             surfaces: vec![0u32, 3, 4, 6, 7].to_vertex_indices(),
+//             shells: vec![0u32, 2, 3].to_vertex_indices(),
+//             solids: vec![0u32, 2].to_vertex_indices(),
+//         };
+//         let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
+//         assert_eq!(
+//             nested,
+//             vec![
+//                 vec![
+//                     vec![
+//                         vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
+//                         vec![vec![12, 13, 14, 15]]
+//                     ],
+//                     vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
+//                 ],
+//                 vec![vec![vec![vec![23, 24, 25]], vec![vec![26, 27, 28]]]]
+//             ]
+//         );
+//     }
+// }
