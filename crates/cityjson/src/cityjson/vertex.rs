@@ -41,7 +41,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem::size_of;
 use std::num::TryFromIntError;
-use std::ops::{AddAssign, Index as IndexOp, IndexMut, Range};
+use std::ops::{AddAssign, Index as IndexOp, IndexMut};
 //------------------------------------------------------------------------------
 // Core integer trait and implementations
 //------------------------------------------------------------------------------
@@ -374,7 +374,6 @@ where
     }
 }
 
-
 //------------------------------------------------------------------------------
 // Tests
 //------------------------------------------------------------------------------
@@ -430,14 +429,12 @@ mod tests {
         assert!(VertexIndex16::try_from(huge_idx).is_err());
     }
 
-
     #[test]
     #[should_panic(expected = "index addition overflow")]
     fn test_vertex_index_overflow() {
         let mut idx = VertexIndex16::new(u16::MAX);
         idx += VertexIndex16::new(1);
     }
-
 
     #[test]
     fn test_vertex_coordinate() {
@@ -447,7 +444,6 @@ mod tests {
         assert_eq!(coord.y(), 2.0);
         assert_eq!(coord.z(), 3.0);
     }
-
 
     #[test]
     fn test_integer_to_vertex_index_conversion() {

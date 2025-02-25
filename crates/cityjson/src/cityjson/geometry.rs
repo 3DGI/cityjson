@@ -1,4 +1,4 @@
-use crate::cityjson::citymodel::GenericCityModel;
+use crate::cityjson::citymodel::{CityModelVersion, GenericCityModel};
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticType;
@@ -51,60 +51,32 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
-pub struct GeometryBuilder<
-    'a,
-    VR: VertexRef,
-    RR: ResourceRef,
-    RPS: ResourcePool<Sem, RR>,
-    RPM: ResourcePool<Mat, RR>,
-    RPT: ResourcePool<Tex, RR>,
-    SS: StringStorage,
-    Geo: GeometryTrait<VR, RR, SS>,
-    Mat: Material<SS>,
-    Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>,
-> {
-    model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>,
+pub struct GeometryBuilder<'a, V: CityModelVersion> {
+    model: &'a mut GenericCityModel<V>,
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    vertices: Vec<RealWorldCoordinate>,
-    rings: Vec<Vec<usize>>,           // indices into vertices
-    surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
-    shells: Vec<ShellInProgress>,     // shells with their surfaces
-    solids: Vec<SolidInProgress>,     // solids with their shells
+    vertices: Vec<RealWorldCoordinate>, // todo: generalize to Coordinate
+    rings: Vec<Vec<usize>>,             // indices into vertices
+    surfaces: Vec<SurfaceInProgress>,   // surfaces with their rings
+    shells: Vec<ShellInProgress>,       // shells with their surfaces
+    solids: Vec<SolidInProgress>,       // solids with their shells
     // Current element tracking
     current_linestring: Option<usize>, // current linestring being built
     current_surface: Option<usize>,    // current surface being built
     current_shell: Option<usize>,      // current shell being built
     current_solid: Option<usize>,      // current solid being built
     // Semantic storage
-    point_semantics: HashMap<usize, RR>,
-    linestring_semantics: HashMap<usize, RR>,
-    surface_semantics: HashMap<usize, RR>,
+    point_semantics: HashMap<usize, V::ResourceRef>,
+    linestring_semantics: HashMap<usize, V::ResourceRef>,
+    surface_semantics: HashMap<usize, V::ResourceRef>,
     // Material storage
-    surface_materials: HashMap<usize, RR>,
+    surface_materials: HashMap<usize, V::ResourceRef>,
     // Texture storage
-    surface_textures: HashMap<usize, RR>,
+    surface_textures: HashMap<usize, V::ResourceRef>,
 }
 
-impl<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
-    GeometryBuilder<'a, VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>
-where
-    VR: VertexRef,
-    RR: ResourceRef,
-    RPS: ResourcePool<Sem, RR>,
-    RPM: ResourcePool<Mat, RR>,
-    RPT: ResourcePool<Tex, RR>,
-    SS: StringStorage,
-    Geo: GeometryTrait<VR, RR, SS>,
-    Mat: Material<SS>,
-    Sem: Semantic<RR, SS>,
-    Tex: Texture<SS>,
-{
-    pub fn new(
-        model: &'a mut GenericCityModel<VR, RR, RPS, RPM, RPT, SS, Geo, Mat, Sem, Tex>,
-        type_geometry: GeometryType,
-    ) -> Self {
+impl<'a, V: CityModelVersion> GeometryBuilder<'a, V> {
+    pub fn new(model: &'a mut GenericCityModel<V>, type_geometry: GeometryType) -> Self {
         Self {
             model,
             type_geometry,
@@ -357,7 +329,7 @@ where
         x: f64,
         y: f64,
         z: f64,
-        semantic: Option<Sem>,
+        semantic: Option<V::Semantic>,
     ) -> usize {
         let point_idx = self.add_vertex(x, y, z);
         if let Some(semantic) = semantic {
@@ -368,7 +340,7 @@ where
     }
 
     // LineString semantics
-    pub fn set_linestring_semantic(&mut self, semantic: Sem) -> errors::Result<()> {
+    pub fn set_linestring_semantic(&mut self, semantic: V::Semantic) -> errors::Result<()> {
         let line_idx = self
             .current_linestring
             .ok_or_else(|| Error::NoCurrentElement {
@@ -380,7 +352,7 @@ where
     }
 
     // Surface semantics
-    pub fn set_surface_semantic(&mut self, semantic: Sem) -> errors::Result<()> {
+    pub fn set_surface_semantic(&mut self, semantic: V::Semantic) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -391,7 +363,7 @@ where
         Ok(())
     }
 
-    pub fn set_surface_material(&mut self, material: Mat) -> errors::Result<()> {
+    pub fn set_surface_material(&mut self, material: V::Material) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -402,7 +374,7 @@ where
         Ok(())
     }
 
-    pub fn set_surface_texture(&mut self, texture: Tex) -> errors::Result<()> {
+    pub fn set_surface_texture(&mut self, texture: V::Texture) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
             .ok_or_else(|| Error::NoCurrentElement {
@@ -430,7 +402,7 @@ where
         self.validate_structure()?;
 
         // Add all vertices to the model and get their indices
-        let vertex_indices: Vec<VertexIndex<VR>> = self
+        let vertex_indices: Vec<VertexIndex<V::VertexRef>> = self
             .vertices
             .into_iter()
             .map(|v| self.model.add_vertex(v))
@@ -441,11 +413,11 @@ where
         let mut counter = BoundaryCounter::default();
 
         // Create semantic mappings
-        let mut semantic_map = SemanticMap::<VR, RR>::default();
+        let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
         // Create material mappings
-        let mut material_map = MaterialMap::<VR, RR>::default();
+        let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
         // Create texture mappings
-        let texture_map = TextureMap::<VR, RR>::default();
+        let texture_map = TextureMap::<V::VertexRef, V::ResourceRef>::default();
 
         match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -573,7 +545,7 @@ where
         }
 
         // Create the geometry
-        let geometry = Geo::new(
+        let geometry = V::Geometry::new(
             self.type_geometry,
             self.lod,
             Some(boundary),

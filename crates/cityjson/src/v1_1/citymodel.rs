@@ -1,23 +1,38 @@
 //! # CityModel
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
-use crate::cityjson::citymodel::GenericCityModel;
-use crate::resources::pool::DefaultResourcePool;
-use crate::resources::storage::OwnedStringStorage;
+
+use crate::cityjson::citymodel::{CityModelVersion, GenericCityModel};
+use crate::cityjson::coordinate::RealWorldCoordinate;
+use crate::cityjson::vertex::VertexRef;
+use crate::resources::pool::{DefaultResourcePool, ResourceRef};
+use crate::resources::storage::StringStorage;
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::Semantic;
 use crate::v1_1::geometry::Geometry;
+use std::marker::PhantomData;
 
-pub type CityModel<VR, RR, SS> = GenericCityModel<
-    VR,
-    RR,
-    DefaultResourcePool<Semantic<VR, SS>, RR>,
-    DefaultResourcePool<Material<SS>, RR>,
-    DefaultResourcePool<Texture<SS>, RR>,
-    OwnedStringStorage,
-    Geometry<VR, RR>,
-    Semantic<VR, SS>,
-    Material<SS>,
-    Texture<SS>,
->;
+struct CityModelVersion11<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+    _phantom_vr: PhantomData<VR>,
+    _phantom_rr: PhantomData<RR>,
+    _phantom_ss: PhantomData<SS>,
+}
+
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion
+    for CityModelVersion11<VR, RR, SS>
+{
+    type CoordinateType = RealWorldCoordinate;
+    type VertexRef = VR;
+    type ResourceRef = RR;
+    type StringStorage = SS;
+    type Semantic = Semantic<RR, SS>;
+    type Material = Material<SS>;
+    type Texture = Texture<SS>;
+    type Geometry = Geometry<VR, RR>;
+    type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
+    type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
+    type TexturePool = DefaultResourcePool<Texture<SS>, RR>;
+}
+
+pub type CityModel<VR, RR, SS> = GenericCityModel<CityModelVersion11<VR, RR, SS>>;
