@@ -47,9 +47,9 @@ pub struct GenericCityModel<V: CityModelVersion> {
     metadata: Option<V::Metadata>,
 }
 
-impl<V: CityModelVersion> GenericCityModel<V> {
+impl<V: CityModelVersion> CityModelTrait<V> for GenericCityModel<V> {
     /// Create a new empty CityModel
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             vertices: Vertices::new(),
             semantics: V::SemanticPool::new(),
@@ -61,9 +61,8 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             metadata: None,
         }
     }
-
     /// Create a new CityModel with the specified capacity
-    pub fn with_capacity(
+    fn with_capacity(
         _vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
@@ -81,78 +80,103 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             metadata: None
         }
     }
-
     /// Add a semantic object to the pool
-    pub fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef {
+    fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef {
         self.semantics.add(semantic)
     }
-
     /// Get a reference to a semantic object
-    pub fn get_semantic(&self, id: V::ResourceRef) -> Option<&V::Semantic> {
+    fn get_semantic(&self, id: V::ResourceRef) -> Option<&V::Semantic> {
         self.semantics.get(id)
     }
-
     /// Get a mutable reference to a semantic object
-    pub fn get_semantic_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Semantic> {
+    fn get_semantic_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Semantic> {
         self.semantics.get_mut(id)
     }
-
-    pub fn add_material(&mut self, material: V::Material) -> V::ResourceRef {
+    fn add_material(&mut self, material: V::Material) -> V::ResourceRef {
         self.materials.add(material)
     }
-
-    pub fn get_material(&self, id: V::ResourceRef) -> Option<&V::Material> {
+    fn get_material(&self, id: V::ResourceRef) -> Option<&V::Material> {
         self.materials.get(id)
     }
-
-    pub fn get_material_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Material> {
+    fn get_material_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Material> {
         self.materials.get_mut(id)
     }
-
-    pub fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef {
+    fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef {
         self.textures.add(texture)
     }
-
-    pub fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture> {
+    fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture> {
         self.textures.get(id)
     }
-
-    pub fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture> {
+    fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture> {
         self.textures.get_mut(id)
     }
-
     /// Add a geometry to the model
-    pub fn add_geometry(&mut self, geometry: V::Geometry) {
+    fn add_geometry(&mut self, geometry: V::Geometry) {
         self.geometries.add(geometry);
     }
-
     /// Add a vertex coordinate
-    pub fn add_vertex(
+    fn add_vertex(
         &mut self,
         coordinate: RealWorldCoordinate,
     ) -> errors::Result<VertexIndex<V::VertexRef>> {
         self.vertices.push(coordinate)
     }
-
     /// Get a reference to a vertex coordinate
-    pub fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&RealWorldCoordinate> {
+    fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }
-
     /// Get the number of geometries
-    pub fn geometry_count(&self) -> usize {
+    fn geometry_count(&self) -> usize {
         self.geometries.len()
     }
-
     /// Get the number of semantics
-    pub fn semantic_count(&self) -> usize {
+    fn semantic_count(&self) -> usize {
         self.semantics.iter().count()
     }
-
     /// Get the number of vertices
-    pub fn vertex_count(&self) -> usize {
+    fn vertex_count(&self) -> usize {
         self.vertices.as_slice().len()
     }
+}
+
+pub trait CityModelTrait<V: CityModelVersion> {
+    /// Create a new empty CityModel
+    fn new() -> Self;
+    /// Create a new CityModel with the specified capacity
+    fn with_capacity(
+        _vertex_capacity: usize,
+        semantic_capacity: usize,
+        material_capacity: usize,
+        texture_capacity: usize,
+        geometry_capacity: usize,
+    ) -> Self;
+    /// Add a semantic object to the pool
+    fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
+    /// Get a reference to a semantic object
+    fn get_semantic(&self, id: V::ResourceRef) -> Option<&V::Semantic>;
+    /// Get a mutable reference to a semantic object
+    fn get_semantic_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Semantic>;
+    fn add_material(&mut self, material: V::Material) -> V::ResourceRef;
+    fn get_material(&self, id: V::ResourceRef) -> Option<&V::Material>;
+    fn get_material_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Material>;
+    fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
+    fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture>;
+    fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture>;
+    /// Add a geometry to the model
+    fn add_geometry(&mut self, geometry: V::Geometry);
+    /// Add a vertex coordinate
+    fn add_vertex(
+        &mut self,
+        coordinate: RealWorldCoordinate,
+    ) -> errors::Result<VertexIndex<V::VertexRef>>;
+    /// Get a reference to a vertex coordinate
+    fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&RealWorldCoordinate>;
+    /// Get the number of geometries
+    fn geometry_count(&self) -> usize;
+    /// Get the number of semantics
+    fn semantic_count(&self) -> usize;
+    /// Get the number of vertices
+    fn vertex_count(&self) -> usize;
 }
 
 impl<V: CityModelVersion> Default for GenericCityModel<V> {

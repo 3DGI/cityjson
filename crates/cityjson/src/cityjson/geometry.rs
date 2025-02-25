@@ -1,4 +1,4 @@
-use crate::cityjson::citymodel::{CityModelVersion, GenericCityModel};
+use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion, GenericCityModel};
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticType;
