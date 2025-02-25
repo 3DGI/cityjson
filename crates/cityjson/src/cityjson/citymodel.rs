@@ -4,6 +4,7 @@ use crate::cityjson::attributes::Attributes;
 use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::geometry::semantic::Semantic;
 use crate::cityjson::geometry::GeometryTrait;
+use crate::cityjson::metadata::Metadata;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::resources::pool::{ResourcePool, ResourceRef};
@@ -21,6 +22,7 @@ pub trait CityModelVersion {
     type Material: Material<Self::StringStorage>;
     type Texture: Texture<Self::StringStorage>;
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
+    type Metadata: Metadata<Self::StringStorage>;
 
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;
@@ -41,6 +43,7 @@ pub struct GenericCityModel<V: CityModelVersion> {
     /// Collection of geometries
     geometries: Vec<V::Geometry>,
     extra: Option<Attributes<V::StringStorage>>,
+    metadata: Option<V::Metadata>,
 }
 
 impl<V: CityModelVersion> GenericCityModel<V> {
@@ -54,6 +57,7 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             vertices_texture: Vertices::new(),
             geometries: Vec::new(),
             extra: None,
+            metadata: None,
         }
     }
 
@@ -73,6 +77,7 @@ impl<V: CityModelVersion> GenericCityModel<V> {
             vertices_texture: Vertices::new(),
             geometries: Vec::with_capacity(geometry_capacity),
             extra: None,
+            metadata: None
         }
     }
 

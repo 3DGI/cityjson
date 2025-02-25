@@ -15,7 +15,7 @@ pub enum AttributeValue<SS: StringStorage> {
 }
 
 /// Container for attributes using a specific storage strategy
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Attributes<SS: StringStorage> {
     values: HashMap<SS::String, AttributeValue<SS>>,
 }

@@ -12,6 +12,7 @@ use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::Semantic;
 use crate::v1_1::geometry::Geometry;
 use std::marker::PhantomData;
+use crate::v1_1::metadata::Metadata;
 
 struct CityModelVersion11<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -30,6 +31,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion
     type Material = Material<SS>;
     type Texture = Texture<SS>;
     type Geometry = Geometry<VR, RR>;
+    type Metadata = Metadata<SS>;
     type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
     type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
     type TexturePool = DefaultResourcePool<Texture<SS>, RR>;
