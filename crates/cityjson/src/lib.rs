@@ -11,19 +11,21 @@
 //! - Supports CityJSON Extensions.
 //! - Supports multiple CityJSON versions, such as v1.0, v1.1, v2.0, and it is extensible for future versions.
 
-use crate::cityjson::vertex::VertexRef;
-use crate::errors::Error;
-use crate::resources::pool::ResourceRef;
-use crate::resources::storage::StringStorage;
-use std::fmt;
-
-
 pub mod cityjson;
 pub mod errors;
 pub mod resources;
 pub mod v1_0;
 pub mod v1_1;
 pub mod v2_0;
+
+use crate::cityjson::vertex::VertexRef;
+use crate::errors::Error;
+use crate::resources::pool::ResourceRef;
+use crate::resources::storage::StringStorage;
+use std::fmt;
+pub use cityjson::coordinate;
+
+
 
 /// CityModel type.
 ///
