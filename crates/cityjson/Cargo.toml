@@ -7,5 +7,9 @@ edition = "2021"
 # Document platform requirements
 platform_support = "64-bit platforms only (x86_64, aarch64, etc.)"
 
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+
 [dependencies]
 num = "0.4.3"

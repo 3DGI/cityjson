@@ -107,3 +107,10 @@ pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     V1_1(v1_1::CityModel<VR, RR, SS>),
     V2_0(v2_0::CityModel),
 }
+
+fn format_option<T: std::fmt::Display>(option: &Option<T>) -> String {
+    option
+        .as_ref()
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "None".to_string())
+}

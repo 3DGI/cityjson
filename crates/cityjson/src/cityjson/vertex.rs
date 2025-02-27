@@ -18,14 +18,14 @@
 //! ## Examples
 //!
 //! ```
-//! use cityjson::index::*;
+//! use cityjson::cityjson::vertex::*;
 //!
 //! // Create indices with different sizes
 //! let small_idx = VertexIndex16::new(42u16);
 //! let default_idx = VertexIndex32::new(1000u32);
 //!
 //! // Collect indices
-//! let mut indices = VertexIndices32::new();
+//! let mut indices = Vec::new();
 //! indices.push(default_idx);
 //!
 //! // Safe conversion between sizes
@@ -105,7 +105,7 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// # Examples
 ///
 /// ```
-/// # use cityjson::index::*;
+/// # use cityjson::cityjson::vertex::*;
 /// // Create indices of different sizes
 /// let idx16 = VertexIndex16::new(42u16);
 /// let idx32 = VertexIndex32::new(70000u32);

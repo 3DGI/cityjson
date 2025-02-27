@@ -12,6 +12,10 @@ bin:
 example:
   cargo run --example exname -- arg1
 
+# Run all tests
+test:
+    cargo test -- --nocapture
+
 # Build and open the crate documentation
 doc:
-    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps
+    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
