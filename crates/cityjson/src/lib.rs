@@ -24,6 +24,7 @@ use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt;
 pub use cityjson::coordinate;
+pub use cityjson::vertex;
 
 
 
