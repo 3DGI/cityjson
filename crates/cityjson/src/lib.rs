@@ -21,7 +21,7 @@ pub mod v2_0;
 use crate::cityjson::vertex::VertexRef;
 use crate::errors::Error;
 use crate::resources::pool::ResourceRef;
-use crate::resources::storage::StringStorage;
+pub use resources::storage;
 pub use cityjson::attributes;
 pub use cityjson::coordinate;
 pub use cityjson::vertex;
@@ -105,7 +105,7 @@ impl TryFrom<String> for CityJSONVersion {
 }
 
 #[derive(Debug)]
-pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: storage::StringStorage> {
     V1_1(v1_1::CityModel<VR, RR, SS>),
     V2_0(v2_0::CityModel),
 }
