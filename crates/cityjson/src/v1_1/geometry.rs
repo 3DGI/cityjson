@@ -2,10 +2,8 @@
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
 use crate::cityjson::geometry::boundary::Boundary;
-use crate::cityjson::geometry::semantic::SemanticType;
 use crate::cityjson::geometry::{GeometryTrait, GeometryType, LoD};
 use crate::cityjson::vertex::VertexRef;
-use crate::errors::Result;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;

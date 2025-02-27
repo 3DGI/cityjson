@@ -2,6 +2,7 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
+use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
@@ -13,7 +14,6 @@ use crate::v1_1::geometry::semantic::Semantic;
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
-use crate::cityjson::attributes::Attributes;
 
 struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -85,48 +85,31 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             textures: DefaultResourcePool::new_pool(),
             vertices_texture: Vertices::new(),
             extra: None,
-            metadata: None,       }
+            metadata: None,
+        }
     }
 
-    fn add_semantic(
-        &mut self,
-        semantic: Semantic<RR, SS>,
-    ) -> RR {
+    fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
         self.semantics.add(semantic)
     }
 
-    fn get_semantic(
-        &self,
-        id: RR,
-    ) -> Option<&Semantic<RR, SS>> {
+    fn get_semantic(&self, id: RR) -> Option<&Semantic<RR, SS>> {
         self.semantics.get(id)
     }
 
-    fn get_semantic_mut(
-        &mut self,
-        id: RR,
-    ) -> Option<&mut Semantic<RR, SS>> {
+    fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
         self.semantics.get_mut(id)
     }
 
-    fn add_material(
-        &mut self,
-        material: Material<SS>,
-    ) -> RR {
+    fn add_material(&mut self, material: Material<SS>) -> RR {
         self.materials.add(material)
     }
 
-    fn get_material(
-        &self,
-        id: RR,
-    ) -> Option<&Material<SS>> {
+    fn get_material(&self, id: RR) -> Option<&Material<SS>> {
         self.materials.get(id)
     }
 
-    fn get_material_mut(
-        &mut self,
-        id: RR,
-    ) -> Option<&mut Material<SS>> {
+    fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<SS>> {
         self.materials.get_mut(id)
     }
 
@@ -138,10 +121,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         self.textures.get(id)
     }
 
-    fn get_texture_mut(
-        &mut self,
-        id: RR,
-    ) -> Option<&mut Texture<SS>> {
+    fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<SS>> {
         self.textures.get_mut(id)
     }
 
@@ -156,10 +136,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         self.vertices.push(coordinate)
     }
 
-    fn get_vertex(
-        &self,
-        index: VertexIndex<VR>,
-    ) -> Option<&RealWorldCoordinate> {
+    fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }
 

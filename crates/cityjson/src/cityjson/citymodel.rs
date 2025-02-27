@@ -1,7 +1,6 @@
 use crate::cityjson::appearance::material::Material;
 use crate::cityjson::appearance::texture::Texture;
-use crate::cityjson::attributes::Attributes;
-use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate, UVCoordinate, Vertices};
+use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
 use crate::cityjson::geometry::semantic::Semantic;
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::Metadata;
@@ -29,7 +28,6 @@ pub trait CityModelVersion {
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;
     type TexturePool: ResourcePool<Self::Texture, Self::ResourceRef>;
 }
-
 
 pub trait CityModelTrait<V: CityModelVersion> {
     /// Create a new empty CityModel
@@ -70,5 +68,3 @@ pub trait CityModelTrait<V: CityModelVersion> {
     /// Get the number of vertices
     fn vertex_count(&self) -> usize;
 }
-
-

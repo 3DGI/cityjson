@@ -10,9 +10,9 @@ pub mod metadata;
 pub mod appearance;
 pub mod transform;
 
+pub use appearance::*;
 pub use citymodel::*;
 pub use cityobject::*;
 pub use geometry::*;
 pub use metadata::*;
-pub use appearance::*;
 pub use transform::*;

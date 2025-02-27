@@ -2,12 +2,12 @@
 //!
 //! Represents a [CityObject object](https://www.cityjson.org/specs/2.0.1/#the-different-city-objects).
 
-use std::fmt::{Display, Formatter};
 use crate::cityjson;
 use crate::cityjson::attributes::Attributes;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use crate::v1_1::metadata::BBox;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Default, Clone)]
 pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
@@ -75,7 +75,6 @@ impl<SS: StringStorage, RR: ResourceRef> CityObject<SS, RR> {
     pub fn get_type(&self) -> &CityObjectType {
         &self.type_cityobject
     }
-
 
     pub fn get_geometry(&self) -> Option<&Vec<RR>> {
         self.geometry.as_ref()

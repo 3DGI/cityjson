@@ -11,7 +11,7 @@ pub trait StringStorage: Clone + Debug + Default {
 }
 
 /// Storage implementation for owned strings
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct OwnedStringStorage;
 
 impl StringStorage for OwnedStringStorage {
@@ -19,7 +19,7 @@ impl StringStorage for OwnedStringStorage {
 }
 
 /// Storage implementation for borrowed strings
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct BorrowedStringStorage<'a>(PhantomData<&'a ()>);
 
 impl<'a> StringStorage for BorrowedStringStorage<'a> {

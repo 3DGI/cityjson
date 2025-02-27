@@ -22,11 +22,10 @@ use crate::cityjson::vertex::VertexRef;
 use crate::errors::Error;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
-use std::fmt;
+pub use cityjson::attributes;
 pub use cityjson::coordinate;
 pub use cityjson::vertex;
-
-
+use std::fmt;
 
 /// CityModel type.
 ///
