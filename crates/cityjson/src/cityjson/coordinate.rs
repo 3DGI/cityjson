@@ -105,12 +105,12 @@ impl Coordinate for UVCoordinate {}
 /// Container for vertex coordinates with size limited by the chosen index type.
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub struct Vertices<VI: VertexRef, V: Coordinate> {
+pub struct Vertices<VR: VertexRef, V: Coordinate> {
     coordinates: Vec<V>,
-    _phantom: PhantomData<VI>,
+    _phantom: PhantomData<VR>,
 }
 
-impl<VI: VertexRef, V: Coordinate> Vertices<VI, V> {
+impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     /// Creates a new empty Vertices collection
     #[inline]
     pub fn new() -> Self {
@@ -120,22 +120,26 @@ impl<VI: VertexRef, V: Coordinate> Vertices<VI, V> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.coordinates.len()
+    }
+
     /// Adds a new coordinate to the collection
-    pub fn push(&mut self, coordinate: V) -> Result<VertexIndex<VI>> {
-        if self.coordinates.len() >= VI::MAX.try_into().unwrap_or(usize::MAX) {
+    pub fn push(&mut self, coordinate: V) -> Result<VertexIndex<VR>> {
+        if self.coordinates.len() >= VR::MAX.try_into().unwrap_or(usize::MAX) {
             return Err(Error::TooManyVertices {
                 attempted: self.coordinates.len() + 1,
-                maximum: VI::MAX.try_into().unwrap_or(usize::MAX),
+                maximum: VR::MAX.try_into().unwrap_or(usize::MAX),
             });
         }
-        let index = VertexIndex::<VI>::try_from(self.coordinates.len())?;
+        let index = VertexIndex::<VR>::try_from(self.coordinates.len())?;
         self.coordinates.push(coordinate);
         Ok(index)
     }
 
     /// Returns a reference to the coordinate at the specified index
     #[inline]
-    pub fn get(&self, index: VertexIndex<VI>) -> Option<&V> {
+    pub fn get(&self, index: VertexIndex<VR>) -> Option<&V> {
         self.coordinates.get(index.to_usize())
     }
 

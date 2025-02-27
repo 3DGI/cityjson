@@ -2,10 +2,10 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
-use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion, GenericCityModel};
-use crate::cityjson::coordinate::RealWorldCoordinate;
+use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
+use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::resources::pool::{DefaultResourcePool, ResourceId32, ResourceRef};
+use crate::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef};
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
@@ -13,6 +13,7 @@ use crate::v1_1::geometry::semantic::Semantic;
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
+use crate::cityjson::attributes::Attributes;
 
 struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -37,7 +38,19 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion for V1_
 }
 
 pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
-    inner: GenericCityModel<V1_1<VR, RR, SS>>,
+    /// Pool of vertex coordinates
+    vertices: Vertices<VR, RealWorldCoordinate>,
+    /// Pool of geometries
+    geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
+    /// Pool of semantic objects
+    semantics: DefaultResourcePool<Semantic<RR, SS>, RR>,
+    /// Pool of material objects
+    materials: DefaultResourcePool<Material<SS>, RR>,
+    /// Pool of texture objects
+    textures: DefaultResourcePool<Texture<SS>, RR>,
+    vertices_texture: Vertices<VR, UVCoordinate>,
+    extra: Option<Attributes<SS>>,
+    metadata: Option<Metadata<SS>>,
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, RR, SS>>
@@ -45,7 +58,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 {
     fn new() -> Self {
         Self {
-            inner: GenericCityModel::new()
+            vertices: Vertices::new(),
+            geometries: DefaultResourcePool::new_pool(),
+            semantics: DefaultResourcePool::new_pool(),
+            materials: DefaultResourcePool::new_pool(),
+            textures: DefaultResourcePool::new_pool(),
+            vertices_texture: Vertices::new(),
+            extra: None,
+            metadata: None,
         }
     }
 
@@ -57,101 +77,105 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         geometry_capacity: usize,
     ) -> Self {
         Self {
-            inner: GenericCityModel::with_capacity(_vertex_capacity,semantic_capacity, material_capacity,texture_capacity, geometry_capacity)
-        }
+            vertices: Vertices::new(),
+            geometries: DefaultResourcePool::new_pool(),
+            semantics: DefaultResourcePool::new_pool(),
+            materials: DefaultResourcePool::new_pool(),
+            textures: DefaultResourcePool::new_pool(),
+            vertices_texture: Vertices::new(),
+            extra: None,
+            metadata: None,       }
     }
 
     fn add_semantic(
         &mut self,
         semantic: Semantic<RR, SS>,
     ) -> RR {
-        self.inner.add_semantic(semantic)
+        self.semantics.add(semantic)
     }
 
     fn get_semantic(
         &self,
         id: RR,
     ) -> Option<&Semantic<RR, SS>> {
-        self.inner.get_semantic(id)
+        self.semantics.get(id)
     }
 
     fn get_semantic_mut(
         &mut self,
         id: RR,
     ) -> Option<&mut Semantic<RR, SS>> {
-        self.inner.get_semantic_mut(id)
+        self.semantics.get_mut(id)
     }
 
     fn add_material(
         &mut self,
         material: Material<SS>,
     ) -> RR {
-        self.inner.add_material(material)
+        self.materials.add(material)
     }
 
     fn get_material(
         &self,
         id: RR,
     ) -> Option<&Material<SS>> {
-        self.inner.get_material(id)
+        self.materials.get(id)
     }
 
     fn get_material_mut(
         &mut self,
         id: RR,
     ) -> Option<&mut Material<SS>> {
-        self.inner.get_material_mut(id)
+        self.materials.get_mut(id)
     }
 
     fn add_texture(&mut self, texture: Texture<SS>) -> RR {
-        self.inner.add_texture(texture)
+        self.textures.add(texture)
     }
 
     fn get_texture(&self, id: RR) -> Option<&Texture<SS>> {
-        self.inner.get_texture(id)
+        self.textures.get(id)
     }
 
     fn get_texture_mut(
         &mut self,
         id: RR,
     ) -> Option<&mut Texture<SS>> {
-        self.inner.get_texture_mut(id)
+        self.textures.get_mut(id)
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, RR>) {
-        self.inner.add_geometry(geometry)
+    fn add_geometry(&mut self, geometry: Geometry<VR, RR>) -> RR {
+        self.geometries.add(geometry)
     }
 
     fn add_vertex(
         &mut self,
         coordinate: RealWorldCoordinate,
     ) -> crate::errors::Result<VertexIndex<VR>> {
-        self.inner.add_vertex(coordinate)
+        self.vertices.push(coordinate)
     }
 
     fn get_vertex(
         &self,
         index: VertexIndex<VR>,
     ) -> Option<&RealWorldCoordinate> {
-        self.inner.get_vertex(index)
+        self.vertices.get(index)
     }
 
     fn geometry_count(&self) -> usize {
-        self.inner.geometry_count()
+        self.geometries.len()
     }
 
     fn semantic_count(&self) -> usize {
-        self.inner.semantic_count()
+        self.semantics.len()
     }
 
     fn vertex_count(&self) -> usize {
-        self.inner.vertex_count()
+        self.vertices.len()
     }
 }
 
 #[test]
 fn test_citymodel() {
-    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModel {
-        inner: GenericCityModel::new(),
-    };
+    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModel::new();
 }

@@ -1,4 +1,4 @@
-use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion, GenericCityModel};
+use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticType;
@@ -51,8 +51,8 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
-pub struct GeometryBuilder<'a, V: CityModelVersion> {
-    model: &'a mut GenericCityModel<V>,
+pub struct GeometryBuilder<'a, V: CityModelVersion, M: CityModelTrait<V>> {
+    model: &'a mut M,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>, // todo: generalize to Coordinate
@@ -75,8 +75,8 @@ pub struct GeometryBuilder<'a, V: CityModelVersion> {
     surface_textures: HashMap<usize, V::ResourceRef>,
 }
 
-impl<'a, V: CityModelVersion> GeometryBuilder<'a, V> {
-    pub fn new(model: &'a mut GenericCityModel<V>, type_geometry: GeometryType) -> Self {
+impl<'a, V: CityModelVersion, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
+    pub fn new(model: &'a mut M, type_geometry: GeometryType) -> Self {
         Self {
             model,
             type_geometry,
