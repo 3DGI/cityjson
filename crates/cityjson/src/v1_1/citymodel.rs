@@ -37,6 +37,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion for V1_
     type TexturePool = DefaultResourcePool<Texture<SS>, RR>;
 }
 
+#[derive(Debug)]
 pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,

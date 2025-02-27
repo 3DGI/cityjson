@@ -4,4 +4,5 @@
 
 use crate::cityjson::citymodel::CityModelVersion;
 
-pub struct CityModelVersion20;
+#[derive(Debug)]
+pub struct CityModel;

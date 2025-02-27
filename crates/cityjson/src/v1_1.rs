@@ -9,3 +9,5 @@ pub mod metadata;
 
 pub mod appearance;
 pub mod transform;
+
+pub use citymodel::CityModel;

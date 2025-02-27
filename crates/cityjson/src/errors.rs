@@ -39,6 +39,7 @@ pub enum Error {
         found: String,
     },
     IncompleteGeometry(String),
+    UnsupportedVersion(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -113,6 +114,13 @@ impl Display for Error {
             }
             Error::IncompleteGeometry(msg) => {
                 write!(f, "Incomplete geometry: {}", msg)
+            }
+            Error::UnsupportedVersion(v, supported) => {
+                write!(
+                    f,
+                    "the CityJSON version should be one of {}, but got {}",
+                    supported, v
+                )
             }
         }
     }
