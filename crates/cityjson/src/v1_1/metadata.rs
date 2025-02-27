@@ -68,7 +68,7 @@
 //! assert_eq!(bbox.height(), 60.0);
 //!
 //! // Convert from/to array
-//! let array: [f32; 6] = [0.0, 0.0, -10.0, 100.0, 100.0, 50.0];
+//! let array: [f64; 6] = [0.0, 0.0, -10.0, 100.0, 100.0, 50.0];
 //! assert_eq!(BBox::from(array), bbox);
 //! ```
 //!
@@ -500,7 +500,7 @@ impl<SS: StringStorage> cityjson::metadata::Metadata<SS> for Metadata<SS> {}
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BBox {
-    values: [f32; 6],
+    values: [f64; 6],
 }
 
 impl BBox {
@@ -513,99 +513,99 @@ impl BBox {
     /// - `max_x`: Maximum x coordinate
     /// - `max_y`: Maximum y coordinate
     /// - `max_z`: Maximum z coordinate
-    pub fn new(min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> Self {
+    pub fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
         Self {
             values: [min_x, min_y, min_z, max_x, max_y, max_z],
         }
     }
 
     /// Creates a BBox from an array of 6 values.
-    pub fn from_array(values: [f32; 6]) -> Self {
+    pub fn from_array(values: [f64; 6]) -> Self {
         Self { values }
     }
 
     /// Returns the underlying array.
-    pub fn as_array(&self) -> &[f32; 6] {
+    pub fn as_array(&self) -> &[f64; 6] {
         &self.values
     }
 
     /// Returns the underlying array as a mutable reference.
-    pub fn as_array_mut(&mut self) -> &mut [f32; 6] {
+    pub fn as_array_mut(&mut self) -> &mut [f64; 6] {
         &mut self.values
     }
 
     /// Returns the minimum x coordinate.
-    pub fn min_x(&self) -> f32 {
+    pub fn min_x(&self) -> f64 {
         self.values[0]
     }
 
     /// Returns the minimum y coordinate.
-    pub fn min_y(&self) -> f32 {
+    pub fn min_y(&self) -> f64 {
         self.values[1]
     }
 
     /// Returns the minimum z coordinate.
-    pub fn min_z(&self) -> f32 {
+    pub fn min_z(&self) -> f64 {
         self.values[2]
     }
 
     /// Returns the maximum x coordinate.
-    pub fn max_x(&self) -> f32 {
+    pub fn max_x(&self) -> f64 {
         self.values[3]
     }
 
     /// Returns the maximum y coordinate.
-    pub fn max_y(&self) -> f32 {
+    pub fn max_y(&self) -> f64 {
         self.values[4]
     }
 
     /// Returns the maximum z coordinate.
-    pub fn max_z(&self) -> f32 {
+    pub fn max_z(&self) -> f64 {
         self.values[5]
     }
 
     /// Sets the minimum x coordinate.
-    pub fn set_min_x(&mut self, value: f32) {
+    pub fn set_min_x(&mut self, value: f64) {
         self.values[0] = value;
     }
 
     /// Sets the minimum y coordinate.
-    pub fn set_min_y(&mut self, value: f32) {
+    pub fn set_min_y(&mut self, value: f64) {
         self.values[1] = value;
     }
 
     /// Sets the minimum z coordinate.
-    pub fn set_min_z(&mut self, value: f32) {
+    pub fn set_min_z(&mut self, value: f64) {
         self.values[2] = value;
     }
 
     /// Sets the maximum x coordinate.
-    pub fn set_max_x(&mut self, value: f32) {
+    pub fn set_max_x(&mut self, value: f64) {
         self.values[3] = value;
     }
 
     /// Sets the maximum y coordinate.
-    pub fn set_max_y(&mut self, value: f32) {
+    pub fn set_max_y(&mut self, value: f64) {
         self.values[4] = value;
     }
 
     /// Sets the maximum z coordinate.
-    pub fn set_max_z(&mut self, value: f32) {
+    pub fn set_max_z(&mut self, value: f64) {
         self.values[5] = value;
     }
 
     /// Calculates the width (x-axis length) of the bounding box.
-    pub fn width(&self) -> f32 {
+    pub fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }
 
     /// Calculates the length (y-axis length) of the bounding box.
-    pub fn length(&self) -> f32 {
+    pub fn length(&self) -> f64 {
         self.max_y() - self.min_y()
     }
 
     /// Calculates the height (z-axis length) of the bounding box.
-    pub fn height(&self) -> f32 {
+    pub fn height(&self) -> f64 {
         self.max_z() - self.min_z()
     }
 }
@@ -619,14 +619,14 @@ impl Default for BBox {
     }
 }
 
-impl From<[f32; 6]> for BBox {
+impl From<[f64; 6]> for BBox {
     /// Creates a BBox from an array of 6 values.
-    fn from(values: [f32; 6]) -> Self {
+    fn from(values: [f64; 6]) -> Self {
         Self { values }
     }
 }
 
-impl From<BBox> for [f32; 6] {
+impl From<BBox> for [f64; 6] {
     /// Converts a BBox into an array of 6 values.
     fn from(bbox: BBox) -> Self {
         bbox.values
