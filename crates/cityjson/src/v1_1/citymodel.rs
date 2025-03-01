@@ -10,7 +10,7 @@ use crate::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool, Re
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
-use crate::v1_1::geometry::semantic::Semantic;
+use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
@@ -26,6 +26,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion for V1_
     type VertexRef = VR;
     type ResourceRef = RR;
     type StringStorage = SS;
+    type SemType = SemanticType;
     type Semantic = Semantic<RR, SS>;
     type Material = Material<SS>;
     type Texture = Texture<SS>;

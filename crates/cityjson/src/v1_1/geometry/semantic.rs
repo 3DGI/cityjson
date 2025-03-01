@@ -1,8 +1,10 @@
 //! # Semantics
 //!
 //! Represents a [Semantic object](https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives).
+
+use std::fmt::{Display, Formatter};
 use crate::cityjson::attributes::Attributes;
-use crate::cityjson::geometry::semantic::SemanticType;
+use crate::cityjson::geometry::semantic;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 
@@ -18,7 +20,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     attributes: Option<Attributes<SS>>,
 }
 
-impl<RR: ResourceRef, SS: StringStorage> crate::cityjson::geometry::semantic::Semantic<RR, SS>
+impl<RR: ResourceRef, SS: StringStorage> semantic::Semantic<RR, SS, SemanticType>
     for Semantic<RR, SS>
 {
     /// Create a new semantic with the given type
@@ -78,3 +80,39 @@ impl<RR: ResourceRef, SS: StringStorage> crate::cityjson::geometry::semantic::Se
         self.attributes.as_mut().unwrap()
     }
 }
+
+/// Semantic surface type.
+///
+/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
+#[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum SemanticType {
+    #[default]
+    Default,
+    RoofSurface,
+    GroundSurface,
+    WallSurface,
+    ClosureSurface,
+    OuterCeilingSurface,
+    OuterFloorSurface,
+    Window,
+    Door,
+    InteriorWallSurface,
+    CeilingSurface,
+    FloorSurface,
+    WaterSurface,
+    WaterGroundSurface,
+    WaterClosureSurface,
+    TrafficArea,
+    AuxiliaryTrafficArea,
+    TransportationMarking,
+    TransportationHole,
+    Extension(String),
+}
+
+impl Display for SemanticType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl semantic::SemanticType for SemanticType {}

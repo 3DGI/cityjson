@@ -33,10 +33,10 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
-struct SurfaceInProgress {
+struct SurfaceInProgress<SemType: SemanticType> {
     outer_ring: Option<usize>,      // index to outer ring
     inner_rings: Vec<usize>,        // indices to inner rings
-    semantic: Option<SemanticType>, // semantic type for the whole surface
+    semantic: Option<SemType>, // semantic type for the whole surface
 }
 
 #[derive(Default)]
@@ -57,7 +57,7 @@ pub struct GeometryBuilder<'a, V: CityModelVersion, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>, // todo: generalize to Coordinate
     rings: Vec<Vec<usize>>,             // indices into vertices
-    surfaces: Vec<SurfaceInProgress>,   // surfaces with their rings
+    surfaces: Vec<SurfaceInProgress<V::SemType>>,   // surfaces with their rings
     shells: Vec<ShellInProgress>,       // shells with their surfaces
     solids: Vec<SolidInProgress>,       // solids with their shells
     // Current element tracking
@@ -134,7 +134,7 @@ impl<'a, V: CityModelVersion, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// Starts a new surface with an optional semantic type.
     ///
     /// Returns the index of the new surface.
-    pub fn start_surface(&mut self, semantic: Option<SemanticType>) -> usize {
+    pub fn start_surface(&mut self, semantic: Option<V::SemType>) -> usize {
         let idx = self.surfaces.len();
         self.surfaces.push(SurfaceInProgress::default());
         self.surfaces[idx].semantic = semantic;

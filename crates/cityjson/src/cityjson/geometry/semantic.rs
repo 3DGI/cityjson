@@ -1,34 +1,13 @@
+use std::fmt;
 use crate::cityjson::attributes::Attributes;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 
-/// Semantic surface type.
-#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub enum SemanticType {
-    RoofSurface,
-    GroundSurface,
-    WallSurface,
-    ClosureSurface,
-    OuterCeilingSurface,
-    OuterFloorSurface,
-    Window,
-    Door,
-    InteriorWallSurface,
-    CeilingSurface,
-    FloorSurface,
-    WaterSurface,
-    WaterGroundSurface,
-    WaterClosureSurface,
-    TrafficArea,
-    AuxiliaryTrafficArea,
-    TransportationMarking,
-    TransportationHole,
-    Extension(String),
-}
+pub trait SemanticType: Default + fmt::Display + Clone {}
 
-pub trait Semantic<RR: ResourceRef, SS: StringStorage> {
+pub trait Semantic<RR: ResourceRef, SS: StringStorage, SemType: SemanticType> {
     /// Create a new semantic with the given type
-    fn new(type_semantic: SemanticType) -> Self;
+    fn new(type_semantic: SemType) -> Self;
     /// Check if this semantic has any children
     fn has_children(&self) -> bool;
     /// Check if this semantic has a parent
