@@ -1,8 +1,8 @@
 pub mod material;
 pub mod texture;
 
-use std::fmt;
 pub use material::*;
+use std::fmt;
 pub use texture::*;
 
 pub type RGB = [f32; 3];

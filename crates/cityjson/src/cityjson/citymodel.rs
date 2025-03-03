@@ -1,5 +1,5 @@
 use crate::cityjson::appearance::material::MaterialTrait;
-use crate::cityjson::appearance::texture::Texture;
+use crate::cityjson::appearance::texture::TextureTrait;
 use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
@@ -20,7 +20,7 @@ pub trait CityModelVersion {
 
     type Semantic: SemanticTrait<Self::ResourceRef, Self::StringStorage, Self::SemType>;
     type Material: MaterialTrait<Self::StringStorage>;
-    type Texture: Texture<Self::StringStorage>;
+    type Texture: TextureTrait<Self::StringStorage>;
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
     type Metadata: Metadata<Self::StringStorage>;
 
