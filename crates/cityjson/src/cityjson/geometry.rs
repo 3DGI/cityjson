@@ -10,7 +10,7 @@ use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use std::collections::HashMap;
 
-use crate::cityjson::appearance::material::Material;
+use crate::cityjson::appearance::material::MaterialTrait;
 use crate::cityjson::appearance::texture::Texture;
 use crate::cityjson::geometry::semantic::SemanticTrait;
 
