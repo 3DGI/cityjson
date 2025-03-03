@@ -21,11 +21,11 @@ pub mod v2_0;
 use crate::cityjson::vertex::VertexRef;
 use crate::errors::Error;
 use crate::resources::pool::ResourceRef;
-pub use resources::storage;
-pub use resources::pool;
 pub use cityjson::attributes;
 pub use cityjson::coordinate;
 pub use cityjson::vertex;
+pub use resources::pool;
+pub use resources::storage;
 use std::fmt;
 
 /// CityModel type.

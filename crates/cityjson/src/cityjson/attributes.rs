@@ -119,7 +119,7 @@
 
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// Represents the different types of values that can be stored in an attribute.
 ///
@@ -169,6 +169,42 @@ pub enum AttributeValue<SS: StringStorage> {
     Vec(Vec<Box<AttributeValue<SS>>>),
     /// A map of string keys to attribute values
     Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
+}
+
+impl<SS: StringStorage> Display for AttributeValue<SS>
+where
+    SS::String: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            AttributeValue::Null => write!(f, "null"),
+            AttributeValue::Bool(value) => write!(f, "{}", value),
+            AttributeValue::Unsigned(value) => write!(f, "{}", value),
+            AttributeValue::Integer(value) => write!(f, "{}", value),
+            AttributeValue::Float(value) => write!(f, "{}", value),
+            AttributeValue::String(value) => write!(f, "\"{}\"", value),
+            AttributeValue::Vec(values) => {
+                write!(f, "[")?;
+                for (i, value) in values.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", value)?;
+                }
+                write!(f, "]")
+            }
+            AttributeValue::Map(map) => {
+                write!(f, "{{")?;
+                for (i, (key, value)) in map.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "\"{}\": {}", key, value)?;
+                }
+                write!(f, "}}")
+            }
+        }
+    }
 }
 
 /// Container for attributes using a specific storage strategy.
@@ -539,6 +575,22 @@ impl<SS: StringStorage> Default for Attributes<SS> {
     /// ```
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<SS: StringStorage> Display for Attributes<SS>
+where
+    SS::String: Display + Eq + std::hash::Hash,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, (key, value)) in self.values.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "\"{}\": {}", key, value)?;
+        }
+        write!(f, "}}")
     }
 }
 
@@ -967,5 +1019,80 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_attribute_value_display() {
+        // Test primitive values
+        let null = AttributeValue::<OwnedStringStorage>::Null;
+        let boolean = AttributeValue::<OwnedStringStorage>::Bool(true);
+        let unsigned = AttributeValue::<OwnedStringStorage>::Unsigned(42);
+        let integer = AttributeValue::<OwnedStringStorage>::Integer(-100);
+        let float = AttributeValue::<OwnedStringStorage>::Float(3.12345);
+        let string = AttributeValue::<OwnedStringStorage>::String("hello".to_string());
+
+        assert_eq!(format!("{}", null), "null");
+        assert_eq!(format!("{}", boolean), "true");
+        assert_eq!(format!("{}", unsigned), "42");
+        assert_eq!(format!("{}", integer), "-100");
+        assert_eq!(format!("{}", float), "3.12345");
+        assert_eq!(format!("{}", string), "\"hello\"");
+
+        // Test vector
+        let mut vec_values = Vec::new();
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(1)));
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(2)));
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(3)));
+
+        let vec_attr = AttributeValue::<OwnedStringStorage>::Vec(vec_values);
+        assert_eq!(format!("{}", vec_attr), "[1, 2, 3]");
+
+        // Test map
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            Box::new(AttributeValue::<OwnedStringStorage>::String(
+                "City Hall".to_string(),
+            )),
+        );
+        map.insert(
+            "height".to_string(),
+            Box::new(AttributeValue::<OwnedStringStorage>::Float(45.5)),
+        );
+
+        let map_attr = AttributeValue::<OwnedStringStorage>::Map(map);
+        // Since HashMap iteration order is non-deterministic, we need to check parts
+        let map_str = format!("{}", map_attr);
+        assert!(map_str.starts_with("{"));
+        assert!(map_str.ends_with("}"));
+        assert!(map_str.contains("\"name\": \"City Hall\""));
+        assert!(map_str.contains("\"height\": 45.5"));
+    }
+
+    #[test]
+    fn test_attributes_display() {
+        let mut attrs = Attributes::<OwnedStringStorage> {
+            values: HashMap::new(),
+        };
+
+        attrs.values.insert(
+            "name".to_string(),
+            AttributeValue::String("Building 42".to_string()),
+        );
+        attrs
+            .values
+            .insert("year_built".to_string(), AttributeValue::Integer(1985));
+        attrs
+            .values
+            .insert("is_heritage".to_string(), AttributeValue::Bool(true));
+
+        // Since HashMap iteration order is non-deterministic, we need to check parts
+        let attrs_str = format!("{}", attrs);
+        assert!(attrs_str.starts_with("{"));
+        assert!(attrs_str.ends_with("}"));
+        assert!(attrs_str.contains("\"name\": \"Building 42\""));
+        assert!(attrs_str.contains("\"year_built\": 1985"));
+        assert!(attrs_str.contains("\"is_heritage\": true"));
+        println!("{}", attrs);
     }
 }

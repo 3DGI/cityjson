@@ -98,22 +98,3 @@ impl<SS: StringStorage> crate::cityjson::appearance::material::Material<SS> for 
         self.is_smooth = is_smooth;
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::cityjson::material::Material;
-//
-//     #[test]
-//     fn test_owned_material() {
-//         let mat = OwnedMaterial::new("brick".to_string());
-//         assert_eq!(mat.name, "brick");
-//     }
-//
-//     #[test]
-//     fn test_borrowed_material() {
-//         let name = "brick";
-//         let mat = BorrowedMaterial::new(name);
-//         assert_eq!(mat.name, "brick");
-//     }
-// }

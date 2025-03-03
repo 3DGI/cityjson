@@ -26,7 +26,7 @@
 //! ```
 
 use std::borrow::Borrow;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -45,7 +45,7 @@ pub trait StringStorage: Clone + Debug + Default {
     ///
     /// The constraints ensure that regardless of the storage strategy,
     /// the string type supports all necessary operations for the CityJSON model.
-    type String: AsRef<str> + Eq + Hash + Borrow<str> + Clone + Debug + Default;
+    type String: AsRef<str> + Eq + Hash + Borrow<str> + Clone + Debug + Default + Display;
 }
 
 /// Storage implementation for owned strings

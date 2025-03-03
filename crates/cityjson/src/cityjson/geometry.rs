@@ -1,7 +1,7 @@
 use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
-use crate::cityjson::geometry::semantic::SemanticType;
+use crate::cityjson::geometry::semantic::SemanticTypeTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::errors::Error;
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use crate::cityjson::appearance::material::Material;
 use crate::cityjson::appearance::texture::Texture;
-use crate::cityjson::geometry::semantic::Semantic;
+use crate::cityjson::geometry::semantic::SemanticTrait;
 
 pub mod boundary;
 pub mod semantic;
@@ -33,9 +33,9 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
-struct SurfaceInProgress<SemType: SemanticType> {
-    outer_ring: Option<usize>,      // index to outer ring
-    inner_rings: Vec<usize>,        // indices to inner rings
+struct SurfaceInProgress<SemType: SemanticTypeTrait> {
+    outer_ring: Option<usize>, // index to outer ring
+    inner_rings: Vec<usize>,   // indices to inner rings
     semantic: Option<SemType>, // semantic type for the whole surface
 }
 
@@ -57,7 +57,7 @@ pub struct GeometryBuilder<'a, V: CityModelVersion, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     vertices: Vec<RealWorldCoordinate>, // todo: generalize to Coordinate
     rings: Vec<Vec<usize>>,             // indices into vertices
-    surfaces: Vec<SurfaceInProgress<V::SemType>>,   // surfaces with their rings
+    surfaces: Vec<SurfaceInProgress<V::SemType>>, // surfaces with their rings
     shells: Vec<ShellInProgress>,       // shells with their surfaces
     solids: Vec<SolidInProgress>,       // solids with their shells
     // Current element tracking

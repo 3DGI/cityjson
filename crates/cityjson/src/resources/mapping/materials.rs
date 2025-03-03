@@ -37,4 +37,3 @@ use crate::resources::mapping::SemanticOrMaterialMap;
 /// * `RR` - The resource reference type used to identify materials
 ///
 pub type MaterialMap<VR, RR> = SemanticOrMaterialMap<VR, RR>;
-
