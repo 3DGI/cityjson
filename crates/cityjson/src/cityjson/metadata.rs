@@ -1,3 +1,3 @@
 use crate::resources::storage::StringStorage;
 
-pub trait Metadata<SS: StringStorage> {}
+pub trait MetadataTrait<SS: StringStorage> {}

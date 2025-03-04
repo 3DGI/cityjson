@@ -484,7 +484,7 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage> cityjson::metadata::Metadata<SS> for Metadata<SS> {}
+impl<SS: StringStorage> cityjson::metadata::MetadataTrait<SS> for Metadata<SS> {}
 
 /// Bounding Box.
 ///

@@ -140,7 +140,7 @@ impl Default for Transform {
     }
 }
 
-impl cityjson::transform::Transform for Transform {}
+impl cityjson::transform::TransformTrait for Transform {}
 
 #[cfg(test)]
 mod test {

@@ -14,7 +14,7 @@
 //! ## Examples
 //!
 //! ```rust
-//! use cityjson::storage::{StringStorage, OwnedStringStorage, BorrowedStringStorage};
+//! use cityjson::prelude::*;
 //!
 //! // Using owned strings
 //! type MyOwnedString = <OwnedStringStorage as StringStorage>::String;

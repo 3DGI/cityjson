@@ -1,3 +1,69 @@
+//! # Boundary Representation for CityJSON Geometries
+//!
+//! This module provides representations and utilities for working with CityJSON geometry boundaries,
+//! supporting both a memory-efficient flattened representation and a nested representation that
+//! aligns with the CityJSON specification.
+//!
+//! ## CityJSON Compliance
+//!
+//! The boundary representations in this module comply with the
+//! [CityJSON specification](https://www.cityjson.org/specs/) for geometry boundaries. The
+//! nested representation directly maps to the JSON structure defined in the specification,
+//! while the flattened representation provides an optimized internal format.
+//!
+//! ## Nested vs. Flattened Representations
+//!
+//! ### Nested Representation
+//!
+//! CityJSON defines geometry boundaries using nested arrays in JSON. For example, a MultiSurface
+//! is represented as an array of surfaces, where each surface is an array of rings, and each ring
+//! is an array of vertex indices. This nested structure is intuitive and directly maps to the
+//! JSON representation, but can be inefficient for processing and memory usage due to the overhead
+//! of nested vectors.
+//!
+//! The `nested` module provides types that match this structure:
+//! - `BoundaryNestedMultiPoint<T>`
+//! - `BoundaryNestedMultiLineString<T>`
+//! - `BoundaryNestedMultiOrCompositeSurface<T>`
+//! - `BoundaryNestedSolid<T>`
+//! - `BoundaryNestedMultiOrCompositeSolid<T>`
+//!
+//! ### Flattened Representation
+//!
+//! The `Boundary<VR>` struct provides a memory-efficient "flattened" representation that uses a
+//! series of offset indices to navigate through a single, contiguous array. This approach:
+//! - Reduces memory overhead from nested vectors
+//! - Improves cache locality for better performance
+//! - Simplifies operations on the geometry
+//!
+//! For example, a MultiSurface is represented using:
+//! - A single vector of vertex indices
+//! - A vector of ring indices (pointing into the vertex vector)
+//! - A vector of surface indices (pointing into the ring vector)
+//!
+//! ## Usage
+//!
+//! The nested representation is primarily used for serialization/deserialization to/from CityJSON,
+//! while the flattened representation is used for internal processing within cityjson-rs. The module
+//! provides methods to convert between the two representations.
+//!
+//! ```rust
+//! use cityjson::prelude::*;
+//!
+//! // Create a nested representation of a MultiPoint
+//! let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
+//!
+//! // Convert to flattened representation
+//! let boundary: Boundary<u32> = multi_point.into();
+//!
+//! // Check boundary type
+//! assert_eq!(boundary.check_type(), BoundaryType::MultiPoint);
+//!
+//! // Convert back to nested representation
+//! let multi_point_again = boundary.to_nested_multi_point().unwrap();
+//! assert_eq!(multi_point_again, vec![0, 1, 2, 3]);
+//! ```
+
 pub mod nested;
 
 use crate::cityjson::geometry::boundary::nested::*;
@@ -5,8 +71,42 @@ use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
-/// The Boundary does not have the Geometry type information, so it should be used in
-/// conjunction with its parent Geometry.
+///
+/// This structure provides an efficient, flattened representation of geometry boundaries,
+/// optimized for memory usage and processing. It can represent any CityJSON geometry type,
+/// from MultiPoint to MultiSolid.
+///
+/// The `Boundary` uses a series of indices and offsets to navigate through a structure that
+/// would traditionally be represented using nested arrays. Instead of nesting, each level
+/// of the hierarchy (vertices, rings, surfaces, shells, solids) is stored in a flat array,
+/// with indices into the next level down.
+///
+/// # Type Parameters
+///
+/// * `VR` - The vertex reference type (e.g., u16, u32, u64) that determines the maximum
+///   number of vertices, rings, etc. that can be indexed
+///
+/// # Example
+///
+/// ```
+/// use cityjson::prelude::*;
+///
+/// // Create a nested representation of a multi-linestring
+/// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
+///     vec![0, 1, 2],       // First linestring
+///     vec![3, 4, 5, 6],    // Second linestring
+/// ];
+///
+/// // Convert to flattened representation
+/// let boundary: Boundary<u32> = multi_linestring.into();
+///
+/// // Check boundary type
+/// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
+///
+/// // Convert back to nested representation
+/// let multi_linestring_again = boundary.to_nested_multi_linestring().unwrap();
+/// assert_eq!(multi_linestring_again, vec![vec![0, 1, 2], vec![3, 4, 5, 6]]);
+/// ```
 #[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(unused)]
@@ -24,11 +124,54 @@ pub struct Boundary<VR: VertexRef> {
 }
 
 impl<VR: VertexRef> Boundary<VR> {
+    /// Creates a new empty boundary.
+    ///
+    /// # Returns
+    ///
+    /// A new `Boundary` instance with empty vectors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// let boundary: Boundary<u32> = Boundary::new();
+    /// assert!(boundary.is_consistent());
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Creates a new boundary with the specified capacity for each vector.
+    ///
+    /// # Parameters
+    ///
+    /// * `vertices` - Capacity for the vertices vector
+    /// * `rings` - Capacity for the rings vector
+    /// * `surfaces` - Capacity for the surfaces vector
+    /// * `shells` - Capacity for the shells vector
+    /// * `solids` - Capacity for the solids vector
+    ///
+    /// # Returns
+    ///
+    /// A new `Boundary` instance with pre-allocated vectors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a boundary with pre-allocated capacity
+    /// let boundary: Boundary<u32> = Boundary::with_capacity(
+    ///     VertexIndex::new(100), // space for 100 vertices
+    ///     VertexIndex::new(20),  // space for 20 rings
+    ///     VertexIndex::new(10),  // space for 10 surfaces
+    ///     VertexIndex::new(2),   // space for 2 shells
+    ///     VertexIndex::new(1),   // space for 1 solid
+    /// );
+    /// assert!(boundary.is_consistent());
+    /// ```
     #[inline]
     pub fn with_capacity(
         vertices: VertexIndex<VR>,
@@ -46,8 +189,32 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Convert to a nested MultiPoint boundary representation, if the Boundary can be interpreted
-    /// as a MultiPoint boundary.
+    /// Converts to a nested MultiPoint boundary representation.
+    ///
+    /// This method converts the flattened boundary to a nested MultiPoint representation
+    /// if the boundary can be interpreted as a MultiPoint.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the nested MultiPoint representation or an error
+    /// if the boundary cannot be interpreted as a MultiPoint.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a boundary from a MultiPoint
+    /// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
+    /// let boundary: Boundary<u32> = multi_point.into();
+    ///
+    /// // Convert back to MultiPoint
+    /// let nested = boundary.to_nested_multi_point().unwrap();
+    /// assert_eq!(nested, vec![0, 1, 2, 3]);
+    ///
+    /// // Check type
+    /// assert_eq!(boundary.check_type(), BoundaryType::MultiPoint);
+    /// ```
     pub fn to_nested_multi_point(&self) -> errors::Result<BoundaryNestedMultiPoint<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
@@ -60,8 +227,32 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Convert to a nested MultiLineString boundary representation, if the Boundary can be
-    /// interpreted as a MultiLineString boundary.
+    /// Converts to a nested MultiLineString boundary representation.
+    ///
+    /// This method converts the flattened boundary to a nested MultiLineString representation
+    /// if the boundary can be interpreted as a MultiLineString.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the nested MultiLineString representation or an error
+    /// if the boundary cannot be interpreted as a MultiLineString.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a boundary from a MultiLineString
+    /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
+    ///     vec![0, 1, 2],
+    ///     vec![3, 4, 5]
+    /// ];
+    /// let boundary: Boundary<u32> = multi_linestring.into();
+    ///
+    /// // Convert back to MultiLineString
+    /// let nested = boundary.to_nested_multi_linestring().unwrap();
+    /// assert_eq!(nested, vec![vec![0, 1, 2], vec![3, 4, 5]]);
+    /// ```
     pub fn to_nested_multi_linestring(&self) -> errors::Result<BoundaryNestedMultiLineString<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
@@ -77,8 +268,33 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Convert to a nested Multi- or CompositeSurface boundary representation, if the Boundary can be
-    /// interpreted as a Multi- or CompositeSurface boundary.
+    /// Converts to a nested Multi- or CompositeSurface boundary representation.
+    ///
+    /// This method converts the flattened boundary to a nested Multi- or CompositeSurface
+    /// representation if the boundary can be interpreted as a Multi- or CompositeSurface.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the nested Multi- or CompositeSurface representation or an error
+    /// if the boundary cannot be interpreted as a Multi- or CompositeSurface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a boundary from a MultiSurface
+    /// // A simple MultiSurface with two surfaces, each with one ring
+    /// let multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![
+    ///     vec![vec![0, 1, 2, 0]], // First surface (triangle)
+    ///     vec![vec![3, 4, 5, 3]]  // Second surface (triangle)
+    /// ];
+    /// let boundary: Boundary<u32> = multi_surface.clone().into();
+    ///
+    /// // Convert back to MultiSurface
+    /// let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
+    /// assert_eq!(nested, multi_surface);
+    /// ```
     pub fn to_nested_multi_or_composite_surface(
         &self,
     ) -> errors::Result<BoundaryNestedMultiOrCompositeSurface<VR>> {
@@ -101,8 +317,34 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Convert to a nested Solid boundary representation, if the Boundary can be
-    /// interpreted as a Solid boundary.
+    /// Converts to a nested Solid boundary representation.
+    ///
+    /// This method converts the flattened boundary to a nested Solid representation
+    /// if the boundary can be interpreted as a Solid.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the nested Solid representation or an error
+    /// if the boundary cannot be interpreted as a Solid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a simplified solid representation (just one shell with one face for brevity)
+    /// let solid: BoundaryNestedSolid32 = vec![
+    ///     vec![vec![vec![0, 1, 2, 0]]] // One shell with one surface with one ring
+    /// ];
+    /// let boundary: Boundary<u32> = solid.clone().into();
+    ///
+    /// // Check type
+    /// assert_eq!(boundary.check_type(), BoundaryType::Solid);
+    ///
+    /// // Convert back to Solid
+    /// let nested = boundary.to_nested_solid().unwrap();
+    /// assert_eq!(nested, solid);
+    /// ```
     pub fn to_nested_solid(&self) -> errors::Result<BoundaryNestedSolid<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::Solid {
@@ -118,8 +360,35 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Convert to a nested Multi- or CompositeSolid boundary representation, if the Boundary can be
-    /// interpreted as a Multi- or CompositeSolid boundary.
+    /// Converts to a nested Multi- or CompositeSolid boundary representation.
+    ///
+    /// This method converts the flattened boundary to a nested Multi- or CompositeSolid
+    /// representation if the boundary can be interpreted as a Multi- or CompositeSolid.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the nested Multi- or CompositeSolid representation or an error
+    /// if the boundary cannot be interpreted as a Multi- or CompositeSolid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a very simplified MultiSolid (just two solids with minimal structure for brevity)
+    /// let multi_solid: BoundaryNestedMultiOrCompositeSolid32 = vec![
+    ///     vec![vec![vec![vec![0, 1, 2, 0]]]],  // First solid
+    ///     vec![vec![vec![vec![3, 4, 5, 3]]]]   // Second solid
+    /// ];
+    /// let boundary: Boundary<u32> = multi_solid.clone().into();
+    ///
+    /// // Check type
+    /// assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
+    ///
+    /// // Convert back to MultiSolid
+    /// let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
+    /// assert_eq!(nested, multi_solid);
+    /// ```
     pub fn to_nested_multi_or_composite_solid(
         &self,
     ) -> errors::Result<BoundaryNestedMultiOrCompositeSolid<VR>> {
@@ -154,6 +423,7 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
+    // Helper method to process shells for a solid
     fn push_shells_to_solid(
         &self,
         shells: &[VertexIndex<VR>],
@@ -180,6 +450,7 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
+    // Helper method to process surfaces for a shell
     fn push_surfaces_to_multi_surface(
         &self,
         surfaces: &[VertexIndex<VR>],
@@ -205,6 +476,7 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
+    // Helper method to process rings for a surface
     fn push_rings_to_surface(
         &self,
         rings: &[VertexIndex<VR>],
@@ -227,7 +499,28 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Hint what type of boundary is stored in the Boundary.
+    /// Determines the type of boundary stored in this instance.
+    ///
+    /// This method examines the structure of the boundary to determine its type.
+    /// The detection follows a hierarchical approach, prioritizing the most complex
+    /// structure present.
+    ///
+    /// # Returns
+    ///
+    /// A `BoundaryType` value indicating the type of the boundary.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a boundary from a MultiLineString
+    /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![vec![0, 1, 2]];
+    /// let boundary: Boundary<u32> = multi_linestring.into();
+    ///
+    /// // Check type
+    /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
+    /// ```
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {
             BoundaryType::MultiOrCompositeSolid
@@ -244,8 +537,27 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Verify that the internal representation of the boundary is consistent that there are no
-    /// dangling indices.
+    /// Verifies that the internal representation of the boundary is consistent.
+    ///
+    /// This method checks that all indices are valid and that there are no dangling
+    /// references. It ensures that:
+    /// - Ring indices point to valid vertices
+    /// - Surface indices point to valid rings
+    /// - Shell indices point to valid surfaces
+    /// - Solid indices point to valid shells
+    ///
+    /// # Returns
+    ///
+    /// `true` if the boundary is consistent, `false` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// let boundary: Boundary<u32> = Boundary::new();
+    /// assert!(boundary.is_consistent());
+    /// ```
     pub fn is_consistent(&self) -> bool {
         // Check that all indices are within bounds
         let vertices_len = self.vertices.len();
@@ -297,14 +609,37 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 }
 
+/// The type of a CityJSON boundary.
+///
+/// This enum represents the different types of boundaries that can be represented
+/// in CityJSON. The types follow a hierarchy of complexity, from the simplest
+/// (MultiPoint) to the most complex (MultiOrCompositeSolid).
+///
+/// # Examples
+///
+/// ```
+/// use cityjson::prelude::*;
+///
+/// // Create a boundary from a MultiPoint
+/// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
+/// let boundary: Boundary<u32> = multi_point.into();
+///
+/// // Check type
+/// assert_eq!(boundary.check_type(), BoundaryType::MultiPoint);
+/// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum BoundaryType {
+    /// A collection of solids, possibly connected.
     MultiOrCompositeSolid,
+    /// A single solid.
     Solid,
+    /// A collection of surfaces, possibly connected.
     MultiOrCompositeSurface,
+    /// A collection of line strings.
     MultiLineString,
+    /// A collection of points.
     MultiPoint,
-    /// Represents an empty Boundary.
+    /// An empty boundary.
     #[default]
     None,
 }
@@ -323,6 +658,10 @@ impl std::fmt::Display for BoundaryType {
     }
 }
 
+/// A counter for tracking positions within different levels of a boundary hierarchy.
+///
+/// This struct is used internally during conversions between flattened and nested
+/// representations to keep track of the current position in each level of the hierarchy.
 #[derive(Default)]
 pub(crate) struct BoundaryCounter<VR: VertexRef> {
     pub(crate) vertex_offset: VertexIndex<VR>, // Current position in vertex list
@@ -382,138 +721,406 @@ impl<VR: VertexRef> BoundaryCounter<VR> {
 }
 
 // Type aliases for convenience
+/// A boundary using 16-bit vertex indices (suitable for up to 65,535 vertices)
 pub type Boundary16 = Boundary<u16>;
+/// A boundary using 32-bit vertex indices (suitable for up to ~4.3 billion vertices)
 pub type Boundary32 = Boundary<u32>;
+/// A boundary using 64-bit vertex indices (suitable for virtually unlimited vertices)
 pub type Boundary64 = Boundary<u64>;
 
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use crate::index::VertexIndexVec;
-//
-//     #[test]
-//     fn multipoint() {
-//         let boundary = Boundary {
-//             vertices: vec![0u32, 3, 2, 1].to_vertex_indices(),
-//             ..Default::default()
-//         };
-//         let mp_nested = boundary.to_nested_multi_point().unwrap();
-//         assert_eq!(mp_nested, vec![0, 3, 2, 1]);
-//     }
-//
-//     #[test]
-//     fn multilinestring_basic() {
-//         let boundary = Boundary {
-//             vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7, 8].to_vertex_indices(),
-//             rings: vec![0u32, 4, 7].to_vertex_indices(),
-//             ..Default::default()
-//         };
-//         let nested = boundary.to_nested_multi_linestring().unwrap();
-//         assert_eq!(nested, vec![vec![0, 3, 2, 1], vec![4, 5, 6], vec![7, 8]]);
-//     }
-//
-//     #[test]
-//     fn multilinestring_empty() {
-//         let boundary = Boundary {
-//             vertices: vec![0u32, 3, 2, 1, 4, 5, 6, 7].to_vertex_indices(),
-//             rings: vec![0u32, 4, 4, 8].to_vertex_indices(),
-//             ..Default::default()
-//         };
-//         let nested = boundary.to_nested_multi_linestring().unwrap();
-//         assert_eq!(
-//             nested,
-//             vec![vec![0, 3, 2, 1], vec![], vec![4, 5, 6, 7], vec![]]
-//         );
-//     }
-//
-//     #[test]
-//     fn from_multilinestring_empty_last() {
-//         let ml_nested: BoundaryNestedMultiLineString<u32> = vec![vec![0, 1, 2, 3], vec![]];
-//         let boundary = Boundary::from(ml_nested);
-//         assert_eq!(boundary.rings, vec![0u32, 4].to_vertex_indices())
-//     }
-//
-//     #[test]
-//     fn from_multilinestring_empty_inner() {
-//         let ml_nested: BoundaryNestedMultiLineString<u32> =
-//             vec![vec![0, 1, 2, 3], vec![], vec![0, 1, 2, 3], vec![0, 1, 2, 3]];
-//         let boundary = Boundary::from(ml_nested);
-//         assert_eq!(boundary.rings, vec![0u32, 4, 4, 8].to_vertex_indices())
-//     }
-//
-//     #[test]
-//     fn multi_or_composite_surface_inner_ring() {
-//         let boundary = Boundary {
-//             vertices: vec![
-//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-//             ]
-//             .to_vertex_indices(),
-//             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
-//             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
-//             ..Default::default()
-//         };
-//         let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
-//         assert_eq!(
-//             nested,
-//             vec![
-//                 vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-//                 vec![vec![12, 13, 14, 15]],
-//                 vec![vec![16, 17, 18], vec![19, 20, 21, 22]]
-//             ]
-//         );
-//     }
-//
-//     #[test]
-//     fn solid() {
-//         let boundary = Boundary {
-//             vertices: vec![
-//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-//             ]
-//             .to_vertex_indices(),
-//             rings: vec![0u32, 4, 8, 12, 16, 19].to_vertex_indices(),
-//             surfaces: vec![0u32, 3, 4].to_vertex_indices(),
-//             shells: vec![0u32, 2].to_vertex_indices(),
-//             ..Default::default()
-//         };
-//         let nested = boundary.to_nested_solid().unwrap();
-//         assert_eq!(
-//             nested,
-//             vec![
-//                 vec![
-//                     vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-//                     vec![vec![12, 13, 14, 15]]
-//                 ],
-//                 vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
-//             ]
-//         );
-//     }
-//
-//     #[test]
-//     fn multi_or_composite_solid() {
-//         let boundary = Boundary {
-//             vertices: vec![
-//                 0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-//                 22, 23, 24, 25, 26, 27, 28,
-//             ]
-//             .to_vertex_indices(),
-//             rings: vec![0u32, 4, 8, 12, 16, 19, 23, 26].to_vertex_indices(),
-//             surfaces: vec![0u32, 3, 4, 6, 7].to_vertex_indices(),
-//             shells: vec![0u32, 2, 3].to_vertex_indices(),
-//             solids: vec![0u32, 2].to_vertex_indices(),
-//         };
-//         let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
-//         assert_eq!(
-//             nested,
-//             vec![
-//                 vec![
-//                     vec![
-//                         vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7], vec![8, 9, 10, 11]],
-//                         vec![vec![12, 13, 14, 15]]
-//                     ],
-//                     vec![vec![vec![16, 17, 18], vec![19, 20, 21, 22]]]
-//                 ],
-//                 vec![vec![vec![vec![23, 24, 25]], vec![vec![26, 27, 28]]]]
-//             ]
-//         );
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cityjson::vertex::VertexIndex;
+
+    // Helper function to create vertex indices
+    fn vi<T: VertexRef>(value: T) -> VertexIndex<T> {
+        VertexIndex::new(value)
+    }
+
+    #[test]
+    fn test_empty_boundary() {
+        let boundary: Boundary<u32> = Boundary::new();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+        assert!(boundary.is_consistent());
+    }
+
+    #[test]
+    fn test_boundary_with_capacity() {
+        let boundary: Boundary<u32> = Boundary::with_capacity(
+            vi(10), // vertices capacity
+            vi(5),  // rings capacity
+            vi(3),  // surfaces capacity
+            vi(2),  // shells capacity
+            vi(1),  // solids capacity
+        );
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+        assert!(boundary.is_consistent());
+    }
+
+    #[test]
+    fn test_boundary_type_detection() {
+        // Create various boundary types
+        let mut mp_boundary: Boundary<u32> = Boundary::new();
+        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert_eq!(mp_boundary.check_type(), BoundaryType::MultiPoint);
+
+        let mut ml_boundary: Boundary<u32> = Boundary::new();
+        ml_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        ml_boundary.rings = vec![vi(0)];
+        assert_eq!(ml_boundary.check_type(), BoundaryType::MultiLineString);
+
+        let mut ms_boundary: Boundary<u32> = Boundary::new();
+        ms_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        ms_boundary.rings = vec![vi(0)];
+        ms_boundary.surfaces = vec![vi(0)];
+        assert_eq!(
+            ms_boundary.check_type(),
+            BoundaryType::MultiOrCompositeSurface
+        );
+
+        let mut solid_boundary: Boundary<u32> = Boundary::new();
+        solid_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        solid_boundary.rings = vec![vi(0)];
+        solid_boundary.surfaces = vec![vi(0)];
+        solid_boundary.shells = vec![vi(0)];
+        assert_eq!(solid_boundary.check_type(), BoundaryType::Solid);
+
+        let mut multi_solid_boundary: Boundary<u32> = Boundary::new();
+        multi_solid_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        multi_solid_boundary.rings = vec![vi(0)];
+        multi_solid_boundary.surfaces = vec![vi(0)];
+        multi_solid_boundary.shells = vec![vi(0)];
+        multi_solid_boundary.solids = vec![vi(0)];
+        assert_eq!(
+            multi_solid_boundary.check_type(),
+            BoundaryType::MultiOrCompositeSolid
+        );
+    }
+
+    #[test]
+    fn test_boundary_consistency() {
+        // Consistent boundary - basic multilinestring
+        let mut consistent: Boundary<u32> = Boundary::new();
+        consistent.vertices = vec![vi(0), vi(1), vi(2), vi(3)];
+        consistent.rings = vec![vi(0), vi(2)];
+        assert!(consistent.is_consistent());
+
+        // Consistent boundary - multi-surface
+        let mut consistent2: Boundary<u32> = Boundary::new();
+        consistent2.vertices = vec![vi(0), vi(1), vi(2), vi(3), vi(4), vi(5)];
+        consistent2.rings = vec![vi(0), vi(3), vi(6)]; // Note: vi(6) is out of bounds, but it's allowed as the "end" pointer
+        consistent2.surfaces = vec![vi(0), vi(2)];
+        assert!(consistent2.is_consistent());
+
+        // Inconsistent boundary - ring references out of bounds
+        let mut inconsistent: Boundary<u32> = Boundary::new();
+        inconsistent.vertices = vec![vi(0), vi(1)];
+        inconsistent.rings = vec![vi(0), vi(3)]; // references vertex 3, which doesn't exist
+        assert!(!inconsistent.is_consistent());
+
+        // Inconsistent boundary - surface references out of bounds
+        let mut inconsistent2: Boundary<u32> = Boundary::new();
+        inconsistent2.vertices = vec![vi(0), vi(1), vi(2), vi(3)];
+        inconsistent2.rings = vec![vi(0)];
+        inconsistent2.surfaces = vec![vi(0), vi(2)]; // references ring 2, which doesn't exist
+        assert!(!inconsistent2.is_consistent());
+    }
+
+    #[test]
+    fn test_multi_point_conversion() {
+        // Create nested multi-point
+        let nested: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::MultiPoint);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_point().unwrap();
+        assert_eq!(round_trip, nested);
+
+        // Test incompatible conversion
+        let mut ml_boundary: Boundary<u32> = Boundary::new();
+        ml_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        ml_boundary.rings = vec![vi(0)];
+        assert!(ml_boundary.to_nested_multi_point().is_err());
+    }
+
+    #[test]
+    fn test_multi_linestring_conversion() {
+        // Create nested multi-linestring
+        let nested: BoundaryNestedMultiLineString32 = vec![vec![0, 1, 2], vec![3, 4, 5, 6]];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::MultiLineString);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_linestring().unwrap();
+        assert_eq!(round_trip, nested);
+
+        // Test incompatible conversion
+        let mut mp_boundary: Boundary<u32> = Boundary::new();
+        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(mp_boundary.to_nested_multi_linestring().is_err());
+    }
+
+    #[test]
+    fn test_multi_surface_conversion() {
+        // Create nested multi-surface
+        let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![
+            // First surface with one ring
+            vec![vec![0, 1, 2, 0]],
+            // Second surface with two rings (outer and inner)
+            vec![vec![3, 4, 5, 3], vec![6, 7, 8, 6]],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(
+            flattened.check_type(),
+            BoundaryType::MultiOrCompositeSurface
+        );
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_or_composite_surface().unwrap();
+        assert_eq!(round_trip, nested);
+
+        // Test incompatible conversion
+        let mut mp_boundary: Boundary<u32> = Boundary::new();
+        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(mp_boundary.to_nested_multi_or_composite_surface().is_err());
+    }
+
+    #[test]
+    fn test_solid_conversion() {
+        // Create nested solid (a simple cube)
+        let nested: BoundaryNestedSolid32 = vec![
+            // Outer shell with 6 faces
+            vec![
+                vec![vec![0, 1, 2, 3, 0]], // front face
+                vec![vec![4, 5, 6, 7, 4]], // back face
+                vec![vec![0, 3, 7, 4, 0]], // left face
+                vec![vec![1, 2, 6, 5, 1]], // right face
+                vec![vec![0, 1, 5, 4, 0]], // bottom face
+                vec![vec![3, 2, 6, 7, 3]], // top face
+            ],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::Solid);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_solid().unwrap();
+        assert_eq!(round_trip, nested);
+
+        // Test incompatible conversion
+        let mut mp_boundary: Boundary<u32> = Boundary::new();
+        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(mp_boundary.to_nested_solid().is_err());
+    }
+
+    #[test]
+    fn test_multi_solid_conversion() {
+        // Create nested multi-solid (two simple cubes)
+        let nested: BoundaryNestedMultiOrCompositeSolid32 = vec![
+            // First solid - just a single triangular face for simplicity
+            vec![vec![vec![vec![0, 1, 2, 0]]]],
+            // Second solid - also a single triangular face
+            vec![vec![vec![vec![3, 4, 5, 3]]]],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::MultiOrCompositeSolid);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_or_composite_solid().unwrap();
+        assert_eq!(round_trip, nested);
+
+        // Test incompatible conversion
+        let mut mp_boundary: Boundary<u32> = Boundary::new();
+        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(mp_boundary.to_nested_multi_or_composite_solid().is_err());
+    }
+
+    #[test]
+    fn test_display_boundary_type() {
+        assert_eq!(BoundaryType::None.to_string(), "None");
+        assert_eq!(BoundaryType::MultiPoint.to_string(), "MultiPoint");
+        assert_eq!(BoundaryType::MultiLineString.to_string(), "MultiLineString");
+        assert_eq!(
+            BoundaryType::MultiOrCompositeSurface.to_string(),
+            "MultiOrCompositeSurface"
+        );
+        assert_eq!(BoundaryType::Solid.to_string(), "Solid");
+        assert_eq!(
+            BoundaryType::MultiOrCompositeSolid.to_string(),
+            "MultiOrCompositeSolid"
+        );
+    }
+
+    #[test]
+    fn test_boundary_counter() {
+        let mut counter = BoundaryCounter::<u32>::default();
+
+        // Initial values should be zero
+        assert_eq!(counter.vertex_offset().value(), 0);
+        assert_eq!(counter.ring_offset().value(), 0);
+        assert_eq!(counter.surface_offset().value(), 0);
+        assert_eq!(counter.shell_offset().value(), 0);
+        assert_eq!(counter.solid_offset().value(), 0);
+
+        // Test increments
+        assert_eq!(counter.increment_vertex_idx().value(), 1);
+        assert_eq!(counter.increment_vertex_idx().value(), 2);
+
+        assert_eq!(counter.increment_ring_idx().value(), 1);
+        assert_eq!(counter.increment_surface_idx().value(), 1);
+        assert_eq!(counter.increment_shell_idx().value(), 1);
+        assert_eq!(counter.increment_solid_idx().value(), 1);
+
+        // Current values after increments
+        assert_eq!(counter.vertex_offset().value(), 2);
+        assert_eq!(counter.ring_offset().value(), 1);
+        assert_eq!(counter.surface_offset().value(), 1);
+        assert_eq!(counter.shell_offset().value(), 1);
+        assert_eq!(counter.solid_offset().value(), 1);
+    }
+}
+
+#[cfg(test)]
+mod nested_tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_nested_conversions() {
+        // Test empty MultiPoint
+        let empty_mp: BoundaryNestedMultiPoint32 = vec![];
+        let boundary: Boundary<u32> = empty_mp.into();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+
+        // Test empty MultiLineString
+        let empty_ml: BoundaryNestedMultiLineString32 = vec![];
+        let boundary: Boundary<u32> = empty_ml.into();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+
+        // Test empty MultiSurface
+        let empty_ms: BoundaryNestedMultiOrCompositeSurface32 = vec![];
+        let boundary: Boundary<u32> = empty_ms.into();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+
+        // Test empty Solid
+        let empty_solid: BoundaryNestedSolid32 = vec![];
+        let boundary: Boundary<u32> = empty_solid.into();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+
+        // Test empty MultiSolid
+        let empty_multisolid: BoundaryNestedMultiOrCompositeSolid32 = vec![];
+        let boundary: Boundary<u32> = empty_multisolid.into();
+        assert_eq!(boundary.check_type(), BoundaryType::None);
+    }
+
+    #[test]
+    fn test_nested_multilinestring_with_empty_linestrings() {
+        // Create a nested multi-linestring with an empty linestring
+        let nested: BoundaryNestedMultiLineString32 = vec![
+            vec![0, 1, 2],
+            vec![], // Empty linestring
+            vec![3, 4, 5],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::MultiLineString);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_linestring().unwrap();
+
+        // The empty linestring should be preserved
+        assert_eq!(round_trip.len(), 3);
+        assert_eq!(round_trip[0], vec![0, 1, 2]);
+        assert_eq!(round_trip[1], vec![]); // Empty linestring preserved
+        assert_eq!(round_trip[2], vec![3, 4, 5]);
+    }
+
+    #[test]
+    fn test_nested_multisurface_with_empty_components() {
+        // Create a nested multi-surface with an empty surface
+        let nested: BoundaryNestedMultiOrCompositeSurface<u32> = vec![
+            vec![vec![0, 1, 2, 0]],
+            vec![], // Empty surface (no rings)
+            vec![vec![3, 4, 5, 3]],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(
+            flattened.check_type(),
+            BoundaryType::MultiOrCompositeSurface
+        );
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_or_composite_surface().unwrap();
+
+        let empty_surface = BoundaryNestedMultiLineString32::default();
+        // The empty surface should be preserved
+        assert_eq!(round_trip.len(), 3);
+        assert_eq!(round_trip[1], empty_surface); // Empty surface preserved
+    }
+
+    #[test]
+    fn test_type_alias_consistency() {
+        // Ensure type aliases are consistent with each other
+
+        // Create a simple multi-point with u16 indices
+        let mp16: BoundaryNestedMultiPoint16 = vec![0, 1, 2];
+        let boundary16: Boundary16 = mp16.clone().into();
+
+        // Create the same with u32 indices
+        let mp32: BoundaryNestedMultiPoint32 = vec![0, 1, 2];
+        let boundary32: Boundary32 = mp32.into();
+
+        // The boundaries should have the same structure despite different index types
+        assert_eq!(boundary16.check_type(), boundary32.check_type());
+        assert_eq!(boundary16.vertices.len(), boundary32.vertices.len());
+
+        // Check round-trip conversion
+        let mp16_again = boundary16.to_nested_multi_point().unwrap();
+        assert_eq!(mp16_again, mp16);
+    }
+
+    #[test]
+    fn test_multisolid_with_complex_structure() {
+        // Test a multi-solid with multiple levels of nesting
+        let nested: BoundaryNestedMultiOrCompositeSolid32 = vec![
+            // First solid with two shells
+            vec![
+                // Outer shell with two surfaces
+                vec![
+                    vec![vec![0, 1, 2, 0]], // First surface
+                    vec![vec![3, 4, 5, 3]], // Second surface
+                ],
+                // Inner shell with one surface
+                vec![vec![vec![6, 7, 8, 6]]],
+            ],
+            // Second solid with one shell
+            vec![
+                // One shell with one surface with two rings (outer and inner)
+                vec![vec![vec![9, 10, 11, 9], vec![12, 13, 14, 12]]],
+            ],
+        ];
+
+        // Convert to flattened
+        let flattened: Boundary<u32> = nested.clone().into();
+        assert_eq!(flattened.check_type(), BoundaryType::MultiOrCompositeSolid);
+
+        // Convert back to nested
+        let round_trip = flattened.to_nested_multi_or_composite_solid().unwrap();
+
+        // The complex structure should be preserved
+        assert_eq!(round_trip, nested);
+    }
+}

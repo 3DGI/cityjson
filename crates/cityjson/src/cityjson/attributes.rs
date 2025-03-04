@@ -27,7 +27,7 @@
 //! ### Creating and using owned attributes
 //!
 //! ```rust
-//! use cityjson::attributes::{OwnedAttributes, AttributeValue};
+//! use cityjson::prelude::*;
 //!
 //! // Create a new attributes container
 //! let mut attrs = OwnedAttributes::new();
@@ -57,7 +57,7 @@
 //! ### Working with nested attributes
 //!
 //! ```rust
-//! use cityjson::attributes::{OwnedAttributes, AttributeValue};
+//! use cityjson::prelude::*;
 //! use std::collections::HashMap;
 //!
 //! let mut attrs = OwnedAttributes::new();
@@ -93,7 +93,7 @@
 //! ### Using borrowed attributes
 //!
 //! ```rust
-//! use cityjson::attributes::{BorrowedAttributes, AttributeValue};
+//! use cityjson::prelude::*;
 //!
 //! // Static strings for demonstration
 //! let name = "Building B";
@@ -134,8 +134,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::attributes::AttributeValue;
-/// use cityjson::resources::storage::OwnedStringStorage;
+/// use cityjson::prelude::*;
 ///
 /// // Create different types of attribute values
 /// let null_value = AttributeValue::<OwnedStringStorage>::Null;
@@ -222,8 +221,7 @@ where
 /// Basic usage:
 ///
 /// ```rust
-/// use cityjson::attributes::{Attributes, AttributeValue};
-/// use cityjson::resources::storage::OwnedStringStorage;
+/// use cityjson::prelude::*;
 ///
 /// // Create a new attributes container
 /// let mut attrs = Attributes::<OwnedStringStorage>::new();
@@ -251,8 +249,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::Attributes;
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let attrs = Attributes::<OwnedStringStorage>::new();
     /// assert!(attrs.get("any_key").is_none());
@@ -277,8 +274,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("temperature".to_string(), AttributeValue::Float(22.5));
@@ -309,8 +305,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("counter".to_string(), AttributeValue::Integer(10));
@@ -343,8 +338,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     ///
@@ -383,8 +377,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("temporary".to_string(), AttributeValue::Bool(true));
@@ -413,8 +406,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// assert_eq!(attrs.len(), 0);
@@ -439,8 +431,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// assert!(attrs.is_empty());
@@ -464,8 +455,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     /// use std::collections::HashSet;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
@@ -490,8 +480,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("width".to_string(), AttributeValue::Float(10.0));
@@ -518,8 +507,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("key1".to_string(), AttributeValue::Integer(1));
@@ -547,8 +535,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::{Attributes, AttributeValue};
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let mut attrs = Attributes::<OwnedStringStorage>::new();
     /// attrs.insert("exists".to_string(), AttributeValue::Bool(true));
@@ -567,8 +554,7 @@ impl<SS: StringStorage> Default for Attributes<SS> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::attributes::Attributes;
-    /// use cityjson::resources::storage::OwnedStringStorage;
+    /// use cityjson::prelude::*;
     ///
     /// let attrs: Attributes<OwnedStringStorage> = Default::default();
     /// assert!(attrs.is_empty());
@@ -601,7 +587,7 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::attributes::{OwnedAttributes, AttributeValue};
+/// use cityjson::prelude::*;
 ///
 /// let mut attrs = OwnedAttributes::new();
 /// attrs.insert("name".to_string(), AttributeValue::String("Example".to_string()));
@@ -619,7 +605,7 @@ pub type OwnedAttributes = Attributes<OwnedStringStorage>;
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::attributes::{BorrowedAttributes, AttributeValue};
+/// use cityjson::prelude::*;
 ///
 /// let text = "Example";
 /// let mut attrs = BorrowedAttributes::new();

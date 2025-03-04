@@ -142,4 +142,7 @@ fn t() {
     println!("{}", CityObjectType::CityObjectGroup);
 }
 
-impl<SS: StringStorage, RR: ResourceRef> cityjson::cityobject::CityObject for CityObject<SS, RR> {}
+impl<SS: StringStorage, RR: ResourceRef> cityjson::cityobject::CityObjectTrait
+    for CityObject<SS, RR>
+{
+}

@@ -23,7 +23,7 @@
 //! ### Working with RealWorldCoordinates
 //!
 //! ```rust
-//! use cityjson::coordinate::RealWorldCoordinate;
+//! use cityjson::prelude::*;
 //!
 //! // Create a new coordinate
 //! let coord = RealWorldCoordinate::new(10.5, 20.3, 30.7);
@@ -37,7 +37,7 @@
 //! ### Working with QuantizedCoordinates
 //!
 //! ```rust
-//! use cityjson::coordinate::QuantizedCoordinate;
+//! use cityjson::prelude::*;
 //!
 //! // Create a quantized coordinate
 //! let coord = QuantizedCoordinate::new(1000, 2000, 3000);
@@ -51,7 +51,7 @@
 //! ### Using FlexibleCoordinate
 //!
 //! ```rust
-//! use cityjson::coordinate::{FlexibleCoordinate, QuantizedCoordinate, RealWorldCoordinate};
+//! use cityjson::prelude::*;
 //!
 //! // Create different coordinate types
 //! let quantized = FlexibleCoordinate::Quantized(QuantizedCoordinate::new(10, 20, 30));
@@ -68,7 +68,7 @@
 //! ### Managing Vertices
 //!
 //! ```rust
-//! use cityjson::coordinate::{GeometryVertices16, RealWorldCoordinate};
+//! use cityjson::prelude::*;
 //!
 //! // Create a vertex collection
 //! let mut vertices = GeometryVertices16::new();
@@ -114,7 +114,7 @@ pub trait Coordinate {}
 /// # Examples
 ///
 /// ```
-/// use cityjson::coordinate::{FlexibleCoordinate, QuantizedCoordinate, RealWorldCoordinate};
+/// use cityjson::prelude::*;
 ///
 /// // Create a quantized coordinate
 /// let quantized = FlexibleCoordinate::Quantized(QuantizedCoordinate::new(100, 200, 300));
@@ -137,7 +137,7 @@ impl Default for FlexibleCoordinate {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::coordinate::FlexibleCoordinate;
+    /// use cityjson::prelude::*;
     ///
     /// let default_coord = FlexibleCoordinate::default();
     /// ```
@@ -157,7 +157,7 @@ impl Coordinate for FlexibleCoordinate {}
 /// # Examples
 ///
 /// ```
-/// use cityjson::coordinate::QuantizedCoordinate;
+/// use cityjson::prelude::*;
 ///
 /// // Create a new quantized coordinate
 /// let coord = QuantizedCoordinate::new(1000, 2000, 3000);
@@ -233,7 +233,7 @@ impl Coordinate for QuantizedCoordinate {}
 /// # Examples
 ///
 /// ```
-/// use cityjson::coordinate::RealWorldCoordinate;
+/// use cityjson::prelude::*;
 ///
 /// // Create a new real-world coordinate
 /// let coord = RealWorldCoordinate::new(10.5, 20.3, 30.7);
@@ -309,7 +309,7 @@ impl Coordinate for RealWorldCoordinate {}
 /// # Examples
 ///
 /// ```
-/// use cityjson::coordinate::UVCoordinate;
+/// use cityjson::prelude::*;
 ///
 /// // Create a UV coordinate
 /// let uv = UVCoordinate::new(0.5, 0.25);
@@ -370,7 +370,7 @@ impl Default for UVCoordinate {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::coordinate::UVCoordinate;
+    /// use cityjson::prelude::*;
     ///
     /// let default_uv = UVCoordinate::default();
     /// assert_eq!(default_uv.u(), 0.0);
@@ -395,7 +395,7 @@ impl Default for UVCoordinate {
 /// # Examples
 ///
 /// ```
-/// use cityjson::coordinate::{GeometryVertices16, RealWorldCoordinate};
+/// use cityjson::prelude::*;
 ///
 /// // Create a new vertex collection
 /// let mut vertices = GeometryVertices16::new();
@@ -504,7 +504,7 @@ impl<VR: VertexRef, V: Coordinate + Default> Default for Vertices<VR, V> {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::coordinate::GeometryVertices32;
+    /// use cityjson::prelude::*;
     ///
     /// let vertices = GeometryVertices32::default();
     /// assert!(vertices.is_empty());

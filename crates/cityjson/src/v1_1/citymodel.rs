@@ -3,7 +3,7 @@
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
 use crate::cityjson::attributes::Attributes;
-use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
+use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef};
@@ -15,13 +15,13 @@ use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
 
-struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
     _phantom_rr: PhantomData<RR>,
     _phantom_ss: PhantomData<SS>,
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelVersion for V1_1<VR, RR, SS> {
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<VR, RR, SS> {
     type CoordinateType = RealWorldCoordinate;
     type VertexRef = VR;
     type ResourceRef = RR;
@@ -72,7 +72,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
     }
 
     fn with_capacity(
-        _vertex_capacity: usize,
+        vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
         texture_capacity: usize,
@@ -128,6 +128,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 
     fn add_geometry(&mut self, geometry: Geometry<VR, RR>) -> RR {
         self.geometries.add(geometry)
+    }
+
+    fn geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR>, RR> {
+        &self.geometries
+    }
+
+    fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR>, RR> {
+        &mut self.geometries
     }
 
     fn add_vertex(

@@ -26,7 +26,7 @@
 //! ## Examples
 //!
 //! ```
-//! use cityjson::cityjson::vertex::*;
+//! use cityjson::prelude::*;
 //!
 //! // Create indices with different sizes
 //! let small_idx = VertexIndex16::new(42u16);
@@ -43,7 +43,7 @@
 //! ### Converting between index types
 //!
 //! ```
-//! use cityjson::cityjson::vertex::*;
+//! use cityjson::prelude::*;
 //!
 //! // Create a 16-bit index
 //! let small_idx = VertexIndex16::new(42u16);
@@ -58,14 +58,14 @@
 //!
 //! // Converting from larger to smaller may fail
 //! let big_idx = VertexIndex32::new(70000u32); // Too large for u16
-//! let result: Result<VertexIndex16, _> = big_idx.try_into();
+//! let result: Result<VertexIndex16 > = big_idx.try_into();
 //! assert!(result.is_err());
 //! ```
 //!
 //! ### Creating indices from raw values
 //!
 //! ```
-//! use cityjson::vertex::*;
+//! use cityjson::prelude::*;
 //!
 //! // Create indices from integers
 //! let idx1: VertexIndex16 = 42u16.into();
@@ -83,7 +83,7 @@
 //! ### Converting vectors of indices
 //!
 //! ```
-//! use cityjson::vertex::*;
+//! use cityjson::prelude::*;
 //!
 //! // Raw integer vector
 //! let raw_indices = vec![0u16, 1, 2, 3, 4];
@@ -128,7 +128,7 @@ use std::ops::{AddAssign, Index as IndexOp, IndexMut};
 /// This trait is already implemented for u16, u32, and u64:
 ///
 /// ```
-/// use cityjson::cityjson::vertex::VertexRef;
+/// use cityjson::prelude::*;
 ///
 /// // Access constants from the trait
 /// assert_eq!(u16::MAX, 65535);
@@ -205,7 +205,7 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// # Examples
 ///
 /// ```
-/// # use cityjson::vertex::*;
+/// # use cityjson::prelude::*;
 /// // Create indices of different sizes
 /// let idx16 = VertexIndex16::new(42u16);
 /// let idx32 = VertexIndex32::new(70000u32);
@@ -215,14 +215,14 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// assert_eq!(larger.value(), 42);
 ///
 /// // Convert from larger to smaller (may fail)
-/// let result: Result<VertexIndex16, _> = idx32.try_into();
+/// let result: Result<VertexIndex16 > = idx32.try_into();
 /// assert!(result.is_err());
 /// ```
 ///
 /// ## Arithmetic Operations
 ///
 /// ```
-/// # use cityjson::vertex::*;
+/// # use cityjson::prelude::*;
 /// let mut idx = VertexIndex16::new(10);
 /// idx += VertexIndex16::new(5);
 /// assert_eq!(idx.value(), 15);
@@ -249,7 +249,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex16::new(42u16);
     /// assert_eq!(idx.value(), 42u16);
     /// ```
@@ -267,7 +267,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex32::new(42u32);
     /// assert_eq!(idx.value(), 42u32);
     /// ```
@@ -293,7 +293,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex16::new(42u16);
     /// let usize_value = idx.to_usize();
     /// assert_eq!(usize_value, 42usize);
@@ -336,7 +336,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// // This works because 42 fits in u16
     /// let idx16 = VertexIndex16::from_u32(42).unwrap();
     /// assert_eq!(idx16.value(), 42u16);
@@ -363,7 +363,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex16::new(u16::MAX);
     /// assert!(idx.is_max());
     ///
@@ -384,7 +384,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex32::new(0);
     /// assert!(idx.is_zero());
     ///
@@ -406,7 +406,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use cityjson::vertex::*;
+    /// # use cityjson::prelude::*;
     /// let idx = VertexIndex16::new(42);
     /// let next = idx.next();
     /// assert_eq!(next.unwrap().value(), 43);
@@ -617,7 +617,7 @@ impl<T: VertexRef> TryFrom<usize> for VertexIndex<T> {
 /// # Examples
 ///
 /// ```
-/// use cityjson::vertex::*;
+/// use cityjson::prelude::*;
 ///
 /// // Create a vector of u16 values
 /// let raw_indices = vec![1u16, 2, 3, 4, 5];
@@ -673,7 +673,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use cityjson::vertex::*;
+    /// use cityjson::prelude::*;
     ///
     /// // Generate a sequence of 5 indices starting from 0
     /// let indices = VertexIndex16::sequence(0, 5).unwrap();

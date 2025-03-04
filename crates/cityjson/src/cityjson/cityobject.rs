@@ -1,1 +1,1 @@
-pub(crate) trait CityObject {}
+pub trait CityObjectTrait {}

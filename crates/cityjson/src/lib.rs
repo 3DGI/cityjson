@@ -18,14 +18,61 @@ pub mod v1_0;
 pub mod v1_1;
 pub mod v2_0;
 
-use crate::cityjson::vertex::VertexRef;
-use crate::errors::Error;
-use crate::resources::pool::ResourceRef;
-pub use cityjson::attributes;
-pub use cityjson::coordinate;
-pub use cityjson::vertex;
-pub use resources::pool;
-pub use resources::storage;
+/// The prelude module provides a convenient way to import commonly used types and traits.
+pub mod prelude {
+    // Re-export from cityjson module
+    pub use crate::cityjson::{
+        appearance::{
+            material::MaterialTrait, texture::TextureTrait, ImageType, TextureType, WrapMode, RGB,
+            RGBA,
+        },
+        attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        citymodel::CityModelTrait,
+        cityobject::CityObjectTrait,
+        coordinate::{
+            Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
+            GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
+            UVVertices16, UVVertices32, UVVertices64, Vertices,
+        },
+        geometry::{
+            boundary::{
+                nested::{
+                    BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
+                    BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
+                    BoundaryNestedMultiOrCompositeSolid, BoundaryNestedMultiOrCompositeSolid16,
+                    BoundaryNestedMultiOrCompositeSolid32, BoundaryNestedMultiOrCompositeSolid64,
+                    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiOrCompositeSurface16,
+                    BoundaryNestedMultiOrCompositeSurface32,
+                    BoundaryNestedMultiOrCompositeSurface64, BoundaryNestedMultiPoint,
+                    BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
+                    BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
+                    BoundaryNestedSolid32, BoundaryNestedSolid64,
+                },
+                Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
+            },
+            semantic::{SemanticTrait, SemanticTypeTrait},
+            GeometryBuilder, GeometryTrait, GeometryType, LoD,
+        },
+        metadata::MetadataTrait,
+        transform::TransformTrait,
+        vertex::{
+            VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,
+            VertexIndicesSequence, VertexRef,
+        },
+    };
+
+    // Re-export from errors module
+    pub use crate::errors::{Error, Result};
+
+    // Re-export from resources module
+    pub use crate::resources::{
+        mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
+        pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef},
+        storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
+    };
+}
+
+use prelude::*;
 use std::fmt;
 
 /// CityModel type.
@@ -106,7 +153,7 @@ impl TryFrom<String> for CityJSONVersion {
 }
 
 #[derive(Debug)]
-pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: storage::StringStorage> {
+pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     V1_1(v1_1::CityModel<VR, RR, SS>),
     V2_0(v2_0::CityModel),
 }

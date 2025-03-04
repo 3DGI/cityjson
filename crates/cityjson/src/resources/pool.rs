@@ -22,7 +22,7 @@
 //! ## Usage Example
 //!
 //! ```
-//! use cityjson::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
+//! use cityjson::prelude::*;
 //!
 //! // Create a pool storing i32 values with ResourceId32 references
 //! let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
@@ -151,6 +151,22 @@ pub trait ResourcePool<T, RR> {
     fn iter<'a>(&'a self) -> Self::Iter<'a>
     where
         T: 'a;
+
+    /// Returns the first resource in the pool along with its identifier
+    ///
+    /// # Returns
+    ///
+    /// `Some((RR, &T))` containing the identifier and a reference to the first resource,
+    /// or `None` if the pool is empty
+    fn first(&self) -> Option<(RR, &T)>;
+
+    /// Returns the last resource in the pool along with its identifier
+    ///
+    /// # Returns
+    ///
+    /// `Some((RR, &T))` containing the identifier and a reference to the last resource,
+    /// or `None` if the pool is empty
+    fn last(&self) -> Option<(RR, &T)>;
 }
 
 /// Abstraction over a resource identifier.
@@ -392,6 +408,32 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
             generations: &self.generations,
             _phantom: PhantomData,
         }
+    }
+
+    // Iterate through the resources, find the first non-vacant slot
+    // (which is the first valid resource), and return its ID along with a reference to
+    // the resource. If the pool is empty or all slots are vacant, it returns `None`.
+    fn first(&self) -> Option<(RR, &T)> {
+        for (index, resource) in self.resources.iter().enumerate() {
+            if let Some(r) = resource.as_ref() {
+                let id = RR::new(index as u32, self.generations[index]);
+                return Some((id, r));
+            }
+        }
+        None
+    }
+
+    // Iterate through the resources in reverse order, find the first non-vacant slot
+    // (which is the last valid resource), and return its ID along with a reference to
+    // the resource. If the pool is empty or all slots are vacant, it returns `None`.
+    fn last(&self) -> Option<(RR, &T)> {
+        for (index, resource) in self.resources.iter().enumerate().rev() {
+            if let Some(r) = resource.as_ref() {
+                let id = RR::new(index as u32, self.generations[index]);
+                return Some((id, r));
+            }
+        }
+        None
     }
 }
 

@@ -2,7 +2,7 @@
 //!
 //! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
 
-pub use crate::cityjson::appearance::*;
+use crate::cityjson::appearance::*;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 /// Type alias for a texture with owned string storage
@@ -26,8 +26,8 @@ pub type BorrowedTexture<'a> = Texture<BorrowedStringStorage<'a>>;
 /// Creating a new texture and setting its properties:
 ///
 /// ```
-/// use cityjson::v1_1::texture::*;
-/// use cityjson::resources::storage::OwnedStringStorage;
+/// use cityjson::prelude::*;
+/// use cityjson::v1_1::*;
 ///
 /// // Create a new texture with an image path and type
 /// let mut texture = Texture::<OwnedStringStorage>::new(
@@ -51,7 +51,8 @@ pub type BorrowedTexture<'a> = Texture<BorrowedStringStorage<'a>>;
 /// Using the `OwnedTexture` type alias:
 ///
 /// ```
-/// use cityjson::v1_1::texture::*;
+/// use cityjson::prelude::*;
+/// use cityjson::v1_1::*;
 ///
 /// let mut texture = OwnedTexture::new("textures/roof.png".to_string(), ImageType::Png);
 /// texture.set_image("textures/better_roof.png".to_string());

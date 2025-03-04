@@ -25,10 +25,8 @@
 //! ### Creating a semantic object
 //!
 //! ```rust
-//! use cityjson::attributes::AttributeValue;
-//! use cityjson::pool::ResourceId32;
-//! use cityjson::v1_1::semantic::*;
-//! use cityjson::resources::storage::OwnedStringStorage;
+//! use cityjson::prelude::*;
+//! use cityjson::v1_1::*;
 //!
 //! // Create a semantic object for a roof surface
 //! let mut roof = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
@@ -42,9 +40,8 @@
 //! ### Working with semantic hierarchies
 //!
 //! ```rust
-//! use cityjson::pool::ResourceId32;
-//! use cityjson::v1_1::semantic::*;
-//! use cityjson::resources::storage::OwnedStringStorage;
+//! use cityjson::prelude::*;
+//! use cityjson::v1_1::*;
 //!
 //! // Create a parent semantic (building)
 //! let parent_id = 1; // Would typically come from a ResourcePool
@@ -59,10 +56,8 @@
 //! ### Using custom semantic types (extensions)
 //!
 //! ```rust
-//! use cityjson::pool::ResourceId32;
-//! use cityjson::v1_1::semantic::*;
-//! use cityjson::resources::pool::ResourceRef;
-//! use cityjson::resources::storage::OwnedStringStorage;
+//! use cityjson::prelude::*;
+//! use cityjson::v1_1::*;
 //!
 //! // Create a semantic with a custom type from an extension
 //! let custom_type = SemanticType::Extension("SolarPanel".to_string());
@@ -76,7 +71,7 @@
 //! The module implements all standard semantic surface types defined in the specification.
 
 use crate::cityjson::attributes::Attributes;
-pub use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::format_option;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
@@ -97,14 +92,11 @@ use std::fmt::{Display, Formatter};
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::attributes::AttributeValue;
-/// use cityjson::v1_1::semantic;
-/// use cityjson::cityjson::geometry::semantic::SemanticTrait;
-/// use cityjson::pool::ResourceId32;
-/// use cityjson::resources::storage::OwnedStringStorage;
+/// use cityjson::prelude::*;
+/// use cityjson::v1_1::*;
 ///
 /// // Create a new wall surface semantic
-/// let mut wall = semantic::Semantic::<ResourceId32, OwnedStringStorage>::new(semantic::SemanticType::WallSurface);
+/// let mut wall = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
 ///
 /// // Add attributes
 /// let mut attrs = wall.attributes_mut();
@@ -225,7 +217,7 @@ impl SemanticTypeTrait for SemanticType {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attributes::AttributeValue;
+    use crate::cityjson::attributes::AttributeValue;
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 

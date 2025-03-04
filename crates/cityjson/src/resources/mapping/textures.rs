@@ -19,9 +19,7 @@
 //! ### Creating a texture mapping
 //!
 //! ```rust
-//! use cityjson::resources::mapping::TextureMap;
-//! use cityjson::cityjson::vertex::VertexIndex;
-//! use cityjson::pool::ResourceId32;
+//! use cityjson::prelude::*;
 //!
 //! // Create a texture mapping
 //! let mut texture_map = TextureMap::<u32, ResourceId32>::new();
@@ -58,9 +56,7 @@ use crate::resources::pool::ResourceRef;
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::resources::mapping::TextureMap;
-/// use cityjson::cityjson::vertex::VertexIndex;
-/// use cityjson::pool::ResourceId32;
+/// use cityjson::prelude::*;
 ///
 /// // Create a texture map
 /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
@@ -107,8 +103,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::pool::ResourceId32;
-    /// use cityjson::resources::mapping::TextureMap;
+    /// use cityjson::prelude::*;
     ///
     /// let texture_map = TextureMap::<u32, ResourceId32>::new();
     /// assert!(texture_map.is_empty());
@@ -126,8 +121,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::pool::ResourceId32;
-    /// use cityjson::resources::mapping::TextureMap;
+    /// use cityjson::prelude::*;
     ///
     /// let texture_map = TextureMap::<u32, ResourceId32>::new();
     /// assert!(texture_map.is_empty());
@@ -150,9 +144,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_vertex(Some(VertexIndex::new(0)));
@@ -171,9 +163,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_ring(VertexIndex::new(0));
@@ -191,8 +181,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::pool::ResourceId32;
-    /// use cityjson::resources::mapping::TextureMap;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_ring_texture(Some(ResourceId32::new(5, 1))); // Reference to texture ID 5
@@ -211,9 +200,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_surface(VertexIndex::new(0));
@@ -231,9 +218,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_shell(VertexIndex::new(0));
@@ -251,9 +236,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_solid(VertexIndex::new(0));
@@ -271,9 +254,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_vertex(Some(VertexIndex::new(0)));
@@ -295,9 +276,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::resources::mapping::TextureMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
-    /// use cityjson::pool::ResourceId32;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_ring(VertexIndex::new(0));
@@ -318,8 +297,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// # Examples
     ///
     /// ```rust
-    /// use cityjson::pool::ResourceId32;
-    /// use cityjson::resources::mapping::TextureMap;
+    /// use cityjson::prelude::*;
     ///
     /// let mut texture_map = TextureMap::<u32, ResourceId32>::new();
     /// texture_map.add_ring_texture(Some(ResourceId32::new(5, 1)));
@@ -363,7 +341,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
 mod tests {
     use super::*;
     use crate::cityjson::vertex::VertexIndex;
-    use crate::pool::ResourceId32;
+    use crate::resources::pool::ResourceId32;
 
     #[test]
     fn test_texture_map_creation() {

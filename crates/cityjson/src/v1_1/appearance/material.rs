@@ -2,8 +2,8 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-pub use crate::cityjson::appearance::material::*;
-pub use crate::cityjson::appearance::RGB;
+use crate::cityjson::appearance::material::*;
+use crate::cityjson::appearance::RGB;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 /// Type alias for a material with owned string storage
@@ -27,8 +27,8 @@ pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 /// Creating a new material and setting its properties:
 ///
 /// ```
-/// use cityjson::v1_1::material::*;
-/// use cityjson::resources::storage::OwnedStringStorage;
+/// use cityjson::prelude::*;
+/// use cityjson::v1_1::*;
 ///
 /// // Create a new material with a name
 /// let mut material = Material::<OwnedStringStorage>::new("BuildingFacade".to_string());
@@ -54,7 +54,8 @@ pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 /// Using the `OwnedMaterial` type alias:
 ///
 /// ```
-/// use cityjson::v1_1::material::*;
+/// use cityjson::prelude::*;
+/// use cityjson::v1_1::*;
 ///
 /// let mut material = OwnedMaterial::new("Brick".to_string());
 /// material.set_emissive_color(Some([0.1, 0.0, 0.0]));

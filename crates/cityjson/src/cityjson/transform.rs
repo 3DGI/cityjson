@@ -1,1 +1,1 @@
-pub trait Transform {}
+pub trait TransformTrait {}

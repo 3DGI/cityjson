@@ -1,4 +1,6 @@
-use crate::cityjson::citymodel::{CityModelTrait, CityModelVersion};
+// #![doc = include_str!("../../docs/boundary_guide.md")]
+
+use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticTypeTrait;
@@ -17,7 +19,7 @@ use crate::cityjson::geometry::semantic::SemanticTrait;
 pub mod boundary;
 pub mod semantic;
 
-pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
     /// Create a new geometry given the parts
     fn new(
         type_geometry: GeometryType,
@@ -29,6 +31,30 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
         template_boundaries: Option<usize>,
         template_transformation_matrix: Option<[f64; 16]>,
     ) -> Self;
+
+    /// Returns the geometry type
+    fn type_geometry(&self) -> &GeometryType;
+
+    /// Returns the level of detail
+    fn lod(&self) -> Option<&LoD>;
+
+    /// Returns the geometry boundaries
+    fn boundaries(&self) -> Option<&Boundary<VR>>;
+
+    /// Returns the semantic mapping
+    fn semantics(&self) -> Option<&SemanticMap<VR, RR>>;
+
+    /// Returns the material mapping
+    fn materials(&self) -> Option<&MaterialMap<VR, RR>>;
+
+    /// Returns the texture mapping
+    fn textures(&self) -> Option<&TextureMap<VR, RR>>;
+
+    /// Returns the template boundaries index, if any
+    fn template_boundaries(&self) -> Option<&usize>;
+
+    /// Returns the template transformation matrix, if any
+    fn template_transformation_matrix(&self) -> Option<&[f64; 16]>;
 }
 
 /// Represents a surface under construction with one outer ring and optional inner rings
@@ -51,7 +77,7 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
-pub struct GeometryBuilder<'a, V: CityModelVersion, M: CityModelTrait<V>> {
+pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     model: &'a mut M,
     type_geometry: GeometryType,
     lod: Option<LoD>,
@@ -75,7 +101,7 @@ pub struct GeometryBuilder<'a, V: CityModelVersion, M: CityModelTrait<V>> {
     surface_textures: HashMap<usize, V::ResourceRef>,
 }
 
-impl<'a, V: CityModelVersion, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
+impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn new(model: &'a mut M, type_geometry: GeometryType) -> Self {
         Self {
             model,
@@ -594,39 +620,87 @@ impl<'a, V: CityModelVersion, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         // Verify geometry type matches structure
         match self.type_geometry {
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
-                if self.solids.is_empty() {
+                if self.solids.is_empty()
+                    || self.shells.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
                     return Err(Error::InvalidGeometryType {
-                        expected: "solid geometry".to_string(),
-                        found: "empty geometry".to_string(),
+                        expected: "multi- or composite solid geometry".to_string(),
+                        found: self.format_counts(),
                     });
                 }
             }
             GeometryType::Solid => {
-                if self.solids.len() != 1 {
+                if !self.solids.is_empty()
+                    || self.shells.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
                     return Err(Error::InvalidGeometryType {
-                        expected: "single solid".to_string(),
-                        found: format!("{} solids", self.solids.len()),
+                        expected: "single solid geometry".to_string(),
+                        found: self.format_counts(),
                     });
                 }
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
-                if self.surfaces.is_empty() {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
                     return Err(Error::InvalidGeometryType {
-                        expected: "surface geometry".to_string(),
-                        found: "empty geometry".to_string(),
-                    });
-                }
-                if !self.shells.is_empty() || !self.solids.is_empty() {
-                    return Err(Error::InvalidGeometryType {
-                        expected: "surface geometry".to_string(),
-                        found: "geometry with shells or solids".to_string(),
+                        expected: "multi- or composite surface geometry".to_string(),
+                        found: self.format_counts(),
                     });
                 }
             }
-            _ => {}
+            GeometryType::MultiLineString => {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi linestring geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
+            GeometryType::MultiPoint => {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || !self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi point geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
+            GeometryType::GeometryInstance => {
+                unimplemented!()
+            }
         }
 
         Ok(())
+    }
+
+    fn format_counts(&self) -> String {
+        format!(
+            "{} solids, {} shells, {} surfaces, {} rings, {} vertices",
+            self.solids.len(),
+            self.shells.len(),
+            self.surfaces.len(),
+            self.rings.len(),
+            self.vertices.len()
+        )
     }
 }
 
