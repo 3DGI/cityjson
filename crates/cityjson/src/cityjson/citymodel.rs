@@ -7,6 +7,7 @@ use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
+use crate::prelude::Attributes;
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v1_1::Metadata;
@@ -74,4 +75,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn vertex_count(&self) -> usize;
     fn metadata(&self) -> Option<&V::Metadata>;
     fn metadata_mut(&mut self) -> &mut V::Metadata;
+    fn extra(&self) -> Option<&Attributes<V::StringStorage>>;
+    fn extra_mut(&mut self) -> &mut Attributes<V::StringStorage>;
 }

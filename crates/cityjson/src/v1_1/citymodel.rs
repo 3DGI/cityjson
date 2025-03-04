@@ -174,6 +174,17 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         }
         self.metadata.as_mut().unwrap()
     }
+
+    fn extra(&self) -> Option<&Attributes<SS>> {
+        self.extra.as_ref()
+    }
+
+    fn extra_mut(&mut self) -> &mut Attributes<SS> {
+        if self.extra.is_none() {
+            self.extra = Some(Attributes::new());
+        }
+        self.extra.as_mut().unwrap()
+    }
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
@@ -188,7 +199,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
         writeln!(f, "\tvertices: {{ nr. vertices: {}, quantized coordinates: {} }}", self.vertices.len(), "not implemented")?;
-        writeln!(f, "\t{}", format_option(&self.extra))?;
+        writeln!(f, "\textra: {}", format_option(&self.extra))?;
         writeln!(f, "}}")
     }
 }
