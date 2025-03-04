@@ -3,7 +3,7 @@
 //! Represents a [CityObject object](https://www.cityjson.org/specs/1.1.3/#the-different-city-objects).
 
 use crate::prelude::{
-    Attributes, CityObjectTrait, CityObjectTypeTrait, OwnedStringStorage, ResourceRef,
+    Attributes, CityObjectTrait, CityObjectTypeTrait, ResourceRef,
     StringStorage,
 };
 use crate::v1_1::BBox;

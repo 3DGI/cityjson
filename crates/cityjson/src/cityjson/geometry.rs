@@ -8,13 +8,8 @@ use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::errors::Error;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
-use crate::resources::pool::{ResourcePool, ResourceRef};
-use crate::resources::storage::StringStorage;
+use crate::resources::pool::{ResourceRef};
 use std::collections::HashMap;
-
-use crate::cityjson::appearance::material::MaterialTrait;
-use crate::cityjson::appearance::texture::TextureTrait;
-use crate::cityjson::geometry::semantic::SemanticTrait;
 
 pub mod boundary;
 pub mod semantic;

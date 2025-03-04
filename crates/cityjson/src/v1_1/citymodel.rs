@@ -7,16 +7,15 @@ use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef};
-use crate::resources::storage::{OwnedStringStorage, StringStorage};
+use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
+use crate::resources::storage::{StringStorage};
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
-use crate::format_option;
-use crate::prelude::VertexIndex32;
+use crate::{format_option, CityModelType};
 use crate::v1_1::Transform;
 
 pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
@@ -45,6 +44,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
 
 #[derive(Debug, Clone)]
 pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+    type_citymodel: CityModelType,
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,
     /// Pool of geometries
@@ -64,8 +64,9 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, RR, SS>>
     for CityModel<VR, RR, SS>
 {
-    fn new() -> Self {
+    fn new(type_citymodel: CityModelType) -> Self {
         Self {
+            type_citymodel,
             vertices: Vertices::new(),
             geometries: DefaultResourcePool::new_pool(),
             semantics: DefaultResourcePool::new_pool(),
@@ -79,6 +80,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
     }
 
     fn with_capacity(
+        type_citymodel: CityModelType,
         vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
@@ -86,6 +88,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         geometry_capacity: usize,
     ) -> Self {
         Self {
+            type_citymodel,
             vertices: Vertices::new(),
             geometries: DefaultResourcePool::new_pool(),
             semantics: DefaultResourcePool::new_pool(),
@@ -206,7 +209,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "CityModel {{")?;
-        writeln!(f, "\ttype: {}", "not implemented")?;
+        writeln!(f, "\ttype: {}", self.type_citymodel)?;
         writeln!(f, "\tversion: 1.1")?;
         writeln!(f, "\textensions: {}", "not implemented")?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform))?;
@@ -222,5 +225,5 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
 
 #[test]
 fn test_citymodel() {
-    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModel::new();
+    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModel::new(CityModelType::CityJSON);
 }

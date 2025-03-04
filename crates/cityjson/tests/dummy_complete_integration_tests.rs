@@ -5,7 +5,7 @@ use cityjson::v1_1::*;
 #[test]
 fn build_dummy_complete_owned() -> Result<()> {
     // A CityModel for CityJSON v1.1, that uses u32 indices and owned strings.
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata
     let metadata = model.metadata_mut();

@@ -20,6 +20,7 @@ pub mod v2_0;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
+    pub use super::{CityModelType, CityJSONVersion, CityJSON};
     // Re-export from cityjson module
     pub use crate::cityjson::{
         appearance::{
