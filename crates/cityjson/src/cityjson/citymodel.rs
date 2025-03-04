@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use crate::cityjson::appearance::material::MaterialTrait;
 use crate::cityjson::appearance::texture::TextureTrait;
 use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
@@ -8,6 +9,7 @@ use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
+use crate::v1_1::Metadata;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
 /// the [GenericCityModel].
@@ -30,7 +32,7 @@ pub trait CityModelTypes {
     type TexturePool: ResourcePool<Self::Texture, Self::ResourceRef>;
 }
 
-pub trait CityModelTrait<V: CityModelTypes> {
+pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     /// Create a new empty CityModel
     fn new() -> Self;
     /// Create a new CityModel with the specified capacity
@@ -70,4 +72,6 @@ pub trait CityModelTrait<V: CityModelTypes> {
     fn semantic_count(&self) -> usize;
     /// Get the number of vertices
     fn vertex_count(&self) -> usize;
+    fn metadata(&self) -> Option<&V::Metadata>;
+    fn metadata_mut(&mut self) -> &mut V::Metadata;
 }

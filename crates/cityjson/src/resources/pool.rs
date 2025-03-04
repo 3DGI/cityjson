@@ -277,7 +277,7 @@ impl ResourceRef for ResourceId32 {
 ///
 /// - `T`: The type of resources stored in the pool
 /// - `RR`: The reference type used to identify resources, must implement ResourceRef
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DefaultResourcePool<T, RR: ResourceRef> {
     /// Storage for resources, with Some(T) for occupied slots and None for vacant slots
     resources: Vec<Option<T>>,

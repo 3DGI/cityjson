@@ -2,6 +2,7 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
+use std::fmt;
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
@@ -14,6 +15,8 @@ use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
+use crate::format_option;
+use crate::prelude::VertexIndex32;
 
 pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -38,7 +41,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type TexturePool = DefaultResourcePool<Texture<SS>, RR>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, RealWorldCoordinate>,
@@ -159,6 +162,34 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 
     fn vertex_count(&self) -> usize {
         self.vertices.len()
+    }
+
+    fn metadata(&self) -> Option<&Metadata<SS>> {
+        self.metadata.as_ref()
+    }
+
+    fn metadata_mut(&mut self) -> &mut Metadata<SS> {
+        if self.metadata.is_none() {
+            self.metadata = Some(Metadata::new());
+        }
+        self.metadata.as_mut().unwrap()
+    }
+}
+
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "CityModel {{")?;
+        writeln!(f, "\ttype: {}", "not implemented")?;
+        writeln!(f, "\tversion: 1.1")?;
+        writeln!(f, "\textensions: {}", "not implemented")?;
+        writeln!(f, "\ttransform: {}", "not implemented")?;
+        writeln!(f, "\tmaterials: {}", format_option(&self.metadata))?;
+        writeln!(f, "\tCityObjects: {}", "not implemented")?;
+        writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
+        writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
+        writeln!(f, "\tvertices: {{ nr. vertices: {}, quantized coordinates: {} }}", self.vertices.len(), "not implemented")?;
+        writeln!(f, "\t{}", format_option(&self.extra))?;
+        writeln!(f, "}}")
     }
 }
 

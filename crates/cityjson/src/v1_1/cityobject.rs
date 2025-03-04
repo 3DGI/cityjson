@@ -1,13 +1,12 @@
 //! # CityObject
 //!
-//! Represents a [CityObject object](https://www.cityjson.org/specs/2.0.1/#the-different-city-objects).
+//! Represents a [CityObject object](https://www.cityjson.org/specs/1.1.3/#the-different-city-objects).
 
-use crate::cityjson::attributes::Attributes;
-use crate::cityjson::cityobject::CityObjectTrait;
-use crate::prelude::{CityObjectTypeTrait, OwnedStringStorage};
-use crate::resources::pool::ResourceRef;
-use crate::resources::storage::StringStorage;
-use crate::v1_1::metadata::BBox;
+use crate::prelude::{
+    Attributes, CityObjectTrait, CityObjectTypeTrait, OwnedStringStorage, ResourceRef,
+    StringStorage,
+};
+use crate::v1_1::BBox;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Default, Clone)]
