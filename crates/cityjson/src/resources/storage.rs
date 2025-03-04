@@ -26,7 +26,7 @@
 //! ```
 
 use std::borrow::Borrow;
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -36,7 +36,7 @@ use std::marker::PhantomData;
 /// provides an associated type to represent the actual string type used.
 /// Implementing types can specify whether strings should be owned (`String`)
 /// or borrowed (`&str`) based on application needs.
-pub trait StringStorage: Clone + Debug + Default {
+pub trait StringStorage: Clone + Debug + Default + Display {
     /// The string type (String for owned, &str for borrowed)
     ///
     /// This associated type determines the actual string representation:
@@ -59,6 +59,12 @@ pub trait StringStorage: Clone + Debug + Default {
 #[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct OwnedStringStorage;
 
+impl Display for OwnedStringStorage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl StringStorage for OwnedStringStorage {
     type String = String;
 }
@@ -73,6 +79,12 @@ impl StringStorage for OwnedStringStorage {
 /// - Source data already owns the strings
 #[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct BorrowedStringStorage<'a>(PhantomData<&'a ()>);
+
+impl<'a> Display for BorrowedStringStorage<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 impl<'a> StringStorage for BorrowedStringStorage<'a> {
     type String = &'a str;

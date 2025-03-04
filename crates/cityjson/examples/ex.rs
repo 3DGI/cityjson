@@ -1,6 +1,7 @@
-use cityjson::resources::storage::OwnedStringStorage;
-use cityjson::v1_1::metadata;
+use cityjson::prelude::*;
+use cityjson::v1_1::*;
+
 fn main() {
-    let _ = metadata::Metadata::<OwnedStringStorage>::new();
-    let _ = metadata::BBox::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let _ = Metadata::<OwnedStringStorage>::new();
+    let _ = BBox::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 }

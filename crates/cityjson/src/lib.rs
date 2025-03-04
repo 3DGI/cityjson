@@ -28,7 +28,7 @@ pub mod prelude {
         },
         attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         citymodel::{CityModelTrait, CityModelTypes},
-        cityobject::CityObjectTrait,
+        cityobject::{CityObjectTrait, CityObjectTypeTrait},
         coordinate::{
             Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
             GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
@@ -53,7 +53,7 @@ pub mod prelude {
             semantic::{SemanticTrait, SemanticTypeTrait},
             GeometryBuilder, GeometryTrait, GeometryType, LoD,
         },
-        metadata::MetadataTrait,
+        metadata::{BBoxTrait, MetadataTrait},
         transform::TransformTrait,
         vertex::{
             VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,

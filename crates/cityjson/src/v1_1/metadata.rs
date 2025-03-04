@@ -24,8 +24,8 @@
 //! ### Creating and populating metadata
 //!
 //! ```rust
+//! use cityjson::prelude::*;
 //! use cityjson::v1_1::*;
-//! use cityjson::resources::storage::OwnedStringStorage;
 //!
 //! // Create a new metadata object
 //! let mut metadata = Metadata::<OwnedStringStorage>::new();
@@ -52,6 +52,7 @@
 //! ### Working with BBox
 //!
 //! ```rust
+//! use cityjson::prelude::*;
 //! use cityjson::v1_1::*;
 //!
 //! // Create a bounding box
@@ -80,6 +81,7 @@
 
 use crate::cityjson;
 use crate::cityjson::attributes::Attributes;
+use crate::cityjson::metadata::BBoxTrait;
 use crate::format_option;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
@@ -95,8 +97,8 @@ use std::fmt::{Display, Formatter};
 ///
 /// # Examples
 /// ```
+/// # use cityjson::prelude::*;
 /// # use cityjson::v1_1::*;
-/// # use cityjson::resources::storage::OwnedStringStorage;
 /// let mut metadata = Metadata::<OwnedStringStorage>::new();
 ///
 /// metadata.set_geographical_extent(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
@@ -494,6 +496,7 @@ impl<SS: StringStorage> cityjson::metadata::MetadataTrait<SS> for Metadata<SS> {
 ///
 /// # Examples
 /// ```
+/// # use cityjson::prelude::*;
 /// # use cityjson::v1_1::*;
 /// let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
 /// let bbox_height = bbox.height();
@@ -503,109 +506,82 @@ pub struct BBox {
     values: [f64; 6],
 }
 
-impl BBox {
-    /// Creates a new BBox with the specified coordinates.
-    ///
-    /// # Parameters
-    /// - `min_x`: Minimum x coordinate
-    /// - `min_y`: Minimum y coordinate
-    /// - `min_z`: Minimum z coordinate
-    /// - `max_x`: Maximum x coordinate
-    /// - `max_y`: Maximum y coordinate
-    /// - `max_z`: Maximum z coordinate
-    pub fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
+impl BBoxTrait for BBox {
+    fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
         Self {
             values: [min_x, min_y, min_z, max_x, max_y, max_z],
         }
     }
 
-    /// Creates a BBox from an array of 6 values.
-    pub fn from_array(values: [f64; 6]) -> Self {
+    fn from_array(values: [f64; 6]) -> Self {
         Self { values }
     }
 
-    /// Returns the underlying array.
-    pub fn as_array(&self) -> &[f64; 6] {
+    fn as_array(&self) -> &[f64; 6] {
         &self.values
     }
 
-    /// Returns the underlying array as a mutable reference.
-    pub fn as_array_mut(&mut self) -> &mut [f64; 6] {
+    fn as_array_mut(&mut self) -> &mut [f64; 6] {
         &mut self.values
     }
 
-    /// Returns the minimum x coordinate.
-    pub fn min_x(&self) -> f64 {
+    fn min_x(&self) -> f64 {
         self.values[0]
     }
 
-    /// Returns the minimum y coordinate.
-    pub fn min_y(&self) -> f64 {
+    fn min_y(&self) -> f64 {
         self.values[1]
     }
 
-    /// Returns the minimum z coordinate.
-    pub fn min_z(&self) -> f64 {
+    fn min_z(&self) -> f64 {
         self.values[2]
     }
 
-    /// Returns the maximum x coordinate.
-    pub fn max_x(&self) -> f64 {
+    fn max_x(&self) -> f64 {
         self.values[3]
     }
 
-    /// Returns the maximum y coordinate.
-    pub fn max_y(&self) -> f64 {
+    fn max_y(&self) -> f64 {
         self.values[4]
     }
 
-    /// Returns the maximum z coordinate.
-    pub fn max_z(&self) -> f64 {
+    fn max_z(&self) -> f64 {
         self.values[5]
     }
 
-    /// Sets the minimum x coordinate.
-    pub fn set_min_x(&mut self, value: f64) {
+    fn set_min_x(&mut self, value: f64) {
         self.values[0] = value;
     }
 
-    /// Sets the minimum y coordinate.
-    pub fn set_min_y(&mut self, value: f64) {
+    fn set_min_y(&mut self, value: f64) {
         self.values[1] = value;
     }
 
-    /// Sets the minimum z coordinate.
-    pub fn set_min_z(&mut self, value: f64) {
+    fn set_min_z(&mut self, value: f64) {
         self.values[2] = value;
     }
 
-    /// Sets the maximum x coordinate.
-    pub fn set_max_x(&mut self, value: f64) {
+    fn set_max_x(&mut self, value: f64) {
         self.values[3] = value;
     }
 
-    /// Sets the maximum y coordinate.
-    pub fn set_max_y(&mut self, value: f64) {
+    fn set_max_y(&mut self, value: f64) {
         self.values[4] = value;
     }
 
-    /// Sets the maximum z coordinate.
-    pub fn set_max_z(&mut self, value: f64) {
+    fn set_max_z(&mut self, value: f64) {
         self.values[5] = value;
     }
 
-    /// Calculates the width (x-axis length) of the bounding box.
-    pub fn width(&self) -> f64 {
+    fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }
 
-    /// Calculates the length (y-axis length) of the bounding box.
-    pub fn length(&self) -> f64 {
+    fn length(&self) -> f64 {
         self.max_y() - self.min_y()
     }
 
-    /// Calculates the height (z-axis length) of the bounding box.
-    pub fn height(&self) -> f64 {
+    fn height(&self) -> f64 {
         self.max_z() - self.min_z()
     }
 }
