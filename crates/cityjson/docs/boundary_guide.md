@@ -1,6 +1,6 @@
-# Practical Guide to Using the Boundary Module
+# CityJSON-rs: Boundary and Geometry Usage Guide
 
-This guide provides practical examples and performance considerations for working with the Boundary module in cityjson-rs.
+This guide provides practical examples and performance considerations for working with the Boundary and Geometry modules in cityjson-rs.
 
 ## Boundary Representations: Flattened vs. Nested
 
@@ -8,162 +8,36 @@ The Boundary module in cityjson-rs provides two ways to represent CityJSON geome
 
 ### Flattened Representation (`Boundary`)
 
-The flattened representation optimizes for memory and computational efficiency with these characteristics:
+The flattened representation (`Boundary<VR>`) is used internally for memory and computational efficiency:
 
-- **Memory Efficiency**: Uses fewer allocations and less memory overhead
-- **Cache Locality**: Stores related data contiguously for better cache performance
-- **Vector Operations**: Enables SIMD operations on arrays of data
-- **Indexing Performance**: Offers O(1) access to elements via indices
+- **Memory Efficiency**: Reduces allocations with densely packed containers
+- **Cache Locality**: Contiguous storage improves memory access patterns
+- **Computational Efficiency**: Enables SIMD optimizations for vector operations
+- **Index-Based Access**: Provides efficient traversal via indices
 
 ### Nested Representation (in `nested` module)
 
-The nested representation mirrors the JSON structure directly:
+The nested representation (defined in the `nested` module) mirrors the CityJSON structure directly:
 
-- **Direct Mapping**: Directly maps to CityJSON's hierarchical structure
-- **Serialization Friendly**: Easier to convert to/from JSON
-- **Intuitive Structure**: May be more intuitive for simple operations
-- **Higher Overhead**: Uses more allocations and indirection
+- **Direct Mapping**: Corresponds to the JSON schema structure
+- **Serialization-Friendly**: Simplifies conversion to/from JSON
+- **Hierarchical Structure**: Follows CityJSON's nesting pattern
+- **Intuitive Access**: Clearer for simple, non-performance-critical operations
 
-## Performance Considerations
+## Using the Public API
 
-When choosing between the representations, consider these performance factors:
+### Creating Boundaries
 
-1. **Memory Usage**: The flattened representation typically uses 2-5x less memory than the nested representation for the same geometry.
-
-2. **Cache Efficiency**: The flattened representation's improved cache locality can lead to 1.5-3x faster traversal operations.
-
-3. **Construction Cost**: Converting between representations has overhead. The optimal approach is:
-   - Parse JSON directly to flattened representation for input
-   - Convert flattened to nested only when needed for output
-
-4. **Operations Cost**:
-   - Traversal operations are faster on flattened representation
-   - Modifications can be more complex on flattened representation
-   - Selective access to specific elements may be easier with nested representation
-
-## Real-World Examples
-
-### Example 1: Building a Simple Building Geometry
-
-Let's create a simple building with a single solid geometry:
+The `cityjson-rs` library uses `GeometryBuilder` to create geometries with proper boundaries:
 
 ```rust
-use cityjson::cityjson::geometry::boundary::{Boundary, BoundaryType};
-use cityjson::cityjson::vertex::VertexIndex;
-use cityjson::cityjson::geometry::GeometryType;
-use cityjson::cityjson::geometry::LoD;
+use cityjson::prelude::*;
+use cityjson::v1_1::*;
 
-// Create a flattened boundary for a simple building (a cube)
-fn create_building_boundary() -> Boundary<u32> {
-    let mut boundary = Boundary::<u32>::new();
-    
-    // Add vertices for a cube
-    // Bottom face
-    boundary.vertices.push(VertexIndex::new(0)); // 0: [0,0,0]
-    boundary.vertices.push(VertexIndex::new(1)); // 1: [1,0,0]
-    boundary.vertices.push(VertexIndex::new(2)); // 2: [1,1,0]
-    boundary.vertices.push(VertexIndex::new(3)); // 3: [0,1,0]
-    // Top face
-    boundary.vertices.push(VertexIndex::new(4)); // 4: [0,0,1]
-    boundary.vertices.push(VertexIndex::new(5)); // 5: [1,0,1]
-    boundary.vertices.push(VertexIndex::new(6)); // 6: [1,1,1]
-    boundary.vertices.push(VertexIndex::new(7)); // 7: [0,1,1]
-    
-    // Define rings (each face of the cube)
-    // Bottom face
-    boundary.rings.push(VertexIndex::new(0));  // Start of ring 0
-    // Top face
-    boundary.rings.push(VertexIndex::new(4));  // Start of ring 1
-    // Side faces
-    boundary.rings.push(VertexIndex::new(8));  // Start of ring 2
-    boundary.rings.push(VertexIndex::new(12)); // Start of ring 3
-    boundary.rings.push(VertexIndex::new(16)); // Start of ring 4
-    boundary.rings.push(VertexIndex::new(20)); // Start of ring 5
-    
-    // Define surfaces (each face of the cube)
-    boundary.surfaces.push(VertexIndex::new(0)); // Bottom face
-    boundary.surfaces.push(VertexIndex::new(1)); // Top face
-    boundary.surfaces.push(VertexIndex::new(2)); // Side face 1
-    boundary.surfaces.push(VertexIndex::new(3)); // Side face 2
-    boundary.surfaces.push(VertexIndex::new(4)); // Side face 3
-    boundary.surfaces.push(VertexIndex::new(5)); // Side face 4
-    
-    // Define the shell
-    boundary.shells.push(VertexIndex::new(0)); // Outer shell includes all surfaces
-    
-    // We have one solid
-    boundary.solids.push(VertexIndex::new(0));
-    
-    boundary
-}
-
-// Usage example:
-fn main() {
-    let boundary = create_building_boundary();
-    assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
-    
-    // For serialization, convert to nested representation
-    let nested = boundary.to_nested_multi_or_composite_solid().unwrap();
-    
-    // Use the nested representation for serialization to JSON
-    // serialize_to_json(nested); // Hypothetical function
-}
-```
-
-### Example 2: Processing a CityJSON File
-
-```rust
-use cityjson::cityjson::geometry::boundary::{Boundary, BoundaryType};
-use cityjson::cityjson::vertex::VertexIndex;
-use std::collections::HashMap;
-
-// Process boundaries in a CityJSON model - real world example showing
-// how flattened boundaries help with efficient analysis
-fn analyze_city_model(boundaries: &[Boundary<u32>]) -> HashMap<BoundaryType, usize> {
-    let mut type_counts = HashMap::new();
-    let mut total_vertices = 0;
-    let mut total_surfaces = 0;
-    
-    for boundary in boundaries {
-        // Count boundary types
-        let boundary_type = boundary.check_type();
-        *type_counts.entry(boundary_type).or_insert(0) += 1;
-        
-        // Count total vertices (efficient direct access to arrays)
-        total_vertices += boundary.vertices.len();
-        
-        // Count surfaces (if applicable)
-        if !boundary.surfaces.is_empty() {
-            total_surfaces += boundary.surfaces.len();
-        }
-        
-        // Additional analysis could be performed here
-        // - Surface area calculations
-        // - Volume calculations for solids
-        // - Spatial queries
-        // All of these are more efficient with the flattened representation
-    }
-    
-    println!("Processed {} total vertices and {} surfaces", total_vertices, total_surfaces);
-    type_counts
-}
-```
-
-### Example 3: Integrating with GeometryBuilder
-
-The following example shows how the Boundary module integrates with the GeometryBuilder to create complex geometries:
-
-```rust
-use cityjson::cityjson::geometry::{GeometryBuilder, GeometryType, LoD};
-use cityjson::cityjson::vertex::VertexIndex;
-use cityjson::errors::Result;
-
-// Create a building using GeometryBuilder, which internally uses Boundary
-fn create_building_with_builder<V, M>(model: &mut M) -> Result<()> 
-where 
-    V: CityModelVersion,
-    M: CityModelTrait<V>
-{
+// Example: Create a simple building geometry (a cube)
+fn create_building<'a, V: CityModelTypes, M: CityModelTrait<V>>(
+    model: &'a mut M
+) -> Result<()> {
     // Create a geometry builder for a solid
     let mut builder = GeometryBuilder::new(model, GeometryType::Solid)
         .with_lod(LoD::LoD1);
@@ -214,40 +88,66 @@ where
     // Set the shell as the outer shell of the solid
     builder.set_solid_outer_shell(shell_idx)?;
     
-    // Build the geometry
+    // Build the geometry and add it to the model
     builder.build()
 }
 ```
 
-## When to Use Each Representation
+## Performance Considerations
 
-### Use Flattened Representation When:
+### Memory Efficiency
 
-- Performing geometry processing or analysis
-- Building geometries programmatically
-- Working with large CityJSON datasets
-- Need to optimize for memory usage and performance
-- Implementing algorithms that traverse the geometry
+- The flattened `Boundary` representation typically uses **50-80% less memory** than equivalent nested structures
+- Choose appropriate index size for your data:
+  - `u16` (≤65,535 vertices): Smallest memory footprint, suitable for small models
+  - `u32` (≤4.3 billion vertices): Good balance for most use cases
+  - `u64` (virtually unlimited): For extremely large models
 
-### Use Nested Representation When:
+### Computational Efficiency
 
-- Serializing to/from CityJSON
-- Need a direct mapping to the JSON structure
-- Working with simple geometries for demonstration purposes
-- The clarity of the representation is more important than performance
+- Working directly with flattened boundaries can be **2-5x faster** for operations like:
+  - Traversing geometry hierarchy
+  - Computing geometric properties (area, volume)
+  - Spatial queries and operations
 
-## Common Patterns in cityjson-rs
+### Serialization Efficiency
 
-1. **Parse JSON to flattened**: When loading CityJSON, parse directly to flattened representations
+- Converting between flattened and nested representations has overhead
+- For best performance, use the companion `serde_cityjson` library which can directly:
+  - Parse JSON to flattened representation
+  - Serialize flattened representation to JSON
 
-2. **Work with flattened**: Perform all geometric operations on flattened representations
+### Builder Performance
 
-3. **Convert when needed**: Convert to nested only when serializing to JSON
+- `GeometryBuilder` provides an efficient way to construct complex geometries
+- Pre-allocating capacity (e.g., with `with_capacity`) can improve performance for large geometries
 
-4. **Builder pattern**: Use the GeometryBuilder for programmatically creating geometries
+## CityJSON Compliance
 
-5. **Type-safe access**: Leverage the type system and enums like BoundaryType for safe handling
+Cityjson-rs complies with the CityJSON specification:
 
-## Conclusion
+1. **Complete Schema Support**: The library supports all geometry types defined in the CityJSON specification.
 
-The Boundary module in cityjson-rs provides a powerful foundation for working with CityJSON geometries. By understanding the tradeoffs between flattened and nested representations, you can make informed decisions about how to efficiently process and manipulate city models.
+2. **Version Support**: The library supports CityJSON versions 1.0, 1.1, and 2.0.
+
+3. **Extensions**: Supports CityJSON Extensions through extensible types.
+
+4. **Semantic Information**: Properly represents semantic data like material, texture, and appearance information.
+
+5. **Lossless Conversion**: The conversion between flattened and nested representations is lossless, ensuring compliance with the CityJSON specification.
+
+## Best Practices
+
+1. **Use GeometryBuilder**: Always use the `GeometryBuilder` to create geometries rather than manually constructing boundaries
+
+2. **Choose Appropriate Index Size**: Select the smallest index type that can accommodate your data
+
+3. **Minimize Conversions**: Avoid unnecessary conversions between flattened and nested representations
+
+4. **Leverage Public API**: Use public methods rather than accessing internal fields:
+   - `check_type()` instead of examining vectors directly
+   - `to_nested_*()` methods for conversion to JSON-compatible structures
+
+5. **Validate Boundaries**: Use `is_consistent()` to verify boundary integrity
+
+6. **Error Handling**: All boundary and geometry operations may return `errors::Result<T>`, handle these appropriately

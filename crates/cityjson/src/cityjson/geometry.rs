@@ -1,4 +1,4 @@
-// #![doc = include_str!("../../docs/boundary_guide.md")]
+#![doc = include_str!("../../docs/boundary_guide.md")]
 
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::RealWorldCoordinate;

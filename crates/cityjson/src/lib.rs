@@ -27,7 +27,7 @@ pub mod prelude {
             RGBA,
         },
         attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        citymodel::CityModelTrait,
+        citymodel::{CityModelTrait, CityModelTypes},
         cityobject::CityObjectTrait,
         coordinate::{
             Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
