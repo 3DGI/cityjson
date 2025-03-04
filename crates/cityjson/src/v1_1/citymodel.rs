@@ -17,6 +17,7 @@ use crate::v1_1::metadata::Metadata;
 use std::marker::PhantomData;
 use crate::format_option;
 use crate::prelude::VertexIndex32;
+use crate::v1_1::Transform;
 
 pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -35,6 +36,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type Texture = Texture<SS>;
     type Geometry = Geometry<VR, RR>;
     type Metadata = Metadata<SS>;
+    type Transform = Transform;
     type GeometryPool = DefaultResourcePool<Geometry<VR, RR>, RR>;
     type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
     type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
@@ -56,6 +58,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     vertices_texture: Vertices<VR, UVCoordinate>,
     extra: Option<Attributes<SS>>,
     metadata: Option<Metadata<SS>>,
+    transform: Option<Transform>,
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, RR, SS>>
@@ -71,6 +74,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             vertices_texture: Vertices::new(),
             extra: None,
             metadata: None,
+            transform: None,
         }
     }
 
@@ -90,6 +94,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             vertices_texture: Vertices::new(),
             extra: None,
             metadata: None,
+            transform: None,
         }
     }
 
@@ -185,6 +190,17 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         }
         self.extra.as_mut().unwrap()
     }
+
+    fn transform(&self) -> Option<&Transform> {
+        self.transform.as_ref()
+    }
+
+    fn transform_mut(&mut self) -> &mut Transform {
+        if self.transform.is_none() {
+            self.transform = Some(Transform::new());
+        }
+        self.transform.as_mut().unwrap()
+    }
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
@@ -193,8 +209,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(f, "\ttype: {}", "not implemented")?;
         writeln!(f, "\tversion: 1.1")?;
         writeln!(f, "\textensions: {}", "not implemented")?;
-        writeln!(f, "\ttransform: {}", "not implemented")?;
-        writeln!(f, "\tmaterials: {}", format_option(&self.metadata))?;
+        writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform))?;
+        writeln!(f, "\tmetadata: {}", format_option(&self.metadata))?;
         writeln!(f, "\tCityObjects: {}", "not implemented")?;
         writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;

@@ -7,10 +7,10 @@ use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
-use crate::prelude::Attributes;
+use crate::prelude::{Attributes, TransformTrait};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
-use crate::v1_1::Metadata;
+use crate::v1_1::{Metadata, Transform};
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
 /// the [GenericCityModel].
@@ -26,6 +26,7 @@ pub trait CityModelTypes {
     type Texture: TextureTrait<Self::StringStorage>;
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef>;
     type Metadata: MetadataTrait<Self::StringStorage>;
+    type Transform: TransformTrait;
 
     type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
@@ -77,4 +78,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn metadata_mut(&mut self) -> &mut V::Metadata;
     fn extra(&self) -> Option<&Attributes<V::StringStorage>>;
     fn extra_mut(&mut self) -> &mut Attributes<V::StringStorage>;
+    fn transform(&self) -> Option<&V::Transform>;
+    fn transform_mut(&mut self) -> &mut V::Transform;
 }

@@ -21,6 +21,11 @@ fn build_dummy_complete_owned() -> Result<()> {
     census_map.insert("percent_women".to_string(), Box::new(AttributeValue::Float(51.5)));
     extra.insert("+census".to_string(), AttributeValue::Map(census_map));
 
+    // Set transform
+    let transform = model.transform_mut();
+    transform.set_scale([1.0, 1.0, 1.0]);
+    transform.set_translate([0.0, 0.0, 0.0]);
+
     println!("{}", &model);
     Ok(())
 }
