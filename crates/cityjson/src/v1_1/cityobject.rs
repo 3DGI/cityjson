@@ -3,8 +3,7 @@
 //! Represents a [CityObject object](https://www.cityjson.org/specs/1.1.3/#the-different-city-objects).
 
 use crate::prelude::{
-    Attributes, CityObjectTrait, CityObjectTypeTrait, ResourceRef,
-    StringStorage,
+    Attributes, CityObjectTrait, CityObjectTypeTrait, ResourceRef, StringStorage,
 };
 use crate::v1_1::BBox;
 use std::fmt::{Display, Formatter};
@@ -131,12 +130,3 @@ impl<SS: StringStorage> Display for CityObjectType<SS> {
 }
 
 impl<SS: StringStorage> CityObjectTypeTrait for CityObjectType<SS> {}
-
-#[test]
-fn t() {
-    println!("{}", CityObjectType::<OwnedStringStorage>::CityObjectGroup);
-    println!(
-        "{}",
-        CityObjectType::<OwnedStringStorage>::Extension("+NoiseBuilding".to_string())
-    );
-}

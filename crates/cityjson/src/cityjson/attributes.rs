@@ -758,8 +758,8 @@ mod tests {
             numbers.push(Box::new(AttributeValue::Integer(4)));
 
             // Modify an existing value
-            if let AttributeValue::Integer(mut value) = *numbers[0] {
-                value = 10;
+            if let AttributeValue::Integer(mut _value) = *numbers[0] {
+                _value = 10;
             }
         }
 

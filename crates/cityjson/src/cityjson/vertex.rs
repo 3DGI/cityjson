@@ -105,7 +105,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem::size_of;
 use std::num::TryFromIntError;
-use std::ops::{AddAssign};
+use std::ops::AddAssign;
 //------------------------------------------------------------------------------
 // Core integer trait and implementations
 //------------------------------------------------------------------------------

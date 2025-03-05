@@ -5,7 +5,8 @@ use cityjson::v1_1::*;
 #[test]
 fn test_multipoint_geometry_boundary() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a MultiPoint geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
@@ -45,7 +46,8 @@ fn test_multipoint_geometry_boundary() {
 #[test]
 fn test_multilinestring_geometry_boundary() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a MultiLineString geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString);
@@ -91,7 +93,8 @@ fn test_multilinestring_geometry_boundary() {
 #[test]
 fn test_multisurface_geometry_with_semantics() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a MultiSurface geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface);
@@ -104,7 +107,7 @@ fn test_multisurface_geometry_with_semantics() {
     let p4 = builder.add_vertex(0.0, 1.0, 0.0);
 
     // Start the first surface (wall)
-    let s1 = builder.start_surface(Some(SemanticType::WallSurface));
+    let _s1 = builder.start_surface(Some(SemanticType::WallSurface));
 
     // Set the outer ring for the surface
     builder
@@ -116,7 +119,7 @@ fn test_multisurface_geometry_with_semantics() {
     builder.set_surface_semantic(wall_semantic).unwrap();
 
     // Start the second surface (roof)
-    let s2 = builder.start_surface(Some(SemanticType::RoofSurface));
+    let _s2 = builder.start_surface(Some(SemanticType::RoofSurface));
 
     // Set the outer ring for the surface
     builder
@@ -159,7 +162,8 @@ fn test_multisurface_geometry_with_semantics() {
 #[test]
 fn test_solid_geometry_boundary() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a Solid geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::Solid);
@@ -248,7 +252,8 @@ fn test_solid_geometry_boundary() {
 #[test]
 fn test_multisolid_geometry_boundary() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a MultiSolid geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSolid);
@@ -284,7 +289,7 @@ fn test_multisolid_geometry_boundary() {
     builder.add_shell_outer_surface(s2).unwrap();
 
     // Start a solid
-    let solid1_idx = builder.start_solid();
+    let _solid1_idx = builder.start_solid();
 
     // Set the outer shell of the solid
     builder.set_solid_outer_shell(shell1_idx).unwrap();
@@ -317,7 +322,7 @@ fn test_multisolid_geometry_boundary() {
     builder.add_shell_outer_surface(s4).unwrap();
 
     // Start a solid
-    let solid2_idx = builder.start_solid();
+    let _solid2_idx = builder.start_solid();
 
     // Set the outer shell of the solid
     builder.set_solid_outer_shell(shell2_idx).unwrap();
@@ -354,7 +359,8 @@ fn test_multisolid_geometry_boundary() {
 #[test]
 fn test_geometry_with_materials() {
     // Create a new city model
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Create a GeometryBuilder for a MultiSurface geometry
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface);
@@ -367,7 +373,7 @@ fn test_geometry_with_materials() {
     let p4 = builder.add_vertex(0.0, 1.0, 0.0);
 
     // Start the first surface
-    let s1 = builder.start_surface(Some(SemanticType::WallSurface));
+    let _s1 = builder.start_surface(Some(SemanticType::WallSurface));
 
     // Set the outer ring for the surface
     builder
@@ -381,7 +387,7 @@ fn test_geometry_with_materials() {
     builder.set_surface_material(material).unwrap();
 
     // Start the second surface
-    let s2 = builder.start_surface(Some(SemanticType::RoofSurface));
+    let _s2 = builder.start_surface(Some(SemanticType::RoofSurface));
 
     // Set the outer ring for the surface
     builder
@@ -441,7 +447,7 @@ fn test_nested_and_flattened_conversion_workflow() {
     );
 
     // 3. If we were to add this to a CityModel, we would use GeometryBuilder
-    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new();
+    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(Default::default());
     let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface);
 
     // Add vertices

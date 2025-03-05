@@ -8,7 +8,7 @@ use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors;
 use crate::errors::Error;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
-use crate::resources::pool::{ResourceRef};
+use crate::resources::pool::ResourceRef;
 use std::collections::HashMap;
 
 pub mod boundary;

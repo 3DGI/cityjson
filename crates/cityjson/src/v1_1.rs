@@ -4,6 +4,7 @@
 pub mod appearance;
 pub mod citymodel;
 pub mod cityobject;
+pub mod extension;
 pub mod geometry;
 pub mod metadata;
 pub mod transform;
@@ -19,6 +20,8 @@ pub use citymodel::CityModel;
 
 // Re-export main types from cityobject
 pub use cityobject::{CityObject, CityObjectType};
+
+pub use extension::{Extension, Extensions};
 
 // Re-export main types from geometry
 pub use geometry::{

@@ -1,4 +1,3 @@
-use std::fmt::{Debug};
 use crate::cityjson::appearance::material::MaterialTrait;
 use crate::cityjson::appearance::texture::TextureTrait;
 use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
@@ -6,10 +5,11 @@ use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::{errors, CityModelType};
-use crate::prelude::{Attributes, TransformTrait};
+use crate::prelude::{Attributes, ExtensionTrait, ExtensionsTrait, TransformTrait};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
+use crate::{errors, CityModelType};
+use std::fmt::Debug;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
 /// the [GenericCityModel].
@@ -26,6 +26,8 @@ pub trait CityModelTypes {
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef>;
     type Metadata: MetadataTrait<Self::StringStorage>;
     type Transform: TransformTrait;
+    type Extension: ExtensionTrait<Self::StringStorage>;
+    type Extensions: ExtensionsTrait<Self::StringStorage, Self::Extension>;
 
     type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
@@ -80,4 +82,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn extra_mut(&mut self) -> &mut Attributes<V::StringStorage>;
     fn transform(&self) -> Option<&V::Transform>;
     fn transform_mut(&mut self) -> &mut V::Transform;
+    fn extensions(&self) -> Option<&V::Extensions>;
+    fn extensions_mut(&mut self) -> &mut V::Extensions;
 }

@@ -26,7 +26,7 @@
 //! ```
 
 use std::borrow::Borrow;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -36,7 +36,7 @@ use std::marker::PhantomData;
 /// provides an associated type to represent the actual string type used.
 /// Implementing types can specify whether strings should be owned (`String`)
 /// or borrowed (`&str`) based on application needs.
-pub trait StringStorage: Clone + Debug + Default + Display {
+pub trait StringStorage: Clone + Debug + Default {
     /// The string type (String for owned, &str for borrowed)
     ///
     /// This associated type determines the actual string representation:
@@ -45,7 +45,17 @@ pub trait StringStorage: Clone + Debug + Default + Display {
     ///
     /// The constraints ensure that regardless of the storage strategy,
     /// the string type supports all necessary operations for the CityJSON model.
-    type String: AsRef<str> + Eq + Hash + Borrow<str> + Clone + Debug + Default + Display;
+    type String: AsRef<str>
+        + Eq
+        + PartialEq
+        + PartialOrd
+        + Ord
+        + Hash
+        + Borrow<str>
+        + Clone
+        + Debug
+        + Default
+        + Display;
 }
 
 /// Storage implementation for owned strings
@@ -59,11 +69,11 @@ pub trait StringStorage: Clone + Debug + Default + Display {
 #[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct OwnedStringStorage;
 
-impl Display for OwnedStringStorage {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+// impl Display for OwnedStringStorage {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self)
+//     }
+// }
 
 impl StringStorage for OwnedStringStorage {
     type String = String;
@@ -80,11 +90,11 @@ impl StringStorage for OwnedStringStorage {
 #[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
 pub struct BorrowedStringStorage<'a>(PhantomData<&'a ()>);
 
-impl<'a> Display for BorrowedStringStorage<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+// impl<'a> Display for BorrowedStringStorage<'a> {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self)
+//     }
+// }
 
 impl<'a> StringStorage for BorrowedStringStorage<'a> {
     type String = &'a str;

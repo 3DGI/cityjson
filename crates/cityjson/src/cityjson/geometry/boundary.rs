@@ -715,6 +715,7 @@ impl<VR: VertexRef> BoundaryCounter<VR> {
         self.shell_offset
     }
 
+    #[allow(unused)]
     pub(crate) fn solid_offset(&self) -> VertexIndex<VR> {
         self.solid_offset
     }

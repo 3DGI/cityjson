@@ -5,7 +5,7 @@ use crate::cityjson::geometry::boundary::Boundary;
 use crate::cityjson::geometry::{GeometryTrait, GeometryType, LoD};
 use crate::cityjson::vertex::VertexRef;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
-use crate::resources::pool::{ResourceRef};
+use crate::resources::pool::ResourceRef;
 
 pub mod semantic;
 

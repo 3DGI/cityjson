@@ -431,6 +431,19 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
         }
     }
 
+    /// Creates a new empty Vertices collection with the provided initial capacity.
+    ///
+    /// # Returns
+    ///
+    /// A new empty `Vertices` collection
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            coordinates: Vec::with_capacity(capacity),
+            _phantom: PhantomData::default(),
+        }
+    }
+
     /// Returns the number of vertices in the collection.
     ///
     /// # Returns
