@@ -26,6 +26,12 @@ fn build_dummy_complete_owned() -> Result<()> {
     transform.set_scale([1.0, 1.0, 1.0]);
     transform.set_translate([0.0, 0.0, 0.0]);
 
+    // Set extension
+    let extensions = model.extensions_mut();
+    extensions.add(
+        Extension::new("Noise".to_string(), "https://someurl.orgnoise.json".to_string(), "2.0".to_string())
+    );
+
     println!("{}", &model);
     Ok(())
 }

@@ -105,9 +105,9 @@ impl<SS: StringStorage> fmt::Display for Extensions<SS> {
         write!(f, "available extensions: ")?;
         let mut iter = self.into_iter();
         if let Some(first) = iter.next() {
-            write!(f, "{}", first)?;
+            write!(f, "{}", first.name())?;
             for ext in iter {
-                write!(f, ", {}", ext)?;
+                write!(f, ", {}", ext.name())?;
             }
         }
         Ok(())

@@ -228,7 +228,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(f, "CityModel {{")?;
         writeln!(f, "\ttype: {}", self.type_citymodel)?;
         writeln!(f, "\tversion: 1.1")?;
-        writeln!(f, "\textensions: {}", "not implemented")?;
+        writeln!(f, "\textensions: {{ {} }}", format_option(&self.extensions))?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform))?;
         writeln!(f, "\tmetadata: {}", format_option(&self.metadata))?;
         writeln!(f, "\tCityObjects: {}", "not implemented")?;
