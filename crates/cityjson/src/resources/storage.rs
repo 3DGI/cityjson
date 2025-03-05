@@ -36,7 +36,7 @@ use std::marker::PhantomData;
 /// provides an associated type to represent the actual string type used.
 /// Implementing types can specify whether strings should be owned (`String`)
 /// or borrowed (`&str`) based on application needs.
-pub trait StringStorage: Clone + Debug + Default {
+pub trait StringStorage: Clone + Debug + Default + PartialEq + Eq + Hash {
     /// The string type (String for owned, &str for borrowed)
     ///
     /// This associated type determines the actual string representation:
@@ -66,7 +66,7 @@ pub trait StringStorage: Clone + Debug + Default {
 /// - You need to modify string contents
 /// - Strings have dynamic lifetimes
 /// - You want to avoid lifetime management complexity
-#[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub struct OwnedStringStorage;
 
 // impl Display for OwnedStringStorage {
@@ -87,7 +87,7 @@ impl StringStorage for OwnedStringStorage {
 /// - You're processing data without modifying strings
 /// - Memory efficiency is critical
 /// - Source data already owns the strings
-#[derive(Clone, Debug, Default, PartialEq, Hash, PartialOrd)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub struct BorrowedStringStorage<'a>(PhantomData<&'a ()>);
 
 // impl<'a> Display for BorrowedStringStorage<'a> {

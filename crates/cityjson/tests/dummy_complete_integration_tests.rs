@@ -32,6 +32,9 @@ fn build_dummy_complete_owned() -> Result<()> {
         Extension::new("Noise".to_string(), "https://someurl.orgnoise.json".to_string(), "2.0".to_string())
     );
 
+    // Build CityObjects
+
+
     println!("{}", &model);
     Ok(())
 }

@@ -75,6 +75,12 @@ pub trait ResourcePool<T, RR> {
         T: 'a,
         Self: 'a;
 
+    /// Iterator type returned by the `iter_mut` method
+    type IterMut<'a>: Iterator<Item = (RR, &'a mut T)>
+    where
+        T: 'a,
+        Self: 'a;
+
     /// Creates a new, empty resource pool
     fn new() -> Self;
 
@@ -149,6 +155,15 @@ pub trait ResourcePool<T, RR> {
     ///
     /// An iterator yielding pairs of resource identifiers and references to resources
     fn iter<'a>(&'a self) -> Self::Iter<'a>
+    where
+        T: 'a;
+
+    /// Returns a mutable iterator over all resources in the pool
+    ///
+    /// # Returns
+    ///
+    /// A mutable iterator yielding pairs of resource identifiers and mutable references to resources
+    fn iter_mut<'a>(&'a mut self) -> Self::IterMut<'a>
     where
         T: 'a;
 
@@ -334,12 +349,52 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
     }
 }
 
+/// An iterator over mutable references to resources in a DefaultResourcePool.
+///
+/// This iterator yields pairs of resource identifiers and mutable references to resources,
+/// skipping over vacant slots.
+///
+/// # Type Parameters
+///
+/// - `'a`: The lifetime of the mutable references yielded by the iterator
+/// - `T`: The type of resources stored in the pool
+/// - `RR`: The resource reference type used to identify resources
+pub struct DefaultResourcePoolIterMut<'a, T, RR: ResourceRef> {
+    /// Inner iterator over the resources vector
+    inner: std::iter::Enumerate<std::slice::IterMut<'a, Option<T>>>,
+    /// Reference to the generations vector
+    generations: &'a [u16],
+    /// Phantom data to satisfy the type parameter RR
+    _phantom: PhantomData<RR>,
+}
+
+impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIterMut<'a, T, RR> {
+    type Item = (RR, &'a mut T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((index, opt)) = self.inner.next() {
+            if let Some(r) = opt.as_mut() {
+                let id = RR::new(index as u32, self.generations[index]);
+                return Some((id, r));
+            }
+        }
+        None
+    }
+}
+
 impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
     type Iter<'a>
         = DefaultResourcePoolIter<'a, T, RR>
     where
         T: 'a,
         RR: 'a;
+
+    type IterMut<'a>
+        = DefaultResourcePoolIterMut<'a, T, RR>
+    where
+        T: 'a,
+        RR: 'a;
+
     fn new() -> Self {
         Self::new_pool()
     }
@@ -405,6 +460,43 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
     {
         DefaultResourcePoolIter {
             inner: self.resources.iter().enumerate(),
+            generations: &self.generations,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Returns a mutable iterator over all resources in the pool.
+    ///
+    /// This method creates an iterator that yields pairs of resource references and
+    /// mutable references to resources, skipping over vacant slots.
+    ///
+    /// # Returns
+    ///
+    /// A mutable iterator over the resources in the pool
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+    /// let id1 = pool.add(10);
+    /// let id2 = pool.add(20);
+    ///
+    /// // Modify all values in the pool
+    /// for (_, value) in pool.iter_mut() {
+    ///     *value *= 2;
+    /// }
+    ///
+    /// assert_eq!(pool.get(id1), Some(&20));
+    /// assert_eq!(pool.get(id2), Some(&40));
+    /// ```
+    fn iter_mut<'a>(&'a mut self) -> DefaultResourcePoolIterMut<'a, T, RR>
+    where
+        T: 'a,
+    {
+        DefaultResourcePoolIterMut {
+            inner: self.resources.iter_mut().enumerate(),
             generations: &self.generations,
             _phantom: PhantomData,
         }
@@ -635,6 +727,124 @@ mod tests {
 
             let collected: Vec<_> = pool.iter().collect();
             assert_eq!(collected.len(), 0);
+        }
+    }
+
+    mod iter_mut_tests {
+        use super::*;
+
+        #[test]
+        fn iteration_mutable() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            // Add some resources
+            let id1 = pool.add(10);
+            let id2 = pool.add(20);
+            let id3 = pool.add(30);
+
+            // Remove one to create a gap
+            pool.remove(id2);
+
+            // Use iter_mut to modify all values
+            for (_, value) in pool.iter_mut() {
+                *value *= 2;
+            }
+
+            // Verify the changes
+            assert_eq!(pool.get(id1), Some(&20)); // 10 * 2
+            assert_eq!(pool.get(id2), None); // Removed
+            assert_eq!(pool.get(id3), Some(&60)); // 30 * 2
+        }
+
+        #[test]
+        fn test_iter_mut_on_empty_pool() {
+            let mut pool: DefaultResourcePool<i32, ResourceId32> = DefaultResourcePool::new();
+            let mut count = 0;
+
+            // Should not iterate over any items
+            for _ in pool.iter_mut() {
+                count += 1;
+            }
+
+            assert_eq!(count, 0);
+        }
+
+        #[test]
+        fn test_iter_mut_with_custom_types() {
+            #[derive(Debug, Clone, PartialEq)]
+            struct TestData {
+                value: String,
+                counter: i32,
+            }
+
+            let mut pool = DefaultResourcePool::<TestData, ResourceId32>::new();
+
+            // Add data
+            let id1 = pool.add(TestData {
+                value: "hello".to_string(),
+                counter: 0,
+            });
+            let id2 = pool.add(TestData {
+                value: "world".to_string(),
+                counter: 0,
+            });
+
+            // Use iter_mut to modify the data
+            for (_, data) in pool.iter_mut() {
+                data.value = data.value.to_uppercase();
+                data.counter += 1;
+            }
+
+            // Verify changes
+            assert_eq!(
+                pool.get(id1),
+                Some(&TestData {
+                    value: "HELLO".to_string(),
+                    counter: 1
+                })
+            );
+            assert_eq!(
+                pool.get(id2),
+                Some(&TestData {
+                    value: "WORLD".to_string(),
+                    counter: 1
+                })
+            );
+        }
+
+        #[test]
+        fn test_iter_mut_collects_all_valid_resources() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            // Add resources including gaps
+            let id1 = pool.add(1);
+            let id2 = pool.add(2);
+            let id3 = pool.add(3);
+            pool.remove(id2); // Create a gap
+            let id4 = pool.add(4); // This should reuse id2's slot with a new generation
+
+            // Count the resources we iterate over
+            let mut resources = Vec::new();
+            for (id, value) in pool.iter_mut() {
+                resources.push((id, *value));
+            }
+
+            // Should iterate over 3 resources (skipping the removed one)
+            assert_eq!(resources.len(), 3);
+
+            // Verify specific resources
+            assert!(resources
+                .iter()
+                .any(|(id, value)| id == &id1 && *value == 1));
+            assert!(resources
+                .iter()
+                .any(|(id, value)| id.index() == id4.index() && *value == 4));
+            assert!(resources
+                .iter()
+                .any(|(id, value)| id == &id3 && *value == 3));
+
+            // Original id2 should not be present
+            assert!(!resources.iter().any(|(id, _)| id == &id2));
         }
     }
 
