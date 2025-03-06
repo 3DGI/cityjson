@@ -66,6 +66,9 @@ fn build_dummy_complete_owned() -> Result<()> {
     material_irradiation.set_is_smooth(Some(false));
     let material_red = Material::new("red".to_string());
 
+    // Create textures
+    // let texture_0 = Texture::new("http://www.someurl.org/filename.jpg".to_string(), ImageType::Png);
+
     // Build CityObject "id-1".
     // This block scope is just for visual separation and code folding in the editor.
     {
@@ -152,7 +155,7 @@ fn build_dummy_complete_owned() -> Result<()> {
             geometry_builder.set_surface_material(material_red)?;
             // Add the surface to the shell
             geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
-
+            // todo: figure out setting texture to vertices etc.
             let _geometry_ref = geometry_builder.build()?;
         }
     }
