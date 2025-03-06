@@ -2,12 +2,11 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
-use std::collections::HashMap;
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::ExtensionsTrait;
+use crate::prelude::{CityObjectsTrait, ExtensionsTrait};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v1_1::appearance::material::Material;
@@ -15,7 +14,9 @@ use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
-use crate::v1_1::{CityObject, Extension, Extensions, Transform};
+use crate::v1_1::{
+    BBox, CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
+};
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
@@ -40,6 +41,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type Transform = Transform;
     type Extension = Extension<SS>;
     type Extensions = Extensions<SS>;
+    type CityObjectType = CityObjectType<SS>;
+    type BBox = BBox;
+    type CityObject = CityObject<SS, RR>;
+    type CityObjects = CityObjects<SS, RR>;
     type GeometryPool = DefaultResourcePool<Geometry<VR, RR>, RR>;
     type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
     type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
@@ -59,7 +64,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// CityModel metadata
     metadata: Option<Metadata<SS>>,
     /// Collection of CityObjects
-    cityobjects: HashMap<SS::String, CityObject<SS, RR>>,
+    cityobjects: CityObjects<SS, RR>,
     /// The transform object
     transform: Option<Transform>,
     /// Pool of vertex coordinates
@@ -86,7 +91,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             extensions: None,
             extra: None,
             metadata: None,
-            cityobjects: HashMap::new(),
+            cityobjects: CityObjects::new(),
             transform: None,
             vertices: Vertices::new(),
             geometries: DefaultResourcePool::new_pool(),
@@ -99,6 +104,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 
     fn with_capacity(
         type_citymodel: CityModelType,
+        cityobjects_capacity: usize,
         vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
@@ -111,7 +117,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             extensions: None,
             extra: None,
             metadata: None,
-            cityobjects: HashMap::new(),
+            cityobjects: CityObjects::with_capacity(cityobjects_capacity),
             transform: None,
             vertices: Vertices::with_capacity(vertex_capacity),
             geometries: DefaultResourcePool::with_capacity(geometry_capacity),
@@ -236,6 +242,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         }
         self.extensions.as_mut().unwrap()
     }
+
+    fn cityobjects(&self) -> &CityObjects<SS, RR> {
+        &self.cityobjects
+    }
+
+    fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
+        &mut self.cityobjects
+    }
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
@@ -246,7 +260,11 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(f, "\textensions: {{ {} }}", format_option(&self.extensions))?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform))?;
         writeln!(f, "\tmetadata: {}", format_option(&self.metadata))?;
-        writeln!(f, "\tCityObjects: {{ nr. cityobjects: {} }}", self.cityobjects.len())?;
+        writeln!(
+            f,
+            "\tCityObjects: {{ nr. cityobjects: {} }}",
+            self.cityobjects.len()
+        )?;
         writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
         writeln!(

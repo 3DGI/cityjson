@@ -1,11 +1,15 @@
 use crate::cityjson::appearance::material::MaterialTrait;
 use crate::cityjson::appearance::texture::TextureTrait;
+use crate::cityjson::cityobject::CityObjectsTrait;
 use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{Attributes, ExtensionTrait, ExtensionsTrait, TransformTrait};
+use crate::prelude::{
+    Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
+    TransformTrait,
+};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{errors, CityModelType};
@@ -28,7 +32,22 @@ pub trait CityModelTypes {
     type Transform: TransformTrait;
     type Extension: ExtensionTrait<Self::StringStorage>;
     type Extensions: ExtensionsTrait<Self::StringStorage, Self::Extension>;
+    type CityObjectType: CityObjectTypeTrait<Self::StringStorage>;
+    type BBox: BBoxTrait;
+    type CityObject: CityObjectTrait<
+        Self::StringStorage,
+        Self::ResourceRef,
+        Self::CityObjectType,
+        Self::BBox,
+    >;
 
+    type CityObjects: CityObjectsTrait<
+        Self::StringStorage,
+        Self::ResourceRef,
+        Self::CityObject,
+        Self::CityObjectType,
+        Self::BBox,
+    >;
     type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;
@@ -41,7 +60,8 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     /// Create a new CityModel with the specified capacity
     fn with_capacity(
         type_citymodel: CityModelType,
-        _vertex_capacity: usize,
+        cityobjects_capacity: usize,
+        vertex_capacity: usize,
         semantic_capacity: usize,
         material_capacity: usize,
         texture_capacity: usize,
@@ -84,4 +104,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn transform_mut(&mut self) -> &mut V::Transform;
     fn extensions(&self) -> Option<&V::Extensions>;
     fn extensions_mut(&mut self) -> &mut V::Extensions;
+    fn cityobjects(&self) -> &V::CityObjects;
+    fn cityobjects_mut(&mut self) -> &mut V::CityObjects;
 }

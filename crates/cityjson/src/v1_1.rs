@@ -19,7 +19,9 @@ pub use appearance::{
 pub use citymodel::CityModel;
 
 // Re-export main types from cityobject
-pub use cityobject::{CityObjects, OwnedCityObjects, BorrowedCityObjects, CityObject, CityObjectType};
+pub use cityobject::{
+    BorrowedCityObjects, CityObject, CityObjectType, CityObjects, OwnedCityObjects,
+};
 
 pub use extension::{Extension, Extensions};
 

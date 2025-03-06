@@ -29,7 +29,7 @@ pub mod prelude {
         },
         attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         citymodel::{CityModelTrait, CityModelTypes},
-        cityobject::{CityObjectTrait, CityObjectTypeTrait},
+        cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
         coordinate::{
             Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
             GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
