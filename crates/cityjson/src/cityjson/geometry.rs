@@ -125,7 +125,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         self
     }
 
-    /// Adds a new vertex to the CityModel
+    /// Adds a new vertex to the CityModel.
     ///
     /// Returns the index of the new vertex.
     pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
@@ -418,7 +418,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - Any vertex indices are invalid (`InvalidReference`)
     /// - Any referenced elements are invalid (`InvalidReference`)
     /// - The resulting geometry would be invalid (`InvalidGeometry`)
-    pub fn build(self) -> errors::Result<()> {
+    pub fn build(self) -> errors::Result<V::ResourceRef> {
         // Validate structure before building
         self.validate_structure()?;
 
@@ -577,8 +577,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             None,
         );
 
-        self.model.add_geometry(geometry);
-        Ok(())
+        Ok(self.model.add_geometry(geometry))
     }
 
     fn validate_structure(&self) -> errors::Result<()> {
