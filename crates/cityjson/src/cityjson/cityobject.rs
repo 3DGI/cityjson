@@ -96,7 +96,8 @@ pub trait CityObjectTrait<
     BBox: BBoxTrait,
 >
 {
-    fn new(type_cityobject: CoType) -> Self;
+    fn new(id: SS::String, type_cityobject: CoType) -> Self;
+    fn get_id(&self) -> &SS::String;
     fn get_type(&self) -> &CoType;
     fn get_geometry(&self) -> Option<&Vec<RR>>;
     fn get_geometry_mut(&mut self) -> &mut Vec<RR>;

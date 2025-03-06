@@ -33,7 +33,16 @@ fn build_dummy_complete_owned() -> Result<()> {
     );
 
     // Build CityObjects
+    let cityobjects = model.cityobjects_mut();
+    let co_1 = CityObject::new("id-1".to_string(), CityObjectType::BuildingPart);
+    let co_3 = CityObject::new("id-3".to_string(), CityObjectType::Extension("+NoiseBuilding".to_string()));
+    let co_tree = CityObject::new("a-tree".to_string(), CityObjectType::SolitaryVegetationObject);
+    let co_neighborhood = CityObject::new("my-neighbourhood".to_string(), CityObjectType::CityObjectGroup);
 
+    cityobjects.add(co_1);
+    cityobjects.add(co_3);
+    cityobjects.add(co_tree);
+    cityobjects.add(co_neighborhood);
 
     println!("{}", &model);
     Ok(())

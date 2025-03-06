@@ -23,5 +23,6 @@ Below is a non-exhaustive list of CityJSON software that depends on *cityjson-rs
 
 # Notes
 
+- accessors are `<member>()`
 - containers setters are `get_*_mut`
 - scalar member setters are `set_*`

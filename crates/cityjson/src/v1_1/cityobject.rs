@@ -31,7 +31,7 @@ use std::fmt::{Display, Formatter};
 /// let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 ///
 /// // Add a building
-/// let building = CityObject::new(CityObjectType::Building);
+/// let building = CityObject::new("id-1".to_string(), CityObjectType::Building);
 /// let building_id = objects.add(building);
 ///
 /// // Retrieve a CityObject by its ID
@@ -224,6 +224,7 @@ pub type BorrowedCityObjects<'a, RR> = CityObjects<BorrowedStringStorage<'a>, RR
 
 #[derive(Debug, Default, Clone)]
 pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
+    id: SS::String,
     type_cityobject: CityObjectType<SS>,
     geometry: Option<Vec<RR>>,
     attributes: Option<Attributes<SS>>,
@@ -236,8 +237,9 @@ pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
 impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<SS>, BBox>
     for CityObject<SS, RR>
 {
-    fn new(type_cityobject: CityObjectType<SS>) -> Self {
+    fn new(id: SS::String, type_cityobject: CityObjectType<SS>) -> Self {
         Self {
+            id,
             type_cityobject,
             geometry: None,
             attributes: None,
@@ -246,6 +248,9 @@ impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<
             parents: None,
             extra: None,
         }
+    }
+    fn get_id(&self) -> &SS::String {
+        &self.id
     }
     fn get_type(&self) -> &CityObjectType<SS> {
         &self.type_cityobject
@@ -356,7 +361,7 @@ mod tests_cityobjects_container {
         let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 
         // Create a test object
-        let obj = CityObject::new(CityObjectType::Building);
+        let obj = CityObject::new("id-1".to_string(), CityObjectType::Building);
 
         // Add the object
         let id = objects.add(obj);
@@ -395,9 +400,9 @@ mod tests_cityobjects_container {
         let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 
         // Add various types of objects
-        objects.add(CityObject::new(CityObjectType::Building));
-        objects.add(CityObject::new(CityObjectType::Bridge));
-        objects.add(CityObject::new(CityObjectType::Building));
+        objects.add(CityObject::new("id-1".to_string(), CityObjectType::Building));
+        objects.add(CityObject::new("id-2".to_string(), CityObjectType::Bridge));
+        objects.add(CityObject::new("id-3".to_string(), CityObjectType::Building));
 
         // Find by type
         let buildings = objects.find_by_type(&CityObjectType::Building);
@@ -418,9 +423,9 @@ mod tests_cityobjects_container {
 
         // Create multiple objects
         let objs = vec![
-            CityObject::new(CityObjectType::Building),
-            CityObject::new(CityObjectType::Bridge),
-            CityObject::new(CityObjectType::Road),
+            CityObject::new("id-1".to_string(), CityObjectType::Building),
+            CityObject::new("id-2".to_string(), CityObjectType::Bridge),
+            CityObject::new("id-3".to_string(), CityObjectType::Road),
         ];
 
         // Add in bulk
@@ -438,13 +443,13 @@ mod tests_cityobjects_container {
         let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 
         // Create objects with attributes
-        let mut building1 = CityObject::new(CityObjectType::Building);
+        let mut building1 = CityObject::new("id-1".to_string(), CityObjectType::Building);
         building1
             .get_attributes_mut()
             .insert("height".to_string(), AttributeValue::Float(15.0));
         objects.add(building1);
 
-        let mut building2 = CityObject::new(CityObjectType::Building);
+        let mut building2 = CityObject::new("id-2".to_string(), CityObjectType::Building);
         building2
             .get_attributes_mut()
             .insert("width".to_string(), AttributeValue::Float(30.0));
