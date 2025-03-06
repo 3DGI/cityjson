@@ -97,20 +97,20 @@ pub trait CityObjectTrait<
 >
 {
     fn new(id: SS::String, type_cityobject: CoType) -> Self;
-    fn get_id(&self) -> &SS::String;
-    fn get_type(&self) -> &CoType;
-    fn get_geometry(&self) -> Option<&Vec<RR>>;
-    fn get_geometry_mut(&mut self) -> &mut Vec<RR>;
-    fn get_attributes(&self) -> Option<&Attributes<SS>>;
-    fn get_attributes_mut(&mut self) -> &mut Attributes<SS>;
-    fn get_geographical_extent(&self) -> Option<&BBox>;
+    fn id(&self) -> &SS::String;
+    fn type_cityobject(&self) -> &CoType;
+    fn geometry(&self) -> Option<&Vec<RR>>;
+    fn geometry_mut(&mut self) -> &mut Vec<RR>;
+    fn attributes(&self) -> Option<&Attributes<SS>>;
+    fn attributes_mut(&mut self) -> &mut Attributes<SS>;
+    fn geographical_extent(&self) -> Option<&BBox>;
     fn set_geographical_extent(&mut self, bbox: Option<BBox>);
-    fn get_children(&self) -> Option<&Vec<SS>>;
-    fn get_children_mut(&mut self) -> &mut Vec<SS>;
-    fn get_parents(&self) -> Option<&Vec<SS>>;
-    fn get_parents_mut(&mut self) -> &mut Vec<SS>;
-    fn get_extra(&self) -> Option<&Attributes<SS>>;
-    fn get_extra_mut(&mut self) -> &mut Attributes<SS>;
+    fn children(&self) -> Option<&Vec<SS>>;
+    fn children_mut(&mut self) -> &mut Vec<SS>;
+    fn parents(&self) -> Option<&Vec<SS>>;
+    fn parents_mut(&mut self) -> &mut Vec<SS>;
+    fn extra(&self) -> Option<&Attributes<SS>>;
+    fn extra_mut(&mut self) -> &mut Attributes<SS>;
 }
 
 pub trait CityObjectTypeTrait<SS: StringStorage>: Default + fmt::Display + Clone {}

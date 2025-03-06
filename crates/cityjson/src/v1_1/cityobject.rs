@@ -36,7 +36,7 @@ use std::fmt::{Display, Formatter};
 ///
 /// // Retrieve a CityObject by its ID
 /// let retrieved_building = objects.get(building_id).unwrap();
-/// assert_eq!(retrieved_building.get_type(), &CityObjectType::Building);
+/// assert_eq!(retrieved_building.type_cityobject(), &CityObjectType::Building);
 /// ```
 #[derive(Debug, Clone)]
 pub struct CityObjects<SS: StringStorage, RR: ResourceRef> {
@@ -112,7 +112,7 @@ impl<SS: StringStorage, RR: ResourceRef>
     fn find_by_type(&self, object_type: &CityObjectType<SS>) -> Vec<(RR, &CityObject<SS, RR>)> {
         self.inner
             .iter()
-            .filter(|(_, obj)| obj.get_type() == object_type)
+            .filter(|(_, obj)| obj.type_cityobject() == object_type)
             .collect()
     }
 
@@ -120,7 +120,7 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| {
-                if let Some(parents) = obj.get_parents() {
+                if let Some(parents) = obj.parents() {
                     parents.contains(parent_id)
                 } else {
                     false
@@ -133,7 +133,7 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| {
-                obj.get_geometry().is_some() && !obj.get_geometry().unwrap().is_empty()
+                obj.geometry().is_some() && !obj.geometry().unwrap().is_empty()
             })
             .collect()
     }
@@ -142,7 +142,7 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| {
-                obj.get_children().is_some() && !obj.get_children().unwrap().is_empty()
+                obj.children().is_some() && !obj.children().unwrap().is_empty()
             })
             .collect()
     }
@@ -178,7 +178,7 @@ impl<SS: StringStorage, RR: ResourceRef>
     fn count_by_type(&self) -> HashMap<CityObjectType<SS>, usize> {
         let mut counts = HashMap::new();
         for (_, obj) in self.inner.iter() {
-            *counts.entry(obj.get_type().clone()).or_insert(0) += 1;
+            *counts.entry(obj.type_cityobject().clone()).or_insert(0) += 1;
         }
         counts
     }
@@ -187,8 +187,8 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| {
-                obj.get_attributes().is_some()
-                    && obj.get_attributes().unwrap().contains_key(attr_name)
+                obj.attributes().is_some()
+                    && obj.attributes().unwrap().contains_key(attr_name)
             })
             .collect()
     }
@@ -249,46 +249,46 @@ impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<
             extra: None,
         }
     }
-    fn get_id(&self) -> &SS::String {
+    fn id(&self) -> &SS::String {
         &self.id
     }
-    fn get_type(&self) -> &CityObjectType<SS> {
+    fn type_cityobject(&self) -> &CityObjectType<SS> {
         &self.type_cityobject
     }
-    fn get_geometry(&self) -> Option<&Vec<RR>> {
+    fn geometry(&self) -> Option<&Vec<RR>> {
         self.geometry.as_ref()
     }
-    fn get_geometry_mut(&mut self) -> &mut Vec<RR> {
+    fn geometry_mut(&mut self) -> &mut Vec<RR> {
         self.geometry.get_or_insert_with(Vec::new)
     }
-    fn get_attributes(&self) -> Option<&Attributes<SS>> {
+    fn attributes(&self) -> Option<&Attributes<SS>> {
         self.attributes.as_ref()
     }
-    fn get_attributes_mut(&mut self) -> &mut Attributes<SS> {
+    fn attributes_mut(&mut self) -> &mut Attributes<SS> {
         self.attributes.get_or_insert_with(Attributes::new)
     }
-    fn get_geographical_extent(&self) -> Option<&BBox> {
+    fn geographical_extent(&self) -> Option<&BBox> {
         self.geographical_extent.as_ref()
     }
     fn set_geographical_extent(&mut self, bbox: Option<BBox>) {
         self.geographical_extent = bbox;
     }
-    fn get_children(&self) -> Option<&Vec<SS>> {
+    fn children(&self) -> Option<&Vec<SS>> {
         self.children.as_ref()
     }
-    fn get_children_mut(&mut self) -> &mut Vec<SS> {
+    fn children_mut(&mut self) -> &mut Vec<SS> {
         self.children.get_or_insert_with(Vec::new)
     }
-    fn get_parents(&self) -> Option<&Vec<SS>> {
+    fn parents(&self) -> Option<&Vec<SS>> {
         self.parents.as_ref()
     }
-    fn get_parents_mut(&mut self) -> &mut Vec<SS> {
+    fn parents_mut(&mut self) -> &mut Vec<SS> {
         self.parents.get_or_insert_with(Vec::new)
     }
-    fn get_extra(&self) -> Option<&Attributes<SS>> {
+    fn extra(&self) -> Option<&Attributes<SS>> {
         self.extra.as_ref()
     }
-    fn get_extra_mut(&mut self) -> &mut Attributes<SS> {
+    fn extra_mut(&mut self) -> &mut Attributes<SS> {
         self.extra.get_or_insert_with(Attributes::new)
     }
 }
@@ -372,11 +372,11 @@ mod tests_cityobjects_container {
 
         // Get the object
         let retrieved_obj = objects.get(id).unwrap();
-        assert_eq!(retrieved_obj.get_type(), &CityObjectType::Building);
+        assert_eq!(retrieved_obj.type_cityobject(), &CityObjectType::Building);
 
         // Modify the object
         if let Some(obj_mut) = objects.get_mut(id) {
-            obj_mut.get_attributes_mut().insert(
+            obj_mut.attributes_mut().insert(
                 "test".to_string(),
                 AttributeValue::String("value".to_string()),
             );
@@ -384,11 +384,11 @@ mod tests_cityobjects_container {
 
         // Verify modification
         let modified_obj = objects.get(id).unwrap();
-        assert!(modified_obj.get_attributes().is_some());
+        assert!(modified_obj.attributes().is_some());
 
         // Remove the object
         let removed_obj = objects.remove(id).unwrap();
-        assert_eq!(removed_obj.get_type(), &CityObjectType::Building);
+        assert_eq!(removed_obj.type_cityobject(), &CityObjectType::Building);
 
         // Check the container is empty
         // assert_eq!(objects.len(), 0);
@@ -445,13 +445,13 @@ mod tests_cityobjects_container {
         // Create objects with attributes
         let mut building1 = CityObject::new("id-1".to_string(), CityObjectType::Building);
         building1
-            .get_attributes_mut()
+            .attributes_mut()
             .insert("height".to_string(), AttributeValue::Float(15.0));
         objects.add(building1);
 
         let mut building2 = CityObject::new("id-2".to_string(), CityObjectType::Building);
         building2
-            .get_attributes_mut()
+            .attributes_mut()
             .insert("width".to_string(), AttributeValue::Float(30.0));
         objects.add(building2);
 
