@@ -128,6 +128,9 @@
         "shininess": 0.2,
         "transparency": 0.5,
         "isSmooth": false
+      },
+      {
+        "name": "red"
       }
     ],
     "textures":[

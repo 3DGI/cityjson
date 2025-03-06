@@ -55,6 +55,17 @@ fn build_dummy_complete_owned() -> Result<()> {
     let co_neighbourhood =
         CityObject::new(co_neighbourhood_id.clone(), CityObjectType::CityObjectGroup);
 
+    // Create materials
+    let mut material_irradiation = Material::new("irradiation".to_string());
+    material_irradiation.set_ambient_intensity(Some(0.2000));
+    material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500]));
+    material_irradiation.set_emissive_color(Some([0.9000, 0.1000, 0.7500]));
+    material_irradiation.set_specular_color(Some([0.9000, 0.1000, 0.7500]));
+    material_irradiation.set_shininess(Some(0.2));
+    material_irradiation.set_transparency(Some(0.5));
+    material_irradiation.set_is_smooth(Some(false));
+    let material_red = Material::new("red".to_string());
+
     // Build CityObject "id-1".
     // This block scope is just for visual separation and code folding in the editor.
     {
@@ -117,6 +128,33 @@ fn build_dummy_complete_owned() -> Result<()> {
         // Set CityObject family
         co_1.parents_mut().push(co_3_id.clone()); // todo: change CityObject.parents,children to use ResourceRef, since we use a ResourcePool for CityObjects
         co_1.parents_mut().push(co_neighbourhood_id.clone());
+
+        // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
+        // a mutable borrow to the CityModel.
+        {
+            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid).with_lod(LoD::LoD2_1);
+            let p1 = geometry_builder.add_vertex(102.0, 103.0, 1.0); // todo: should be able to reuse a vertex from the pool
+            let p2 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
+            let p3 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
+            let p4 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
+
+            let _shell_i = geometry_builder.start_shell();
+            // Surface geometry
+            let surface_0 = geometry_builder.start_surface(Some(SemanticType::RoofSurface)); // todo: probably not necessary to set semantic type here
+            geometry_builder.set_surface_outer_ring(&[p1, p2, p3, p4])?; // todo: how to handle errors properly?
+            // Surface semantic
+            let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+            let sem_attr = roof_semantic.attributes_mut();
+            sem_attr.insert("surfaceAttribute".to_string(), AttributeValue::Bool(true));
+            geometry_builder.set_surface_semantic(roof_semantic)?;
+            // Surface material
+            geometry_builder.set_surface_material(material_irradiation)?;
+            geometry_builder.set_surface_material(material_red)?;
+            // Add the surface to the shell
+            geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
+
+            let _geometry_ref = geometry_builder.build()?;
+        }
     }
 
     let cityobjects = model.cityobjects_mut();
