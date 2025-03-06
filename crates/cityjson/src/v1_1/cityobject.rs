@@ -116,7 +116,7 @@ impl<SS: StringStorage, RR: ResourceRef>
             .collect()
     }
 
-    fn find_by_parent(&self, parent_id: &SS) -> Vec<(RR, &CityObject<SS, RR>)> {
+    fn find_by_parent(&self, parent_id: &SS::String) -> Vec<(RR, &CityObject<SS, RR>)> {
         self.inner
             .iter()
             .filter(|(_, obj)| {
@@ -229,8 +229,8 @@ pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
     geometry: Option<Vec<RR>>,
     attributes: Option<Attributes<SS>>,
     geographical_extent: Option<BBox>,
-    children: Option<Vec<SS>>,
-    parents: Option<Vec<SS>>,
+    children: Option<Vec<SS::String>>,
+    parents: Option<Vec<SS::String>>,
     extra: Option<Attributes<SS>>,
 }
 
@@ -273,16 +273,16 @@ impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<
     fn set_geographical_extent(&mut self, bbox: Option<BBox>) {
         self.geographical_extent = bbox;
     }
-    fn children(&self) -> Option<&Vec<SS>> {
+    fn children(&self) -> Option<&Vec<SS::String>> {
         self.children.as_ref()
     }
-    fn children_mut(&mut self) -> &mut Vec<SS> {
+    fn children_mut(&mut self) -> &mut Vec<SS::String> {
         self.children.get_or_insert_with(Vec::new)
     }
-    fn parents(&self) -> Option<&Vec<SS>> {
+    fn parents(&self) -> Option<&Vec<SS::String>> {
         self.parents.as_ref()
     }
-    fn parents_mut(&mut self) -> &mut Vec<SS> {
+    fn parents_mut(&mut self) -> &mut Vec<SS::String> {
         self.parents.get_or_insert_with(Vec::new)
     }
     fn extra(&self) -> Option<&Attributes<SS>> {

@@ -66,7 +66,7 @@ where
     /// Finds CityObjects by their type.
     fn find_by_type(&self, object_type: &CoType) -> Vec<(RR, &Co)>;
     /// Finds CityObjects by their parent.
-    fn find_by_parent(&self, parent_id: &SS) -> Vec<(RR, &Co)>;
+    fn find_by_parent(&self, parent_id: &SS::String) -> Vec<(RR, &Co)>;
     /// Finds CityObjects that have geometries.
     fn find_with_geometries(&self) -> Vec<(RR, &Co)>;
     /// Finds CityObjects that have children.
@@ -105,10 +105,10 @@ pub trait CityObjectTrait<
     fn attributes_mut(&mut self) -> &mut Attributes<SS>;
     fn geographical_extent(&self) -> Option<&BBox>;
     fn set_geographical_extent(&mut self, bbox: Option<BBox>);
-    fn children(&self) -> Option<&Vec<SS>>;
-    fn children_mut(&mut self) -> &mut Vec<SS>;
-    fn parents(&self) -> Option<&Vec<SS>>;
-    fn parents_mut(&mut self) -> &mut Vec<SS>;
+    fn children(&self) -> Option<&Vec<SS::String>>;
+    fn children_mut(&mut self) -> &mut Vec<SS::String>;
+    fn parents(&self) -> Option<&Vec<SS::String>>;
+    fn parents_mut(&mut self) -> &mut Vec<SS::String>;
     fn extra(&self) -> Option<&Attributes<SS>>;
     fn extra_mut(&mut self) -> &mut Attributes<SS>;
 }
