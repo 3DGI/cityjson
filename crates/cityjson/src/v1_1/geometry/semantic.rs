@@ -112,7 +112,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// Index to parent semantic in the global semantics pool
     parent: Option<RR>,
     /// Additional attributes of the semantic surface
-    attributes: Option<Attributes<SS>>,
+    attributes: Option<Attributes<SS, RR>>,
 }
 
 impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for Semantic<RR, SS> {
@@ -153,11 +153,11 @@ impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for
         self.parent.as_mut()
     }
     #[inline]
-    fn attributes(&self) -> Option<&Attributes<SS>> {
+    fn attributes(&self) -> Option<&Attributes<SS, RR>> {
         self.attributes.as_ref()
     }
     #[inline]
-    fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         if self.attributes.is_none() {
             self.attributes = Some(Attributes::new());
         }

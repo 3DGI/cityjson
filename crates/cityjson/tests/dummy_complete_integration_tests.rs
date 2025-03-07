@@ -109,8 +109,11 @@ fn build_dummy_complete_owned() -> Result<()> {
             let mut location_builder =
                 GeometryBuilder::new(&mut model, GeometryType::MultiPoint).with_lod(LoD::LoD1);
             let _location_p = location_builder.add_vertex(102.0, 103.0, 1.0);
-            if let Ok(_location_geometry_ref) = location_builder.build() {
-                // todo: AttributeValue::Geometry
+            if let Ok(location_geometry_ref) = location_builder.build() {
+                address_map.insert(
+                    "location".to_string(),
+                    Box::new(AttributeValue::Geometry(location_geometry_ref))
+                );
             }
         }
 
@@ -182,7 +185,7 @@ fn build_dummy_complete_owned() -> Result<()> {
             // 3rd Surface ---
             // This surface has a type from an Extension
             let semantic_extension_type = "+PatioDoor".to_string();
-            let surface_3 = geometry_builder.start_surface(Some(SemanticType::Extension(semantic_extension_type.clone()))); // todo: probably not necessary to set semantic type here
+            let surface_3 = geometry_builder.start_surface(Some(SemanticType::Extension(semantic_extension_type.clone())));
             geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
             let patio_door_semantic = Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
             geometry_builder.set_surface_semantic(patio_door_semantic.clone())?;

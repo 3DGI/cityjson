@@ -29,7 +29,7 @@ pub trait SemanticTypeTrait: Default + fmt::Display + Clone {}
 ///     type_semantic: ST,
 ///     children: Option<Vec<RR>>,
 ///     parent: Option<RR>,
-///     attributes: Option<Attributes<SS>>,
+///     attributes: Option<Attributes<SS, RR>>,
 /// }
 ///
 /// // impl<RR: ResourceRef, SS: StringStorage, ST: SemanticTypeTrait>
@@ -103,7 +103,7 @@ pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTyp
     ///
     /// An `Option` containing a reference to the attributes,
     /// or `None` if no attributes exist
-    fn attributes(&self) -> Option<&Attributes<SS>>;
+    fn attributes(&self) -> Option<&Attributes<SS, RR>>;
 
     /// Returns a mutable reference to the attributes.
     ///
@@ -112,5 +112,5 @@ pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTyp
     /// # Returns
     ///
     /// A mutable reference to the attributes
-    fn attributes_mut(&mut self) -> &mut Attributes<SS>;
+    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR>;
 }

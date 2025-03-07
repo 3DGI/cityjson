@@ -28,7 +28,7 @@
 //! use cityjson::v1_1::*;
 //!
 //! // Create a new metadata object
-//! let mut metadata = Metadata::<OwnedStringStorage>::new();
+//! let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
 //!
 //! // Set geographical extent using BBox
 //! let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
@@ -85,6 +85,7 @@ use crate::cityjson::metadata::BBoxTrait;
 use crate::format_option;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
+use crate::prelude::ResourceRef;
 
 /// Metadata for a city model.
 ///
@@ -99,7 +100,7 @@ use std::fmt::{Display, Formatter};
 /// ```
 /// # use cityjson::prelude::*;
 /// # use cityjson::v1_1::*;
-/// let mut metadata = Metadata::<OwnedStringStorage>::new();
+/// let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
 ///
 /// metadata.set_geographical_extent(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
 /// metadata.set_identifier("test-id");
@@ -130,17 +131,17 @@ use std::fmt::{Display, Formatter};
 /// assert_eq!(metadata.point_of_contact().unwrap().organization(), &Some("Test Corp".to_string()));
 /// ```
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Metadata<SS: StringStorage> {
+pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier>,
     point_of_contact: Option<Contact>,
     reference_date: Option<Date>,
     reference_system: Option<CRS>,
     title: Option<String>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage> Metadata<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -169,11 +170,11 @@ impl<SS: StringStorage> Metadata<SS> {
         self.title.as_deref()
     }
 
-    pub fn extra(&self) -> Option<&Attributes<SS>> {
+    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS>> {
+    pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS, RR>> {
         &mut self.extra
     }
 
@@ -286,7 +287,7 @@ impl<SS: StringStorage> Metadata<SS> {
     }
 }
 
-impl<SS: StringStorage> Display for Metadata<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Display for Metadata<SS, RR> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -486,7 +487,7 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage> cityjson::metadata::MetadataTrait<SS> for Metadata<SS> {}
+impl<SS: StringStorage, RR: ResourceRef> cityjson::metadata::MetadataTrait<SS> for Metadata<SS, RR> {}
 
 /// Bounding Box.
 ///
@@ -664,12 +665,13 @@ pub type CRS = String;
 
 #[cfg(test)]
 mod test {
+    use crate::prelude::ResourceId32;
     use super::*;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]
     fn display() {
-        let mut metadata = Metadata::<OwnedStringStorage>::new();
+        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier("test-id");
         metadata.set_reference_date("2024-03-20");

@@ -98,8 +98,8 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn vertex_count(&self) -> usize;
     fn metadata(&self) -> Option<&V::Metadata>;
     fn metadata_mut(&mut self) -> &mut V::Metadata;
-    fn extra(&self) -> Option<&Attributes<V::StringStorage>>;
-    fn extra_mut(&mut self) -> &mut Attributes<V::StringStorage>;
+    fn extra(&self) -> Option<&Attributes<V::StringStorage, V::ResourceRef>>;
+    fn extra_mut(&mut self) -> &mut Attributes<V::StringStorage, V::ResourceRef>;
     fn transform(&self) -> Option<&V::Transform>;
     fn transform_mut(&mut self) -> &mut V::Transform;
     fn extensions(&self) -> Option<&V::Extensions>;

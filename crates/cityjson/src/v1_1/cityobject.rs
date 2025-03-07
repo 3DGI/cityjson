@@ -231,11 +231,11 @@ pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
     id: SS::String,
     type_cityobject: CityObjectType<SS>,
     geometry: Option<Vec<RR>>,
-    attributes: Option<Attributes<SS>>,
+    attributes: Option<Attributes<SS, RR>>,
     geographical_extent: Option<BBox>,
     children: Option<Vec<SS::String>>,
     parents: Option<Vec<SS::String>>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
 impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<SS>, BBox>
@@ -265,10 +265,10 @@ impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<
     fn geometry_mut(&mut self) -> &mut Vec<RR> {
         self.geometry.get_or_insert_with(Vec::new)
     }
-    fn attributes(&self) -> Option<&Attributes<SS>> {
+    fn attributes(&self) -> Option<&Attributes<SS, RR>> {
         self.attributes.as_ref()
     }
-    fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.attributes.get_or_insert_with(Attributes::new)
     }
     fn geographical_extent(&self) -> Option<&BBox> {
@@ -289,10 +289,10 @@ impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<
     fn parents_mut(&mut self) -> &mut Vec<SS::String> {
         self.parents.get_or_insert_with(Vec::new)
     }
-    fn extra(&self) -> Option<&Attributes<SS>> {
+    fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
-    fn extra_mut(&mut self) -> &mut Attributes<SS> {
+    fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.extra.get_or_insert_with(Attributes::new)
     }
 }

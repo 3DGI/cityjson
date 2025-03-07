@@ -37,7 +37,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type Material = Material<SS>;
     type Texture = Texture<SS>;
     type Geometry = Geometry<VR, RR>;
-    type Metadata = Metadata<SS>;
+    type Metadata = Metadata<SS, RR>;
     type Transform = Transform;
     type Extension = Extension<SS>;
     type Extensions = Extensions<SS>;
@@ -60,9 +60,9 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// CityJSON Extension declarations
     extensions: Option<Extensions<SS>>,
     /// Extra root properties for the CityModel
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
     /// CityModel metadata
-    metadata: Option<Metadata<SS>>,
+    metadata: Option<Metadata<SS, RR>>,
     /// Collection of CityObjects
     cityobjects: CityObjects<SS, RR>,
     /// The transform object
@@ -199,22 +199,22 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         self.vertices.len()
     }
 
-    fn metadata(&self) -> Option<&Metadata<SS>> {
+    fn metadata(&self) -> Option<&Metadata<SS, RR>> {
         self.metadata.as_ref()
     }
 
-    fn metadata_mut(&mut self) -> &mut Metadata<SS> {
+    fn metadata_mut(&mut self) -> &mut Metadata<SS, RR> {
         if self.metadata.is_none() {
             self.metadata = Some(Metadata::new());
         }
         self.metadata.as_mut().unwrap()
     }
 
-    fn extra(&self) -> Option<&Attributes<SS>> {
+    fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
 
-    fn extra_mut(&mut self) -> &mut Attributes<SS> {
+    fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
         if self.extra.is_none() {
             self.extra = Some(Attributes::new());
         }

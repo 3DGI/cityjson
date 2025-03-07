@@ -101,16 +101,16 @@ pub trait CityObjectTrait<
     fn type_cityobject(&self) -> &CoType;
     fn geometry(&self) -> Option<&Vec<RR>>;
     fn geometry_mut(&mut self) -> &mut Vec<RR>;
-    fn attributes(&self) -> Option<&Attributes<SS>>;
-    fn attributes_mut(&mut self) -> &mut Attributes<SS>;
+    fn attributes(&self) -> Option<&Attributes<SS, RR>>;
+    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR>;
     fn geographical_extent(&self) -> Option<&BBox>;
     fn set_geographical_extent(&mut self, bbox: Option<BBox>);
     fn children(&self) -> Option<&Vec<SS::String>>;
     fn children_mut(&mut self) -> &mut Vec<SS::String>;
     fn parents(&self) -> Option<&Vec<SS::String>>;
     fn parents_mut(&mut self) -> &mut Vec<SS::String>;
-    fn extra(&self) -> Option<&Attributes<SS>>;
-    fn extra_mut(&mut self) -> &mut Attributes<SS>;
+    fn extra(&self) -> Option<&Attributes<SS, RR>>;
+    fn extra_mut(&mut self) -> &mut Attributes<SS, RR>;
 }
 
 pub trait CityObjectTypeTrait<SS: StringStorage>: Default + fmt::Display + Clone {}

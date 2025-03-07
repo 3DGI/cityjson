@@ -120,6 +120,7 @@
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
+use crate::prelude::{ResourceId32, ResourceRef};
 
 /// Represents the different types of values that can be stored in an attribute.
 ///
@@ -137,40 +138,42 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// use cityjson::prelude::*;
 ///
 /// // Create different types of attribute values
-/// let null_value = AttributeValue::<OwnedStringStorage>::Null;
-/// let bool_value = AttributeValue::<OwnedStringStorage>::Bool(true);
-/// let int_value = AttributeValue::<OwnedStringStorage>::Integer(-42);
-/// let float_value = AttributeValue::<OwnedStringStorage>::Float(std::f64::consts::PI);
-/// let string_value = AttributeValue::<OwnedStringStorage>::String("example".to_string());
+/// let null_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Null;
+/// let bool_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true);
+/// let int_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42);
+/// let float_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI);
+/// let string_value = AttributeValue::<OwnedStringStorage, ResourceId32>::String("example".to_string());
 ///
 /// // Create a vector of values
-/// let vec_value = AttributeValue::<OwnedStringStorage>::Vec(vec![
+/// let vec_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Vec(vec![
 ///     Box::new(AttributeValue::Integer(1)),
 ///     Box::new(AttributeValue::Integer(2)),
 ///     Box::new(AttributeValue::Integer(3)),
 /// ]);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeValue<SS: StringStorage> {
-    /// Represents a null or undefined value
+pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
+    /// Represents a null or undefined value.
     Null,
-    /// A boolean value (true or false)
+    /// A boolean value (true or false).
     Bool(bool),
-    /// An unsigned integer value
+    /// An unsigned integer value.
     Unsigned(u64),
-    /// A signed integer value
+    /// A signed integer value.
     Integer(i64),
-    /// A floating-point value
+    /// A floating-point value.
     Float(f64),
-    /// A string value using the specified storage strategy
+    /// A string value using the specified storage strategy.
     String(SS::String),
-    /// A vector of attribute values
-    Vec(Vec<Box<AttributeValue<SS>>>),
-    /// A map of string keys to attribute values
-    Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
+    /// A vector of attribute values.
+    Vec(Vec<Box<AttributeValue<SS, RR>>>),
+    /// A map of string keys to attribute values.
+    Map(HashMap<SS::String, Box<AttributeValue<SS, RR>>>),
+    /// A geometry. Basically, only used for "address.location", which must be a MultiPoint.
+    Geometry(RR),
 }
 
-impl<SS: StringStorage> Display for AttributeValue<SS>
+impl<SS: StringStorage, RR: ResourceRef> Display for AttributeValue<SS, RR>
 where
     SS::String: Display,
 {
@@ -202,6 +205,7 @@ where
                 }
                 write!(f, "}}")
             }
+            AttributeValue::Geometry(value) => write!(f, "Geometry {}", value),
         }
     }
 }
@@ -224,7 +228,7 @@ where
 /// use cityjson::prelude::*;
 ///
 /// // Create a new attributes container
-/// let mut attrs = Attributes::<OwnedStringStorage>::new();
+/// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
 ///
 /// // Insert a value
 /// attrs.insert(
@@ -239,11 +243,11 @@ where
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub struct Attributes<SS: StringStorage> {
-    values: HashMap<SS::String, AttributeValue<SS>>,
+pub struct Attributes<SS: StringStorage, RR: ResourceRef> {
+    values: HashMap<SS::String, AttributeValue<SS, RR>>,
 }
 
-impl<SS: StringStorage> Attributes<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
     /// Creates a new, empty attributes container.
     ///
     /// # Examples
@@ -251,7 +255,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let attrs = Attributes::<OwnedStringStorage>::new();
+    /// let attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// assert!(attrs.get("any_key").is_none());
     /// ```
     pub fn new() -> Self {
@@ -276,7 +280,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("temperature".to_string(), AttributeValue::Float(22.5));
     ///
     /// if let Some(AttributeValue::Float(temp)) = attrs.get("temperature") {
@@ -287,7 +291,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// // Key doesn't exist
     /// assert!(attrs.get("humidity").is_none());
     /// ```
-    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS>> {
+    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS, RR>> {
         self.values.get(key)
     }
 
@@ -307,7 +311,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("counter".to_string(), AttributeValue::Integer(10));
     ///
     /// // Modify the value
@@ -320,7 +324,7 @@ impl<SS: StringStorage> Attributes<SS> {
     ///     assert_eq!(*counter, 11);
     /// }
     /// ```
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS>> {
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS, RR>> {
         self.values.get_mut(key)
     }
 
@@ -340,7 +344,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     ///
     /// // Insert a new value
     /// let previous = attrs.insert(
@@ -359,8 +363,8 @@ impl<SS: StringStorage> Attributes<SS> {
     pub fn insert(
         &mut self,
         key: SS::String,
-        value: AttributeValue<SS>,
-    ) -> Option<AttributeValue<SS>> {
+        value: AttributeValue<SS, RR>,
+    ) -> Option<AttributeValue<SS, RR>> {
         self.values.insert(key, value)
     }
 
@@ -379,7 +383,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("temporary".to_string(), AttributeValue::Bool(true));
     ///
     /// // Remove the attribute
@@ -393,7 +397,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// let removed = attrs.remove("nonexistent");
     /// assert!(removed.is_none());
     /// ```
-    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS>> {
+    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS, RR>> {
         self.values.remove(key)
     }
 
@@ -408,7 +412,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// assert_eq!(attrs.len(), 0);
     ///
     /// attrs.insert("key1".to_string(), AttributeValue::Integer(1));
@@ -433,7 +437,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// assert!(attrs.is_empty());
     ///
     /// attrs.insert("key".to_string(), AttributeValue::Integer(1));
@@ -458,7 +462,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// use cityjson::prelude::*;
     /// use std::collections::HashSet;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("width".to_string(), AttributeValue::Float(10.0));
     /// attrs.insert("height".to_string(), AttributeValue::Float(20.0));
     ///
@@ -467,7 +471,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// assert!(keys.contains(&"width".to_string()));
     /// assert!(keys.contains(&"height".to_string()));
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = (&SS::String, &AttributeValue<SS>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&SS::String, &AttributeValue<SS, RR>)> {
         self.values.iter()
     }
 
@@ -482,7 +486,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("width".to_string(), AttributeValue::Float(10.0));
     /// attrs.insert("height".to_string(), AttributeValue::Float(20.0));
     ///
@@ -498,7 +502,7 @@ impl<SS: StringStorage> Attributes<SS> {
     ///     assert_eq!(*width, 20.0);
     /// }
     /// ```
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&SS::String, &mut AttributeValue<SS>)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&SS::String, &mut AttributeValue<SS, RR>)> {
         self.values.iter_mut()
     }
 
@@ -509,7 +513,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("key1".to_string(), AttributeValue::Integer(1));
     /// attrs.insert("key2".to_string(), AttributeValue::Integer(2));
     /// assert_eq!(attrs.len(), 2);
@@ -537,7 +541,7 @@ impl<SS: StringStorage> Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let mut attrs = Attributes::<OwnedStringStorage>::new();
+    /// let mut attrs = Attributes::<OwnedStringStorage, ResourceId32>::new();
     /// attrs.insert("exists".to_string(), AttributeValue::Bool(true));
     ///
     /// assert!(attrs.contains_key("exists"));
@@ -548,7 +552,7 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 }
 
-impl<SS: StringStorage> Default for Attributes<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Default for Attributes<SS, RR> {
     /// Creates a new, empty attributes container.
     ///
     /// # Examples
@@ -556,7 +560,7 @@ impl<SS: StringStorage> Default for Attributes<SS> {
     /// ```rust
     /// use cityjson::prelude::*;
     ///
-    /// let attrs: Attributes<OwnedStringStorage> = Default::default();
+    /// let attrs: Attributes<OwnedStringStorage, ResourceId32> = Default::default();
     /// assert!(attrs.is_empty());
     /// ```
     fn default() -> Self {
@@ -564,7 +568,7 @@ impl<SS: StringStorage> Default for Attributes<SS> {
     }
 }
 
-impl<SS: StringStorage> Display for Attributes<SS>
+impl<SS: StringStorage, RR: ResourceRef> Display for Attributes<SS, RR>
 where
     SS::String: Display + Eq + std::hash::Hash,
 {
@@ -592,7 +596,7 @@ where
 /// let mut attrs = OwnedAttributes::new();
 /// attrs.insert("name".to_string(), AttributeValue::String("Example".to_string()));
 /// ```
-pub type OwnedAttributes = Attributes<OwnedStringStorage>;
+pub type OwnedAttributes = Attributes<OwnedStringStorage, ResourceId32>;
 
 /// Type alias for attributes with borrowed strings.
 ///
@@ -611,10 +615,11 @@ pub type OwnedAttributes = Attributes<OwnedStringStorage>;
 /// let mut attrs = BorrowedAttributes::new();
 /// attrs.insert("name", AttributeValue::String(text));
 /// ```
-pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>>;
+pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, ResourceId32>;
 
 #[cfg(test)]
 mod tests {
+    use crate::prelude::GeometryType;
     use super::*;
 
     #[test]
@@ -709,34 +714,36 @@ mod tests {
     #[test]
     fn test_attribute_value_types() {
         // Test creation of different attribute value types
-        let null = AttributeValue::<OwnedStringStorage>::Null;
-        let boolean = AttributeValue::<OwnedStringStorage>::Bool(true);
-        let unsigned = AttributeValue::<OwnedStringStorage>::Unsigned(42);
-        let integer = AttributeValue::<OwnedStringStorage>::Integer(-42);
-        let float = AttributeValue::<OwnedStringStorage>::Float(3.14);
-        let string = AttributeValue::<OwnedStringStorage>::String("test".to_string());
+        let null = AttributeValue::<OwnedStringStorage, ResourceId32>::Null;
+        let boolean = AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true);
+        let unsigned = AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42);
+        let integer = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42);
+        let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14);
+        let string = AttributeValue::<OwnedStringStorage, ResourceId32>::String("test".to_string());
+        let geometry = AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
 
         // Test equality
-        assert_eq!(null, AttributeValue::<OwnedStringStorage>::Null);
-        assert_eq!(boolean, AttributeValue::<OwnedStringStorage>::Bool(true));
-        assert_ne!(boolean, AttributeValue::<OwnedStringStorage>::Bool(false));
-        assert_eq!(unsigned, AttributeValue::<OwnedStringStorage>::Unsigned(42));
-        assert_ne!(unsigned, AttributeValue::<OwnedStringStorage>::Unsigned(43));
-        assert_eq!(integer, AttributeValue::<OwnedStringStorage>::Integer(-42));
-        assert_ne!(integer, AttributeValue::<OwnedStringStorage>::Integer(-43));
-        assert_eq!(float, AttributeValue::<OwnedStringStorage>::Float(3.14));
+        assert_eq!(null, AttributeValue::<OwnedStringStorage, ResourceId32>::Null);
+        assert_eq!(boolean, AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true));
+        assert_ne!(boolean, AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(false));
+        assert_eq!(unsigned, AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42));
+        assert_ne!(unsigned, AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(43));
+        assert_eq!(integer, AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42));
+        assert_ne!(integer, AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-43));
+        assert_eq!(float, AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14));
         assert_ne!(
             float,
-            AttributeValue::<OwnedStringStorage>::Float(std::f64::consts::PI)
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI)
         );
         assert_eq!(
             string,
-            AttributeValue::<OwnedStringStorage>::String("test".to_string())
+            AttributeValue::<OwnedStringStorage, ResourceId32>::String("test".to_string())
         );
         assert_ne!(
             string,
-            AttributeValue::<OwnedStringStorage>::String("test2".to_string())
+            AttributeValue::<OwnedStringStorage, ResourceId32>::String("test2".to_string())
         );
+        assert_eq!(geometry, AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0)));
     }
 
     #[test]
@@ -1010,12 +1017,13 @@ mod tests {
     #[test]
     fn test_attribute_value_display() {
         // Test primitive values
-        let null = AttributeValue::<OwnedStringStorage>::Null;
-        let boolean = AttributeValue::<OwnedStringStorage>::Bool(true);
-        let unsigned = AttributeValue::<OwnedStringStorage>::Unsigned(42);
-        let integer = AttributeValue::<OwnedStringStorage>::Integer(-100);
-        let float = AttributeValue::<OwnedStringStorage>::Float(3.12345);
-        let string = AttributeValue::<OwnedStringStorage>::String("hello".to_string());
+        let null = AttributeValue::<OwnedStringStorage, ResourceId32>::Null;
+        let boolean = AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true);
+        let unsigned = AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42);
+        let integer = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-100);
+        let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.12345);
+        let string = AttributeValue::<OwnedStringStorage, ResourceId32>::String("hello".to_string());
+        let geometry = AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
 
         assert_eq!(format!("{}", null), "null");
         assert_eq!(format!("{}", boolean), "true");
@@ -1023,30 +1031,31 @@ mod tests {
         assert_eq!(format!("{}", integer), "-100");
         assert_eq!(format!("{}", float), "3.12345");
         assert_eq!(format!("{}", string), "\"hello\"");
+        assert_eq!(format!("{}", geometry), "Geometry index: 0, generation: 0");
 
         // Test vector
         let mut vec_values = Vec::new();
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(1)));
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(2)));
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage>::Integer(3)));
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(1)));
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(2)));
+        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(3)));
 
-        let vec_attr = AttributeValue::<OwnedStringStorage>::Vec(vec_values);
+        let vec_attr = AttributeValue::<OwnedStringStorage, ResourceId32>::Vec(vec_values);
         assert_eq!(format!("{}", vec_attr), "[1, 2, 3]");
 
         // Test map
         let mut map = HashMap::new();
         map.insert(
             "name".to_string(),
-            Box::new(AttributeValue::<OwnedStringStorage>::String(
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::String(
                 "City Hall".to_string(),
             )),
         );
         map.insert(
             "height".to_string(),
-            Box::new(AttributeValue::<OwnedStringStorage>::Float(45.5)),
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Float(45.5)),
         );
 
-        let map_attr = AttributeValue::<OwnedStringStorage>::Map(map);
+        let map_attr = AttributeValue::<OwnedStringStorage, ResourceId32>::Map(map);
         // Since HashMap iteration order is non-deterministic, we need to check parts
         let map_str = format!("{}", map_attr);
         assert!(map_str.starts_with("{"));
@@ -1057,7 +1066,7 @@ mod tests {
 
     #[test]
     fn test_attributes_display() {
-        let mut attrs = Attributes::<OwnedStringStorage> {
+        let mut attrs = Attributes::<OwnedStringStorage, ResourceId32> {
             values: HashMap::new(),
         };
 
