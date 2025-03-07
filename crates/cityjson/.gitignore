@@ -2,3 +2,7 @@
 Cargo.lock
 .idea
 .run
+
+# Data
+tests/data/v1_1/schemas/*.schema.json
+!tests/data/v1_1/schemas/noise.ext.json

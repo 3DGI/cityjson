@@ -50,23 +50,25 @@
           "type": "Solid",
           "lod": "2.1",
           "boundaries": [
-            [ [[0, 3, 2, 1]], [[0, 3, 2, 1]], [[0, 3, 2, 1]], [[0, 3, 2, 1]] ]
+            [ [[0, 3, 2, 1]], [[0, 3, 2, 1]], [[0, 3, 2, 1]], [[0, 3, 2, 1]] ],
+            [ [[1, 2, 3, 0], [1, 2, 3, 0]] ]
           ],
           "semantics": {
             "surfaces": [
               { "type": "RoofSurface", "surfaceAttribute": true },
               { "type": "+PatioDoor"}
            ],
-           "values": [[0, 0, null, 1]]
+           "values": [[0, 0, null, 1], [null]]
           },
           "material": {
-           "irradiation": { "values": [[0, 0, 0, null]] },
+           "irradiation": { "values": [[0, 0, 0, null], [null]] },
            "red": { "value": 0 }
           },
           "texture": {
             "winter-textures": {
               "values": [
-                [ [[0, 0, 1, 2, 3]], [[0, 0, 1, 2, 3]], [[null]], [[null]] ]
+                [ [[0, 0, 1, 2, 3]], [[0, 0, 1, 2, 3]], [[null]], [[null]] ],
+                [ [[null], [null]]]
               ]
             }
           }

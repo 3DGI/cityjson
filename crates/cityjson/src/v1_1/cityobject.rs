@@ -1,6 +1,10 @@
 //! # CityObject
 //!
 //! Represents a [CityObject object](https://www.cityjson.org/specs/1.1.3/#the-different-city-objects).
+//!
+//! Properties that are specific to certain type of CityObjects need to be set as `extra`
+//! attributes. For example the `address` member of the `Bridge` and `Building` types,
+//! or the `children_roles` member of the `CityObjectGroup`.
 
 use crate::cityjson::cityobject::CityObjectsTrait;
 use crate::prelude::{

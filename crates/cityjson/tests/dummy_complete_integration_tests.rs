@@ -136,28 +136,73 @@ fn build_dummy_complete_owned() -> Result<()> {
         // a mutable borrow to the CityModel.
         {
             let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid).with_lod(LoD::LoD2_1);
-            let p1 = geometry_builder.add_vertex(102.0, 103.0, 1.0); // todo: should be able to reuse a vertex from the pool
-            let p2 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
-            let p3 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
-            let p4 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
+            let v0 = geometry_builder.add_vertex(102.0, 103.0, 1.0); // todo: should be able to reuse a vertex from the pool
+            let v1 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
+            let v2 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
+            let v3 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
 
+            // For a Solid, we don't need the shell index, just need to start the one
+            // shell that it has.
             let _shell_i = geometry_builder.start_shell();
-            // Surface geometry
+
+            // 0th Surface ---
+            // Geometry
             let surface_0 = geometry_builder.start_surface(Some(SemanticType::RoofSurface)); // todo: probably not necessary to set semantic type here
-            geometry_builder.set_surface_outer_ring(&[p1, p2, p3, p4])?; // todo: how to handle errors properly?
-            // Surface semantic
+            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: how to handle errors properly?
+            // Semantic
             let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
             let sem_attr = roof_semantic.attributes_mut();
             sem_attr.insert("surfaceAttribute".to_string(), AttributeValue::Bool(true));
-            geometry_builder.set_surface_semantic(roof_semantic)?;
-            // Surface material
-            geometry_builder.set_surface_material(material_irradiation)?;
-            geometry_builder.set_surface_material(material_red)?;
+            geometry_builder.set_surface_semantic(roof_semantic.clone())?;
+            // Material
+            geometry_builder.set_surface_material(material_irradiation.clone())?;
+            geometry_builder.set_surface_material(material_red.clone())?;
             // Add the surface to the shell
             geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
             // todo: figure out setting texture to vertices etc.
             // todo: set texture theme on geometry "winter-textures"
-            let _geometry_ref = geometry_builder.build()?;
+
+            // 1st Surface ---
+            let surface_1 = geometry_builder.start_surface(Some(SemanticType::RoofSurface));
+            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
+            // We reuse the previously created Semantic
+            geometry_builder.set_surface_semantic(roof_semantic)?;
+            geometry_builder.set_surface_material(material_irradiation.clone())?;
+            geometry_builder.set_surface_material(material_red.clone())?;
+            geometry_builder.add_shell_outer_surface(surface_1)?;
+
+            // 2nd Surface ---
+            // This surface does not have Semantic
+            let surface_2 = geometry_builder.start_surface(None);
+            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
+            geometry_builder.set_surface_material(material_irradiation.clone())?;
+            geometry_builder.set_surface_material(material_red.clone())?;
+            geometry_builder.add_shell_outer_surface(surface_2)?;
+
+            // 3rd Surface ---
+            // This surface has a type from an Extension
+            let semantic_extension_type = "+PatioDoor".to_string();
+            let surface_3 = geometry_builder.start_surface(Some(SemanticType::Extension(semantic_extension_type.clone()))); // todo: probably not necessary to set semantic type here
+            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
+            let patio_door_semantic = Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
+            geometry_builder.set_surface_semantic(patio_door_semantic.clone())?;
+            // This surface does not have the "irradiation" material
+            geometry_builder.set_surface_material(material_red.clone())?;
+            geometry_builder.add_shell_outer_surface(surface_3)?;
+
+            // Inner shell
+            let _inner_shell_i = geometry_builder.start_shell();
+            let surface_4 = geometry_builder.start_surface(None);
+            geometry_builder.set_surface_outer_ring(&[v1, v2, v3, v0])?;
+            geometry_builder.add_surface_inner_ring(&[v1, v2, v3, v0])?;
+            geometry_builder.add_shell_outer_surface(surface_4)?;
+
+            // Consume the builder by building a Geometry and adding it to the CityModel
+            let geometry_ref = geometry_builder.build()?;
+
+            // For debug only
+            let geom_nested = model.geometries().get(geometry_ref).unwrap().clone().boundaries().unwrap().to_nested_solid().unwrap();
+            println!("{:?}", geom_nested);
         }
     }
 

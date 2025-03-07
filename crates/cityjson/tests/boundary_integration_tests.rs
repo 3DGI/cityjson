@@ -1,6 +1,8 @@
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 
+// todo: add inner boundaries for each type
+
 /// Integration test for building a MultiPoint geometry and extracting its boundary
 #[test]
 fn test_multipoint_geometry_boundary() {
