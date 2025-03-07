@@ -121,7 +121,7 @@ fn build_dummy_complete_owned() -> Result<()> {
         let addresses_vec = AttributeValue::Vec(vec![Box::new(AttributeValue::Map(address_map))]);
         co_1_extra.insert("address".to_string(), addresses_vec);
 
-        // Set regular attributes, that will be stored in the "attributes" member of the CityObject.
+        // Set regular attributes that will be stored in the "attributes" member of the CityObject.
         let co_1_attrs = co_1.attributes_mut();
         co_1_attrs.insert("measuredHeight".to_string(), AttributeValue::Float(22.3));
         co_1_attrs.insert(
@@ -130,10 +130,6 @@ fn build_dummy_complete_owned() -> Result<()> {
         );
         co_1_attrs.insert("residential".to_string(), AttributeValue::Bool(true));
         co_1_attrs.insert("nr_doors".to_string(), AttributeValue::Integer(3));
-
-        // Set CityObject family
-        co_1.parents_mut().push(co_3_id.clone()); // todo: change CityObject.parents,children to use ResourceRef, since we use a ResourcePool for CityObjects
-        co_1.parents_mut().push(co_neighbourhood_id.clone());
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -213,8 +209,6 @@ fn build_dummy_complete_owned() -> Result<()> {
     {
         let co_3_attrs = co_3.attributes_mut();
         co_3_attrs.insert("buildingLDenMin".to_string(), AttributeValue::Float(1.0));
-        co_3.children_mut().push(co_1_id.clone());
-        co_3.parents_mut().push(co_neighbourhood_id.clone());
     }
 
     // Build CityObject "a-tree".
@@ -226,9 +220,9 @@ fn build_dummy_complete_owned() -> Result<()> {
     {
         let co_neigh_attrs = co_neighbourhood.attributes_mut();
         co_neigh_attrs.insert("location".to_string(), AttributeValue::String("Magyarkanizsa".to_string()));
-        co_neighbourhood.children_mut().push(co_1_id.clone());
-        co_neighbourhood.children_mut().push(co_3_id.clone());
-        // todo: add children_roles, probably as "extra"
+        let co_neigh_extra = co_neighbourhood.extra_mut();
+        let children_roles_vec = vec![Box::new(AttributeValue::String("residential building".to_string())), Box::new(AttributeValue::String("voting location".to_string()))];
+        co_neigh_extra.insert("children_roles".to_string(), AttributeValue::Vec(children_roles_vec));
         {
             let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface).with_lod(LoD::LoD2);
             let _surface_i = geometry_builder.start_surface(None);
@@ -243,10 +237,19 @@ fn build_dummy_complete_owned() -> Result<()> {
     }
 
     let cityobjects = model.cityobjects_mut();
-    cityobjects.add(co_1);
-    cityobjects.add(co_3);
-    cityobjects.add(co_tree);
-    cityobjects.add(co_neighbourhood);
+    let co_1_ref = cityobjects.add(co_1);
+    let co_3_ref = cityobjects.add(co_3);
+    let _co_tree_ref = cityobjects.add(co_tree);
+    let co_neigh_ref = cityobjects.add(co_neighbourhood);
+
+    // Create CityObject hierarchy with the references that are returned by the "add"
+    // method
+    cityobjects.get_mut(co_1_ref).unwrap().parents_mut().push(co_3_ref.clone());
+    cityobjects.get_mut(co_1_ref).unwrap().parents_mut().push(co_neigh_ref.clone());
+    cityobjects.get_mut(co_3_ref).unwrap().children_mut().push(co_1_ref.clone());
+    cityobjects.get_mut(co_3_ref).unwrap().parents_mut().push(co_neigh_ref.clone());
+    cityobjects.get_mut(co_neigh_ref).unwrap().children_mut().push(co_1_ref.clone());
+    cityobjects.get_mut(co_neigh_ref).unwrap().children_mut().push(co_3_ref.clone());
 
     println!("{}", &model);
     Ok(())
