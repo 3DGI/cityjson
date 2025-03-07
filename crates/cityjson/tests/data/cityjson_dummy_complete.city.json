@@ -100,7 +100,7 @@
     "my-neighbourhood": {
       "type": "CityObjectGroup",
       "attributes": {
-        "location": "Chibougamau Sud"
+        "location": "Magyarkanizsa"
       },
       "children": ["id-1", "id-3"],
       "children_roles": ["residential building", "voting location"],
@@ -136,7 +136,7 @@
     "textures":[
       {
         "type": "PNG",
-        "image": "http://www.someurl.org/filename.jpg"
+          "image": "http://www.someurl.org/filename.jpg"
       }
     ],
     "vertices-texture": [

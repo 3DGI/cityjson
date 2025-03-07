@@ -43,16 +43,16 @@ fn build_dummy_complete_owned() -> Result<()> {
 
     // Initialize CityObjects
     let co_1_id = "id-1".to_string();
-    let mut co_1 = CityObject::new(co_1_id, CityObjectType::BuildingPart);
+    let mut co_1 = CityObject::new(co_1_id.clone(), CityObjectType::BuildingPart);
     let co_3_id = "id-3".to_string();
-    let co_3 = CityObject::new(
+    let mut co_3 = CityObject::new(
         co_3_id.clone(),
         CityObjectType::Extension("+NoiseBuilding".to_string()),
     );
     let co_tree_id = "a-tree".to_string();
     let co_tree = CityObject::new(co_tree_id.clone(), CityObjectType::SolitaryVegetationObject);
     let co_neighbourhood_id = "my-neighbourhood".to_string();
-    let co_neighbourhood =
+    let mut co_neighbourhood =
         CityObject::new(co_neighbourhood_id.clone(), CityObjectType::CityObjectGroup);
 
     // Create materials
@@ -156,6 +156,40 @@ fn build_dummy_complete_owned() -> Result<()> {
             // Add the surface to the shell
             geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
             // todo: figure out setting texture to vertices etc.
+            // todo: set texture theme on geometry "winter-textures"
+            let _geometry_ref = geometry_builder.build()?;
+        }
+    }
+
+    // Build CityObject "id-3".
+    {
+        let co_3_attrs = co_3.attributes_mut();
+        co_3_attrs.insert("buildingLDenMin".to_string(), AttributeValue::Float(1.0));
+        co_3.children_mut().push(co_1_id.clone());
+        co_3.parents_mut().push(co_neighbourhood_id.clone());
+    }
+
+    // Build CityObject "a-tree".
+    {
+        // todo: Sort out GeometryInstance
+    }
+
+    // Build CityObject "my-neighbourhood"
+    {
+        let co_neigh_attrs = co_neighbourhood.attributes_mut();
+        co_neigh_attrs.insert("location".to_string(), AttributeValue::String("Magyarkanizsa".to_string()));
+        co_neighbourhood.children_mut().push(co_1_id.clone());
+        co_neighbourhood.children_mut().push(co_3_id.clone());
+        // todo: add children_roles, probably as "extra"
+        {
+            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface).with_lod(LoD::LoD2);
+            let _surface_i = geometry_builder.start_surface(None);
+            let p1 = geometry_builder.add_vertex(102.0, 103.0, 1.0);
+            let p2 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
+            let p3 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
+            let p4 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
+            // todo: builder.add_ring() ? what's that for?
+            geometry_builder.set_surface_outer_ring(&[p1, p4, p3, p2])?;
             let _geometry_ref = geometry_builder.build()?;
         }
     }
