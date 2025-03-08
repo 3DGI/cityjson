@@ -157,6 +157,7 @@ fn build_dummy_complete_owned() -> Result<()> {
             geometry_builder.set_surface_material(material_irradiation.clone())?;
             geometry_builder.set_surface_material(material_red.clone())?;
             // Add the surface to the shell
+            // todo: builder.add_ring() ? what's that for?
             geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
             // todo: figure out setting texture to vertices etc.
             // todo: set texture theme on geometry "winter-textures"
@@ -230,7 +231,6 @@ fn build_dummy_complete_owned() -> Result<()> {
             let p2 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
             let p3 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
             let p4 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
-            // todo: builder.add_ring() ? what's that for?
             geometry_builder.set_surface_outer_ring(&[p1, p4, p3, p2])?;
             let _geometry_ref = geometry_builder.build()?;
         }

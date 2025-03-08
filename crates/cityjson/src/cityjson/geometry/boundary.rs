@@ -100,7 +100,7 @@ use crate::errors;
 /// // Convert to flattened representation
 /// let boundary: Boundary<u32> = multi_linestring.into();
 ///
-/// // Check boundary type
+/// // Check the boundary type
 /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
 ///
 /// // Convert back to nested representation

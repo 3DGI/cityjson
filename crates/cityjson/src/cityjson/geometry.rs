@@ -710,6 +710,12 @@ pub enum GeometryType {
     GeometryInstance,
 }
 
+impl std::fmt::Display for GeometryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LoD {
     LoD0,
@@ -732,4 +738,31 @@ pub enum LoD {
     LoD3_1,
     LoD3_2,
     LoD3_3,
+}
+
+impl std::fmt::Display for LoD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            LoD::LoD0 => write!(f, "0"),
+            LoD::LoD0_0 => write!(f, "0.0"),
+            LoD::LoD0_1 => write!(f, "0.1"),
+            LoD::LoD0_2 => write!(f, "0.2"),
+            LoD::LoD0_3 => write!(f, "0.3"),
+            LoD::LoD1 => write!(f, "1"),
+            LoD::LoD1_0 => write!(f, "1.0"),
+            LoD::LoD1_1 => write!(f, "1.1"),
+            LoD::LoD1_2 => write!(f, "1.2"),
+            LoD::LoD1_3 => write!(f, "1.3"),
+            LoD::LoD2 => write!(f, "2"),
+            LoD::LoD2_0 => write!(f, "2.0"),
+            LoD::LoD2_1 => write!(f, "2.1"),
+            LoD::LoD2_2 => write!(f, "2.2"),
+            LoD::LoD2_3 => write!(f, "2.3"),
+            LoD::LoD3 => write!(f, "3"),
+            LoD::LoD3_0 => write!(f, "3.0"),
+            LoD::LoD3_1 => write!(f, "3.1"),
+            LoD::LoD3_2 => write!(f, "3.2"),
+            LoD::LoD3_3 => write!(f, "3.3"),
+        }
+    }
 }

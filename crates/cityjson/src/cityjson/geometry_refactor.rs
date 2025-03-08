@@ -1,0 +1,105 @@
+use crate::errors::{Error, Result};
+use crate::prelude::{CityModelTrait, CityModelTypes, GeometryType, LoD};
+use std::collections::HashMap;
+
+/// Represents a surface under construction with one outer ring and optional inner rings
+#[derive(Default)]
+struct SurfaceInProgress {
+    outer_ring: Option<usize>, // index to outer ring
+    inner_rings: Vec<usize>,   // indices to inner rings
+}
+
+#[derive(Default)]
+struct ShellInProgress {
+    outer_surfaces: Vec<usize>, // indices to outer surfaces
+    inner_surfaces: Vec<usize>, // indices to inner surfaces (voids)
+}
+
+#[derive(Default)]
+struct SolidInProgress {
+    outer_shell: Option<usize>, // index to outer shell
+    inner_shells: Vec<usize>,   // indices to inner shells (voids)
+}
+
+pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
+    model: &'a mut M,
+    type_geometry: GeometryType,
+    lod: Option<LoD>,
+    transformation_matrix: Option<[f64; 16]>,
+    vertices: Vec<V::CoordinateType>,
+    rings: Vec<Vec<usize>>,           // indices into vertices
+    surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
+    shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
+    solids: Vec<SolidInProgress>,     // M/CSolid with its shells
+    // Active element tracking
+    active_linestring: Option<usize>, // active linestring being built
+    active_surface: Option<usize>,    // active surface being built
+    active_shell: Option<usize>,      // active shell being built
+    active_solid: Option<usize>,      // active solid being built
+    // Semantic storage
+    point_semantics: HashMap<usize, V::ResourceRef>,
+    linestring_semantics: HashMap<usize, V::ResourceRef>,
+    surface_semantics: HashMap<usize, V::ResourceRef>,
+    // Material storage
+    surface_materials: HashMap<usize, V::ResourceRef>,
+    // Texture storage
+    surface_textures: HashMap<usize, V::ResourceRef>,
+}
+
+impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
+    /// Instantiates a new GeometryBuilder.
+    pub fn new(model: &'a mut M, type_geometry: GeometryType) -> Self {
+        Self {
+            model,
+            type_geometry,
+            lod: None,
+            transformation_matrix: None,
+            vertices: Vec::new(),
+            rings: Vec::new(),
+            surfaces: Vec::new(),
+            shells: Vec::new(),
+            solids: Vec::new(),
+            active_linestring: None,
+            active_surface: None,
+            active_shell: None,
+            active_solid: None,
+            point_semantics: Default::default(),
+            linestring_semantics: Default::default(),
+            surface_semantics: Default::default(),
+            surface_materials: Default::default(),
+            surface_textures: Default::default(),
+        }
+    }
+
+    /// Set the Level of Detail on the Geometry.
+    pub fn with_lod(mut self, lod: LoD) -> Self {
+        self.lod = Some(lod);
+        self
+    }
+
+    /// Set the Transformation Matrix on the Geometry (for `GeometryInstance` only).
+    pub fn with_transformation_matrix(mut self, transformation_matrix: [f64; 16]) -> Result<Self> {
+        if self.type_geometry != GeometryType::GeometryInstance {
+            return Err(Error::InvalidGeometryType {
+                expected: "GeometryInstance".to_string(),
+                found: self.type_geometry.to_string(),
+            });
+        }
+        self.transformation_matrix = Some(transformation_matrix);
+        Ok(self)
+    }
+
+    /// Add a new point to the boundary by providing its coordinates. The point will be
+    /// added as a new vertex to the vertex pool. Use this method when adding completely
+    /// new vertices to the CityModel and the Boundary. Can be used interchangeably
+    /// with [add_vertex] for building a Boundary.
+    pub fn add_point(&mut self, point: V::CoordinateType) -> usize {
+        self.vertices.push(point);
+        self.vertices.len() - 1
+    }
+
+    pub fn add_vertex(&mut self, vertex: V::VertexRef) -> usize {
+        self.vertices.push(vertex);
+        self.vertices.len() - 1
+    }
+}
