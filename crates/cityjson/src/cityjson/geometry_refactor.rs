@@ -1,5 +1,5 @@
 use crate::errors::{Error, Result};
-use crate::prelude::{CityModelTrait, CityModelTypes, GeometryType, LoD};
+use crate::prelude::{CityModelTrait, CityModelTypes, Coordinate, GeometryType, LoD, VertexIndex, VertexRef};
 use std::collections::HashMap;
 
 /// Represents a surface under construction with one outer ring and optional inner rings
@@ -21,12 +21,17 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
 }
 
+enum VertexOrPoint<V: VertexRef, C: Coordinate> {
+    Vertex(VertexIndex<V>),
+    Point(C)
+}
+
 pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     model: &'a mut M,
     type_geometry: GeometryType,
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
-    vertices: Vec<V::CoordinateType>,
+    vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
     rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
@@ -94,12 +99,15 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// new vertices to the CityModel and the Boundary. Can be used interchangeably
     /// with [add_vertex] for building a Boundary.
     pub fn add_point(&mut self, point: V::CoordinateType) -> usize {
-        self.vertices.push(point);
+        self.vertices.push(VertexOrPoint::Point(point));
         self.vertices.len() - 1
     }
 
-    pub fn add_vertex(&mut self, vertex: V::VertexRef) -> usize {
-        self.vertices.push(vertex);
+    /// Add an existing vertex to the boundary by providing its reference in the vertex
+    /// pool. Use this method when reusing existing vertices for the boundary. Can be
+    /// used interchangeably with [add_point] for building a Boundary.
+    pub fn add_vertex(&mut self, vertex: VertexIndex<V::VertexRef>) -> usize {
+        self.vertices.push(VertexOrPoint::Vertex(vertex));
         self.vertices.len() - 1
     }
 }
