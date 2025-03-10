@@ -2,6 +2,11 @@ use crate::errors::{Error, Result};
 use crate::prelude::{CityModelTrait, CityModelTypes, Coordinate, GeometryType, LoD, VertexIndex, VertexRef};
 use std::collections::HashMap;
 
+#[derive(Default)]
+struct RingInProgress {
+    vertices: Vec<usize>,
+}
+
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
 struct SurfaceInProgress {
@@ -32,7 +37,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
-    rings: Vec<Vec<usize>>,           // indices into vertices
+    rings: Vec<RingInProgress>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
@@ -109,5 +114,25 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn add_vertex(&mut self, vertex: VertexIndex<V::VertexRef>) -> usize {
         self.vertices.push(VertexOrPoint::Vertex(vertex));
         self.vertices.len() - 1
+    }
+
+    /// Set the Semantic on a point.
+    /// A point can only have one semantic value.
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - The index of the point that will get the semantic. The index is the
+    /// value returned by the [add_point] or [add_vertex] methods. If
+    /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
+    /// * `semantic` - The semantic instance to add to the point.
+    pub fn set_point_semantic(&mut self, index: Option<usize>, semantic: V::Semantic) -> V::ResourceRef {
+        let semantic_ref = self.model.add_semantic(semantic);
+        let vertex_i= if let Some(i) = index {
+            i
+        } else {
+            self.vertices.len() - 1
+        };
+        self.point_semantics.insert(vertex_i, semantic_ref);
+        semantic_ref
     }
 }
