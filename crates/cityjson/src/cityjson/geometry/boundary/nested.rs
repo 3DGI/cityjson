@@ -208,18 +208,14 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
             value
                 .iter()
                 .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
-                .sum::<usize>()
-                .try_into()
-                .unwrap(),
+                .sum::<usize>(),
             value
                 .iter()
                 .map(|surface| surface.len())
-                .sum::<usize>()
-                .try_into()
-                .unwrap(),
-            value.len().try_into().unwrap(),
-            VertexIndex::<T>::new(T::zero()),
-            VertexIndex::<T>::new(T::zero()),
+                .sum::<usize>(),
+            value.len(),
+            0,
+            0,
         );
 
         let mut vertex_idx = VertexIndex::new(T::zero());
@@ -290,11 +286,11 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
         let surfaces_cap = value.iter().map(|shell| shell.len()).sum::<usize>();
 
         let mut boundary = Self::with_capacity(
-            vertices_cap.try_into().unwrap(),
-            rings_cap.try_into().unwrap(),
-            surfaces_cap.try_into().unwrap(),
-            value.len().try_into().unwrap(),
-            VertexIndex::<T>::new(T::zero()),
+            vertices_cap,
+            rings_cap,
+            surfaces_cap,
+            value.len(),
+            0,
         );
 
         let mut vertex_idx = VertexIndex::new(T::zero());
@@ -387,11 +383,11 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
         let shells_cap = value.iter().map(|solid| solid.len()).sum::<usize>();
 
         let mut boundary = Self::with_capacity(
-            vertices_cap.try_into().unwrap(),
-            rings_cap.try_into().unwrap(),
-            surfaces_cap.try_into().unwrap(),
-            shells_cap.try_into().unwrap(),
-            value.len().try_into().unwrap(),
+            vertices_cap,
+            rings_cap,
+            surfaces_cap,
+            shells_cap,
+            value.len(),
         );
 
         let mut vertex_idx = VertexIndex::new(T::zero());

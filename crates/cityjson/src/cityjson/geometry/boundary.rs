@@ -164,28 +164,28 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// // Create a boundary with pre-allocated capacity
     /// let boundary: Boundary<u32> = Boundary::with_capacity(
-    ///     VertexIndex::new(100), // space for 100 vertices
-    ///     VertexIndex::new(20),  // space for 20 rings
-    ///     VertexIndex::new(10),  // space for 10 surfaces
-    ///     VertexIndex::new(2),   // space for 2 shells
-    ///     VertexIndex::new(1),   // space for 1 solid
+    ///     100, // space for 100 vertices
+    ///     20,  // space for 20 rings
+    ///     10,  // space for 10 surfaces
+    ///     2,   // space for 2 shells
+    ///     1,   // space for 1 solid
     /// );
     /// assert!(boundary.is_consistent());
     /// ```
     #[inline]
     pub fn with_capacity(
-        vertices: VertexIndex<VR>,
-        rings: VertexIndex<VR>,
-        surfaces: VertexIndex<VR>,
-        shells: VertexIndex<VR>,
-        solids: VertexIndex<VR>,
+        vertices: usize,
+        rings: usize,
+        surfaces: usize,
+        shells: usize,
+        solids: usize,
     ) -> Self {
         Self {
-            vertices: Vec::with_capacity(vertices.to_usize()),
-            rings: Vec::with_capacity(rings.to_usize()),
-            surfaces: Vec::with_capacity(surfaces.to_usize()),
-            shells: Vec::with_capacity(shells.to_usize()),
-            solids: Vec::with_capacity(solids.to_usize()),
+            vertices: Vec::with_capacity(vertices),
+            rings: Vec::with_capacity(rings),
+            surfaces: Vec::with_capacity(surfaces),
+            shells: Vec::with_capacity(shells),
+            solids: Vec::with_capacity(solids),
         }
     }
 
@@ -749,11 +749,11 @@ mod tests {
     #[test]
     fn test_boundary_with_capacity() {
         let boundary: Boundary<u32> = Boundary::with_capacity(
-            vi(10), // vertices capacity
-            vi(5),  // rings capacity
-            vi(3),  // surfaces capacity
-            vi(2),  // shells capacity
-            vi(1),  // solids capacity
+            10, // vertices capacity
+            5,  // rings capacity
+            3,  // surfaces capacity
+            2,  // shells capacity
+            1,  // solids capacity
         );
         assert_eq!(boundary.check_type(), BoundaryType::None);
         assert!(boundary.is_consistent());

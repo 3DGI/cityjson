@@ -1,5 +1,8 @@
 use crate::errors::{Error, Result};
-use crate::prelude::{CityModelTrait, CityModelTypes, Coordinate, GeometryType, LoD, VertexIndex, VertexRef};
+use crate::prelude::{
+    Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD,
+    SemanticMap, VertexIndex, VertexRef,
+};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -28,7 +31,7 @@ struct SolidInProgress {
 
 enum VertexOrPoint<V: VertexRef, C: Coordinate> {
     Vertex(VertexIndex<V>),
-    Point(C)
+    Point(C),
 }
 
 pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
@@ -37,7 +40,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
-    rings: Vec<RingInProgress>,           // indices into vertices
+    rings: Vec<RingInProgress>,       // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
@@ -125,14 +128,169 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// value returned by the [add_point] or [add_vertex] methods. If
     /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the point.
-    pub fn set_point_semantic(&mut self, index: Option<usize>, semantic: V::Semantic) -> V::ResourceRef {
+    pub fn set_point_semantic(
+        &mut self,
+        index: Option<usize>,
+        semantic: V::Semantic,
+    ) -> V::ResourceRef {
         let semantic_ref = self.model.add_semantic(semantic);
-        let vertex_i= if let Some(i) = index {
+        let vertex_i = if let Some(i) = index {
             i
         } else {
             self.vertices.len() - 1
         };
         self.point_semantics.insert(vertex_i, semantic_ref);
         semantic_ref
+    }
+
+    pub fn build(self) -> Result<V::ResourceRef> {
+        // Validate structure before building
+        self.validate_structure()?;
+
+        let mut boundary = Boundary::with_capacity(
+            self.vertices.len(),
+            self.rings.len(),
+            self.surfaces.len(),
+            self.shells.len(),
+            self.solids.len(),
+        );
+
+        let mut semantic_map_optional = None;
+
+        match self.type_geometry {
+            GeometryType::MultiPoint => {
+                for point in self.vertices {
+                    match point {
+                        VertexOrPoint::Vertex(v) => {
+                            boundary.vertices.push(v);
+                        }
+                        VertexOrPoint::Point(p) => {
+                            // boundary.vertices.push(self.model.add_vertex(p)?)
+                            todo!();
+                        }
+                    }
+                }
+                if !self.point_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    for i in 0..boundary.vertices.len() {
+                        semantic_map
+                            .points
+                            .push(self.point_semantics.get(&i).copied());
+                    }
+                }
+            }
+            _ => {
+                unimplemented!()
+            }
+        }
+
+        // Create the geometry
+        let geometry = V::Geometry::new(
+            self.type_geometry,
+            self.lod,
+            Some(boundary),
+            semantic_map_optional,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        Ok(self.model.add_geometry(geometry))
+    }
+
+    fn validate_structure(&self) -> Result<()> {
+        match self.type_geometry {
+            GeometryType::MultiPoint => {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || !self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi point geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
+            _ => {
+                unimplemented!()
+            }
+        }
+        Ok(())
+    }
+
+    fn format_counts(&self) -> String {
+        format!(
+            "{} solids, {} shells, {} surfaces, {} rings, {} vertices",
+            self.solids.len(),
+            self.shells.len(),
+            self.surfaces.len(),
+            self.rings.len(),
+            self.vertices.len()
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cityjson::coordinate::RealWorldCoordinate;
+    use crate::cityjson::geometry::GeometryType;
+    use crate::prelude::ResourcePool;
+    use crate::resources::pool::ResourceId32;
+    use crate::resources::storage::OwnedStringStorage;
+    use crate::v1_1::CityModel;
+    use crate::CityModelType;
+
+    // Test helper to create a new model
+    fn create_test_model() -> CityModel<u32, ResourceId32, OwnedStringStorage> {
+        CityModel::new(CityModelType::CityJSON)
+    }
+
+    #[test]
+    fn test_multipoint_with_add_vertex() {
+        let mut model = create_test_model();
+
+        // First add some vertices to the model
+        let v1 = model
+            .add_vertex(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+        let v2 = model
+            .add_vertex(RealWorldCoordinate::new(4.0, 5.0, 6.0))
+            .unwrap();
+        let v3 = model
+            .add_vertex(RealWorldCoordinate::new(7.0, 8.0, 9.0))
+            .unwrap();
+
+        // Create a builder for MultiPoint geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+
+        // Add existing vertices
+        builder.add_vertex(v1);
+        builder.add_vertex(v2);
+        builder.add_vertex(v3);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary
+            .to_nested_multi_point()
+            .expect("Failed to convert to nested");
+
+        // Verify the nested representation (should have 3 points)
+        assert_eq!(nested, vec![0, 1, 2]);
     }
 }
