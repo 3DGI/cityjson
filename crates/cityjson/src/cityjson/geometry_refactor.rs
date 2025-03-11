@@ -182,6 +182,13 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.shells.len(),
             self.solids.len(),
         );
+        let cnt_new_vertices = self.vertices.iter().filter(|v| matches!(v, VertexOrPoint::Point(_))).count();
+        if cnt_new_vertices > 0 {
+            self.model
+                .vertices_mut()
+                .reserve(cnt_new_vertices)
+                .map_err(|_| Error::VerticesContainerFull)?;
+        }
 
         let mut semantic_map_optional = None;
 

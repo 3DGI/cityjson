@@ -444,6 +444,31 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
         }
     }
 
+    /// Reserves capacity for at least `additional` more elements to be inserted in the
+    /// `Vertices`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX` _bytes_.
+    ///
+    /// # Errors
+    ///
+    /// * `VerticesContainerFull` if the current or new capacity is equal or greater
+    /// than the maximum indexable size by the vertex reference type
+    ///
+    #[inline]
+    pub fn reserve(&mut self, additional_capacity: usize) -> Result<()> {
+        let max = VR::MAX.try_into().unwrap_or(usize::MAX);
+        if self.coordinates.len() >= max || self.coordinates.len() + additional_capacity > max {
+            return Err(Error::VerticesContainerFull {
+                attempted: self.coordinates.len() + 1,
+                maximum: max,
+            });
+        }
+        self.coordinates.reserve(additional_capacity);
+        Ok(())
+    }
+
     /// Returns the number of vertices in the collection.
     ///
     /// # Returns
