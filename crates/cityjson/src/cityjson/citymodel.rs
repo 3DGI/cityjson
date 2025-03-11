@@ -6,10 +6,7 @@ use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{
-    Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
-    TransformTrait,
-};
+use crate::prelude::{Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait, TransformTrait, Vertices};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{errors, CityModelType};
@@ -88,6 +85,8 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
         &mut self,
         coordinate: V::CoordinateType,
     ) -> errors::Result<VertexIndex<V::VertexRef>>;
+    fn vertices(&self) -> &Vertices<V::VertexRef, V::CoordinateType>;
+    fn vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, V::CoordinateType>;
     /// Get a reference to a vertex coordinate
     fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&V::CoordinateType>;
     /// Get the number of geometries

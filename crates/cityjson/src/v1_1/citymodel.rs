@@ -176,6 +176,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         &mut self.geometries
     }
 
+    fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
+        &self.vertices
+    }
+
+    fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
+        &mut self.vertices
+    }
+
     fn add_vertex(
         &mut self,
         coordinate: QuantizedCoordinate,

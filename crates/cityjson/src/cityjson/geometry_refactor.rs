@@ -186,8 +186,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         if cnt_new_vertices > 0 {
             self.model
                 .vertices_mut()
-                .reserve(cnt_new_vertices)
-                .map_err(|_| Error::VerticesContainerFull)?;
+                .reserve(cnt_new_vertices)?;
         }
 
         let mut semantic_map_optional = None;
