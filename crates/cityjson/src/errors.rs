@@ -23,6 +23,10 @@ pub enum Error {
         reason: String,
         vertex_count: usize,
     },
+    InvalidLineString {
+        reason: String,
+        vertex_count: usize,
+    },
     NoCurrentElement {
         element_type: String, // "surface", "shell", or "solid"
     },
@@ -85,6 +89,16 @@ impl Display for Error {
                 write!(
                     f,
                     "Invalid ring: {} (vertex count: {})",
+                    reason, vertex_count
+                )
+            }
+            Error::InvalidLineString {
+                reason,
+                vertex_count,
+            } => {
+                write!(
+                    f,
+                    "Invalid linestring: {} (vertex count: {})",
                     reason, vertex_count
                 )
             }

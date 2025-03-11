@@ -5,11 +5,6 @@ use crate::prelude::{
 };
 use std::collections::HashMap;
 
-#[derive(Default)]
-struct RingInProgress {
-    vertices: Vec<usize>,
-}
-
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
 struct SurfaceInProgress {
@@ -45,7 +40,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
-    rings: Vec<RingInProgress>,       // indices into vertices
+    rings: Vec<Vec<usize>>,       // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
@@ -132,8 +127,15 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         self.vertices.len() - 1
     }
 
-    pub fn add_linestring(&mut self, vertices: &[usize]) -> usize {
-        todo!()
+    pub fn add_linestring(&mut self, vertices: &[usize]) -> Result<usize> {
+        if vertices.len() < 2 {
+            return Err(Error::InvalidLineString {
+                reason: "LineString must have at least 2 vertices".to_string(),
+                vertex_count: vertices.len()
+            });
+        }
+        self.rings.push(vertices.to_vec());
+        Ok(self.rings.len() - 1)
     }
 
     /// Set the Semantic on a point.
@@ -163,6 +165,21 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.vertices.len() - 1
         };
         self.point_semantics.insert(vertex_i, semantic_ref);
+        semantic_ref
+    }
+
+    pub fn set_semantic_linestring(
+        &mut self,
+        index: Option<usize>,
+        semantic: V::Semantic,
+    ) -> V::ResourceRef {
+        let semantic_ref = self.model.add_semantic(semantic);
+        let ring_i = if let Some(i) = index {
+            i
+        } else {
+            self.rings.len() - 1
+        };
+        self.linestring_semantics.insert(ring_i, semantic_ref);
         semantic_ref
     }
 
