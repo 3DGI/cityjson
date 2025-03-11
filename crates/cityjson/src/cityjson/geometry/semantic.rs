@@ -50,6 +50,13 @@ pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTyp
     /// A new semantic object with the specified type
     fn new(type_semantic: SemType) -> Self;
 
+    /// Returns a reference to the semantic type.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the semantic type
+    fn type_semantic(&self) -> &SemType;
+
     /// Checks if this semantic has any children.
     ///
     /// # Returns

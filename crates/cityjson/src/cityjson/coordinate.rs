@@ -465,7 +465,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     /// if the collection has reached its maximum capacity
     pub fn push(&mut self, coordinate: V) -> Result<VertexIndex<VR>> {
         if self.coordinates.len() >= VR::MAX.try_into().unwrap_or(usize::MAX) {
-            return Err(Error::TooManyVertices {
+            return Err(Error::VerticesContainerFull {
                 attempted: self.coordinates.len() + 1,
                 maximum: VR::MAX.try_into().unwrap_or(usize::MAX),
             });

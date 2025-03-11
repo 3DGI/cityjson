@@ -619,7 +619,6 @@ pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, Resource
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::GeometryType;
     use super::*;
 
     #[test]

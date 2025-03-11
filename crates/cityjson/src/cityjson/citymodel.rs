@@ -1,7 +1,7 @@
 use crate::cityjson::appearance::material::MaterialTrait;
 use crate::cityjson::appearance::texture::TextureTrait;
 use crate::cityjson::cityobject::CityObjectsTrait;
-use crate::cityjson::coordinate::{Coordinate, RealWorldCoordinate};
+use crate::cityjson::coordinate::{Coordinate};
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
@@ -86,10 +86,10 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     /// Add a vertex coordinate
     fn add_vertex(
         &mut self,
-        coordinate: RealWorldCoordinate,
+        coordinate: V::CoordinateType,
     ) -> errors::Result<VertexIndex<V::VertexRef>>;
     /// Get a reference to a vertex coordinate
-    fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&RealWorldCoordinate>;
+    fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&V::CoordinateType>;
     /// Get the number of geometries
     fn geometry_count(&self) -> usize;
     /// Get the number of semantics

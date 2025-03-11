@@ -34,6 +34,11 @@ enum VertexOrPoint<V: VertexRef, C: Coordinate> {
     Point(C),
 }
 
+/// Geometry builder.
+///
+/// The GeometryBuilder is generic over the CityModel and Coordinate type, thus it can
+/// build a CityModel with either real-world coordinates or quantized coordinates,
+/// for all supported CityJSON versions.
 pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     model: &'a mut M,
     type_geometry: GeometryType,
@@ -61,6 +66,10 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
 
 impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// Instantiates a new GeometryBuilder.
+    ///
+    /// # Parameters
+    /// * `model` - A CityModel instance.
+    /// * `type_geometry` - The geometry type to build.
     pub fn new(model: &'a mut M, type_geometry: GeometryType) -> Self {
         Self {
             model,
@@ -91,6 +100,10 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     }
 
     /// Set the Transformation Matrix on the Geometry (for `GeometryInstance` only).
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
     pub fn with_transformation_matrix(mut self, transformation_matrix: [f64; 16]) -> Result<Self> {
         if self.type_geometry != GeometryType::GeometryInstance {
             return Err(Error::InvalidGeometryType {
@@ -119,8 +132,14 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         self.vertices.len() - 1
     }
 
+    pub fn add_linestring(&mut self, vertices: &[usize]) -> usize {
+        todo!()
+    }
+
     /// Set the Semantic on a point.
-    /// A point can only have one semantic value.
+    /// A point can only have one semantic value. The Semantic is directly added to the
+    /// `model`.
+    ///
     ///
     /// # Parameters
     ///
@@ -128,7 +147,11 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// value returned by the [add_point] or [add_vertex] methods. If
     /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the point.
-    pub fn set_point_semantic(
+    ///
+    /// # Returns
+    ///
+    /// The reference to the Semantic in the resource pool of the `model`.
+    pub fn set_semantic_point(
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
@@ -143,6 +166,11 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         semantic_ref
     }
 
+    /// Builds the geometry and adds it to the `model`.
+    ///
+    /// # Errors
+    /// * The geometry type does not match the structure (`InvalidGeometryType`)
+    /// * The `model`'s vertex container has reached its maximum capacity (`VerticesContainerFull`)
     pub fn build(self) -> Result<V::ResourceRef> {
         // Validate structure before building
         self.validate_structure()?;
@@ -165,8 +193,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                             boundary.vertices.push(v);
                         }
                         VertexOrPoint::Point(p) => {
-                            // boundary.vertices.push(self.model.add_vertex(p)?)
-                            todo!();
+                            boundary.vertices.push(self.model.add_vertex(p)?)
                         }
                     }
                 }
@@ -177,6 +204,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                             .points
                             .push(self.point_semantics.get(&i).copied());
                     }
+                    semantic_map_optional = Some(semantic_map);
                 }
             }
             _ => {
@@ -236,12 +264,11 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::coordinate::RealWorldCoordinate;
     use crate::cityjson::geometry::GeometryType;
-    use crate::prelude::ResourcePool;
+    use crate::prelude::{QuantizedCoordinate, ResourcePool, SemanticTrait};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
-    use crate::v1_1::CityModel;
+    use crate::v1_1::{CityModel, Semantic, SemanticType};
     use crate::CityModelType;
 
     // Test helper to create a new model
@@ -253,24 +280,25 @@ mod tests {
     fn test_multipoint_with_add_vertex() {
         let mut model = create_test_model();
 
-        // First add some vertices to the model
+        // First, add some vertices to the model
+        let v0 = model
+            .add_vertex(QuantizedCoordinate::new(1, 2, 3))
+            .unwrap();
         let v1 = model
-            .add_vertex(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .add_vertex(QuantizedCoordinate::new(4, 5, 6))
             .unwrap();
         let v2 = model
-            .add_vertex(RealWorldCoordinate::new(4.0, 5.0, 6.0))
-            .unwrap();
-        let v3 = model
-            .add_vertex(RealWorldCoordinate::new(7.0, 8.0, 9.0))
+            .add_vertex(QuantizedCoordinate::new(7, 8, 9))
             .unwrap();
 
         // Create a builder for MultiPoint geometry
         let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
 
         // Add existing vertices
+        builder.add_vertex(v0);
         builder.add_vertex(v1);
         builder.add_vertex(v2);
-        builder.add_vertex(v3);
+        builder.add_vertex(v1);
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -291,6 +319,138 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
+        assert_eq!(model.vertex_count(), 3);
+        assert_eq!(nested, vec![0, 1, 2, 1]);
+    }
+
+    #[test]
+    fn test_multipoint_with_add_point() {
+        let mut model = create_test_model();
+
+        // Create a builder for MultiPoint geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+
+        // Add points
+        builder.add_point(QuantizedCoordinate::new(1, 2, 3));
+        builder.add_point(QuantizedCoordinate::new(4, 5, 6));
+        builder.add_point(QuantizedCoordinate::new(7, 8, 9));
+
+        // Set LoD (optional)
+        builder = builder.with_lod(LoD::LoD1);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+
+        // Check geometry type and LoD
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
+        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+
+        // Verify the nested representation (should have 3 points)
+        assert_eq!(model.vertex_count(), 3);
         assert_eq!(nested, vec![0, 1, 2]);
+
+    }
+
+    #[test]
+    fn test_multipoint_with_mixed_adds() {
+        let mut model = create_test_model();
+
+        // First add a vertex to the citymodel
+        let v0 = model.add_vertex(QuantizedCoordinate::new(1, 2, 3)).unwrap();
+        let v1 = model.add_vertex(QuantizedCoordinate::new(10, 11, 12)).unwrap();
+
+        // Create a builder for MultiPoint geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+
+        // Mix adding vertices and points
+        builder.add_vertex(v0);
+        builder.add_point(QuantizedCoordinate::new(4, 5, 6)); // 2
+        builder.add_vertex(v1);
+        builder.add_point(QuantizedCoordinate::new(7, 8, 9)); // 3
+        builder.add_vertex(v0);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+
+        // Verify the nested representation (should have 3 points)
+        assert_eq!(model.vertex_count(), 4);
+        assert_eq!(nested, vec![0, 2, 1, 3, 0]);
+    }
+
+    #[test]
+    fn test_multipoint_with_semantics() {
+        let mut model = create_test_model();
+
+        // Create a builder for MultiPoint geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+
+        // Add points
+        let p0 = builder.add_point(QuantizedCoordinate::new(1, 2, 3));
+        let _p1 = builder.add_point(QuantizedCoordinate::new(4, 5, 6));
+        let p2 = builder.add_point(QuantizedCoordinate::new(7, 8, 9));
+
+        // Create semantics
+        let sem0 = Semantic::new(SemanticType::TransportationHole);
+        let sem1 = Semantic::new(SemanticType::TransportationMarking);
+
+        // Set semantics for two of the points
+        let sem_ref0 = builder.set_semantic_point(Some(p0), sem0);
+        let sem_ref1 = builder.set_semantic_point(Some(p2), sem1);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+
+        // Verify the nested representation (should have 3 points)
+        assert_eq!(model.vertex_count(), 3);
+        assert_eq!(nested, vec![0, 1, 2]);
+
+        // Check semantics
+        let semantics = geometry.semantics().expect("No semantics found");
+        let semantic_points = semantics.points();
+
+        // Verify points have semantics applied correctly
+        assert_eq!(semantic_points.len(), 3);
+
+        // Verify the semantic references are the ones we set
+        let sem_refs: Vec<ResourceId32> = semantic_points.iter()
+            .filter_map(|s| s.as_ref())
+            .cloned()
+            .collect();
+        assert!(sem_refs.contains(&sem_ref0));
+        assert!(sem_refs.contains(&sem_ref1));
+
+        // Verify the semantics themselves
+        let semantic0 = model.get_semantic(sem_ref0).expect("Semantic 0 not found");
+        assert_eq!(semantic0.type_semantic(), &SemanticType::TransportationHole);
+
+        let semantic1 = model.get_semantic(sem_ref1).expect("Semantic 1 not found");
+        assert_eq!(semantic1.type_semantic(), &SemanticType::TransportationMarking);
     }
 }

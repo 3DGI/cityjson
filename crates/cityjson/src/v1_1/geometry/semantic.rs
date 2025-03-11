@@ -126,6 +126,10 @@ impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for
         }
     }
     #[inline]
+    fn type_semantic(&self) -> &SemanticType {
+        &self.type_semantic
+    }
+    #[inline]
     fn has_children(&self) -> bool {
         self.children.as_ref().map_or(false, |c| !c.is_empty())
     }

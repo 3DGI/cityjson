@@ -1,7 +1,6 @@
 #![doc = include_str!("../../docs/boundary_guide.md")]
 
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
-use crate::cityjson::coordinate::RealWorldCoordinate;
 use crate::cityjson::geometry::boundary::{Boundary, BoundaryCounter};
 use crate::cityjson::geometry::semantic::SemanticTypeTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
@@ -76,7 +75,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     model: &'a mut M,
     type_geometry: GeometryType,
     lod: Option<LoD>,
-    vertices: Vec<RealWorldCoordinate>, // todo: generalize to Coordinate
+    vertices: Vec<V::CoordinateType>, // todo: generalize to Coordinate
     rings: Vec<Vec<usize>>,             // indices into vertices
     surfaces: Vec<SurfaceInProgress<V::SemType>>, // surfaces with their rings
     shells: Vec<ShellInProgress>,       // shells with their surfaces
@@ -128,10 +127,10 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// Adds a new vertex to the CityModel.
     ///
     /// Returns the index of the new vertex.
-    pub fn add_vertex(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.vertices.push(RealWorldCoordinate::new(x, y, z));
-        self.vertices.len() - 1
-    }
+    // pub fn add_vertex(&mut self, x: i64, y: i64, z: i64) -> usize {
+    //     self.vertices.push(QuantizedCoordinate::new(x, y, z));
+    //     self.vertices.len() - 1
+    // }
 
     /// Adds a new ring to the geometry.
     ///
@@ -345,20 +344,20 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     }
 
     // Point semantics
-    pub fn add_point_with_semantic(
-        &mut self,
-        x: f64,
-        y: f64,
-        z: f64,
-        semantic: Option<V::Semantic>,
-    ) -> usize {
-        let point_idx = self.add_vertex(x, y, z);
-        if let Some(semantic) = semantic {
-            let sem_id = self.model.add_semantic(semantic);
-            self.point_semantics.insert(point_idx, sem_id);
-        }
-        point_idx
-    }
+    // pub fn add_point_with_semantic(
+    //     &mut self,
+    //     x: i64,
+    //     y: i64,
+    //     z: i64,
+    //     semantic: Option<V::Semantic>,
+    // ) -> usize {
+    //     let point_idx = self.add_vertex(x, y, z);
+    //     if let Some(semantic) = semantic {
+    //         let sem_id = self.model.add_semantic(semantic);
+    //         self.point_semantics.insert(point_idx, sem_id);
+    //     }
+    //     point_idx
+    // }
 
     // LineString semantics
     pub fn set_linestring_semantic(&mut self, semantic: V::Semantic) -> errors::Result<()> {

@@ -14,7 +14,7 @@ pub enum Error {
         index_type: String,
         value: String,
     },
-    TooManyVertices {
+    VerticesContainerFull {
         attempted: usize,
         maximum: usize,
     },
@@ -68,7 +68,7 @@ impl Display for Error {
             Error::IndexOverflow { index_type, value } => {
                 write!(f, "index overflow for {}: value {}", index_type, value)
             }
-            Error::TooManyVertices { attempted, maximum } => {
+            Error::VerticesContainerFull { attempted, maximum } => {
                 write!(
                     f,
                     "attempted to store {} vertices in a container with capacity {}",

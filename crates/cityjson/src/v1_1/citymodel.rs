@@ -4,9 +4,9 @@
 
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
-use crate::cityjson::coordinate::{RealWorldCoordinate, UVCoordinate, Vertices};
+use crate::cityjson::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{CityObjectsTrait, ExtensionsTrait};
+use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v1_1::appearance::material::Material;
@@ -28,7 +28,7 @@ pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<VR, RR, SS> {
-    type CoordinateType = RealWorldCoordinate;
+    type CoordinateType = QuantizedCoordinate;
     type VertexRef = VR;
     type ResourceRef = RR;
     type StringStorage = SS;
@@ -68,7 +68,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// The transform object
     transform: Option<Transform>,
     /// Pool of vertex coordinates
-    vertices: Vertices<VR, RealWorldCoordinate>,
+    vertices: Vertices<VR, QuantizedCoordinate>,
     /// Pool of geometries
     geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
     /// Pool of semantic objects
@@ -178,12 +178,12 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 
     fn add_vertex(
         &mut self,
-        coordinate: RealWorldCoordinate,
+        coordinate: QuantizedCoordinate,
     ) -> crate::errors::Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
-    fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
+    fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&QuantizedCoordinate> {
         self.vertices.get(index)
     }
 
