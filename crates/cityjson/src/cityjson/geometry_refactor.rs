@@ -585,10 +585,10 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 mod tests {
     use super::*;
     use crate::cityjson::geometry::GeometryType;
-    use crate::prelude::{QuantizedCoordinate, ResourcePool, SemanticTrait};
+    use crate::prelude::{MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
-    use crate::v1_1::{CityModel, Semantic, SemanticType};
+    use crate::v1_1::{CityModel, OwnedMaterial, Semantic, SemanticType};
     use crate::CityModelType;
 
     // Test helper to create a new model
@@ -867,5 +867,136 @@ mod tests {
             semantic.type_semantic(),
             &SemanticType::TransportationMarking
         );
+    }
+
+    #[test]
+    fn test_multisurface() {
+        let mut model = create_test_model();
+
+        // First add some vertices to the model using QuantizedCoordinate
+        let v0 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();
+        let v1 = model
+            .add_vertex(QuantizedCoordinate::new(10, 0, 0))
+            .unwrap();
+        let v2 = model
+            .add_vertex(QuantizedCoordinate::new(10, 10, 0))
+            .unwrap();
+        let v3 = model
+            .add_vertex(QuantizedCoordinate::new(0, 10, 0))
+            .unwrap();
+
+        // Create a builder for MultiSurface geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface);
+
+        // Add a mix of existing vertices and new points
+        let p0 = builder.add_vertex(v0);
+        let p1 = builder.add_vertex(v1);
+        let p2 = builder.add_vertex(v2);
+        let p3 = builder.add_vertex(v3);
+        let p4 = builder.add_point(QuantizedCoordinate::new(5, 15, 0));
+        let p5 = builder.add_point(QuantizedCoordinate::new(15, 5, 0));
+        let p6 = builder.add_point(QuantizedCoordinate::new(20, 0, 0));
+        let p7 = builder.add_point(QuantizedCoordinate::new(20, 10, 0));
+        let p8 = builder.add_point(QuantizedCoordinate::new(15, 15, 0));
+
+        // Create three surfaces
+
+        // Surface 1: Triangle (no semantic or material)
+        let surface0 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p0, p1, p4, p0])
+            .expect("Failed to add outer ring");
+
+        // Surface 2: Square with semantic
+        let surface1 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p1, p2, p5, p6, p1])
+            .expect("Failed to add outer ring");
+
+        // Create and assign semantic for the second surface
+        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let sem_ref = builder.set_semantic_surface(Some(surface1), roof_semantic);
+
+        // Surface 3: Polygon with material
+        let surface2 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p2, p3, p4, p8, p7, p2])
+            .expect("Failed to add outer ring");
+
+        // Create and assign material for the third surface
+        let mut wall_material = OwnedMaterial::new("Wall".to_string());
+        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        wall_material.set_ambient_intensity(Some(0.5));
+        let mat_ref = builder.set_material_surface(Some(surface2), wall_material);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiSurface);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary
+            .to_nested_multi_or_composite_surface()
+            .expect("Failed to convert to nested");
+
+        // Verify the nested representation
+        assert_eq!(nested.len(), 3); // Should have 3 surfaces
+
+        // First surface is a triangle (4 points, with first repeated at end)
+        assert_eq!(nested[0].len(), 1); // One ring
+        assert_eq!(nested[0][0].len(), 4); // 4 points (closed ring)
+        assert_eq!(nested[0][0][0], nested[0][0][3]); // First point is repeated at the end
+
+        // Second surface is a pentagon
+        assert_eq!(nested[1].len(), 1); // One ring
+        assert_eq!(nested[1][0].len(), 5); // 5 points (closed ring)
+        assert_eq!(nested[1][0][0], nested[1][0][4]); // First point is repeated at the end
+
+        // Third surface is a hexagon
+        assert_eq!(nested[2].len(), 1); // One ring
+        assert_eq!(nested[2][0].len(), 6); // 6 points (closed ring)
+        assert_eq!(nested[2][0][0], nested[2][0][5]); // First point is repeated at the end
+
+        // Check semantics
+        let semantics = geometry.semantics().expect("No semantics found");
+        let surface_semantics = semantics.surfaces();
+
+        // Verify surface semantics
+        assert_eq!(surface_semantics.len(), 3); // Should have entries for all surfaces
+
+        // Only the second surface should have a semantic
+        assert!(surface_semantics[0].is_none());
+        assert_eq!(surface_semantics[1], Some(sem_ref));
+        assert!(surface_semantics[2].is_none());
+
+        // Verify the semantic itself
+        let semantic = model.get_semantic(sem_ref).expect("Semantic not found");
+        assert_eq!(semantic.type_semantic(), &SemanticType::RoofSurface);
+
+        // Check materials
+        let materials = geometry.materials().expect("No materials found");
+        let surface_materials = materials.surfaces();
+
+        // Verify surface materials
+        assert_eq!(surface_materials.len(), 3); // Should have entries for all surfaces
+
+        // Only the third surface should have a material
+        assert!(surface_materials[0].is_none());
+        assert!(surface_materials[1].is_none());
+        assert_eq!(surface_materials[2], Some(mat_ref));
+
+        // Verify the material itself
+        let material = model.get_material(mat_ref).expect("Material not found");
+        assert_eq!(material.name(), "Wall");
+        assert!(material.diffuse_color().is_some());
+        assert_eq!(material.ambient_intensity().unwrap(), 0.5);
     }
 }
