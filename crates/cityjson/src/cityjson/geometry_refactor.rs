@@ -1,10 +1,10 @@
+use crate::cityjson::geometry::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD,
     SemanticMap, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
-use crate::cityjson::geometry::boundary::BoundaryCounter;
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
@@ -245,8 +245,14 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         // Validate structure before building
         self.validate_structure()?;
 
+        let mut vertices_capacity = 0;
+        if self.type_geometry == GeometryType::MultiPoint {
+            vertices_capacity = self.vertices.len();
+        } else if self.type_geometry == GeometryType::MultiLineString {
+            vertices_capacity = self.rings.iter().map(|ring| ring.len()).sum();
+        }
         let mut boundary = Boundary::with_capacity(
-            self.vertices.len(),
+            vertices_capacity,
             self.rings.len(),
             self.surfaces.len(),
             self.shells.len(),
@@ -261,37 +267,57 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.model.vertices_mut().reserve(cnt_new_vertices)?;
         }
 
-        let mut semantic_map_optional = None;
+        let mut counter = BoundaryCounter::<V::VertexRef>::default();
+
+        let semantic_map_optional;
 
         // Each Boundary type has vertices
-        for point in self.vertices {
-            match point {
-                VertexOrPoint::Vertex(v) => {
-                    boundary.vertices.push(v);
-                }
-                VertexOrPoint::Point(p) => boundary.vertices.push(self.model.add_vertex(p)?),
-            }
-        }
+        let vertex_indices: Vec<VertexIndex<V::VertexRef>> = self
+            .vertices
+            .into_iter()
+            .map(|v| match v {
+                VertexOrPoint::Vertex(idx) => Ok(idx),
+                VertexOrPoint::Point(p) => self.model.add_vertex(p),
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         match self.type_geometry {
             GeometryType::MultiPoint => {
-                if !self.point_semantics.is_empty() {
+                boundary.vertices = vertex_indices;
+
+                semantic_map_optional = if !self.point_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    for i in 0..boundary.vertices.len() {
-                        semantic_map
-                            .points
-                            .push(self.point_semantics.get(&i).copied());
-                    }
-                    semantic_map_optional = Some(semantic_map);
+                    semantic_map.points = boundary
+                        .vertices
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| self.point_semantics.get(&i).copied())
+                        .collect();
+                    Some(semantic_map)
+                } else {
+                    None
                 }
             }
             GeometryType::MultiLineString => {
-                if !self.linestring_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    for i in 0..boundary.rings.len() {
-                        semantic_map.linestrings.push(self.linestring_semantics.get(&i).copied());
+                for ring in &self.rings {
+                    boundary.rings.push(counter.vertex_offset());
+                    for &vert_idx in ring {
+                        boundary.vertices.push(vertex_indices[vert_idx]);
+                        counter.increment_vertex_idx();
                     }
-                    semantic_map_optional = Some(semantic_map);
+                }
+
+                semantic_map_optional = if !self.linestring_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    semantic_map.linestrings = boundary
+                        .rings
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| self.linestring_semantics.get(&i).copied())
+                        .collect();
+                    Some(semantic_map)
+                } else {
+                    None
                 }
             }
             _ => {
@@ -569,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multilinestring_with_mixed_vertices() {
+    fn test_multilinestring() {
         let mut model = create_test_model();
 
         // First add some vertices to the model
@@ -593,68 +619,12 @@ mod tests {
             .add_linestring(&[p0, p1, p2, p3, p4])
             .expect("Failed to add linestring");
         // Second linestring: diagonal
-        builder
+        let ls2 = builder
             .add_linestring(&[p0, p2])
             .expect("Failed to add linestring");
         // Third linestring: another line
         builder
             .add_linestring(&[p1, p4, p5])
-            .expect("Failed to add linestring");
-
-        // Build the geometry
-        let geom_ref = builder.build().expect("Failed to build geometry");
-
-        // Get the geometry from the model
-        let geometry = model
-            .geometries()
-            .get(geom_ref)
-            .expect("Failed to get geometry");
-
-        // Check geometry type
-        assert_eq!(geometry.type_geometry(), &GeometryType::MultiLineString);
-
-        // Get the boundary and convert to nested representation
-        let boundary = geometry.boundaries().expect("No boundary found");
-        let nested = boundary
-            .to_nested_multi_linestring()
-            .expect("Failed to convert to nested");
-
-        // Verify the nested representation
-        assert_eq!(model.vertex_count(), 6);
-        assert_eq!(nested, vec![vec![0, 1, 2, 3, 4], vec![0, 2], vec![1, 4, 5]]);
-    }
-
-    #[test]
-    fn test_multilinestring_with_semantics() {
-        let mut model = create_test_model();
-
-        // First add some vertices to the model
-        let v1 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();
-        let v2 = model.add_vertex(QuantizedCoordinate::new(1, 0, 0)).unwrap();
-
-        // Create a builder for MultiLineString geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString);
-
-        // Add a mix of existing vertices and new points
-        let p1 = builder.add_vertex(v1);
-        let p2 = builder.add_vertex(v2);
-        let p3 = builder.add_point(QuantizedCoordinate::new(1, 1, 0));
-        let p4 = builder.add_point(QuantizedCoordinate::new(0, 1, 0));
-        let p5 = builder.add_point(QuantizedCoordinate::new(2, 0, 0));
-        let p6 = builder.add_point(QuantizedCoordinate::new(2, 2, 0));
-
-        // Create three linestrings
-        // First linestring: square
-        let ls1 = builder
-            .add_linestring(&[p1, p2, p3, p4, p1])
-            .expect("Failed to add linestring");
-        // Second linestring: diagonal
-        let ls2 = builder
-            .add_linestring(&[p1, p3])
-            .expect("Failed to add linestring");
-        // Third linestring: another line
-        let ls3 = builder
-            .add_linestring(&[p2, p5, p6])
             .expect("Failed to add linestring");
 
         // Create semantic for the second linestring
@@ -682,17 +652,8 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation
-        assert_eq!(nested.len(), 3); // Should have 3 linestrings
-
-        // First linestring is a square (5 points, with first repeated at end)
-        assert_eq!(nested[0].len(), 5);
-        assert_eq!(nested[0][0], nested[0][4]); // First point is repeated at the end
-
-        // Second linestring is diagonal (2 points)
-        assert_eq!(nested[1].len(), 2);
-
-        // Third linestring has 3 points
-        assert_eq!(nested[2].len(), 3);
+        assert_eq!(model.vertex_count(), 6);
+        assert_eq!(nested, vec![vec![0, 1, 2, 3, 4], vec![0, 2], vec![1, 4, 5]]);
 
         // Check semantics
         let semantics = geometry.semantics().expect("No semantics found");
