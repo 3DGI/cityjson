@@ -114,6 +114,10 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// added as a new vertex to the vertex pool. Use this method when adding completely
     /// new vertices to the CityModel and the Boundary. Can be used interchangeably
     /// with [add_vertex] for building a Boundary.
+    ///
+    /// # Returns
+    ///
+    /// The index of the added vertex in the boundary.
     pub fn add_point(&mut self, point: V::CoordinateType) -> usize {
         self.vertices.push(VertexOrPoint::Point(point));
         self.vertices.len() - 1
@@ -122,11 +126,22 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// Add an existing vertex to the boundary by providing its reference in the vertex
     /// pool. Use this method when reusing existing vertices for the boundary. Can be
     /// used interchangeably with [add_point] for building a Boundary.
+    ///
+    /// # Returns
+    ///
+    /// The index of the added vertex in the boundary.
     pub fn add_vertex(&mut self, vertex: VertexIndex<V::VertexRef>) -> usize {
         self.vertices.push(VertexOrPoint::Vertex(vertex));
         self.vertices.len() - 1
     }
 
+    /// Add a LineString to the boundary by providing its vertex indices in the boundary.
+    /// The indices are returned by the [add_point] or [add_vertex] methods.
+    ///
+    /// # Errors
+    /// * `InvalidLineString` - If less than two vertices have been provided
+    ///
+    /// # Returns
     pub fn add_linestring(&mut self, vertices: &[usize]) -> Result<usize> {
         if vertices.len() < 2 {
             return Err(Error::InvalidLineString {
@@ -138,8 +153,8 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         Ok(self.rings.len() - 1)
     }
 
-    /// Set the Semantic on a point.
-    /// A point can only have one semantic value. The Semantic is directly added to the
+    /// Set the Semantic on a Point.
+    /// A Point can only have one semantic value. The Semantic is directly added to the
     /// `model`.
     ///
     ///
@@ -148,7 +163,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// * `index` - The index of the point that will get the semantic. The index is the
     /// value returned by the [add_point] or [add_vertex] methods. If
     /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
-    /// * `semantic` - The semantic instance to add to the point.
+    /// * `semantic` - The semantic instance to add to the Point.
     ///
     /// # Returns
     ///
@@ -168,6 +183,21 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         semantic_ref
     }
 
+    /// Set the Semantic on a LineString.
+    /// A LineString can only have one semantic value. The Semantic is directly added to the
+    /// `model`.
+    ///
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - The index of the LineString that will get the semantic. The index is the
+    /// value returned by the [add_linestring] or [add_ring] methods. If
+    /// `None`, the Semantic is added to the last LineString in the GeometryBuilder.
+    /// * `semantic` - The semantic instance to add to the LineString.
+    ///
+    /// # Returns
+    ///
+    /// The reference to the Semantic in the resource pool of the `model`.
     pub fn set_semantic_linestring(
         &mut self,
         index: Option<usize>,
