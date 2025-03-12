@@ -342,15 +342,15 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
     fn validate_structure(&self) -> Result<()> {
         match self.type_geometry {
-            GeometryType::MultiPoint => {
+            GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
-                    || !self.surfaces.is_empty()
-                    || !self.rings.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
                     || self.vertices.is_empty()
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "multi point geometry".to_string(),
+                        expected: "multi- or composite surface geometry".to_string(),
                         found: self.format_counts(),
                     });
                 }
@@ -367,11 +367,36 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                         found: self.format_counts(),
                     });
                 }
+                return Ok(())
+            }
+            GeometryType::MultiPoint => {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || !self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi point geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+                return Ok(())
             }
             _ => {
                 unimplemented!()
             }
         }
+
+        for (i, surface) in self.surfaces.iter().enumerate() {
+            if surface.outer_ring.is_none() {
+                return Err(Error::IncompleteGeometry(format!(
+                    "Surface {} missing outer ring",
+                    i
+                )));
+            }
+        }
+
         Ok(())
     }
 
