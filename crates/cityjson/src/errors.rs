@@ -27,7 +27,7 @@ pub enum Error {
         reason: String,
         vertex_count: usize,
     },
-    NoCurrentElement {
+    NoActiveElement {
         element_type: String, // "surface", "shell", or "solid"
     },
     InvalidReference {
@@ -102,7 +102,7 @@ impl Display for Error {
                     reason, vertex_count
                 )
             }
-            Error::NoCurrentElement { element_type } => {
+            Error::NoActiveElement { element_type } => {
                 write!(f, "No {} in progress", element_type)
             }
             Error::InvalidReference {

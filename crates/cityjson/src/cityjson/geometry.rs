@@ -173,7 +173,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn set_surface_outer_ring(&mut self, vertices: &[usize]) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "surface".to_string(),
             })?;
         let ring_idx = self.add_ring(vertices)?;
@@ -193,7 +193,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn add_surface_inner_ring(&mut self, vertices: &[usize]) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "surface".to_string(),
             })?;
 
@@ -227,7 +227,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - The surface index is invalid (`InvalidReference`)
     /// - The surface is already part of another shell (`InvalidGeometry`)
     pub fn add_shell_outer_surface(&mut self, surface_idx: usize) -> errors::Result<()> {
-        let shell_idx = self.current_shell.ok_or_else(|| Error::NoCurrentElement {
+        let shell_idx = self.current_shell.ok_or_else(|| Error::NoActiveElement {
             element_type: "shell".to_string(),
         })?;
 
@@ -253,7 +253,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - The shell has no outer surfaces (`MissingOuterElement`)
     /// - The surface is already part of another shell (`InvalidGeometry`)
     pub fn add_shell_inner_surface(&mut self, surface_idx: usize) -> errors::Result<()> {
-        let shell_idx = self.current_shell.ok_or_else(|| Error::NoCurrentElement {
+        let shell_idx = self.current_shell.ok_or_else(|| Error::NoActiveElement {
             element_type: "shell".to_string(),
         })?;
 
@@ -295,7 +295,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - An outer shell is already set (`InvalidGeometry`)
     /// - The shell is already part of another solid (`InvalidGeometry`)
     pub fn set_solid_outer_shell(&mut self, shell_idx: usize) -> errors::Result<()> {
-        let solid_idx = self.current_solid.ok_or_else(|| Error::NoCurrentElement {
+        let solid_idx = self.current_solid.ok_or_else(|| Error::NoActiveElement {
             element_type: "solid".to_string(),
         })?;
 
@@ -321,7 +321,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - The solid has no outer shell (`MissingOuterElement`)
     /// - The shell is already part of another solid (`InvalidGeometry`)
     pub fn add_solid_inner_shell(&mut self, shell_idx: usize) -> errors::Result<()> {
-        let solid_idx = self.current_solid.ok_or_else(|| Error::NoCurrentElement {
+        let solid_idx = self.current_solid.ok_or_else(|| Error::NoActiveElement {
             element_type: "solid".to_string(),
         })?;
 
@@ -363,7 +363,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn set_linestring_semantic(&mut self, semantic: V::Semantic) -> errors::Result<()> {
         let line_idx = self
             .current_linestring
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "linestring".to_string(),
             })?;
         let sem_id = self.model.add_semantic(semantic);
@@ -375,7 +375,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn set_surface_semantic(&mut self, semantic: V::Semantic) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "surface".to_string(),
             })?;
         let sem_id = self.model.add_semantic(semantic);
@@ -386,7 +386,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn set_surface_material(&mut self, material: V::Material) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "surface".to_string(),
             })?;
         let mat_id = self.model.add_material(material);
@@ -397,7 +397,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     pub fn set_surface_texture(&mut self, texture: V::Texture) -> errors::Result<()> {
         let surface_idx = self
             .current_surface
-            .ok_or_else(|| Error::NoCurrentElement {
+            .ok_or_else(|| Error::NoActiveElement {
                 element_type: "surface".to_string(),
             })?;
         let tex_id = self.model.add_texture(texture);

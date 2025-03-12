@@ -1,8 +1,9 @@
 use crate::cityjson::geometry::boundary::BoundaryCounter;
+use crate::errors;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD,
-    SemanticMap, VertexIndex, VertexRef,
+    MaterialMap, SemanticMap, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
 
@@ -176,6 +177,62 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         Ok(self.rings.len() - 1)
     }
 
+    /// Starts a new surface.
+    ///
+    /// Returns the index of the new surface.
+    pub fn start_surface(&mut self) -> usize {
+        let idx = self.surfaces.len();
+        self.surfaces.push(SurfaceInProgress::default());
+        self.active_surface = Some(idx);
+        idx
+    }
+
+    /// Sets the outer ring for the active surface.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - No surface is currently being built (`NoActiveElement`)
+    /// - The ring is invalid (`InvalidRing`)
+    /// - An outer ring is already set (`InvalidGeometry`)
+    pub fn add_surface_outer_ring(&mut self, vertices: &[usize]) -> Result<()> {
+        let surface_idx = self.active_surface.ok_or_else(|| Error::NoActiveElement {
+            element_type: "surface".to_string(),
+        })?;
+        if self.surfaces[surface_idx].outer_ring.is_some() {
+            return Err(Error::InvalidGeometry(
+                "An outer ring is already set on the surface".to_string(),
+            ));
+        }
+        let ring_idx = self.add_ring(vertices)?;
+        self.surfaces[surface_idx].outer_ring = Some(ring_idx);
+        Ok(())
+    }
+
+    /// Adds an inner ring (hole) to the active surface.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - No surface is currently being built (`NoActiveElement`)
+    /// - The current surface has no outer ring (`MissingOuterElement`)
+    /// - The ring is invalid (`InvalidRing`)
+    pub fn add_surface_inner_ring(&mut self, vertices: &[usize]) -> errors::Result<()> {
+        let surface_idx = self.active_surface.ok_or_else(|| Error::NoActiveElement {
+            element_type: "surface".to_string(),
+        })?;
+
+        if self.surfaces[surface_idx].outer_ring.is_none() {
+            return Err(Error::MissingOuterElement {
+                context: "Cannot add inner ring before outer ring is set".to_string(),
+            });
+        }
+
+        let ring_idx = self.add_ring(vertices)?;
+        self.surfaces[surface_idx].inner_rings.push(ring_idx);
+        Ok(())
+    }
+
     /// Set the Semantic on a Point.
     /// A Point can only have one semantic value. The Semantic is directly added to the
     /// `model`.
@@ -210,7 +267,6 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// A LineString can only have one semantic value. The Semantic is directly added to the
     /// `model`.
     ///
-    ///
     /// # Parameters
     ///
     /// * `index` - The index of the LineString that will get the semantic. The index is the
@@ -236,6 +292,64 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         semantic_ref
     }
 
+    /// Set the Semantic on a surface.
+    /// A surface can only have one semantic value. The Semantic is directly added to the
+    /// `model`.
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - The index of the surface that will get the semantic. The index is the
+    /// value returned by the [add_surface] method. If
+    /// `None`, the Semantic is added to the last surface in the GeometryBuilder.
+    /// * `semantic` - The Semantic instance to add to the surface.
+    ///
+    /// # Returns
+    ///
+    /// The reference to the Semantic in the resource pool of the `model`.
+    pub fn set_semantic_surface(
+        &mut self,
+        index: Option<usize>,
+        semantic: V::Semantic,
+    ) -> V::ResourceRef {
+        let semantic_ref = self.model.add_semantic(semantic);
+        let surface_i = if let Some(i) = index {
+            i
+        } else {
+            self.surfaces.len() - 1
+        };
+        self.surface_semantics.insert(surface_i, semantic_ref);
+        semantic_ref
+    }
+
+    /// Set the Material on a surface.
+    /// A surface can only have one material value. The Material is directly added to the
+    /// `model`.
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - The index of the surface that will get the material. The index is the
+    /// value returned by the [add_surface] method. If
+    /// `None`, the Material is added to the last surface in the GeometryBuilder.
+    /// * `material` - The Material instance to add to the surface.
+    ///
+    /// # Returns
+    ///
+    /// The reference to the Material in the resource pool of the `model`.
+    pub fn set_material_surface(
+        &mut self,
+        index: Option<usize>,
+        material: V::Material,
+    ) -> V::ResourceRef {
+        let material_ref = self.model.add_material(material);
+        let surface_i = if let Some(i) = index {
+            i
+        } else {
+            self.surfaces.len() - 1
+        };
+        self.surface_materials.insert(surface_i, material_ref);
+        material_ref
+    }
+
     /// Builds the geometry and adds it to the `model`.
     ///
     /// # Errors
@@ -245,16 +359,35 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         // Validate structure before building
         self.validate_structure()?;
 
+        // Pre-allocate the Boundary
         let mut vertices_capacity = 0;
+        let mut rings_capacity = 0;
+        let mut surfaces_capacity = 0;
         if self.type_geometry == GeometryType::MultiPoint {
             vertices_capacity = self.vertices.len();
         } else if self.type_geometry == GeometryType::MultiLineString {
             vertices_capacity = self.rings.iter().map(|ring| ring.len()).sum();
+            rings_capacity = self.rings.len();
+        } else if self.type_geometry == GeometryType::MultiSurface
+            || self.type_geometry == GeometryType::CompositeSurface
+        {
+            // For MultiSurface, calculate total vertices from all rings in all surfaces
+            rings_capacity = self
+                .surfaces
+                .iter()
+                .map(|s| {
+                    let outer = s.outer_ring.map_or(0, |_| 1);
+                    outer + s.inner_rings.len()
+                })
+                .sum();
+
+            vertices_capacity = self.rings.iter().map(|ring| ring.len()).sum();
+            surfaces_capacity = self.surfaces.len();
         }
         let mut boundary = Boundary::with_capacity(
             vertices_capacity,
-            self.rings.len(),
-            self.surfaces.len(),
+            rings_capacity,
+            surfaces_capacity,
             self.shells.len(),
             self.solids.len(),
         );
@@ -269,7 +402,8 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
         let mut counter = BoundaryCounter::<V::VertexRef>::default();
 
-        let semantic_map_optional;
+        let mut semantic_map_optional = None;
+        let mut material_map_optional = None;
 
         // Each Boundary type has vertices
         let vertex_indices: Vec<VertexIndex<V::VertexRef>> = self
@@ -287,11 +421,8 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
                 semantic_map_optional = if !self.point_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.points = boundary
-                        .vertices
-                        .iter()
-                        .enumerate()
-                        .map(|(i, _)| self.point_semantics.get(&i).copied())
+                    semantic_map.points = (0..boundary.vertices.len())
+                        .map(|i| self.point_semantics.get(&i).copied())
                         .collect();
                     Some(semantic_map)
                 } else {
@@ -309,15 +440,53 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
                 semantic_map_optional = if !self.linestring_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.linestrings = boundary
-                        .rings
-                        .iter()
-                        .enumerate()
-                        .map(|(i, _)| self.linestring_semantics.get(&i).copied())
+                    semantic_map.linestrings = (0..self.rings.len())
+                        .map(|i| self.linestring_semantics.get(&i).copied())
                         .collect();
                     Some(semantic_map)
                 } else {
                     None
+                }
+            }
+            GeometryType::MultiSurface | GeometryType::CompositeSurface => {
+                for (_surface_idx, surface) in self.surfaces.iter().enumerate() {
+                    if let Some(outer_ring_idx) = surface.outer_ring {
+                        boundary.surfaces.push(counter.ring_offset());
+
+                        // Add the outer ring first
+                        boundary.rings.push(counter.vertex_offset());
+                        for &vertex_idx in &self.rings[outer_ring_idx] {
+                            boundary.vertices.push(vertex_indices[vertex_idx]);
+                            counter.increment_vertex_idx();
+                        }
+                        counter.increment_ring_idx();
+
+                        // Add all inner rings for this surface
+                        for &inner_ring_idx in &surface.inner_rings {
+                            boundary.rings.push(counter.vertex_offset());
+                            for &vertex_idx in &self.rings[inner_ring_idx] {
+                                boundary.vertices.push(vertex_indices[vertex_idx]);
+                                counter.increment_vertex_idx();
+                            }
+                            counter.increment_ring_idx();
+                        }
+                    }
+                }
+
+                if !self.surface_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    semantic_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_semantics.get(&i).copied())
+                        .collect();
+                    semantic_map_optional = Some(semantic_map);
+                }
+
+                if !self.surface_materials.is_empty() {
+                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
+                    material_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_materials.get(&i).copied())
+                        .collect();
+                    material_map_optional = Some(material_map);
                 }
             }
             _ => {
@@ -331,10 +500,10 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.lod,
             Some(boundary),
             semantic_map_optional,
+            material_map_optional,
             None,
             None,
-            None,
-            None,
+            self.transformation_matrix,
         );
 
         Ok(self.model.add_geometry(geometry))
@@ -367,7 +536,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                         found: self.format_counts(),
                     });
                 }
-                return Ok(())
+                return Ok(());
             }
             GeometryType::MultiPoint => {
                 if !self.solids.is_empty()
@@ -381,7 +550,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                         found: self.format_counts(),
                     });
                 }
-                return Ok(())
+                return Ok(());
             }
             _ => {
                 unimplemented!()
