@@ -4,6 +4,7 @@ use crate::prelude::{
     SemanticMap, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
+use crate::cityjson::geometry::boundary::BoundaryCounter;
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
@@ -40,7 +41,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
-    rings: Vec<Vec<usize>>,       // indices into vertices
+    rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
@@ -148,7 +149,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         if vertices.len() < 2 {
             return Err(Error::InvalidLineString {
                 reason: "LineString must have at least 2 vertices".to_string(),
-                vertex_count: vertices.len()
+                vertex_count: vertices.len(),
             });
         }
         self.rings.push(vertices.to_vec());
@@ -168,7 +169,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         if vertices.len() < 3 {
             return Err(Error::InvalidRing {
                 reason: "ring must have at least 3 vertices".to_string(),
-                vertex_count: vertices.len()
+                vertex_count: vertices.len(),
             });
         }
         self.rings.push(vertices.to_vec());
@@ -251,33 +252,44 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.shells.len(),
             self.solids.len(),
         );
-        let cnt_new_vertices = self.vertices.iter().filter(|v| matches!(v, VertexOrPoint::Point(_))).count();
+        let cnt_new_vertices = self
+            .vertices
+            .iter()
+            .filter(|v| matches!(v, VertexOrPoint::Point(_)))
+            .count();
         if cnt_new_vertices > 0 {
-            self.model
-                .vertices_mut()
-                .reserve(cnt_new_vertices)?;
+            self.model.vertices_mut().reserve(cnt_new_vertices)?;
         }
 
         let mut semantic_map_optional = None;
 
+        // Each Boundary type has vertices
+        for point in self.vertices {
+            match point {
+                VertexOrPoint::Vertex(v) => {
+                    boundary.vertices.push(v);
+                }
+                VertexOrPoint::Point(p) => boundary.vertices.push(self.model.add_vertex(p)?),
+            }
+        }
+
         match self.type_geometry {
             GeometryType::MultiPoint => {
-                for point in self.vertices {
-                    match point {
-                        VertexOrPoint::Vertex(v) => {
-                            boundary.vertices.push(v);
-                        }
-                        VertexOrPoint::Point(p) => {
-                            boundary.vertices.push(self.model.add_vertex(p)?)
-                        }
-                    }
-                }
                 if !self.point_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
                     for i in 0..boundary.vertices.len() {
                         semantic_map
                             .points
                             .push(self.point_semantics.get(&i).copied());
+                    }
+                    semantic_map_optional = Some(semantic_map);
+                }
+            }
+            GeometryType::MultiLineString => {
+                if !self.linestring_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    for i in 0..boundary.rings.len() {
+                        semantic_map.linestrings.push(self.linestring_semantics.get(&i).copied());
                     }
                     semantic_map_optional = Some(semantic_map);
                 }
@@ -313,6 +325,19 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                 {
                     return Err(Error::InvalidGeometryType {
                         expected: "multi point geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
+            GeometryType::MultiLineString => {
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi linestring geometry".to_string(),
                         found: self.format_counts(),
                     });
                 }
@@ -356,15 +381,9 @@ mod tests {
         let mut model = create_test_model();
 
         // First, add some vertices to the model
-        let v0 = model
-            .add_vertex(QuantizedCoordinate::new(1, 2, 3))
-            .unwrap();
-        let v1 = model
-            .add_vertex(QuantizedCoordinate::new(4, 5, 6))
-            .unwrap();
-        let v2 = model
-            .add_vertex(QuantizedCoordinate::new(7, 8, 9))
-            .unwrap();
+        let v0 = model.add_vertex(QuantizedCoordinate::new(1, 2, 3)).unwrap();
+        let v1 = model.add_vertex(QuantizedCoordinate::new(4, 5, 6)).unwrap();
+        let v2 = model.add_vertex(QuantizedCoordinate::new(7, 8, 9)).unwrap();
 
         // Create a builder for MultiPoint geometry
         let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
@@ -417,7 +436,10 @@ mod tests {
         let geom_ref = builder.build().expect("Failed to build geometry");
 
         // Get the geometry from the model
-        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
 
         // Check geometry type and LoD
         assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
@@ -425,12 +447,13 @@ mod tests {
 
         // Get the boundary and convert to nested representation
         let boundary = geometry.boundaries().expect("No boundary found");
-        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+        let nested = boundary
+            .to_nested_multi_point()
+            .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
         assert_eq!(model.vertex_count(), 3);
         assert_eq!(nested, vec![0, 1, 2]);
-
     }
 
     #[test]
@@ -439,7 +462,9 @@ mod tests {
 
         // First add a vertex to the citymodel
         let v0 = model.add_vertex(QuantizedCoordinate::new(1, 2, 3)).unwrap();
-        let v1 = model.add_vertex(QuantizedCoordinate::new(10, 11, 12)).unwrap();
+        let v1 = model
+            .add_vertex(QuantizedCoordinate::new(10, 11, 12))
+            .unwrap();
 
         // Create a builder for MultiPoint geometry
         let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
@@ -455,14 +480,19 @@ mod tests {
         let geom_ref = builder.build().expect("Failed to build geometry");
 
         // Get the geometry from the model
-        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
 
         // Check geometry type
         assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
 
         // Get the boundary and convert to nested representation
         let boundary = geometry.boundaries().expect("No boundary found");
-        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+        let nested = boundary
+            .to_nested_multi_point()
+            .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
         assert_eq!(model.vertex_count(), 4);
@@ -493,14 +523,19 @@ mod tests {
         let geom_ref = builder.build().expect("Failed to build geometry");
 
         // Get the geometry from the model
-        let geometry = model.geometries().get(geom_ref).expect("Failed to get geometry");
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
 
         // Check geometry type
         assert_eq!(geometry.type_geometry(), &GeometryType::MultiPoint);
 
         // Get the boundary and convert to nested representation
         let boundary = geometry.boundaries().expect("No boundary found");
-        let nested = boundary.to_nested_multi_point().expect("Failed to convert to nested");
+        let nested = boundary
+            .to_nested_multi_point()
+            .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
         assert_eq!(model.vertex_count(), 3);
@@ -514,7 +549,8 @@ mod tests {
         assert_eq!(semantic_points.len(), 3);
 
         // Verify the semantic references are the ones we set
-        let sem_refs: Vec<ResourceId32> = semantic_points.iter()
+        let sem_refs: Vec<ResourceId32> = semantic_points
+            .iter()
             .filter_map(|s| s.as_ref())
             .cloned()
             .collect();
@@ -526,6 +562,155 @@ mod tests {
         assert_eq!(semantic0.type_semantic(), &SemanticType::TransportationHole);
 
         let semantic1 = model.get_semantic(sem_ref1).expect("Semantic 1 not found");
-        assert_eq!(semantic1.type_semantic(), &SemanticType::TransportationMarking);
+        assert_eq!(
+            semantic1.type_semantic(),
+            &SemanticType::TransportationMarking
+        );
+    }
+
+    #[test]
+    fn test_multilinestring_with_mixed_vertices() {
+        let mut model = create_test_model();
+
+        // First add some vertices to the model
+        let v0 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();
+        let v1 = model.add_vertex(QuantizedCoordinate::new(1, 0, 0)).unwrap();
+
+        // Create a builder for MultiLineString geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString);
+
+        // Add a mix of existing vertices and new points
+        let p0 = builder.add_vertex(v0);
+        let p1 = builder.add_vertex(v1);
+        let p2 = builder.add_point(QuantizedCoordinate::new(1, 1, 0));
+        let p3 = builder.add_point(QuantizedCoordinate::new(0, 1, 0));
+        let p4 = builder.add_point(QuantizedCoordinate::new(2, 0, 0));
+        let p5 = builder.add_point(QuantizedCoordinate::new(2, 2, 0));
+
+        // Create three linestrings
+        // First linestring: square
+        builder
+            .add_linestring(&[p0, p1, p2, p3, p4])
+            .expect("Failed to add linestring");
+        // Second linestring: diagonal
+        builder
+            .add_linestring(&[p0, p2])
+            .expect("Failed to add linestring");
+        // Third linestring: another line
+        builder
+            .add_linestring(&[p1, p4, p5])
+            .expect("Failed to add linestring");
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiLineString);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary
+            .to_nested_multi_linestring()
+            .expect("Failed to convert to nested");
+
+        // Verify the nested representation
+        assert_eq!(model.vertex_count(), 6);
+        assert_eq!(nested, vec![vec![0, 1, 2, 3, 4], vec![0, 2], vec![1, 4, 5]]);
+    }
+
+    #[test]
+    fn test_multilinestring_with_semantics() {
+        let mut model = create_test_model();
+
+        // First add some vertices to the model
+        let v1 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();
+        let v2 = model.add_vertex(QuantizedCoordinate::new(1, 0, 0)).unwrap();
+
+        // Create a builder for MultiLineString geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString);
+
+        // Add a mix of existing vertices and new points
+        let p1 = builder.add_vertex(v1);
+        let p2 = builder.add_vertex(v2);
+        let p3 = builder.add_point(QuantizedCoordinate::new(1, 1, 0));
+        let p4 = builder.add_point(QuantizedCoordinate::new(0, 1, 0));
+        let p5 = builder.add_point(QuantizedCoordinate::new(2, 0, 0));
+        let p6 = builder.add_point(QuantizedCoordinate::new(2, 2, 0));
+
+        // Create three linestrings
+        // First linestring: square
+        let ls1 = builder
+            .add_linestring(&[p1, p2, p3, p4, p1])
+            .expect("Failed to add linestring");
+        // Second linestring: diagonal
+        let ls2 = builder
+            .add_linestring(&[p1, p3])
+            .expect("Failed to add linestring");
+        // Third linestring: another line
+        let ls3 = builder
+            .add_linestring(&[p2, p5, p6])
+            .expect("Failed to add linestring");
+
+        // Create semantic for the second linestring
+        let sem = Semantic::new(SemanticType::TransportationMarking);
+
+        // Set semantic for the second linestring
+        let sem_ref = builder.set_semantic_linestring(Some(ls2), sem);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiLineString);
+
+        // Get the boundary and convert to nested representation
+        let boundary = geometry.boundaries().expect("No boundary found");
+        let nested = boundary
+            .to_nested_multi_linestring()
+            .expect("Failed to convert to nested");
+
+        // Verify the nested representation
+        assert_eq!(nested.len(), 3); // Should have 3 linestrings
+
+        // First linestring is a square (5 points, with first repeated at end)
+        assert_eq!(nested[0].len(), 5);
+        assert_eq!(nested[0][0], nested[0][4]); // First point is repeated at the end
+
+        // Second linestring is diagonal (2 points)
+        assert_eq!(nested[1].len(), 2);
+
+        // Third linestring has 3 points
+        assert_eq!(nested[2].len(), 3);
+
+        // Check semantics
+        let semantics = geometry.semantics().expect("No semantics found");
+        let linestring_semantics = semantics.linestrings();
+
+        // Verify linestrings have semantics applied correctly
+        assert_eq!(linestring_semantics.len(), 3); // Should have entries for all linestrings
+
+        // Only the second linestring should have a semantic
+        assert!(linestring_semantics[0].is_none());
+        assert_eq!(linestring_semantics[1], Some(sem_ref));
+        assert!(linestring_semantics[2].is_none());
+
+        // Verify the semantic itself
+        let semantic = model.get_semantic(sem_ref).expect("Semantic not found");
+        assert_eq!(
+            semantic.type_semantic(),
+            &SemanticType::TransportationMarking
+        );
     }
 }
