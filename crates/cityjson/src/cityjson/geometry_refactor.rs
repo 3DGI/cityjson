@@ -142,10 +142,32 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// * `InvalidLineString` - If less than two vertices have been provided
     ///
     /// # Returns
+    ///
+    /// The index of the added LineString in the boundary.
     pub fn add_linestring(&mut self, vertices: &[usize]) -> Result<usize> {
         if vertices.len() < 2 {
             return Err(Error::InvalidLineString {
                 reason: "LineString must have at least 2 vertices".to_string(),
+                vertex_count: vertices.len()
+            });
+        }
+        self.rings.push(vertices.to_vec());
+        Ok(self.rings.len() - 1)
+    }
+
+    /// Add a ring to the boundary by providing its vertex indices in the boundary.
+    /// The indices are returned by the [add_point] or [add_vertex] methods.
+    ///
+    /// # Errors
+    /// * `InvalidRing` - If less than three vertices have been provided
+    ///
+    /// # Returns
+    ///
+    /// The index of the added ring in the boundary.
+    pub fn add_ring(&mut self, vertices: &[usize]) -> Result<usize> {
+        if vertices.len() < 3 {
+            return Err(Error::InvalidRing {
+                reason: "ring must have at least 3 vertices".to_string(),
                 vertex_count: vertices.len()
             });
         }
