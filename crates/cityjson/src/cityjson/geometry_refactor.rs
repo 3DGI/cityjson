@@ -912,6 +912,9 @@ mod tests {
         builder
             .add_surface_outer_ring(&[p1, p2, p5, p6, p1])
             .expect("Failed to add outer ring");
+        builder
+            .add_surface_inner_ring(&[p0, p1, p2])
+            .expect("Failed to add inner ring");
 
         // Create and assign semantic for the second surface
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
@@ -948,22 +951,13 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation
-        assert_eq!(nested.len(), 3); // Should have 3 surfaces
-
-        // First surface is a triangle (4 points, with first repeated at end)
-        assert_eq!(nested[0].len(), 1); // One ring
-        assert_eq!(nested[0][0].len(), 4); // 4 points (closed ring)
-        assert_eq!(nested[0][0][0], nested[0][0][3]); // First point is repeated at the end
-
-        // Second surface is a pentagon
-        assert_eq!(nested[1].len(), 1); // One ring
-        assert_eq!(nested[1][0].len(), 5); // 5 points (closed ring)
-        assert_eq!(nested[1][0][0], nested[1][0][4]); // First point is repeated at the end
-
-        // Third surface is a hexagon
-        assert_eq!(nested[2].len(), 1); // One ring
-        assert_eq!(nested[2][0].len(), 6); // 6 points (closed ring)
-        assert_eq!(nested[2][0][0], nested[2][0][5]); // First point is repeated at the end
+        let nested_expected = vec![
+            vec![vec![0, 1, 4, 0]],
+            vec![vec![1, 2, 5, 6, 1], vec![0, 1, 2]],
+            vec![vec![2, 3, 4, 8, 7, 2]],
+        ];
+        assert_eq!(model.vertex_count(), 9);
+        assert_eq!(nested, nested_expected);
 
         // Check semantics
         let semantics = geometry.semantics().expect("No semantics found");
