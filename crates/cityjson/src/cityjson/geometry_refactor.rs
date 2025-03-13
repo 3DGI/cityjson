@@ -669,6 +669,162 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     material_map_optional = Some(material_map);
                 }
             }
+            GeometryType::Solid => {
+                // Add shell index
+                boundary.shells.push(counter.surface_offset());
+
+                // Process surfaces for this shell
+                for &surface_idx in &self.shells[0] {
+                    if surface_idx < self.surfaces.len() {
+                        boundary.surfaces.push(counter.ring_offset());
+
+                        // Add outer ring for this surface
+                        if let Some(outer_ring_idx) = self.surfaces[surface_idx].outer_ring {
+                            boundary.rings.push(counter.vertex_offset());
+                            for &vertex_idx in &self.rings[outer_ring_idx] {
+                                boundary.vertices.push(vertex_indices[vertex_idx]);
+                                counter.increment_vertex_idx();
+                            }
+                            counter.increment_ring_idx();
+
+                            // Add inner rings if any
+                            for &inner_ring_idx in &self.surfaces[surface_idx].inner_rings {
+                                boundary.rings.push(counter.vertex_offset());
+                                for &vertex_idx in &self.rings[inner_ring_idx] {
+                                    boundary.vertices.push(vertex_indices[vertex_idx]);
+                                    counter.increment_vertex_idx();
+                                }
+                                counter.increment_ring_idx();
+                            }
+                        }
+                        counter.increment_surface_idx();
+                    }
+                }
+
+                // Handle semantics, materials and textures for surfaces
+                if !self.surface_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    semantic_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_semantics.get(&i).copied())
+                        .collect();
+                    semantic_map_optional = Some(semantic_map);
+                }
+
+                if !self.surface_materials.is_empty() {
+                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
+                    material_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_materials.get(&i).copied())
+                        .collect();
+                    material_map_optional = Some(material_map);
+                }
+            }
+            GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                // Process each solid
+                for solid in &self.solids {
+                    if let Some(outer_shell_idx) = solid.outer_shell {
+                        // Add this solid to the boundary
+                        boundary.solids.push(counter.shell_offset());
+
+                        // Process the outer shell first
+                        if outer_shell_idx < self.shells.len() {
+                            boundary.shells.push(counter.surface_offset());
+
+                            // Process surfaces for the outer shell
+                            for &surface_idx in &self.shells[outer_shell_idx] {
+                                if surface_idx < self.surfaces.len() {
+                                    boundary.surfaces.push(counter.ring_offset());
+
+                                    // Add outer ring for this surface
+                                    if let Some(outer_ring_idx) =
+                                        self.surfaces[surface_idx].outer_ring
+                                    {
+                                        boundary.rings.push(counter.vertex_offset());
+                                        for &vertex_idx in &self.rings[outer_ring_idx] {
+                                            boundary.vertices.push(vertex_indices[vertex_idx]);
+                                            counter.increment_vertex_idx();
+                                        }
+                                        counter.increment_ring_idx();
+
+                                        // Add inner rings if any
+                                        for &inner_ring_idx in
+                                            &self.surfaces[surface_idx].inner_rings
+                                        {
+                                            boundary.rings.push(counter.vertex_offset());
+                                            for &vertex_idx in &self.rings[inner_ring_idx] {
+                                                boundary.vertices.push(vertex_indices[vertex_idx]);
+                                                counter.increment_vertex_idx();
+                                            }
+                                            counter.increment_ring_idx();
+                                        }
+                                    }
+                                    counter.increment_surface_idx();
+                                }
+                            }
+                            counter.increment_shell_idx();
+                        }
+
+                        // Now process any inner shells (voids) for this solid
+                        for &inner_shell_idx in &solid.inner_shells {
+                            if inner_shell_idx < self.shells.len() {
+                                boundary.shells.push(counter.surface_offset());
+
+                                // Process surfaces for this inner shell
+                                for &surface_idx in &self.shells[inner_shell_idx] {
+                                    if surface_idx < self.surfaces.len() {
+                                        boundary.surfaces.push(counter.ring_offset());
+
+                                        // Add outer ring for this surface
+                                        if let Some(outer_ring_idx) =
+                                            self.surfaces[surface_idx].outer_ring
+                                        {
+                                            boundary.rings.push(counter.vertex_offset());
+                                            for &vertex_idx in &self.rings[outer_ring_idx] {
+                                                boundary.vertices.push(vertex_indices[vertex_idx]);
+                                                counter.increment_vertex_idx();
+                                            }
+                                            counter.increment_ring_idx();
+
+                                            // Add inner rings if any
+                                            for &inner_ring_idx in
+                                                &self.surfaces[surface_idx].inner_rings
+                                            {
+                                                boundary.rings.push(counter.vertex_offset());
+                                                for &vertex_idx in &self.rings[inner_ring_idx] {
+                                                    boundary
+                                                        .vertices
+                                                        .push(vertex_indices[vertex_idx]);
+                                                    counter.increment_vertex_idx();
+                                                }
+                                                counter.increment_ring_idx();
+                                            }
+                                        }
+                                        counter.increment_surface_idx();
+                                    }
+                                }
+                                counter.increment_shell_idx();
+                            }
+                        }
+                        counter.increment_solid_idx();
+                    }
+                }
+
+                // Handle semantics, materials and textures for surfaces
+                if !self.surface_semantics.is_empty() {
+                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                    semantic_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_semantics.get(&i).copied())
+                        .collect();
+                    semantic_map_optional = Some(semantic_map);
+                }
+
+                if !self.surface_materials.is_empty() {
+                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
+                    material_map.surfaces = (0..self.surfaces.len())
+                        .map(|i| self.surface_materials.get(&i).copied())
+                        .collect();
+                    material_map_optional = Some(material_map);
+                }
+            }
             _ => {
                 unimplemented!()
             }
@@ -733,6 +889,13 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     return Err(Error::InvalidGeometryType {
                         expected: "single solid geometry".to_string(),
                         found: self.format_counts(),
+                    });
+                }
+
+                if self.shells.len() != 1 {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "solid geometry with exactly one shell".to_string(),
+                        found: format!("{} shells found", self.shells.len()),
                     });
                 }
             }
@@ -912,9 +1075,7 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
 mod tests {
     use super::*;
     use crate::cityjson::geometry::GeometryType;
-    use crate::prelude::{
-        ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait, TextureTrait,
-    };
+    use crate::prelude::{BoundaryType, ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait, TextureTrait};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v1_1::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
@@ -1374,5 +1535,352 @@ mod tests {
             .expect("Texture 1 not found");
         assert_eq!(texture1.image(), "facade.jpg");
         assert_eq!(texture1.image_type(), &ImageType::Jpg);
+    }
+
+    #[test]
+    fn test_solid() {
+        let mut model = create_test_model();
+
+        // Create a builder for Solid geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::Solid);
+
+        // Add vertices for a simple cube
+        let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // bottom-front-left
+        let p1 = builder.add_point(QuantizedCoordinate::new(10, 0, 0)); // bottom-front-right
+        let p2 = builder.add_point(QuantizedCoordinate::new(10, 10, 0)); // bottom-back-right
+        let p3 = builder.add_point(QuantizedCoordinate::new(0, 10, 0)); // bottom-back-left
+        let p4 = builder.add_point(QuantizedCoordinate::new(0, 0, 10)); // top-front-left
+        let p5 = builder.add_point(QuantizedCoordinate::new(10, 0, 10)); // top-front-right
+        let p6 = builder.add_point(QuantizedCoordinate::new(10, 10, 10)); // top-back-right
+        let p7 = builder.add_point(QuantizedCoordinate::new(0, 10, 10)); // top-back-left
+
+        // Define each surface (face) of the cube
+        // Front face
+        let surface0 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p0, p1, p5, p4, p0])
+            .expect("Failed to add front face");
+
+        // Right face
+        let surface1 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p1, p2, p6, p5, p1])
+            .expect("Failed to add right face");
+
+        // Back face
+        let surface2 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p2, p3, p7, p6, p2])
+            .expect("Failed to add back face");
+
+        // Left face
+        let surface3 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p3, p0, p4, p7, p3])
+            .expect("Failed to add left face");
+
+        // Top face
+        let surface4 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p4, p5, p6, p7, p4])
+            .expect("Failed to add top face");
+
+        // Bottom face
+        let surface5 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p0, p3, p2, p1, p0])
+            .expect("Failed to add bottom face");
+
+        // Add semantics to faces
+        let wall_semantic = Semantic::new(SemanticType::WallSurface);
+        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let floor_semantic = Semantic::new(SemanticType::FloorSurface);
+
+        builder.set_semantic_surface(Some(surface0), wall_semantic.clone());
+        builder.set_semantic_surface(Some(surface1), wall_semantic.clone());
+        builder.set_semantic_surface(Some(surface2), wall_semantic.clone());
+        builder.set_semantic_surface(Some(surface3), wall_semantic);
+        let roof_sem_ref = builder.set_semantic_surface(Some(surface4), roof_semantic);
+        let floor_sem_ref = builder.set_semantic_surface(Some(surface5), floor_semantic);
+
+        // Add materials
+        let mut wall_material = OwnedMaterial::new("Wall".to_string());
+        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        let mut roof_material = OwnedMaterial::new("Roof".to_string());
+        roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
+
+        let wall_mat_ref = builder.set_material_surface(Some(surface0), wall_material);
+        let roof_mat_ref = builder.set_material_surface(Some(surface4), roof_material);
+
+        // Create a shell from the surfaces
+        builder
+            .add_shell(&[surface0, surface1, surface2, surface3, surface4, surface5])
+            .expect("Failed to add shell");
+
+        // Set LoD
+        builder = builder.with_lod(LoD::LoD1);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::Solid);
+        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
+
+        // Get the boundary and check its type
+        let boundary = geometry.boundaries().expect("No boundary found");
+        assert_eq!(boundary.check_type(), BoundaryType::Solid);
+
+        // Verify the nested representation matches what we created
+        let nested = boundary
+            .to_nested_solid()
+            .expect("Failed to convert to nested representation");
+        assert_eq!(nested.len(), 1); // One shell
+        assert_eq!(nested[0].len(), 6); // Six surfaces in the shell
+
+        // Verify semantics
+        let semantics = geometry.semantics().expect("No semantics found");
+        let surface_semantics = semantics.surfaces();
+        assert_eq!(surface_semantics.len(), 6); // Should have entries for all surfaces
+
+        // Verify the specific semantics
+        assert_eq!(surface_semantics[4], Some(roof_sem_ref.clone().unwrap()));
+        assert_eq!(surface_semantics[5], Some(floor_sem_ref.clone().unwrap()));
+
+        // Verify materials
+        let materials = geometry.materials().expect("No materials found");
+        let surface_materials = materials.surfaces();
+        assert_eq!(surface_materials.len(), 6); // Should have entries for all surfaces
+
+        // Verify the material references
+        assert_eq!(surface_materials[0], Some(wall_mat_ref.clone().unwrap()));
+        assert_eq!(surface_materials[4], Some(roof_mat_ref.clone().unwrap()));
+
+        // Verify the material objects
+        let wall_material = model
+            .get_material(wall_mat_ref.unwrap())
+            .expect("Wall material not found");
+        assert_eq!(wall_material.name(), "Wall");
+        assert_eq!(wall_material.diffuse_color().unwrap(), &[0.8, 0.8, 0.8]);
+    }
+
+    #[test]
+    fn test_multisolid() {
+        let mut model = create_test_model();
+
+        // Create a builder for MultiSolid geometry
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSolid);
+
+        // Add vertices for first cube (small cube at origin)
+        let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // small cube - bottom-front-left
+        let p1 = builder.add_point(QuantizedCoordinate::new(5, 0, 0)); // small cube - bottom-front-right
+        let p2 = builder.add_point(QuantizedCoordinate::new(5, 5, 0)); // small cube - bottom-back-right
+        let p3 = builder.add_point(QuantizedCoordinate::new(0, 5, 0)); // small cube - bottom-back-left
+        let p4 = builder.add_point(QuantizedCoordinate::new(0, 0, 5)); // small cube - top-front-left
+        let p5 = builder.add_point(QuantizedCoordinate::new(5, 0, 5)); // small cube - top-front-right
+        let p6 = builder.add_point(QuantizedCoordinate::new(5, 5, 5)); // small cube - top-back-right
+        let p7 = builder.add_point(QuantizedCoordinate::new(0, 5, 5)); // small cube - top-back-left
+
+        // Add vertices for second cube (larger cube offset from first)
+        let p8 = builder.add_point(QuantizedCoordinate::new(10, 10, 0)); // large cube - bottom-front-left
+        let p9 = builder.add_point(QuantizedCoordinate::new(20, 10, 0)); // large cube - bottom-front-right
+        let p10 = builder.add_point(QuantizedCoordinate::new(20, 20, 0)); // large cube - bottom-back-right
+        let p11 = builder.add_point(QuantizedCoordinate::new(10, 20, 0)); // large cube - bottom-back-left
+        let p12 = builder.add_point(QuantizedCoordinate::new(10, 10, 10)); // large cube - top-front-left
+        let p13 = builder.add_point(QuantizedCoordinate::new(20, 10, 10)); // large cube - top-front-right
+        let p14 = builder.add_point(QuantizedCoordinate::new(20, 20, 10)); // large cube - top-back-right
+        let p15 = builder.add_point(QuantizedCoordinate::new(10, 20, 10)); // large cube - top-back-left
+
+        // Define surfaces for the first cube
+        // Front face (cube 1)
+        let surface0 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p0, p1, p5, p4, p0])
+            .expect("Failed to add front face of first cube");
+
+        // Right face (cube 1)
+        let surface1 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p1, p2, p6, p5, p1])
+            .expect("Failed to add right face of first cube");
+
+        // Back face (cube 1)
+        let surface2 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p2, p3, p7, p6, p2])
+            .expect("Failed to add back face of first cube");
+
+        // Left face (cube 1)
+        let surface3 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p3, p0, p4, p7, p3])
+            .expect("Failed to add left face of first cube");
+
+        // Top face (cube 1)
+        let surface4 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p4, p5, p6, p7, p4])
+            .expect("Failed to add top face of first cube");
+
+        // Bottom face (cube 1)
+        let surface5 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p0, p3, p2, p1, p0])
+            .expect("Failed to add bottom face of first cube");
+
+        // Define surfaces for the second cube
+        // Front face (cube 2)
+        let surface6 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p8, p9, p13, p12, p8])
+            .expect("Failed to add front face of second cube");
+
+        // Right face (cube 2)
+        let surface7 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p9, p10, p14, p13, p9])
+            .expect("Failed to add right face of second cube");
+
+        // Back face (cube 2)
+        let surface8 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p10, p11, p15, p14, p10])
+            .expect("Failed to add back face of second cube");
+
+        // Left face (cube 2)
+        let surface9 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p11, p8, p12, p15, p11])
+            .expect("Failed to add left face of second cube");
+
+        // Top face (cube 2)
+        let surface10 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p12, p13, p14, p15, p12])
+            .expect("Failed to add top face of second cube");
+
+        // Bottom face (cube 2)
+        let surface11 = builder.start_surface();
+        builder
+            .add_surface_outer_ring(&[p8, p11, p10, p9, p8])
+            .expect("Failed to add bottom face of second cube");
+
+        // Create semantics for different types of surfaces
+        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let ground_semantic = Semantic::new(SemanticType::GroundSurface);
+
+        // Add semantics to faces
+        let roof_sem_ref1 = builder.set_semantic_surface(Some(surface4), roof_semantic.clone());
+        let ground_sem_ref1 = builder.set_semantic_surface(Some(surface5), ground_semantic.clone());
+        let roof_sem_ref2 = builder.set_semantic_surface(Some(surface10), roof_semantic);
+        let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic);
+
+        // For the walls, we'll use material instead of semantics
+        let mut red_material = OwnedMaterial::new("RedWall".to_string());
+        red_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
+        let mut blue_material = OwnedMaterial::new("BlueWall".to_string());
+        blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9]));
+
+        // Apply materials to some surfaces
+        let red_mat_ref = builder.set_material_surface(Some(surface0), red_material);
+        let blue_mat_ref = builder.set_material_surface(Some(surface6), blue_material);
+
+        // Create shells for each cube
+        builder
+            .add_shell(&[surface0, surface1, surface2, surface3, surface4, surface5])
+            .expect("Failed to add shell for first cube");
+
+        builder
+            .add_shell(&[surface6, surface7, surface8, surface9, surface10, surface11])
+            .expect("Failed to add shell for second cube");
+
+        // Create solids from shells
+        let solid0 = builder.start_solid();
+        builder
+            .add_solid_outer_shell(0)
+            .expect("Failed to add outer shell to solid 0");
+
+        let solid1 = builder.start_solid();
+        builder
+            .add_solid_outer_shell(1)
+            .expect("Failed to add outer shell to solid 1");
+
+        // Set LoD
+        builder = builder.with_lod(LoD::LoD1);
+
+        // Build the geometry
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        // Get the geometry from the model
+        let geometry = model
+            .geometries()
+            .get(geom_ref)
+            .expect("Failed to get geometry");
+
+        // Check geometry type
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiSolid);
+        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
+
+        // Get the boundary and check its type
+        let boundary = geometry.boundaries().expect("No boundary found");
+        assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
+
+        // Verify the nested representation matches what we created
+        let nested = boundary
+            .to_nested_multi_or_composite_solid()
+            .expect("Failed to convert to nested");
+
+        // We should have 2 solids
+        assert_eq!(nested.len(), 2);
+
+        // Each solid should have 1 shell
+        assert_eq!(nested[0].len(), 1);
+        assert_eq!(nested[1].len(), 1);
+
+        // Each shell should have 6 surfaces
+        assert_eq!(nested[0][0].len(), 6);
+        assert_eq!(nested[1][0].len(), 6);
+
+        // Verify semantics
+        let semantics = geometry.semantics().expect("No semantics found");
+        let surface_semantics = semantics.surfaces();
+        assert_eq!(surface_semantics.len(), 12); // Should have entries for all surfaces
+
+        // Verify specific semantics
+        assert_eq!(surface_semantics[4], Some(roof_sem_ref1.clone().unwrap()));
+        assert_eq!(surface_semantics[5], Some(ground_sem_ref1.clone().unwrap()));
+        assert_eq!(surface_semantics[10], Some(roof_sem_ref2.clone().unwrap()));
+        assert_eq!(
+            surface_semantics[11],
+            Some(ground_sem_ref2.clone().unwrap())
+        );
+
+        // Verify materials
+        let materials = geometry.materials().expect("No materials found");
+        let surface_materials = materials.surfaces();
+        assert_eq!(surface_materials.len(), 12); // Should have entries for all surfaces
+
+        // Verify the material references
+        assert_eq!(surface_materials[0], Some(red_mat_ref.clone().unwrap()));
+        assert_eq!(surface_materials[6], Some(blue_mat_ref.clone().unwrap()));
+
+        // Verify the material objects
+        let red_material = model
+            .get_material(red_mat_ref.unwrap())
+            .expect("Red material not found");
+        assert_eq!(red_material.name(), "RedWall");
+        assert_eq!(red_material.diffuse_color().unwrap(), &[0.9, 0.1, 0.1]);
+
+        let blue_material = model
+            .get_material(blue_mat_ref.unwrap())
+            .expect("Blue material not found");
+        assert_eq!(blue_material.name(), "BlueWall");
+        assert_eq!(blue_material.diffuse_color().unwrap(), &[0.1, 0.1, 0.9]);
     }
 }
