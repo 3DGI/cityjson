@@ -720,61 +720,67 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
         boundary.solids.len(),
     );
 
-    // Maps original builder vertex indices to final boundary indices
-    // We'll populate this during boundary traversal
-    let mut orig_to_boundary_idx = vec![None; boundary.vertices.len()];
+    // Initialize the vertices vector with None values
+    for _ in 0..boundary.vertices.len() {
+        texture_map.add_vertex(None);
+    }
 
-    // Single pass through the boundary with the counter
+    // Use BoundaryCounter to track positions within the boundary
     let mut counter = BoundaryCounter::<V::VertexRef>::default();
-
-    // Track the current original vertex index
-    let mut current_vertex_index = 0;
+    let mut orig_builder_idx_to_boundary_idx = HashMap::new();
+    let mut builder_ring_idx = 0;
 
     // Process each surface
-    for surface_idx in 0..boundary.surfaces.len() {
-        let surface_start = boundary.surfaces[surface_idx].to_usize();
+    for s_idx in 0..boundary.surfaces.len() {
+        let surface_start = boundary.surfaces[s_idx].to_usize();
         let surface_end = boundary
             .surfaces
-            .get(surface_idx + 1)
+            .get(s_idx + 1)
             .map_or(boundary.rings.len(), |idx| idx.to_usize());
 
         // Get the texture for this surface (if any)
-        let surface_texture = surface_textures.get(&surface_idx).copied();
+        let surface_texture = surface_textures.get(&s_idx).copied();
 
         // Process each ring in this surface
-        for ring_idx in surface_start..surface_end {
-            let ring_start = boundary.rings[ring_idx].to_usize();
+        for r_idx in surface_start..surface_end {
+            let ring_start = boundary.rings[r_idx].to_usize();
             let ring_end = boundary
                 .rings
-                .get(ring_idx + 1)
+                .get(r_idx + 1)
                 .map_or(boundary.vertices.len(), |idx| idx.to_usize());
 
             // Get ring-specific texture (if any) or fall back to surface texture
-            let texture_ref = ring_textures.get(&ring_idx).copied().or(surface_texture);
+            let texture_ref = ring_textures.get(&builder_ring_idx).copied().or(surface_texture);
 
             // If we have a texture for this ring, add it to the texture map
             if let Some(texture_ref) = texture_ref {
-                texture_map.add_ring(boundary.rings[ring_idx]);
+                texture_map.add_ring(boundary.rings[r_idx]);
                 texture_map.add_ring_texture(Some(texture_ref));
 
-                // Process each vertex in this ring
-                for vertex_idx in ring_start..ring_end {
-                    // Map the original vertex index to the boundary vertex index
-                    if current_vertex_index < orig_to_boundary_idx.len() {
-                        orig_to_boundary_idx[current_vertex_index] = Some(vertex_idx);
-                    }
-                    current_vertex_index += 1;
+                // Map each vertex in this ring from builder index to boundary index
+                let current_vertex_offset = counter.vertex_offset();
+                for v_offset in 0..(ring_end - ring_start) {
+                    let builder_vertex_idx = v_offset;
+                    let boundary_vertex_idx = current_vertex_offset.to_usize() + v_offset;
+                    orig_builder_idx_to_boundary_idx.insert(builder_vertex_idx, boundary_vertex_idx);
                 }
             }
+
+            // Advance vertex counter for this ring
+            for _ in ring_start..ring_end {
+                counter.increment_vertex_idx();
+            }
+
+            builder_ring_idx += 1;
         }
     }
 
-    // Now map the UV coordinates to boundary vertices
-    for (vertex_idx, uv_idx) in vertex_uv_mapping {
-        if let Some(Some(boundary_idx)) = orig_to_boundary_idx.get(*vertex_idx) {
+    // Map the UV coordinates to boundary vertices
+    for (builder_vertex_idx, uv_idx) in vertex_uv_mapping {
+        if let Some(boundary_idx) = orig_builder_idx_to_boundary_idx.get(builder_vertex_idx) {
             // Convert UV index to VertexIndex
             if let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx) {
-                // Safely assign the UV coordinate to the boundary vertex
+                // Assign the UV coordinate to the boundary vertex
                 if *boundary_idx < texture_map.vertices().len() {
                     texture_map.vertices_mut()[*boundary_idx] = Some(uv_vertex_idx);
                 }
