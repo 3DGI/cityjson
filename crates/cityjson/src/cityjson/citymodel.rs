@@ -6,7 +6,7 @@ use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait, TransformTrait, Vertices};
+use crate::prelude::{Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait, TransformTrait, UVCoordinate, Vertices};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{errors, CityModelType};
@@ -76,6 +76,8 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
     fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture>;
     fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture>;
+    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> errors::Result<VertexIndex<V::VertexRef>>;
+    fn get_uv_coordinate(&self, index: VertexIndex<V::VertexRef>) -> Option<&UVCoordinate>;
     /// Add a geometry to the model
     fn add_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
     fn geometries(&self) -> &V::GeometryPool;

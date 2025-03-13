@@ -112,6 +112,50 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
         Self::default()
     }
 
+    /// Creates a new TextureMap with the specified capacities for its collections.
+    ///
+    /// This method allows efficient memory allocation when the approximate sizes
+    /// of the collections are known in advance.
+    ///
+    /// # Parameters
+    ///
+    /// * `vertex_capacity` - Capacity for the vertices vector
+    /// * `ring_capacity` - Capacity for the rings vector
+    /// * `ring_texture_capacity` - Capacity for the ring_textures vector
+    /// * `surface_capacity` - Capacity for the surfaces vector
+    /// * `shell_capacity` - Capacity for the shells vector
+    /// * `solid_capacity` - Capacity for the solids vector
+    ///
+    /// # Returns
+    ///
+    /// A new TextureMap instance with preallocated memory for its collections.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use cityjson::prelude::*;
+    ///
+    /// // Create a texture map with preallocated capacity
+    /// let texture_map = TextureMap::<u32, ResourceId32>::with_capacity(100, 10, 10, 5, 2, 1);
+    /// ```
+    pub fn with_capacity(
+        vertex_capacity: usize,
+        ring_capacity: usize,
+        ring_texture_capacity: usize,
+        surface_capacity: usize,
+        shell_capacity: usize,
+        solid_capacity: usize,
+    ) -> Self {
+        Self {
+            vertices: Vec::with_capacity(vertex_capacity),
+            rings: Vec::with_capacity(ring_capacity),
+            ring_textures: Vec::with_capacity(ring_texture_capacity),
+            surfaces: Vec::with_capacity(surface_capacity),
+            shells: Vec::with_capacity(shell_capacity),
+            solids: Vec::with_capacity(solid_capacity),
+        }
+    }
+
     /// Returns true if the texture map contains no mappings.
     ///
     /// # Returns
@@ -267,6 +311,10 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
         &self.vertices
     }
 
+    pub fn vertices_mut(&mut self) -> &mut [Option<VertexIndex<VR>>] {
+        &mut self.vertices
+    }
+
     /// Returns a reference to the ring indices.
     ///
     /// # Returns
@@ -286,6 +334,10 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// ```
     pub fn rings(&self) -> &[VertexIndex<VR>] {
         &self.rings
+    }
+
+    pub fn rings_mut(&mut self) -> &mut [VertexIndex<VR>] {
+        &mut self.rings
     }
 
     /// Returns a reference to the ring texture references.
@@ -308,6 +360,9 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     pub fn ring_textures(&self) -> &[Option<RR>] {
         &self.ring_textures
     }
+    pub fn ring_textures_mut(&mut self) -> &mut [Option<RR>] {
+        &mut self.ring_textures
+    }
 
     /// Returns a reference to the surface indices.
     ///
@@ -316,6 +371,9 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// A slice containing surface indices.
     pub fn surfaces(&self) -> &[VertexIndex<VR>] {
         &self.surfaces
+    }
+    pub fn surfaces_mut(&mut self) -> &mut [VertexIndex<VR>] {
+        &mut self.surfaces
     }
 
     /// Returns a reference to the shell indices.
@@ -326,6 +384,9 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     pub fn shells(&self) -> &[VertexIndex<VR>] {
         &self.shells
     }
+    pub fn shells_mut(&mut self) -> &mut [VertexIndex<VR>] {
+        &mut self.shells
+    }
 
     /// Returns a reference to the solid indices.
     ///
@@ -334,6 +395,9 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
     /// A slice containing solid indices.
     pub fn solids(&self) -> &[VertexIndex<VR>] {
         &self.solids
+    }
+    pub fn solids_mut(&mut self) -> &mut [VertexIndex<VR>] {
+        &mut self.solids
     }
 }
 

@@ -3,6 +3,7 @@
 //! When operations go wrong.
 use std::fmt::{Debug, Display, Formatter};
 
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Error {
     IncompatibleBoundary(String, String),
     IndexConversion {

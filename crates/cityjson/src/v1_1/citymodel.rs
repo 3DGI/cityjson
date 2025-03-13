@@ -258,6 +258,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
     fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
         &mut self.cityobjects
     }
+
+    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> crate::errors::Result<VertexIndex<VR>> {
+        self.vertices_texture.push(uvcoordinate)
+    }
+
+    fn get_uv_coordinate(&self, index: VertexIndex<VR>) -> Option<&UVCoordinate> {
+        self.vertices_texture.get(index)
+    }
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {

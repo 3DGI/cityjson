@@ -3,7 +3,7 @@ use crate::errors;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD,
-    MaterialMap, SemanticMap, VertexIndex, VertexRef,
+    MaterialMap, SemanticMap, TextureMap, UVCoordinate, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
 
@@ -42,6 +42,10 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     lod: Option<LoD>,
     transformation_matrix: Option<[f64; 16]>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
+    // UV coordinates storage
+    uv_coordinates: Vec<UVCoordinate>,
+    // Maps geometry vertex indices to UV coordinate indices
+    vertex_uv_mapping: HashMap<usize, usize>,
     rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
     shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
@@ -57,6 +61,8 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     surface_semantics: HashMap<usize, V::ResourceRef>,
     // Material storage
     surface_materials: HashMap<usize, V::ResourceRef>,
+    // Maps ring index to texture reference
+    ring_textures: HashMap<usize, V::ResourceRef>,
     // Texture storage
     surface_textures: HashMap<usize, V::ResourceRef>,
 }
@@ -74,6 +80,9 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             lod: None,
             transformation_matrix: None,
             vertices: Vec::new(),
+            uv_coordinates: Vec::new(),
+            vertex_uv_mapping: Default::default(),
+            ring_textures: Default::default(),
             rings: Vec::new(),
             surfaces: Vec::new(),
             shells: Vec::new(),
@@ -122,7 +131,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// The index of the added vertex in the boundary.
     pub fn add_point(&mut self, point: V::CoordinateType) -> usize {
         self.vertices.push(VertexOrPoint::Point(point));
-        self.vertices.len() - 1
+        self.vertices.len().saturating_sub(1)
     }
 
     /// Add an existing vertex to the boundary by providing its reference in the vertex
@@ -134,7 +143,28 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// The index of the added vertex in the boundary.
     pub fn add_vertex(&mut self, vertex: VertexIndex<V::VertexRef>) -> usize {
         self.vertices.push(VertexOrPoint::Vertex(vertex));
-        self.vertices.len() - 1
+        self.vertices.len().saturating_sub(1)
+    }
+
+    /// Add a new UV coordinate and return its index.
+    ///
+    /// # Returns
+    ///
+    /// The index of the added UV coordinate.
+    pub fn add_uv_coordinate(&mut self, u: f32, v: f32) -> usize {
+        self.uv_coordinates.push(UVCoordinate::new(u, v));
+        self.uv_coordinates.len().saturating_sub(1)
+    }
+
+    /// Map a boundary vertex to a UV coordinate.
+    ///
+    /// # Parameters
+    /// - `vertex_idx`: Index of the target vertex, as returned from [add_point] or
+    /// [add_vertex].
+    /// - `uv_idx`: Index of the corresponding UV coordinate, as returned by
+    /// [add_uv_coordinate].
+    pub fn map_vertex_to_uv(&mut self, vertex_idx: usize, uv_idx: usize) {
+        self.vertex_uv_mapping.insert(vertex_idx, uv_idx);
     }
 
     /// Add a LineString to the boundary by providing its vertex indices in the boundary.
@@ -154,7 +184,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             });
         }
         self.rings.push(vertices.to_vec());
-        Ok(self.rings.len() - 1)
+        Ok(self.rings.len().saturating_sub(1))
     }
 
     /// Add a ring to the boundary by providing its vertex indices in the boundary.
@@ -174,7 +204,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             });
         }
         self.rings.push(vertices.to_vec());
-        Ok(self.rings.len() - 1)
+        Ok(self.rings.len().saturating_sub(1))
     }
 
     /// Starts a new surface.
@@ -252,15 +282,24 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> V::ResourceRef {
+    ) -> Result<V::ResourceRef> {
         let semantic_ref = self.model.add_semantic(semantic);
         let vertex_i = if let Some(i) = index {
+            if i >= self.vertices.len() {
+                return Err(Error::InvalidReference {
+                    element_type: "vertex".to_string(),
+                    index: i,
+                    max_index: self.vertices.len().saturating_sub(1),
+                });
+            }
             i
         } else {
-            self.vertices.len() - 1
+            self.vertices.len().saturating_sub(1)
         };
+
         self.point_semantics.insert(vertex_i, semantic_ref);
-        semantic_ref
+
+        Ok(semantic_ref)
     }
 
     /// Set the Semantic on a LineString.
@@ -281,15 +320,24 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> V::ResourceRef {
+    ) -> Result<V::ResourceRef> {
         let semantic_ref = self.model.add_semantic(semantic);
         let ring_i = if let Some(i) = index {
+            if i >= self.rings.len() {
+                return Err(Error::InvalidReference {
+                    element_type: "ring".to_string(),
+                    index: i,
+                    max_index: self.rings.len().saturating_sub(1),
+                });
+            }
             i
         } else {
-            self.rings.len() - 1
+            self.rings.len().saturating_sub(1)
         };
+
         self.linestring_semantics.insert(ring_i, semantic_ref);
-        semantic_ref
+
+        Ok(semantic_ref)
     }
 
     /// Set the Semantic on a surface.
@@ -310,15 +358,24 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> V::ResourceRef {
+    ) -> Result<V::ResourceRef> {
         let semantic_ref = self.model.add_semantic(semantic);
         let surface_i = if let Some(i) = index {
+            if i >= self.surfaces.len() {
+                return Err(Error::InvalidReference {
+                    element_type: "surface".to_string(),
+                    index: i,
+                    max_index: self.surfaces.len().saturating_sub(1),
+                });
+            }
             i
         } else {
-            self.surfaces.len() - 1
+            self.surfaces.len().saturating_sub(1)
         };
+
         self.surface_semantics.insert(surface_i, semantic_ref);
-        semantic_ref
+
+        Ok(semantic_ref)
     }
 
     /// Set the Material on a surface.
@@ -339,15 +396,62 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         &mut self,
         index: Option<usize>,
         material: V::Material,
-    ) -> V::ResourceRef {
+    ) -> Result<V::ResourceRef> {
         let material_ref = self.model.add_material(material);
         let surface_i = if let Some(i) = index {
+            if i >= self.surfaces.len() {
+                return Err(Error::InvalidReference {
+                    element_type: "surface".to_string(),
+                    index: i,
+                    max_index: self.surfaces.len().saturating_sub(1),
+                });
+            }
             i
         } else {
-            self.surfaces.len() - 1
+            self.surfaces.len().saturating_sub(1)
         };
+
         self.surface_materials.insert(surface_i, material_ref);
-        material_ref
+
+        Ok(material_ref)
+    }
+
+    /// Set the Texture on a surface.
+    /// A surface can only have one material value. The Material is directly added to the
+    /// `model`.
+    ///
+    /// # Parameters
+    ///
+    /// * `index` - The index of the surface that will get the material. The index is the
+    /// value returned by the [add_surface] method. If
+    /// `None`, the Material is added to the last surface in the GeometryBuilder.
+    /// * `material` - The Material instance to add to the surface.
+    ///
+    /// # Returns
+    ///
+    /// The reference to the Material in the resource pool of the `model`.
+    pub fn set_texture_surface(
+        &mut self,
+        index: Option<usize>,
+        texture: V::Texture,
+    ) -> Result<V::ResourceRef> {
+        let texture_ref = self.model.add_texture(texture);
+        let surface_i = if let Some(i) = index {
+            if i >= self.surfaces.len() {
+                return Err(Error::InvalidReference {
+                    element_type: "surface".to_string(),
+                    index: i,
+                    max_index: self.surfaces.len().saturating_sub(1),
+                });
+            }
+            i
+        } else {
+            self.surfaces.len().saturating_sub(1)
+        };
+
+        self.surface_textures.insert(surface_i, texture_ref);
+
+        Ok(texture_ref)
     }
 
     /// Builds the geometry and adds it to the `model`.
@@ -494,6 +598,25 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             }
         }
 
+        let texture_map_optional = if self.surface_textures.is_empty()
+            && self.ring_textures.is_empty()
+            && self.vertex_uv_mapping.is_empty()
+        {
+            None
+        } else {
+            Some(build_texture_map::<V, M>(
+                &boundary,
+                &self.ring_textures,
+                &self.surface_textures,
+                &self.vertex_uv_mapping,
+            ))
+        };
+        if texture_map_optional.is_some() {
+            for uv in self.uv_coordinates {
+                self.model.add_uv_coordinate(uv)?;
+            }
+        }
+
         // Create the geometry
         let geometry = V::Geometry::new(
             self.type_geometry,
@@ -501,7 +624,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             Some(boundary),
             semantic_map_optional,
             material_map_optional,
-            None,
+            texture_map_optional,
             None,
             self.transformation_matrix,
         );
@@ -581,14 +704,97 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     }
 }
 
+fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
+    boundary: &Boundary<V::VertexRef>,
+    ring_textures: &HashMap<usize, V::ResourceRef>,
+    surface_textures: &HashMap<usize, V::ResourceRef>,
+    vertex_uv_mapping: &HashMap<usize, usize>,
+) -> TextureMap<V::VertexRef, V::ResourceRef> {
+    // Pre-allocate the texture map with correct capacity
+    let mut texture_map = TextureMap::<V::VertexRef, V::ResourceRef>::with_capacity(
+        boundary.vertices.len(),
+        boundary.rings.len(),
+        ring_textures.len(),
+        boundary.surfaces.len(),
+        boundary.shells.len(),
+        boundary.solids.len(),
+    );
+
+    // Maps original builder vertex indices to final boundary indices
+    // We'll populate this during boundary traversal
+    let mut orig_to_boundary_idx = vec![None; boundary.vertices.len()];
+
+    // Single pass through the boundary with the counter
+    let mut counter = BoundaryCounter::<V::VertexRef>::default();
+
+    // Track the current original vertex index
+    let mut current_vertex_index = 0;
+
+    // Process each surface
+    for surface_idx in 0..boundary.surfaces.len() {
+        let surface_start = boundary.surfaces[surface_idx].to_usize();
+        let surface_end = boundary
+            .surfaces
+            .get(surface_idx + 1)
+            .map_or(boundary.rings.len(), |idx| idx.to_usize());
+
+        // Get the texture for this surface (if any)
+        let surface_texture = surface_textures.get(&surface_idx).copied();
+
+        // Process each ring in this surface
+        for ring_idx in surface_start..surface_end {
+            let ring_start = boundary.rings[ring_idx].to_usize();
+            let ring_end = boundary
+                .rings
+                .get(ring_idx + 1)
+                .map_or(boundary.vertices.len(), |idx| idx.to_usize());
+
+            // Get ring-specific texture (if any) or fall back to surface texture
+            let texture_ref = ring_textures.get(&ring_idx).copied().or(surface_texture);
+
+            // If we have a texture for this ring, add it to the texture map
+            if let Some(texture_ref) = texture_ref {
+                texture_map.add_ring(boundary.rings[ring_idx]);
+                texture_map.add_ring_texture(Some(texture_ref));
+
+                // Process each vertex in this ring
+                for vertex_idx in ring_start..ring_end {
+                    // Map the original vertex index to the boundary vertex index
+                    if current_vertex_index < orig_to_boundary_idx.len() {
+                        orig_to_boundary_idx[current_vertex_index] = Some(vertex_idx);
+                    }
+                    current_vertex_index += 1;
+                }
+            }
+        }
+    }
+
+    // Now map the UV coordinates to boundary vertices
+    for (vertex_idx, uv_idx) in vertex_uv_mapping {
+        if let Some(Some(boundary_idx)) = orig_to_boundary_idx.get(*vertex_idx) {
+            // Convert UV index to VertexIndex
+            if let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx) {
+                // Safely assign the UV coordinate to the boundary vertex
+                if *boundary_idx < texture_map.vertices().len() {
+                    texture_map.vertices_mut()[*boundary_idx] = Some(uv_vertex_idx);
+                }
+            }
+        }
+    }
+
+    texture_map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::cityjson::geometry::GeometryType;
-    use crate::prelude::{MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait};
+    use crate::prelude::{
+        ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait, TextureTrait,
+    };
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
-    use crate::v1_1::{CityModel, OwnedMaterial, Semantic, SemanticType};
+    use crate::v1_1::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
     use crate::CityModelType;
 
     // Test helper to create a new model
@@ -774,14 +980,18 @@ mod tests {
             .filter_map(|s| s.as_ref())
             .cloned()
             .collect();
-        assert!(sem_refs.contains(&sem_ref0));
-        assert!(sem_refs.contains(&sem_ref1));
+        assert!(sem_refs.contains(sem_ref0.as_ref().unwrap()));
+        assert!(sem_refs.contains(sem_ref1.as_ref().unwrap()));
 
         // Verify the semantics themselves
-        let semantic0 = model.get_semantic(sem_ref0).expect("Semantic 0 not found");
+        let semantic0 = model
+            .get_semantic(sem_ref0.unwrap())
+            .expect("Semantic 0 not found");
         assert_eq!(semantic0.type_semantic(), &SemanticType::TransportationHole);
 
-        let semantic1 = model.get_semantic(sem_ref1).expect("Semantic 1 not found");
+        let semantic1 = model
+            .get_semantic(sem_ref1.unwrap())
+            .expect("Semantic 1 not found");
         assert_eq!(
             semantic1.type_semantic(),
             &SemanticType::TransportationMarking
@@ -858,11 +1068,13 @@ mod tests {
 
         // Only the second linestring should have a semantic
         assert!(linestring_semantics[0].is_none());
-        assert_eq!(linestring_semantics[1], Some(sem_ref));
+        assert_eq!(linestring_semantics[1], Some(sem_ref.clone().unwrap()));
         assert!(linestring_semantics[2].is_none());
 
         // Verify the semantic itself
-        let semantic = model.get_semantic(sem_ref).expect("Semantic not found");
+        let semantic = model
+            .get_semantic(sem_ref.unwrap())
+            .expect("Semantic not found");
         assert_eq!(
             semantic.type_semantic(),
             &SemanticType::TransportationMarking
@@ -904,17 +1116,32 @@ mod tests {
         // Surface 1: Triangle (no semantic or material)
         let surface0 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p1, p4, p0])
+            .add_surface_outer_ring(&[p0, p1, p4])
             .expect("Failed to add outer ring");
 
-        // Surface 2: Square with semantic
+        // Surface 2: Square with semantic and texture
         let surface1 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p1, p2, p5, p6, p1])
+            .add_surface_outer_ring(&[p1, p2, p5, p6])
             .expect("Failed to add outer ring");
         builder
             .add_surface_inner_ring(&[p0, p1, p2])
             .expect("Failed to add inner ring");
+
+        // Add UV coordinates for each vertex
+        let uv0 = builder.add_uv_coordinate(0.0, 0.0);
+        let uv1 = builder.add_uv_coordinate(1.0, 0.0);
+        let uv2 = builder.add_uv_coordinate(1.0, 1.0);
+        let uv3 = builder.add_uv_coordinate(0.0, 1.0);
+        // Map vertices to UV coordinates
+        builder.map_vertex_to_uv(p1, uv0);
+        builder.map_vertex_to_uv(p2, uv1);
+        builder.map_vertex_to_uv(p5, uv2);
+        builder.map_vertex_to_uv(p6, uv3);
+        // Create a texture
+        let wall_texture = OwnedTexture::new("facade.jpg".to_string(), ImageType::Jpg);
+        // Set the texture for the surface
+        let texture_ref = builder.set_texture_surface(Some(surface0), wall_texture);
 
         // Create and assign semantic for the second surface
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
@@ -923,7 +1150,7 @@ mod tests {
         // Surface 3: Polygon with material
         let surface2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p2, p3, p4, p8, p7, p2])
+            .add_surface_outer_ring(&[p2, p3, p4, p8, p7])
             .expect("Failed to add outer ring");
 
         // Create and assign material for the third surface
@@ -952,9 +1179,9 @@ mod tests {
 
         // Verify the nested representation
         let nested_expected = vec![
-            vec![vec![0, 1, 4, 0]],
-            vec![vec![1, 2, 5, 6, 1], vec![0, 1, 2]],
-            vec![vec![2, 3, 4, 8, 7, 2]],
+            vec![vec![0, 1, 4]],
+            vec![vec![1, 2, 5, 6], vec![0, 1, 2]],
+            vec![vec![2, 3, 4, 8, 7]],
         ];
         assert_eq!(model.vertex_count(), 9);
         assert_eq!(nested, nested_expected);
@@ -968,11 +1195,13 @@ mod tests {
 
         // Only the second surface should have a semantic
         assert!(surface_semantics[0].is_none());
-        assert_eq!(surface_semantics[1], Some(sem_ref));
+        assert_eq!(surface_semantics[1], Some(sem_ref.clone().unwrap()));
         assert!(surface_semantics[2].is_none());
 
         // Verify the semantic itself
-        let semantic = model.get_semantic(sem_ref).expect("Semantic not found");
+        let semantic = model
+            .get_semantic(sem_ref.unwrap())
+            .expect("Semantic not found");
         assert_eq!(semantic.type_semantic(), &SemanticType::RoofSurface);
 
         // Check materials
@@ -985,12 +1214,42 @@ mod tests {
         // Only the third surface should have a material
         assert!(surface_materials[0].is_none());
         assert!(surface_materials[1].is_none());
-        assert_eq!(surface_materials[2], Some(mat_ref));
+        assert_eq!(surface_materials[2], Some(mat_ref.clone().unwrap()));
 
         // Verify the material itself
-        let material = model.get_material(mat_ref).expect("Material not found");
+        let material = model
+            .get_material(mat_ref.unwrap())
+            .expect("Material not found");
         assert_eq!(material.name(), "Wall");
         assert!(material.diffuse_color().is_some());
         assert_eq!(material.ambient_intensity().unwrap(), 0.5);
+
+        // Check textures
+        let textures = geometry.textures().expect("No textures found");
+
+        // Verify we have texture mappings
+        assert!(textures.vertices().len() > 0, "No texture vertices found");
+        assert!(textures.rings().len() > 0, "No texture rings found");
+        assert!(textures.ring_textures().len() > 0, "No ring textures found");
+
+        // Verify the texture references
+        let texture_refs: Vec<ResourceId32> = textures
+            .ring_textures()
+            .iter()
+            .filter_map(|t| t.as_ref())
+            .cloned()
+            .collect();
+
+        assert!(
+            texture_refs.contains(texture_ref.as_ref().unwrap()),
+            "First texture reference not found"
+        );
+
+        // Verify the texture objects themselves
+        let texture1 = model
+            .get_texture(texture_ref.unwrap())
+            .expect("Texture 1 not found");
+        assert_eq!(texture1.image(), "facade.jpg");
+        assert_eq!(texture1.image_type(), &ImageType::Jpg);
     }
 }
