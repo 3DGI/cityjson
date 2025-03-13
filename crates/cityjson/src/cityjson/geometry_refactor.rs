@@ -15,12 +15,6 @@ struct SurfaceInProgress {
 }
 
 #[derive(Default)]
-struct ShellInProgress {
-    outer_surfaces: Vec<usize>, // indices to outer surfaces
-    inner_surfaces: Vec<usize>, // indices to inner surfaces (voids)
-}
-
-#[derive(Default)]
 struct SolidInProgress {
     outer_shell: Option<usize>, // index to outer shell
     inner_shells: Vec<usize>,   // indices to inner shells (voids)
@@ -48,7 +42,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     vertex_uv_mapping: HashMap<usize, usize>,
     rings: Vec<Vec<usize>>,           // indices into vertices
     surfaces: Vec<SurfaceInProgress>, // surfaces with their rings
-    shells: Vec<ShellInProgress>,     // A solid with its shells, each shell with their surfaces
+    shells: Vec<Vec<usize>>,          // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
     // Active element tracking
     active_linestring: Option<usize>, // active linestring being built
@@ -260,6 +254,88 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
         let ring_idx = self.add_ring(vertices)?;
         self.surfaces[surface_idx].inner_rings.push(ring_idx);
+        Ok(())
+    }
+
+    /// Adds a shell to the boundary.
+    ///
+    /// # Errors
+    ///
+    /// - `InvalidShell`: If less than 4 surfaces are provided.
+    pub fn add_shell(&mut self, surfaces: &[usize]) -> Result<()> {
+        if surfaces.len() < 4 {
+            return Err(Error::InvalidShell {
+                reason: "shell must have at least 4 surfaces".to_string(),
+                surface_count: surfaces.len(),
+            });
+        }
+        self.shells.push(surfaces.to_vec());
+        Ok(())
+    }
+
+    /// Starts a new solid.
+    ///
+    /// Returns the index of the new solid.
+    pub fn start_solid(&mut self) -> usize {
+        let idx = self.solids.len();
+        self.solids.push(SolidInProgress::default());
+        self.active_solid = Some(idx);
+        idx
+    }
+
+    /// Sets the outer shell for the current solid.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - No solid is currently being built (`NoActiveElement`)
+    /// - The shell index is invalid (`InvalidReference`)
+    /// - An outer shell is already set (`InvalidGeometry`)
+    pub fn add_solid_outer_shell(&mut self, shell_idx: usize) -> Result<()> {
+        let solid_idx = self.active_solid.ok_or_else(|| Error::NoActiveElement {
+            element_type: "solid".to_string(),
+        })?;
+
+        if shell_idx >= self.shells.len() {
+            return Err(Error::InvalidReference {
+                element_type: "shell".to_string(),
+                index: shell_idx,
+                max_index: self.shells.len().saturating_sub(1),
+            });
+        }
+
+        self.solids[solid_idx].outer_shell = Some(shell_idx);
+        Ok(())
+    }
+
+    /// Adds an inner shell to the active solid.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - No solid is currently being built (`NoActiveElement`)
+    /// - The shell index is invalid (`InvalidReference`)
+    /// - The solid has no outer shell (`MissingOuterElement`)
+    pub fn add_solid_inner_shell(&mut self, shell_idx: usize) -> Result<()> {
+        let solid_idx = self.active_solid.ok_or_else(|| Error::NoActiveElement {
+            element_type: "solid".to_string(),
+        })?;
+
+        if shell_idx >= self.shells.len() {
+            return Err(Error::InvalidReference {
+                element_type: "shell".to_string(),
+                index: shell_idx,
+                max_index: self.shells.len().saturating_sub(1),
+            });
+        }
+
+        if self.solids[solid_idx].outer_shell.is_none() {
+            return Err(Error::MissingOuterElement {
+                context: "Cannot add inner shell before outer shell is set".to_string(),
+            });
+        }
+
+        self.solids[solid_idx].inner_shells.push(shell_idx);
         Ok(())
     }
 
@@ -716,16 +792,6 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             }
         }
 
-        // Verify shells
-        for (i, shell) in self.shells.iter().enumerate() {
-            if shell.outer_surfaces.is_empty() {
-                return Err(Error::IncompleteGeometry(format!(
-                    "Shell {} has no outer surfaces",
-                    i
-                )));
-            }
-        }
-
         // Verify solids
         for (i, solid) in self.solids.iter().enumerate() {
             if solid.outer_shell.is_none() {
@@ -797,7 +863,10 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
                 .map_or(boundary.vertices.len(), |idx| idx.to_usize());
 
             // Get ring-specific texture (if any) or fall back to surface texture
-            let texture_ref = ring_textures.get(&builder_ring_idx).copied().or(surface_texture);
+            let texture_ref = ring_textures
+                .get(&builder_ring_idx)
+                .copied()
+                .or(surface_texture);
 
             // If we have a texture for this ring, add it to the texture map
             if let Some(texture_ref) = texture_ref {
@@ -809,7 +878,8 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
                 for v_offset in 0..(ring_end - ring_start) {
                     let builder_vertex_idx = v_offset;
                     let boundary_vertex_idx = current_vertex_offset.to_usize() + v_offset;
-                    orig_builder_idx_to_boundary_idx.insert(builder_vertex_idx, boundary_vertex_idx);
+                    orig_builder_idx_to_boundary_idx
+                        .insert(builder_vertex_idx, boundary_vertex_idx);
                 }
             }
 

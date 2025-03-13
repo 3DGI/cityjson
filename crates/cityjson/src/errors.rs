@@ -20,6 +20,10 @@ pub enum Error {
         maximum: usize,
     },
     InvalidGeometry(String),
+    InvalidShell {
+        reason: String,
+        surface_count: usize,
+    },
     InvalidRing {
         reason: String,
         vertex_count: usize,
@@ -82,6 +86,16 @@ impl Display for Error {
             }
             Error::InvalidGeometry(msg) => {
                 write!(f, "{}", msg)
+            }
+            Error::InvalidShell {
+                reason,
+                surface_count,
+            } => {
+                write!(
+                    f,
+                    "Invalid shell: {} (surface count: {})",
+                    reason, surface_count
+                )
             }
             Error::InvalidRing {
                 reason,
