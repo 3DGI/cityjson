@@ -553,7 +553,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                 }
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
-                for (_surface_idx, surface) in self.surfaces.iter().enumerate() {
+                for surface in &self.surfaces {
                     if let Some(outer_ring_idx) = surface.outer_ring {
                         boundary.surfaces.push(counter.ring_offset());
 
@@ -634,6 +634,32 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
     fn validate_structure(&self) -> Result<()> {
         match self.type_geometry {
+            GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                if self.solids.is_empty()
+                    || self.shells.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "multi- or composite solid geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
+            GeometryType::Solid => {
+                if !self.solids.is_empty()
+                    || self.shells.is_empty()
+                    || self.surfaces.is_empty()
+                    || self.rings.is_empty()
+                    || self.vertices.is_empty()
+                {
+                    return Err(Error::InvalidGeometryType {
+                        expected: "single solid geometry".to_string(),
+                        found: self.format_counts(),
+                    });
+                }
+            }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
@@ -680,10 +706,31 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             }
         }
 
+        // Verify surfaces
         for (i, surface) in self.surfaces.iter().enumerate() {
             if surface.outer_ring.is_none() {
                 return Err(Error::IncompleteGeometry(format!(
                     "Surface {} missing outer ring",
+                    i
+                )));
+            }
+        }
+
+        // Verify shells
+        for (i, shell) in self.shells.iter().enumerate() {
+            if shell.outer_surfaces.is_empty() {
+                return Err(Error::IncompleteGeometry(format!(
+                    "Shell {} has no outer surfaces",
+                    i
+                )));
+            }
+        }
+
+        // Verify solids
+        for (i, solid) in self.solids.iter().enumerate() {
+            if solid.outer_shell.is_none() {
+                return Err(Error::IncompleteGeometry(format!(
+                    "Solid {} missing outer shell",
                     i
                 )));
             }
