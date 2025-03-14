@@ -6,10 +6,11 @@ use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait, TransformTrait, UVCoordinate, Vertices};
+use crate::prelude::{Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait, RealWorldCoordinate, TransformTrait, UVCoordinate, Vertices};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
-use crate::{errors, CityModelType};
+use crate::{CityModelType};
+use crate::errors::Result;
 use std::fmt::Debug;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
@@ -76,7 +77,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
     fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture>;
     fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture>;
-    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> errors::Result<VertexIndex<V::VertexRef>>;
+    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<V::VertexRef>>;
     fn get_uv_coordinate(&self, index: VertexIndex<V::VertexRef>) -> Option<&UVCoordinate>;
     /// Add a geometry to the model
     fn add_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
@@ -86,11 +87,22 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
     fn add_vertex(
         &mut self,
         coordinate: V::CoordinateType,
-    ) -> errors::Result<VertexIndex<V::VertexRef>>;
-    fn vertices(&self) -> &Vertices<V::VertexRef, V::CoordinateType>;
-    fn vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, V::CoordinateType>;
+    ) -> Result<VertexIndex<V::VertexRef>>;
     /// Get a reference to a vertex coordinate
     fn get_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&V::CoordinateType>;
+    /// Get a reference to the vertices pool
+    fn vertices(&self) -> &Vertices<V::VertexRef, V::CoordinateType>;
+    /// Get a mutable reference to the vertices pool
+    fn vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, V::CoordinateType>;
+    /// Add a vertex coordinate of a geometry template
+    fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<V::VertexRef>>;
+    fn get_template_vertex(&self, index: VertexIndex<V::VertexRef>) -> Option<&RealWorldCoordinate>;
+    fn template_vertices(&self) -> &Vertices<V::VertexRef, RealWorldCoordinate>;
+    fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
+    /// Add a geometry template
+    fn add_template_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
+    fn template_geometries(&self) -> &V::GeometryPool;
+    fn template_geometries_mut(&mut self) -> &mut V::GeometryPool;
     /// Get the number of geometries
     fn geometry_count(&self) -> usize;
     /// Get the number of semantics

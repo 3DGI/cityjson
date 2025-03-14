@@ -1,10 +1,6 @@
 use crate::cityjson::geometry::boundary::BoundaryCounter;
-use crate::errors;
 use crate::errors::{Error, Result};
-use crate::prelude::{
-    Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD,
-    MaterialMap, SemanticMap, TextureMap, UVCoordinate, VertexIndex, VertexRef,
-};
+use crate::prelude::{Boundary, CityModelTrait, CityModelTypes, Coordinate, GeometryTrait, GeometryType, LoD, MaterialMap, RealWorldCoordinate, SemanticMap, TextureMap, UVCoordinate, VertexIndex, VertexRef};
 use std::collections::HashMap;
 
 /// Represents a surface under construction with one outer ring and optional inner rings
@@ -25,6 +21,19 @@ enum VertexOrPoint<V: VertexRef, C: Coordinate> {
     Point(C),
 }
 
+enum TemplateVertexOrPoint<V: VertexRef> {
+    Vertex(VertexIndex<V>),
+    Point(RealWorldCoordinate),
+}
+
+/// Controls the [GeometryBuilder] to build a regular geometry or a geometry template.
+pub enum BuilderMode {
+    /// Build a regular geometry
+    Regular,
+    /// Build a geometry template
+    Template
+}
+
 /// Geometry builder.
 ///
 /// The GeometryBuilder is generic over the CityModel and Coordinate type, thus it can
@@ -33,8 +42,11 @@ enum VertexOrPoint<V: VertexRef, C: Coordinate> {
 pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     model: &'a mut M,
     type_geometry: GeometryType,
+    builder_mode: BuilderMode,
     lod: Option<LoD>,
+    template_geometry: Option<V::ResourceRef>,
     transformation_matrix: Option<[f64; 16]>,
+    template_vertices: Vec<TemplateVertexOrPoint<V::VertexRef>>,
     vertices: Vec<VertexOrPoint<V::VertexRef, V::CoordinateType>>,
     // UV coordinates storage
     uv_coordinates: Vec<UVCoordinate>,
@@ -67,12 +79,15 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// # Parameters
     /// * `model` - A CityModel instance.
     /// * `type_geometry` - The geometry type to build.
-    pub fn new(model: &'a mut M, type_geometry: GeometryType) -> Self {
+    pub fn new(model: &'a mut M, type_geometry: GeometryType, builder_mode: BuilderMode) -> Self {
         Self {
             model,
             type_geometry,
+            builder_mode,
             lod: None,
+            template_geometry: None,
             transformation_matrix: None,
+            template_vertices: Vec::new(),
             vertices: Vec::new(),
             uv_coordinates: Vec::new(),
             vertex_uv_mapping: Default::default(),
@@ -99,11 +114,37 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         self
     }
 
-    /// Set the Transformation Matrix on the Geometry (for `GeometryInstance` only).
+    /// Specifies the template geometry to reference (for a `GeometryInstance` only).
+    ///
+    /// # Parameters
+    ///
+    /// * `template_ref` - Reference to a geometry in the model
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
     ///
     /// # Errors
+    /// * [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
+    pub fn with_template(mut self, template_ref: V::ResourceRef) -> Result<Self> {
+        if self.type_geometry != GeometryType::GeometryInstance {
+            return Err(Error::InvalidGeometryType {
+                expected: "GeometryInstance".to_string(),
+                found: self.type_geometry.to_string(),
+            });
+        }
+        self.template_geometry = Some(template_ref);
+        Ok(self)
+    }
+
+    /// Set the Transformation Matrix on the Geometry (for `GeometryInstance` only).
     ///
-    /// Returns [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
+    /// # Returns
+    ///
+    /// Self for method chaining
+    ///
+    /// # Errors
+    /// * [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
     pub fn with_transformation_matrix(mut self, transformation_matrix: [f64; 16]) -> Result<Self> {
         if self.type_geometry != GeometryType::GeometryInstance {
             return Err(Error::InvalidGeometryType {
@@ -128,6 +169,11 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         self.vertices.len().saturating_sub(1)
     }
 
+    pub fn add_template_point(&mut self, point: RealWorldCoordinate) -> usize {
+        self.template_vertices.push(TemplateVertexOrPoint::Point(point));
+        self.vertices.len().saturating_sub(1)
+    }
+
     /// Add an existing vertex to the boundary by providing its reference in the vertex
     /// pool. Use this method when reusing existing vertices for the boundary. Can be
     /// used interchangeably with [add_point] for building a Boundary.
@@ -136,8 +182,16 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     ///
     /// The index of the added vertex in the boundary.
     pub fn add_vertex(&mut self, vertex: VertexIndex<V::VertexRef>) -> usize {
-        self.vertices.push(VertexOrPoint::Vertex(vertex));
-        self.vertices.len().saturating_sub(1)
+        match self.builder_mode {
+            BuilderMode::Regular => {
+                self.vertices.push(VertexOrPoint::Vertex(vertex));
+                self.vertices.len().saturating_sub(1)
+            }
+            BuilderMode::Template => {
+                self.template_vertices.push(TemplateVertexOrPoint::Vertex(vertex));
+                self.template_vertices.len().saturating_sub(1)
+            }
+        }
     }
 
     /// Add a new UV coordinate and return its index.
@@ -241,7 +295,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// - No surface is currently being built (`NoActiveElement`)
     /// - The current surface has no outer ring (`MissingOuterElement`)
     /// - The ring is invalid (`InvalidRing`)
-    pub fn add_surface_inner_ring(&mut self, vertices: &[usize]) -> errors::Result<()> {
+    pub fn add_surface_inner_ring(&mut self, vertices: &[usize]) -> Result<()> {
         let surface_idx = self.active_surface.ok_or_else(|| Error::NoActiveElement {
             element_type: "surface".to_string(),
         })?;
@@ -940,8 +994,28 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                 }
                 return Ok(());
             }
-            _ => {
-                unimplemented!()
+            GeometryType::GeometryInstance => {
+                if self.template_geometry.is_none() {
+                    return Err(Error::IncompleteGeometry(
+                        "GeometryInstance requires a geometry template".to_string(),
+                    ));
+                }
+                if self.transformation_matrix.is_none() {
+                    return Err(Error::IncompleteGeometry(
+                        "GeometryInstance requires a transformation matrix".to_string(),
+                    ));
+                }
+                if !self.solids.is_empty()
+                    || !self.shells.is_empty()
+                    || !self.surfaces.is_empty()
+                    || !self.rings.is_empty()
+                    || self.vertices.len() != 1
+                {
+                    return Err(Error::IncompleteGeometry (
+                        "GeometryInstance must have a boundary with only a single vertex, which is the reference point for the template transformations".to_string()
+                    ));
+                }
+                return Ok(());
             }
         }
 
@@ -1075,7 +1149,10 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
 mod tests {
     use super::*;
     use crate::cityjson::geometry::GeometryType;
-    use crate::prelude::{BoundaryType, ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait, TextureTrait};
+    use crate::prelude::{
+        BoundaryType, ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait,
+        TextureTrait,
+    };
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v1_1::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
@@ -1096,7 +1173,7 @@ mod tests {
         let v2 = model.add_vertex(QuantizedCoordinate::new(7, 8, 9)).unwrap();
 
         // Create a builder for MultiPoint geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
 
         // Add existing vertices
         builder.add_vertex(v0);
@@ -1132,7 +1209,7 @@ mod tests {
         let mut model = create_test_model();
 
         // Create a builder for MultiPoint geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
 
         // Add points
         builder.add_point(QuantizedCoordinate::new(1, 2, 3));
@@ -1177,7 +1254,7 @@ mod tests {
             .unwrap();
 
         // Create a builder for MultiPoint geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
 
         // Mix adding vertices and points
         builder.add_vertex(v0);
@@ -1214,7 +1291,7 @@ mod tests {
         let mut model = create_test_model();
 
         // Create a builder for MultiPoint geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
 
         // Add points
         let p0 = builder.add_point(QuantizedCoordinate::new(1, 2, 3));
@@ -1291,7 +1368,7 @@ mod tests {
         let v1 = model.add_vertex(QuantizedCoordinate::new(1, 0, 0)).unwrap();
 
         // Create a builder for MultiLineString geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiLineString, BuilderMode::Regular);
 
         // Add a mix of existing vertices and new points
         let p0 = builder.add_vertex(v0);
@@ -1382,7 +1459,7 @@ mod tests {
             .unwrap();
 
         // Create a builder for MultiSurface geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular);
 
         // Add a mix of existing vertices and new points
         let p0 = builder.add_vertex(v0);
@@ -1542,7 +1619,7 @@ mod tests {
         let mut model = create_test_model();
 
         // Create a builder for Solid geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::Solid);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular);
 
         // Add vertices for a simple cube
         let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // bottom-front-left
@@ -1675,7 +1752,7 @@ mod tests {
         let mut model = create_test_model();
 
         // Create a builder for MultiSolid geometry
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSolid);
+        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSolid, BuilderMode::Regular);
 
         // Add vertices for first cube (small cube at origin)
         let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // small cube - bottom-front-left

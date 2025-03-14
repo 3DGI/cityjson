@@ -6,7 +6,7 @@ use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate};
+use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v1_1::appearance::material::Material;
@@ -71,6 +71,10 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     vertices: Vertices<VR, QuantizedCoordinate>,
     /// Pool of geometries
     geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
+    /// Pool of vertex coordinates used by the geometry templates in template_geometries
+    template_vertices: Vertices<VR, RealWorldCoordinate>,
+    /// Pool of geometry templates
+    template_geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
     /// Pool of semantic objects
     semantics: DefaultResourcePool<Semantic<RR, SS>, RR>,
     /// Pool of material objects
@@ -95,6 +99,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             transform: None,
             vertices: Vertices::new(),
             geometries: DefaultResourcePool::new_pool(),
+            template_vertices: Vertices::new(),
+            template_geometries: DefaultResourcePool::new_pool(),
             semantics: DefaultResourcePool::new_pool(),
             materials: DefaultResourcePool::new_pool(),
             textures: DefaultResourcePool::new_pool(),
@@ -121,6 +127,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             transform: None,
             vertices: Vertices::with_capacity(vertex_capacity),
             geometries: DefaultResourcePool::with_capacity(geometry_capacity),
+            template_vertices: Vertices::new(),
+            template_geometries: DefaultResourcePool::new(),
             semantics: DefaultResourcePool::with_capacity(semantic_capacity),
             materials: DefaultResourcePool::with_capacity(material_capacity),
             textures: DefaultResourcePool::with_capacity(texture_capacity),
@@ -187,7 +195,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
     fn add_vertex(
         &mut self,
         coordinate: QuantizedCoordinate,
-    ) -> crate::errors::Result<VertexIndex<VR>> {
+    ) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
@@ -259,12 +267,40 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         &mut self.cityobjects
     }
 
-    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> crate::errors::Result<VertexIndex<VR>> {
+    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices_texture.push(uvcoordinate)
     }
 
     fn get_uv_coordinate(&self, index: VertexIndex<VR>) -> Option<&UVCoordinate> {
         self.vertices_texture.get(index)
+    }
+
+    fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
+        self.template_vertices.push(coordinate)
+    }
+
+    fn get_template_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
+        self.template_vertices.get(index)
+    }
+
+    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR>) -> RR {
+        self.template_geometries.add(geometry)
+    }
+
+    fn template_geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR>, RR> {
+        &self.template_geometries
+    }
+
+    fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR>, RR> {
+        &mut self.template_geometries
+    }
+
+    fn template_vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
+        &self.template_vertices
+    }
+
+    fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
+        &mut self.template_vertices
     }
 }
 
