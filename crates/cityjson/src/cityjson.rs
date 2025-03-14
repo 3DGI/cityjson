@@ -11,7 +11,6 @@ pub mod geometry;
 pub mod metadata;
 pub mod transform;
 pub mod vertex;
-pub mod geometry_refactor;
 
 #[cfg(test)]
 mod tests {

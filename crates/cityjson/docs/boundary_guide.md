@@ -31,66 +31,7 @@ The nested representation (defined in the `nested` module) mirrors the CityJSON 
 The `cityjson-rs` library uses `GeometryBuilder` to create geometries with proper boundaries:
 
 ```rust
-use cityjson::prelude::*;
-use cityjson::v1_1::*;
 
-// Example: Create a simple building geometry (a cube)
-fn create_building<'a, V: CityModelTypes, M: CityModelTrait<V>>(
-    model: &'a mut M
-) -> Result<()> {
-    // Create a geometry builder for a solid
-    let mut builder = GeometryBuilder::new(model, GeometryType::Solid)
-        .with_lod(LoD::LoD1);
-    
-    // Add vertices for a cube (bottom face)
-    let v0 = builder.add_vertex(0.0, 0.0, 0.0);
-    let v1 = builder.add_vertex(10.0, 0.0, 0.0);
-    let v2 = builder.add_vertex(10.0, 10.0, 0.0);
-    let v3 = builder.add_vertex(0.0, 10.0, 0.0);
-    
-    // Add vertices for a cube (top face)
-    let v4 = builder.add_vertex(0.0, 0.0, 5.0);
-    let v5 = builder.add_vertex(10.0, 0.0, 5.0);
-    let v6 = builder.add_vertex(10.0, 10.0, 5.0);
-    let v7 = builder.add_vertex(0.0, 10.0, 5.0);
-    
-    // Start creating the solid with one outer shell
-    let solid_idx = builder.start_solid();
-    let shell_idx = builder.start_shell();
-    
-    // Create bottom face
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v0, v1, v2, v3, v0])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    // Create top face
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v4, v7, v6, v5, v4])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    // Create four side faces
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v0, v4, v5, v1, v0])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v1, v5, v6, v2, v1])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v2, v6, v7, v3, v2])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    let surface_idx = builder.start_surface(None);
-    builder.set_surface_outer_ring(&[v3, v7, v4, v0, v3])?;
-    builder.add_shell_outer_surface(surface_idx)?;
-    
-    // Set the shell as the outer shell of the solid
-    builder.set_solid_outer_shell(shell_idx)?;
-    
-    // Build the geometry and add it to the model
-    builder.build()
-}
 ```
 
 ## Performance Considerations

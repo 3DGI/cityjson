@@ -1,6 +1,7 @@
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 use std::collections::HashMap;
+use cityjson::cityjson::geometry::BuilderMode;
 
 #[test]
 fn build_dummy_complete_owned() -> Result<()> {
@@ -107,8 +108,8 @@ fn build_dummy_complete_owned() -> Result<()> {
         {
             // Add point location to the address.
             let mut location_builder =
-                GeometryBuilder::new(&mut model, GeometryType::MultiPoint).with_lod(LoD::LoD1);
-            let _location_p = location_builder.add_vertex(102.0, 103.0, 1.0);
+                GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular).with_lod(LoD::LoD1);
+            let _location_p = location_builder.add_point(QuantizedCoordinate::new(102, 103, 1));
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
@@ -134,68 +135,59 @@ fn build_dummy_complete_owned() -> Result<()> {
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
         {
-            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid).with_lod(LoD::LoD2_1);
-            let v0 = geometry_builder.add_vertex(102.0, 103.0, 1.0); // todo: should be able to reuse a vertex from the pool
-            let v1 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
-            let v2 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
-            let v3 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
-
-            // For a Solid, we don't need the shell index, just need to start the one
-            // shell that it has.
-            let _shell_i = geometry_builder.start_shell();
+            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular).with_lod(LoD::LoD2_1);
+            let v0 = geometry_builder.add_point(QuantizedCoordinate::new(102, 103, 1)); // todo: should be able to reuse a vertex from the pool
+            let v1 = geometry_builder.add_point(QuantizedCoordinate::new( 11, 910, 43));
+            let v2 = geometry_builder.add_point(QuantizedCoordinate::new(25, 744, 22));
+            let v3 = geometry_builder.add_point(QuantizedCoordinate::new(23, 88, 5));
 
             // 0th Surface ---
             // Geometry
-            let surface_0 = geometry_builder.start_surface(Some(SemanticType::RoofSurface)); // todo: probably not necessary to set semantic type here
-            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: how to handle errors properly?
+            let surface_0 = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: add_outer_ring would take the ring idx returned by add_ring
             // Semantic
             let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
             let sem_attr = roof_semantic.attributes_mut();
             sem_attr.insert("surfaceAttribute".to_string(), AttributeValue::Bool(true));
-            geometry_builder.set_surface_semantic(roof_semantic.clone())?;
+            geometry_builder.set_semantic_surface(None, roof_semantic.clone())?;
             // Material
-            geometry_builder.set_surface_material(material_irradiation.clone())?;
-            geometry_builder.set_surface_material(material_red.clone())?;
-            // Add the surface to the shell
-            // todo: builder.add_ring() ? what's that for?
-            geometry_builder.add_shell_outer_surface(surface_0)?; // todo: set_* and add_* methods are confusing
+            geometry_builder.set_material_surface(None, material_irradiation.clone())?; // todo: for material and texture, i could remove the _surface suffix, since only surfaces can have them
+            geometry_builder.set_material_surface(None, material_red.clone())?;
+
             // todo: figure out setting texture to vertices etc.
             // todo: set texture theme on geometry "winter-textures"
 
             // 1st Surface ---
-            let surface_1 = geometry_builder.start_surface(Some(SemanticType::RoofSurface));
-            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
+            let surface_1 = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?;
             // We reuse the previously created Semantic
-            geometry_builder.set_surface_semantic(roof_semantic)?;
-            geometry_builder.set_surface_material(material_irradiation.clone())?;
-            geometry_builder.set_surface_material(material_red.clone())?;
-            geometry_builder.add_shell_outer_surface(surface_1)?;
+            geometry_builder.set_semantic_surface(None, roof_semantic)?;
+            geometry_builder.set_material_surface(None, material_irradiation.clone())?;
+            geometry_builder.set_material_surface(None, material_red.clone())?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
-            let surface_2 = geometry_builder.start_surface(None);
-            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
-            geometry_builder.set_surface_material(material_irradiation.clone())?;
-            geometry_builder.set_surface_material(material_red.clone())?;
-            geometry_builder.add_shell_outer_surface(surface_2)?;
+            let surface_2 = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: same here, add_outer_ring would be sufficient
+            geometry_builder.set_material_surface(None, material_irradiation.clone())?;
+            geometry_builder.set_material_surface(None, material_red.clone())?;
 
             // 3rd Surface ---
             // This surface has a type from an Extension
             let semantic_extension_type = "+PatioDoor".to_string();
-            let surface_3 = geometry_builder.start_surface(Some(SemanticType::Extension(semantic_extension_type.clone())));
-            geometry_builder.set_surface_outer_ring(&[v0, v3, v2, v1])?;
+            let surface_3 = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?;
             let patio_door_semantic = Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
-            geometry_builder.set_surface_semantic(patio_door_semantic.clone())?;
+            geometry_builder.set_semantic_surface(None, patio_door_semantic.clone())?;
             // This surface does not have the "irradiation" material
-            geometry_builder.set_surface_material(material_red.clone())?;
-            geometry_builder.add_shell_outer_surface(surface_3)?;
+            geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
 
             // Inner shell
-            let _inner_shell_i = geometry_builder.start_shell();
-            let surface_4 = geometry_builder.start_surface(None);
-            geometry_builder.set_surface_outer_ring(&[v1, v2, v3, v0])?;
+            let surface_4 = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(&[v1, v2, v3, v0])?;
             geometry_builder.add_surface_inner_ring(&[v1, v2, v3, v0])?;
-            geometry_builder.add_shell_outer_surface(surface_4)?;
+            geometry_builder.add_shell(&[surface_4])?;
 
             // Consume the builder by building a Geometry and adding it to the CityModel
             let geometry_ref = geometry_builder.build()?;
@@ -225,13 +217,13 @@ fn build_dummy_complete_owned() -> Result<()> {
         let children_roles_vec = vec![Box::new(AttributeValue::String("residential building".to_string())), Box::new(AttributeValue::String("voting location".to_string()))];
         co_neigh_extra.insert("children_roles".to_string(), AttributeValue::Vec(children_roles_vec));
         {
-            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface).with_lod(LoD::LoD2);
-            let _surface_i = geometry_builder.start_surface(None);
-            let p1 = geometry_builder.add_vertex(102.0, 103.0, 1.0);
-            let p2 = geometry_builder.add_vertex(23.0, 88.0, 5.0);
-            let p3 = geometry_builder.add_vertex(25.0, 744.0, 22.0);
-            let p4 = geometry_builder.add_vertex(11.0, 910.0, 43.0);
-            geometry_builder.set_surface_outer_ring(&[p1, p4, p3, p2])?;
+            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular).with_lod(LoD::LoD2);
+            let _surface_i = geometry_builder.start_surface();
+            let p1 = geometry_builder.add_point(QuantizedCoordinate::new(102, 103, 1));
+            let p2 = geometry_builder.add_point(QuantizedCoordinate::new(23, 88, 5));
+            let p3 = geometry_builder.add_point(QuantizedCoordinate::new( 25, 744, 22));
+            let p4 = geometry_builder.add_point(QuantizedCoordinate::new(11, 910, 43));
+            geometry_builder.add_surface_outer_ring(&[p1, p4, p3, p2])?;
             let _geometry_ref = geometry_builder.build()?;
         }
     }
