@@ -70,6 +70,12 @@ fn build_dummy_complete_owned() -> Result<()> {
     // Create textures
     // let texture_0 = Texture::new("http://www.someurl.org/filename.jpg".to_string(), ImageType::Png);
 
+    // Because we want to reuse vertices, we need to create them first
+    let v0 = model.add_vertex(QuantizedCoordinate::new(102, 103, 1))?;
+    let v1 = model.add_vertex(QuantizedCoordinate::new( 11, 910, 43))?;
+    let v2 = model.add_vertex(QuantizedCoordinate::new(25, 744, 22))?;
+    let v3 = model.add_vertex(QuantizedCoordinate::new( 23, 88, 5))?;
+
     // Build CityObject "id-1".
     // This block scope is just for visual separation and code folding in the editor.
     {
@@ -109,7 +115,7 @@ fn build_dummy_complete_owned() -> Result<()> {
             // Add point location to the address.
             let mut location_builder =
                 GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular).with_lod(LoD::LoD1);
-            let _location_p = location_builder.add_point(QuantizedCoordinate::new(102, 103, 1));
+            let _location_p = location_builder.add_vertex(v0);
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
@@ -136,10 +142,10 @@ fn build_dummy_complete_owned() -> Result<()> {
         // a mutable borrow to the CityModel.
         {
             let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular).with_lod(LoD::LoD2_1);
-            let v0 = geometry_builder.add_point(QuantizedCoordinate::new(102, 103, 1)); // todo: should be able to reuse a vertex from the pool
-            let v1 = geometry_builder.add_point(QuantizedCoordinate::new( 11, 910, 43));
-            let v2 = geometry_builder.add_point(QuantizedCoordinate::new(25, 744, 22));
-            let v3 = geometry_builder.add_point(QuantizedCoordinate::new(23, 88, 5));
+            let v0 = geometry_builder.add_vertex(v0);
+            let v1 = geometry_builder.add_vertex(v1);
+            let v2 = geometry_builder.add_vertex(v2);
+            let v3 = geometry_builder.add_vertex(v3);
 
             // 0th Surface ---
             // Geometry
@@ -219,10 +225,10 @@ fn build_dummy_complete_owned() -> Result<()> {
         {
             let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular).with_lod(LoD::LoD2);
             let _surface_i = geometry_builder.start_surface();
-            let p1 = geometry_builder.add_point(QuantizedCoordinate::new(102, 103, 1));
-            let p2 = geometry_builder.add_point(QuantizedCoordinate::new(23, 88, 5));
-            let p3 = geometry_builder.add_point(QuantizedCoordinate::new( 25, 744, 22));
-            let p4 = geometry_builder.add_point(QuantizedCoordinate::new(11, 910, 43));
+            let p1 = geometry_builder.add_vertex(v0);
+            let p2 = geometry_builder.add_vertex(v3);
+            let p3 = geometry_builder.add_vertex(v2);
+            let p4 = geometry_builder.add_vertex(v1);
             geometry_builder.add_surface_outer_ring(&[p1, p4, p3, p2])?;
             let _geometry_ref = geometry_builder.build()?;
         }
