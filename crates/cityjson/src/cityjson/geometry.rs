@@ -110,9 +110,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     shells: Vec<Vec<usize>>,          // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
     // Active element tracking
-    active_linestring: Option<usize>, // active linestring being built
     active_surface: Option<usize>,    // active surface being built
-    active_shell: Option<usize>,      // active shell being built
     active_solid: Option<usize>,      // active solid being built
     // Semantic storage
     point_semantics: HashMap<usize, V::ResourceRef>,
@@ -149,9 +147,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             surfaces: Vec::new(),
             shells: Vec::new(),
             solids: Vec::new(),
-            active_linestring: None,
             active_surface: None,
-            active_shell: None,
             active_solid: None,
             point_semantics: Default::default(),
             linestring_semantics: Default::default(),
@@ -277,12 +273,12 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     ///
     /// The index of the added LineString in the boundary.
     pub fn add_linestring(&mut self, vertices: &[usize]) -> Result<usize> {
-        if vertices.len() < 2 {
-            return Err(Error::InvalidLineString {
-                reason: "LineString must have at least 2 vertices".to_string(),
-                vertex_count: vertices.len(),
-            });
-        }
+        // if vertices.len() < 2 {
+        //     return Err(Error::InvalidLineString {
+        //         reason: "LineString must have at least 2 vertices".to_string(),
+        //         vertex_count: vertices.len(),
+        //     });
+        // }
         self.rings.push(vertices.to_vec());
         Ok(self.rings.len().saturating_sub(1))
     }
@@ -297,12 +293,12 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     ///
     /// The index of the added ring in the boundary.
     pub fn add_ring(&mut self, vertices: &[usize]) -> Result<usize> {
-        if vertices.len() < 3 {
-            return Err(Error::InvalidRing {
-                reason: "ring must have at least 3 vertices".to_string(),
-                vertex_count: vertices.len(),
-            });
-        }
+        // if vertices.len() < 3 {
+        //     return Err(Error::InvalidRing {
+        //         reason: "ring must have at least 3 vertices".to_string(),
+        //         vertex_count: vertices.len(),
+        //     });
+        // }
         self.rings.push(vertices.to_vec());
         Ok(self.rings.len().saturating_sub(1))
     }
@@ -368,15 +364,15 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     /// # Errors
     ///
     /// - `InvalidShell`: If less than 4 surfaces are provided.
-    pub fn add_shell(&mut self, surfaces: &[usize]) -> Result<()> {
-        if surfaces.len() < 4 {
-            return Err(Error::InvalidShell {
-                reason: "shell must have at least 4 surfaces".to_string(),
-                surface_count: surfaces.len(),
-            });
-        }
+    pub fn add_shell(&mut self, surfaces: &[usize]) -> Result<usize> {
+        // if surfaces.len() < 4 {
+        //     return Err(Error::InvalidShell {
+        //         reason: "shell must have at least 4 surfaces".to_string(),
+        //         surface_count: surfaces.len(),
+        //     });
+        // }
         self.shells.push(surfaces.to_vec());
-        Ok(())
+        Ok(self.shells.len().saturating_sub(1))
     }
 
     /// Starts a new solid.
@@ -1043,13 +1039,6 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     return Err(Error::InvalidGeometryType {
                         expected: format!("single solid geometry {}", template_str),
                         found: self.format_counts(),
-                    });
-                }
-
-                if self.shells.len() != 1 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: "solid geometry with exactly one shell".to_string(),
-                        found: format!("{} shells found", self.shells.len()),
                     });
                 }
             }
