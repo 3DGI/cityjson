@@ -4,6 +4,7 @@
 use crate::cityjson::geometry::boundary::Boundary;
 use crate::cityjson::geometry::{GeometryTrait, GeometryType, LoD};
 use crate::cityjson::vertex::VertexRef;
+use crate::prelude::VertexIndex;
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::ResourceRef;
 
@@ -18,8 +19,9 @@ pub struct Geometry<VR: VertexRef, RR: ResourceRef> {
     semantics: Option<SemanticMap<VR, RR>>,
     material: Option<MaterialMap<VR, RR>>,
     texture: Option<TextureMap<VR, RR>>,
-    template_boundaries: Option<usize>,
-    template_transformation_matrix: Option<[f64; 16]>,
+    instance_template: Option<RR>,
+    instance_reference_point: Option<VertexIndex<VR>>,
+    instance_transformation_matrix: Option<[f64; 16]>,
 }
 
 impl<VR, RR> GeometryTrait<VR, RR> for Geometry<VR, RR>
@@ -34,8 +36,9 @@ where
         semantics: Option<SemanticMap<VR, RR>>,
         material: Option<MaterialMap<VR, RR>>,
         texture: Option<TextureMap<VR, RR>>,
-        template_boundaries: Option<usize>,
-        template_transformation_matrix: Option<[f64; 16]>,
+        instance_template: Option<RR>,
+        instance_reference_point: Option<VertexIndex<VR>>,
+        instance_transformation_matrix: Option<[f64; 16]>,
     ) -> Self {
         Self {
             type_geometry,
@@ -44,8 +47,9 @@ where
             semantics,
             material,
             texture,
-            template_boundaries,
-            template_transformation_matrix,
+            instance_template,
+            instance_reference_point,
+            instance_transformation_matrix,
         }
     }
 
@@ -73,11 +77,15 @@ where
         self.texture.as_ref()
     }
 
-    fn template_boundaries(&self) -> Option<&usize> {
-        self.template_boundaries.as_ref()
+    fn instance_template(&self) -> Option<&RR> {
+        self.instance_template.as_ref()
     }
 
-    fn template_transformation_matrix(&self) -> Option<&[f64; 16]> {
-        self.template_transformation_matrix.as_ref()
+    fn instance_reference_point(&self) -> Option<&VertexIndex<VR>> {
+        self.instance_reference_point.as_ref()
+    }
+
+    fn instance_transformation_matrix(&self) -> Option<&[f64; 16]> {
+        self.instance_transformation_matrix.as_ref()
     }
 }

@@ -651,8 +651,9 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
         let mut counter = BoundaryCounter::<V::VertexRef>::default();
 
-        let mut semantic_map_optional = None;
-        let mut material_map_optional = None;
+        let mut semantic_map_option = None;
+        let mut material_map_option = None;
+        let mut instance_reference_point = None;
 
         // Each Boundary type has vertices
         let vertex_indices: Vec<VertexIndex<V::VertexRef>> = match self.builder_mode {
@@ -676,12 +677,12 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
         match self.type_geometry {
             GeometryType::GeometryInstance => {
-                boundary.vertices = vertex_indices;
+                instance_reference_point = Some(vertex_indices[0]);
             }
             GeometryType::MultiPoint => {
                 boundary.vertices = vertex_indices;
 
-                semantic_map_optional = if !self.point_semantics.is_empty() {
+                semantic_map_option = if !self.point_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
                     semantic_map.points = (0..boundary.vertices.len())
                         .map(|i| self.point_semantics.get(&i).copied())
@@ -689,7 +690,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     Some(semantic_map)
                 } else {
                     None
-                }
+                };
             }
             GeometryType::MultiLineString => {
                 for ring in &self.rings {
@@ -700,7 +701,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     }
                 }
 
-                semantic_map_optional = if !self.linestring_semantics.is_empty() {
+                semantic_map_option = if !self.linestring_semantics.is_empty() {
                     let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
                     semantic_map.linestrings = (0..self.rings.len())
                         .map(|i| self.linestring_semantics.get(&i).copied())
@@ -708,7 +709,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     Some(semantic_map)
                 } else {
                     None
-                }
+                };
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 for surface in &self.surfaces {
@@ -740,7 +741,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     semantic_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_semantics.get(&i).copied())
                         .collect();
-                    semantic_map_optional = Some(semantic_map);
+                    semantic_map_option = Some(semantic_map);
                 }
 
                 if !self.surface_materials.is_empty() {
@@ -748,7 +749,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     material_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_materials.get(&i).copied())
                         .collect();
-                    material_map_optional = Some(material_map);
+                    material_map_option = Some(material_map);
                 }
             }
             GeometryType::Solid => {
@@ -789,7 +790,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     semantic_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_semantics.get(&i).copied())
                         .collect();
-                    semantic_map_optional = Some(semantic_map);
+                    semantic_map_option = Some(semantic_map);
                 }
 
                 if !self.surface_materials.is_empty() {
@@ -797,7 +798,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     material_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_materials.get(&i).copied())
                         .collect();
-                    material_map_optional = Some(material_map);
+                    material_map_option = Some(material_map);
                 }
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
@@ -896,7 +897,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     semantic_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_semantics.get(&i).copied())
                         .collect();
-                    semantic_map_optional = Some(semantic_map);
+                    semantic_map_option = Some(semantic_map);
                 }
 
                 if !self.surface_materials.is_empty() {
@@ -904,12 +905,12 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     material_map.surfaces = (0..self.surfaces.len())
                         .map(|i| self.surface_materials.get(&i).copied())
                         .collect();
-                    material_map_optional = Some(material_map);
+                    material_map_option = Some(material_map);
                 }
             }
         }
 
-        let texture_map_optional = if self.surface_textures.is_empty()
+        let texture_map_option = if self.surface_textures.is_empty()
             && self.ring_textures.is_empty()
             && self.vertex_uv_mapping.is_empty()
         {
@@ -922,21 +923,27 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                 &self.vertex_uv_mapping,
             ))
         };
-        if texture_map_optional.is_some() {
+        if texture_map_option.is_some() {
             for uv in self.uv_coordinates {
                 self.model.add_uv_coordinate(uv)?;
             }
         }
 
+        let boundary_option = if self.type_geometry == GeometryType::GeometryInstance {
+            None
+        } else {
+            Some(boundary)
+        };
         // Create the geometry
         let geometry = V::Geometry::new(
             self.type_geometry,
             self.lod,
-            Some(boundary),
-            semantic_map_optional,
-            material_map_optional,
-            texture_map_optional,
+            boundary_option,
+            semantic_map_option,
+            material_map_option,
+            texture_map_option,
             self.template_geometry,
+            instance_reference_point,
             self.transformation_matrix,
         );
 
@@ -949,27 +956,43 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
     fn validate_structure(&self) -> Result<()> {
         match self.type_geometry {
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                let mut template_str = "";
+                let vertices_empty = match self.builder_mode {
+                    BuilderMode::Regular => self.vertices.is_empty(),
+                    BuilderMode::Template => {
+                        template_str = "template";
+                        self.template_vertices.is_empty()
+                    },
+                };
                 if self.solids.is_empty()
                     || self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
-                    || self.vertices.is_empty()
+                    || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "multi- or composite solid geometry".to_string(),
+                        expected: format!("multi- or composite solid geometry {}", template_str),
                         found: self.format_counts(),
                     });
                 }
             }
             GeometryType::Solid => {
+                let mut template_str = "";
+                let vertices_empty = match self.builder_mode {
+                    BuilderMode::Regular => self.vertices.is_empty(),
+                    BuilderMode::Template => {
+                        template_str = "template";
+                        self.template_vertices.is_empty()
+                    },
+                };
                 if !self.solids.is_empty()
                     || self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
-                    || self.vertices.is_empty()
+                    || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "single solid geometry".to_string(),
+                        expected: format!("single solid geometry {}", template_str),
                         found: self.format_counts(),
                     });
                 }
@@ -982,41 +1005,65 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                 }
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
+                let mut template_str = "";
+                let vertices_empty = match self.builder_mode {
+                    BuilderMode::Regular => self.vertices.is_empty(),
+                    BuilderMode::Template => {
+                        template_str = "template";
+                        self.template_vertices.is_empty()
+                    },
+                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
-                    || self.vertices.is_empty()
+                    || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "multi- or composite surface geometry".to_string(),
+                        expected: format!("multi- or composite surface geometry {}", template_str),
                         found: self.format_counts(),
                     });
                 }
             }
             GeometryType::MultiLineString => {
+                let mut template_str = "";
+                let vertices_empty = match self.builder_mode {
+                    BuilderMode::Regular => self.vertices.is_empty(),
+                    BuilderMode::Template => {
+                        template_str = "template";
+                        self.template_vertices.is_empty()
+                    },
+                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || !self.surfaces.is_empty()
                     || self.rings.is_empty()
-                    || self.vertices.is_empty()
+                    || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "multi linestring geometry".to_string(),
+                        expected: format!("multi linestring geometry {}", template_str),
                         found: self.format_counts(),
                     });
                 }
                 return Ok(());
             }
             GeometryType::MultiPoint => {
+                let mut template_str = "";
+                let vertices_empty = match self.builder_mode {
+                    BuilderMode::Regular => self.vertices.is_empty(),
+                    BuilderMode::Template => {
+                        template_str = "template";
+                        self.template_vertices.is_empty()
+                    },
+                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || !self.surfaces.is_empty()
                     || !self.rings.is_empty()
-                    || self.vertices.is_empty()
+                    || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: "multi point geometry".to_string(),
+                        expected: format!("multi point geometry {}", template_str),
                         found: self.format_counts(),
                     });
                 }
@@ -1072,12 +1119,13 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
 
     fn format_counts(&self) -> String {
         format!(
-            "{} solids, {} shells, {} surfaces, {} rings, {} vertices",
+            "{} solids, {} shells, {} surfaces, {} rings, {} vertices, {} template vertices",
             self.solids.len(),
             self.shells.len(),
             self.surfaces.len(),
             self.rings.len(),
-            self.vertices.len()
+            self.vertices.len(),
+            self.template_vertices.len()
         )
     }
 }
@@ -1998,5 +2046,168 @@ mod tests {
             .expect("Blue material not found");
         assert_eq!(blue_material.name(), "BlueWall");
         assert_eq!(blue_material.diffuse_color().unwrap(), &[0.1, 0.1, 0.9]);
+    }
+
+    #[test]
+    fn test_geometry_template_and_instance() {
+        let mut model = create_test_model();
+
+        // PART 1: Create a template geometry (MultiLineString with semantics)
+        // ------------------------------------------------------------------
+
+        // Create a builder in Template mode for template creation
+        let mut template_builder = GeometryBuilder::new(
+            &mut model,
+            GeometryType::MultiLineString,
+            BuilderMode::Template,
+        );
+
+        // Add template vertices using RealWorldCoordinate (in local coordinate system)
+        let tp0 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.0, 0.0));
+        let tp1 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 0.0, 0.0));
+        let tp2 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0));
+        let tp3 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0));
+        let tp4 = template_builder.add_template_point(RealWorldCoordinate::new(2.0, 0.0, 0.0));
+        let tp5 = template_builder.add_template_point(RealWorldCoordinate::new(2.0, 2.0, 0.0));
+
+        // Create three linestrings in our template
+        // First linestring: square/rectangle
+        template_builder
+            .add_linestring(&[tp0, tp1, tp2, tp3, tp0])
+            .expect("Failed to add first linestring to template");
+
+        // Second linestring: diagonal
+        let ls2 = template_builder
+            .add_linestring(&[tp0, tp2])
+            .expect("Failed to add second linestring to template");
+
+        // Third linestring: another line
+        template_builder
+            .add_linestring(&[tp1, tp4, tp5])
+            .expect("Failed to add third linestring to template");
+
+        // Create semantic for the second linestring
+        let sem = Semantic::new(SemanticType::TransportationMarking);
+
+        // Set semantic for the second linestring (the diagonal)
+        let sem_ref = template_builder
+            .set_semantic_linestring(Some(ls2), sem)
+            .expect("Failed to set semantic for template linestring");
+
+        // Set LoD for the template
+        template_builder = template_builder.with_lod(LoD::LoD2);
+
+        // Build the template geometry - this adds it to the template_geometries pool
+        let template_ref = template_builder
+            .build()
+            .expect("Failed to build template geometry");
+
+        // Verify template was created correctly and placed in the template pool
+        assert!(
+            model.template_geometries().get(template_ref).is_some(),
+            "Template geometry not found in template pool"
+        );
+
+        // Get the template from the pool for further verification
+        let template = model
+            .template_geometries()
+            .get(template_ref)
+            .expect("Failed to get template geometry");
+
+        // Verify template properties
+        assert_eq!(template.type_geometry(), &GeometryType::MultiLineString);
+        assert_eq!(template.lod(), Some(&LoD::LoD2));
+
+        // Check that template vertices were added to template_vertices pool
+        assert_eq!(
+            model.template_vertices().len(),
+            6,
+            "Expected 6 vertices in template_vertices pool"
+        );
+
+        // Verify template semantics
+        let semantics = template
+            .semantics()
+            .expect("No semantics found in template");
+        let linestring_semantics = semantics.linestrings();
+
+        // Verify linestrings have semantics applied correctly
+        assert_eq!(linestring_semantics.len(), 3);
+        assert!(linestring_semantics[0].is_none());
+        assert_eq!(linestring_semantics[1], Some(sem_ref));
+        assert!(linestring_semantics[2].is_none());
+
+        // PART 2: Create a GeometryInstance that references this template
+        // --------------------------------------------------------------
+
+        // Add a reference point in the main vertex pool (not template vertices)
+        // This is where the template will be positioned in the city model
+        let ref_point_idx = model
+            .add_vertex(QuantizedCoordinate::new(100, 200, 50))
+            .expect("Failed to add reference point");
+
+        // Create a GeometryInstance builder in Regular mode
+        let mut instance_builder = GeometryBuilder::new(
+            &mut model,
+            GeometryType::GeometryInstance,
+            BuilderMode::Regular,
+        );
+
+        // Add the reference point vertex (anchor point for template placement)
+        let instance_point = instance_builder.add_vertex(ref_point_idx);
+
+        // Set the template reference - this tells the instance which template to use
+        instance_builder = instance_builder
+            .with_template(template_ref)
+            .expect("Failed to set template boundaries");
+
+        // Set the transformation matrix
+        // This defines how the template is transformed at the reference point:
+        // - Scale by 2 in all dimensions (first three diagonal elements)
+        // - No rotation (zeros in off-diagonal elements)
+        // - No additional translation beyond reference point (last row)
+        instance_builder = instance_builder
+            .with_transformation_matrix([
+                2.0, 0.0, 0.0, 0.0, // Scale x by 2
+                0.0, 2.0, 0.0, 0.0, // Scale y by 2
+                0.0, 0.0, 2.0, 0.0, // Scale z by 2
+                0.0, 0.0, 0.0, 1.0, // No additional translation (uses reference point)
+            ])
+            .expect("Failed to set transformation matrix");
+
+        // Build the geometry instance - this adds it to the regular geometries pool
+        let instance_ref = instance_builder
+            .build()
+            .expect("Failed to build geometry instance");
+
+        // Get the geometry instance for verification
+        let instance = model
+            .geometries()
+            .get(instance_ref)
+            .expect("Failed to get geometry instance");
+
+        // Verify the instance properties
+        assert_eq!(instance.type_geometry(), &GeometryType::GeometryInstance);
+
+        // Verify template reference is correct
+        assert_eq!(instance.instance_template(), Some(&template_ref));
+
+        // Verify transformation matrix is stored correctly
+        let expected_matrix = [
+            2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ];
+        assert_eq!(
+            instance.instance_transformation_matrix(),
+            Some(&expected_matrix)
+        );
+
+        // Verify that the instance has a boundary with just the reference point
+        assert_eq!(instance.instance_reference_point(), Some(&ref_point_idx));
+
+        // Make sure the instance is in the regular geometries pool, not the template pool
+        assert!(
+            model.geometries().get(instance_ref).is_some(),
+            "Geometry instance not found in regular geometry pool"
+        );
     }
 }

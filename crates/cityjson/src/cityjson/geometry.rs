@@ -22,8 +22,9 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
         semantics: Option<SemanticMap<VR, RR>>,
         material: Option<MaterialMap<VR, RR>>,
         texture: Option<TextureMap<VR, RR>>,
-        template_boundaries: Option<usize>,
-        template_transformation_matrix: Option<[f64; 16]>,
+        instance_template: Option<RR>,
+        instance_reference_point: Option<VertexIndex<VR>>,
+        instance_transformation_matrix: Option<[f64; 16]>,
     ) -> Self;
 
     /// Returns the geometry type
@@ -44,11 +45,14 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
     /// Returns the texture mapping
     fn textures(&self) -> Option<&TextureMap<VR, RR>>;
 
-    /// Returns the template boundaries index, if any
-    fn template_boundaries(&self) -> Option<&usize>;
+    /// Returns the template of the GeometryInstance
+    fn instance_template(&self) -> Option<&RR>;
 
-    /// Returns the template transformation matrix, if any
-    fn template_transformation_matrix(&self) -> Option<&[f64; 16]>;
+    /// Returns the reference point of the GeometryInstance
+    fn instance_reference_point(&self) -> Option<&VertexIndex<VR>>;
+
+    /// Returns the transformation matrix of the GeometryInstance
+    fn instance_transformation_matrix(&self) -> Option<&[f64; 16]>;
 }
 
 /// Represents a surface under construction with one outer ring and optional inner rings
@@ -572,6 +576,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             Some(semantic_map),
             Some(material_map),
             Some(texture_map),
+            None,
             None,
             None,
         );
