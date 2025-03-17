@@ -209,10 +209,7 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
                 .iter()
                 .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
                 .sum::<usize>(),
-            value
-                .iter()
-                .map(|surface| surface.len())
-                .sum::<usize>(),
+            value.iter().map(|surface| surface.len()).sum::<usize>(),
             value.len(),
             0,
             0,
@@ -285,13 +282,8 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
 
         let surfaces_cap = value.iter().map(|shell| shell.len()).sum::<usize>();
 
-        let mut boundary = Self::with_capacity(
-            vertices_cap,
-            rings_cap,
-            surfaces_cap,
-            value.len(),
-            0,
-        );
+        let mut boundary =
+            Self::with_capacity(vertices_cap, rings_cap, surfaces_cap, value.len(), 0);
 
         let mut vertex_idx = VertexIndex::new(T::zero());
 

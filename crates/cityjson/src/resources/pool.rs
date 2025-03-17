@@ -263,11 +263,7 @@ impl ResourceId32 {
 
 impl Display for ResourceId32 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "index: {}, generation: {}",
-            self.index, self.generation
-        )
+        write!(f, "index: {}, generation: {}", self.index, self.generation)
     }
 }
 

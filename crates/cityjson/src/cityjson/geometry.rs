@@ -3,12 +3,10 @@
 use crate::cityjson::geometry::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::prelude::{
-    Boundary, CityModelTrait, CityModelTypes, Coordinate,
-    MaterialMap, RealWorldCoordinate, SemanticMap, TextureMap, UVCoordinate, VertexIndex,
-    VertexRef, ResourceRef
+    Boundary, CityModelTrait, CityModelTypes, Coordinate, MaterialMap, RealWorldCoordinate,
+    ResourceRef, SemanticMap, TextureMap, UVCoordinate, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
-
 
 pub mod boundary;
 pub mod semantic;
@@ -54,7 +52,6 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
     /// Returns the transformation matrix of the GeometryInstance
     fn instance_transformation_matrix(&self) -> Option<&[f64; 16]>;
 }
-
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
@@ -110,8 +107,8 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     shells: Vec<Vec<usize>>,          // A solid with its shells, each shell with their surfaces
     solids: Vec<SolidInProgress>,     // M/CSolid with its shells
     // Active element tracking
-    active_surface: Option<usize>,    // active surface being built
-    active_solid: Option<usize>,      // active solid being built
+    active_surface: Option<usize>, // active surface being built
+    active_solid: Option<usize>,   // active solid being built
     // Semantic storage
     point_semantics: HashMap<usize, V::ResourceRef>,
     linestring_semantics: HashMap<usize, V::ResourceRef>,
@@ -1007,7 +1004,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     BuilderMode::Template => {
                         template_str = "template";
                         self.template_vertices.is_empty()
-                    },
+                    }
                 };
                 if self.solids.is_empty()
                     || self.shells.is_empty()
@@ -1028,7 +1025,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     BuilderMode::Template => {
                         template_str = "template";
                         self.template_vertices.is_empty()
-                    },
+                    }
                 };
                 if !self.solids.is_empty()
                     || self.shells.is_empty()
@@ -1049,7 +1046,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     BuilderMode::Template => {
                         template_str = "template";
                         self.template_vertices.is_empty()
-                    },
+                    }
                 };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
@@ -1070,7 +1067,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     BuilderMode::Template => {
                         template_str = "template";
                         self.template_vertices.is_empty()
-                    },
+                    }
                 };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
@@ -1092,7 +1089,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     BuilderMode::Template => {
                         template_str = "template";
                         self.template_vertices.is_empty()
-                    },
+                    }
                 };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
@@ -1259,7 +1256,6 @@ fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
     texture_map
 }
 
-
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {
     MultiPoint,
@@ -1328,7 +1324,6 @@ impl std::fmt::Display for LoD {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1868,10 +1863,18 @@ mod tests {
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
         let floor_semantic = Semantic::new(SemanticType::FloorSurface);
 
-        builder.set_semantic_surface(Some(surface0), wall_semantic.clone()).unwrap();
-        builder.set_semantic_surface(Some(surface1), wall_semantic.clone()).unwrap();
-        builder.set_semantic_surface(Some(surface2), wall_semantic.clone()).unwrap();
-        builder.set_semantic_surface(Some(surface3), wall_semantic).unwrap();
+        builder
+            .set_semantic_surface(Some(surface0), wall_semantic.clone())
+            .unwrap();
+        builder
+            .set_semantic_surface(Some(surface1), wall_semantic.clone())
+            .unwrap();
+        builder
+            .set_semantic_surface(Some(surface2), wall_semantic.clone())
+            .unwrap();
+        builder
+            .set_semantic_surface(Some(surface3), wall_semantic)
+            .unwrap();
         let roof_sem_ref = builder.set_semantic_surface(Some(surface4), roof_semantic);
         let floor_sem_ref = builder.set_semantic_surface(Some(surface5), floor_semantic);
 

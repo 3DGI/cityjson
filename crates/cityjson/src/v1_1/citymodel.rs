@@ -6,7 +6,9 @@ use crate::cityjson::attributes::Attributes;
 use crate::cityjson::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result};
+use crate::prelude::{
+    CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
+};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v1_1::appearance::material::Material;
@@ -192,10 +194,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         &mut self.vertices
     }
 
-    fn add_vertex(
-        &mut self,
-        coordinate: QuantizedCoordinate,
-    ) -> Result<VertexIndex<VR>> {
+    fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
@@ -315,7 +314,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(
             f,
             "\tCityObjects: {{ nr. cityobjects: {}, nr. geometries: {} }}",
-            self.cityobjects.len(), self.geometries.len()
+            self.cityobjects.len(),
+            self.geometries.len()
         )?;
         writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;

@@ -83,9 +83,9 @@ use crate::cityjson;
 use crate::cityjson::attributes::Attributes;
 use crate::cityjson::metadata::BBoxTrait;
 use crate::format_option;
+use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
-use crate::prelude::ResourceRef;
 
 /// Metadata for a city model.
 ///
@@ -487,7 +487,10 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage, RR: ResourceRef> cityjson::metadata::MetadataTrait<SS> for Metadata<SS, RR> {}
+impl<SS: StringStorage, RR: ResourceRef> cityjson::metadata::MetadataTrait<SS>
+    for Metadata<SS, RR>
+{
+}
 
 /// Bounding Box.
 ///
@@ -665,8 +668,8 @@ pub type CRS = String;
 
 #[cfg(test)]
 mod test {
-    use crate::prelude::ResourceId32;
     use super::*;
+    use crate::prelude::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]

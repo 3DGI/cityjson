@@ -136,18 +136,14 @@ impl<SS: StringStorage, RR: ResourceRef>
     fn find_with_geometries(&self) -> Vec<(RR, &CityObject<SS, RR>)> {
         self.inner
             .iter()
-            .filter(|(_, obj)| {
-                obj.geometry().is_some() && !obj.geometry().unwrap().is_empty()
-            })
+            .filter(|(_, obj)| obj.geometry().is_some() && !obj.geometry().unwrap().is_empty())
             .collect()
     }
 
     fn find_with_children(&self) -> Vec<(RR, &CityObject<SS, RR>)> {
         self.inner
             .iter()
-            .filter(|(_, obj)| {
-                obj.children().is_some() && !obj.children().unwrap().is_empty()
-            })
+            .filter(|(_, obj)| obj.children().is_some() && !obj.children().unwrap().is_empty())
             .collect()
     }
 
@@ -191,8 +187,7 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| {
-                obj.attributes().is_some()
-                    && obj.attributes().unwrap().contains_key(attr_name)
+                obj.attributes().is_some() && obj.attributes().unwrap().contains_key(attr_name)
             })
             .collect()
     }
@@ -404,9 +399,15 @@ mod tests_cityobjects_container {
         let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 
         // Add various types of objects
-        objects.add(CityObject::new("id-1".to_string(), CityObjectType::Building));
+        objects.add(CityObject::new(
+            "id-1".to_string(),
+            CityObjectType::Building,
+        ));
         objects.add(CityObject::new("id-2".to_string(), CityObjectType::Bridge));
-        objects.add(CityObject::new("id-3".to_string(), CityObjectType::Building));
+        objects.add(CityObject::new(
+            "id-3".to_string(),
+            CityObjectType::Building,
+        ));
 
         // Find by type
         let buildings = objects.find_by_type(&CityObjectType::Building);

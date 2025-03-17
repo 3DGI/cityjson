@@ -117,10 +117,10 @@
 //! The flexible design allows for efficiently representing both simple and complex
 //! attribute structures.
 
+use crate::prelude::{ResourceId32, ResourceRef};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
-use crate::prelude::{ResourceId32, ResourceRef};
 
 /// Represents the different types of values that can be stored in an attribute.
 ///
@@ -719,17 +719,42 @@ mod tests {
         let integer = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42);
         let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14);
         let string = AttributeValue::<OwnedStringStorage, ResourceId32>::String("test".to_string());
-        let geometry = AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
+        let geometry =
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
 
         // Test equality
-        assert_eq!(null, AttributeValue::<OwnedStringStorage, ResourceId32>::Null);
-        assert_eq!(boolean, AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true));
-        assert_ne!(boolean, AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(false));
-        assert_eq!(unsigned, AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42));
-        assert_ne!(unsigned, AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(43));
-        assert_eq!(integer, AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42));
-        assert_ne!(integer, AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-43));
-        assert_eq!(float, AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14));
+        assert_eq!(
+            null,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Null
+        );
+        assert_eq!(
+            boolean,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true)
+        );
+        assert_ne!(
+            boolean,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(false)
+        );
+        assert_eq!(
+            unsigned,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42)
+        );
+        assert_ne!(
+            unsigned,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(43)
+        );
+        assert_eq!(
+            integer,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42)
+        );
+        assert_ne!(
+            integer,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-43)
+        );
+        assert_eq!(
+            float,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14)
+        );
         assert_ne!(
             float,
             AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI)
@@ -742,7 +767,10 @@ mod tests {
             string,
             AttributeValue::<OwnedStringStorage, ResourceId32>::String("test2".to_string())
         );
-        assert_eq!(geometry, AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0)));
+        assert_eq!(
+            geometry,
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0))
+        );
     }
 
     #[test]
@@ -1021,8 +1049,10 @@ mod tests {
         let unsigned = AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42);
         let integer = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-100);
         let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.12345);
-        let string = AttributeValue::<OwnedStringStorage, ResourceId32>::String("hello".to_string());
-        let geometry = AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
+        let string =
+            AttributeValue::<OwnedStringStorage, ResourceId32>::String("hello".to_string());
+        let geometry =
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
 
         assert_eq!(format!("{}", null), "null");
         assert_eq!(format!("{}", boolean), "true");
@@ -1034,9 +1064,15 @@ mod tests {
 
         // Test vector
         let mut vec_values = Vec::new();
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(1)));
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(2)));
-        vec_values.push(Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(3)));
+        vec_values.push(Box::new(
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(1),
+        ));
+        vec_values.push(Box::new(
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(2),
+        ));
+        vec_values.push(Box::new(
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(3),
+        ));
 
         let vec_attr = AttributeValue::<OwnedStringStorage, ResourceId32>::Vec(vec_values);
         assert_eq!(format!("{}", vec_attr), "[1, 2, 3]");
@@ -1051,7 +1087,9 @@ mod tests {
         );
         map.insert(
             "height".to_string(),
-            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Float(45.5)),
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Float(
+                45.5,
+            )),
         );
 
         let map_attr = AttributeValue::<OwnedStringStorage, ResourceId32>::Map(map);
