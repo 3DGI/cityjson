@@ -68,7 +68,7 @@ fn build_dummy_complete_owned() -> Result<()> {
     let material_red = Material::new("red".to_string());
 
     // Create textures
-    // let texture_0 = Texture::new("http://www.someurl.org/filename.jpg".to_string(), ImageType::Png);
+    let texture_0 = Texture::new("http://www.someurl.org/filename.jpg".to_string(), ImageType::Png);
 
     // Because we want to reuse vertices, we need to create them first
     let v0 = model.add_vertex(QuantizedCoordinate::new(102, 103, 1))?;
@@ -142,15 +142,15 @@ fn build_dummy_complete_owned() -> Result<()> {
         // a mutable borrow to the CityModel.
         {
             let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular).with_lod(LoD::LoD2_1);
-            let v0 = geometry_builder.add_vertex(v0);
-            let v1 = geometry_builder.add_vertex(v1);
-            let v2 = geometry_builder.add_vertex(v2);
-            let v3 = geometry_builder.add_vertex(v3);
+            let bv0 = geometry_builder.add_vertex(v0);
+            let bv1 = geometry_builder.add_vertex(v1);
+            let bv2 = geometry_builder.add_vertex(v2);
+            let bv3 = geometry_builder.add_vertex(v3);
 
             // 0th Surface ---
             // Geometry
             let surface_0 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: add_outer_ring would take the ring idx returned by add_ring
+            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?; // todo: add_outer_ring would take the ring idx returned by add_ring
             // Semantic
             let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
             let sem_attr = roof_semantic.attributes_mut();
@@ -159,22 +159,37 @@ fn build_dummy_complete_owned() -> Result<()> {
             // Material
             geometry_builder.set_material_surface(None, material_irradiation.clone())?; // todo: for material and texture, i could remove the _surface suffix, since only surfaces can have them
             geometry_builder.set_material_surface(None, material_red.clone())?;
-
-            // todo: figure out setting texture to vertices etc.
+            // Texture
+            let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
+            let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
+            let uv2 = geometry_builder.add_uv_coordinate(1.0, 1.0);
+            let uv3 = geometry_builder.add_uv_coordinate(0.0, 1.0);
+            geometry_builder.map_vertex_to_uv(bv0, uv0);
+            geometry_builder.map_vertex_to_uv(bv1, uv1);
+            geometry_builder.map_vertex_to_uv(bv2, uv2);
+            geometry_builder.map_vertex_to_uv(bv3, uv3);
+            geometry_builder.set_texture_surface(None, texture_0.clone())?;
+            // todo: set_texture/semantic/material should probably take a reference
+            // todo: need to set the texture on a ring, not on a surface
             // todo: set texture theme on geometry "winter-textures"
 
             // 1st Surface ---
             let surface_1 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?;
+            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?;
             // We reuse the previously created Semantic
             geometry_builder.set_semantic_surface(None, roof_semantic)?;
             geometry_builder.set_material_surface(None, material_irradiation.clone())?;
             geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.map_vertex_to_uv(bv0, uv0);
+            geometry_builder.map_vertex_to_uv(bv1, uv1);
+            geometry_builder.map_vertex_to_uv(bv2, uv2);
+            geometry_builder.map_vertex_to_uv(bv3, uv3);
+            geometry_builder.set_texture_surface(None, texture_0)?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
             let surface_2 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?; // todo: same here, add_outer_ring would be sufficient
+            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?; // todo: same here, add_outer_ring would be sufficient
             geometry_builder.set_material_surface(None, material_irradiation.clone())?;
             geometry_builder.set_material_surface(None, material_red.clone())?;
 
@@ -182,7 +197,7 @@ fn build_dummy_complete_owned() -> Result<()> {
             // This surface has a type from an Extension
             let semantic_extension_type = "+PatioDoor".to_string();
             let surface_3 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[v0, v3, v2, v1])?;
+            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?;
             let patio_door_semantic = Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
             geometry_builder.set_semantic_surface(None, patio_door_semantic.clone())?;
             // This surface does not have the "irradiation" material
@@ -191,8 +206,8 @@ fn build_dummy_complete_owned() -> Result<()> {
 
             // Inner shell
             let surface_4 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[v1, v2, v3, v0])?;
-            geometry_builder.add_surface_inner_ring(&[v1, v2, v3, v0])?;
+            geometry_builder.add_surface_outer_ring(&[bv1, bv2, bv3, bv0])?;
+            geometry_builder.add_surface_inner_ring(&[bv1, bv2, bv3, bv0])?;
             geometry_builder.add_shell(&[surface_4])?;
 
             // Consume the builder by building a Geometry and adding it to the CityModel
@@ -212,7 +227,34 @@ fn build_dummy_complete_owned() -> Result<()> {
 
     // Build CityObject "a-tree".
     {
-        // todo: Sort out GeometryInstance
+        // Build a geometry template
+        let mut template_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Template).with_lod(LoD::LoD2_1);
+        let tp0 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.5, 0.0));
+        let tp1 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0));
+        let tp2 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0));
+        let tp3 = template_builder.add_template_point(RealWorldCoordinate::new(2.1, 4.2, 1.2));
+
+        template_builder.start_surface();
+        template_builder.add_surface_outer_ring(&[tp0, tp3, tp2, tp1])?;
+
+        template_builder.start_surface();
+        template_builder.add_surface_outer_ring(&[tp1, tp2, tp0, tp3])?;
+
+        template_builder.start_surface();
+        template_builder.add_surface_outer_ring(&[tp0, tp1, tp3, tp2])?;
+
+        let template_ref = template_builder.build()?;
+
+        // Add an instance of the template to the model
+        let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::GeometryInstance, BuilderMode::Regular).with_template(template_ref)?.with_transformation_matrix([
+            2.0, 0.0, 0.0, 0.0,
+            0.0, 2.0, 0.0, 0.0,
+            0.0, 0.0, 2.0, 0.0,
+            0.0, 0.0, 0.0, 1.0
+          ])?;
+        // Add the reference point
+        geometry_builder.add_vertex(v1); // todo: could have with_reference_point / with_reference_vertex for method chaining
+        geometry_builder.build()?;
     }
 
     // Build CityObject "my-neighbourhood"
