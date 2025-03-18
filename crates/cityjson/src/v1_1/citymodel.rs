@@ -38,7 +38,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type Semantic = Semantic<RR, SS>;
     type Material = Material<SS>;
     type Texture = Texture<SS>;
-    type Geometry = Geometry<VR, RR>;
+    type Geometry = Geometry<VR, RR, SS>;
     type Metadata = Metadata<SS, RR>;
     type Transform = Transform;
     type Extension = Extension<SS>;
@@ -47,7 +47,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V1_1<
     type BBox = BBox;
     type CityObject = CityObject<SS, RR>;
     type CityObjects = CityObjects<SS, RR>;
-    type GeometryPool = DefaultResourcePool<Geometry<VR, RR>, RR>;
+    type GeometryPool = DefaultResourcePool<Geometry<VR, RR, SS>, RR>;
     type SemanticPool = DefaultResourcePool<Semantic<RR, SS>, RR>;
     type MaterialPool = DefaultResourcePool<Material<SS>, RR>;
     type TexturePool = DefaultResourcePool<Texture<SS>, RR>;
@@ -72,11 +72,11 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Pool of vertex coordinates
     vertices: Vertices<VR, QuantizedCoordinate>,
     /// Pool of geometries
-    geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
+    geometries: DefaultResourcePool<Geometry<VR, RR, SS>, RR>,
     /// Pool of vertex coordinates used by the geometry templates in template_geometries
     template_vertices: Vertices<VR, RealWorldCoordinate>,
     /// Pool of geometry templates
-    template_geometries: DefaultResourcePool<Geometry<VR, RR>, RR>,
+    template_geometries: DefaultResourcePool<Geometry<VR, RR, SS>, RR>,
     /// Pool of semantic objects
     semantics: DefaultResourcePool<Semantic<RR, SS>, RR>,
     /// Pool of material objects
@@ -174,15 +174,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         self.textures.get_mut(id)
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, RR>) -> RR {
+    fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
         self.geometries.add(geometry)
     }
 
-    fn geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR>, RR> {
+    fn geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &self.geometries
     }
 
-    fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR>, RR> {
+    fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.geometries
     }
 
@@ -282,15 +282,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         self.template_vertices.get(index)
     }
 
-    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR>) -> RR {
+    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
         self.template_geometries.add(geometry)
     }
 
-    fn template_geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR>, RR> {
+    fn template_geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &self.template_geometries
     }
 
-    fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR>, RR> {
+    fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.template_geometries
     }
 

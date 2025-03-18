@@ -4,22 +4,22 @@ use crate::cityjson::geometry::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, Coordinate, MaterialMap, RealWorldCoordinate,
-    ResourceRef, SemanticMap, TextureMap, UVCoordinate, VertexIndex, VertexRef,
+    ResourceRef, SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex, VertexRef,
 };
 use std::collections::HashMap;
 
 pub mod boundary;
 pub mod semantic;
 
-pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
+pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Create a new geometry given the parts
     fn new(
         type_geometry: GeometryType,
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
         semantics: Option<SemanticMap<VR, RR>>,
-        material: Option<MaterialMap<VR, RR>>,
-        texture: Option<TextureMap<VR, RR>>,
+        materials: Option<Vec<(SS::String, MaterialMap<VR, RR>)>>,
+        textures: Option<Vec<(SS::String, TextureMap<VR, RR>)>>,
         instance_template: Option<RR>,
         instance_reference_point: Option<VertexIndex<VR>>,
         instance_transformation_matrix: Option<[f64; 16]>,
@@ -38,10 +38,10 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef> {
     fn semantics(&self) -> Option<&SemanticMap<VR, RR>>;
 
     /// Returns the material mapping
-    fn materials(&self) -> Option<&MaterialMap<VR, RR>>;
+    fn materials(&self) -> Option<&[(SS::String, MaterialMap<VR, RR>)]>;
 
     /// Returns the texture mapping
-    fn textures(&self) -> Option<&TextureMap<VR, RR>>;
+    fn textures(&self) -> Option<&[(SS::String, TextureMap<VR, RR>)]>;
 
     /// Returns the template of the GeometryInstance
     fn instance_template(&self) -> Option<&RR>;
@@ -89,7 +89,7 @@ pub enum BuilderMode {
 /// The GeometryBuilder is generic over the CityModel and Coordinate type, thus it can
 /// build a CityModel with either real-world coordinates or quantized coordinates,
 /// for all supported CityJSON versions.
-pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
+pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> {
     model: &'a mut M,
     type_geometry: GeometryType,
     builder_mode: BuilderMode,
@@ -113,15 +113,15 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>> {
     point_semantics: HashMap<usize, V::ResourceRef>,
     linestring_semantics: HashMap<usize, V::ResourceRef>,
     surface_semantics: HashMap<usize, V::ResourceRef>,
-    // Material storage
-    surface_materials: HashMap<usize, V::ResourceRef>,
+    // Material storage with themes as [(theme, [(surface idx, material ref)])]
+    surface_materials: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
     // Maps ring index to texture reference
     ring_textures: HashMap<usize, V::ResourceRef>,
     // Texture storage
     surface_textures: HashMap<usize, V::ResourceRef>,
 }
 
-impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
+impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBuilder<'a, V, M, SS> {
     /// Instantiates a new GeometryBuilder.
     ///
     /// # Parameters
@@ -571,6 +571,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
         &mut self,
         index: Option<usize>,
         material: V::Material,
+        theme: SS::String,
     ) -> Result<V::ResourceRef> {
         let material_ref = self.model.add_material(material);
         let surface_i = if let Some(i) = index {
@@ -586,7 +587,22 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.surfaces.len().saturating_sub(1)
         };
 
-        self.surface_materials.insert(surface_i, material_ref);
+        // Find or create the theme entry
+        if let Some(pos) = self.surface_materials.iter().position(|(t, _)| t == &theme) {
+            // Theme exists, find or update surface
+            let surface_maps = &mut self.surface_materials[pos].1;
+            if let Some(pos) = surface_maps.iter().position(|(s, _)| *s == surface_i) {
+                // Update existing surface
+                surface_maps[pos].1 = material_ref;
+            } else {
+                // Add new surface
+                surface_maps.push((surface_i, material_ref));
+            }
+        } else {
+            // Create new theme with this surface
+            self.surface_materials
+                .push((theme, vec![(surface_i, material_ref)]));
+        }
 
         Ok(material_ref)
     }
@@ -724,15 +740,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             GeometryType::MultiPoint => {
                 boundary.vertices = vertex_indices;
 
-                semantic_map_option = if !self.point_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.points = (0..boundary.vertices.len())
-                        .map(|i| self.point_semantics.get(&i).copied())
-                        .collect();
-                    Some(semantic_map)
-                } else {
-                    None
-                };
+                semantic_map_option = build_semantic_map(&self.type_geometry, &self.linestring_semantics, &self.rings);
             }
             GeometryType::MultiLineString => {
                 for ring in &self.rings {
@@ -743,15 +751,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     }
                 }
 
-                semantic_map_option = if !self.linestring_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.linestrings = (0..self.rings.len())
-                        .map(|i| self.linestring_semantics.get(&i).copied())
-                        .collect();
-                    Some(semantic_map)
-                } else {
-                    None
-                };
+                semantic_map_option = build_semantic_map(&self.type_geometry, &self.point_semantics, &self.vertices);
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 for surface in &self.surfaces {
@@ -778,21 +778,9 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     }
                 }
 
-                if !self.surface_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_semantics.get(&i).copied())
-                        .collect();
-                    semantic_map_option = Some(semantic_map);
-                }
+                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
 
-                if !self.surface_materials.is_empty() {
-                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
-                    material_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_materials.get(&i).copied())
-                        .collect();
-                    material_map_option = Some(material_map);
-                }
+                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
             }
             GeometryType::Solid => {
                 // Add shell index
@@ -826,22 +814,9 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     }
                 }
 
-                // Handle semantics, materials and textures for surfaces
-                if !self.surface_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_semantics.get(&i).copied())
-                        .collect();
-                    semantic_map_option = Some(semantic_map);
-                }
+                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
 
-                if !self.surface_materials.is_empty() {
-                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
-                    material_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_materials.get(&i).copied())
-                        .collect();
-                    material_map_option = Some(material_map);
-                }
+                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
                 // Process each solid
@@ -933,22 +908,9 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
                     }
                 }
 
-                // Handle semantics, materials and textures for surfaces
-                if !self.surface_semantics.is_empty() {
-                    let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                    semantic_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_semantics.get(&i).copied())
-                        .collect();
-                    semantic_map_option = Some(semantic_map);
-                }
+                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
 
-                if !self.surface_materials.is_empty() {
-                    let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
-                    material_map.surfaces = (0..self.surfaces.len())
-                        .map(|i| self.surface_materials.get(&i).copied())
-                        .collect();
-                    material_map_option = Some(material_map);
-                }
+                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
             }
         }
 
@@ -1162,6 +1124,87 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>> GeometryBuilder<'a, V, M> {
             self.vertices.len(),
             self.template_vertices.len()
         )
+    }
+}
+
+fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>, T>(
+    type_geometry: &GeometryType,
+    builder_semantics: &HashMap<usize, V::ResourceRef>,
+    builder_boundary: &Vec<T>,
+) -> Option<SemanticMap<V::VertexRef, V::ResourceRef>> {
+    match type_geometry {
+        GeometryType::GeometryInstance => None,
+        GeometryType::MultiPoint => {
+            if !builder_semantics.is_empty() {
+                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                semantic_map.points = (0..builder_boundary.len())
+                    .map(|i| builder_semantics.get(&i).copied())
+                    .collect();
+                Some(semantic_map)
+            } else {
+                None
+            }
+        }
+        GeometryType::MultiLineString => {
+            if !builder_semantics.is_empty() {
+                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                semantic_map.linestrings = (0..builder_boundary.len())
+                    .map(|i| builder_semantics.get(&i).copied())
+                    .collect();
+                Some(semantic_map)
+            } else {
+                None
+            }
+        }
+        _ => {
+            // Handle semantics, materials and textures for surfaces
+            if !builder_semantics.is_empty() {
+                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
+                semantic_map.surfaces = (0..builder_boundary.len())
+                    .map(|i| builder_semantics.get(&i).copied())
+                    .collect();
+                Some(semantic_map)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage>(
+    surface_materials: &Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
+    surfaces: &Vec<SurfaceInProgress>,
+) -> Option<Vec<(SS::String, MaterialMap<V::VertexRef, V::ResourceRef>)>> {
+    if !surface_materials.is_empty() {
+        // Create a vector to hold all theme/materialmap pairs
+        let mut themed_materials = Vec::with_capacity(surface_materials.len());
+
+        // For each theme, create a MaterialMap
+        for (theme_name, surface_mappings) in surface_materials {
+            let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
+
+            // We need to ensure the materials vector has entries for all surfaces
+            // by creating an array of the right size with all None values
+            material_map.surfaces = vec![None; surfaces.len()];
+
+            // Now fill in the materials that are defined for this theme
+            for (surface_idx, material_ref) in surface_mappings {
+                if *surface_idx < surfaces.len() {
+                    material_map.surfaces[*surface_idx] = Some(*material_ref);
+                }
+            }
+
+            // Add this theme and its material map to our collection
+            themed_materials.push((theme_name.clone(), material_map));
+        }
+
+        if !themed_materials.is_empty() {
+            Some(themed_materials)
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }
 
@@ -1707,7 +1750,7 @@ mod tests {
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
         wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
         wall_material.set_ambient_intensity(Some(0.5));
-        let mat_ref = builder.set_material_surface(Some(surface2), wall_material);
+        let mat_ref = builder.set_material_surface(Some(surface2), wall_material, "material-theme".to_string());
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -1884,8 +1927,8 @@ mod tests {
         let mut roof_material = OwnedMaterial::new("Roof".to_string());
         roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
 
-        let wall_mat_ref = builder.set_material_surface(Some(surface0), wall_material);
-        let roof_mat_ref = builder.set_material_surface(Some(surface4), roof_material);
+        let wall_mat_ref = builder.set_material_surface(Some(surface0), wall_material, "material-theme".to_string());
+        let roof_mat_ref = builder.set_material_surface(Some(surface4), roof_material, "material-theme".to_string());
 
         // Create a shell from the surfaces
         builder
@@ -2064,8 +2107,8 @@ mod tests {
         blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9]));
 
         // Apply materials to some surfaces
-        let red_mat_ref = builder.set_material_surface(Some(surface0), red_material);
-        let blue_mat_ref = builder.set_material_surface(Some(surface6), blue_material);
+        let red_mat_ref = builder.set_material_surface(Some(surface0), red_material, "material-theme".to_string());
+        let blue_mat_ref = builder.set_material_surface(Some(surface6), blue_material, "material-theme");
 
         // Create shells for each cube
         builder

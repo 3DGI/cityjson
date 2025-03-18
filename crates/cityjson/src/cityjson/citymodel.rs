@@ -28,7 +28,7 @@ pub trait CityModelTypes {
     type Semantic: SemanticTrait<Self::ResourceRef, Self::StringStorage, Self::SemType>;
     type Material: MaterialTrait<Self::StringStorage>;
     type Texture: TextureTrait<Self::StringStorage>;
-    type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef>;
+    type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
     type Metadata: MetadataTrait<Self::StringStorage>;
     type Transform: TransformTrait;
     type Extension: ExtensionTrait<Self::StringStorage>;
