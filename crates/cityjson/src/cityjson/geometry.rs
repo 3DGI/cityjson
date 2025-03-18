@@ -927,7 +927,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
         {
             None
         } else {
-            Some(build_texture_map::<V, M>(
+            Some(build_texture_map::<V, M, SS>(
                 &boundary,
                 &self.ring_textures,
                 &self.vertex_uv_mapping,
@@ -1214,94 +1214,48 @@ fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage
     }
 }
 
-fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
+fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage>(
     boundary: &Boundary<V::VertexRef>,
-    ring_textures: &HashMap<usize, V::ResourceRef>,
+    ring_textures: &[(SS::String, Vec<(usize, V::ResourceRef)>)],
     vertex_uv_mapping: &HashMap<usize, usize>,
-) -> TextureMap<V::VertexRef, V::ResourceRef> {
-    // Pre-allocate the texture map with correct capacity
-    let mut texture_map = TextureMap::<V::VertexRef, V::ResourceRef>::with_capacity(
-        boundary.vertices.len(),
-        boundary.rings.len(),
-        ring_textures.len(),
-        boundary.surfaces.len(),
-        boundary.shells.len(),
-        boundary.solids.len(),
-    );
+) -> Vec<(SS::String, TextureMap<V::VertexRef, V::ResourceRef>)> {
+    let mut themed_texture_maps = Vec::new();
 
-    // Initialize the vertices vector with None values
-    for _ in 0..boundary.vertices.len() {
-        texture_map.add_vertex(None);
-    }
+    for (theme_name, ring_mappings) in ring_textures {
+        let mut texture_map = TextureMap::<V::VertexRef, V::ResourceRef>::default();
 
-    // Use BoundaryCounter to track positions within the boundary
-    let mut counter = BoundaryCounter::<V::VertexRef>::default();
-    let mut orig_builder_idx_to_boundary_idx = HashMap::new();
-    let mut builder_ring_idx = 0;
-
-    // Process each surface
-    for s_idx in 0..boundary.surfaces.len() {
-        let surface_start = boundary.surfaces[s_idx].to_usize();
-        let surface_end = boundary
-            .surfaces
-            .get(s_idx + 1)
-            .map_or(boundary.rings.len(), |idx| idx.to_usize());
-
-        // Get the texture for this surface (if any)
-        let surface_texture = surface_textures.get(&s_idx).copied();
-
-        // Process each ring in this surface
-        for r_idx in surface_start..surface_end {
-            let ring_start = boundary.rings[r_idx].to_usize();
-            let ring_end = boundary
-                .rings
-                .get(r_idx + 1)
-                .map_or(boundary.vertices.len(), |idx| idx.to_usize());
-
-            // Get ring-specific texture (if any) or fall back to surface texture
-            let texture_ref = ring_textures
-                .get(&builder_ring_idx)
-                .copied()
-                .or(surface_texture);
-
-            // If we have a texture for this ring, add it to the texture map
-            if let Some(texture_ref) = texture_ref {
-                texture_map.add_ring(boundary.rings[r_idx]);
-                texture_map.add_ring_texture(Some(texture_ref));
-
-                // Map each vertex in this ring from builder index to boundary index
-                let current_vertex_offset = counter.vertex_offset();
-                for v_offset in 0..(ring_end - ring_start) {
-                    let builder_vertex_idx = v_offset;
-                    let boundary_vertex_idx = current_vertex_offset.to_usize() + v_offset;
-                    orig_builder_idx_to_boundary_idx
-                        .insert(builder_vertex_idx, boundary_vertex_idx);
-                }
-            }
-
-            // Advance vertex counter for this ring
-            for _ in ring_start..ring_end {
-                counter.increment_vertex_idx();
-            }
-
-            builder_ring_idx += 1;
+        // Initialize vertices with None values
+        for _ in 0..boundary.vertices.len() {
+            texture_map.add_vertex(None);
         }
-    }
 
-    // Map the UV coordinates to boundary vertices
-    for (builder_vertex_idx, uv_idx) in vertex_uv_mapping {
-        if let Some(boundary_idx) = orig_builder_idx_to_boundary_idx.get(builder_vertex_idx) {
-            // Convert UV index to VertexIndex
-            if let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx) {
-                // Assign the UV coordinate to the boundary vertex
-                if *boundary_idx < texture_map.vertices().len() {
-                    texture_map.vertices_mut()[*boundary_idx] = Some(uv_vertex_idx);
+        // Process each ring mapping for this theme
+        for (ring_idx, texture_ref) in ring_mappings {
+            // Check if the ring index is valid
+            if *ring_idx < boundary.rings.len() {
+                // Add the ring to the texture map
+                texture_map.add_ring(boundary.rings[*ring_idx]);
+                // Assign the texture to this ring
+                texture_map.add_ring_texture(Some(*texture_ref));
+            }
+        }
+
+        // Map UV coordinates to vertices
+        for (vertex_idx, uv_idx) in vertex_uv_mapping {
+            if *vertex_idx < texture_map.vertices_mut().len() {
+                if let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx) {
+                    texture_map.vertices_mut()[*vertex_idx] = Some(uv_vertex_idx);
                 }
             }
         }
+
+        // Only add the texture map if it has at least one ring with texture
+        if texture_map.rings().len() > 0 {
+            themed_texture_maps.push((theme_name.clone(), texture_map));
+        }
     }
 
-    texture_map
+    themed_texture_maps
 }
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
