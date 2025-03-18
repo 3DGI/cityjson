@@ -1,7 +1,7 @@
+use cityjson::cityjson::geometry::BuilderMode;
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 use std::collections::HashMap;
-use cityjson::cityjson::geometry::BuilderMode;
 
 #[test]
 fn build_dummy_complete_owned() -> Result<()> {
@@ -68,13 +68,16 @@ fn build_dummy_complete_owned() -> Result<()> {
     let material_red = Material::new("red".to_string());
 
     // Create textures
-    let texture_0 = Texture::new("http://www.someurl.org/filename.jpg".to_string(), ImageType::Png);
+    let texture_0 = Texture::new(
+        "http://www.someurl.org/filename.jpg".to_string(),
+        ImageType::Png,
+    );
 
     // Because we want to reuse vertices, we need to create them first
     let v0 = model.add_vertex(QuantizedCoordinate::new(102, 103, 1))?;
-    let v1 = model.add_vertex(QuantizedCoordinate::new( 11, 910, 43))?;
+    let v1 = model.add_vertex(QuantizedCoordinate::new(11, 910, 43))?;
     let v2 = model.add_vertex(QuantizedCoordinate::new(25, 744, 22))?;
-    let v3 = model.add_vertex(QuantizedCoordinate::new( 23, 88, 5))?;
+    let v3 = model.add_vertex(QuantizedCoordinate::new(23, 88, 5))?;
 
     // Build CityObject "id-1".
     // This block scope is just for visual separation and code folding in the editor.
@@ -114,12 +117,13 @@ fn build_dummy_complete_owned() -> Result<()> {
         {
             // Add point location to the address.
             let mut location_builder =
-                GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular).with_lod(LoD::LoD1);
+                GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular)
+                    .with_lod(LoD::LoD1);
             let _location_p = location_builder.add_vertex(v0);
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
-                    Box::new(AttributeValue::Geometry(location_geometry_ref))
+                    Box::new(AttributeValue::Geometry(location_geometry_ref)),
                 );
             }
         }
@@ -141,7 +145,9 @@ fn build_dummy_complete_owned() -> Result<()> {
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
         {
-            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular).with_lod(LoD::LoD2_1);
+            let mut geometry_builder =
+                GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular)
+                    .with_lod(LoD::LoD2_1);
             let bv0 = geometry_builder.add_vertex(v0);
             let bv1 = geometry_builder.add_vertex(v1);
             let bv2 = geometry_builder.add_vertex(v2);
@@ -149,16 +155,21 @@ fn build_dummy_complete_owned() -> Result<()> {
 
             // 0th Surface ---
             // Geometry
+            let ring0 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
             let surface_0 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?; // todo: add_outer_ring would take the ring idx returned by add_ring
+            geometry_builder.add_surface_outer_ring(ring0)?;
             // Semantic
             let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
             let sem_attr = roof_semantic.attributes_mut();
             sem_attr.insert("surfaceAttribute".to_string(), AttributeValue::Bool(true));
             geometry_builder.set_semantic_surface(None, roof_semantic.clone())?;
             // Material
-            geometry_builder.set_material_surface(None, material_irradiation.clone())?; // todo: for material and texture, i could remove the _surface suffix, since only surfaces can have them
-            geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.set_material_surface(
+                None,
+                material_irradiation.clone(),
+                "irradiation".to_string(),
+            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
             // Texture
             let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
             let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
@@ -168,53 +179,76 @@ fn build_dummy_complete_owned() -> Result<()> {
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_surface(None, texture_0.clone())?;
-            // todo: set_texture/semantic/material should probably take a reference
-            // todo: need to set the texture on a ring, not on a surface
-            // todo: set texture theme on geometry "winter-textures"
+            geometry_builder.set_texture_ring(
+                None,
+                texture_0.clone(),
+                "winter-textures".to_string(),
+            )?;
 
             // 1st Surface ---
+            let ring1 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
             let surface_1 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?;
+            geometry_builder.add_surface_outer_ring(ring1)?;
             // We reuse the previously created Semantic
             geometry_builder.set_semantic_surface(None, roof_semantic)?;
-            geometry_builder.set_material_surface(None, material_irradiation.clone())?;
-            geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.set_material_surface(
+                None,
+                material_irradiation.clone(),
+                "irradiation".to_string(),
+            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
             geometry_builder.map_vertex_to_uv(bv0, uv0);
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_surface(None, texture_0)?;
+            geometry_builder.set_texture_ring(None, texture_0, "theme-texture".to_string())?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
+            let ring2 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
             let surface_2 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?; // todo: same here, add_outer_ring would be sufficient
-            geometry_builder.set_material_surface(None, material_irradiation.clone())?;
-            geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.add_surface_outer_ring(ring2)?;
+            geometry_builder.set_material_surface(
+                None,
+                material_irradiation.clone(),
+                "irradiation".to_string(),
+            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
 
             // 3rd Surface ---
             // This surface has a type from an Extension
             let semantic_extension_type = "+PatioDoor".to_string();
+            let ring3 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
             let surface_3 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[bv0, bv3, bv2, bv1])?;
-            let patio_door_semantic = Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
+            geometry_builder.add_surface_outer_ring(ring3)?;
+            let patio_door_semantic =
+                Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
             geometry_builder.set_semantic_surface(None, patio_door_semantic.clone())?;
             // This surface does not have the "irradiation" material
-            geometry_builder.set_material_surface(None, material_red.clone())?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
             geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
 
             // Inner shell
             let surface_4 = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(&[bv1, bv2, bv3, bv0])?;
-            geometry_builder.add_surface_inner_ring(&[bv1, bv2, bv3, bv0])?;
+            let ring4 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
+            geometry_builder.add_surface_outer_ring(ring4)?;
+            let ring5 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
+            geometry_builder.add_surface_inner_ring(ring5)?;
             geometry_builder.add_shell(&[surface_4])?;
 
             // Consume the builder by building a Geometry and adding it to the CityModel
             let geometry_ref = geometry_builder.build()?;
 
             // For debug only
-            let geom_nested = model.geometries().get(geometry_ref).unwrap().clone().boundaries().unwrap().to_nested_solid().unwrap();
+            let geom_nested = model
+                .geometries()
+                .get(geometry_ref)
+                .unwrap()
+                .clone()
+                .boundaries()
+                .unwrap()
+                .to_nested_solid()
+                .unwrap();
             println!("{:?}", geom_nested);
         }
     }
@@ -228,50 +262,72 @@ fn build_dummy_complete_owned() -> Result<()> {
     // Build CityObject "a-tree".
     {
         // Build a geometry template
-        let mut template_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Template).with_lod(LoD::LoD2_1);
+        let mut template_builder = GeometryBuilder::new(
+            &mut model,
+            GeometryType::MultiSurface,
+            BuilderMode::Template,
+        )
+        .with_lod(LoD::LoD2_1);
         let tp0 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.5, 0.0));
         let tp1 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0));
         let tp2 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0));
         let tp3 = template_builder.add_template_point(RealWorldCoordinate::new(2.1, 4.2, 1.2));
 
+        let ring0 = template_builder.add_ring(&[tp0, tp3, tp2, tp1])?;
         template_builder.start_surface();
-        template_builder.add_surface_outer_ring(&[tp0, tp3, tp2, tp1])?;
+        template_builder.add_surface_outer_ring(ring0)?;
 
+        let ring1 = template_builder.add_ring(&[tp1, tp2, tp0, tp3])?;
         template_builder.start_surface();
-        template_builder.add_surface_outer_ring(&[tp1, tp2, tp0, tp3])?;
+        template_builder.add_surface_outer_ring(ring1)?;
 
+        let ring2 = template_builder.add_ring(&[tp0, tp1, tp3, tp2])?;
         template_builder.start_surface();
-        template_builder.add_surface_outer_ring(&[tp0, tp1, tp3, tp2])?;
+        template_builder.add_surface_outer_ring(ring2)?;
 
         let template_ref = template_builder.build()?;
 
         // Add an instance of the template to the model
-        let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::GeometryInstance, BuilderMode::Regular).with_template(template_ref)?.with_transformation_matrix([
-            2.0, 0.0, 0.0, 0.0,
-            0.0, 2.0, 0.0, 0.0,
-            0.0, 0.0, 2.0, 0.0,
-            0.0, 0.0, 0.0, 1.0
-          ])?;
-        // Add the reference point
-        geometry_builder.add_vertex(v1); // todo: could have with_reference_point / with_reference_vertex for method chaining
-        geometry_builder.build()?;
+        GeometryBuilder::new(
+            &mut model,
+            GeometryType::GeometryInstance,
+            BuilderMode::Regular,
+        )
+        .with_template(template_ref)?
+        .with_transformation_matrix([
+            2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ])?
+        .with_reference_vertex(v1)
+        .build()?;
     }
 
     // Build CityObject "my-neighbourhood"
     {
         let co_neigh_attrs = co_neighbourhood.attributes_mut();
-        co_neigh_attrs.insert("location".to_string(), AttributeValue::String("Magyarkanizsa".to_string()));
+        co_neigh_attrs.insert(
+            "location".to_string(),
+            AttributeValue::String("Magyarkanizsa".to_string()),
+        );
         let co_neigh_extra = co_neighbourhood.extra_mut();
-        let children_roles_vec = vec![Box::new(AttributeValue::String("residential building".to_string())), Box::new(AttributeValue::String("voting location".to_string()))];
-        co_neigh_extra.insert("children_roles".to_string(), AttributeValue::Vec(children_roles_vec));
+        let children_roles_vec = vec![
+            Box::new(AttributeValue::String("residential building".to_string())),
+            Box::new(AttributeValue::String("voting location".to_string())),
+        ];
+        co_neigh_extra.insert(
+            "children_roles".to_string(),
+            AttributeValue::Vec(children_roles_vec),
+        );
         {
-            let mut geometry_builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular).with_lod(LoD::LoD2);
+            let mut geometry_builder =
+                GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular)
+                    .with_lod(LoD::LoD2);
             let _surface_i = geometry_builder.start_surface();
             let p1 = geometry_builder.add_vertex(v0);
             let p2 = geometry_builder.add_vertex(v3);
             let p3 = geometry_builder.add_vertex(v2);
             let p4 = geometry_builder.add_vertex(v1);
-            geometry_builder.add_surface_outer_ring(&[p1, p4, p3, p2])?;
+            let ring0 = geometry_builder.add_ring(&[p1, p4, p3, p2])?;
+            geometry_builder.add_surface_outer_ring(ring0)?;
             let _geometry_ref = geometry_builder.build()?;
         }
     }
@@ -284,12 +340,36 @@ fn build_dummy_complete_owned() -> Result<()> {
 
     // Create CityObject hierarchy with the references that are returned by the "add"
     // method
-    cityobjects.get_mut(co_1_ref).unwrap().parents_mut().push(co_3_ref.clone());
-    cityobjects.get_mut(co_1_ref).unwrap().parents_mut().push(co_neigh_ref.clone());
-    cityobjects.get_mut(co_3_ref).unwrap().children_mut().push(co_1_ref.clone());
-    cityobjects.get_mut(co_3_ref).unwrap().parents_mut().push(co_neigh_ref.clone());
-    cityobjects.get_mut(co_neigh_ref).unwrap().children_mut().push(co_1_ref.clone());
-    cityobjects.get_mut(co_neigh_ref).unwrap().children_mut().push(co_3_ref.clone());
+    cityobjects
+        .get_mut(co_1_ref)
+        .unwrap()
+        .parents_mut()
+        .push(co_3_ref.clone());
+    cityobjects
+        .get_mut(co_1_ref)
+        .unwrap()
+        .parents_mut()
+        .push(co_neigh_ref.clone());
+    cityobjects
+        .get_mut(co_3_ref)
+        .unwrap()
+        .children_mut()
+        .push(co_1_ref.clone());
+    cityobjects
+        .get_mut(co_3_ref)
+        .unwrap()
+        .parents_mut()
+        .push(co_neigh_ref.clone());
+    cityobjects
+        .get_mut(co_neigh_ref)
+        .unwrap()
+        .children_mut()
+        .push(co_1_ref.clone());
+    cityobjects
+        .get_mut(co_neigh_ref)
+        .unwrap()
+        .children_mut()
+        .push(co_3_ref.clone());
 
     println!("{}", &model);
     Ok(())

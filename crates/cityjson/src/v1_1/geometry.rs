@@ -24,7 +24,8 @@ pub struct Geometry<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     instance_transformation_matrix: Option<[f64; 16]>,
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryTrait<VR, RR, SS> for Geometry<VR, RR, SS>
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryTrait<VR, RR, SS>
+    for Geometry<VR, RR, SS>
 where
     VR: VertexRef,
     RR: ResourceRef,

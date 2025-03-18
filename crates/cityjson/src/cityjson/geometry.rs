@@ -119,7 +119,9 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: Stri
     ring_textures: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
 }
 
-impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage> GeometryBuilder<'a, V, M, SS> {
+impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage>
+    GeometryBuilder<'a, V, M, SS>
+{
     /// Instantiates a new GeometryBuilder.
     ///
     /// # Parameters
@@ -197,6 +199,16 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         }
         self.transformation_matrix = Some(transformation_matrix);
         Ok(self)
+    }
+
+    pub fn with_reference_point(mut self, point: V::CoordinateType) -> Self {
+        self.add_point(point);
+        self
+    }
+
+    pub fn with_reference_vertex(mut self, vertex: VertexIndex<V::VertexRef>) -> Self {
+        self.add_vertex(vertex);
+        self
     }
 
     /// Add a new point to the boundary by providing its coordinates. The point will be
@@ -315,7 +327,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// - No surface is currently being built (`NoActiveElement`)
     /// - The ring is invalid (`InvalidRing`)
     /// - An outer ring is already set (`InvalidGeometry`)
-    pub fn add_surface_outer_ring(&mut self, vertices: &[usize]) -> Result<()> {
+    pub fn add_surface_outer_ring(&mut self, ring_idx: usize) -> Result<()> {
         let surface_idx = self.active_surface.ok_or_else(|| Error::NoActiveElement {
             element_type: "surface".to_string(),
         })?;
@@ -324,7 +336,6 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                 "An outer ring is already set on the surface".to_string(),
             ));
         }
-        let ring_idx = self.add_ring(vertices)?;
         self.surfaces[surface_idx].outer_ring = Some(ring_idx);
         Ok(())
     }
@@ -337,7 +348,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// - No surface is currently being built (`NoActiveElement`)
     /// - The current surface has no outer ring (`MissingOuterElement`)
     /// - The ring is invalid (`InvalidRing`)
-    pub fn add_surface_inner_ring(&mut self, vertices: &[usize]) -> Result<()> {
+    pub fn add_surface_inner_ring(&mut self, ring_idx: usize) -> Result<()> {
         let surface_idx = self.active_surface.ok_or_else(|| Error::NoActiveElement {
             element_type: "surface".to_string(),
         })?;
@@ -347,8 +358,6 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                 context: "Cannot add inner ring before outer ring is set".to_string(),
             });
         }
-
-        let ring_idx = self.add_ring(vertices)?;
         self.surfaces[surface_idx].inner_rings.push(ring_idx);
         Ok(())
     }
@@ -622,7 +631,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         &mut self,
         index: Option<usize>,
         texture: V::Texture,
-        theme: SS::String
+        theme: SS::String,
     ) -> Result<V::ResourceRef> {
         let texture_ref = self.model.add_texture(texture);
         let ring_i = if let Some(i) = index {
@@ -721,6 +730,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         let mut material_map_option = None;
         let mut instance_reference_point = None;
 
+        let nr_builder_vertices = self.vertices.len();
         // Each Boundary type has vertices
         let vertex_indices: Vec<VertexIndex<V::VertexRef>> = match self.builder_mode {
             BuilderMode::Regular => self
@@ -748,7 +758,11 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
             GeometryType::MultiPoint => {
                 boundary.vertices = vertex_indices;
 
-                semantic_map_option = build_semantic_map(&self.type_geometry, &self.linestring_semantics, &self.rings);
+                semantic_map_option = build_semantic_map::<V, M>(
+                    &self.type_geometry,
+                    &self.point_semantics,
+                    nr_builder_vertices,
+                );
             }
             GeometryType::MultiLineString => {
                 for ring in &self.rings {
@@ -759,7 +773,11 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map(&self.type_geometry, &self.point_semantics, &self.vertices);
+                semantic_map_option = build_semantic_map::<V, M>(
+                    &self.type_geometry,
+                    &self.linestring_semantics,
+                    self.rings.len(),
+                );
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 for surface in &self.surfaces {
@@ -786,9 +804,14 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
+                semantic_map_option = build_semantic_map::<V, M>(
+                    &self.type_geometry,
+                    &self.surface_semantics,
+                    self.surfaces.len(),
+                );
 
-                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
+                material_map_option =
+                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::Solid => {
                 // Add shell index
@@ -822,9 +845,14 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
+                semantic_map_option = build_semantic_map::<V, M>(
+                    &self.type_geometry,
+                    &self.surface_semantics,
+                    self.surfaces.len(),
+                );
 
-                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
+                material_map_option =
+                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
                 // Process each solid
@@ -916,23 +944,27 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map(&self.type_geometry, &self.surface_semantics, &self.surfaces);
+                semantic_map_option = build_semantic_map::<V, M>(
+                    &self.type_geometry,
+                    &self.surface_semantics,
+                    self.surfaces.len(),
+                );
 
-                material_map_option = build_material_map(&self.surface_materials, &self.surfaces);
+                material_map_option =
+                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
             }
         }
 
-        let texture_map_option = if self.ring_textures.is_empty()
-            && self.vertex_uv_mapping.is_empty()
-        {
-            None
-        } else {
-            Some(build_texture_map::<V, M, SS>(
-                &boundary,
-                &self.ring_textures,
-                &self.vertex_uv_mapping,
-            ))
-        };
+        let texture_map_option =
+            if self.ring_textures.is_empty() && self.vertex_uv_mapping.is_empty() {
+                None
+            } else {
+                Some(build_texture_map::<V, M, SS>(
+                    &boundary,
+                    &self.ring_textures,
+                    &self.vertex_uv_mapping,
+                ))
+            };
         if texture_map_option.is_some() {
             for uv in self.uv_coordinates {
                 self.model.add_uv_coordinate(uv)?;
@@ -1133,17 +1165,17 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     }
 }
 
-fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>, T>(
+fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>>(
     type_geometry: &GeometryType,
     builder_semantics: &HashMap<usize, V::ResourceRef>,
-    builder_boundary: &Vec<T>,
+    nr_primitives: usize,
 ) -> Option<SemanticMap<V::VertexRef, V::ResourceRef>> {
     match type_geometry {
         GeometryType::GeometryInstance => None,
         GeometryType::MultiPoint => {
             if !builder_semantics.is_empty() {
                 let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.points = (0..builder_boundary.len())
+                semantic_map.points = (0..nr_primitives)
                     .map(|i| builder_semantics.get(&i).copied())
                     .collect();
                 Some(semantic_map)
@@ -1154,7 +1186,7 @@ fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>, T>(
         GeometryType::MultiLineString => {
             if !builder_semantics.is_empty() {
                 let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.linestrings = (0..builder_boundary.len())
+                semantic_map.linestrings = (0..nr_primitives)
                     .map(|i| builder_semantics.get(&i).copied())
                     .collect();
                 Some(semantic_map)
@@ -1166,7 +1198,7 @@ fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>, T>(
             // Handle semantics, materials and textures for surfaces
             if !builder_semantics.is_empty() {
                 let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.surfaces = (0..builder_boundary.len())
+                semantic_map.surfaces = (0..nr_primitives)
                     .map(|i| builder_semantics.get(&i).copied())
                     .collect();
                 Some(semantic_map)
@@ -1214,7 +1246,11 @@ fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage
     }
 }
 
-fn build_texture_map<V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage>(
+fn build_texture_map<
+    V: CityModelTypes<StringStorage = SS>,
+    M: CityModelTrait<V>,
+    SS: StringStorage,
+>(
     boundary: &Boundary<V::VertexRef>,
     ring_textures: &[(SS::String, Vec<(usize, V::ResourceRef)>)],
     vertex_uv_mapping: &HashMap<usize, usize>,
@@ -1666,18 +1702,23 @@ mod tests {
         // Create three surfaces
 
         // Surface 1: Triangle (no semantic or material)
+        let ring0 = builder.add_ring(&[p0, p1, p4]).expect("Failed to add ring");
         let surface0 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p1, p4])
+            .add_surface_outer_ring(ring0)
             .expect("Failed to add outer ring");
 
         // Surface 2: Square with semantic and texture
+        let ring1 = builder
+            .add_ring(&[p1, p2, p5, p6])
+            .expect("Failed to add ring");
         let surface1 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p1, p2, p5, p6])
+            .add_surface_outer_ring(ring1)
             .expect("Failed to add outer ring");
+        let ring2 = builder.add_ring(&[p0, p1, p2]).expect("Failed to add ring");
         builder
-            .add_surface_inner_ring(&[p0, p1, p2])
+            .add_surface_inner_ring(ring2)
             .expect("Failed to add inner ring");
 
         // Add UV coordinates for each vertex
@@ -1693,23 +1734,31 @@ mod tests {
         // Create a texture
         let wall_texture = OwnedTexture::new("facade.jpg".to_string(), ImageType::Jpg);
         // Set the texture for the surface
-        let texture_ref = builder.set_texture_surface(Some(surface0), wall_texture);
+        let texture_ref =
+            builder.set_texture_ring(Some(surface0), wall_texture, "theme-texture".to_string());
 
         // Create and assign semantic for the second surface
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
         let sem_ref = builder.set_semantic_surface(Some(surface1), roof_semantic);
 
         // Surface 3: Polygon with material
+        let ring2 = builder
+            .add_ring(&[p2, p3, p4, p8, p7])
+            .expect("Failed to add ring");
         let surface2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p2, p3, p4, p8, p7])
+            .add_surface_outer_ring(ring2)
             .expect("Failed to add outer ring");
 
         // Create and assign material for the third surface
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
         wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
         wall_material.set_ambient_intensity(Some(0.5));
-        let mat_ref = builder.set_material_surface(Some(surface2), wall_material, "material-theme".to_string());
+        let mat_ref = builder.set_material_surface(
+            Some(surface2),
+            wall_material,
+            "material-theme".to_string(),
+        );
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -1758,7 +1807,8 @@ mod tests {
 
         // Check materials
         let materials = geometry.materials().expect("No materials found");
-        let surface_materials = materials.surfaces();
+        let (_theme_material, material_map) = materials.first().unwrap();
+        let surface_materials = material_map.surfaces();
 
         // Verify surface materials
         assert_eq!(surface_materials.len(), 3); // Should have entries for all surfaces
@@ -1778,14 +1828,21 @@ mod tests {
 
         // Check textures
         let textures = geometry.textures().expect("No textures found");
+        let (_theme_texture, texture_map) = textures.first().unwrap();
 
         // Verify we have texture mappings
-        assert!(textures.vertices().len() > 0, "No texture vertices found");
-        assert!(textures.rings().len() > 0, "No texture rings found");
-        assert!(textures.ring_textures().len() > 0, "No ring textures found");
+        assert!(
+            texture_map.vertices().len() > 0,
+            "No texture vertices found"
+        );
+        assert!(texture_map.rings().len() > 0, "No texture rings found");
+        assert!(
+            texture_map.ring_textures().len() > 0,
+            "No ring textures found"
+        );
 
         // Verify the texture references
-        let texture_refs: Vec<ResourceId32> = textures
+        let texture_refs: Vec<ResourceId32> = texture_map
             .ring_textures()
             .iter()
             .filter_map(|t| t.as_ref())
@@ -1825,39 +1882,57 @@ mod tests {
 
         // Define each surface (face) of the cube
         // Front face
+        let ring0 = builder
+            .add_ring(&[p0, p1, p5, p4, p0])
+            .expect("Failed to create ring");
         let surface0 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p1, p5, p4, p0])
+            .add_surface_outer_ring(ring0)
             .expect("Failed to add front face");
 
         // Right face
+        let ring1 = builder
+            .add_ring(&[p1, p2, p6, p5, p1])
+            .expect("Failed to create ring");
         let surface1 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p1, p2, p6, p5, p1])
+            .add_surface_outer_ring(ring1)
             .expect("Failed to add right face");
 
         // Back face
+        let ring2 = builder
+            .add_ring(&[p2, p3, p7, p6, p2])
+            .expect("Failed to create ring");
         let surface2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p2, p3, p7, p6, p2])
+            .add_surface_outer_ring(ring2)
             .expect("Failed to add back face");
 
         // Left face
+        let ring3 = builder
+            .add_ring(&[p3, p0, p4, p7, p3])
+            .expect("Failed to create ring");
         let surface3 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p3, p0, p4, p7, p3])
+            .add_surface_outer_ring(ring3)
             .expect("Failed to add left face");
 
         // Top face
+        let ring4 = builder
+            .add_ring(&[p4, p5, p6, p7, p4])
+            .expect("Failed to create ring");
         let surface4 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p4, p5, p6, p7, p4])
+            .add_surface_outer_ring(ring4)
             .expect("Failed to add top face");
 
         // Bottom face
+        let ring5 = builder
+            .add_ring(&[p0, p3, p2, p1, p0])
+            .expect("Failed to create ring");
         let surface5 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p3, p2, p1, p0])
+            .add_surface_outer_ring(ring5)
             .expect("Failed to add bottom face");
 
         // Add semantics to faces
@@ -1886,8 +1961,16 @@ mod tests {
         let mut roof_material = OwnedMaterial::new("Roof".to_string());
         roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
 
-        let wall_mat_ref = builder.set_material_surface(Some(surface0), wall_material, "material-theme".to_string());
-        let roof_mat_ref = builder.set_material_surface(Some(surface4), roof_material, "material-theme".to_string());
+        let wall_mat_ref = builder.set_material_surface(
+            Some(surface0),
+            wall_material,
+            "material-theme".to_string(),
+        );
+        let roof_mat_ref = builder.set_material_surface(
+            Some(surface4),
+            roof_material,
+            "material-theme".to_string(),
+        );
 
         // Create a shell from the surfaces
         builder
@@ -1932,7 +2015,8 @@ mod tests {
 
         // Verify materials
         let materials = geometry.materials().expect("No materials found");
-        let surface_materials = materials.surfaces();
+        let (_theme_material, material_map) = materials.first().unwrap();
+        let surface_materials = material_map.surfaces();
         assert_eq!(surface_materials.len(), 6); // Should have entries for all surfaces
 
         // Verify the material references
@@ -1977,76 +2061,112 @@ mod tests {
 
         // Define surfaces for the first cube
         // Front face (cube 1)
+        let ring0 = builder
+            .add_ring(&[p0, p1, p5, p4, p0])
+            .expect("Failed to create ring");
         let surface0 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p1, p5, p4, p0])
+            .add_surface_outer_ring(ring0)
             .expect("Failed to add front face of first cube");
 
         // Right face (cube 1)
+        let ring1 = builder
+            .add_ring(&[p1, p2, p6, p5, p1])
+            .expect("Failed to create ring");
         let surface1 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p1, p2, p6, p5, p1])
+            .add_surface_outer_ring(ring1)
             .expect("Failed to add right face of first cube");
 
         // Back face (cube 1)
+        let ring2 = builder
+            .add_ring(&[p2, p3, p7, p6, p2])
+            .expect("Failed to create ring");
         let surface2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p2, p3, p7, p6, p2])
+            .add_surface_outer_ring(ring2)
             .expect("Failed to add back face of first cube");
 
         // Left face (cube 1)
+        let _ring3 = builder
+            .add_ring(&[p3, p0, p4, p7, p3])
+            .expect("Failed to create ring");
         let surface3 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p3, p0, p4, p7, p3])
+            .add_surface_outer_ring(ring2)
             .expect("Failed to add left face of first cube");
 
         // Top face (cube 1)
+        let ring4 = builder
+            .add_ring(&[p4, p5, p6, p7, p3])
+            .expect("Failed to create ring");
         let surface4 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p4, p5, p6, p7, p4])
+            .add_surface_outer_ring(ring4)
             .expect("Failed to add top face of first cube");
 
         // Bottom face (cube 1)
+        let ring5 = builder
+            .add_ring(&[p0, p3, p2, p1, p0])
+            .expect("Failed to create ring");
         let surface5 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p0, p3, p2, p1, p0])
+            .add_surface_outer_ring(ring5)
             .expect("Failed to add bottom face of first cube");
 
         // Define surfaces for the second cube
         // Front face (cube 2)
+        let ring6 = builder
+            .add_ring(&[p8, p9, p13, p12, p8])
+            .expect("Failed to create ring");
         let surface6 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p8, p9, p13, p12, p8])
+            .add_surface_outer_ring(ring6)
             .expect("Failed to add front face of second cube");
 
         // Right face (cube 2)
+        let ring7 = builder
+            .add_ring(&[p9, p10, p14, p13, p9])
+            .expect("Failed to create ring");
         let surface7 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p9, p10, p14, p13, p9])
+            .add_surface_outer_ring(ring7)
             .expect("Failed to add right face of second cube");
 
         // Back face (cube 2)
+        let ring8 = builder
+            .add_ring(&[p10, p11, p15, p14, p10])
+            .expect("Failed to create ring");
         let surface8 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p10, p11, p15, p14, p10])
+            .add_surface_outer_ring(ring8)
             .expect("Failed to add back face of second cube");
 
         // Left face (cube 2)
+        let ring9 = builder
+            .add_ring(&[p11, p8, p12, p15, p11])
+            .expect("Failed to create ring");
         let surface9 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p11, p8, p12, p15, p11])
+            .add_surface_outer_ring(ring9)
             .expect("Failed to add left face of second cube");
 
         // Top face (cube 2)
+        let ring10 = builder
+            .add_ring(&[p12, p13, p14, p15, p12])
+            .expect("Failed to create ring");
         let surface10 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p12, p13, p14, p15, p12])
+            .add_surface_outer_ring(ring10)
             .expect("Failed to add top face of second cube");
 
         // Bottom face (cube 2)
+        let ring11 = builder
+            .add_ring(&[p8, p11, p10, p9, p8])
+            .expect("Failed to create ring");
         let surface11 = builder.start_surface();
         builder
-            .add_surface_outer_ring(&[p8, p11, p10, p9, p8])
+            .add_surface_outer_ring(ring11)
             .expect("Failed to add bottom face of second cube");
 
         // Create semantics for different types of surfaces
@@ -2066,8 +2186,16 @@ mod tests {
         blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9]));
 
         // Apply materials to some surfaces
-        let red_mat_ref = builder.set_material_surface(Some(surface0), red_material, "material-theme".to_string());
-        let blue_mat_ref = builder.set_material_surface(Some(surface6), blue_material, "material-theme");
+        let red_mat_ref = builder.set_material_surface(
+            Some(surface0),
+            red_material,
+            "material-theme".to_string(),
+        );
+        let blue_mat_ref = builder.set_material_surface(
+            Some(surface6),
+            blue_material,
+            "material-theme".to_string(),
+        );
 
         // Create shells for each cube
         builder
@@ -2141,7 +2269,8 @@ mod tests {
 
         // Verify materials
         let materials = geometry.materials().expect("No materials found");
-        let surface_materials = materials.surfaces();
+        let (_theme_material, material_map) = materials.first().unwrap();
+        let surface_materials = material_map.surfaces();
         assert_eq!(surface_materials.len(), 12); // Should have entries for all surfaces
 
         // Verify the material references
