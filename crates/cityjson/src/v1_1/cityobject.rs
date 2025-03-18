@@ -12,7 +12,6 @@ use crate::prelude::{
     OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
 };
 use crate::v1_1::BBox;
-use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 /// A container for efficiently storing and accessing CityObject instances.
@@ -113,40 +112,6 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner.iter().map(|(id, _)| id).collect()
     }
 
-    fn find_by_type(&self, object_type: &CityObjectType<SS>) -> Vec<(RR, &CityObject<SS, RR>)> {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| obj.type_cityobject() == object_type)
-            .collect()
-    }
-
-    fn find_by_parent(&self, parent_id: &RR) -> Vec<(RR, &CityObject<SS, RR>)> {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| {
-                if let Some(parents) = obj.parents() {
-                    parents.contains(parent_id)
-                } else {
-                    false
-                }
-            })
-            .collect()
-    }
-
-    fn find_with_geometries(&self) -> Vec<(RR, &CityObject<SS, RR>)> {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| obj.geometry().is_some() && !obj.geometry().unwrap().is_empty())
-            .collect()
-    }
-
-    fn find_with_children(&self) -> Vec<(RR, &CityObject<SS, RR>)> {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| obj.children().is_some() && !obj.children().unwrap().is_empty())
-            .collect()
-    }
-
     fn add_many<I: IntoIterator<Item = CityObject<SS, RR>>>(&mut self, objects: I) -> Vec<RR> {
         objects.into_iter().map(|obj| self.add(obj)).collect()
     }
@@ -165,30 +130,6 @@ impl<SS: StringStorage, RR: ResourceRef>
         self.inner
             .iter()
             .filter(|(_, obj)| predicate(obj))
-            .collect()
-    }
-
-    fn count<F>(&self, predicate: F) -> usize
-    where
-        F: Fn(&CityObject<SS, RR>) -> bool,
-    {
-        self.inner.iter().filter(|(_, obj)| predicate(obj)).count()
-    }
-
-    fn count_by_type(&self) -> HashMap<CityObjectType<SS>, usize> {
-        let mut counts = HashMap::new();
-        for (_, obj) in self.inner.iter() {
-            *counts.entry(obj.type_cityobject().clone()).or_insert(0) += 1;
-        }
-        counts
-    }
-
-    fn find_by_attribute(&self, attr_name: &str) -> Vec<(RR, &CityObject<SS, RR>)> {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| {
-                obj.attributes().is_some() && obj.attributes().unwrap().contains_key(attr_name)
-            })
             .collect()
     }
 }
@@ -408,18 +349,6 @@ mod tests_cityobjects_container {
             "id-3".to_string(),
             CityObjectType::Building,
         ));
-
-        // Find by type
-        let buildings = objects.find_by_type(&CityObjectType::Building);
-        assert_eq!(buildings.len(), 2);
-
-        let bridges = objects.find_by_type(&CityObjectType::Bridge);
-        assert_eq!(bridges.len(), 1);
-
-        // Count by type
-        let counts = objects.count_by_type();
-        assert_eq!(counts.get(&CityObjectType::Building), Some(&2));
-        assert_eq!(counts.get(&CityObjectType::Bridge), Some(&1));
     }
 
     #[test]
@@ -459,15 +388,5 @@ mod tests_cityobjects_container {
             .attributes_mut()
             .insert("width".to_string(), AttributeValue::Float(30.0));
         objects.add(building2);
-
-        // Filter by attribute existence
-        let with_height = objects.find_by_attribute("height");
-        assert_eq!(with_height.len(), 1);
-
-        let with_width = objects.find_by_attribute("width");
-        assert_eq!(with_width.len(), 1);
-
-        let with_depth = objects.find_by_attribute("depth");
-        assert_eq!(with_depth.len(), 0);
     }
 }

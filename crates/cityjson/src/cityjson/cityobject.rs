@@ -1,5 +1,4 @@
 use crate::prelude::{Attributes, BBoxTrait, ResourceRef, StringStorage};
-use std::collections::HashMap;
 use std::fmt;
 
 pub trait CityObjectsTrait<SS, RR, Co, CoType, BBox>
@@ -63,14 +62,6 @@ where
     fn last(&self) -> Option<(RR, &Co)>;
     /// Returns all resource references for CityObjects in the container.
     fn ids(&self) -> Vec<RR>;
-    /// Finds CityObjects by their type.
-    fn find_by_type(&self, object_type: &CoType) -> Vec<(RR, &Co)>;
-    /// Finds CityObjects by their parent.
-    fn find_by_parent(&self, parent_id: &RR) -> Vec<(RR, &Co)>;
-    /// Finds CityObjects that have geometries.
-    fn find_with_geometries(&self) -> Vec<(RR, &Co)>;
-    /// Finds CityObjects that have children.
-    fn find_with_children(&self) -> Vec<(RR, &Co)>;
     /// Adds multiple CityObjects and returns their resource references.
     fn add_many<I: IntoIterator<Item = Co>>(&mut self, objects: I) -> Vec<RR>;
     /// Clears all CityObjects from the container.
@@ -79,14 +70,6 @@ where
     fn filter<F>(&self, predicate: F) -> Vec<(RR, &Co)>
     where
         F: Fn(&Co) -> bool;
-    /// Returns the count of CityObjects matching a predicate.
-    fn count<F>(&self, predicate: F) -> usize
-    where
-        F: Fn(&Co) -> bool;
-    /// Returns the count of CityObjects by type.
-    fn count_by_type(&self) -> HashMap<CoType, usize>;
-    /// Finds CityObjects by their attribute.
-    fn find_by_attribute(&self, attr_name: &str) -> Vec<(RR, &Co)>;
 }
 
 pub trait CityObjectTrait<
