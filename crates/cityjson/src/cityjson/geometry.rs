@@ -116,9 +116,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: Stri
     // Material storage with themes as [(theme, [(surface idx, material ref)])]
     surface_materials: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
     // Maps ring index to texture reference
-    ring_textures: HashMap<usize, V::ResourceRef>,
-    // Texture storage
-    surface_textures: HashMap<usize, V::ResourceRef>,
+    ring_textures: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
 }
 
 impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBuilder<'a, V, M, SS> {
@@ -139,7 +137,6 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
             vertices: Vec::new(),
             uv_coordinates: Vec::new(),
             vertex_uv_mapping: Default::default(),
-            ring_textures: Default::default(),
             rings: Vec::new(),
             surfaces: Vec::new(),
             shells: Vec::new(),
@@ -150,7 +147,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
             linestring_semantics: Default::default(),
             surface_semantics: Default::default(),
             surface_materials: Default::default(),
-            surface_textures: Default::default(),
+            ring_textures: Default::default(),
         }
     }
 
@@ -554,8 +551,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
     }
 
     /// Set the Material on a surface.
-    /// A surface can only have one material value. The Material is directly added to the
-    /// `model`.
+    /// The Material is directly added to the `model`.
     ///
     /// # Parameters
     ///
@@ -563,6 +559,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
     /// value returned by the [add_surface] method. If
     /// `None`, the Material is added to the last surface in the GeometryBuilder.
     /// * `material` - The Material instance to add to the surface.
+    /// * `theme` - The theme of the material.
     ///
     /// # Returns
     ///
@@ -607,40 +604,51 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
         Ok(material_ref)
     }
 
-    /// Set the Texture on a surface.
-    /// A surface can only have one material value. The Material is directly added to the
-    /// `model`.
+    /// Set the Texture on a ring.
+    /// The Texture is directly added to the `model`.
     ///
     /// # Parameters
     ///
-    /// * `index` - The index of the surface that will get the material. The index is the
-    /// value returned by the [add_surface] method. If
-    /// `None`, the Material is added to the last surface in the GeometryBuilder.
-    /// * `material` - The Material instance to add to the surface.
+    /// * `index` - The index of the ring that will get the texture. The index is the
+    /// value returned by the [add_ring] method. If
+    /// `None`, the Texture is added to the last ring in the GeometryBuilder.
+    /// * `texture` - The Texture instance to add to the ring.
+    /// * `theme` - The theme of the texture.
     ///
     /// # Returns
     ///
-    /// The reference to the Material in the resource pool of the `model`.
-    pub fn set_texture_surface(
+    /// The reference to the Texture in the resource pool of the `model`.
+    pub fn set_texture_ring(
         &mut self,
         index: Option<usize>,
         texture: V::Texture,
+        theme: SS::String
     ) -> Result<V::ResourceRef> {
         let texture_ref = self.model.add_texture(texture);
-        let surface_i = if let Some(i) = index {
-            if i >= self.surfaces.len() {
+        let ring_i = if let Some(i) = index {
+            if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
-                    element_type: "surface".to_string(),
+                    element_type: "ring".to_string(),
                     index: i,
-                    max_index: self.surfaces.len().saturating_sub(1),
+                    max_index: self.rings.len().saturating_sub(1),
                 });
             }
             i
         } else {
-            self.surfaces.len().saturating_sub(1)
+            self.rings.len().saturating_sub(1)
         };
 
-        self.surface_textures.insert(surface_i, texture_ref);
+        if let Some(pos) = self.ring_textures.iter().position(|(t, _)| t == &theme) {
+            let ring_maps = &mut self.ring_textures[pos].1;
+            if let Some(pos) = ring_maps.iter().position(|(r, _)| *r == ring_i) {
+                ring_maps[pos].1 = texture_ref;
+            } else {
+                ring_maps.push((ring_i, texture_ref));
+            }
+        } else {
+            self.ring_textures
+                .push((theme, vec![(ring_i, texture_ref)]));
+        }
 
         Ok(texture_ref)
     }
@@ -914,8 +922,7 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
             }
         }
 
-        let texture_map_option = if self.surface_textures.is_empty()
-            && self.ring_textures.is_empty()
+        let texture_map_option = if self.ring_textures.is_empty()
             && self.vertex_uv_mapping.is_empty()
         {
             None
@@ -923,7 +930,6 @@ impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBui
             Some(build_texture_map::<V, M>(
                 &boundary,
                 &self.ring_textures,
-                &self.surface_textures,
                 &self.vertex_uv_mapping,
             ))
         };
@@ -1211,7 +1217,6 @@ fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage
 fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>>(
     boundary: &Boundary<V::VertexRef>,
     ring_textures: &HashMap<usize, V::ResourceRef>,
-    surface_textures: &HashMap<usize, V::ResourceRef>,
     vertex_uv_mapping: &HashMap<usize, usize>,
 ) -> TextureMap<V::VertexRef, V::ResourceRef> {
     // Pre-allocate the texture map with correct capacity
