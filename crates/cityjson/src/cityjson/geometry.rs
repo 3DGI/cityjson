@@ -119,7 +119,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: Stri
     ring_textures: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
 }
 
-impl<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> GeometryBuilder<'a, V, M, SS> {
+impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage> GeometryBuilder<'a, V, M, SS> {
     /// Instantiates a new GeometryBuilder.
     ///
     /// # Parameters
@@ -1214,7 +1214,7 @@ fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage
     }
 }
 
-fn build_texture_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage>(
+fn build_texture_map<V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage>(
     boundary: &Boundary<V::VertexRef>,
     ring_textures: &[(SS::String, Vec<(usize, V::ResourceRef)>)],
     vertex_uv_mapping: &HashMap<usize, usize>,
