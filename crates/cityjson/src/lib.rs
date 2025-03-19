@@ -17,14 +17,12 @@ pub mod prelude {
             RGBA,
         },
         attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        citymodel::{CityModelTrait, CityModelTypes},
-        cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
+        traits::citymodel::{CityModelTrait, CityModelTypes},
         coordinate::{
             Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
             GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
             UVVertices16, UVVertices32, UVVertices64, Vertices,
         },
-        extension::{ExtensionTrait, ExtensionsTrait},
         geometry::{
             boundary::{
                 nested::{
@@ -51,7 +49,10 @@ pub mod prelude {
             VertexIndicesSequence, VertexRef,
         },
     };
-
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait};
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
 

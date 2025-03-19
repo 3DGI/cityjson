@@ -1,4 +1,4 @@
-use crate::cityjson::extension::{ExtensionTrait, ExtensionsTrait};
+use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
 use crate::prelude::StringStorage;
 use std::fmt;
 
