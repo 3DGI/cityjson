@@ -12,10 +12,11 @@ pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        appearance::{
-            material::MaterialTrait, texture::TextureTrait, ImageType, TextureType, WrapMode, RGB,
-            RGBA,
+        traits::appearance::{
+            material::MaterialTrait, texture::TextureTrait,
         },
+        shared::appearance::{ImageType, TextureType, WrapMode, RGB,
+            RGBA,},
         attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         traits::citymodel::{CityModelTrait, CityModelTypes},
         coordinate::{

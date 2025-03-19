@@ -1,5 +1,5 @@
-use crate::cityjson::appearance::material::MaterialTrait;
-use crate::cityjson::appearance::texture::TextureTrait;
+use crate::cityjson::traits::appearance::material::MaterialTrait;
+use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::cityjson::coordinate::Coordinate;
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};

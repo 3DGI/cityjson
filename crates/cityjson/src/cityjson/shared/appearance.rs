@@ -1,9 +1,4 @@
-pub mod material;
-pub mod texture;
-
-pub use material::*;
-use std::fmt;
-pub use texture::*;
+use std::{fmt, write};
 
 pub type RGB = [f32; 3];
 pub type RGBA = [f32; 4];

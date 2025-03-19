@@ -2,7 +2,8 @@
 //!
 //! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
 
-use crate::cityjson::appearance::*;
+use crate::cityjson::shared::appearance::*;
+use crate::cityjson::traits::appearance::*;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 /// Type alias for a texture with owned string storage

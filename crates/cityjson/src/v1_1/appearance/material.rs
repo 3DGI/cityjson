@@ -2,8 +2,8 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-use crate::cityjson::appearance::material::*;
-use crate::cityjson::appearance::RGB;
+use crate::cityjson::traits::appearance::material::*;
+use crate::cityjson::shared::appearance::RGB;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 /// Type alias for a material with owned string storage
