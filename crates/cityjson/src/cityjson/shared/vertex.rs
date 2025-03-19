@@ -99,7 +99,7 @@
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("This crate only supports 64-bit platforms");
 
-use crate::cityjson::traits::vertex::{VertexIndicesSequence, VertexRef};
+use crate::traits::vertex::{VertexIndicesSequence, VertexRef};
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -573,7 +573,7 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
 mod tests {
     use super::*;
     use crate::cityjson::shared::coordinate::RealWorldCoordinate;
-    use crate::cityjson::traits::vertex::{VertexIndexVec, VertexIndicesSequence};
+    use crate::traits::vertex::{VertexIndexVec, VertexIndicesSequence};
     use std::collections::HashSet;
 
     #[test]

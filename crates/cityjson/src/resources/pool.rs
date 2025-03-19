@@ -52,7 +52,7 @@
 //! ```
 
 use crate::cityjson::shared::vertex::VertexIndex;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;

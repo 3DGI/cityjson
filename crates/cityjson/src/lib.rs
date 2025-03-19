@@ -6,26 +6,27 @@ pub mod resources;
 pub mod v1_0;
 pub mod v1_1;
 pub mod v2_0;
+pub mod traits;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::cityobject::{
+    pub use crate::traits::cityobject::{
         CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait,
     };
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::coordinate::Coordinate;
+    pub use crate::traits::coordinate::Coordinate;
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
+    pub use crate::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::geometry::GeometryTrait;
+    pub use crate::traits::geometry::GeometryTrait;
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexIndexVec;
+    pub use crate::traits::vertex::VertexIndexVec;
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexIndicesSequence;
+    pub use crate::traits::vertex::VertexIndicesSequence;
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexRef;
+    pub use crate::traits::vertex::VertexRef;
     // Re-export from cityjson module
     pub use crate::cityjson::{
         shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
@@ -51,11 +52,6 @@ pub mod prelude {
         },
         shared::geometry::{GeometryBuilder, GeometryType, LoD},
         shared::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
-        traits::appearance::{material::MaterialTrait, texture::TextureTrait},
-        traits::citymodel::{CityModelTrait, CityModelTypes},
-        traits::metadata::{BBoxTrait, MetadataTrait},
-        traits::semantic::{SemanticTrait, SemanticTypeTrait},
-        traits::transform::TransformTrait,
     };
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
@@ -66,6 +62,16 @@ pub mod prelude {
         pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
+    // Re-export from cityjson module
+    pub use crate::traits::appearance::{material::MaterialTrait, texture::TextureTrait};
+    // Re-export from cityjson module
+    pub use crate::traits::citymodel::{CityModelTrait, CityModelTypes};
+    // Re-export from cityjson module
+    pub use crate::traits::metadata::{BBoxTrait, MetadataTrait};
+    // Re-export from cityjson module
+    pub use crate::traits::semantic::{SemanticTrait, SemanticTypeTrait};
+    // Re-export from cityjson module
+    pub use crate::traits::transform::TransformTrait;
 }
 
 use prelude::*;

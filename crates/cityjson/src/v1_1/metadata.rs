@@ -79,9 +79,8 @@
 //! [CityJSON 1.1.3 specification](https://www.cityjson.org/specs/1.1.3/).
 //! The module implements all required and optional metadata fields as defined in the standard.
 
-use crate::cityjson;
 use crate::cityjson::shared::attributes::Attributes;
-use crate::cityjson::traits::metadata::BBoxTrait;
+use crate::traits::metadata::BBoxTrait;
 use crate::format_option;
 use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
@@ -487,7 +486,7 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTrait<SS>
+impl<SS: StringStorage, RR: ResourceRef> crate::traits::metadata::MetadataTrait<SS>
     for Metadata<SS, RR>
 {
 }
