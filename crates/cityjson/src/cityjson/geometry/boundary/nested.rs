@@ -48,7 +48,8 @@
 //! ```
 
 use crate::cityjson::geometry::boundary::Boundary;
-use crate::cityjson::vertex::{VertexIndex, VertexRef};
+use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::shared::vertex::VertexIndex;
 
 // Type aliases for u16
 /// A collection of points (vertex indices) for a model with 16-bit indices

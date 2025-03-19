@@ -5,7 +5,7 @@
 use crate::cityjson::shared::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::shared::attributes::Attributes;
 use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
-use crate::cityjson::vertex::{VertexIndex, VertexRef};
+use crate::cityjson::shared::vertex::VertexIndex;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
 };
@@ -22,6 +22,7 @@ use crate::v1_1::{
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
+use crate::cityjson::traits::vertex::VertexRef;
 
 pub struct V1_1<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,

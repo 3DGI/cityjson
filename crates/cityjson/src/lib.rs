@@ -18,11 +18,6 @@ pub mod prelude {
     pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        shared::coordinate::{
-            FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
-            GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
-            UVVertices16, UVVertices32, UVVertices64, Vertices,
-        },
         geometry::{
             boundary::{
                 nested::{
@@ -42,19 +37,29 @@ pub mod prelude {
             semantic::{SemanticTrait, SemanticTypeTrait},
             GeometryBuilder, GeometryTrait, GeometryType, LoD,
         },
-        traits::metadata::{BBoxTrait, MetadataTrait},
         shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
         shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        shared::coordinate::{
+            FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
+            GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
+            UVVertices16, UVVertices32, UVVertices64, Vertices,
+        },
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},
+        traits::metadata::{BBoxTrait, MetadataTrait},
         traits::transform::TransformTrait,
-        vertex::{
-            VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,
-            VertexIndicesSequence, VertexRef,
+        shared::vertex::{
+            VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64,
         },
     };
     // Re-export from cityjson module
     pub use crate::cityjson::traits::coordinate::Coordinate;
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::vertex::VertexIndexVec;
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::vertex::VertexIndicesSequence;
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::vertex::VertexRef;
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
 

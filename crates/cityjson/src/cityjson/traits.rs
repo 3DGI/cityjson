@@ -5,3 +5,4 @@ pub mod extension;
 pub mod coordinate;
 pub mod metadata;
 pub mod transform;
+pub mod vertex;

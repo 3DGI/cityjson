@@ -23,7 +23,7 @@
 //! ```rust
 //! use cityjson::resources::mapping::SemanticMap;
 //! use cityjson::resources::pool::ResourceId32;
-//! use cityjson::cityjson::vertex::VertexRef;
+//! use cityjson::cityjson::traits::vertex::VertexRef;
 //!
 //! // Create a semantic mapping for a geometry with surface semantics
 //! let mut semantic_map = SemanticMap::<u32, ResourceId32>::default();
@@ -60,7 +60,8 @@ pub mod semantics;
 pub mod textures;
 
 use crate::cityjson::geometry::boundary::BoundaryType;
-use crate::cityjson::vertex::{VertexIndex, VertexRef};
+use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::shared::vertex::VertexIndex;
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;

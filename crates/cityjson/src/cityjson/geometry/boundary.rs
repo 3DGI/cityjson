@@ -67,7 +67,8 @@
 pub mod nested;
 
 use crate::cityjson::geometry::boundary::nested::*;
-use crate::cityjson::vertex::{VertexIndex, VertexRef};
+use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::shared::vertex::VertexIndex;
 use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.

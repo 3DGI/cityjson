@@ -4,10 +4,11 @@ use crate::cityjson::geometry::boundary::BoundaryCounter;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, MaterialMap, RealWorldCoordinate,
-    ResourceRef, SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex, VertexRef,
+    ResourceRef, SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex,
 };
 use std::collections::HashMap;
 use crate::cityjson::traits::coordinate::Coordinate;
+use crate::cityjson::traits::vertex::VertexRef;
 
 pub mod boundary;
 pub mod semantic;
