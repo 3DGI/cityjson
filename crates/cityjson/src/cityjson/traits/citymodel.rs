@@ -1,11 +1,12 @@
-use crate::cityjson::traits::coordinate::Coordinate;
-use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
-use crate::cityjson::geometry::GeometryTrait;
-use crate::cityjson::traits::metadata::MetadataTrait;
+use crate::cityjson::shared::vertex::VertexIndex;
 use crate::cityjson::traits::appearance::material::MaterialTrait;
 use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::traits::coordinate::Coordinate;
+use crate::cityjson::traits::geometry::GeometryTrait;
+use crate::cityjson::traits::metadata::MetadataTrait;
+use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::Result;
 use crate::prelude::{
     Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
@@ -15,7 +16,6 @@ use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::CityModelType;
 use std::fmt::Debug;
-use crate::cityjson::traits::vertex::VertexRef;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
 /// the [GenericCityModel].

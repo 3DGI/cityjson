@@ -97,10 +97,10 @@
 //! the expected number of vertices in a model.
 
 use crate::cityjson::shared::vertex::VertexIndex;
-use crate::errors::{Error, Result};
-use std::marker::PhantomData;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::vertex::VertexRef;
+use crate::errors::{Error, Result};
+use std::marker::PhantomData;
 
 /// A flexible coordinate representation that can be either quantized or real-world.
 ///

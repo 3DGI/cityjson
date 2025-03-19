@@ -1,9 +1,9 @@
+use crate::errors::Result;
+use crate::prelude::VertexIndex;
 use num::{CheckedAdd, FromPrimitive, Unsigned};
-use std::num::TryFromIntError;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use crate::errors::{Result};
-use crate::prelude::VertexIndex;
+use std::num::TryFromIntError;
 
 /// An integer reference that can be used for vertex indexing.
 ///

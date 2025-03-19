@@ -59,9 +59,9 @@ pub mod materials;
 pub mod semantics;
 pub mod textures;
 
-use crate::cityjson::geometry::boundary::BoundaryType;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::shared::boundary::BoundaryType;
 use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::traits::vertex::VertexRef;
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;

@@ -15,51 +15,48 @@ pub mod prelude {
         CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait,
     };
     // Re-export from cityjson module
+    pub use crate::cityjson::traits::coordinate::Coordinate;
+    // Re-export from cityjson module
     pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from cityjson module
-    pub use crate::cityjson::{
-        geometry::{
-            boundary::{
-                nested::{
-                    BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
-                    BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
-                    BoundaryNestedMultiOrCompositeSolid, BoundaryNestedMultiOrCompositeSolid16,
-                    BoundaryNestedMultiOrCompositeSolid32, BoundaryNestedMultiOrCompositeSolid64,
-                    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiOrCompositeSurface16,
-                    BoundaryNestedMultiOrCompositeSurface32,
-                    BoundaryNestedMultiOrCompositeSurface64, BoundaryNestedMultiPoint,
-                    BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
-                    BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
-                    BoundaryNestedSolid32, BoundaryNestedSolid64,
-                },
-                Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
-            },
-            semantic::{SemanticTrait, SemanticTypeTrait},
-            GeometryBuilder, GeometryTrait, GeometryType, LoD,
-        },
-        shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
-        shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        shared::coordinate::{
-            FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
-            GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
-            UVVertices16, UVVertices32, UVVertices64, Vertices,
-        },
-        traits::appearance::{material::MaterialTrait, texture::TextureTrait},
-        traits::citymodel::{CityModelTrait, CityModelTypes},
-        traits::metadata::{BBoxTrait, MetadataTrait},
-        traits::transform::TransformTrait,
-        shared::vertex::{
-            VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64,
-        },
-    };
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::coordinate::Coordinate;
+    pub use crate::cityjson::traits::geometry::GeometryTrait;
     // Re-export from cityjson module
     pub use crate::cityjson::traits::vertex::VertexIndexVec;
     // Re-export from cityjson module
     pub use crate::cityjson::traits::vertex::VertexIndicesSequence;
     // Re-export from cityjson module
     pub use crate::cityjson::traits::vertex::VertexRef;
+    // Re-export from cityjson module
+    pub use crate::cityjson::{
+        shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
+        shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        shared::boundary::{
+            nested::{
+                BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
+                BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
+                BoundaryNestedMultiOrCompositeSolid, BoundaryNestedMultiOrCompositeSolid16,
+                BoundaryNestedMultiOrCompositeSolid32, BoundaryNestedMultiOrCompositeSolid64,
+                BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiOrCompositeSurface16,
+                BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiOrCompositeSurface64,
+                BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
+                BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
+                BoundaryNestedSolid32, BoundaryNestedSolid64,
+            },
+            Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
+        },
+        shared::coordinate::{
+            FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
+            QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
+            UVVertices64, Vertices,
+        },
+        shared::geometry::{GeometryBuilder, GeometryType, LoD},
+        shared::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
+        traits::appearance::{material::MaterialTrait, texture::TextureTrait},
+        traits::citymodel::{CityModelTrait, CityModelTypes},
+        traits::metadata::{BBoxTrait, MetadataTrait},
+        traits::semantic::{SemanticTrait, SemanticTypeTrait},
+        traits::transform::TransformTrait,
+    };
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
 

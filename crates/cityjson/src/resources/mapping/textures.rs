@@ -39,8 +39,8 @@
 //! The `TextureMap` structure follows the hierarchical organization of CityJSON geometries,
 //! from vertices up to solids, allowing texture information to be associated at different levels.
 
-use crate::cityjson::traits::vertex::VertexRef;
 use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::traits::vertex::VertexRef;
 use crate::resources::pool::ResourceRef;
 
 /// Maps geometry vertices to texture coordinates and textures.

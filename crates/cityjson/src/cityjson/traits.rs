@@ -1,8 +1,10 @@
 pub mod appearance;
 pub mod citymodel;
 pub mod cityobject;
-pub mod extension;
 pub mod coordinate;
+pub mod extension;
+pub mod geometry;
 pub mod metadata;
+pub mod semantic;
 pub mod transform;
 pub mod vertex;

@@ -20,7 +20,7 @@ pub trait SemanticTypeTrait: Default + fmt::Display + Clone {}
 ///
 /// ```rust
 /// use cityjson::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
-/// use cityjson::cityjson::attributes::Attributes;
+/// use cityjson::cityjson::shared::attributes::Attributes;
 /// use cityjson::resources::pool::ResourceRef;
 /// use cityjson::resources::storage::StringStorage;
 ///

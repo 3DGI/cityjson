@@ -99,12 +99,12 @@
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("This crate only supports 64-bit platforms");
 
+use crate::cityjson::traits::vertex::{VertexIndicesSequence, VertexRef};
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem::size_of;
 use std::ops::AddAssign;
-use crate::cityjson::traits::vertex::{VertexIndicesSequence, VertexRef};
 //------------------------------------------------------------------------------
 // Core integer trait and implementations
 //------------------------------------------------------------------------------
@@ -573,8 +573,8 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
 mod tests {
     use super::*;
     use crate::cityjson::shared::coordinate::RealWorldCoordinate;
-    use std::collections::HashSet;
     use crate::cityjson::traits::vertex::{VertexIndexVec, VertexIndicesSequence};
+    use std::collections::HashSet;
 
     #[test]
     fn test_vertex_index_creation() {

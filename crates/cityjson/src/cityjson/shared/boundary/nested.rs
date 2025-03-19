@@ -47,9 +47,9 @@
 //! assert_eq!(multi_surface_again, multi_surface);
 //! ```
 
-use crate::cityjson::geometry::boundary::Boundary;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::shared::boundary::Boundary;
 use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::traits::vertex::VertexRef;
 
 // Type aliases for u16
 /// A collection of points (vertex indices) for a model with 16-bit indices

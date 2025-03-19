@@ -52,11 +52,11 @@
 //! ```
 
 use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::cityjson::traits::vertex::VertexRef;
 // todo: Make the pool size configurable with the specialized VertexInteger type, because we can only have as many resources in a pool as VertexInteger::MAX allow. Or enforce the size limit in some other way.
 
 /// Trait for a resource pool storing items of type T and using a resource reference RR.
