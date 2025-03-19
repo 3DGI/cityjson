@@ -2,7 +2,6 @@
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
 pub mod geometry;
-pub mod metadata;
 pub mod transform;
 pub mod vertex;
 

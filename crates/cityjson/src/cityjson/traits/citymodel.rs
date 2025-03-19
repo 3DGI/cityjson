@@ -1,7 +1,7 @@
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
-use crate::cityjson::metadata::MetadataTrait;
+use crate::cityjson::traits::metadata::MetadataTrait;
 use crate::cityjson::traits::appearance::material::MaterialTrait;
 use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;

@@ -42,7 +42,7 @@ pub mod prelude {
             semantic::{SemanticTrait, SemanticTypeTrait},
             GeometryBuilder, GeometryTrait, GeometryType, LoD,
         },
-        metadata::{BBoxTrait, MetadataTrait},
+        traits::metadata::{BBoxTrait, MetadataTrait},
         shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
         shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
