@@ -1,13 +1,13 @@
 //#![doc = include_str!("../../docs/boundary_guide.md")]
 
-use crate::cityjson::shared::boundary::BoundaryCounter;
-use crate::traits::coordinate::Coordinate;
-use crate::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate,
     SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex,
 };
+use crate::shared::boundary::BoundaryCounter;
+use crate::traits::coordinate::Coordinate;
+use crate::traits::vertex::VertexRef;
 use std::collections::HashMap;
 
 /// Represents a surface under construction with one outer ring and optional inner rings

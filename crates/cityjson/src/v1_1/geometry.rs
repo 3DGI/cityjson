@@ -1,13 +1,13 @@
 //! # Geometry
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
-use crate::cityjson::shared::boundary::Boundary;
-use crate::cityjson::shared::geometry::{GeometryType, LoD};
-use crate::traits::geometry::GeometryTrait;
-use crate::traits::vertex::VertexRef;
 use crate::prelude::{StringStorage, VertexIndex};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::ResourceRef;
+use crate::shared::boundary::Boundary;
+use crate::shared::geometry::{GeometryType, LoD};
+use crate::traits::geometry::GeometryTrait;
+use crate::traits::vertex::VertexRef;
 
 pub mod semantic;
 

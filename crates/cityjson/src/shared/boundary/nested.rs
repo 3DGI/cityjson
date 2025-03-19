@@ -47,8 +47,8 @@
 //! assert_eq!(multi_surface_again, multi_surface);
 //! ```
 
-use crate::cityjson::shared::boundary::Boundary;
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::shared::boundary::Boundary;
+use crate::shared::vertex::VertexIndex;
 use crate::traits::vertex::VertexRef;
 
 // Type aliases for u16

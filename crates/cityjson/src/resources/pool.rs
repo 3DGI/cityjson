@@ -51,9 +51,9 @@
 //! assert_eq!(id3.generation(), id1.generation() + 1); // Different generation
 //! ```
 
-use crate::cityjson::shared::vertex::VertexIndex;
-use crate::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};
+use crate::shared::vertex::VertexIndex;
+use crate::traits::vertex::VertexRef;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;

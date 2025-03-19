@@ -1,5 +1,5 @@
-use crate::traits::extension::{ExtensionTrait, ExtensionsTrait};
 use crate::prelude::StringStorage;
+use crate::traits::extension::{ExtensionTrait, ExtensionsTrait};
 use std::fmt;
 
 /// A collection of CityJSON Extensions.

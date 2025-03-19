@@ -2,9 +2,9 @@
 //!
 //! Represents a [Material object](https://www.cityjson.org/specs/1.1.3/#material-object).
 
-use crate::cityjson::shared::appearance::RGB;
-use crate::traits::appearance::material::*;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::shared::appearance::RGB;
+use crate::traits::appearance::material::*;
 
 /// Type alias for a material with owned string storage
 pub type OwnedMaterial = Material<OwnedStringStorage>;

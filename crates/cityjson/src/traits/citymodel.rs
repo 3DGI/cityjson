@@ -1,4 +1,11 @@
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::errors::Result;
+use crate::prelude::{
+    Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
+    RealWorldCoordinate, TransformTrait, UVCoordinate, Vertices,
+};
+use crate::resources::pool::{ResourcePool, ResourceRef};
+use crate::resources::storage::StringStorage;
+use crate::shared::vertex::VertexIndex;
 use crate::traits::appearance::material::MaterialTrait;
 use crate::traits::appearance::texture::TextureTrait;
 use crate::traits::cityobject::CityObjectsTrait;
@@ -7,13 +14,6 @@ use crate::traits::geometry::GeometryTrait;
 use crate::traits::metadata::MetadataTrait;
 use crate::traits::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::traits::vertex::VertexRef;
-use crate::errors::Result;
-use crate::prelude::{
-    Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
-    RealWorldCoordinate, TransformTrait, UVCoordinate, Vertices,
-};
-use crate::resources::pool::{ResourcePool, ResourceRef};
-use crate::resources::storage::StringStorage;
 use crate::CityModelType;
 use std::fmt::Debug;
 

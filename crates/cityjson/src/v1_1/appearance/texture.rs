@@ -2,9 +2,9 @@
 //!
 //! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
 
-use crate::cityjson::shared::appearance::*;
-use crate::traits::appearance::*;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::shared::appearance::*;
+use crate::traits::appearance::*;
 
 /// Type alias for a texture with owned string storage
 pub type OwnedTexture = Texture<OwnedStringStorage>;
