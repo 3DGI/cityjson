@@ -70,8 +70,8 @@
 //! [CityJSON 1.1.3 specification](https://www.cityjson.org/specs/1.1.3/) and later versions.
 //! The module implements all standard semantic surface types defined in the specification.
 
-use crate::cityjson::attributes::Attributes;
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::shared::attributes::Attributes;
 use crate::format_option;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;

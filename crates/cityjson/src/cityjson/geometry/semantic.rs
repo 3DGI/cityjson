@@ -1,4 +1,4 @@
-use crate::cityjson::attributes::Attributes;
+use crate::cityjson::shared::attributes::Attributes;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt;

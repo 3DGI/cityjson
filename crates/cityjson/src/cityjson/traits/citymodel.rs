@@ -1,10 +1,10 @@
-use crate::cityjson::traits::appearance::material::MaterialTrait;
-use crate::cityjson::traits::appearance::texture::TextureTrait;
-use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::cityjson::coordinate::Coordinate;
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
+use crate::cityjson::traits::appearance::material::MaterialTrait;
+use crate::cityjson::traits::appearance::texture::TextureTrait;
+use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors::Result;
 use crate::prelude::{

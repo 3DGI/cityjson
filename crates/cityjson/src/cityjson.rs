@@ -1,7 +1,6 @@
 //! # CityJSON types and traits
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
-pub mod attributes;
 pub mod coordinate;
 pub mod geometry;
 pub mod metadata;

@@ -11,14 +11,13 @@ pub mod v2_0;
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
     // Re-export from cityjson module
+    pub use crate::cityjson::traits::cityobject::{
+        CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait,
+    };
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
+    // Re-export from cityjson module
     pub use crate::cityjson::{
-        traits::appearance::{
-            material::MaterialTrait, texture::TextureTrait,
-        },
-        shared::appearance::{ImageType, TextureType, WrapMode, RGB,
-            RGBA,},
-        attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        traits::citymodel::{CityModelTrait, CityModelTypes},
         coordinate::{
             Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
             GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
@@ -44,16 +43,16 @@ pub mod prelude {
             GeometryBuilder, GeometryTrait, GeometryType, LoD,
         },
         metadata::{BBoxTrait, MetadataTrait},
+        shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
+        shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        traits::appearance::{material::MaterialTrait, texture::TextureTrait},
+        traits::citymodel::{CityModelTrait, CityModelTypes},
         transform::TransformTrait,
         vertex::{
             VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,
             VertexIndicesSequence, VertexRef,
         },
     };
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait};
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
 
