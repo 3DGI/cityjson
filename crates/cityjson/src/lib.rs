@@ -47,7 +47,7 @@ pub mod prelude {
         shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},
-        transform::TransformTrait,
+        traits::transform::TransformTrait,
         vertex::{
             VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,
             VertexIndicesSequence, VertexRef,
