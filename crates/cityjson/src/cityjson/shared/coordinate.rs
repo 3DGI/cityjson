@@ -99,12 +99,7 @@
 use crate::cityjson::vertex::{VertexIndex, VertexRef};
 use crate::errors::{Error, Result};
 use std::marker::PhantomData;
-
-/// Trait representing any type of coordinate.
-///
-/// This trait serves as a marker for types that can be used as coordinates
-/// in the CityJSON model. It's implemented by all coordinate types in this module.
-pub trait Coordinate {}
+use crate::cityjson::traits::coordinate::Coordinate;
 
 /// A flexible coordinate representation that can be either quantized or real-world.
 ///

@@ -18,8 +18,8 @@ pub mod prelude {
     pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        coordinate::{
-            Coordinate, FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
+        shared::coordinate::{
+            FlexibleCoordinate, GeometryVertices16, GeometryVertices32,
             GeometryVertices64, QuantizedCoordinate, RealWorldCoordinate, UVCoordinate,
             UVVertices16, UVVertices32, UVVertices64, Vertices,
         },
@@ -53,6 +53,8 @@ pub mod prelude {
             VertexIndicesSequence, VertexRef,
         },
     };
+    // Re-export from cityjson module
+    pub use crate::cityjson::traits::coordinate::Coordinate;
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
 

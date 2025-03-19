@@ -1,4 +1,4 @@
-use crate::cityjson::coordinate::Coordinate;
+use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
 use crate::cityjson::geometry::GeometryTrait;
 use crate::cityjson::metadata::MetadataTrait;
