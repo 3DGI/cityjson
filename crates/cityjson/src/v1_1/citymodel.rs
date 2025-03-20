@@ -5,8 +5,8 @@
 use crate::cityjson::shared::attributes::Attributes;
 use crate::cityjson::shared::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::shared::vertex::VertexIndex;
-use crate::traits::citymodel::{CityModelTrait, CityModelTypes};
-use crate::traits::vertex::VertexRef;
+use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
+use crate::cityjson::traits::vertex::VertexRef;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
 };

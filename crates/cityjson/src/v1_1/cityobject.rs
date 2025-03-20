@@ -6,7 +6,7 @@
 //! attributes. For example the `address` member of the `Bridge` and `Building` types,
 //! or the `children_roles` member of the `CityObjectGroup`.
 
-use crate::traits::cityobject::CityObjectsTrait;
+use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::prelude::{
     Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
     OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,

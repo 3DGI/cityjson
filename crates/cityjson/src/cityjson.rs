@@ -3,6 +3,7 @@
 //! These types are version-agnostic, as they are not expected to change across versions.
 
 pub mod shared;
+pub mod traits;
 
 #[cfg(test)]
 mod tests {

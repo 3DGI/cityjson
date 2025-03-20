@@ -70,6 +70,7 @@
 //! The transformation mechanism is an important feature of CityJSON that helps reduce file sizes
 //! while maintaining precision in coordinate values.
 
+use crate::cityjson;
 use std::fmt::{Display, Formatter};
 
 /// Transform.
@@ -139,7 +140,7 @@ impl Default for Transform {
     }
 }
 
-impl crate::traits::transform::TransformTrait for Transform {}
+impl cityjson::traits::transform::TransformTrait for Transform {}
 
 #[cfg(test)]
 mod test {

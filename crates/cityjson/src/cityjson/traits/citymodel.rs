@@ -1,12 +1,12 @@
 use crate::cityjson::shared::vertex::VertexIndex;
-use crate::traits::appearance::material::MaterialTrait;
-use crate::traits::appearance::texture::TextureTrait;
-use crate::traits::cityobject::CityObjectsTrait;
-use crate::traits::coordinate::Coordinate;
-use crate::traits::geometry::GeometryTrait;
-use crate::traits::metadata::MetadataTrait;
-use crate::traits::semantic::{SemanticTrait, SemanticTypeTrait};
-use crate::traits::vertex::VertexRef;
+use crate::cityjson::traits::appearance::material::MaterialTrait;
+use crate::cityjson::traits::appearance::texture::TextureTrait;
+use crate::cityjson::traits::cityobject::CityObjectsTrait;
+use crate::cityjson::traits::coordinate::Coordinate;
+use crate::cityjson::traits::geometry::GeometryTrait;
+use crate::cityjson::traits::metadata::MetadataTrait;
+use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::Result;
 use crate::prelude::{
     Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
