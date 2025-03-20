@@ -8,6 +8,7 @@ pub mod extension;
 pub mod geometry;
 pub mod metadata;
 pub mod transform;
+mod extension;
 
 // Re-export main types from appearance
 pub use appearance::{
