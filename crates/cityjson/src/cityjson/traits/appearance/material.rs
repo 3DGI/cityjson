@@ -14,7 +14,8 @@ use crate::resources::storage::StringStorage;
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::cityjson::appearance::{MaterialTrait, RGB};
+/// use cityjson::cityjson::core::appearance::RGB;
+/// use cityjson::cityjson::traits::appearance::MaterialTrait;
 /// use cityjson::resources::storage::{StringStorage, OwnedStringStorage};
 ///
 /// // Define a material implementation

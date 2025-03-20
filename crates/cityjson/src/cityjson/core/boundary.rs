@@ -733,7 +733,7 @@ pub type Boundary64 = Boundary<u64>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::vertex::VertexIndex;
+    use crate::cityjson::core::vertex::VertexIndex;
 
     // Helper function to create vertex indices
     fn vi<T: VertexRef>(value: T) -> VertexIndex<T> {

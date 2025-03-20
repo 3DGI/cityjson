@@ -221,7 +221,7 @@ impl SemanticTypeTrait for SemanticType {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::attributes::AttributeValue;
+    use crate::cityjson::core::attributes::AttributeValue;
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 

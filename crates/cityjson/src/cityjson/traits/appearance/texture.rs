@@ -14,7 +14,8 @@ use crate::resources::storage::StringStorage;
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::cityjson::appearance::{TextureTrait, ImageType, TextureType, WrapMode, RGBA};
+/// use cityjson::cityjson::core::appearance::{ImageType, TextureType, WrapMode, RGBA};
+/// use cityjson::cityjson::traits::appearance::TextureTrait;
 /// use cityjson::resources::storage::{StringStorage, OwnedStringStorage};
 ///
 /// // Define a texture implementation

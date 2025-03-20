@@ -405,7 +405,7 @@ impl<VR: VertexRef, RR: ResourceRef> TextureMap<VR, RR> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::vertex::VertexIndex;
+    use crate::cityjson::core::vertex::VertexIndex;
     use crate::resources::pool::ResourceId32;
 
     #[test]

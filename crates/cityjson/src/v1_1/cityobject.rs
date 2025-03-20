@@ -293,7 +293,7 @@ impl<SS: StringStorage> CityObjectTypeTrait<SS> for CityObjectType<SS> {}
 #[cfg(test)]
 mod tests_cityobjects_container {
     use super::*;
-    use crate::cityjson::attributes::AttributeValue;
+    use crate::cityjson::core::attributes::AttributeValue;
     use crate::resources::pool::ResourceId32;
 
     #[test]

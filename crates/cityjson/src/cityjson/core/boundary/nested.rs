@@ -28,8 +28,8 @@
 //! ## Examples
 //!
 //! ```
-//! use cityjson::cityjson::geometry::boundary::Boundary;
-//! use cityjson::cityjson::geometry::boundary::nested::*;
+//! use cityjson::cityjson::core::boundary::Boundary;
+//! use cityjson::cityjson::core::boundary::nested::*;
 //!
 //! // Create a nested multi-surface
 //! let multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![
@@ -113,8 +113,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::geometry::boundary::Boundary;
-    /// use cityjson::cityjson::geometry::boundary::nested::BoundaryNestedMultiPoint32;
+    /// use cityjson::cityjson::core::boundary::Boundary;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
     ///
     /// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
     /// let boundary: Boundary<u32> = multi_point.into();
@@ -145,8 +145,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::geometry::boundary::Boundary;
-    /// use cityjson::cityjson::geometry::boundary::nested::BoundaryNestedMultiLineString32;
+    /// use cityjson::cityjson::core::boundary::Boundary;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiLineString32;
     ///
     /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
     ///     vec![0, 1, 2],
@@ -191,8 +191,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::geometry::boundary::Boundary;
-    /// use cityjson::cityjson::geometry::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
+    /// use cityjson::cityjson::core::boundary::Boundary;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
     ///
     /// let multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![
     ///     vec![vec![0, 1, 2, 0]], // First surface with one ring
@@ -251,8 +251,8 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::geometry::boundary::Boundary;
-    /// use cityjson::cityjson::geometry::boundary::nested::BoundaryNestedSolid32;
+    /// use cityjson::cityjson::core::boundary::Boundary;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedSolid32;
     ///
     /// // A simplified solid with one shell containing one surface with one ring
     /// let solid: BoundaryNestedSolid32 = vec![
@@ -327,8 +327,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::geometry::boundary::Boundary;
-    /// use cityjson::cityjson::geometry::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
+    /// use cityjson::cityjson::core::boundary::Boundary;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     ///
     /// // A simplified multi-solid with two solids, each with minimal structure
     /// let multi_solid: BoundaryNestedMultiOrCompositeSolid32 = vec![

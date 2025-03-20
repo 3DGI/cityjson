@@ -1323,7 +1323,7 @@ impl std::fmt::Display for LoD {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::geometry::GeometryType;
+    use crate::cityjson::core::geometry::GeometryType;
     use crate::prelude::{
         BoundaryType, ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait,
         TextureTrait,

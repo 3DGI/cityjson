@@ -1,4 +1,3 @@
-use cityjson::cityjson::geometry::BuilderMode;
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 use std::collections::HashMap;

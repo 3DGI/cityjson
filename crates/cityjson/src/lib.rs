@@ -49,7 +49,7 @@ pub mod prelude {
             QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
             UVVertices64, Vertices,
         },
-        core::geometry::{GeometryBuilder, GeometryType, LoD},
+        core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
         core::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},

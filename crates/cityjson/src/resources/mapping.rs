@@ -83,7 +83,7 @@ use crate::resources::pool::ResourceRef;
 ///
 /// ```rust
 /// use cityjson::resources::mapping::SemanticMap;
-/// use cityjson::cityjson::geometry::boundary::BoundaryType;
+/// use cityjson::cityjson::core::boundary::BoundaryType;
 /// use cityjson::resources::pool::ResourceId32;
 ///
 /// // Create a semantic map for a multi-surface geometry
@@ -222,7 +222,7 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
     ///
     /// ```rust
     /// use cityjson::resources::mapping::SemanticMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
+    /// use cityjson::cityjson::core::vertex::VertexIndex;
     /// use cityjson::resources::pool::ResourceId32;
     ///
     /// let mut map = SemanticMap::<u32, ResourceId32>::new();
@@ -242,7 +242,7 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
     ///
     /// ```rust
     /// use cityjson::resources::mapping::MaterialMap;
-    /// use cityjson::cityjson::vertex::VertexIndex;
+    /// use cityjson::cityjson::core::vertex::VertexIndex;
     /// use cityjson::resources::pool::ResourceId32;
     ///
     /// let mut map = MaterialMap::<u32, ResourceId32>::new();
@@ -312,7 +312,7 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
     /// ```rust
     /// use cityjson::resources::mapping::MaterialMap;
     /// use cityjson::resources::pool::ResourceId32;
-    /// use cityjson::cityjson::geometry::boundary::BoundaryType;
+    /// use cityjson::cityjson::core::boundary::BoundaryType;
     ///
     /// // Create a material map for point features
     /// let mut material_map = MaterialMap::<u32, ResourceId32>::default();
@@ -349,8 +349,8 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::geometry::boundary::BoundaryType;
-    use crate::cityjson::vertex::VertexIndex;
+    use crate::cityjson::core::boundary::BoundaryType;
+    use crate::cityjson::core::vertex::VertexIndex;
     use crate::resources::pool::ResourceId32;
 
     #[test]
