@@ -66,8 +66,8 @@
 
 pub mod nested;
 
-use crate::cityjson::shared::boundary::nested::*;
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::core::boundary::nested::*;
+use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors;
 

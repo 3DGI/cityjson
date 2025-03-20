@@ -1,6 +1,6 @@
 //#![doc = include_str!("../../docs/boundary_guide.md")]
 
-use crate::cityjson::shared::boundary::BoundaryCounter;
+use crate::cityjson::core::boundary::BoundaryCounter;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};

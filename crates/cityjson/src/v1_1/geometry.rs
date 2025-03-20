@@ -1,8 +1,8 @@
 //! # Geometry
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
-use crate::cityjson::shared::boundary::Boundary;
-use crate::cityjson::shared::geometry::{GeometryType, LoD};
+use crate::cityjson::core::boundary::Boundary;
+use crate::cityjson::core::geometry::{GeometryType, LoD};
 use crate::cityjson::traits::geometry::GeometryTrait;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::prelude::{StringStorage, VertexIndex};

@@ -1,4 +1,4 @@
-use crate::cityjson::shared::attributes::Attributes;
+use crate::cityjson::core::attributes::Attributes;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt;
@@ -20,7 +20,7 @@ pub trait SemanticTypeTrait: Default + fmt::Display + Clone {}
 ///
 /// ```rust
 /// use cityjson::cityjson::geometry::semantic::{SemanticTrait, SemanticTypeTrait};
-/// use cityjson::cityjson::shared::attributes::Attributes;
+/// use cityjson::cityjson::core::attributes::Attributes;
 /// use cityjson::resources::pool::ResourceRef;
 /// use cityjson::resources::storage::StringStorage;
 ///

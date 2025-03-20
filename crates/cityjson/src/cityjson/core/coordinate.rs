@@ -96,7 +96,7 @@
 //! index type (u16, u32, or u64). This allows for efficient memory usage based on
 //! the expected number of vertices in a model.
 
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};

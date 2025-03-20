@@ -572,7 +572,7 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::shared::coordinate::RealWorldCoordinate;
+    use crate::cityjson::core::coordinate::RealWorldCoordinate;
     use crate::cityjson::traits::vertex::{VertexIndexVec, VertexIndicesSequence};
     use std::collections::HashSet;
 

@@ -2,9 +2,9 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
-use crate::cityjson::shared::attributes::Attributes;
-use crate::cityjson::shared::coordinate::{UVCoordinate, Vertices};
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::core::attributes::Attributes;
+use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
+use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::prelude::{

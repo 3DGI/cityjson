@@ -80,7 +80,7 @@
 //! The module implements all required and optional metadata fields as defined in the standard.
 
 use crate::cityjson;
-use crate::cityjson::shared::attributes::Attributes;
+use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::traits::metadata::BBoxTrait;
 use crate::format_option;
 use crate::prelude::ResourceRef;

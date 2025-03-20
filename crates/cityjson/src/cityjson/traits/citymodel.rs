@@ -1,4 +1,4 @@
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::appearance::material::MaterialTrait;
 use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;

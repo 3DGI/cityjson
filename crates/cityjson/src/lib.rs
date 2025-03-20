@@ -28,9 +28,9 @@ pub mod prelude {
     pub use crate::cityjson::traits::vertex::VertexRef;
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
-        shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        shared::boundary::{
+        core::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
+        core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        core::boundary::{
             nested::{
                 BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
                 BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
@@ -44,13 +44,13 @@ pub mod prelude {
             },
             Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
         },
-        shared::coordinate::{
+        core::coordinate::{
             FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
             QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
             UVVertices64, Vertices,
         },
-        shared::geometry::{GeometryBuilder, GeometryType, LoD},
-        shared::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
+        core::geometry::{GeometryBuilder, GeometryType, LoD},
+        core::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},
         traits::metadata::{BBoxTrait, MetadataTrait},

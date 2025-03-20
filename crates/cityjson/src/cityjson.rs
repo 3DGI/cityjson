@@ -2,12 +2,12 @@
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
 
-pub mod shared;
+pub mod core;
 pub mod traits;
 
 #[cfg(test)]
 mod tests {
-    use crate::cityjson::shared::geometry::{GeometryType, LoD};
+    use crate::cityjson::core::geometry::{GeometryType, LoD};
 
     #[test]
     fn test_geometry_type_equality() {

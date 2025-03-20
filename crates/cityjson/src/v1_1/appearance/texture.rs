@@ -2,7 +2,7 @@
 //!
 //! Represents a [Texture object](https://www.cityjson.org/specs/1.1.3/#texture-object).
 
-use crate::cityjson::shared::appearance::*;
+use crate::cityjson::core::appearance::*;
 use crate::cityjson::traits::appearance::*;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 

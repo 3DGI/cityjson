@@ -51,7 +51,7 @@
 //! assert_eq!(id3.generation(), id1.generation() + 1); // Different generation
 //! ```
 
-use crate::cityjson::shared::vertex::VertexIndex;
+use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::errors::{Error, Result};
 use std::fmt::{Debug, Display, Formatter};
