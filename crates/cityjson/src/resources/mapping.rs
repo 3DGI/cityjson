@@ -59,13 +59,13 @@ pub mod materials;
 pub mod semantics;
 pub mod textures;
 
+use crate::cityjson::shared::boundary::BoundaryType;
+use crate::cityjson::shared::vertex::VertexIndex;
+use crate::traits::vertex::VertexRef;
 pub use crate::resources::mapping::materials::MaterialMap;
 pub use crate::resources::mapping::semantics::SemanticMap;
 pub use crate::resources::mapping::textures::TextureMap;
 use crate::resources::pool::ResourceRef;
-use crate::shared::boundary::BoundaryType;
-use crate::shared::vertex::VertexIndex;
-use crate::traits::vertex::VertexRef;
 
 /// Stores the Semantic or Material indices of a Boundary and maps them to the
 /// boundary primitives.

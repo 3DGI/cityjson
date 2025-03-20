@@ -96,10 +96,10 @@
 //! index type (u16, u32, or u64). This allows for efficient memory usage based on
 //! the expected number of vertices in a model.
 
-use crate::errors::{Error, Result};
-use crate::shared::vertex::VertexIndex;
+use crate::cityjson::shared::vertex::VertexIndex;
 use crate::traits::coordinate::Coordinate;
 use crate::traits::vertex::VertexRef;
+use crate::errors::{Error, Result};
 use std::marker::PhantomData;
 
 /// A flexible coordinate representation that can be either quantized or real-world.

@@ -3,19 +3,18 @@
 pub mod cityjson;
 pub mod errors;
 pub mod resources;
-pub mod shared;
-pub mod traits;
 pub mod v1_0;
 pub mod v1_1;
 pub mod v2_0;
+pub mod traits;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
-    // Re-export from errors module
-    pub use crate::errors::{Error, Result};
     // Re-export from cityjson module
-    pub use crate::traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait};
+    pub use crate::traits::cityobject::{
+        CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait,
+    };
     // Re-export from cityjson module
     pub use crate::traits::coordinate::Coordinate;
     // Re-export from cityjson module
@@ -28,6 +27,34 @@ pub mod prelude {
     pub use crate::traits::vertex::VertexIndicesSequence;
     // Re-export from cityjson module
     pub use crate::traits::vertex::VertexRef;
+    // Re-export from cityjson module
+    pub use crate::cityjson::{
+        shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
+        shared::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        shared::boundary::{
+            nested::{
+                BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
+                BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
+                BoundaryNestedMultiOrCompositeSolid, BoundaryNestedMultiOrCompositeSolid16,
+                BoundaryNestedMultiOrCompositeSolid32, BoundaryNestedMultiOrCompositeSolid64,
+                BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiOrCompositeSurface16,
+                BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiOrCompositeSurface64,
+                BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
+                BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
+                BoundaryNestedSolid32, BoundaryNestedSolid64,
+            },
+            Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
+        },
+        shared::coordinate::{
+            FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
+            QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
+            UVVertices64, Vertices,
+        },
+        shared::geometry::{GeometryBuilder, GeometryType, LoD},
+        shared::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
+    };
+    // Re-export from errors module
+    pub use crate::errors::{Error, Result};
 
     // Re-export from resources module
     pub use crate::resources::{
@@ -35,37 +62,6 @@ pub mod prelude {
         pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
-    // Re-export from cityjson module
-    pub use crate::shared::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA};
-    // Re-export from cityjson module
-    pub use crate::shared::attributes::{
-        AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes,
-    };
-    // Re-export from cityjson module
-    pub use crate::shared::boundary::{
-        nested::{
-            BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
-            BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
-            BoundaryNestedMultiOrCompositeSolid, BoundaryNestedMultiOrCompositeSolid16,
-            BoundaryNestedMultiOrCompositeSolid32, BoundaryNestedMultiOrCompositeSolid64,
-            BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiOrCompositeSurface16,
-            BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiOrCompositeSurface64,
-            BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
-            BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
-            BoundaryNestedSolid32, BoundaryNestedSolid64,
-        },
-        Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
-    };
-    // Re-export from cityjson module
-    pub use crate::shared::coordinate::{
-        FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
-        QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
-        UVVertices64, Vertices,
-    };
-    // Re-export from cityjson module
-    pub use crate::shared::geometry::{GeometryBuilder, GeometryType, LoD};
-    // Re-export from cityjson module
-    pub use crate::shared::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64};
     // Re-export from cityjson module
     pub use crate::traits::appearance::{material::MaterialTrait, texture::TextureTrait};
     // Re-export from cityjson module

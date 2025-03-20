@@ -1,5 +1,5 @@
+use crate::cityjson::shared::appearance::RGB;
 use crate::resources::storage::StringStorage;
-use crate::shared::appearance::RGB;
 
 /// Defines the interface for material objects in CityJSON.
 ///

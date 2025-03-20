@@ -2,16 +2,16 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
+use crate::cityjson::shared::attributes::Attributes;
+use crate::cityjson::shared::coordinate::{UVCoordinate, Vertices};
+use crate::cityjson::shared::vertex::VertexIndex;
+use crate::traits::citymodel::{CityModelTrait, CityModelTypes};
+use crate::traits::vertex::VertexRef;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
 };
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
-use crate::shared::attributes::Attributes;
-use crate::shared::coordinate::{UVCoordinate, Vertices};
-use crate::shared::vertex::VertexIndex;
-use crate::traits::citymodel::{CityModelTrait, CityModelTypes};
-use crate::traits::vertex::VertexRef;
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::{Semantic, SemanticType};

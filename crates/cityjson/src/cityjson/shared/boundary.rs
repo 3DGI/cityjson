@@ -66,10 +66,10 @@
 
 pub mod nested;
 
-use crate::errors;
-use crate::shared::boundary::nested::*;
-use crate::shared::vertex::VertexIndex;
+use crate::cityjson::shared::boundary::nested::*;
+use crate::cityjson::shared::vertex::VertexIndex;
 use crate::traits::vertex::VertexRef;
+use crate::errors;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
 ///
