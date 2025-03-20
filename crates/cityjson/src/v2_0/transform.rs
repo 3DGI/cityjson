@@ -1,4 +1,3 @@
-use std::fmt::{Display, Formatter};
 use crate::cityjson::core;
 use crate::cityjson::traits::transform::TransformTrait;
 
@@ -28,11 +27,5 @@ impl TransformTrait for Transform {
 
     fn set_translate(&mut self, translate: [f64; 3]) {
         self.inner.set_translate(translate);
-    }
-}
-
-impl Display for Transform {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.inner)
     }
 }

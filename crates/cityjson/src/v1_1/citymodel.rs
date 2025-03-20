@@ -6,6 +6,7 @@ use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
+use crate::cityjson::traits::transform::TransformTrait;
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
