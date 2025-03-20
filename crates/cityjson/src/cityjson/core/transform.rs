@@ -11,18 +11,18 @@
 //! are represented with integers, and these vertices need to be transformed to obtain their real
 //! coordinates.
 //!
-//! - [`Transform`]: The main struct representing a transform object with scale and translation vectors
+//! - [`TransformCore`]: The main struct representing a transform object with scale and translation vectors
 //!
 //! ## Usage Examples
 //!
 //! ### Creating and using a transform
 //!
 //! ```rust
-//! use cityjson::cityjson::core::transform::Transform;
+//! use cityjson::cityjson::core::transform::TransformCore;
 //! use cityjson::cityjson::traits::transform::TransformTrait;
 //!
 //! // Create a transform with default values
-//! let mut transform = Transform::default();
+//! let mut transform = TransformCore::default();
 //!
 //! // Default scale is [1.0, 1.0, 1.0] (no scaling)
 //! assert_eq!(transform.scale(), [1.0, 1.0, 1.0]);
@@ -45,11 +45,11 @@
 //! get the real-world coordinates:
 //!
 //! ```rust
-//! use cityjson::cityjson::core::transform::Transform;
+//! use cityjson::cityjson::core::transform::TransformCore;
 //! use cityjson::cityjson::traits::transform::TransformTrait;
 //!
 //! // Create a transform
-//! let transform = Transform::new();
+//! let transform = TransformCore::new();
 //!
 //! // Example: Convert integer coordinates to real coordinates
 //! // In a real application, integers would come from CityJSON vertices
@@ -81,9 +81,9 @@ use crate::cityjson::traits::transform::TransformTrait;
 ///
 /// # Examples
 /// ```
-/// # use cityjson::cityjson::core::transform::Transform;
+/// # use cityjson::cityjson::core::transform::TransformCore;
 /// # use cityjson::cityjson::traits::transform::TransformTrait;
-/// let mut transform = Transform::new();
+/// let mut transform = TransformCore::new();
 /// transform.set_scale([2.0, 2.0, 2.0]);
 /// transform.set_translate([10.0, 20.0, 30.0]);
 ///
@@ -92,12 +92,12 @@ use crate::cityjson::traits::transform::TransformTrait;
 /// ```
 ///
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Transform {
+pub struct TransformCore {
     scale: [f64; 3],
     translate: [f64; 3],
 }
 
-impl TransformTrait for Transform {
+impl TransformTrait for TransformCore {
     fn new() -> Self {
         Self::default()
     }
@@ -115,7 +115,7 @@ impl TransformTrait for Transform {
     }
 }
 
-impl Display for Transform {
+impl Display for TransformCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -130,7 +130,7 @@ impl Display for Transform {
     }
 }
 
-impl Default for Transform {
+impl Default for TransformCore {
     fn default() -> Self {
         Self {
             scale: [1.0, 1.0, 1.0],
@@ -145,7 +145,7 @@ mod test {
 
     #[test]
     fn display() {
-        let mut transform = Transform::new();
+        let mut transform = TransformCore::new();
         transform.set_scale([1.5, 2.0, 2.5]);
         transform.set_translate([10.0, 20.0, 30.0]);
         println!("Transform: {}", transform);

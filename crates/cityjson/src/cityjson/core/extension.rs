@@ -1,6 +1,7 @@
 use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
 use crate::prelude::StringStorage;
 use std::fmt;
+use std::marker::PhantomData;
 
 /// A collection of CityJSON Extensions.
 ///
@@ -14,10 +15,10 @@ use std::fmt;
 /// use cityjson::prelude::*;
 ///
 /// // Create a collection of extensions
-/// let mut extensions = Extensions::<OwnedStringStorage>::new();
+/// let mut extensions = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 ///
 /// // Add a noise extension to the collection
-/// let noise_ext = Extension::new(
+/// let noise_ext = ExtensionCore::new(
 ///     "noise".to_string(),
 ///     "https://example.com/noise-extension/1.0".to_string(),
 ///     "1.0".to_string()
@@ -29,16 +30,23 @@ use std::fmt;
 /// assert!(found.is_some());
 /// ```
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct Extensions<SS: StringStorage> {
-    inner: Vec<Extension<SS>>,
+pub struct ExtensionsCore<SS: StringStorage, E> {
+    inner: Vec<E>,
+    _marker: PhantomData<SS>,
 }
 
-impl<SS: StringStorage> ExtensionsTrait<SS, Extension<SS>> for Extensions<SS> {
+impl<SS: StringStorage, E> ExtensionsTrait<SS, E> for ExtensionsCore<SS, E>
+where
+    E: ExtensionTrait<SS>
+{
     fn new() -> Self {
-        Self { inner: Vec::new() }
+        Self {
+            inner: Vec::new(),
+            _marker: Default::default(),
+        }
     }
 
-    fn add(&mut self, extension: Extension<SS>) -> &mut Self {
+    fn add(&mut self, extension: E) -> &mut Self {
         if let Some(pos) = self.inner.iter().position(|e| e.name() == extension.name()) {
             self.inner[pos] = extension;
         } else {
@@ -56,7 +64,7 @@ impl<SS: StringStorage> ExtensionsTrait<SS, Extension<SS>> for Extensions<SS> {
         }
     }
 
-    fn get(&self, name: &str) -> Option<&Extension<SS>> {
+    fn get(&self, name: &str) -> Option<&E> {
         self.inner.iter().find(|e| e.name().as_ref() == name)
     }
 
@@ -67,11 +75,13 @@ impl<SS: StringStorage> ExtensionsTrait<SS, Extension<SS>> for Extensions<SS> {
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
 }
 
+
 // Allow consuming iteration
-impl<SS: StringStorage> IntoIterator for Extensions<SS> {
-    type Item = Extension<SS>;
+impl<SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for ExtensionsCore<SS, E> {
+    type Item = E;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -80,9 +90,9 @@ impl<SS: StringStorage> IntoIterator for Extensions<SS> {
 }
 
 // Allow iterating by reference
-impl<'a, SS: StringStorage> IntoIterator for &'a Extensions<SS> {
-    type Item = &'a Extension<SS>;
-    type IntoIter = std::slice::Iter<'a, Extension<SS>>;
+impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a ExtensionsCore<SS, E> {
+    type Item = &'a E;
+    type IntoIter = std::slice::Iter<'a, E>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
@@ -90,16 +100,16 @@ impl<'a, SS: StringStorage> IntoIterator for &'a Extensions<SS> {
 }
 
 // Allow iterating by mutable reference
-impl<'a, SS: StringStorage> IntoIterator for &'a mut Extensions<SS> {
-    type Item = &'a mut Extension<SS>;
-    type IntoIter = std::slice::IterMut<'a, Extension<SS>>;
+impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a mut ExtensionsCore<SS, E> {
+    type Item = &'a mut E;
+    type IntoIter = std::slice::IterMut<'a, E>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter_mut()
     }
 }
 
-impl<SS: StringStorage> fmt::Display for Extensions<SS> {
+impl<SS: StringStorage, E: ExtensionTrait<SS>> fmt::Display for ExtensionsCore<SS, E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "available extensions: ")?;
         let mut iter = self.into_iter();
@@ -126,7 +136,7 @@ impl<SS: StringStorage> fmt::Display for Extensions<SS> {
 /// ```
 /// use cityjson::prelude::*;
 ///
-/// let noise_ext = Extension::<OwnedStringStorage>::new(
+/// let noise_ext = ExtensionCore::<OwnedStringStorage>::new(
 ///     "noise".to_string(),
 ///     "https://example.com/noise-extension/1.0".to_string(),
 ///     "1.0".to_string()
@@ -135,13 +145,13 @@ impl<SS: StringStorage> fmt::Display for Extensions<SS> {
 /// assert_eq!(noise_ext.name().to_string(), "noise");
 /// ```
 #[derive(Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Extension<SS: StringStorage> {
+pub struct ExtensionCore<SS: StringStorage> {
     name: SS::String,
     url: SS::String,
     version: SS::String,
 }
 
-impl<SS: StringStorage> ExtensionTrait<SS> for Extension<SS> {
+impl<SS: StringStorage> ExtensionTrait<SS> for ExtensionCore<SS> {
     /// Creates a new extension with the specified name, URL, and version.
     ///
     /// # Arguments
@@ -169,7 +179,7 @@ impl<SS: StringStorage> ExtensionTrait<SS> for Extension<SS> {
     }
 }
 
-impl<SS: StringStorage> fmt::Display for Extension<SS> {
+impl<SS: StringStorage> fmt::Display for ExtensionCore<SS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -187,7 +197,7 @@ mod tests {
     #[test]
     fn test_extension() {
         // Create a new extension
-        let ext = Extension::<OwnedStringStorage>::new(
+        let ext = ExtensionCore::<OwnedStringStorage>::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
@@ -207,10 +217,10 @@ mod tests {
 
     #[test]
     fn test_extensions_add_get() {
-        let mut exts = Extensions::<OwnedStringStorage>::new();
+        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extension
-        let ext1 = Extension::new(
+        let ext1 = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
@@ -222,7 +232,7 @@ mod tests {
         assert_eq!(found, &ext1);
 
         // Test replace
-        let ext2 = Extension::new(
+        let ext2 = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/2.0".to_string(),
             "2.0".to_string(),
@@ -235,10 +245,10 @@ mod tests {
 
     #[test]
     fn test_extensions_remove_empty() {
-        let mut exts = Extensions::<OwnedStringStorage>::new();
+        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extension
-        let ext = Extension::new(
+        let ext = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
@@ -258,15 +268,15 @@ mod tests {
 
     #[test]
     fn test_extensions_iteration() {
-        let mut exts = Extensions::<OwnedStringStorage>::new();
+        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extensions
-        let ext1 = Extension::new(
+        let ext1 = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
         );
-        let ext2 = Extension::new(
+        let ext2 = ExtensionCore::new(
             "solar".to_string(),
             "https://example.com/solar/1.0".to_string(),
             "1.0".to_string(),

@@ -4,13 +4,13 @@ use crate::cityjson::traits::transform::TransformTrait;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Transform{
-    inner: core::transform::Transform,
+    inner: core::transform::TransformCore,
 }
 
 impl TransformTrait for Transform {
     fn new() -> Self {
         Self {
-            inner: core::transform::Transform::new(),
+            inner: core::transform::TransformCore::new(),
         }
     }
 

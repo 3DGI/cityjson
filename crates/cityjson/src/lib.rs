@@ -30,7 +30,7 @@ pub mod prelude {
     pub use crate::cityjson::{
         core::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
-        core::extension::{Extension, Extensions},
+        core::extension::{ExtensionCore, ExtensionsCore},
         core::boundary::{
             nested::{
                 BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
