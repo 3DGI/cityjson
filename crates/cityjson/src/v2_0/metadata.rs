@@ -140,9 +140,7 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         }
     }
 
-    pub fn address_mut(&mut self) {
-
-    }
+    pub fn address_mut(&mut self) {}
 
     pub fn set_phone<S: AsRef<str>>(&mut self, phone: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
@@ -295,7 +293,6 @@ impl<SS: StringStorage, RR: ResourceRef> Display for Contact<SS, RR> {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactRole {
     Author,
@@ -326,7 +323,6 @@ impl Display for ContactRole {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactType {
     Individual,
@@ -342,7 +338,6 @@ impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTra
     for Metadata<SS, RR>
 {
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BBox {
@@ -467,12 +462,9 @@ impl Display for BBox {
     }
 }
 
-
 pub type CityModelIdentifier = String;
 
-
 pub type Date = String;
-
 
 pub type CRS = String;
 
@@ -496,7 +488,10 @@ mod test {
         metadata.set_website("https://example.com");
         metadata.set_contact_type(ContactType::Individual);
         let mut address = Attributes::new();
-        address.insert("street".to_string(), AttributeValue::String("Kiskőrös utca".to_string()));
+        address.insert(
+            "street".to_string(),
+            AttributeValue::String("Kiskőrös utca".to_string()),
+        );
         metadata.set_address(address);
         metadata.set_phone("+1-555-1234");
         metadata.set_organization("Test Corp");
@@ -509,7 +504,10 @@ mod test {
         contact.set_website(Some("https://example.net".to_string()));
         contact.set_contact_type(Some(ContactType::Organization));
         let mut address = Attributes::new();
-        address.insert("street".to_string(), AttributeValue::String("Kiskőrös utca".to_string()));
+        address.insert(
+            "street".to_string(),
+            AttributeValue::String("Kiskőrös utca".to_string()),
+        );
         contact.set_address(Some(address));
         contact.set_phone(Some("+1-555-5678".to_string()));
         contact.set_organization(Some("Sample Inc".to_string()));

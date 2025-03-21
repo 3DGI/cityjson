@@ -2,7 +2,7 @@ use crate::cityjson::core;
 use crate::cityjson::traits::transform::TransformTrait;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Transform{
+pub struct Transform {
     inner: core::transform::TransformCore,
 }
 

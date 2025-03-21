@@ -1,11 +1,16 @@
 //! # CityJSON version 2.0
 //!
 //! Implementation of the CityJSON types and traits for CityJSON version 2.0.
+pub mod appearance;
 pub mod citymodel;
 pub mod extension;
 pub mod metadata;
 pub mod transform;
 
+pub use appearance::{
+    material::{BorrowedMaterial, Material, OwnedMaterial},
+    texture::{BorrowedTexture, OwnedTexture, Texture},
+};
 pub use citymodel::CityModel;
 pub use extension::{Extension, Extensions};
 pub use metadata::{

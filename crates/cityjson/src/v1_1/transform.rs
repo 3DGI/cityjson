@@ -1,9 +1,9 @@
-use std::fmt::{Display, Formatter};
 use crate::cityjson::core;
 use crate::cityjson::traits::transform::TransformTrait;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Transform{
+pub struct Transform {
     inner: core::transform::TransformCore,
 }
 

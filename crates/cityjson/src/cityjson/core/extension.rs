@@ -37,7 +37,7 @@ pub struct ExtensionsCore<SS: StringStorage, E> {
 
 impl<SS: StringStorage, E> ExtensionsTrait<SS, E> for ExtensionsCore<SS, E>
 where
-    E: ExtensionTrait<SS>
+    E: ExtensionTrait<SS>,
 {
     fn new() -> Self {
         Self {
@@ -75,9 +75,7 @@ where
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
-
 }
-
 
 // Allow consuming iteration
 impl<SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for ExtensionsCore<SS, E> {
@@ -217,7 +215,8 @@ mod tests {
 
     #[test]
     fn test_extensions_add_get() {
-        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
+        let mut exts =
+            ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extension
         let ext1 = ExtensionCore::new(
@@ -245,7 +244,8 @@ mod tests {
 
     #[test]
     fn test_extensions_remove_empty() {
-        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
+        let mut exts =
+            ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extension
         let ext = ExtensionCore::new(
@@ -268,7 +268,8 @@ mod tests {
 
     #[test]
     fn test_extensions_iteration() {
-        let mut exts = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
+        let mut exts =
+            ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extensions
         let ext1 = ExtensionCore::new(

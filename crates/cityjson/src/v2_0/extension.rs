@@ -1,15 +1,17 @@
-use std::fmt;
 use crate::cityjson::core;
 use crate::prelude::{ExtensionTrait, ExtensionsTrait, StringStorage};
+use std::fmt;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Extensions<SS: StringStorage> {
-    inner: core::extension::ExtensionsCore<SS, Extension<SS>>
+    inner: core::extension::ExtensionsCore<SS, Extension<SS>>,
 }
 
 impl<SS: StringStorage> ExtensionsTrait<SS, Extension<SS>> for Extensions<SS> {
     fn new() -> Self {
-        Self { inner: core::extension::ExtensionsCore::new() }
+        Self {
+            inner: core::extension::ExtensionsCore::new(),
+        }
     }
 
     fn add(&mut self, extension: Extension<SS>) -> &mut Self {
@@ -73,13 +75,13 @@ impl<SS: StringStorage> fmt::Display for Extensions<SS> {
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Extension<SS: StringStorage> {
-    inner: core::extension::ExtensionCore<SS>
+    inner: core::extension::ExtensionCore<SS>,
 }
 
 impl<SS: StringStorage> ExtensionTrait<SS> for Extension<SS> {
     fn new(name: SS::String, url: SS::String, version: SS::String) -> Self {
-        Self{
-            inner: core::extension::ExtensionCore::new(name, url, version)
+        Self {
+            inner: core::extension::ExtensionCore::new(name, url, version),
         }
     }
 
