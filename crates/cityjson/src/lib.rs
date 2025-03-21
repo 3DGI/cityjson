@@ -1,4 +1,23 @@
 #![doc = include_str!("../README.md")]
+//! ## Examples
+//!
+//! Below is an integration test that builds a CityModel with all possible features from the CityJSON v1.1 specification.
+//!
+//! <details>
+//!
+//! ```
+#![doc = include_str!("../tests/build_dummy_complete_owned.rs")]
+//! ```
+//! </details>
+//!
+//! Its JSON representation:
+//!
+//! <details>
+//!
+//! ```json
+#![doc = include_str!("../tests/data/v1_1/cityjson_dummy_complete.city.json")]
+//! ```
+//! </details>
 
 pub mod cityjson;
 pub mod errors;
