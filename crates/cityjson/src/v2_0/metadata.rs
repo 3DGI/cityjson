@@ -1,84 +1,3 @@
-//! # Metadata
-//!
-//! This module provides types and functionality for handling CityJSON metadata.
-//! It implements the [Metadata object](https://www.cityjson.org/specs/1.1.3/#metadata)
-//! as specified in the CityJSON 1.1.3 standard.
-//!
-//! ## Overview
-//!
-//! The metadata module contains several key components:
-//!
-//! - [`Metadata`]: The main struct representing a complete metadata object
-//! - [`BBox`]: A bounding box representation (geographical extent)
-//! - [`Contact`]: Information about the point of contact for the dataset
-//! - [`ContactRole`]: Enumeration of possible roles for a contact
-//! - [`ContactType`]: Enumeration specifying the type of contact (individual or organization)
-//!
-//! Other specialized types include:
-//! - [`CityModelIdentifier`]: A unique identifier for the city model
-//! - [`Date`]: Representation of a reference date
-//! - [`CRS`]: Coordinate Reference System identifier
-//!
-//! ## Usage Examples
-//!
-//! ### Creating and populating metadata
-//!
-//! ```rust
-//! use cityjson::prelude::*;
-//! use cityjson::v1_1::*;
-//!
-//! // Create a new metadata object
-//! let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
-//!
-//! // Set geographical extent using BBox
-//! let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
-//! metadata.set_geographical_extent(bbox);
-//!
-//! // Set basic metadata properties
-//! metadata.set_identifier("44574905-d2d2-4f40-8e96-d39e1ae45f70");
-//! metadata.set_reference_date("2023-06-15");
-//! metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/7415");
-//! metadata.set_title("Amsterdam City Center");
-//!
-//! // Configure contact information
-//! metadata.set_contact_name("Jane Smith");
-//! metadata.set_email_address("jane.smith@example.com");
-//! metadata.set_role(ContactRole::Author);
-//! metadata.set_website("https://example.com/citymodels");
-//! metadata.set_contact_type(ContactType::Individual);
-//! metadata.set_organization("Urban Modeling Institute");
-//! ```
-//!
-//! ### Working with BBox
-//!
-//! ```rust
-//! use cityjson::prelude::*;
-//! use cityjson::v1_1::*;
-//!
-//! // Create a bounding box
-//! let mut bbox = BBox::new(0.0, 0.0, 0.0, 100.0, 100.0, 30.0);
-//!
-//! // Access dimensions
-//! assert_eq!(bbox.width(), 100.0);
-//! assert_eq!(bbox.length(), 100.0);
-//! assert_eq!(bbox.height(), 30.0);
-//!
-//! // Update coordinates
-//! bbox.set_min_z(-10.0);
-//! bbox.set_max_z(50.0);
-//! assert_eq!(bbox.height(), 60.0);
-//!
-//! // Convert from/to array
-//! let array: [f64; 6] = [0.0, 0.0, -10.0, 100.0, 100.0, 50.0];
-//! assert_eq!(BBox::from(array), bbox);
-//! ```
-//!
-//! ## Compliance
-//!
-//! All types in this module are designed to comply with the
-//! [CityJSON 1.1.3 specification](https://www.cityjson.org/specs/1.1.3/).
-//! The module implements all required and optional metadata fields as defined in the standard.
-
 use crate::cityjson;
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::traits::metadata::BBoxTrait;
@@ -87,49 +6,6 @@ use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
-/// Metadata for a city model.
-///
-/// There is only structural validation for the metadata items, the metadata values are not
-/// validated.
-/// For instance, a contact website must be a string, but it is not
-/// checked whether the string is a valid URL or not.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#metadata>
-///
-/// # Examples
-/// ```
-/// # use cityjson::prelude::*;
-/// # use cityjson::v1_1::*;
-/// let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
-///
-/// metadata.set_geographical_extent(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
-/// metadata.set_identifier("test-id");
-/// metadata.set_reference_date("2024-03-20");
-/// metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/7415");
-/// metadata.set_title("Test Dataset");
-/// metadata.set_contact_name("John Doe");
-/// metadata.set_email_address("john@example.com");
-/// metadata.set_role(ContactRole::Author);
-/// metadata.set_website("https://example.com");
-/// metadata.set_contact_type(ContactType::Individual);
-/// metadata.set_address("123 Test St");
-/// metadata.set_phone("+1-555-1234");
-/// metadata.set_organization("Test Corp");
-///
-/// assert_eq!(metadata.geographical_extent().unwrap().min_x(), 1.0);
-/// assert_eq!(metadata.identifier().unwrap(), "test-id");
-/// assert_eq!(metadata.reference_date().unwrap(), "2024-03-20");
-/// assert_eq!(metadata.reference_system().unwrap(), "https://www.opengis.net/def/crs/EPSG/0/7415");
-/// assert_eq!(metadata.title().unwrap(), "Test Dataset");
-/// assert_eq!(metadata.point_of_contact().unwrap().contact_name(), "John Doe");
-/// assert_eq!(metadata.point_of_contact().unwrap().email_address(), "john@example.com");
-/// assert_eq!(metadata.point_of_contact().unwrap().role(), Some(ContactRole::Author));
-/// assert_eq!(metadata.point_of_contact().unwrap().website(), &Some("https://example.com".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().contact_type(), Some(ContactType::Individual));
-/// assert_eq!(metadata.point_of_contact().unwrap().address(), &Some("123 Test St".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().phone(), &Some("+1-555-1234".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().organization(), &Some("Test Corp".to_string()));
-/// ```
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
@@ -307,35 +183,6 @@ impl<SS: StringStorage, RR: ResourceRef> Display for Metadata<SS, RR> {
     }
 }
 
-/// The point of contact for the city model.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#pointofcontact>
-///
-/// # Examples
-/// ```
-/// # use cityjson::v1_1::*;
-/// let mut contact = Contact::new();
-///
-/// assert_eq!(contact.contact_name(), "");
-///
-/// contact.set_contact_name("Kovács János".to_string());
-/// contact.set_email_address("janos.kovacs@example.hu".to_string());
-/// contact.set_role(Some(ContactRole::Contributor));
-/// contact.set_website(Some("https://other.example.com".to_string()));
-/// contact.set_contact_type(Some(ContactType::Organization));
-/// contact.set_address(Some("456 Other St, Kerek Erdő".to_string()));
-/// contact.set_phone(Some("+1-555-4567".to_string()));
-/// contact.set_organization(Some("Other Corp".to_string()));
-///
-/// assert_eq!(contact.contact_name(), "Kovács János");
-/// assert_eq!(contact.email_address(), "janos.kovacs@example.hu");
-/// assert_eq!(contact.role(), Some(ContactRole::Contributor));
-/// assert_eq!(contact.website(), &Some("https://other.example.com".to_string()));
-/// assert_eq!(contact.contact_type(), Some(ContactType::Organization));
-/// assert_eq!(contact.address(), &Some("456 Other St, Kerek Erdő".to_string()));
-/// assert_eq!(contact.phone(), &Some("+1-555-4567".to_string()));
-/// assert_eq!(contact.organization(), &Some("Other Corp".to_string()));
-/// ```
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Contact<SS: StringStorage, RR: ResourceRef> {
     contact_name: String,
@@ -448,9 +295,7 @@ impl<SS: StringStorage, RR: ResourceRef> Display for Contact<SS, RR> {
     }
 }
 
-/// Metadata contact role.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#pointofcontact>
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactRole {
     Author,
@@ -481,9 +326,7 @@ impl Display for ContactRole {
     }
 }
 
-/// Metadata contact type.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#pointofcontact>
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactType {
     Individual,
@@ -500,19 +343,7 @@ impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTra
 {
 }
 
-/// Bounding Box.
-///
-/// A wrapper around an array of 6 values: `[minx, miny, minz, maxx, maxy, maxz]`.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#geographicalextent-bbox>
-///
-/// # Examples
-/// ```
-/// # use cityjson::prelude::*;
-/// # use cityjson::v1_1::*;
-/// let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
-/// let bbox_height = bbox.height();
-/// ```
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BBox {
     values: [f64; 6],
@@ -636,42 +467,13 @@ impl Display for BBox {
     }
 }
 
-/// An identifier for the dataset.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#identifier>
-///
-/// # Examples
-/// ```
-/// # use cityjson::v1_1::*;
-/// let city_id = CityModelIdentifier::from("44574905-d2d2-4f40-8e96-d39e1ae45f70");
-/// ```
+
 pub type CityModelIdentifier = String;
 
-/// The date when the dataset was compiled.
-///
-/// The format is a `"full-date"` per the
-/// [RFC 3339, Section 5.6](https://tools.ietf.org/html/rfc3339#section-5.6).
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#referencedate>
-///
-/// # Examples
-/// ```
-/// # use cityjson::v1_1::*;
-/// let date = Date::from("1977-02-28");
-/// ```
+
 pub type Date = String;
 
-/// The coordinate reference system (CRS) of the city model.
-///
-/// Must be formatted as a URL, according to the
-/// [OGC Name Type Specification](https://docs.opengeospatial.org/pol/09-048r5.html#_production_rule_for_specification_element_names).
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#referencesystem-crs>
-///
-/// # Examples
-/// ```
-/// # use cityjson::v1_1::*;
-/// let crs = CRS::from("https://www.opengis.net/def/crs/EPSG/0/7415");
-/// ```
+
 pub type CRS = String;
 
 #[cfg(test)]
