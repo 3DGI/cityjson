@@ -13,6 +13,7 @@ pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
     texture::{BorrowedTexture, OwnedTexture, Texture},
 };
+pub use citymodel::CityModel;
 pub use cityobject::{
     BorrowedCityObjects, CityObject, CityObjectType, CityObjects, OwnedCityObjects,
 };

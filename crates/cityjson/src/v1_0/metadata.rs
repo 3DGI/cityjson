@@ -1,7 +1,9 @@
-use crate::prelude::{Attributes, BBoxTrait};
+use crate::prelude::{Attributes, BBoxTrait, MetadataTrait, ResourceRef, StringStorage};
 use std::fmt::{Display, Formatter};
 
 pub type Metadata<SS, RR> = Attributes<SS, RR>;
+
+impl<SS: StringStorage, RR: ResourceRef> MetadataTrait<SS> for Metadata<SS, RR> {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BBox {
