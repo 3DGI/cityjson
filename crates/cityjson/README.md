@@ -5,7 +5,7 @@ The crate defines the types and methods for representing the complete CityJSON d
 Therefore, *citjson-rs* is designed with performance, flexibility, and ease-of-use in mind.
 The three criteria are implemented in the following features:
 
-- The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality, and enable SIMD operations. This is very different to the nested arrays defined by the CityJSON schema. However, the implementation details are hidden from the API.
+- The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality. This is very different to the nested arrays defined by the CityJSON schema. However, the implementation details are hidden from the API.
 - Vertex indices, and consequently boundaries, semantics, and appearances can be specialized with either `u16`, `u32` or `u64` types to enable various use cases and memory optimizations.
 - Supports both borrowed and owned values.
 - Getter and setter methods are implemented for each CityJSON object and their members to provide a stable API and hide implementation details.
@@ -78,17 +78,3 @@ Migration documentation is provided between major versions.
 This crate's minimum supported rustc version is `1.65.0`.
 
 The policy is that the minimum Rust version required to use this crate can be increased in minor version updates. For example, if cityjson-rs `1.0` requires Rust `1.20.0`, then cityjson-rs `1.0.z` for all values of `z` will also require Rust `1.20.0` or newer. However, regex `1.y` for `y > 0` may require a newer minimum version of Rust.
-
-## Other software
-
-Below is a non-exhaustive list of CityJSON software that depends on *cityjson-rs,* and might be of interest.
-
-- serde_cityjson
-- cjfake
-- cjlib
-
-# Notes
-
-- accessors are `<member>()`
-- containers setters are `get_*_mut`
-- scalar member setters are `set_*`
