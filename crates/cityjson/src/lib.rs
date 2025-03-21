@@ -98,8 +98,8 @@ impl fmt::Display for CityModelType {
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
 pub enum CityJSONVersion {
     V1_0,
-    #[default]
     V1_1,
+    #[default]
     V2_0,
 }
 
@@ -151,6 +151,7 @@ impl TryFrom<String> for CityJSONVersion {
 
 #[derive(Debug)]
 pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+    V1_0(v1_0::CityModel<VR, RR, SS>),
     V1_1(v1_1::CityModel<VR, RR, SS>),
     V2_0(v2_0::CityModel<VR, RR, SS>),
 }
