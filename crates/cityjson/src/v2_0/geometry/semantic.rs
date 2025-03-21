@@ -5,7 +5,6 @@ use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// The type of the semantic surface

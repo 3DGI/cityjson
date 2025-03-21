@@ -84,7 +84,6 @@ impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
     }
 }
 
-
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum SemanticType {
     #[default]
