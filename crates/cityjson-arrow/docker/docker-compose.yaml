@@ -1,0 +1,17 @@
+version: '3.8'
+name: 'cityarrow'
+
+services:
+  db:
+    image: postgres:latest
+    ports:
+      - "5678:5432"
+    volumes:
+      - cityarrow-volume:/var/lib/postgresql/data
+    environment:
+          - POSTGRES_USER=cityarrow
+          - POSTGRES_PASSWORD=cityarrow
+          - POSTGRES_DB=cityarrow
+
+volumes:
+  cityarrow-volume:
