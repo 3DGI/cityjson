@@ -1,7 +1,70 @@
-use arrow::array::{ArrayRef, Int64Builder, StructArray, RecordBatch};
-use arrow::datatypes::{DataType, Field};
-use cityjson::prelude::QuantizedCoordinate;
+use std::error::Error;
+use arrow::array::{
+    ArrayRef, FixedSizeListBuilder, Float64Builder, Int64Builder,
+    RecordBatch, StructArray,
+};
+use arrow::datatypes::{DataType, Field, Schema};
+use cityjson::prelude::{QuantizedCoordinate, TransformTrait};
+use cityjson::v2_0::Transform;
 use std::sync::Arc;
+
+pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, Box<dyn Error>> {
+    let scale_builder = Float64Builder::new();
+    let translate_builder = Float64Builder::new();
+    // Wrap the f64 arrays in FixedSizeListArrays.
+    let mut scale_array_builder = FixedSizeListBuilder::with_capacity(scale_builder, 3, 1);
+    let mut translate_array_builder = FixedSizeListBuilder::with_capacity(translate_builder, 3, 1);
+    // Build the Lists
+    scale_array_builder.values().extend(transform.scale().into_iter().map(|v| Some(v)));
+    scale_array_builder.append(true);
+    let scale_list = scale_array_builder.finish();
+    translate_array_builder
+        .values()
+        .extend(transform.translate().into_iter().map(|v| Some(v)));
+    translate_array_builder.append(true);
+    let translate_list = translate_array_builder.finish();
+
+    let schema = Schema::new(vec![
+        Field::new(
+            "scale",
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 3),
+            false,
+        ),
+        Field::new(
+            "translate",
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 3),
+            false,
+        ),
+    ]);
+
+    // Create a RecordBatch with a single row.
+    let batch = RecordBatch::try_new(
+        Arc::new(schema),
+        vec![
+            Arc::new(scale_list) as ArrayRef,
+            Arc::new(translate_list) as ArrayRef,
+        ],
+    )?;
+    Ok(batch)
+}
+
+#[test]
+fn test_transform() {
+        // Create a Transform with known values
+    let mut transform = Transform::new();
+    transform.set_scale([0.1, 0.2, 0.3]);
+    transform.set_translate([10.0, 20.0, 30.0]);
+
+    // Convert to Arrow RecordBatch
+    let batch = transform_to_arrow(&transform).unwrap();
+
+    // Verify the batch structure
+    assert_eq!(batch.num_rows(), 1);
+    assert_eq!(batch.num_columns(), 2);
+    assert_eq!(batch.schema().field(0).name(), "scale");
+    assert_eq!(batch.schema().field(1).name(), "translate");
+
+}
 
 #[derive(Debug, Default)]
 pub struct VerticesBuilder {
@@ -31,7 +94,8 @@ impl VerticesBuilder {
 
 impl<'a> Extend<&'a QuantizedCoordinate> for VerticesBuilder {
     fn extend<I: IntoIterator<Item = &'a QuantizedCoordinate>>(&mut self, iter: I) {
-        iter.into_iter().for_each(|coordinate| self.append(coordinate));
+        iter.into_iter()
+            .for_each(|coordinate| self.append(coordinate));
     }
 }
 
@@ -42,7 +106,7 @@ pub fn vertices_to_batch(vertices: &[QuantizedCoordinate]) -> RecordBatch {
 }
 
 #[test]
-fn test() {
+fn test_vertices() {
     use rand::Rng;
 
     // Create a random number generator
@@ -65,5 +129,4 @@ fn test() {
 
     // Verify the batch has 1000 rows
     assert_eq!(batch.num_rows(), 1000);
-
 }
