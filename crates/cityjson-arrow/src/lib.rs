@@ -1,54 +1,45 @@
-use arrow::array::{
-    ArrayRef, FixedSizeListBuilder, Float64Builder, Int64Builder, RecordBatch, StructArray,
-};
+use arrow::array::{ArrayData, ArrayRef, FixedSizeListArray, Int64Builder, RecordBatch, StructArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use cityjson::prelude::{QuantizedCoordinate, TransformTrait};
 use cityjson::v2_0::Transform;
 use std::error::Error;
 use std::sync::Arc;
+use arrow::buffer::Buffer;
 
 // todo: create specific error and conversion for crate
 pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, Box<dyn Error>> {
-    let scale_builder = Float64Builder::new();
-    let translate_builder = Float64Builder::new();
+    // Create arrays of values
+    let scale_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.scale())).build()?;
+    let translate_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.translate())).build()?;
+
+    let scale_list_data_type = DataType::FixedSizeList(
+        Arc::new(Field::new_list_field(DataType::Float64, false)),
+        3,
+    );
+    let translate_list_data_type = DataType::FixedSizeList(
+        Arc::new(Field::new_list_field(DataType::Float64, false)),
+        3,
+    );
+
+    let scale_list_data = ArrayData::builder(scale_list_data_type.clone()).len(1).add_child_data(scale_value_data).build()?;
+    let translate_list_data = ArrayData::builder(translate_list_data_type.clone()).len(1).add_child_data(translate_value_data).build()?;
+
     // Wrap the f64 arrays in FixedSizeListArrays.
-    let mut scale_array_builder = FixedSizeListBuilder::with_capacity(scale_builder, 3, 1)
-        .with_field(Field::new("item", DataType::Float64, false));
-    let mut translate_array_builder = FixedSizeListBuilder::with_capacity(translate_builder, 3, 1)
-        .with_field(Field::new("item", DataType::Float64, false));
-    // Build the Lists
-    transform
-        .scale()
-        .into_iter()
-        .for_each(|v| scale_array_builder.values().append_value(v));
-    scale_array_builder.append(true);
-    let scale_list = scale_array_builder.finish();
-    transform
-        .translate()
-        .into_iter()
-        .for_each(|v| translate_array_builder.values().append_value(v));
-    translate_array_builder.append(true);
-    let translate_list = translate_array_builder.finish();
+
+    let scale_listarray = FixedSizeListArray::from(scale_list_data);
+    let translate_listarray = FixedSizeListArray::from(translate_list_data);
 
     let schema = Schema::new(vec![
-        Field::new(
-            "scale",
-            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 3),
-            false,
-        ),
-        Field::new(
-            "translate",
-            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 3),
-            false,
-        ),
+        Field::new("scale", scale_list_data_type.clone(), false),
+        Field::new("translate", translate_list_data_type.clone(), false)
     ]);
 
     // Create a RecordBatch with a single row.
     let batch = RecordBatch::try_new(
         Arc::new(schema),
         vec![
-            Arc::new(scale_list) as ArrayRef,
-            Arc::new(translate_list) as ArrayRef,
+            Arc::new(scale_listarray) as ArrayRef,
+            Arc::new(translate_listarray) as ArrayRef,
         ],
     )?;
     Ok(batch)
@@ -69,6 +60,8 @@ fn test_transform() {
     assert_eq!(batch.num_columns(), 2);
     assert_eq!(batch.schema().field(0).name(), "scale");
     assert_eq!(batch.schema().field(1).name(), "translate");
+    dbg!(batch.column(0).as_any().downcast_ref::<FixedSizeListArray>().unwrap());
+    dbg!(batch.column(1).as_any().downcast_ref::<FixedSizeListArray>().unwrap());
 }
 
 #[derive(Debug, Default)]
