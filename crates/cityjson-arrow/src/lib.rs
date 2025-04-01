@@ -1,13 +1,81 @@
 use arrow::array::{ArrayData, ArrayRef, FixedSizeListArray, Int64Builder, RecordBatch, StructArray};
-use arrow::datatypes::{DataType, Field, Schema};
-use cityjson::prelude::{QuantizedCoordinate, TransformTrait};
-use cityjson::v2_0::Transform;
-use std::error::Error;
-use std::sync::Arc;
 use arrow::buffer::Buffer;
+use arrow::datatypes::{DataType, Field, Schema, UnionFields, UnionMode};
+use arrow::error::ArrowError;
+use cityjson::prelude::{QuantizedCoordinate, ResourceRef, StringStorage, TransformTrait};
+use cityjson::v2_0::{Metadata, Transform};
+use std::sync::Arc;
+
+pub trait ToArrowDataType {
+    fn to_arrow_data_type(&self) -> DataType;
+}
+
+pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(metadata: &Metadata<SS, RR>) -> Result<RecordBatch, ArrowError> {
+    // 1. Define the union type for all possible value types in metadata
+    let value_union_type = DataType::Union(
+        // Fields for each possible type
+        UnionFields::new(
+            vec![0, 1, 2, 3, 4, 5, 6],
+            vec![
+                Field::new("string", DataType::Utf8, true),
+                Field::new("bbox", DataType::FixedSizeList(
+                    Arc::new(Field::new_list_field(DataType::Float64, false)),
+                    6,
+                ), true),
+                Field::new("contact", create_contact_data_type(), true),
+                Field::new("date", DataType::Utf8, true),
+                Field::new("crs", DataType::Utf8, true),
+                Field::new("attributes", create_attributes_data_type(), true),
+                Field::new("null", DataType::Null, true),
+            ])
+        // Dense union mode is more efficient for our use case
+        UnionMode::Dense,
+    );
+    let batch = RecordBatch::try_new(
+        Arc::default(),
+        vec![],
+    )?;
+    Ok(batch)
+}
+
+DataType::Map(
+Arc::new(Field::new("keys", DataType::Utf8, false)),
+Arc::new(Field::new("values", DataType::Union(
+UnionMode::Dense,
+vec![0, 1, 2, 3, 4, 5, 6],
+UnionFields::new(vec![
+    Field::new("string", DataType::Utf8, false),
+    Field::new("role", DataType::Dictionary(
+        Box::new(DataType::Int8),
+        Box::new(DataType::Utf8),
+    ), true),
+    Field::new("contact_type", DataType::Dictionary(
+        Box::new(DataType::Int8),
+        Box::new(DataType::Utf8),
+    ), true),
+    Field::new("attributes", create_attributes_data_type(), true),
+    Field::new("null", DataType::Null, true),
+]),
+), true)),
+false
+)
+
+pub fn create_contact_data_type() -> DataType {
+    DataType::Map(
+        Arc::new(
+            Field::new()
+        ),
+        true
+    )
+}
+
+struct ContactBuilder {
+
+}
+
 
 // todo: create specific error and conversion for crate
-pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, Box<dyn Error>> {
+pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowError> {
     // Create arrays of values
     let scale_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.scale())).build()?;
     let translate_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.translate())).build()?;
@@ -91,7 +159,7 @@ impl VerticesBuilder {
 }
 
 impl<'a> Extend<&'a QuantizedCoordinate> for VerticesBuilder {
-    fn extend<I: IntoIterator<Item = &'a QuantizedCoordinate>>(&mut self, iter: I) {
+    fn extend<I: IntoIterator<Item=&'a QuantizedCoordinate>>(&mut self, iter: I) {
         iter.into_iter()
             .for_each(|coordinate| self.append(coordinate));
     }
