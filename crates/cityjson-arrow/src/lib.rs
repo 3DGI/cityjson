@@ -1,96 +1,179 @@
-use arrow::array::{ArrayData, ArrayRef, FixedSizeListArray, Int64Builder, RecordBatch, StructArray};
+use arrow::array::{
+    ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int64Builder, Int8Array, RecordBatch,
+    StringArray, StructArray,
+};
 use arrow::buffer::Buffer;
-use arrow::datatypes::{DataType, Field, Schema, UnionFields, UnionMode};
+use arrow::datatypes::{DataType, Field, Int8Type, Schema};
 use arrow::error::ArrowError;
 use cityjson::prelude::{QuantizedCoordinate, ResourceRef, StringStorage, TransformTrait};
-use cityjson::v2_0::{Metadata, Transform};
+use cityjson::v2_0::{Contact, Metadata, Transform};
 use std::sync::Arc;
 
 pub trait ToArrowDataType {
     fn to_arrow_data_type(&self) -> DataType;
 }
 
-pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(metadata: &Metadata<SS, RR>) -> Result<RecordBatch, ArrowError> {
-    // 1. Define the union type for all possible value types in metadata
-    let value_union_type = DataType::Union(
-        // Fields for each possible type
-        UnionFields::new(
-            vec![0, 1, 2, 3, 4, 5, 6],
-            vec![
-                Field::new("string", DataType::Utf8, true),
-                Field::new("bbox", DataType::FixedSizeList(
-                    Arc::new(Field::new_list_field(DataType::Float64, false)),
-                    6,
-                ), true),
-                Field::new("contact", create_contact_data_type(), true),
-                Field::new("date", DataType::Utf8, true),
-                Field::new("crs", DataType::Utf8, true),
-                Field::new("attributes", create_attributes_data_type(), true),
-                Field::new("null", DataType::Null, true),
-            ])
-        // Dense union mode is more efficient for our use case
-        UnionMode::Dense,
-    );
-    let batch = RecordBatch::try_new(
-        Arc::default(),
-        vec![],
-    )?;
+pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
+    metadata: &Metadata<SS, RR>,
+) -> Result<RecordBatch, ArrowError> {
+    let mut fields = Vec::with_capacity(7);
+    let mut arrays = Vec::with_capacity(7);
+
+    if let Some(geographical_extent) = metadata.geographical_extent() {
+        let field_geographical_extent = Field::new(
+            "geographical_extent",
+            DataType::FixedSizeList(Arc::new(Field::new_list_field(DataType::Float64, false)), 6),
+            true,
+        );
+        fields.push(field_geographical_extent);
+    }
+
+    if let Some(identifier) = metadata.identifier() {
+        let field_identifier = Field::new("identifier", DataType::Utf8, true);
+        fields.push(field_identifier);
+    }
+
+    if let Some(point_of_contact) = metadata.point_of_contact() {
+        let contact_array = contact_to_arrow(point_of_contact)?;
+        let field_point_of_contact = Field::new("point_of_contact", DataType::Struct(contact_array.fields().clone()), true);
+        fields.push(field_point_of_contact);
+    }
+
+    if let Some(reference_date) = metadata.reference_date() {
+        let field_reference_date = Field::new("reference_date", DataType::Utf8, true);
+        fields.push(field_reference_date);
+    }
+
+    if let Some(reference_system) = metadata.reference_system() {
+        let field_reference_system = Field::new("reference_system", DataType::Utf8, true);
+        fields.push(field_reference_system);
+    }
+
+    if let Some(title) = metadata.title() {
+        let field_title = Field::new("title", DataType::Utf8, true);
+        fields.push(field_title);
+    }
+
+    if let Some(extra) = metadata.extra() {
+        // todo: data type
+        let field_extra = Field::new("extra", DataType::Utf8, true);
+        fields.push(field_extra);
+    }
+
+    let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), vec![])?;
     Ok(batch)
 }
 
-DataType::Map(
-Arc::new(Field::new("keys", DataType::Utf8, false)),
-Arc::new(Field::new("values", DataType::Union(
-UnionMode::Dense,
-vec![0, 1, 2, 3, 4, 5, 6],
-UnionFields::new(vec![
-    Field::new("string", DataType::Utf8, false),
-    Field::new("role", DataType::Dictionary(
-        Box::new(DataType::Int8),
-        Box::new(DataType::Utf8),
-    ), true),
-    Field::new("contact_type", DataType::Dictionary(
-        Box::new(DataType::Int8),
-        Box::new(DataType::Utf8),
-    ), true),
-    Field::new("attributes", create_attributes_data_type(), true),
-    Field::new("null", DataType::Null, true),
-]),
-), true)),
-false
-)
+pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
+    contact: &Contact<SS, RR>,
+) -> Result<StructArray, ArrowError> {
+    let mut fields = Vec::with_capacity(8);
+    let mut arrays = Vec::with_capacity(8);
 
-pub fn create_contact_data_type() -> DataType {
-    DataType::Map(
-        Arc::new(
-            Field::new()
-        ),
-        true
-    )
+    if let Some(contact_name) = contact.contact_name() {
+        let field_contact_name = Field::new("contact_name", DataType::Utf8, true);
+        fields.push(field_contact_name);
+
+        let contact_name_array = StringArray::from(vec![contact_name.to_string()]);
+        arrays.push(Arc::new(contact_name_array) as ArrayRef);
+    }
+
+    if let Some(email_address) = contact.email_address() {
+        let field_email_address = Field::new("email_address", DataType::Utf8, true);
+        fields.push(field_email_address);
+
+        let email_address_array = StringArray::from(vec![email_address.to_string()]);
+        arrays.push(Arc::new(email_address_array) as ArrayRef);
+    }
+
+    if let Some(role) = contact.role() {
+        let field_role = Field::new(
+            "role",
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            true,
+        );
+        fields.push(field_role);
+
+        let role_key = vec![role as i8];
+        let role_value = vec![role.to_string()];
+        let role_array = DictionaryArray::<Int8Type>::try_new(
+            Int8Array::from(role_key),
+            Arc::new(StringArray::from(role_value)),
+        )?;
+
+        arrays.push(Arc::new(role_array) as ArrayRef);
+    }
+
+    if let Some(contact_type) = contact.contact_type() {
+        let field_contact_type = Field::new(
+            "contact_type",
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            true,
+        );
+        fields.push(field_contact_type);
+
+        let contact_type_key = vec![contact_type as i8];
+        let contact_type_value = vec![contact_type.to_string()];
+        let contact_type_array = DictionaryArray::<Int8Type>::try_new(
+            Int8Array::from(contact_type_key),
+            Arc::new(StringArray::from(contact_type_value)),
+        )?;
+
+        arrays.push(Arc::new(contact_type_array) as ArrayRef);
+    }
+
+    if let Some(website) = contact.website() {
+        let field_website = Field::new("website", DataType::Utf8, true);
+        fields.push(field_website);
+
+        let website_array = StringArray::from(vec![website.to_string()]);
+        arrays.push(Arc::new(website_array) as ArrayRef);
+    }
+
+    if let Some(organization) = contact.organization() {
+        let field_organization = Field::new("organization", DataType::Utf8, true);
+        fields.push(field_organization);
+
+        let organization_array = StringArray::from(vec![organization.to_string()]);
+        arrays.push(Arc::new(organization_array) as ArrayRef);
+    }
+
+    if let Some(phone) = contact.phone() {
+        let field_phone = Field::new("phone", DataType::Utf8, true);
+        fields.push(field_phone);
+
+        let phone_array = StringArray::from(vec![phone.to_string()]);
+        arrays.push(Arc::new(phone_array) as ArrayRef);
+    }
+
+    Ok(StructArray::from(fields.into_iter().zip(arrays).map(|(f, a)| (f, a)).collect()))
 }
-
-struct ContactBuilder {
-
-}
-
 
 // todo: create specific error and conversion for crate
 pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowError> {
     // Create arrays of values
-    let scale_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.scale())).build()?;
-    let translate_value_data = ArrayData::builder(DataType::Float64).len(3).add_buffer(Buffer::from_slice_ref(transform.translate())).build()?;
+    let scale_value_data = ArrayData::builder(DataType::Float64)
+        .len(3)
+        .add_buffer(Buffer::from_slice_ref(transform.scale()))
+        .build()?;
+    let translate_value_data = ArrayData::builder(DataType::Float64)
+        .len(3)
+        .add_buffer(Buffer::from_slice_ref(transform.translate()))
+        .build()?;
 
-    let scale_list_data_type = DataType::FixedSizeList(
-        Arc::new(Field::new_list_field(DataType::Float64, false)),
-        3,
-    );
-    let translate_list_data_type = DataType::FixedSizeList(
-        Arc::new(Field::new_list_field(DataType::Float64, false)),
-        3,
-    );
+    let scale_list_data_type =
+        DataType::FixedSizeList(Arc::new(Field::new_list_field(DataType::Float64, false)), 3);
+    let translate_list_data_type =
+        DataType::FixedSizeList(Arc::new(Field::new_list_field(DataType::Float64, false)), 3);
 
-    let scale_list_data = ArrayData::builder(scale_list_data_type.clone()).len(1).add_child_data(scale_value_data).build()?;
-    let translate_list_data = ArrayData::builder(translate_list_data_type.clone()).len(1).add_child_data(translate_value_data).build()?;
+    let scale_list_data = ArrayData::builder(scale_list_data_type.clone())
+        .len(1)
+        .add_child_data(scale_value_data)
+        .build()?;
+    let translate_list_data = ArrayData::builder(translate_list_data_type.clone())
+        .len(1)
+        .add_child_data(translate_value_data)
+        .build()?;
 
     // Wrap the f64 arrays in FixedSizeListArrays.
 
@@ -99,7 +182,7 @@ pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowErr
 
     let schema = Schema::new(vec![
         Field::new("scale", scale_list_data_type.clone(), false),
-        Field::new("translate", translate_list_data_type.clone(), false)
+        Field::new("translate", translate_list_data_type.clone(), false),
     ]);
 
     // Create a RecordBatch with a single row.
@@ -128,8 +211,20 @@ fn test_transform() {
     assert_eq!(batch.num_columns(), 2);
     assert_eq!(batch.schema().field(0).name(), "scale");
     assert_eq!(batch.schema().field(1).name(), "translate");
-    dbg!(batch.column(0).as_any().downcast_ref::<FixedSizeListArray>().unwrap());
-    dbg!(batch.column(1).as_any().downcast_ref::<FixedSizeListArray>().unwrap());
+    dbg!(
+        batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .unwrap()
+    );
+    dbg!(
+        batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .unwrap()
+    );
 }
 
 #[derive(Debug, Default)]
@@ -159,7 +254,7 @@ impl VerticesBuilder {
 }
 
 impl<'a> Extend<&'a QuantizedCoordinate> for VerticesBuilder {
-    fn extend<I: IntoIterator<Item=&'a QuantizedCoordinate>>(&mut self, iter: I) {
+    fn extend<I: IntoIterator<Item = &'a QuantizedCoordinate>>(&mut self, iter: I) {
         iter.into_iter()
             .for_each(|coordinate| self.append(coordinate));
     }
