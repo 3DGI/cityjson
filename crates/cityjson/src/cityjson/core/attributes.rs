@@ -717,7 +717,7 @@ mod tests {
         let boolean = AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true);
         let unsigned = AttributeValue::<OwnedStringStorage, ResourceId32>::Unsigned(42);
         let integer = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42);
-        let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14);
+        let float = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI);
         let string = AttributeValue::<OwnedStringStorage, ResourceId32>::String("test".to_string());
         let geometry =
             AttributeValue::<OwnedStringStorage, ResourceId32>::Geometry(ResourceId32::new(0, 0));
@@ -753,7 +753,7 @@ mod tests {
         );
         assert_eq!(
             float,
-            AttributeValue::<OwnedStringStorage, ResourceId32>::Float(3.14)
+            AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI)
         );
         assert_ne!(
             float,
@@ -889,7 +889,10 @@ mod tests {
         attrs.insert("bool".to_string(), AttributeValue::Bool(true));
         attrs.insert("unsigned".to_string(), AttributeValue::Unsigned(42));
         attrs.insert("integer".to_string(), AttributeValue::Integer(-42));
-        attrs.insert("float".to_string(), AttributeValue::Float(3.14));
+        attrs.insert(
+            "float".to_string(),
+            AttributeValue::Float(std::f64::consts::PI),
+        );
         attrs.insert(
             "string".to_string(),
             AttributeValue::String("test".to_string()),
@@ -909,7 +912,9 @@ mod tests {
             attrs.get("integer"),
             Some(AttributeValue::Integer(-42))
         ));
-        assert!(matches!(attrs.get("float"), Some(AttributeValue::Float(f)) if *f == 3.14));
+        assert!(
+            matches!(attrs.get("float"), Some(AttributeValue::Float(f)) if *f == std::f64::consts::PI)
+        );
         assert!(matches!(attrs.get("string"), Some(AttributeValue::String(s)) if s == "test"));
 
         // Test non-existent key
@@ -1063,16 +1068,17 @@ mod tests {
         assert_eq!(format!("{}", geometry), "Geometry index: 0, generation: 0");
 
         // Test vector
-        let mut vec_values = Vec::new();
-        vec_values.push(Box::new(
-            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(1),
-        ));
-        vec_values.push(Box::new(
-            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(2),
-        ));
-        vec_values.push(Box::new(
-            AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(3),
-        ));
+        let vec_values = vec![
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(
+                1,
+            )),
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(
+                2,
+            )),
+            Box::new(AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(
+                3,
+            )),
+        ];
 
         let vec_attr = AttributeValue::<OwnedStringStorage, ResourceId32>::Vec(vec_values);
         assert_eq!(format!("{}", vec_attr), "[1, 2, 3]");

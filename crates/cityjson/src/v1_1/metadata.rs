@@ -519,7 +519,7 @@ impl BBoxTrait for BBox {
     fn as_array(&self) -> &[f64; 6] {
         &self.values
     }
-    
+
     fn min_x(&self) -> f64 {
         self.values[0]
     }
@@ -544,7 +544,6 @@ impl BBoxTrait for BBox {
         self.values[5]
     }
 
-    
     fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }

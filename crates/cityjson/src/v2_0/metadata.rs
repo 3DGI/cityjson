@@ -439,7 +439,7 @@ impl Display for BBox {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct CityModelIdentifier<SS: StringStorage>(SS::String);
 
 impl<SS: StringStorage> CityModelIdentifier<SS> {
@@ -459,7 +459,7 @@ impl<SS: StringStorage> Display for CityModelIdentifier<SS> {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Date<SS: StringStorage>(SS::String);
 
 impl<SS: StringStorage> Date<SS> {
@@ -479,7 +479,7 @@ impl<SS: StringStorage> Display for Date<SS> {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct CRS<SS: StringStorage>(SS::String);
 
 impl<SS: StringStorage> CRS<SS> {
@@ -498,7 +498,6 @@ impl<SS: StringStorage> Display for CRS<SS> {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -511,7 +510,9 @@ mod test {
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier(CityModelIdentifier("test-id".to_string()));
         metadata.set_reference_date(Date("2024-03-20".to_string()));
-        metadata.set_reference_system(CRS("https://www.opengis.net/def/crs/EPSG/0/7415".to_string()));
+        metadata.set_reference_system(CRS(
+            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string()
+        ));
         metadata.set_title("Test Dataset");
         metadata.set_contact_name("John Doe");
         metadata.set_email_address("john@example.com");
@@ -548,9 +549,11 @@ mod test {
         println!("ContactType: {}", ContactType::Organization);
 
         let bbox: BBox = BBox::from_array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-        let id: CityModelIdentifier<OwnedStringStorage> = CityModelIdentifier("test-model-id".to_string());
+        let id: CityModelIdentifier<OwnedStringStorage> =
+            CityModelIdentifier("test-model-id".to_string());
         let date: Date<OwnedStringStorage> = Date("2024-03-21".to_string());
-        let crs: CRS<OwnedStringStorage> = CRS("https://www.opengis.net/def/crs/EPSG/0/4326".to_string());
+        let crs: CRS<OwnedStringStorage> =
+            CRS("https://www.opengis.net/def/crs/EPSG/0/4326".to_string());
 
         println!("BBox: {}", bbox);
         println!("CityModelIdentifier: {}", id);
