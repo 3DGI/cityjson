@@ -466,7 +466,7 @@ impl Display for BBox {
     }
 }
 
-
+#[repr(C)]
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
 pub struct CityModelIdentifier<SS: StringStorage>(SS::String);
 
@@ -486,6 +486,7 @@ impl<SS: StringStorage> Display for CityModelIdentifier<SS> {
     }
 }
 
+#[repr(C)]
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
 pub struct Date<SS: StringStorage>(SS::String);
 
@@ -505,6 +506,7 @@ impl<SS: StringStorage> Display for Date<SS> {
     }
 }
 
+#[repr(C)]
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
 pub struct CRS<SS: StringStorage>(SS::String);
 
