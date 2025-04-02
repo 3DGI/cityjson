@@ -6,6 +6,7 @@ use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
+#[repr(C)]
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
@@ -293,6 +294,7 @@ impl<SS: StringStorage, RR: ResourceRef> Display for Contact<SS, RR> {
     }
 }
 
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactRole {
     Author,
@@ -323,6 +325,7 @@ impl Display for ContactRole {
     }
 }
 
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactType {
     Individual,
@@ -339,6 +342,7 @@ impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTra
 {
 }
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BBox {
     values: [f64; 6],
