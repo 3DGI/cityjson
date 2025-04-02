@@ -33,7 +33,7 @@ pub use geometry::{
 
 // Re-export main types from metadata
 pub use metadata::{
-    BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
+    Contact, ContactRole, ContactType, Metadata,
 };
 
 // Re-export main types from transform

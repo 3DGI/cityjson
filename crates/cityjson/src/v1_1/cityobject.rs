@@ -9,9 +9,8 @@
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::prelude::{
     Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
-    OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
+    OwnedStringStorage, ResourcePool, ResourceRef, StringStorage, BBox
 };
-use crate::v1_1::BBox;
 use std::fmt::{Display, Formatter};
 
 /// A container for efficiently storing and accessing CityObject instances.

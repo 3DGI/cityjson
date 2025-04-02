@@ -755,10 +755,6 @@ mod tests {
             float,
             AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI)
         );
-        assert_ne!(
-            float,
-            AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI)
-        );
         assert_eq!(
             string,
             AttributeValue::<OwnedStringStorage, ResourceId32>::String("test".to_string())

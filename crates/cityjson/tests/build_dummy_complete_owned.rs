@@ -10,8 +10,8 @@ fn build_dummy_complete_owned() -> Result<()> {
 
     // Set metadata
     let metadata = model.metadata_mut();
-    metadata.set_identifier("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c");
-    metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/2355");
+    metadata.set_identifier(CityModelIdentifier::new("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string()));
+    metadata.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/2355".to_string()));
     metadata.set_contact_name("3DGI");
     metadata.set_email_address("info@3dgi.nl");
 

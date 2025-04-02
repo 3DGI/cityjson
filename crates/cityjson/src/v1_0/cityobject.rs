@@ -1,9 +1,4 @@
-use crate::cityjson::traits::cityobject::CityObjectsTrait;
-use crate::prelude::{
-    Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
-    OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
-};
-use crate::v1_0::BBox;
+use crate::prelude::*;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]

@@ -6,3 +6,4 @@ pub mod extension;
 pub mod geometry;
 pub mod transform;
 pub mod vertex;
+pub mod metadata;

@@ -15,11 +15,12 @@ use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
 use crate::v2_0::geometry::Geometry;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{
-    BBox, CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
+    CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
 };
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
+use crate::cityjson::core::metadata::BBox;
 
 pub struct V2_0<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,

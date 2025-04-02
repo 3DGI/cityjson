@@ -3,7 +3,7 @@ use crate::prelude::{
     Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
     OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
 };
-use crate::v2_0::BBox;
+use crate::cityjson::core::metadata::BBox;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]

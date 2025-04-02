@@ -2,24 +2,14 @@
 //!
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
-use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
-use crate::cityjson::core::vertex::VertexIndex;
-use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
-use crate::cityjson::traits::transform::TransformTrait;
-use crate::cityjson::traits::vertex::VertexRef;
-use crate::prelude::{
-    CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
-};
-use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
-use crate::resources::storage::StringStorage;
+use crate::prelude::*;
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
 use crate::v1_1::metadata::Metadata;
 use crate::v1_1::{
-    BBox, CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
+    CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
 };
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;

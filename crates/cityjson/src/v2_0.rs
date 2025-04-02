@@ -23,6 +23,10 @@ pub use geometry::{
     Geometry,
 };
 pub use metadata::{
-    BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
+    Contact, ContactRole, ContactType, Metadata,
 };
 pub use transform::Transform;
+pub use crate::cityjson::core::metadata::BBox;
+pub use crate::cityjson::core::metadata::CityModelIdentifier;
+pub use crate::cityjson::core::metadata::CRS;
+pub use crate::cityjson::core::metadata::Date;

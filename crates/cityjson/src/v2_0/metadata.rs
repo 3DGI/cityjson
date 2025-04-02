@@ -1,10 +1,10 @@
 use crate::cityjson;
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::traits::metadata::BBoxTrait;
 use crate::format_option;
 use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
+use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
 
 #[repr(C)]
 #[derive(Clone, Default, Debug, PartialEq)]
@@ -342,175 +342,19 @@ impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTra
 {
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BBox {
-    values: [f64; 6],
-}
-
-impl BBoxTrait for BBox {
-    fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
-        Self {
-            values: [min_x, min_y, min_z, max_x, max_y, max_z],
-        }
-    }
-
-    fn from_array(values: [f64; 6]) -> Self {
-        Self { values }
-    }
-
-    fn as_array(&self) -> &[f64; 6] {
-        &self.values
-    }
-
-    fn min_x(&self) -> f64 {
-        self.values[0]
-    }
-
-    fn min_y(&self) -> f64 {
-        self.values[1]
-    }
-
-    fn min_z(&self) -> f64 {
-        self.values[2]
-    }
-
-    fn max_x(&self) -> f64 {
-        self.values[3]
-    }
-
-    fn max_y(&self) -> f64 {
-        self.values[4]
-    }
-
-    fn max_z(&self) -> f64 {
-        self.values[5]
-    }
-
-    fn width(&self) -> f64 {
-        self.max_x() - self.min_x()
-    }
-
-    fn length(&self) -> f64 {
-        self.max_y() - self.min_y()
-    }
-
-    fn height(&self) -> f64 {
-        self.max_z() - self.min_z()
-    }
-}
-
-impl Default for BBox {
-    /// Creates a default BBox with all coordinates set to 0.0.
-    fn default() -> Self {
-        Self {
-            values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        }
-    }
-}
-
-impl From<[f64; 6]> for BBox {
-    /// Creates a BBox from an array of 6 values.
-    fn from(values: [f64; 6]) -> Self {
-        Self { values }
-    }
-}
-
-impl From<BBox> for [f64; 6] {
-    /// Converts a BBox into an array of 6 values.
-    fn from(bbox: BBox) -> Self {
-        bbox.values
-    }
-}
-
-impl Display for BBox {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{}, {}, {}, {}, {}, {}]",
-            self.min_x(),
-            self.min_y(),
-            self.min_z(),
-            self.max_x(),
-            self.max_y(),
-            self.max_z()
-        )
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct CityModelIdentifier<SS: StringStorage>(SS::String);
-
-impl<SS: StringStorage> CityModelIdentifier<SS> {
-    pub fn new(value: SS::String) -> Self {
-        Self(value)
-    }
-
-    pub fn into_inner(self) -> SS::String {
-        self.0
-    }
-}
-
-impl<SS: StringStorage> Display for CityModelIdentifier<SS> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct Date<SS: StringStorage>(SS::String);
-
-impl<SS: StringStorage> Date<SS> {
-    pub fn new(value: SS::String) -> Self {
-        Self(value)
-    }
-
-    pub fn into_inner(self) -> SS::String {
-        self.0
-    }
-}
-
-impl<SS: StringStorage> Display for Date<SS> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct CRS<SS: StringStorage>(SS::String);
-
-impl<SS: StringStorage> CRS<SS> {
-    pub fn new(value: SS::String) -> Self {
-        Self(value)
-    }
-
-    pub fn into_inner(self) -> SS::String {
-        self.0
-    }
-}
-
-impl<SS: StringStorage> Display for CRS<SS> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::prelude::{AttributeValue, ResourceId32};
+    use crate::prelude::*;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]
     fn display() {
         let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
-        metadata.set_identifier(CityModelIdentifier("test-id".to_string()));
-        metadata.set_reference_date(Date("2024-03-20".to_string()));
-        metadata.set_reference_system(CRS(
+        metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
+        metadata.set_reference_date(Date::new("2024-03-20".to_string()));
+        metadata.set_reference_system(CRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/7415".to_string()
         ));
         metadata.set_title("Test Dataset");
@@ -548,12 +392,16 @@ mod test {
         println!("ContactRole: {}", ContactRole::Publisher);
         println!("ContactType: {}", ContactType::Organization);
 
-        let bbox: BBox = BBox::from_array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let bbox: BBox = BBox::from([1.1, 2.1, 3.1, 4.1, 5.0, 6.0]);
         let id: CityModelIdentifier<OwnedStringStorage> =
-            CityModelIdentifier("test-model-id".to_string());
-        let date: Date<OwnedStringStorage> = Date("2024-03-21".to_string());
+            CityModelIdentifier::new("test-id".to_string());
+        let date: Date<OwnedStringStorage> = Date::new("2024-03-21".to_string());
         let crs: CRS<OwnedStringStorage> =
-            CRS("https://www.opengis.net/def/crs/EPSG/0/4326".to_string());
+            CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string());
+        
+        assert_eq!(metadata.geographical_extent(), Some(bbox).as_ref());
+        assert_eq!(metadata.identifier(), Some(id.clone()).as_ref());
+        assert_eq!(metadata.reference_system(), Some(crs.clone()).as_ref());
 
         println!("BBox: {}", bbox);
         println!("CityModelIdentifier: {}", id);

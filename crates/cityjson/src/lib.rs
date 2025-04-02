@@ -30,22 +30,6 @@ pub mod v2_0;
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
     // Re-export from cityjson module
-    pub use crate::cityjson::traits::cityobject::{
-        CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait,
-    };
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::coordinate::Coordinate;
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::geometry::GeometryTrait;
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexIndexVec;
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexIndicesSequence;
-    // Re-export from cityjson module
-    pub use crate::cityjson::traits::vertex::VertexRef;
-    // Re-export from cityjson module
     pub use crate::cityjson::{
         core::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
@@ -70,12 +54,18 @@ pub mod prelude {
         },
         core::extension::{ExtensionCore, ExtensionsCore},
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
+        core::metadata::{BBox, CityModelIdentifier, Date, CRS},
         core::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},
+        traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
+        traits::coordinate::Coordinate,
+        traits::extension::{ExtensionTrait, ExtensionsTrait},
+        traits::geometry::GeometryTrait,
         traits::metadata::{BBoxTrait, MetadataTrait},
         traits::semantic::{SemanticTrait, SemanticTypeTrait},
         traits::transform::TransformTrait,
+        traits::vertex::{VertexIndexVec, VertexIndicesSequence, VertexRef},
     };
     // Re-export from errors module
     pub use crate::errors::{Error, Result};
