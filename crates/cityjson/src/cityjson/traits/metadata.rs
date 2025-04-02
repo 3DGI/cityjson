@@ -17,8 +17,6 @@ pub trait BBoxTrait {
     fn from_array(values: [f64; 6]) -> Self;
     /// Returns the underlying array.
     fn as_array(&self) -> &[f64; 6];
-    /// Returns the underlying array as a mutable reference.
-    fn as_array_mut(&mut self) -> &mut [f64; 6];
     /// Returns the minimum x coordinate.
     fn min_x(&self) -> f64;
     /// Returns the minimum y coordinate.
@@ -31,18 +29,6 @@ pub trait BBoxTrait {
     fn max_y(&self) -> f64;
     /// Returns the maximum z coordinate.
     fn max_z(&self) -> f64;
-    /// Sets the minimum x coordinate.
-    fn set_min_x(&mut self, value: f64);
-    /// Sets the minimum y coordinate.
-    fn set_min_y(&mut self, value: f64);
-    /// Sets the minimum z coordinate.
-    fn set_min_z(&mut self, value: f64);
-    /// Sets the maximum x coordinate.
-    fn set_max_x(&mut self, value: f64);
-    /// Sets the maximum y coordinate.
-    fn set_max_y(&mut self, value: f64);
-    /// Sets the maximum z coordinate.
-    fn set_max_z(&mut self, value: f64);
     /// Calculates the width (x-axis length) of the bounding box.
     fn width(&self) -> f64;
     /// Calculates the length (y-axis length) of the bounding box.

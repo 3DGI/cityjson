@@ -25,10 +25,6 @@ impl BBoxTrait for BBox {
         &self.values
     }
 
-    fn as_array_mut(&mut self) -> &mut [f64; 6] {
-        &mut self.values
-    }
-
     fn min_x(&self) -> f64 {
         self.values[0]
     }
@@ -51,30 +47,6 @@ impl BBoxTrait for BBox {
 
     fn max_z(&self) -> f64 {
         self.values[5]
-    }
-
-    fn set_min_x(&mut self, value: f64) {
-        self.values[0] = value;
-    }
-
-    fn set_min_y(&mut self, value: f64) {
-        self.values[1] = value;
-    }
-
-    fn set_min_z(&mut self, value: f64) {
-        self.values[2] = value;
-    }
-
-    fn set_max_x(&mut self, value: f64) {
-        self.values[3] = value;
-    }
-
-    fn set_max_y(&mut self, value: f64) {
-        self.values[4] = value;
-    }
-
-    fn set_max_z(&mut self, value: f64) {
-        self.values[5] = value;
     }
 
     fn width(&self) -> f64 {

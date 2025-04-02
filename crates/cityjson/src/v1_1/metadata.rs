@@ -63,13 +63,8 @@
 //! assert_eq!(bbox.length(), 100.0);
 //! assert_eq!(bbox.height(), 30.0);
 //!
-//! // Update coordinates
-//! bbox.set_min_z(-10.0);
-//! bbox.set_max_z(50.0);
-//! assert_eq!(bbox.height(), 60.0);
-//!
 //! // Convert from/to array
-//! let array: [f64; 6] = [0.0, 0.0, -10.0, 100.0, 100.0, 50.0];
+//! let array: [f64; 6] = [0.0, 0.0, 0.0, 100.0, 100.0, 30.0];
 //! assert_eq!(BBox::from(array), bbox);
 //! ```
 //!
@@ -524,11 +519,7 @@ impl BBoxTrait for BBox {
     fn as_array(&self) -> &[f64; 6] {
         &self.values
     }
-
-    fn as_array_mut(&mut self) -> &mut [f64; 6] {
-        &mut self.values
-    }
-
+    
     fn min_x(&self) -> f64 {
         self.values[0]
     }
@@ -553,30 +544,7 @@ impl BBoxTrait for BBox {
         self.values[5]
     }
 
-    fn set_min_x(&mut self, value: f64) {
-        self.values[0] = value;
-    }
-
-    fn set_min_y(&mut self, value: f64) {
-        self.values[1] = value;
-    }
-
-    fn set_min_z(&mut self, value: f64) {
-        self.values[2] = value;
-    }
-
-    fn set_max_x(&mut self, value: f64) {
-        self.values[3] = value;
-    }
-
-    fn set_max_y(&mut self, value: f64) {
-        self.values[4] = value;
-    }
-
-    fn set_max_z(&mut self, value: f64) {
-        self.values[5] = value;
-    }
-
+    
     fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }
