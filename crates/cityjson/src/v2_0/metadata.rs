@@ -12,7 +12,7 @@ pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier<SS>>,
     point_of_contact: Option<Contact<SS, RR>>,
-    reference_date: Option<Date>,
+    reference_date: Option<Date<SS>>,
     reference_system: Option<CRS>,
     title: Option<String>,
     extra: Option<Attributes<SS, RR>>,
@@ -35,8 +35,8 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         self.point_of_contact.as_ref()
     }
 
-    pub fn reference_date(&self) -> Option<&str> {
-        self.reference_date.as_deref()
+    pub fn reference_date(&self) -> Option<&Date<SS>> {
+        self.reference_date.as_ref()
     }
 
     pub fn reference_system(&self) -> Option<&str> {
@@ -63,8 +63,8 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         self.identifier = Some(identifier);
     }
 
-    pub fn set_reference_date<S: AsRef<str>>(&mut self, date: S) {
-        self.reference_date = Some(date.as_ref().to_owned());
+    pub fn set_reference_date(&mut self, date: Date<SS>) {
+        self.reference_date = Some(date);
     }
 
     pub fn set_reference_system<S: AsRef<str>>(&mut self, crs: S) {
@@ -486,7 +486,24 @@ impl<SS: StringStorage> Display for CityModelIdentifier<SS> {
     }
 }
 
-pub type Date = String;
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd,  Ord, Eq, Hash)]
+pub struct Date<SS: StringStorage>(SS::String);
+
+impl<SS: StringStorage> Date<SS> {
+    pub fn new(value: SS::String) -> Self {
+        Self(value)
+    }
+
+    pub fn into_inner(self) -> SS::String {
+        self.0
+    }
+}
+
+impl<SS: StringStorage> Display for Date<SS> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 pub type CRS = String;
 
@@ -501,7 +518,7 @@ mod test {
         let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier(CityModelIdentifier("test-id".to_string()));
-        metadata.set_reference_date("2024-03-20");
+        metadata.set_reference_date(Date("2024-03-20".to_string()));
         metadata.set_reference_system("https://www.opengis.net/def/crs/EPSG/0/7415");
         metadata.set_title("Test Dataset");
         metadata.set_contact_name("John Doe");
@@ -540,7 +557,7 @@ mod test {
 
         let bbox: BBox = BBox::from_array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let id: CityModelIdentifier<OwnedStringStorage> = CityModelIdentifier("test-model-id".to_string());
-        let date: Date = "2024-03-21".to_string();
+        let date: Date<OwnedStringStorage> = Date("2024-03-21".to_string());
         let crs: CRS = "https://www.opengis.net/def/crs/EPSG/0/4326".to_string();
 
         println!("BBox: {}", bbox);
