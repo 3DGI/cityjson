@@ -1,3 +1,5 @@
+mod attributes_to_arrow;
+
 use arrow::array::{
     ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int64Builder, Int8Array, RecordBatch,
     StringArray, StructArray,
@@ -168,6 +170,9 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
 
     Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
 }
+
+
+
 
 // todo: create specific error and conversion for crate
 pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowError> {
