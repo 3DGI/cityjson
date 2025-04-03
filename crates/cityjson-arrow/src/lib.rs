@@ -3,19 +3,17 @@ use arrow::array::{
     StringArray, StructArray,
 };
 use arrow::buffer::Buffer;
-use arrow::datatypes::{DataType, Field, Int8Type, Schema};
+use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
 use arrow::error::ArrowError;
-use cityjson::prelude::{QuantizedCoordinate, ResourceRef, StringStorage, TransformTrait};
+use cityjson::prelude::{
+    BBoxTrait, QuantizedCoordinate, ResourceRef, StringStorage, TransformTrait,
+};
 use cityjson::v2_0::{Contact, Metadata, Transform};
 use std::sync::Arc;
 
-pub trait ToArrowDataType {
-    fn to_arrow_data_type(&self) -> DataType;
-}
-
 pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
     metadata: &Metadata<SS, RR>,
-) -> Result<RecordBatch, ArrowError> {
+) -> Result<StructArray, ArrowError> {
     let mut fields = Vec::with_capacity(7);
     let mut arrays = Vec::with_capacity(7);
 
@@ -26,32 +24,57 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
             true,
         );
         fields.push(field_geographical_extent);
+
+        let geographical_extent_array = FixedSizeListArray::from(
+            ArrayData::builder(DataType::Float64)
+                .len(6)
+                .add_buffer(Buffer::from_slice_ref(geographical_extent.as_slice()))
+                .build()?,
+        );
+        arrays.push(Arc::new(geographical_extent_array) as ArrayRef);
     }
 
     if let Some(identifier) = metadata.identifier() {
         let field_identifier = Field::new("identifier", DataType::Utf8, true);
         fields.push(field_identifier);
+
+        let identifier_array = StringArray::from(vec![identifier.to_string()]);
+        arrays.push(Arc::new(identifier_array) as ArrayRef);
     }
 
     if let Some(point_of_contact) = metadata.point_of_contact() {
         let contact_array = contact_to_arrow(point_of_contact)?;
-        let field_point_of_contact = Field::new("point_of_contact", DataType::Struct(contact_array.fields().clone()), true);
+        let field_point_of_contact = Field::new(
+            "point_of_contact",
+            DataType::Struct(contact_array.fields().clone()),
+            true,
+        );
         fields.push(field_point_of_contact);
+        arrays.push(Arc::new(contact_array) as ArrayRef);
     }
 
     if let Some(reference_date) = metadata.reference_date() {
         let field_reference_date = Field::new("reference_date", DataType::Utf8, true);
         fields.push(field_reference_date);
+
+        let reference_date_array = StringArray::from(vec![reference_date.to_string()]);
+        arrays.push(Arc::new(reference_date_array) as ArrayRef);
     }
 
     if let Some(reference_system) = metadata.reference_system() {
         let field_reference_system = Field::new("reference_system", DataType::Utf8, true);
         fields.push(field_reference_system);
+
+        let reference_system_array = StringArray::from(vec![reference_system.to_string()]);
+        arrays.push(Arc::new(reference_system_array) as ArrayRef);
     }
 
     if let Some(title) = metadata.title() {
         let field_title = Field::new("title", DataType::Utf8, true);
         fields.push(field_title);
+
+        let title_array = StringArray::from(vec![title.to_string()]);
+        arrays.push(Arc::new(title_array) as ArrayRef);
     }
 
     if let Some(extra) = metadata.extra() {
@@ -60,8 +83,7 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
         fields.push(field_extra);
     }
 
-    let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), vec![])?;
-    Ok(batch)
+    Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
 }
 
 pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
@@ -70,21 +92,17 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
     let mut fields = Vec::with_capacity(8);
     let mut arrays = Vec::with_capacity(8);
 
-    if let Some(contact_name) = contact.contact_name() {
-        let field_contact_name = Field::new("contact_name", DataType::Utf8, true);
-        fields.push(field_contact_name);
+    let field_contact_name = Field::new("contact_name", DataType::Utf8, true);
+    fields.push(field_contact_name);
 
-        let contact_name_array = StringArray::from(vec![contact_name.to_string()]);
-        arrays.push(Arc::new(contact_name_array) as ArrayRef);
-    }
+    let contact_name_array = StringArray::from(vec![contact.contact_name().to_string()]);
+    arrays.push(Arc::new(contact_name_array) as ArrayRef);
 
-    if let Some(email_address) = contact.email_address() {
-        let field_email_address = Field::new("email_address", DataType::Utf8, true);
-        fields.push(field_email_address);
+    let field_email_address = Field::new("email_address", DataType::Utf8, true);
+    fields.push(field_email_address);
 
-        let email_address_array = StringArray::from(vec![email_address.to_string()]);
-        arrays.push(Arc::new(email_address_array) as ArrayRef);
-    }
+    let email_address_array = StringArray::from(vec![contact.email_address().to_string()]);
+    arrays.push(Arc::new(email_address_array) as ArrayRef);
 
     if let Some(role) = contact.role() {
         let field_role = Field::new(
@@ -146,7 +164,9 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
         arrays.push(Arc::new(phone_array) as ArrayRef);
     }
 
-    Ok(StructArray::from(fields.into_iter().zip(arrays).map(|(f, a)| (f, a)).collect()))
+    // todo: add extra fields
+
+    Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
 }
 
 // todo: create specific error and conversion for crate
