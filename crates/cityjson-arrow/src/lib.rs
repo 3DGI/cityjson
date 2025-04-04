@@ -79,7 +79,7 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
         arrays.push(Arc::new(title_array) as ArrayRef);
     }
 
-    if let Some(extra) = metadata.extra() {
+    if let Some(_extra) = metadata.extra() {
         // todo: data type
         let field_extra = Field::new("extra", DataType::Utf8, true);
         fields.push(field_extra);
@@ -170,9 +170,6 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
 
     Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
 }
-
-
-
 
 // todo: create specific error and conversion for crate
 pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowError> {
