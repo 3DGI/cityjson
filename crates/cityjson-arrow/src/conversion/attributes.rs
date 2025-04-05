@@ -4,9 +4,10 @@ use arrow::array::{
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
-use arrow::error::ArrowError;
 use cityjson::prelude::{AttributeValue, Attributes, ResourceRef, StringStorage};
 use std::sync::Arc;
+
+use crate::error::{Error, Result};
 
 /// Converts [Attributes] to an Arrow MapArray.
 ///
@@ -19,7 +20,7 @@ use std::sync::Arc;
 pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
     attributes: &Attributes<SS, RR>,
     map_field_name: &str,
-) -> Result<(Schema, MapArray), ArrowError> {
+) -> Result<(Schema, MapArray)> {
     // Define the union fields: each field gets a unique type id.
     let union_fields = UnionFields::from_iter(vec![
         (0i8, Arc::new(Field::new("null", DataType::Null, true))),
@@ -82,7 +83,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
             }
             // For nested vector or map values inside a vector, we return an error.
             _ => {
-                return Err(ArrowError::NotYetImplemented(
+                return Err(Error::Unsupported(
                     "Nested types are not supported".to_string(),
                 ));
             }

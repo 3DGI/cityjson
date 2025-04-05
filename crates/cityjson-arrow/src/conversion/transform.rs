@@ -1,13 +1,13 @@
 use arrow::array::{Array, ArrayData, ArrayRef, FixedSizeListArray, RecordBatch};
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Schema};
-use arrow::error::ArrowError;
 use cityjson::prelude::TransformTrait;
 use cityjson::v2_0::Transform;
 use std::sync::Arc;
 
-// todo: create specific error and conversion for crate
-pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowError> {
+use crate::error::{Error, Result};
+
+pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch> {
     // Create arrays of values
     let scale_value_data = ArrayData::builder(DataType::Float64)
         .len(3)
@@ -43,14 +43,14 @@ pub fn transform_to_arrow(transform: &Transform) -> Result<RecordBatch, ArrowErr
     ]);
 
     // Create a RecordBatch with a single row.
-    let batch = RecordBatch::try_new(
+    RecordBatch::try_new(
         Arc::new(schema),
         vec![
             Arc::new(scale_listarray) as ArrayRef,
             Arc::new(translate_listarray) as ArrayRef,
         ],
-    )?;
-    Ok(batch)
+    )
+    .map_err(Error::from)
 }
 
 #[cfg(test)]

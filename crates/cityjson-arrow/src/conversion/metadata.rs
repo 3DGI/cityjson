@@ -4,14 +4,15 @@ use arrow::array::{
 };
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Fields, Int8Type};
-use arrow::error::ArrowError;
 use cityjson::prelude::{BBoxTrait, ResourceRef, StringStorage};
 use cityjson::v2_0::{Contact, Metadata};
 use std::sync::Arc;
 
+use crate::error::{Error, Result};
+
 pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
     metadata: &Metadata<SS, RR>,
-) -> Result<StructArray, ArrowError> {
+) -> Result<StructArray> {
     let mut fields = Vec::with_capacity(7);
     let mut arrays = Vec::with_capacity(7);
 
@@ -86,12 +87,12 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
         arrays.push(Arc::new(map_array) as ArrayRef);
     }
 
-    StructArray::try_new(Fields::from(fields), arrays, None)
+    StructArray::try_new(Fields::from(fields), arrays, None).map_err(Error::from)
 }
 
 pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
     contact: &Contact<SS, RR>,
-) -> Result<StructArray, ArrowError> {
+) -> Result<StructArray> {
     let mut fields = Vec::with_capacity(8);
     let mut arrays = Vec::with_capacity(8);
 
@@ -169,7 +170,7 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
 
     // todo: add extra fields
 
-    Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
+    StructArray::try_new(Fields::from(fields), arrays, None).map_err(Error::from)
 }
 
 #[cfg(test)]
