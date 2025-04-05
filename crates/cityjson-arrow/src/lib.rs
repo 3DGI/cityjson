@@ -1,8 +1,8 @@
 mod attributes_to_arrow;
 
 use arrow::array::{
-    ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int64Builder, Int8Array, RecordBatch,
-    StringArray, StructArray,
+    ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int64Builder,
+    Int8Array, RecordBatch, StringArray, StructArray,
 };
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
@@ -12,6 +12,8 @@ use cityjson::prelude::{
 };
 use cityjson::v2_0::{Contact, Metadata, Transform};
 use std::sync::Arc;
+
+use crate::attributes_to_arrow::attributes_to_arrow;
 
 pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
     metadata: &Metadata<SS, RR>,
@@ -27,12 +29,17 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
         );
         fields.push(field_geographical_extent);
 
-        let geographical_extent_array = FixedSizeListArray::from(
-            ArrayData::builder(DataType::Float64)
-                .len(6)
-                .add_buffer(Buffer::from_slice_ref(geographical_extent.as_slice()))
-                .build()?,
-        );
+        let geographical_extent_data = ArrayData::builder(DataType::Float64)
+            .len(6)
+            .add_buffer(Buffer::from_slice_ref(geographical_extent.as_slice()))
+            .build()?;
+        let list_data_type =
+            DataType::FixedSizeList(Arc::new(Field::new_list_field(DataType::Float64, false)), 6);
+        let list_data = ArrayData::builder(list_data_type)
+            .len(1)
+            .add_child_data(geographical_extent_data)
+            .build()?;
+        let geographical_extent_array = FixedSizeListArray::from(list_data);
         arrays.push(Arc::new(geographical_extent_array) as ArrayRef);
     }
 
@@ -79,13 +86,13 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
         arrays.push(Arc::new(title_array) as ArrayRef);
     }
 
-    if let Some(_extra) = metadata.extra() {
-        // todo: data type
-        let field_extra = Field::new("extra", DataType::Utf8, true);
-        fields.push(field_extra);
+    if let Some(extra) = metadata.extra() {
+        let (schema, map_array) = attributes_to_arrow(extra, "extra")?;
+        fields.push(schema.field(0).clone());
+        arrays.push(Arc::new(map_array) as ArrayRef);
     }
 
-    Ok(StructArray::try_new(Fields::from(fields), arrays, None)?)
+    StructArray::try_new(Fields::from(fields), arrays, None)
 }
 
 pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
@@ -288,28 +295,177 @@ pub fn vertices_to_batch(vertices: &[QuantizedCoordinate]) -> RecordBatch {
     RecordBatch::from(&builder.finish())
 }
 
-#[test]
-fn test_vertices() {
-    use rand::Rng;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Array, FixedSizeListArray, StringArray, StructArray};
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
 
-    // Create a random number generator
-    let mut rng = rand::rng();
+    #[test]
+    fn test_metadata_to_arrow() {
+        // Create a test metadata object with all fields populated
+        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
 
-    // Create 1000 random QuantizedCoordinate instances
-    let mut vertices = Vec::with_capacity(1000);
-    for _ in 0..1000 {
-        let x = rng.random_range(-1000..=300000);
-        let y = rng.random_range(-20000..=400000);
-        let z = rng.random_range(-100..=300);
+        // Set geographic extent (bounding box)
+        metadata.set_geographical_extent(BBox::new(10.0, 20.0, 30.0, 40.0, 50.0, 60.0));
 
-        // Create a QuantizedCoordinate with random values
-        let coordinate = QuantizedCoordinate::new(x, y, z);
-        vertices.push(coordinate);
+        // Set identifier
+        metadata.set_identifier(CityModelIdentifier::new("test-dataset-id".to_string()));
+
+        // Set reference date
+        metadata.set_reference_date(Date::new("2024-04-05".to_string()));
+
+        // Set reference system
+        metadata.set_reference_system(CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/4326".to_string(),
+        ));
+
+        // Set title
+        metadata.set_title("Test City Model");
+
+        // Set point of contact
+        metadata.set_contact_name("Test User");
+        metadata.set_email_address("test@example.com");
+        metadata.set_role(ContactRole::Author);
+        metadata.set_website("https://example.com");
+        metadata.set_contact_type(ContactType::Individual);
+        metadata.set_organization("Test Organization");
+        metadata.set_phone("+1-555-1234");
+
+        // Set extra attributes
+        let mut extra = OwnedAttributes::new();
+        extra.insert(
+            "version".to_string(),
+            AttributeValue::String("1.0".to_string()),
+        );
+        extra.insert(
+            "created".to_string(),
+            AttributeValue::String("2024-04-05".to_string()),
+        );
+        metadata.extra_mut().replace(extra);
+
+        // Convert metadata to Arrow
+        let arrow_struct =
+            metadata_to_arrow(&metadata).expect("Failed to convert metadata to Arrow");
+
+        // Verify the result is a StructArray with the expected fields
+        assert_eq!(arrow_struct.fields().len(), 7); // All fields should be present
+
+        // Check geographical_extent
+        let geo_extent_field = arrow_struct
+            .column_by_name("geographical_extent")
+            .expect("geographical_extent field missing");
+        let geo_extent = geo_extent_field
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
+            .expect("geographical_extent should be a FixedSizeListArray");
+        assert_eq!(geo_extent.len(), 1);
+
+        // Check identifier
+        let identifier_field = arrow_struct
+            .column_by_name("identifier")
+            .expect("identifier field missing");
+        let identifier = identifier_field
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("identifier should be a StringArray");
+        assert_eq!(identifier.value(0), "test-dataset-id");
+
+        // Check reference_date
+        let ref_date_field = arrow_struct
+            .column_by_name("reference_date")
+            .expect("reference_date field missing");
+        let ref_date = ref_date_field
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("reference_date should be a StringArray");
+        assert_eq!(ref_date.value(0), "2024-04-05");
+
+        // Check reference_system
+        let ref_system_field = arrow_struct
+            .column_by_name("reference_system")
+            .expect("reference_system field missing");
+        let ref_system = ref_system_field
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("reference_system should be a StringArray");
+        assert_eq!(
+            ref_system.value(0),
+            "https://www.opengis.net/def/crs/EPSG/0/4326"
+        );
+
+        // Check title
+        let title_field = arrow_struct
+            .column_by_name("title")
+            .expect("title field missing");
+        let title = title_field
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("title should be a StringArray");
+        assert_eq!(title.value(0), "Test City Model");
+
+        // Check point_of_contact
+        let contact_field = arrow_struct
+            .column_by_name("point_of_contact")
+            .expect("point_of_contact field missing");
+        let contact = contact_field
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .expect("point_of_contact should be a StructArray");
+
+        // Verify contact fields
+        let contact_name = contact
+            .column_by_name("contact_name")
+            .expect("contact_name field missing")
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("contact_name should be a StringArray");
+        assert_eq!(contact_name.value(0), "Test User");
+
+        let email = contact
+            .column_by_name("email_address")
+            .expect("email_address field missing")
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("email_address should be a StringArray");
+        assert_eq!(email.value(0), "test@example.com");
+
+        // Check extra attributes
+        let _extra_field = arrow_struct
+            .column_by_name("extra")
+            .expect("extra field missing");
+
+        // Successfully converted all metadata fields to Arrow format
+        println!(
+            "Successfully converted metadata to Arrow structure with {} fields",
+            arrow_struct.fields().len()
+        );
     }
 
-    // Convert vertices to a RecordBatch
-    let batch = vertices_to_batch(&vertices);
+    #[test]
+    fn test_vertices() {
+        use rand::Rng;
 
-    // Verify the batch has 1000 rows
-    assert_eq!(batch.num_rows(), 1000);
+        // Create a random number generator
+        let mut rng = rand::rng();
+
+        // Create 1000 random QuantizedCoordinate instances
+        let mut vertices = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            let x = rng.random_range(-1000..=300000);
+            let y = rng.random_range(-20000..=400000);
+            let z = rng.random_range(-100..=300);
+
+            // Create a QuantizedCoordinate with random values
+            let coordinate = QuantizedCoordinate::new(x, y, z);
+            vertices.push(coordinate);
+        }
+
+        // Convert vertices to a RecordBatch
+        let batch = vertices_to_batch(&vertices);
+
+        // Verify the batch has 1000 rows
+        assert_eq!(batch.num_rows(), 1000);
+    }
 }

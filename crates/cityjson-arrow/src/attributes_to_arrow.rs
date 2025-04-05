@@ -3,15 +3,23 @@ use arrow::array::{
     StringArray, StructArray, UInt64Array, UnionArray,
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
-use arrow::datatypes::{DataType, Field, Fields, UnionFields, UnionMode};
+use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
 use arrow::error::ArrowError;
-use arrow::record_batch::RecordBatch;
 use cityjson::prelude::{AttributeValue, Attributes, ResourceRef, StringStorage};
 use std::sync::Arc;
 
+/// Converts [Attributes] to an Arrow MapArray.
+///
+/// ## Arguments
+/// - `map_field_name` is either "attributes" or "extra", depending on wether the
+/// attributes are used as object attributes or extra properties.
+///
+/// ## Returns
+/// A tuple containing the schema of the Map and the MapArray.
 pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
-    attrs: &Attributes<SS, RR>,
-) -> Result<RecordBatch, ArrowError> {
+    attributes: &Attributes<SS, RR>,
+    map_field_name: &str,
+) -> Result<(Schema, MapArray), ArrowError> {
     // Define the union fields: each field gets a unique type id.
     let union_fields = UnionFields::from_iter(vec![
         (0i8, Arc::new(Field::new("null", DataType::Null, true))),
@@ -24,12 +32,12 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
     let union_mode = UnionMode::Dense;
 
     // ----- Step 1: Accumulate keys and union components -----
-    let mut keys: Vec<&str> = Vec::with_capacity(attrs.len());
+    let mut keys: Vec<&str> = Vec::with_capacity(attributes.len());
     // For the union array in dense mode, we need:
     // - A vector of type IDs (one per attribute)
     // - A vector of offsets (one per attribute) indicating the position in the corresponding child array
-    let mut union_type_ids: Vec<i8> = Vec::with_capacity(attrs.len());
-    let mut union_offsets: Vec<i32> = Vec::with_capacity(attrs.len());
+    let mut union_type_ids: Vec<i8> = Vec::with_capacity(attributes.len());
+    let mut union_offsets: Vec<i32> = Vec::with_capacity(attributes.len());
     // For each child type, we accumulate the actual values.
     let mut null_count = 0;
     let mut bool_values: Vec<bool> = Vec::new();
@@ -39,7 +47,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
     let mut string_values: Vec<&str> = Vec::new();
 
     // Iterate over each attribute, record the key and update the union accumulators.
-    for (key, value) in attrs.iter() {
+    for (key, value) in attributes.iter() {
         keys.push(key.as_ref());
         match value {
             AttributeValue::Null => {
@@ -76,7 +84,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
             _ => {
                 return Err(ArrowError::NotYetImplemented(
                     "Nested types are not supported".to_string(),
-                ))
+                ));
             }
         }
     }
@@ -127,7 +135,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
             Arc::new(keys_array) as ArrayRef,
             Arc::new(union_array) as ArrayRef,
         ],
-        None
+        None,
     )?;
 
     // ----- Step 4: Assemble the MapArray -----
@@ -141,12 +149,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
         ])),
         false,
     ));
-    // The map itself is represented as a Map type.
-    let map_field = Arc::new(Field::new(
-        "attributes",
-        DataType::Map(map_entry_field.clone(), false),
-        true,
-    ));
+
     // A MapArray is represented as a ListArray whose values are the map entries (a StructArray).
     // For one record (one map), the offsets buffer is [0, num_entries].
     let num_entries = struct_array.len() as i32;
@@ -160,38 +163,46 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
         .build()?;
     let map_array = MapArray::from(map_data);
 
-    // ----- Step 5: Create the RecordBatch -----
-    let schema = Arc::new(arrow::datatypes::Schema::new(vec![map_field.clone()]));
-    let batch = RecordBatch::try_new(schema, vec![Arc::new(map_array)])?;
-    Ok(batch)
+    // The map itself is represented as a Map type.
+    let map_field = Arc::new(Field::new(
+        map_field_name,
+        DataType::Map(map_entry_field.clone(), false),
+        true,
+    ));
+    let schema = Schema::new(vec![map_field]);
+
+    Ok((schema, map_array))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{MapArray, StringArray};
+    use arrow::array::{MapArray, RecordBatch, StringArray};
     use cityjson::prelude::{AttributeValue, OwnedAttributes};
     use std::collections::HashSet;
 
     #[test]
     fn test_attributes_to_arrow_conversion() {
         // Create a set of test attributes.
-        let mut attrs = OwnedAttributes::new();
-        attrs.insert("null_value".to_string(), AttributeValue::Null);
-        attrs.insert("bool_value".to_string(), AttributeValue::Bool(true));
-        attrs.insert("uint_value".to_string(), AttributeValue::Unsigned(100));
-        attrs.insert("int_value".to_string(), AttributeValue::Integer(-42));
-        attrs.insert(
+        let mut attributes = OwnedAttributes::new();
+        attributes.insert("null_value".to_string(), AttributeValue::Null);
+        attributes.insert("bool_value".to_string(), AttributeValue::Bool(true));
+        attributes.insert("uint_value".to_string(), AttributeValue::Unsigned(100));
+        attributes.insert("int_value".to_string(), AttributeValue::Integer(-42));
+        attributes.insert(
             "float_value".to_string(),
             AttributeValue::Float(std::f64::consts::E),
         );
-        attrs.insert(
+        attributes.insert(
             "string_value".to_string(),
             AttributeValue::String("test".to_string()),
         );
 
         // Convert attributes to an Arrow RecordBatch.
-        let record_batch = attributes_to_arrow(&attrs).expect("Conversion to Arrow should succeed");
+        let (schema, map_array) = attributes_to_arrow(&attributes, "attributes")
+            .expect("Failed to convert attributes to Arrow");
+        let record_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(map_array)])
+            .expect("Failed to create record batch");
 
         // Verify that the RecordBatch contains one column and one row.
         assert_eq!(record_batch.num_columns(), 1);
