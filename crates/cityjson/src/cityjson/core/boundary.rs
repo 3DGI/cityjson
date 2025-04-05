@@ -69,7 +69,7 @@ pub mod nested;
 use crate::cityjson::core::boundary::nested::*;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::vertex::VertexRef;
-use crate::errors;
+use crate::error;
 
 /// A generic Boundary type that can represent any CityJSON boundary.
 ///
@@ -216,12 +216,12 @@ impl<VR: VertexRef> Boundary<VR> {
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::MultiPoint);
     /// ```
-    pub fn to_nested_multi_point(&self) -> errors::Result<BoundaryNestedMultiPoint<VR>> {
+    pub fn to_nested_multi_point(&self) -> error::Result<BoundaryNestedMultiPoint<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
             Ok(self.vertices.iter().map(|v| v.value()).collect())
         } else {
-            Err(errors::Error::IncompatibleBoundary(
+            Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
                 "MultiPoint".to_string(),
             ))
@@ -254,7 +254,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// let nested = boundary.to_nested_multi_linestring().unwrap();
     /// assert_eq!(nested, vec![vec![0, 1, 2], vec![3, 4, 5]]);
     /// ```
-    pub fn to_nested_multi_linestring(&self) -> errors::Result<BoundaryNestedMultiLineString<VR>> {
+    pub fn to_nested_multi_linestring(&self) -> error::Result<BoundaryNestedMultiLineString<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiLineString {
             let mut counter = BoundaryCounter::<VR>::default();
@@ -262,7 +262,7 @@ impl<VR: VertexRef> Boundary<VR> {
             self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter);
             Ok(ml)
         } else {
-            Err(errors::Error::IncompatibleBoundary(
+            Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
                 "MultiLineString".to_string(),
             ))
@@ -298,7 +298,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// ```
     pub fn to_nested_multi_or_composite_surface(
         &self,
-    ) -> errors::Result<BoundaryNestedMultiOrCompositeSurface<VR>> {
+    ) -> error::Result<BoundaryNestedMultiOrCompositeSurface<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSurface {
             let mut counter = BoundaryCounter::<VR>::default();
@@ -311,7 +311,7 @@ impl<VR: VertexRef> Boundary<VR> {
             );
             Ok(mc_surface)
         } else {
-            Err(errors::Error::IncompatibleBoundary(
+            Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
                 "MultiOrCompositeSurface".to_string(),
             ))
@@ -346,7 +346,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// let nested = boundary.to_nested_solid().unwrap();
     /// assert_eq!(nested, solid);
     /// ```
-    pub fn to_nested_solid(&self) -> errors::Result<BoundaryNestedSolid<VR>> {
+    pub fn to_nested_solid(&self) -> error::Result<BoundaryNestedSolid<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::Solid {
             let mut counter = BoundaryCounter::<VR>::default();
@@ -354,7 +354,7 @@ impl<VR: VertexRef> Boundary<VR> {
             self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter);
             Ok(solid)
         } else {
-            Err(errors::Error::IncompatibleBoundary(
+            Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
                 "Solid".to_string(),
             ))
@@ -392,7 +392,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// ```
     pub fn to_nested_multi_or_composite_solid(
         &self,
-    ) -> errors::Result<BoundaryNestedMultiOrCompositeSolid<VR>> {
+    ) -> error::Result<BoundaryNestedMultiOrCompositeSolid<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiOrCompositeSolid {
             let mut counter = BoundaryCounter::<VR>::default();
@@ -417,7 +417,7 @@ impl<VR: VertexRef> Boundary<VR> {
             }
             Ok(mc_solid)
         } else {
-            Err(errors::Error::IncompatibleBoundary(
+            Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
                 "MultiOrCompositeSolid".to_string(),
             ))

@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::error::Result;
 use crate::prelude::VertexIndex;
 use num::{CheckedAdd, FromPrimitive, Unsigned};
 use std::fmt::{Debug, Display};

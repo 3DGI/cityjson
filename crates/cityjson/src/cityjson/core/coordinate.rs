@@ -99,7 +99,7 @@
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::vertex::VertexRef;
-use crate::errors::{Error, Result};
+use crate::error::{Error, Result};
 use std::marker::PhantomData;
 
 /// A flexible coordinate representation that can be either quantized or real-world.

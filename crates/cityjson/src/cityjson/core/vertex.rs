@@ -100,7 +100,7 @@
 compile_error!("This crate only supports 64-bit platforms");
 
 use crate::cityjson::traits::vertex::{VertexIndicesSequence, VertexRef};
-use crate::errors::{Error, Result};
+use crate::error::{Error, Result};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem::size_of;

@@ -20,7 +20,7 @@
 //! </details>
 
 pub mod cityjson;
-pub mod errors;
+pub mod error;
 pub mod resources;
 pub mod v1_0;
 pub mod v1_1;
@@ -68,7 +68,7 @@ pub mod prelude {
         traits::vertex::{VertexIndexVec, VertexIndicesSequence, VertexRef},
     };
     // Re-export from errors module
-    pub use crate::errors::{Error, Result};
+    pub use crate::error::{Error, Result};
 
     // Re-export from resources module
     pub use crate::resources::{
@@ -113,7 +113,7 @@ pub enum CityJSONVersion {
 }
 
 impl CityJSONVersion {
-    fn _from_str(value: &str) -> errors::Result<CityJSONVersion> {
+    fn _from_str(value: &str) -> error::Result<CityJSONVersion> {
         match value {
             "1.0" | "1.0.0" | "1.0.1" | "1.0.2" | "1.0.3" => Ok(CityJSONVersion::V1_0),
             "1.1" | "1.1.0" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
@@ -145,7 +145,7 @@ impl fmt::Display for CityJSONVersion {
 impl TryFrom<&str> for CityJSONVersion {
     type Error = Error;
 
-    fn try_from(value: &str) -> errors::Result<Self> {
+    fn try_from(value: &str) -> error::Result<Self> {
         CityJSONVersion::_from_str(value)
     }
 }
@@ -153,7 +153,7 @@ impl TryFrom<&str> for CityJSONVersion {
 impl TryFrom<String> for CityJSONVersion {
     type Error = Error;
 
-    fn try_from(value: String) -> errors::Result<Self> {
+    fn try_from(value: String) -> error::Result<Self> {
         CityJSONVersion::_from_str(value.as_ref())
     }
 }
