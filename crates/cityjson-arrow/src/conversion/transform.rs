@@ -1,4 +1,4 @@
-use arrow::array::{Array, ArrayData, ArrayRef, FixedSizeListArray, RecordBatch};
+use arrow::array::{ArrayData, ArrayRef, FixedSizeListArray, RecordBatch};
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Schema};
 use cityjson::prelude::TransformTrait;

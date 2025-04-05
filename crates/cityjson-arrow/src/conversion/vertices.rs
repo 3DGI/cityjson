@@ -45,7 +45,6 @@ pub fn vertices_to_batch(vertices: &[QuantizedCoordinate]) -> RecordBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cityjson::prelude::*;
 
     #[test]
     fn test_vertices() {
