@@ -1,4 +1,5 @@
 mod attributes_to_arrow;
+mod error;
 
 use arrow::array::{
     ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int64Builder,
