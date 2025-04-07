@@ -67,7 +67,7 @@
 pub mod nested;
 
 use crate::cityjson::core::boundary::nested::*;
-use crate::cityjson::core::vertex::VertexIndex;
+use crate::cityjson::core::vertex::{RawVertexView, VertexIndex};
 use crate::cityjson::traits::vertex::VertexRef;
 use crate::error;
 
@@ -188,6 +188,51 @@ impl<VR: VertexRef> Boundary<VR> {
             shells: Vec::with_capacity(shells),
             solids: Vec::with_capacity(solids),
         }
+    }
+
+    pub fn vertices_raw(&self) -> RawVertexView<VR> {
+        RawVertexView(&self.vertices)
+    }
+
+    pub fn rings_raw(&self) -> RawVertexView<VR> {
+        RawVertexView(&self.rings)
+    }
+
+    pub fn surfaces_raw(&self) -> RawVertexView<VR> {
+        RawVertexView(&self.surfaces)
+    }
+
+    pub fn shells_raw(&self) -> RawVertexView<VR> {
+        RawVertexView(&self.shells)
+    }
+
+    pub fn solids_raw(&self) -> RawVertexView<VR> {
+        RawVertexView(&self.solids)
+    }
+
+    #[inline]
+    pub fn vertices(&self) -> &[VertexIndex<VR>] {
+        &self.vertices
+    }
+
+    #[inline]
+    pub fn rings(&self) -> &[VertexIndex<VR>] {
+        &self.rings
+    }
+
+    #[inline]
+    pub fn surfaces(&self) -> &[VertexIndex<VR>] {
+        &self.surfaces
+    }
+
+    #[inline]
+    pub fn shells(&self) -> &[VertexIndex<VR>] {
+        &self.shells
+    }
+
+    #[inline]
+    pub fn solids(&self) -> &[VertexIndex<VR>] {
+        &self.solids
     }
 
     /// Converts to a nested MultiPoint boundary representation.
