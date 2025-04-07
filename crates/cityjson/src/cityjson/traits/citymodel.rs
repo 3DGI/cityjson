@@ -14,7 +14,7 @@ use crate::prelude::{
 };
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
-use crate::CityModelType;
+use crate::{CityJSONVersion, CityModelType};
 use std::fmt::Debug;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
@@ -69,6 +69,10 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
         texture_capacity: usize,
         geometry_capacity: usize,
     ) -> Self;
+    /// Get the type of CityModel
+    fn type_citymodel(&self) -> CityModelType;
+    /// Get the CityJSON version that this CityModel represents
+    fn version(&self) -> Option<CityJSONVersion>;
     /// Add a semantic object to the pool
     fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
     /// Get a reference to a semantic object

@@ -1,10 +1,10 @@
 use crate::cityjson;
 use crate::cityjson::core::attributes::Attributes;
+use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
 use crate::format_option;
 use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
-use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
 
 #[repr(C)]
 #[derive(Clone, Default, Debug, PartialEq)]
@@ -355,7 +355,7 @@ mod test {
         metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
         metadata.set_reference_date(Date::new("2024-03-20".to_string()));
         metadata.set_reference_system(CRS::new(
-            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string()
+            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
         ));
         metadata.set_title("Test Dataset");
         metadata.set_contact_name("John Doe");
@@ -398,7 +398,7 @@ mod test {
         let date: Date<OwnedStringStorage> = Date::new("2024-03-21".to_string());
         let crs: CRS<OwnedStringStorage> =
             CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string());
-        
+
         assert_eq!(metadata.geographical_extent(), Some(bbox).as_ref());
         assert_eq!(metadata.identifier(), Some(id.clone()).as_ref());
         assert_eq!(metadata.reference_system(), Some(crs.clone()).as_ref());

@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::prelude::{BBoxTrait, StringStorage};
+use std::fmt::{Display, Formatter};
 
 /// Bounding Box.
 ///
@@ -24,7 +24,7 @@ impl BBoxTrait for BBox {
             values: [min_x, min_y, min_z, max_x, max_y, max_z],
         }
     }
-    
+
     fn as_slice(&self) -> &[f64] {
         &self.values
     }

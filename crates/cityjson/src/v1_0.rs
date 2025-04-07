@@ -22,5 +22,5 @@ pub use geometry::{
     semantic::{Semantic, SemanticType},
     Geometry,
 };
-pub use metadata::{Metadata};
+pub use metadata::Metadata;
 pub use transform::Transform;

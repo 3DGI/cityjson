@@ -9,6 +9,10 @@ pub mod geometry;
 pub mod metadata;
 pub mod transform;
 
+pub use crate::cityjson::core::metadata::BBox;
+pub use crate::cityjson::core::metadata::CityModelIdentifier;
+pub use crate::cityjson::core::metadata::Date;
+pub use crate::cityjson::core::metadata::CRS;
 pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
     texture::{BorrowedTexture, OwnedTexture, Texture},
@@ -22,11 +26,5 @@ pub use geometry::{
     semantic::{Semantic, SemanticType},
     Geometry,
 };
-pub use metadata::{
-    Contact, ContactRole, ContactType, Metadata,
-};
+pub use metadata::{Contact, ContactRole, ContactType, Metadata};
 pub use transform::Transform;
-pub use crate::cityjson::core::metadata::BBox;
-pub use crate::cityjson::core::metadata::CityModelIdentifier;
-pub use crate::cityjson::core::metadata::CRS;
-pub use crate::cityjson::core::metadata::Date;

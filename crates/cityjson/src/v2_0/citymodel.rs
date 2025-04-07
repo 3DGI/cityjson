@@ -1,5 +1,6 @@
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
+use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::traits::transform::TransformTrait;
@@ -14,13 +15,10 @@ use crate::v2_0::appearance::texture::Texture;
 use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
 use crate::v2_0::geometry::Geometry;
 use crate::v2_0::metadata::Metadata;
-use crate::v2_0::{
-    CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
-};
+use crate::v2_0::{CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform};
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
-use crate::cityjson::core::metadata::BBox;
 
 pub struct V2_0<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -299,6 +297,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         &mut self.template_vertices
+    }
+
+    fn type_citymodel(&self) -> CityModelType {
+        self.type_citymodel
+    }
+
+    fn version(&self) -> Option<CityJSONVersion> {
+        self.version
     }
 }
 

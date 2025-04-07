@@ -8,8 +8,8 @@
 
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::prelude::{
-    Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
-    OwnedStringStorage, ResourcePool, ResourceRef, StringStorage, BBox
+    Attributes, BBox, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait,
+    DefaultResourcePool, OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
 };
 use std::fmt::{Display, Formatter};
 

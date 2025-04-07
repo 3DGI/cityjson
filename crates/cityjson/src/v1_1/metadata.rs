@@ -76,7 +76,7 @@
 
 use crate::cityjson;
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, CRS, Date};
+use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
 use crate::format_option;
 use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;

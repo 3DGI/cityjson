@@ -4,9 +4,7 @@ use crate::v1_0::appearance::texture::Texture;
 use crate::v1_0::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_0::geometry::Geometry;
 use crate::v1_0::metadata::Metadata;
-use crate::v1_0::{
-    CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform,
-};
+use crate::v1_0::{CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform};
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
@@ -288,6 +286,14 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_0<VR, 
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         &mut self.template_vertices
+    }
+
+    fn type_citymodel(&self) -> CityModelType {
+        self.type_citymodel
+    }
+
+    fn version(&self) -> Option<CityJSONVersion> {
+        self.version
     }
 }
 

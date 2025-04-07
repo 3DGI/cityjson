@@ -4,6 +4,6 @@ pub mod boundary;
 pub mod coordinate;
 pub mod extension;
 pub mod geometry;
+pub mod metadata;
 pub mod transform;
 pub mod vertex;
-pub mod metadata;

@@ -32,9 +32,7 @@ pub use geometry::{
 };
 
 // Re-export main types from metadata
-pub use metadata::{
-    Contact, ContactRole, ContactType, Metadata,
-};
+pub use metadata::{Contact, ContactRole, ContactType, Metadata};
 
 // Re-export main types from transform
 pub use transform::Transform;

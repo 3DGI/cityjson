@@ -84,6 +84,7 @@ use std::fmt;
 /// CityModel type.
 ///
 /// Marks if the [CityModel] represents a CityJSON object or a CityJSONFeature object.
+#[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum CityModelType {
     #[default]
@@ -104,6 +105,7 @@ impl fmt::Display for CityModelType {
     }
 }
 
+#[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
 pub enum CityJSONVersion {
     V1_0,
