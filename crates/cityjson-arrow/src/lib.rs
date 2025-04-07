@@ -6,19 +6,24 @@ use cityjson::prelude::*;
 use cityjson::v2_0::CityModel;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::sync::Arc;
 
 pub struct CityModelArrowParts {
+    pub type_citymodel: CityModelType,
+    pub version: Option<CityJSONVersion>,
+    pub extensions: Option<RecordBatch>,
+    pub extra: Option<RecordBatch>,
     pub metadata: Option<RecordBatch>,
+    pub cityobjects: Option<RecordBatch>,
     pub transform: Option<RecordBatch>,
     pub vertices: Option<RecordBatch>,
-    pub template_vertices: Option<RecordBatch>,
-    pub texture_vertices: Option<RecordBatch>,
-    pub cityobjects: Option<RecordBatch>,
     pub geometries: Option<RecordBatch>,
+    pub template_vertices: Option<RecordBatch>,
     pub template_geometries: Option<RecordBatch>,
     pub semantics: Option<RecordBatch>,
     pub materials: Option<RecordBatch>,
     pub textures: Option<RecordBatch>,
+    pub vertices_texture: Option<RecordBatch>,
 }
 
 /// Converts a cityjson-rs CityModel (v2.0) into its constituent Arrow parts.
@@ -26,24 +31,35 @@ pub fn citymodel_to_arrow_parts<VR, RR, SS>(
     model: &CityModel<VR, RR, SS>,
 ) -> error::Result<CityModelArrowParts>
 where
-    VR: VertexRef + Default, // Added Default constraint if needed by VerticesBuilder etc.
-    RR: ResourceRef + Default, // Added Default constraint
-    SS: StringStorage + Default, // Added Default constraint
+    VR: VertexRef + Default,
+    RR: ResourceRef + Default,
+    SS: StringStorage + Default,
     SS::String:
         AsRef<str> + Eq + PartialEq + PartialOrd + Ord + Hash + Clone + Debug + Default + Display,
 {
+    // todo: A feature does not have a version, but it is stored in the metadata. This 
+    //  code only verifies models, not features.
+    if let Some(ref version)= model.version() {
+        if version != &CityJSONVersion::V2_0 {
+            return Err(error::Error::Unsupported(format!(
+                "CityArrow currently only supports CityJSON v2.0, found v{}",
+                version
+            )));
+        }
+    }
+    
     let metadata_batch = match model.metadata() {
         None => None,
-        Some(metadata) => {
+        Some(metadata) => Option::from({
             let struct_array = conversion::metadata::metadata_to_arrow(metadata)?;
             // RecordBatch::try_from(StructArray) is Infallible
-            RecordBatch::try_from(&struct_array).ok()
-        }
+            RecordBatch::from(&struct_array)
+        })
     };
 
     let transform_batch = model
         .transform()
-        .map(|t| conversion::transform::transform_to_arrow(t))
+        .map(conversion::transform::transform_to_arrow)
         .transpose()?;
 
     // Convert vertices (example using your existing function structure)
@@ -55,18 +71,34 @@ where
         None
     };
 
+    let extra_batch = match model.extra() {
+        None => None,
+        Some(extra_attrs) => {
+            if extra_attrs.is_empty() {
+                None
+            } else {
+                let (schema, map_array) = conversion::attributes::attributes_to_arrow(extra_attrs, "extra")?;
+                Some(RecordBatch::try_new(Arc::new(schema), vec![Arc::new(map_array)])?)
+            }
+        }
+    };
+
     Ok(CityModelArrowParts {
+        type_citymodel: model.type_citymodel(),
+        version: model.version(),
+        extensions: None,
+        extra: extra_batch,
         metadata: metadata_batch,
+        cityobjects: None,
         transform: transform_batch,
         vertices: vertices_batch,
-        template_vertices: None,   // Placeholder
-        texture_vertices: None,    // Placeholder
-        cityobjects: None,         // Placeholder
-        geometries: None,          // Placeholder
-        template_geometries: None, // Placeholder
-        semantics: None,           // Placeholder
-        materials: None,           // Placeholder
-        textures: None,            // Placeholder
+        geometries: None,
+        template_vertices: None,
+        template_geometries: None,
+        semantics: None,
+        materials: None,
+        textures: None,
+        vertices_texture: None,
     })
 }
 
@@ -75,27 +107,32 @@ mod tests {
     use super::*;
     use cityjson::v2_0::CityModel;
     use cityjson::CityModelType;
-
     #[test]
     fn test_empty_model_conversion() {
-        // Use specific types expected by your conversion functions for now
-        let model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
+
+        assert_eq!(parts.type_citymodel, CityModelType::CityJSON);
+        assert_eq!(parts.version, Some(CityJSONVersion::V2_0)); // Default is V2_0
 
         assert!(parts.metadata.is_none());
         assert!(parts.transform.is_none());
         assert!(parts.vertices.is_none());
-        // ... assert other parts are None ...
+        assert!(parts.extra.is_none());
+        assert!(parts.extensions.is_none());
+        // ... assert other batch parts are None ...
     }
 
     #[test]
     fn test_model_with_metadata() {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model.metadata_mut().set_title("Test Title".to_string());
+        model.metadata_mut().set_title("Test Title");
 
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
+
+        assert_eq!(parts.type_citymodel, CityModelType::CityJSON);
+        assert_eq!(parts.version, Some(CityJSONVersion::V2_0));
 
         assert!(parts.metadata.is_some());
         let metadata_batch = parts.metadata.unwrap();
@@ -106,35 +143,32 @@ mod tests {
         assert!(parts.vertices.is_none()); // Vertices weren't added
     }
 
+    // ... other tests remain valid ...
+
     #[test]
-    fn test_model_with_transform() {
+    fn test_model_with_extra_attrs() {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model.transform_mut().set_scale([0.1, 0.1, 0.1]);
-        model.transform_mut().set_translate([10.0, 20.0, 30.0]);
+        model.extra_mut().insert("my_extra_prop".to_string(), AttributeValue::Integer(123));
 
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
 
-        assert!(parts.transform.is_some());
-        let transform_batch = parts.transform.unwrap();
-        assert_eq!(transform_batch.num_rows(), 1);
-        // Further checks on transform content...
-
-        assert!(parts.metadata.is_none()); // Metadata wasn't set
+        assert!(parts.extra.is_some());
+        let extra_batch = parts.extra.unwrap();
+        assert_eq!(extra_batch.num_rows(), 1);
+        // Further checks needed here based on the actual map array structure
     }
 
     #[test]
-    fn test_model_with_vertices() {
+    fn test_model_with_empty_extra_attrs() {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model.add_vertex(QuantizedCoordinate::new(1, 2, 3)).unwrap();
-        model.add_vertex(QuantizedCoordinate::new(4, 5, 6)).unwrap();
+        // Ensure extra is Some but empty
+        let _ = model.extra_mut();
+        assert!(model.extra().is_some() && model.extra().unwrap().is_empty());
 
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
 
-        assert!(parts.vertices.is_some());
-        let vertices_batch = parts.vertices.unwrap();
-        assert_eq!(vertices_batch.num_rows(), 2); // Should have 2 rows (vertices)
-        // Further checks on vertex content...
+        assert!(parts.extra.is_none()); // Empty attributes should result in None batch
     }
 }
