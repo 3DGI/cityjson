@@ -3,6 +3,7 @@ use std::{fmt, write};
 pub type RGB = [f32; 3];
 pub type RGBA = [f32; 4];
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ImageType {
     #[default]
@@ -19,6 +20,7 @@ impl fmt::Display for ImageType {
     }
 }
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum WrapMode {
     Wrap,
@@ -41,6 +43,7 @@ impl fmt::Display for WrapMode {
     }
 }
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextureType {
     #[default]

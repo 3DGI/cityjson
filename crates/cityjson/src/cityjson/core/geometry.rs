@@ -1251,6 +1251,7 @@ fn build_texture_map<
     themed_texture_maps
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum GeometryType {
     MultiPoint,
@@ -1269,6 +1270,8 @@ impl std::fmt::Display for GeometryType {
     }
 }
 
+/// Level of Detail (LoD) for the geometry
+#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LoD {
     LoD0,

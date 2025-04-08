@@ -73,6 +73,7 @@ use crate::resources::pool::ResourceRef;
 /// // Associate a texture with this ring
 /// texture_map.add_ring_texture(Some(ResourceId32::new(5, 1))); // Reference to texture ID 5
 /// ```
+#[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct TextureMap<VR: VertexRef, RR: ResourceRef> {
     /// References to texture vertices (UV coordinates) for each geometry vertex

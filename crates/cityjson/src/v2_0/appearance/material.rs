@@ -8,6 +8,7 @@ pub type OwnedMaterial = Material<OwnedStringStorage>;
 /// Type alias for a material with borrowed string storage
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 
+#[repr(C)]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Material<SS: StringStorage> {
     name: SS::String,

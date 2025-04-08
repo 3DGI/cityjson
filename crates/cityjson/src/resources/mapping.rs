@@ -94,6 +94,7 @@ use crate::resources::pool::ResourceRef;
 /// // Check the type of boundary this map is for
 /// assert_eq!(semantic_map.check_type(), BoundaryType::MultiOrCompositeSurface);
 /// ```
+#[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct SemanticOrMaterialMap<VR: VertexRef, RR: ResourceRef> {
     /// Each item corresponds to the point with the same index in a MultiPoint boundary, the value
