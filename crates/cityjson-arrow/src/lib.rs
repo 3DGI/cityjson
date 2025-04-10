@@ -27,12 +27,10 @@ pub struct CityModelArrowParts {
 }
 
 /// Converts a cityjson-rs CityModel (v2.0) into its constituent Arrow parts.
-pub fn citymodel_to_arrow_parts<VR, RR, SS>(
-    model: &CityModel<VR, RR, SS>,
+pub fn citymodel_to_arrow_parts<SS>(
+    model: &CityModel<u32, ResourceId32, SS>,
 ) -> error::Result<CityModelArrowParts>
 where
-    VR: VertexRef + Default,
-    RR: ResourceRef + Default,
     SS: StringStorage + Default,
     SS::String:
         AsRef<str> + Eq + PartialEq + PartialOrd + Ord + Hash + Clone + Debug + Default + Display,
@@ -82,6 +80,12 @@ where
             }
         }
     };
+    
+    let geometries_batch = if model.geometries().is_empty() {
+        None
+    } else {
+        Some(conversion::geometry::geometries_to_arrow(model.geometries())?)
+    };
 
     Ok(CityModelArrowParts {
         type_citymodel: model.type_citymodel(),
@@ -92,7 +96,7 @@ where
         cityobjects: None,
         transform: transform_batch,
         vertices: vertices_batch,
-        geometries: None,
+        geometries: geometries_batch,
         template_vertices: None,
         template_geometries: None,
         semantics: None,
