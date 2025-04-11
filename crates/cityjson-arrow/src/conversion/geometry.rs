@@ -13,13 +13,20 @@ lazy_static::lazy_static! {
 }
 
 pub fn geometries_to_arrow<SS: StringStorage>(
-    geometries: &DefaultResourcePool<Geometry<u32, ResourceId32, SS>, ResourceId32>,
+    geometries_pool: &DefaultResourcePool<Geometry<u32, ResourceId32, SS>, ResourceId32>,
 ) -> error::Result<RecordBatch> {
     // Schema for the geometry
     let schema = geometries_schema();
+    let num_rows = geometries_pool.len();
+
+    // Special case for empty pools
+    if num_rows == 0 {
+        return Ok(RecordBatch::new_empty(Arc::new(schema)));
+    }
 
     // --- Initialize Builders ---
-    let mut type_builder = StringDictionaryBuilder::<Int8Type>::new();
+    let mut id_builder = UInt32Builder::with_capacity(num_rows);
+    let mut type_builder = StringDictionaryBuilder::<Int8Type>::new(); // TODO: calculate capacity
     let mut lod_builder = StringDictionaryBuilder::<Int8Type>::new();
     // Boundary Builders
     let mut b_vertices_builder = ListBuilder::new(UInt32Builder::with_capacity(1024)); // todo: use a better estimate from 3DBAG
@@ -41,7 +48,9 @@ pub fn geometries_to_arrow<SS: StringStorage>(
 
 
     
-    for (resource_ref, geometry) in geometries.iter() {
+    for (resource_ref, geometry) in geometries_pool.iter() {
+        // ResourceId in pool
+        id_builder.append_value(resource_ref.index());
         // Append Type and LoD (using DictionaryBuilder logic - see Arrow examples)
         type_builder.append_value(geometry.type_geometry().to_string()); // Example only, requires proper dictionary handling
         if let Some(lod) = geometry.lod() {
@@ -131,6 +140,7 @@ pub fn geometries_to_arrow<SS: StringStorage>(
 
     // --- Finish Builders and Create RecordBatch ---
     let arrays: Vec<ArrayRef> = vec![
+        Arc::new(id_builder.finish()),
         Arc::new(type_builder.finish()),
         Arc::new(lod_builder.finish()),
         Arc::new(b_vertices_builder.finish()),
@@ -156,6 +166,7 @@ pub fn geometries_to_arrow<SS: StringStorage>(
 
 pub fn geometries_schema() -> Schema {
     Schema::new(vec![
+        Field::new("id", DataType::UInt32, false),
         Field::new("type_geometry", DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)), false),
         Field::new("lod", DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)), true),
         Field::new("boundary_vertices", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
