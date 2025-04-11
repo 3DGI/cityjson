@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayData, ArrayRef, BooleanArray, Float64Array, Int64Array, MapArray,
-    NullArray, StringArray, StructArray, UInt64Array, UnionArray,
+    Array, ArrayData, ArrayRef, BooleanArray, Float64Array, Int64Array, MapArray, NullArray,
+    StringArray, StructArray, UInt64Array, UnionArray,
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};

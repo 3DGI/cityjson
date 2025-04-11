@@ -1,11 +1,14 @@
 use crate::conversion::attributes::{attributes_to_arrow, map_field};
 use crate::error::{Error, Result};
 use arrow::array::{
-    ArrayRef, ListBuilder, NullArray, RecordBatch, StringBuilder, StringDictionaryBuilder,
+    ArrayRef, ListBuilder, RecordBatch, StringBuilder, StringDictionaryBuilder,
     UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
-use cityjson::prelude::{Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait, StringStorage};
+use cityjson::prelude::{
+    Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait,
+    StringStorage,
+};
 use cityjson::v2_0::{Semantic, SemanticType};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -35,13 +38,13 @@ where
     let mut parent_builder = UInt32Builder::with_capacity(num_rows);
 
     // For attributes, collect arrays to combine later
-    let mut attribute_arrays = Vec::with_capacity(semantic_pool.len());
+    let mut attribute_arrays = Vec::with_capacity(num_rows);
 
     // --- Iterate and Append Data ---
     for (resource_ref, semantic) in semantic_pool.iter() {
         // ResourceId in pool
         id_builder.append_value(resource_ref.index());
-        
+
         // Process semantic type with extension
         match semantic.type_semantic() {
             SemanticType::Extension(ext_value) => {
@@ -83,7 +86,12 @@ where
     }
 
     // Concatenate all attribute arrays
-    let combined_attributes = arrow::compute::concat(&attribute_arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>())?;
+    let combined_attributes = arrow::compute::concat(
+        &attribute_arrays
+            .iter()
+            .map(|a| a.as_ref())
+            .collect::<Vec<_>>(),
+    )?;
 
     // Create basic arrays
     let arrays: Vec<ArrayRef> = vec![

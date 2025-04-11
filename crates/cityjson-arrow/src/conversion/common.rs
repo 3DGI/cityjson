@@ -26,7 +26,6 @@ where
     (primitive_vec, len)
 }
 
-
 /// Creates an Arrow Buffer from a Vec<VertexIndex<T>> without copying element data.
 /// Takes ownership of the input Vec's allocation.
 ///
@@ -40,4 +39,3 @@ where
     // Buffer::from_vec takes ownership, preventing a copy here
     (Buffer::from_vec(primitive_vec), len)
 }
-    

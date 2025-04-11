@@ -35,9 +35,9 @@ where
     SS::String:
         AsRef<str> + Eq + PartialEq + PartialOrd + Ord + Hash + Clone + Debug + Default + Display,
 {
-    // todo: A feature does not have a version, but it is stored in the metadata. This 
+    // todo: A feature does not have a version, but it is stored in the metadata. This
     //  code only verifies models, not features.
-    if let Some(ref version)= model.version() {
+    if let Some(ref version) = model.version() {
         if version != &CityJSONVersion::V2_0 {
             return Err(error::Error::Unsupported(format!(
                 "CityArrow currently only supports CityJSON v2.0, found v{}",
@@ -45,14 +45,14 @@ where
             )));
         }
     }
-    
+
     let metadata_batch = match model.metadata() {
         None => None,
         Some(metadata) => Option::from({
             let struct_array = conversion::metadata::metadata_to_arrow(metadata)?;
             // RecordBatch::try_from(StructArray) is Infallible
             RecordBatch::from(&struct_array)
-        })
+        }),
     };
 
     let transform_batch = model
@@ -75,22 +75,38 @@ where
             if extra_attrs.is_empty() {
                 None
             } else {
-                let (schema, map_array) = conversion::attributes::attributes_to_arrow(extra_attrs, "extra")?;
-                Some(RecordBatch::try_new(Arc::new(schema), vec![Arc::new(map_array)])?)
+                let (schema, map_array) =
+                    conversion::attributes::attributes_to_arrow(extra_attrs, "extra")?;
+                Some(RecordBatch::try_new(
+                    Arc::new(schema),
+                    vec![Arc::new(map_array)],
+                )?)
             }
         }
     };
-    
+
     let geometries_batch = if model.geometries().is_empty() {
         None
     } else {
-        Some(conversion::geometry::geometries_to_arrow(model.geometries())?)
+        Some(conversion::geometry::geometries_to_arrow(
+            model.geometries(),
+        )?)
     };
-    
+
     let semantics_batch = if model.semantics().is_empty() {
         None
     } else {
-        Some(conversion::semantics::semantics_to_arrow(model.semantics())?)
+        Some(conversion::semantics::semantics_to_arrow(
+            model.semantics(),
+        )?)
+    };
+
+    let cityobjects_batch = if model.cityobjects().is_empty() {
+        None
+    } else {
+        Some(conversion::cityobjects::cityobjects_to_arrow(
+            model.cityobjects(),
+        )?)
     };
 
     Ok(CityModelArrowParts {
@@ -99,7 +115,7 @@ where
         extensions: None,
         extra: extra_batch,
         metadata: metadata_batch,
-        cityobjects: None,
+        cityobjects: cityobjects_batch,
         transform: transform_batch,
         vertices: vertices_batch,
         geometries: geometries_batch,
@@ -119,7 +135,8 @@ mod tests {
     use cityjson::CityModelType;
     #[test]
     fn test_empty_model_conversion() {
-        let model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
 
         assert_eq!(parts.type_citymodel, CityModelType::CityJSON);
@@ -159,7 +176,9 @@ mod tests {
     fn test_model_with_extra_attrs() {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model.extra_mut().insert("my_extra_prop".to_string(), AttributeValue::Integer(123));
+        model
+            .extra_mut()
+            .insert("my_extra_prop".to_string(), AttributeValue::Integer(123));
 
         let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
 

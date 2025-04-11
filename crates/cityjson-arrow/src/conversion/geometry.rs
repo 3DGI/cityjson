@@ -1,9 +1,15 @@
-use std::sync::Arc;
-use arrow::array::{ArrayRef, DictionaryArray, FixedSizeListBuilder, Float64Builder, ListBuilder, RecordBatch, StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder};
-use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
-use cityjson::prelude::{DefaultResourcePool, GeometryTrait, GeometryType, ResourceId32, ResourcePool, ResourceRef, StringStorage, VertexRef};
-use cityjson::v2_0::Geometry;
 use crate::error;
+use arrow::array::{
+    ArrayRef, DictionaryArray, FixedSizeListBuilder, Float64Builder, ListBuilder, RecordBatch,
+    StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
+};
+use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
+use cityjson::prelude::{
+    DefaultResourcePool, GeometryTrait, GeometryType, ResourceId32, ResourcePool, ResourceRef,
+    StringStorage, VertexRef,
+};
+use cityjson::v2_0::Geometry;
+use std::sync::Arc;
 
 // --- Shared Field Types ---
 lazy_static::lazy_static! {
@@ -40,14 +46,15 @@ pub fn geometries_to_arrow<SS: StringStorage>(
     let mut s_surfaces_builder = ListBuilder::new(UInt32Builder::with_capacity(64));
     // Material Builder
     let field_material_theme = schema.field_with_name("material_theme")?;
-    let mut materials_list_builder = ListBuilder::new(StructBuilder::from_fields(vec![field_material_theme.clone()], 0));
+    let mut materials_list_builder = ListBuilder::new(StructBuilder::from_fields(
+        vec![field_material_theme.clone()],
+        0,
+    ));
     // Instance Builders
     let mut instance_template_builder = UInt32Builder::new();
     let mut instance_ref_pt_builder = UInt32Builder::new();
     let mut instance_matrix_builder = FixedSizeListBuilder::new(Float64Builder::new(), 16);
 
-
-    
     for (resource_ref, geometry) in geometries_pool.iter() {
         // ResourceId in pool
         id_builder.append_value(resource_ref.index());
@@ -82,7 +89,6 @@ pub fn geometries_to_arrow<SS: StringStorage>(
 
             b_solids_builder.values().append_slice(solids_slice);
             b_solids_builder.append(true);
-
         } else {
             // Geometry has no boundary (e.g., GeometryInstance might not store it directly)
             b_vertices_builder.append(false); // Append null list entry
@@ -110,13 +116,21 @@ pub fn geometries_to_arrow<SS: StringStorage>(
             let theme_struct_builder = materials_list_builder.values();
             for (theme, material_map) in themed_materials {
                 theme_struct_builder.append(true);
-                theme_struct_builder.field_builder::<StringBuilder>(0).unwrap().append_value(theme.as_ref());
-                let surface_list_builder = theme_struct_builder.field_builder::<ListBuilder<UInt32Builder>>(1).unwrap();
+                theme_struct_builder
+                    .field_builder::<StringBuilder>(0)
+                    .unwrap()
+                    .append_value(theme.as_ref());
+                let surface_list_builder = theme_struct_builder
+                    .field_builder::<ListBuilder<UInt32Builder>>(1)
+                    .unwrap();
                 if num_surfaces_in_boundary > 0 {
                     surface_list_builder.append(true);
                     let value_builder = surface_list_builder.values();
                     for i in 0..num_surfaces_in_boundary {
-                        let mat_idx = material_map.surfaces().get(i).and_then(|opt_rr| opt_rr.as_ref().map(|rr| rr.index()));
+                        let mat_idx = material_map
+                            .surfaces()
+                            .get(i)
+                            .and_then(|opt_rr| opt_rr.as_ref().map(|rr| rr.index()));
                         value_builder.append_option(mat_idx);
                     }
                 } else {
@@ -129,7 +143,8 @@ pub fn geometries_to_arrow<SS: StringStorage>(
 
         // Append Instance Data
         instance_template_builder.append_option(geometry.instance_template().map(|rr| rr.index()));
-        instance_ref_pt_builder.append_option(geometry.instance_reference_point().map(|vi| vi.value()));
+        instance_ref_pt_builder
+            .append_option(geometry.instance_reference_point().map(|vi| vi.value()));
         if let Some(matrix) = geometry.instance_transformation_matrix() {
             instance_matrix_builder.values().append_slice(matrix);
             instance_matrix_builder.append(true);
@@ -160,33 +175,86 @@ pub fn geometries_to_arrow<SS: StringStorage>(
         Arc::new(instance_matrix_builder.finish()),
     ];
 
-    
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(error::Error::from)
 }
 
 pub fn geometries_schema() -> Schema {
     Schema::new(vec![
         Field::new("id", DataType::UInt32, false),
-        Field::new("type_geometry", DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)), false),
-        Field::new("lod", DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)), true),
-        Field::new("boundary_vertices", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("boundary_rings", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("boundary_surfaces", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("boundary_shells", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("boundary_solids", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("semantics_points", DataType::List(U32_LIST_ITEM_NON_NULL.clone()), true),
-        Field::new("semantics_linestrings", DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))), true),
-        Field::new("semantics_surfaces", DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))), true),
+        Field::new(
+            "type_geometry",
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            false,
+        ),
+        Field::new(
+            "lod",
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            "boundary_vertices",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "boundary_rings",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "boundary_surfaces",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "boundary_shells",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "boundary_solids",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "semantics_points",
+            DataType::List(U32_LIST_ITEM_NON_NULL.clone()),
+            true,
+        ),
+        Field::new(
+            "semantics_linestrings",
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            true,
+        ),
+        Field::new(
+            "semantics_surfaces",
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            true,
+        ),
         // No need to duplicate the shell and solid arrays, because they cannot carry
         // semantic, material or texture information. We can simply use the boundary
         // arrays for these.
-        Field::new("materials", DataType::List(Arc::new(
-            Field::new("material_theme", DataType::Struct(Fields::from(vec![
-                Field::new("theme", DataType::Utf8, false),
-                // For each surface with a material, store the material reference
-                Field::new("surfaces", DataType::List(Arc::new(Field::new("material_ref", DataType::UInt32, true))), false)
-            ])), false)
-        )), true),
+        Field::new(
+            "materials",
+            DataType::List(Arc::new(Field::new(
+                "material_theme",
+                DataType::Struct(Fields::from(vec![
+                    Field::new("theme", DataType::Utf8, false),
+                    // For each surface with a material, store the material reference
+                    Field::new(
+                        "surfaces",
+                        DataType::List(Arc::new(Field::new(
+                            "material_ref",
+                            DataType::UInt32,
+                            true,
+                        ))),
+                        false,
+                    ),
+                ])),
+                false,
+            ))),
+            true,
+        ),
         /*
         Field::new("textures_themes", DataType::List(Arc::new(Field::new("theme", DataType::Utf8, false))), true),
         Field::new("textures_rings", DataType::List(Arc::new(
@@ -199,15 +267,16 @@ pub fn geometries_schema() -> Schema {
         Field::new("texture_vertices", DataType::List(U32_LIST_ITEM_NULLABLE.clone()), true),*/
         Field::new("instance_template", DataType::UInt32, true),
         Field::new("instance_reference_point", DataType::UInt32, true),
-        Field::new("instance_transformation_matrix", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 16), true),
+        Field::new(
+            "instance_transformation_matrix",
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 16),
+            true,
+        ),
     ])
 }
 
 // Helper to append Option<Vec<Option<ResourceId32>>> to ListBuilder<UInt32Builder>
-fn append_list_option(
-    builder: &mut ListBuilder<UInt32Builder>,
-    data: &[Option<ResourceId32>],
-) {
+fn append_list_option(builder: &mut ListBuilder<UInt32Builder>, data: &[Option<ResourceId32>]) {
     if data.is_empty() {
         builder.append(false);
     } else {
