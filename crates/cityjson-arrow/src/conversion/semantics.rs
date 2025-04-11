@@ -5,9 +5,7 @@ use arrow::array::{
     UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
-use cityjson::prelude::{
-    DefaultResourcePool, ResourceId32, ResourcePool, SemanticTrait, StringStorage,
-};
+use cityjson::prelude::{Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait, StringStorage};
 use cityjson::v2_0::{Semantic, SemanticType};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -23,25 +21,28 @@ where
     let schema = semantics_schema();
     let num_rows = semantic_pool.len();
 
+    // Special case for empty pools
+    if num_rows == 0 {
+        return Ok(RecordBatch::new_empty(Arc::new(schema)));
+    }
+
     // --- Initialize Builders ---
     // We need capacity hints based on expected data size.
     let mut id_builder = UInt32Builder::with_capacity(num_rows);
-    let mut type_builder = StringDictionaryBuilder::<Int8Type>::new(); // todo: estimate capacity
+    let mut type_builder = StringDictionaryBuilder::<Int8Type>::new(); // TODO: estimate capacity
     let mut extension_builder = StringBuilder::new();
     let mut children_builder = ListBuilder::with_capacity(UInt32Builder::new(), num_rows);
     let mut parent_builder = UInt32Builder::with_capacity(num_rows);
 
     // For attributes, collect arrays to combine later
-    let mut attr_arrays = Vec::new();
-    let mut has_attributes = false;
+    let mut attribute_arrays = Vec::with_capacity(semantic_pool.len());
 
     // --- Iterate and Append Data ---
     for (resource_ref, semantic) in semantic_pool.iter() {
         // ResourceId in pool
         id_builder.append_value(resource_ref.index());
-        // Type
-        type_builder.append_value(semantic.type_semantic().to_string());
-        // Process semantic type
+        
+        // Process semantic type with extension
         match semantic.type_semantic() {
             SemanticType::Extension(ext_value) => {
                 type_builder.append_value("Extension");
@@ -56,11 +57,10 @@ where
         // Children
         if let Some(children_vec) = semantic.children() {
             let indices_builder = children_builder.values();
-            // Wanted to use `extend` here but that builds an Nullable array
+            // NOTE: Wanted to use `extend` here but that builds an Nullable array
             for child in children_vec {
                 indices_builder.append_value(child.index());
             }
-            indices_builder.finish();
             children_builder.append(true);
         } else {
             children_builder.append(false); // Append null list
@@ -69,39 +69,31 @@ where
         // Parent
         parent_builder.append_option(semantic.parent().map(|rr| rr.index()));
 
-        // Process attributes
+        // Attributes
         if let Some(attributes) = semantic.attributes() {
-            has_attributes = true;
-
-            // Convert attributes to Arrow format using the existing function
+            // Convert these attributes to a MapArray
             let (_, map_array) = attributes_to_arrow(attributes, "attributes")?;
-            attr_arrays.push(Some(Arc::new(map_array) as ArrayRef));
+            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         } else {
-            attr_arrays.push(None);
+            // Create an empty MapArray with the correct structure
+            let empty_attributes = Attributes::<OwnedStringStorage, ResourceId32>::new();
+            let (_, map_array) = attributes_to_arrow(&empty_attributes, "attributes")?;
+            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         }
     }
 
+    // Concatenate all attribute arrays
+    let combined_attributes = arrow::compute::concat(&attribute_arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>())?;
+
     // Create basic arrays
-    let mut arrays: Vec<ArrayRef> = vec![
+    let arrays: Vec<ArrayRef> = vec![
         Arc::new(id_builder.finish()),
         Arc::new(type_builder.finish()),
         Arc::new(extension_builder.finish()),
         Arc::new(children_builder.finish()),
         Arc::new(parent_builder.finish()),
+        combined_attributes,
     ];
-
-    // Add the attributes array if any
-    if has_attributes {
-        // todo: merge map arrays
-
-        // For now, let's create a NullArray of the appropriate length
-        let null_array = NullArray::new(num_rows);
-        arrays.push(Arc::new(null_array));
-    } else {
-        // If no semantics have attributes, add a null column
-        let null_array = NullArray::new(num_rows);
-        arrays.push(Arc::new(null_array));
-    }
 
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(Error::from)
 }
@@ -114,13 +106,13 @@ pub fn semantics_schema() -> Schema {
         Field::new("id", DataType::UInt32, false),
         // Semantic Type (Required)
         Field::new(
-            "type",
+            "type_semantic",
             DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
             false,
         ),
         Field::new("extension_value", DataType::Utf8, true),
         // Children Indices (Optional list)
-        // todo: the list items should be not-nullable, but it seems tha the PrimitiveBuilder only builds nullable arrays and I'm lazy now to manually set up the builder as for example in metadata.geographical_extent, but with correct offsets
+        // TODO: the list items should be not-nullable, but it seems tha the PrimitiveBuilder only builds nullable arrays and I'm lazy now to manually set up the builder as for example in metadata.geographical_extent, but with correct offsets
         Field::new_list(
             "children",
             Field::new_list_field(DataType::UInt32, true),

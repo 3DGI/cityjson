@@ -86,6 +86,12 @@ where
     } else {
         Some(conversion::geometry::geometries_to_arrow(model.geometries())?)
     };
+    
+    let semantics_batch = if model.semantics().is_empty() {
+        None
+    } else {
+        Some(conversion::semantics::semantics_to_arrow(model.semantics())?)
+    };
 
     Ok(CityModelArrowParts {
         type_citymodel: model.type_citymodel(),
@@ -99,7 +105,7 @@ where
         geometries: geometries_batch,
         template_vertices: None,
         template_geometries: None,
-        semantics: None,
+        semantics: semantics_batch,
         materials: None,
         textures: None,
         vertices_texture: None,
