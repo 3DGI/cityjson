@@ -1,6 +1,6 @@
 use arrow::array::{
-    Array, ArrayData, ArrayRef, BooleanArray, Float64Array, Int64Array, MapArray, NullArray,
-    StringArray, StructArray, UInt64Array, UnionArray,
+    Array, ArrayData, ArrayRef, BooleanArray, Float64Array, Int64Array, MapArray,
+    NullArray, StringArray, StructArray, UInt64Array, UnionArray,
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
@@ -21,17 +21,6 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
     attributes: &Attributes<SS, RR>,
     map_field_name: &str,
 ) -> Result<(Schema, MapArray)> {
-    // Define the union fields: each field gets a unique type id.
-    let union_fields = UnionFields::from_iter(vec![
-        (0i8, Arc::new(Field::new("null", DataType::Null, true))),
-        (1i8, Arc::new(Field::new("bool", DataType::Boolean, true))),
-        (2i8, Arc::new(Field::new("uint", DataType::UInt64, true))),
-        (3i8, Arc::new(Field::new("int", DataType::Int64, true))),
-        (4i8, Arc::new(Field::new("float", DataType::Float64, true))),
-        (5i8, Arc::new(Field::new("string", DataType::Utf8, true))),
-    ]);
-    let union_mode = UnionMode::Dense;
-
     // ----- Step 1: Accumulate keys and union components -----
     let mut keys: Vec<&str> = Vec::with_capacity(attributes.len());
     // For the union array in dense mode, we need:
@@ -111,6 +100,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
     let type_ids_buffer = ScalarBuffer::from(union_type_ids.clone());
     let offsets_buffer = ScalarBuffer::from(union_offsets);
 
+    let union_fields = union_fields();
     // Create the union array from the buffers and children.
     let union_array = UnionArray::try_new(
         union_fields.clone(),
@@ -128,7 +118,7 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
             Field::new("key", DataType::Utf8, false),
             Field::new(
                 "value",
-                DataType::Union(union_fields.clone(), UnionMode::Dense),
+                DataType::Union(union_fields, UnionMode::Dense),
                 true,
             ),
         ]),
@@ -139,40 +129,63 @@ pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
         None,
     )?;
 
-    // ----- Step 4: Assemble the MapArray -----
-    let value_type = DataType::Union(union_fields, union_mode);
-    // Define the map entry field: a struct with key and value.
-    let map_entry_field = Arc::new(Field::new(
-        "entries",
-        DataType::Struct(Fields::from(vec![
-            Field::new("key", DataType::Utf8, false),
-            Field::new("value", value_type.clone(), true),
-        ])),
-        false,
-    ));
-
+    // The map itself is represented as a Map type
+    let map_field = map_field(map_field_name);
     // A MapArray is represented as a ListArray whose values are the map entries (a StructArray).
     // For one record (one map), the offsets buffer is [0, num_entries].
     let num_entries = struct_array.len() as i32;
     let map_offsets = vec![0, num_entries];
     let map_offsets_buffer = Buffer::from_slice_ref(&map_offsets);
 
-    let map_data = ArrayData::builder(DataType::Map(map_entry_field.clone(), false))
+    let map_data = ArrayData::builder(map_field.data_type().clone())
         .len(1) // one row (one map)
         .add_buffer(map_offsets_buffer)
         .add_child_data(struct_array.to_data().clone())
         .build()?;
     let map_array = MapArray::from(map_data);
 
-    // The map itself is represented as a Map type.
-    let map_field = Arc::new(Field::new(
-        map_field_name,
-        DataType::Map(map_entry_field.clone(), false),
-        true,
-    ));
     let schema = Schema::new(vec![map_field]);
-
     Ok((schema, map_array))
+}
+
+pub(crate) fn map_field(map_field_name: &str) -> Field {
+    Field::new(
+        map_field_name,
+        DataType::Map(Arc::new(map_entry_field(union_type())), false),
+        true,
+    )
+}
+
+fn map_entry_field(value_type: DataType) -> Field {
+    // Define the map entry field: a struct with key and value
+    Field::new(
+        "entries",
+        DataType::Struct(Fields::from(vec![
+            Field::new("key", DataType::Utf8, false),
+            Field::new("value", value_type, true),
+        ])),
+        false,
+    )
+}
+
+pub fn union_type() -> DataType {
+    // Define the union fields for attribute values
+    let union_fields = union_fields();
+    let union_mode = UnionMode::Dense;
+    let value_type = DataType::Union(union_fields, union_mode);
+    value_type
+}
+
+pub fn union_fields() -> UnionFields {
+    let union_fields = UnionFields::from_iter(vec![
+        (0i8, Arc::new(Field::new("null", DataType::Null, true))),
+        (1i8, Arc::new(Field::new("bool", DataType::Boolean, true))),
+        (2i8, Arc::new(Field::new("uint", DataType::UInt64, true))),
+        (3i8, Arc::new(Field::new("int", DataType::Int64, true))),
+        (4i8, Arc::new(Field::new("float", DataType::Float64, true))),
+        (5i8, Arc::new(Field::new("string", DataType::Utf8, true))),
+    ]);
+    union_fields
 }
 
 #[cfg(test)]
