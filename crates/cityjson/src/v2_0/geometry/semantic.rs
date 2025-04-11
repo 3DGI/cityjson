@@ -56,8 +56,8 @@ impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for
         self.parent.as_ref()
     }
     #[inline]
-    fn parent_mut(&mut self) -> Option<&mut RR> {
-        self.parent.as_mut()
+    fn set_parent(&mut self, parent_ref: RR) {
+        self.parent = Some(parent_ref);
     }
     #[inline]
     fn attributes(&self) -> Option<&Attributes<SS, RR>> {
@@ -205,10 +205,7 @@ mod tests {
         assert!(semantic.has_parent());
         assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(5, 0));
 
-        // Test parent_mut
-        if let Some(parent) = semantic.parent_mut() {
-            *parent = ResourceId32::new(10, 0);
-        }
+        semantic.set_parent(ResourceId32::new(10, 0));
         assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(10, 0));
     }
 

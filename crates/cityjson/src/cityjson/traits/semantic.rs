@@ -96,13 +96,11 @@ pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTyp
     /// or `None` if no parent exists
     fn parent(&self) -> Option<&RR>;
 
-    /// Returns a mutable reference to the parent index if it exists.
-    ///
-    /// # Returns
-    ///
-    /// An `Option` containing a mutable reference to the parent index,
-    /// or `None` if no parent exists
-    fn parent_mut(&mut self) -> Option<&mut RR>;
+    /// Sets the parent for this semantic.
+    /// 
+    /// # Parameters
+    /// `parent_ref` - A reference to the parent in the semantic pool
+    fn set_parent(&mut self, parent_ref: RR);
 
     /// Returns a reference to the attributes if they exist.
     ///
