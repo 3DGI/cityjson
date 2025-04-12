@@ -13,7 +13,8 @@ use std::sync::Arc;
 
 // --- Shared Field Types ---
 lazy_static::lazy_static! {
-    static ref U32_LIST_ITEM_NON_NULL: Arc<Field> = Arc::new(Field::new("item", DataType::UInt32, false));
+    // TODO: the list items should be not-nullable, but it seems tha the PrimitiveBuilder only builds nullable arrays and I'm lazy now to manually set up the builder as for example in metadata.geographical_extent, but with correct offsets
+    static ref U32_LIST_ITEM_NON_NULL: Arc<Field> = Arc::new(Field::new("item", DataType::UInt32, true));
     static ref U32_LIST_ITEM_NULLABLE: Arc<Field> = Arc::new(Field::new("item", DataType::UInt32, true)); // For resource indices
     static ref F64_LIST_ITEM_NON_NULL: Arc<Field> = Arc::new(Field::new("item", DataType::Float64, false));
 }
@@ -161,6 +162,8 @@ pub fn geometries_to_arrow<SS: StringStorage>(
             instance_matrix_builder.values().append_slice(matrix);
             instance_matrix_builder.append(true);
         } else {
+            // For null lists, still need to append values to maintain array structure
+            instance_matrix_builder.values().append_slice(&[0.0; 16]);
             instance_matrix_builder.append(false);
         }
     }
@@ -249,7 +252,7 @@ pub fn geometries_schema() -> Schema {
         Field::new(
             "materials",
             DataType::List(Arc::new(Field::new(
-                "material_theme",
+                "item", /* TODO: would be better to call it "material_theme" but the built-in list builder defaults to "item". Same applies for the nullable field, that should be false, but the built-in builder only does nullable. */
                 DataType::Struct(Fields::from(vec![
                     Field::new("theme", DataType::Utf8, false),
                     // For each surface with a material, store the material reference
@@ -263,7 +266,7 @@ pub fn geometries_schema() -> Schema {
                         false,
                     ),
                 ])),
-                false,
+                true,
             ))),
             true,
         ),
@@ -279,9 +282,10 @@ pub fn geometries_schema() -> Schema {
         Field::new("texture_vertices", DataType::List(U32_LIST_ITEM_NULLABLE.clone()), true),*/
         Field::new("instance_template", DataType::UInt32, true),
         Field::new("instance_reference_point", DataType::UInt32, true),
+        // TODO: the list items should be not-nullable, but it seems tha the PrimitiveBuilder only builds nullable arrays and I'm lazy now to manually set up the builder as for example in metadata.geographical_extent, but with correct offsets
         Field::new(
             "instance_transformation_matrix",
-            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, false)), 16),
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, true)), 16),
             true,
         ),
     ])
