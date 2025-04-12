@@ -1,7 +1,7 @@
 use crate::error;
 use arrow::array::{
-    ArrayRef, DictionaryArray, FixedSizeListBuilder, Float64Builder, ListBuilder, RecordBatch,
-    StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
+    ArrayBuilder, ArrayRef, DictionaryArray, FixedSizeListBuilder, Float64Builder, ListBuilder,
+    RecordBatch, StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
 use cityjson::prelude::{
@@ -45,9 +45,16 @@ pub fn geometries_to_arrow<SS: StringStorage>(
     let mut s_linestrings_builder = ListBuilder::new(UInt32Builder::with_capacity(32));
     let mut s_surfaces_builder = ListBuilder::new(UInt32Builder::with_capacity(64));
     // Material Builder
-    let field_material_theme = schema.field_with_name("material_theme")?;
     let mut materials_list_builder = ListBuilder::new(StructBuilder::from_fields(
-        vec![field_material_theme.clone()],
+        vec![
+            Field::new("theme", DataType::Utf8, false),
+            // For each surface with a material, store the material reference
+            Field::new(
+                "surfaces",
+                DataType::List(Arc::new(Field::new("material_ref", DataType::UInt32, true))),
+                false,
+            ),
+        ],
         0,
     ));
     // Instance Builders
@@ -120,12 +127,17 @@ pub fn geometries_to_arrow<SS: StringStorage>(
                     .field_builder::<StringBuilder>(0)
                     .unwrap()
                     .append_value(theme.as_ref());
+                // See docs why dyn ArrayBuilder and then downcast: arrow_array::builder::StructBuilder
                 let surface_list_builder = theme_struct_builder
-                    .field_builder::<ListBuilder<UInt32Builder>>(1)
+                    .field_builder::<ListBuilder<Box<dyn ArrayBuilder>>>(1)
                     .unwrap();
                 if num_surfaces_in_boundary > 0 {
                     surface_list_builder.append(true);
-                    let value_builder = surface_list_builder.values();
+                    let value_builder = surface_list_builder
+                        .values()
+                        .as_any_mut()
+                        .downcast_mut::<UInt32Builder>()
+                        .unwrap();
                     for i in 0..num_surfaces_in_boundary {
                         let mat_idx = material_map
                             .surfaces()
@@ -286,29 +298,36 @@ fn append_list_option(builder: &mut ListBuilder<UInt32Builder>, data: &[Option<R
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::{
+        Array, DictionaryArray, FixedSizeListArray, Float64Array, ListArray, StringArray,
+        UInt32Array,
+    };
+    use arrow::datatypes::Int8Type;
     use cityjson::prelude::*;
     use cityjson::v2_0::{CityModel, Material, Semantic, SemanticType};
-    use arrow::array::{Array, DictionaryArray, ListArray, UInt32Array, StringArray, FixedSizeListArray, Float64Array};
-    use arrow::datatypes::Int8Type;
 
     #[test]
     fn test_geometries_to_arrow() {
         // Create a city model to hold our geometries
-        let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
         // --- Create a MultiPoint geometry ---
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
+        let mut builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
         builder.add_point(QuantizedCoordinate::new(10, 20, 30));
         builder.add_point(QuantizedCoordinate::new(40, 50, 60));
         builder = builder.with_lod(LoD::LoD1);
-        let _geom1_ref = builder.build().expect("Failed to build MultiPoint geometry");
+        let _geom1_ref = builder
+            .build()
+            .expect("Failed to build MultiPoint geometry");
 
         // --- Create a MultiSurface geometry with semantics and materials ---
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular);
+        let mut builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular);
 
         // Add vertices for a square surface
         let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0));
@@ -317,60 +336,93 @@ mod tests {
         let p3 = builder.add_point(QuantizedCoordinate::new(0, 10, 0));
 
         // Create surface with a ring
-        let ring1 = builder.add_ring(&[p0, p1, p2, p3, p0]).expect("Failed to add ring");
+        let ring1 = builder
+            .add_ring(&[p0, p1, p2, p3, p0])
+            .expect("Failed to add ring");
         let surface1 = builder.start_surface();
-        builder.add_surface_outer_ring(ring1).expect("Failed to add ring to surface");
+        builder
+            .add_surface_outer_ring(ring1)
+            .expect("Failed to add ring to surface");
 
         // Add semantic (RoofSurface type)
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        builder.set_semantic_surface(Some(surface1), roof_semantic).expect("Failed to set semantic");
+        builder
+            .set_semantic_surface(Some(surface1), roof_semantic)
+            .expect("Failed to set semantic");
 
         // Add material with theme
         let mut roof_material = Material::new("Roof".to_string());
         roof_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
-        builder.set_material_surface(Some(surface1), roof_material, "theme1".to_string())
+        builder
+            .set_material_surface(Some(surface1), roof_material, "theme1".to_string())
             .expect("Failed to set material");
 
         builder = builder.with_lod(LoD::LoD2);
-        let _geom2_ref = builder.build().expect("Failed to build MultiSurface geometry");
+        let _geom2_ref = builder
+            .build()
+            .expect("Failed to build MultiSurface geometry");
 
         // --- Create a GeometryInstance ---
-        let ref_point = model.add_vertex(QuantizedCoordinate::new(100, 100, 100)).expect("Failed to add vertex");
+        let ref_point = model
+            .add_vertex(QuantizedCoordinate::new(100, 100, 100))
+            .expect("Failed to add vertex");
 
         // Create a template geometry first
-        let mut template_builder = GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Template);
+        let mut template_builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Template);
         template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.0, 0.0));
         template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 1.0));
-        let template_ref = template_builder.build().expect("Failed to build template geometry");
+        let template_ref = template_builder
+            .build()
+            .expect("Failed to build template geometry");
 
         // Now create the instance referencing the template
-        let mut builder = GeometryBuilder::new(&mut model, GeometryType::GeometryInstance, BuilderMode::Regular);
+        let mut builder = GeometryBuilder::new(
+            &mut model,
+            GeometryType::GeometryInstance,
+            BuilderMode::Regular,
+        );
         builder.add_vertex(ref_point);
-        builder = builder.with_template(template_ref).expect("Failed to set template");
-        builder = builder.with_transformation_matrix([
-            2.0, 0.0, 0.0, 0.0,
-            0.0, 2.0, 0.0, 0.0,
-            0.0, 0.0, 2.0, 0.0,
-            10.0, 20.0, 30.0, 1.0
-        ]).expect("Failed to set transformation matrix");
+        builder = builder
+            .with_template(template_ref)
+            .expect("Failed to set template");
+        builder = builder
+            .with_transformation_matrix([
+                2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 10.0, 20.0, 30.0, 1.0,
+            ])
+            .expect("Failed to set transformation matrix");
         let _geom3_ref = builder.build().expect("Failed to build GeometryInstance");
 
         // Verify we have all geometries in the model
-        assert_eq!(model.geometries().len(), 3, "Expected 3 geometries in the model");
+        assert_eq!(
+            model.geometries().len(),
+            3,
+            "Expected 3 geometries in the model"
+        );
 
         // Convert geometries to Arrow
-        let batch = geometries_to_arrow(model.geometries()).expect("Failed to convert geometries to Arrow");
+        let batch =
+            geometries_to_arrow(model.geometries()).expect("Failed to convert geometries to Arrow");
 
         // Verify batch structure
         assert_eq!(batch.num_rows(), 3, "Expected 3 rows in the batch");
-        assert_eq!(batch.schema().fields().len(), 15, "Expected 15 columns in the schema");
+        assert_eq!(
+            batch.schema().fields().len(),
+            15,
+            "Expected 15 columns in the schema"
+        );
 
         // Helper function to find a row by geometry type
         let find_row_by_type = |type_name: &str| -> usize {
-            let type_array = batch.column(1).as_any().downcast_ref::<DictionaryArray<Int8Type>>()
+            let type_array = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int8Type>>()
                 .expect("Expected Dictionary array for geometry type");
             let type_values = type_array.values();
-            let type_dict = type_values.as_any().downcast_ref::<StringArray>()
+            let type_dict = type_values
+                .as_any()
+                .downcast_ref::<StringArray>()
                 .expect("Expected StringArray for type dictionary");
 
             for i in 0..batch.num_rows() {
@@ -387,20 +439,30 @@ mod tests {
         let mp_row = find_row_by_type("MultiPoint");
 
         // Verify LOD
-        let lod_array = batch.column(2).as_any().downcast_ref::<DictionaryArray<Int8Type>>()
+        let lod_array = batch
+            .column(2)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int8Type>>()
             .expect("Expected Dictionary array for LOD");
         let lod_values = lod_array.values();
-        let lod_dict = lod_values.as_any().downcast_ref::<StringArray>()
+        let lod_dict = lod_values
+            .as_any()
+            .downcast_ref::<StringArray>()
             .expect("Expected StringArray for LOD dictionary");
         let key = lod_array.keys().value(mp_row);
         let lod_val = lod_dict.value(key as usize);
         assert_eq!(lod_val, "1", "Expected LOD1 for MultiPoint");
 
         // Verify vertices
-        let vertices_array = batch.column(3).as_any().downcast_ref::<ListArray>()
+        let vertices_array = batch
+            .column(3)
+            .as_any()
+            .downcast_ref::<ListArray>()
             .expect("Expected ListArray for boundary vertices");
         let vertices = vertices_array.value(mp_row);
-        let vertices_val = vertices.as_any().downcast_ref::<UInt32Array>()
+        let vertices_val = vertices
+            .as_any()
+            .downcast_ref::<UInt32Array>()
             .expect("Expected UInt32Array for vertex values");
         assert_eq!(vertices_val.len(), 2, "Expected 2 vertices for MultiPoint");
 
@@ -413,33 +475,73 @@ mod tests {
         assert_eq!(lod_val, "2", "Expected LOD2 for MultiSurface");
 
         // Verify semantics
-        let semantics_array = batch.column(10).as_any().downcast_ref::<ListArray>()
+        let semantics_array = batch
+            .column(10)
+            .as_any()
+            .downcast_ref::<ListArray>()
             .expect("Expected ListArray for semantics surfaces");
-        assert!(!semantics_array.is_null(ms_row), "Expected non-null semantics for MultiSurface");
+        assert!(
+            !semantics_array.is_null(ms_row),
+            "Expected non-null semantics for MultiSurface"
+        );
 
         // --- Test GeometryInstance geometry ---
         let gi_row = find_row_by_type("GeometryInstance");
 
         // Verify template reference
-        let template_array = batch.column(12).as_any().downcast_ref::<UInt32Array>()
+        let template_array = batch
+            .column(12)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
             .expect("Expected UInt32Array for template references");
-        assert!(!template_array.is_null(gi_row), "Expected non-null template reference");
-        assert_eq!(template_array.value(gi_row), template_ref.index(), "Expected correct template reference");
+        assert!(
+            !template_array.is_null(gi_row),
+            "Expected non-null template reference"
+        );
+        assert_eq!(
+            template_array.value(gi_row),
+            template_ref.index(),
+            "Expected correct template reference"
+        );
 
         // Verify transformation matrix
-        let matrix_array = batch.column(14).as_any().downcast_ref::<FixedSizeListArray>()
+        let matrix_array = batch
+            .column(14)
+            .as_any()
+            .downcast_ref::<FixedSizeListArray>()
             .expect("Expected FixedSizeListArray for transformation matrices");
-        assert!(!matrix_array.is_null(gi_row), "Expected non-null transformation matrix");
+        assert!(
+            !matrix_array.is_null(gi_row),
+            "Expected non-null transformation matrix"
+        );
 
         let matrix = matrix_array.value(gi_row);
-        let matrix_values = matrix.as_any().downcast_ref::<Float64Array>()
+        let matrix_values = matrix
+            .as_any()
+            .downcast_ref::<Float64Array>()
             .expect("Expected Float64Array for matrix values");
-        assert_eq!(matrix_values.len(), 16, "Expected 16 values in transformation matrix");
+        assert_eq!(
+            matrix_values.len(),
+            16,
+            "Expected 16 values in transformation matrix"
+        );
         assert_eq!(matrix_values.value(0), 2.0, "Expected scale X = 2.0");
         assert_eq!(matrix_values.value(5), 2.0, "Expected scale Y = 2.0");
         assert_eq!(matrix_values.value(10), 2.0, "Expected scale Z = 2.0");
-        assert_eq!(matrix_values.value(12), 10.0, "Expected translation X = 10.0");
-        assert_eq!(matrix_values.value(13), 20.0, "Expected translation Y = 20.0");
-        assert_eq!(matrix_values.value(14), 30.0, "Expected translation Z = 30.0");
+        assert_eq!(
+            matrix_values.value(12),
+            10.0,
+            "Expected translation X = 10.0"
+        );
+        assert_eq!(
+            matrix_values.value(13),
+            20.0,
+            "Expected translation Y = 20.0"
+        );
+        assert_eq!(
+            matrix_values.value(14),
+            30.0,
+            "Expected translation Z = 30.0"
+        );
     }
 }
