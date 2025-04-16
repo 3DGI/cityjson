@@ -1,8 +1,7 @@
 use crate::conversion::attributes::{attributes_to_arrow, map_field};
 use crate::error::{Error, Result};
 use arrow::array::{
-    ArrayRef, ListBuilder, RecordBatch, StringBuilder, StringDictionaryBuilder,
-    UInt32Builder,
+    ArrayRef, ListBuilder, RecordBatch, StringBuilder, StringDictionaryBuilder, UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
 use cityjson::prelude::{
