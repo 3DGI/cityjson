@@ -1,5 +1,7 @@
 pub mod conversion;
 pub mod error;
+pub mod reader;
+pub mod writer;
 
 use arrow::record_batch::RecordBatch;
 use cityjson::prelude::*;

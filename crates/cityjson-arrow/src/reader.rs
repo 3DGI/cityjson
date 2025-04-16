@@ -1,0 +1,1 @@
+//! Read Arrow data into a [cityjson::v2_0::CityModel] object.

@@ -1,0 +1,1 @@
+//! Write to Arrow data, to file or IPC, from a [cityjson::v2_0::CityModel] object.
