@@ -201,10 +201,10 @@ pub fn cityobjects_schema() -> Schema {
 mod tests {
     use super::*;
     use arrow::array::{
-        Array, ArrayAccessor, AsArray, DictionaryArray, FixedSizeListArray, ListArray,
+        Array, AsArray, DictionaryArray, FixedSizeListArray, ListArray,
     };
     use arrow::datatypes::Int8Type;
-    use cityjson::prelude::{AttributeValue, BBox, ResourceId32, ResourcePool};
+    use cityjson::prelude::{AttributeValue, BBox, ResourceId32 };
     use cityjson::v2_0::{CityObject, CityObjectType, OwnedCityObjects};
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
 
         // Add attributes
-        let mut attributes = building.attributes_mut();
+        let attributes = building.attributes_mut();
         attributes.insert("height".to_string(), AttributeValue::Float(25.5));
         attributes.insert("year_built".to_string(), AttributeValue::Integer(1985));
         attributes.insert(

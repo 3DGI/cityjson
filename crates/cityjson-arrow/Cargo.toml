@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 arrow = "54.3.0"
 cityjson = { path = "../cityjson-rs"}
-log = "0.4.27"
 lazy_static = "1.5.0"
+tempfile = "3.19.1"
+nanoserde = { version = "0.2.1", features = ["json", "std"] }
 
 [dev-dependencies]
 rand = "0.9.0"

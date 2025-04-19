@@ -50,4 +50,10 @@ impl From<cityjson::error::Error> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
 impl std::error::Error for Error {}

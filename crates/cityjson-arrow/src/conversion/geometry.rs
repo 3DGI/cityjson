@@ -1,12 +1,12 @@
 use crate::error;
 use arrow::array::{
-    ArrayBuilder, ArrayRef, DictionaryArray, FixedSizeListBuilder, Float64Builder, ListBuilder,
+    ArrayBuilder, ArrayRef, FixedSizeListBuilder, Float64Builder, ListBuilder,
     RecordBatch, StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
 use cityjson::prelude::{
-    DefaultResourcePool, GeometryTrait, GeometryType, ResourceId32, ResourcePool, ResourceRef,
-    StringStorage, VertexRef,
+    DefaultResourcePool, GeometryTrait, ResourceId32, ResourcePool,
+    StringStorage,
 };
 use cityjson::v2_0::Geometry;
 use std::sync::Arc;
