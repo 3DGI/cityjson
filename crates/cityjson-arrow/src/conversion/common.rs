@@ -21,9 +21,11 @@ where
 
     // Reconstruct the Vec using the same memory but typed as Vec<T>
     // This relies on VertexIndex<T> having the exact same layout as T.
-    let primitive_vec = Vec::from_raw_parts(ptr as *mut T, len, cap);
+    unsafe {
+        let primitive_vec = Vec::from_raw_parts(ptr as *mut T, len, cap);
 
-    (primitive_vec, len)
+        (primitive_vec, len)
+    }
 }
 
 /// Creates an Arrow Buffer from a Vec<VertexIndex<T>> without copying element data.
@@ -35,7 +37,9 @@ pub unsafe fn vec_vertexindex_to_arrow_buffer<T>(vec: Vec<VertexIndex<T>>) -> (B
 where
     T: VertexRef + arrow::datatypes::ArrowPrimitiveType + arrow::datatypes::ArrowNativeType, // Ensure T is Arrow-compatible
 {
-    let (primitive_vec, len) = vec_vertexindex_to_primitive_vec(vec);
-    // Buffer::from_vec takes ownership, preventing a copy here
-    (Buffer::from_vec(primitive_vec), len)
+    unsafe {
+        let (primitive_vec, len) = vec_vertexindex_to_primitive_vec(vec);
+        // Buffer::from_vec takes ownership, preventing a copy here
+        (Buffer::from_vec(primitive_vec), len)
+    }
 }
