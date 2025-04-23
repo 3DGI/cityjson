@@ -2,17 +2,20 @@
 
 // In src/reader.rs
 
-use crate::{CityModelArrowParts, error::{Result, Error}};
 use crate::writer::ArrowManifest; // Reuse the manifest struct from writer
-use arrow::ipc::reader::{read_footer_length, FileDecoder};
+use crate::{
+    CityModelArrowParts,
+    error::{Error, Result},
+};
+use arrow::buffer::Buffer;
+use arrow::ipc::convert::fb_to_schema;
+use arrow::ipc::reader::{FileDecoder, read_footer_length};
+use arrow::ipc::{Block, root_as_footer};
 use arrow::record_batch::RecordBatch;
+use cityjson::{CityJSONVersion, CityModelType};
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
-use arrow::buffer::Buffer;
-use arrow::ipc::{root_as_footer, Block};
-use arrow::ipc::convert::fb_to_schema;
-use cityjson::{CityJSONVersion, CityModelType};
 
 /// Incrementally decodes [`RecordBatch`]es from an IPC file stored in a Arrow
 /// [`Buffer`] using the [`FileDecoder`] API.
@@ -90,8 +93,7 @@ pub fn read_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<CityModelArrow
 
     // 1. Read and parse the manifest
     let manifest_path = dir_path.join("manifest.json");
-    let manifest_json = std::fs::read_to_string(manifest_path)
-        .map_err(|e| Error::Io(e))?; // Add Io variant to your Error enum
+    let manifest_json = std::fs::read_to_string(manifest_path).map_err(|e| Error::Io(e))?; // Add Io variant to your Error enum
     let manifest: ArrowManifest = nanoserde::DeJson::deserialize_json(&manifest_json)
         .map_err(|e| Error::Conversion(format!("Failed to parse manifest: {}", e)))?; // Add/use Conversion variant
 
@@ -134,20 +136,159 @@ pub fn read_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<CityModelArrow
     // 2. Read components based on the manifest
     Ok(CityModelArrowParts {
         type_citymodel: CityModelType::try_from(manifest.type_citymodel.as_str())?,
-        version: manifest.version.map(|v| CityJSONVersion::try_from(v.as_str())).transpose()?,
+        version: manifest
+            .version
+            .map(|v| CityJSONVersion::try_from(v.as_str()))
+            .transpose()?,
 
-        extensions: if manifest.components.extensions { read_component("extensions")? } else { None },
-        extra: if manifest.components.extra { read_component("extra")? } else { None },
-        metadata: if manifest.components.metadata { read_component("metadata")? } else { None },
-        cityobjects: if manifest.components.cityobjects { read_component("cityobjects")? } else { None },
-        transform: if manifest.components.transform { read_component("transform")? } else { None },
-        vertices: if manifest.components.vertices { read_component("vertices")? } else { None },
-        geometries: if manifest.components.geometries { read_component("geometries")? } else { None },
-        template_vertices: if manifest.components.template_vertices { read_component("template_vertices")? } else { None },
-        template_geometries: if manifest.components.template_geometries { read_component("template_geometries")? } else { None },
-        semantics: if manifest.components.semantics { read_component("semantics")? } else { None },
-        materials: if manifest.components.materials { read_component("materials")? } else { None },
-        textures: if manifest.components.textures { read_component("textures")? } else { None },
-        vertices_texture: if manifest.components.vertices_texture { read_component("vertices_texture")? } else { None },
+        extensions: if manifest.components.extensions {
+            read_component("extensions")?
+        } else {
+            None
+        },
+        extra: if manifest.components.extra {
+            read_component("extra")?
+        } else {
+            None
+        },
+        metadata: if manifest.components.metadata {
+            read_component("metadata")?
+        } else {
+            None
+        },
+        cityobjects: if manifest.components.cityobjects {
+            read_component("cityobjects")?
+        } else {
+            None
+        },
+        transform: if manifest.components.transform {
+            read_component("transform")?
+        } else {
+            None
+        },
+        vertices: if manifest.components.vertices {
+            read_component("vertices")?
+        } else {
+            None
+        },
+        geometries: if manifest.components.geometries {
+            read_component("geometries")?
+        } else {
+            None
+        },
+        template_vertices: if manifest.components.template_vertices {
+            read_component("template_vertices")?
+        } else {
+            None
+        },
+        template_geometries: if manifest.components.template_geometries {
+            read_component("template_geometries")?
+        } else {
+            None
+        },
+        semantics: if manifest.components.semantics {
+            read_component("semantics")?
+        } else {
+            None
+        },
+        materials: if manifest.components.materials {
+            read_component("materials")?
+        } else {
+            None
+        },
+        textures: if manifest.components.textures {
+            read_component("textures")?
+        } else {
+            None
+        },
+        vertices_texture: if manifest.components.vertices_texture {
+            read_component("vertices_texture")?
+        } else {
+            None
+        },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::citymodel_to_arrow_parts;
+    use crate::writer::write_to_directory;
+    use arrow::array::{StringArray};
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_read_from_directory() -> crate::error::Result<()> {
+        // 1. Create a sample model with test data
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add metadata, vertices, and city objects
+        model.metadata_mut().set_title("Test Model");
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+
+        let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
+        building
+            .attributes_mut()
+            .insert("height".to_string(), AttributeValue::Float(25.5));
+        model.cityobjects_mut().add(building);
+
+        // 2. Convert model to Arrow parts
+        let original_parts = citymodel_to_arrow_parts(&model)?;
+
+        // 3. Write parts to temporary directory
+        let temp_dir = tempdir()?;
+        let dir_path = temp_dir.path();
+        write_to_directory(&original_parts, dir_path)?;
+
+        // 4. Read the parts back using the function under test
+        let read_parts = read_from_directory(dir_path)?;
+
+        // 5. Verify basic metadata matches
+        assert_eq!(read_parts.type_citymodel, original_parts.type_citymodel);
+        assert_eq!(read_parts.version, original_parts.version);
+
+        // 6. Verify components that should exist
+        assert!(read_parts.metadata.is_some());
+        assert!(read_parts.vertices.is_some());
+        assert!(read_parts.cityobjects.is_some());
+
+        // 7. Check component content
+        // Metadata should contain our title
+        let metadata_batch = read_parts.metadata.as_ref().unwrap();
+        assert_eq!(metadata_batch.num_rows(), 1);
+        let title_col = metadata_batch.column_by_name("title").unwrap();
+        let title_array = title_col.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(title_array.value(0), "Test Model");
+
+        // Vertices should have one row
+        assert_eq!(read_parts.vertices.as_ref().unwrap().num_rows(), 1);
+
+        // City objects should have one row
+        assert_eq!(read_parts.cityobjects.as_ref().unwrap().num_rows(), 1);
+
+        // 8. Verify absent components are None
+        assert!(read_parts.transform.is_none());
+        assert!(read_parts.geometries.is_none());
+        assert!(read_parts.template_vertices.is_none());
+        assert!(read_parts.template_geometries.is_none());
+        assert!(read_parts.semantics.is_none());
+        assert!(read_parts.materials.is_none());
+        assert!(read_parts.textures.is_none());
+        assert!(read_parts.vertices_texture.is_none());
+
+        // 9. Test partial reading - remove a component file
+        let cityobjects_path = dir_path.join("cityobjects.arrow");
+        fs::remove_file(&cityobjects_path)?;
+
+        // 10. Read again and verify the component is now None
+        let partial_parts = read_from_directory(dir_path)?;
+        assert!(partial_parts.cityobjects.is_none());
+        assert!(partial_parts.metadata.is_some()); // Other components still exist
+
+        Ok(())
+    }
 }
