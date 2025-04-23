@@ -105,6 +105,35 @@ impl fmt::Display for CityModelType {
     }
 }
 
+impl CityModelType {
+    fn _from_str(value: &str) -> error::Result<CityModelType> {
+        match value {
+            "CityJSON" => Ok(CityModelType::CityJSON),
+            "CityJSONFeature" => Ok(CityModelType::CityJSONFeature),
+            _ => Err(Error::UnsupportedVersion(
+                value.to_string(),
+                "CityJSON, CityJSONFeature".to_string(),
+            )),
+        }
+    }
+}
+
+impl TryFrom<&str> for CityModelType {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        CityModelType::_from_str(value)
+    }
+}
+
+impl TryFrom<String> for CityModelType {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        CityModelType::_from_str(value.as_ref())
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
 pub enum CityJSONVersion {
@@ -147,7 +176,7 @@ impl fmt::Display for CityJSONVersion {
 impl TryFrom<&str> for CityJSONVersion {
     type Error = Error;
 
-    fn try_from(value: &str) -> error::Result<Self> {
+    fn try_from(value: &str) -> Result<Self> {
         CityJSONVersion::_from_str(value)
     }
 }
@@ -155,7 +184,7 @@ impl TryFrom<&str> for CityJSONVersion {
 impl TryFrom<String> for CityJSONVersion {
     type Error = Error;
 
-    fn try_from(value: String) -> error::Result<Self> {
+    fn try_from(value: String) -> Result<Self> {
         CityJSONVersion::_from_str(value.as_ref())
     }
 }
