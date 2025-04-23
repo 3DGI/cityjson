@@ -4,21 +4,23 @@
 //! This module provides functions for writing the components of a CityJSON model
 //! represented as Arrow RecordBatches to various output formats.
 
-use arrow::ipc::writer::{FileWriter, StreamWriter};
-use arrow::record_batch::RecordBatch;
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::Path;
-use cityjson::prelude::ResourceId32;
-use nanoserde::{DeJson, SerJson};
 use crate::CityModelArrowParts;
-use crate::error::{Result};
+use crate::error::Result;
+use arrow::ipc::writer::{FileWriter, IpcWriteOptions, StreamWriter};
+use arrow::record_batch::RecordBatch;
+use cityjson::prelude::{ResourceId32, StringStorage};
+use nanoserde::{DeJson, SerJson};
+use std::fmt::{Debug, Display};
+use std::fs::{self, File};
+use std::hash::Hash;
+use std::io::{Cursor, Write};
+use std::path::Path;
 
 #[derive(Debug, DeJson, SerJson)]
 pub struct ArrowManifest {
     type_citymodel: String,
     version: Option<String>,
-    components: ArrowComponents
+    components: ArrowComponents,
 }
 
 #[derive(Debug, DeJson, SerJson)]
@@ -172,29 +174,215 @@ pub fn write_component_to_ipc_stream<W: Write + Send>(
 /// # Returns
 ///
 /// `Result<()>` - Ok(()) if successful, or an Error if writing fails
-pub fn write_citymodel<SS>(
+pub fn write_citymodel_to_directory<SS>(
     model: &cityjson::v2_0::CityModel<u32, ResourceId32, SS>,
     dir_path: impl AsRef<Path>,
 ) -> Result<()>
 where
-    SS: cityjson::prelude::StringStorage + Default,
-    SS::String: AsRef<str> + Eq + std::hash::Hash + Clone + std::fmt::Debug + Default + std::fmt::Display,
+    SS: StringStorage + Default,
+    SS::String: AsRef<str> + Eq + Hash + Clone + Debug + Default + Display,
 {
     let parts = crate::citymodel_to_arrow_parts(model)?;
     write_to_directory(&parts, dir_path)
 }
 
+/// Identifies the type of component being sent in the stream frame.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum ComponentId {
+    TypeCityModel = 1,
+    Version = 2,
+    Metadata = 3,
+    Transform = 4,
+    Vertices = 5,
+    Geometries = 6,
+    Semantics = 7,
+    CityObjects = 8,
+    Extensions = 9,
+    Extra = 10,
+    TemplateVertices = 11,
+    TemplateGeometries = 12,
+    Materials = 13,
+    Textures = 14,
+    VerticesTexture = 15,
+    // EndStream is used to indicate the end of the stream
+    EndStream = 255,
+}
+
+impl TryFrom<u8> for ComponentId {
+    type Error = crate::error::Error;
+
+    fn try_from(value: u8) -> Result<Self> {
+        match value {
+            1 => Ok(ComponentId::TypeCityModel),
+            2 => Ok(ComponentId::Version),
+            3 => Ok(ComponentId::Metadata),
+            4 => Ok(ComponentId::Transform),
+            5 => Ok(ComponentId::Vertices),
+            6 => Ok(ComponentId::Geometries),
+            7 => Ok(ComponentId::Semantics),
+            8 => Ok(ComponentId::CityObjects),
+            9 => Ok(ComponentId::Extensions),
+            10 => Ok(ComponentId::Extra),
+            11 => Ok(ComponentId::TemplateVertices),
+            12 => Ok(ComponentId::TemplateGeometries),
+            13 => Ok(ComponentId::Materials),
+            14 => Ok(ComponentId::Textures),
+            15 => Ok(ComponentId::VerticesTexture),
+            255 => Ok(ComponentId::EndStream),
+            _ => Err(crate::error::Error::Conversion(format!(
+                "Invalid ComponentId byte: {}",
+                value
+            ))),
+        }
+    }
+}
+
+/// Writes the frame header (Component ID + Data Length) to the writer.
+fn write_frame_header<W: Write>(writer: &mut W, id: ComponentId, length: u64) -> Result<()> {
+    writer.write_all(&[id as u8])?;
+    writer.write_all(&length.to_be_bytes())?; // Use big-endian for length
+    Ok(())
+}
+
+/// Serializes an optional RecordBatch using Arrow IPC streaming format
+/// into an in-memory buffer, then writes it to the stream with framing.
+fn write_batch_component<W: Write>(
+    writer: &mut W,
+    id: ComponentId,
+    batch_opt: &Option<RecordBatch>,
+    options: &IpcWriteOptions,
+) -> Result<()> {
+    if let Some(batch) = batch_opt {
+        // Skip empty batches as they add little value but require framing/schema
+        if batch.num_rows() == 0 || batch.schema().fields().is_empty() {
+            // log::debug!("Skipping empty batch for component {:?}", id);
+            return Ok(());
+        }
+
+        // log::debug!("Writing component {:?} with {} rows", id, batch.num_rows());
+        let mut buffer: Vec<u8> = Vec::new(); // In-memory buffer
+        {
+            let mut cursor = Cursor::new(&mut buffer);
+            // Create a new writer specifically for this batch and its schema
+            let mut ipc_writer = StreamWriter::try_new_with_options(
+                &mut cursor,
+                batch.schema().as_ref(),
+                options.clone(),
+            )?;
+            ipc_writer.write(batch)?;
+            ipc_writer.finish()?; // Finish the IPC stream within the buffer
+        }
+
+        // Write frame header with the length of the serialized IPC data
+        write_frame_header(writer, id, buffer.len() as u64)?;
+        // Write the actual IPC data
+        writer.write_all(&buffer)?;
+        // log::debug!("Wrote {} bytes for component {:?}", buffer.len(), id);
+    } else {
+        // log::debug!("Skipping None batch for component {:?}", id);
+    }
+    Ok(())
+}
+
+/// Writes simple string data to the stream with framing.
+fn write_string_component<W: Write>(writer: &mut W, id: ComponentId, data: &str) -> Result<()> {
+    //log::debug!("Writing string component {:?}", id);
+    let bytes = data.as_bytes();
+    write_frame_header(writer, id, bytes.len() as u64)?;
+    writer.write_all(bytes)?;
+    //log::debug!("Wrote {} bytes for component {:?}", bytes.len(), id);
+    Ok(())
+}
+
+/// Writes the CityModelArrowParts components sequentially to a stream
+/// (e.g., socket, pipe) using a framing protocol:
+/// [Component ID (u8)] [Data Length (u64 BE)] [Data Bytes]
+///
+/// The Data Bytes for RecordBatch components are serialized using the
+/// Arrow IPC streaming format.
+///
+/// # Arguments
+/// * `parts` - The CityModelArrowParts to write.
+/// * `writer` - The output stream implementing `std::io::Write`.
+/// * `options` - Arrow IPC write options (e.g., for dictionary handling).
+pub fn write_parts_to_stream<W: Write>(
+    parts: &CityModelArrowParts,
+    writer: &mut W,
+    options: &IpcWriteOptions,
+) -> Result<()> {
+    //log::info!("Starting to write CityModelArrowParts to stream...");
+
+    // --- Write Top-Level Metadata ---
+    write_string_component(
+        writer,
+        ComponentId::TypeCityModel,
+        &parts.type_citymodel.to_string(),
+    )?;
+    if let Some(version) = parts.version {
+        write_string_component(writer, ComponentId::Version, version.to_string().as_str())?;
+    }
+
+    // --- Write RecordBatch Components ---
+    // The order should ideally match the order defined in ComponentId for consistency
+    write_batch_component(writer, ComponentId::Metadata, &parts.metadata, options)?;
+    write_batch_component(writer, ComponentId::Transform, &parts.transform, options)?;
+    write_batch_component(writer, ComponentId::Vertices, &parts.vertices, options)?;
+    write_batch_component(writer, ComponentId::Geometries, &parts.geometries, options)?;
+    write_batch_component(writer, ComponentId::Semantics, &parts.semantics, options)?;
+    write_batch_component(
+        writer,
+        ComponentId::CityObjects,
+        &parts.cityobjects,
+        options,
+    )?;
+    write_batch_component(writer, ComponentId::Extensions, &parts.extensions, options)?;
+    write_batch_component(writer, ComponentId::Extra, &parts.extra, options)?;
+    write_batch_component(
+        writer,
+        ComponentId::TemplateVertices,
+        &parts.template_vertices,
+        options,
+    )?;
+    write_batch_component(
+        writer,
+        ComponentId::TemplateGeometries,
+        &parts.template_geometries,
+        options,
+    )?;
+    write_batch_component(writer, ComponentId::Materials, &parts.materials, options)?;
+    write_batch_component(writer, ComponentId::Textures, &parts.textures, options)?;
+    write_batch_component(
+        writer,
+        ComponentId::VerticesTexture,
+        &parts.vertices_texture,
+        options,
+    )?;
+    // Add calls for any other parts if the struct evolves
+
+    // --- Write End Marker ---
+    //log::info!("Writing end stream marker...");
+    write_frame_header(writer, ComponentId::EndStream, 0)?; // Length 0 for end marker
+
+    writer.flush()?; // Ensure all buffered data is sent
+    //log::info!("Finished writing CityModelArrowParts to stream.");
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use cityjson::prelude::*;
-    use cityjson::v2_0::CityModel;
-    use tempfile::tempdir;
     use super::Result;
+    use super::*;
+    use crate::citymodel_to_arrow_parts;
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_write_empty_model() -> Result<()> {
-        let model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let parts = crate::citymodel_to_arrow_parts(&model)?;
 
         let temp_dir = tempdir()?;
@@ -212,7 +400,8 @@ mod tests {
     #[test]
     fn test_write_model_with_data() -> Result<()> {
         // Create a simple model with some data
-        let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
         // Add a vertex
         model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
@@ -228,6 +417,149 @@ mod tests {
         // Check that vertices file exists
         let vertices_path = output_dir.join("vertices.arrow");
         assert!(vertices_path.exists());
+
+        Ok(())
+    }
+
+    use arrow::ipc::reader::StreamReader;
+    use std::collections::HashMap;
+    use std::io::{Cursor, Read};
+
+    // Helper function to read a frame from a reader
+    fn read_frame<R: Read>(reader: &mut R) -> Result<(ComponentId, Vec<u8>)> {
+        let mut id_buf = [0u8; 1];
+        reader.read_exact(&mut id_buf)?;
+        let id = ComponentId::try_from(id_buf[0])?;
+
+        let mut len_buf = [0u8; 8];
+        reader.read_exact(&mut len_buf)?;
+        let len = u64::from_be_bytes(len_buf);
+
+        let mut data_buf = vec![0u8; len as usize];
+        if len > 0 {
+            reader.read_exact(&mut data_buf)?;
+        }
+
+        Ok((id, data_buf))
+    }
+
+    #[test]
+    fn test_write_and_read_stream() -> Result<()> {
+        // 1. Create some test data
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        model.metadata_mut().set_title("Stream Test");
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+        let mut obj = CityObject::new("obj-stream".to_string(), CityObjectType::Building);
+        obj.attributes_mut().insert(
+            "status".to_string(),
+            AttributeValue::String("ok".to_string()),
+        );
+        model.cityobjects_mut().add(obj);
+
+        let parts = citymodel_to_arrow_parts(&model)?;
+
+        // 2. Write to an in-memory buffer (simulating a socket)
+        let mut output_buffer: Vec<u8> = Vec::new();
+        let options = IpcWriteOptions::default();
+        write_parts_to_stream(&parts, &mut output_buffer, &options)?;
+
+        assert!(!output_buffer.is_empty());
+
+        // 3. Read back and verify
+        let mut input_cursor = Cursor::new(output_buffer);
+        let mut received_parts: HashMap<ComponentId, Option<RecordBatch>> = HashMap::new();
+        let mut received_type: Option<String> = None;
+        let mut received_version: Option<String> = None;
+
+        loop {
+            let (id, data) = read_frame(&mut input_cursor)?;
+            //log::debug!("Read frame: ID={:?}, Length={}", id, data.len());
+
+            match id {
+                ComponentId::EndStream => {
+                    assert_eq!(data.len(), 0);
+                    //log::info!("EndStream marker received.");
+                    break;
+                }
+                ComponentId::TypeCityModel => {
+                    received_type =
+                        Some(String::from_utf8(data).expect("Invalid UTF8 for TypeCityModel"));
+                }
+                ComponentId::Version => {
+                    received_version =
+                        Some(String::from_utf8(data).expect("Invalid UTF8 for Version"));
+                }
+                // Handle RecordBatch components
+                ComponentId::Metadata
+                | ComponentId::Transform
+                | ComponentId::Vertices
+                | ComponentId::Geometries
+                | ComponentId::Semantics
+                | ComponentId::CityObjects
+                | ComponentId::Extensions
+                | ComponentId::Extra
+                | ComponentId::TemplateVertices
+                | ComponentId::TemplateGeometries
+                | ComponentId::Materials
+                | ComponentId::Textures
+                | ComponentId::VerticesTexture => {
+                    let mut data_cursor = Cursor::new(data);
+                    // Use StreamReader as we wrote with StreamWriter
+                    let mut reader = StreamReader::try_new(&mut data_cursor, None)?;
+                    // Expect exactly one batch per component stream
+                    if let Some(batch_result) = reader.next() {
+                        let batch = batch_result?;
+                        received_parts.insert(id, Some(batch));
+                    } else {
+                        panic!("Expected a RecordBatch for component {:?}", id);
+                    }
+                    // Ensure no more batches in this component's stream
+                    assert!(
+                        reader.next().is_none(),
+                        "More than one batch found for component {:?}",
+                        id
+                    );
+                }
+            }
+        }
+
+        // 4. Assertions
+        assert_eq!(received_type.as_deref(), Some("CityJSON"));
+        assert_eq!(received_version.as_deref(), Some("2.0"));
+
+        // Check received batches (presence and basic row count)
+        assert!(received_parts.contains_key(&ComponentId::Metadata));
+        assert_eq!(
+            received_parts[&ComponentId::Metadata]
+                .as_ref()
+                .unwrap()
+                .num_rows(),
+            1
+        );
+
+        assert!(received_parts.contains_key(&ComponentId::Vertices));
+        assert_eq!(
+            received_parts[&ComponentId::Vertices]
+                .as_ref()
+                .unwrap()
+                .num_rows(),
+            1
+        );
+
+        assert!(received_parts.contains_key(&ComponentId::CityObjects));
+        assert_eq!(
+            received_parts[&ComponentId::CityObjects]
+                .as_ref()
+                .unwrap()
+                .num_rows(),
+            1
+        );
+
+        // Check that components not present in the original `parts` were not received
+        assert!(!received_parts.contains_key(&ComponentId::Transform));
+        assert!(!received_parts.contains_key(&ComponentId::Geometries));
+        // ... add checks for other potentially absent components
 
         Ok(())
     }
