@@ -18,9 +18,9 @@ use std::path::Path;
 
 #[derive(Debug, DeJson, SerJson)]
 pub struct ArrowManifest {
-    type_citymodel: String,
-    version: Option<String>,
-    components: ArrowComponents,
+    pub type_citymodel: String,
+    pub version: Option<String>,
+    pub components: ArrowComponents,
 }
 
 #[derive(Debug, DeJson, SerJson)]
