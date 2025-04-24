@@ -127,7 +127,7 @@ pub trait ResourcePool<T, RR> {
 
     /// Returns the number of slots in the pool (including vacant ones)
     fn len(&self) -> usize;
-    
+
     /// Checks if the pool is empty
     fn is_empty(&self) -> bool {
         self.len() == 0

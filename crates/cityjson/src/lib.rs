@@ -55,7 +55,7 @@ pub mod prelude {
         core::extension::{ExtensionCore, ExtensionsCore},
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
         core::metadata::{BBox, CityModelIdentifier, Date, CRS},
-        core::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, RawVertexView},
+        core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::{CityModelTrait, CityModelTypes},
         traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},

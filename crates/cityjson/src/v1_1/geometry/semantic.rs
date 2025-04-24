@@ -300,7 +300,7 @@ mod tests {
         // Now should have parent
         assert!(semantic.has_parent());
         assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(5, 0));
-        
+
         semantic.set_parent(ResourceId32::new(10, 0));
         assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(10, 0));
     }

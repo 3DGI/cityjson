@@ -135,7 +135,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_0<VR, 
     fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
         self.semantics.get_mut(id)
     }
-    
+
     fn semantics(&self) -> &DefaultResourcePool<Semantic<RR, SS>, RR> {
         &self.semantics
     }

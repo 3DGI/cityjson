@@ -97,7 +97,7 @@ pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTyp
     fn parent(&self) -> Option<&RR>;
 
     /// Sets the parent for this semantic.
-    /// 
+    ///
     /// # Parameters
     /// `parent_ref` - A reference to the parent in the semantic pool
     fn set_parent(&mut self, parent_ref: RR);

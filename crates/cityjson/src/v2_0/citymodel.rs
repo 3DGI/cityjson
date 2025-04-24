@@ -31,7 +31,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V2_0<
     type VertexRef = VR;
     type ResourceRef = RR;
     type StringStorage = SS;
-    type SemType = SemanticType;
+    type SemType = SemanticType<SS>;
     type Semantic = Semantic<RR, SS>;
     type Material = Material<SS>;
     type Texture = Texture<SS>;
@@ -146,7 +146,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
         self.semantics.get_mut(id)
     }
-    
+
     fn semantics(&self) -> &DefaultResourcePool<Semantic<RR, SS>, RR> {
         &self.semantics
     }

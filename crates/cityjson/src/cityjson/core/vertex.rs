@@ -565,9 +565,7 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
     }
 }
 
-
 pub struct RawVertexView<'a, VR: VertexRef>(pub(crate) &'a [VertexIndex<VR>]);
-
 
 impl<'a, VR: VertexRef> std::ops::Deref for RawVertexView<'a, VR> {
     type Target = [VR];
@@ -576,12 +574,7 @@ impl<'a, VR: VertexRef> std::ops::Deref for RawVertexView<'a, VR> {
         debug_assert_eq!(size_of::<VertexIndex<VR>>(), size_of::<VR>());
         debug_assert_eq!(align_of::<VertexIndex<VR>>(), align_of::<VR>());
 
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.as_ptr() as *const VR,
-                self.0.len()
-            )
-        }
+        unsafe { std::slice::from_raw_parts(self.0.as_ptr() as *const VR, self.0.len()) }
     }
 }
 
