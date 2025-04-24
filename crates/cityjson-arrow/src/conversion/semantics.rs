@@ -1,13 +1,9 @@
-use crate::conversion::attributes::{attributes_to_arrow, map_field};
+use std::collections::HashMap;
+use crate::conversion::attributes::{arrow_to_attributes_owned, attributes_to_arrow, map_field};
 use crate::error::{Error, Result};
-use arrow::array::{
-    ArrayRef, ListBuilder, RecordBatch, StringBuilder, StringDictionaryBuilder, UInt32Builder,
-};
+use arrow::array::{Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, ListArray, ListBuilder, MapArray, RecordBatch, StringArray, StringBuilder, StringDictionaryBuilder, UInt32Array, UInt32Builder, UInt64Array, UnionArray};
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
-use cityjson::prelude::{
-    Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait,
-    StringStorage,
-};
+use cityjson::prelude::{AttributeValue, Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait, StringStorage};
 use cityjson::v2_0::{Semantic, SemanticType};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -48,7 +44,7 @@ where
         match semantic.type_semantic() {
             SemanticType::Extension(ext_value) => {
                 type_builder.append_value("Extension");
-                extension_builder.append_value(ext_value.as_str());
+                extension_builder.append_value(ext_value);
             }
             other_type => {
                 type_builder.append_value(&other_type.to_string());
@@ -135,12 +131,264 @@ pub fn semantics_schema() -> Schema {
     ])
 }
 
+/// Converts an Arrow RecordBatch to a pool of cityjson-rs Semantic instances.
+///
+/// # Arguments
+///
+/// * `batch` - The Arrow RecordBatch containing the semantics data
+///
+/// # Returns
+///
+/// A `Result` containing the populated semantic pool or an error
+pub fn arrow_to_semantics<SS: StringStorage + Default>(
+    batch: &RecordBatch,
+) -> Result<DefaultResourcePool<Semantic<ResourceId32, SS>, ResourceId32>>
+where
+    SS::String: AsRef<str> + From<String> + Eq + Hash,
+{
+    // Create a new empty semantic pool
+    let mut semantic_pool = DefaultResourcePool::<Semantic<ResourceId32, SS>, ResourceId32>::new();
+
+    // If the batch is empty, return the empty pool
+    if batch.num_rows() == 0 {
+        return Ok(semantic_pool);
+    }
+
+    // Extract the required columns
+    let id_array = batch
+        .column_by_name("id")
+        .ok_or_else(|| Error::MissingField("id".to_string()))?
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast id array".to_string()))?;
+
+    let type_array = batch
+        .column_by_name("type_semantic")
+        .ok_or_else(|| Error::MissingField("type_semantic".to_string()))?
+        .as_any()
+        .downcast_ref::<DictionaryArray<Int8Type>>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast type_semantic array".to_string()))?;
+
+    let extension_array = batch
+        .column_by_name("extension_value")
+        .ok_or_else(|| Error::MissingField("extension_value".to_string()))?
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast extension_value array".to_string()))?;
+
+    let children_array = batch
+        .column_by_name("children")
+        .ok_or_else(|| Error::MissingField("children".to_string()))?
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast children array".to_string()))?;
+
+    let parent_array = batch
+        .column_by_name("parent")
+        .ok_or_else(|| Error::MissingField("parent".to_string()))?
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast parent array".to_string()))?;
+
+    let attributes_column = batch
+        .column_by_name("attributes")
+        .ok_or_else(|| Error::MissingField("attributes".to_string()))?;
+
+    // For each row, convert attributes individually
+    let attributes_map_array = attributes_column
+        .as_any()
+        .downcast_ref::<MapArray>()
+        .ok_or_else(|| Error::Conversion("Failed to downcast attributes array".to_string()))?;
+
+    // First pass: Create all semantics without relationships
+    let mut original_ids = Vec::with_capacity(batch.num_rows());
+    let mut new_ids = Vec::with_capacity(batch.num_rows());
+
+    for i in 0..batch.num_rows() {
+        // Extract the semantic type
+        let type_id = type_array.keys().value(i);
+        let type_values = type_array.values();
+        let type_dict = type_values
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("Expected StringArray for type dictionary");
+        let type_value = type_dict.value(type_id as usize);
+
+        // Parse the semantic type
+        let semantic_type = if type_value == "Extension" {
+            // For extension types, we need to get the extension value
+            if extension_array.is_null(i) {
+                return Err(Error::Conversion(
+                    "Extension type without extension_value".to_string(),
+                ));
+            }
+            let extension_value = extension_array.value(i);
+            SemanticType::Extension(SS::String::from(extension_value.to_string()))
+        } else {
+            match type_value {
+                "Default" => SemanticType::Default,
+                "RoofSurface" => SemanticType::RoofSurface,
+                "GroundSurface" => SemanticType::GroundSurface,
+                "WallSurface" => SemanticType::WallSurface,
+                "ClosureSurface" => SemanticType::ClosureSurface,
+                "OuterCeilingSurface" => SemanticType::OuterCeilingSurface,
+                "OuterFloorSurface" => SemanticType::OuterFloorSurface,
+                "Window" => SemanticType::Window,
+                "Door" => SemanticType::Door,
+                "InteriorWallSurface" => SemanticType::InteriorWallSurface,
+                "CeilingSurface" => SemanticType::CeilingSurface,
+                "FloorSurface" => SemanticType::FloorSurface,
+                "WaterSurface" => SemanticType::WaterSurface,
+                "WaterGroundSurface" => SemanticType::WaterGroundSurface,
+                "WaterClosureSurface" => SemanticType::WaterClosureSurface,
+                "TrafficArea" => SemanticType::TrafficArea,
+                "AuxiliaryTrafficArea" => SemanticType::AuxiliaryTrafficArea,
+                "TransportationMarking" => SemanticType::TransportationMarking,
+                "TransportationHole" => SemanticType::TransportationHole,
+                _ => {
+                    return Err(Error::Conversion(format!(
+                        "Unknown semantic type: {}",
+                        type_value
+                    )));
+                }
+            }
+        };
+
+        // Create a new semantic instance
+        let mut semantic = Semantic::new(semantic_type);
+
+        // Set attributes if present
+        if !attributes_map_array.is_null(i) {
+            // Create a new attributes object
+            let mut attributes = Attributes::<SS, ResourceId32>::new();
+
+            // Extract the entries for this row
+            let entries = attributes_map_array.value(i);
+            let keys = entries
+                .column_by_name("key")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+
+            let values = entries
+                .column_by_name("value")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<UnionArray>()
+                .unwrap();
+
+            // Process each entry
+            for j in 0..entries.len() {
+                let key = SS::String::from(keys.value(j).to_string());
+
+                let attr_value = match values.type_id(j) {
+                    0 => AttributeValue::Null,
+                    1 => {
+                        let array = values.child(1)
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .ok_or_else(|| Error::Conversion("Expected BooleanArray".to_string()))?;
+                        AttributeValue::Bool(array.value(values.value_offset(j)))
+                    },
+                    2 => {
+                        let array = values.child(2)
+                            .as_any()
+                            .downcast_ref::<UInt64Array>()
+                            .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
+                        AttributeValue::Unsigned(array.value(values.value_offset(j)))
+                    },
+                    3 => {
+                        let array = values.child(3)
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
+                        AttributeValue::Integer(array.value(values.value_offset(j)))
+                    },
+                    4 => {
+                        let array = values.child(4)
+                            .as_any()
+                            .downcast_ref::<Float64Array>()
+                            .ok_or_else(|| Error::Conversion("Expected Float64Array".to_string()))?;
+                        AttributeValue::Float(array.value(values.value_offset(j)))
+                    },
+                    5 => {
+                        let array = values.child(5)
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
+                        AttributeValue::String(SS::String::from(array.value(values.value_offset(j)).to_string()))
+                    },
+                    type_id => {
+                        return Err(Error::Unsupported(format!("Unsupported attribute type: {}", type_id)));
+                    }
+                };
+
+                attributes.insert(key, attr_value);
+            }
+
+            if !attributes.is_empty() {
+                *semantic.attributes_mut() = attributes;
+            }
+        }
+
+        // Add the semantic to the pool and track IDs
+        let original_id = id_array.value(i);
+        let new_id = semantic_pool.add(semantic);
+
+        original_ids.push(original_id);
+        new_ids.push(new_id);
+    }
+
+    // Create ID mapping (original ID → new ResourceId32)
+    let id_mapping: HashMap<u32, ResourceId32> = original_ids
+        .into_iter()
+        .zip(new_ids.iter().cloned())
+        .collect();
+
+    // Second pass: Set relationships
+    for i in 0..batch.num_rows() {
+        let new_id = new_ids[i];
+
+        // Set parent if present
+        if !parent_array.is_null(i) {
+            let parent_original_id = parent_array.value(i);
+            if let Some(parent_new_id) = id_mapping.get(&parent_original_id) {
+                if let Some(semantic) = semantic_pool.get_mut(new_id) {
+                    semantic.set_parent(*parent_new_id);
+                }
+            }
+        }
+
+        // Set children if present
+        if !children_array.is_null(i) {
+            let children_list = children_array.value(i);
+            let children_values = children_list
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast children values".to_string()))?;
+
+            if children_values.len() > 0 {
+                if let Some(semantic) = semantic_pool.get_mut(new_id) {
+                    let children_vec = semantic.children_mut();
+                    for j in 0..children_values.len() {
+                        let child_original_id = children_values.value(j);
+                        if let Some(child_new_id) = id_mapping.get(&child_original_id) {
+                            children_vec.push(*child_new_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(semantic_pool)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cityjson::prelude::{
-        AttributeValue, DefaultResourcePool, OwnedStringStorage, ResourceId32,
-    };
+    use cityjson::prelude::{AttributeValue, DefaultResourcePool, OwnedAttributes, OwnedStringStorage, ResourceId32};
     use cityjson::v2_0::geometry::semantic::{Semantic, SemanticType};
 
     #[test]
@@ -219,5 +467,107 @@ mod tests {
         // Verify the batch
         assert_eq!(batch.num_rows(), 3);
         assert_eq!(batch.num_columns(), 6);
+    }
+
+    #[test]
+    fn test_arrow_to_semantics() {
+        // Create test data arrays
+        let id_array = UInt32Array::from(vec![0, 1, 2]);
+
+        // Create string dictionary for semantic types
+        let mut type_builder = StringDictionaryBuilder::<Int8Type>::new();
+        type_builder.append_value("RoofSurface");
+        type_builder.append_value("WallSurface");
+        type_builder.append_value("Extension");
+        let type_array = type_builder.finish();
+
+        // Extension values
+        let extension_array = StringArray::from(vec![None, None, Some("+CustomType")]);
+
+        // Children relationships: semantic 0 has children [1, 2]
+        let mut children_builder = ListBuilder::new(UInt32Builder::new());
+        {
+            let values_builder = children_builder.values();
+            values_builder.append_value(1);
+            values_builder.append_value(2);
+            children_builder.append(true);
+        }
+        // No children for semantics 1 and 2
+        children_builder.append(false);
+        children_builder.append(false);
+        let children_array = children_builder.finish();
+
+        // Parent relationships: semantics 1 and 2 have parent 0
+        let parent_array = UInt32Array::from(vec![None, Some(0), Some(0)]);
+
+        // Create empty attributes for simplicity
+        let attributes_array = create_empty_attributes_array(3);
+
+        // Create RecordBatch
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("id", DataType::UInt32, false),
+                Field::new(
+                    "type_semantic",
+                    DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+                    false
+                ),
+                Field::new("extension_value", DataType::Utf8, true),
+                Field::new(
+                    "children",
+                    DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                    true
+                ),
+                Field::new("parent", DataType::UInt32, true),
+                Field::new(
+                    "attributes",
+                    map_field("attributes").data_type().clone(),
+                    true
+                ),
+            ])),
+            vec![
+                Arc::new(id_array),
+                Arc::new(type_array),
+                Arc::new(extension_array),
+                Arc::new(children_array),
+                Arc::new(parent_array),
+                Arc::new(attributes_array),
+            ],
+        ).unwrap();
+
+        // Convert to semantic pool
+        let semantic_pool = arrow_to_semantics::<OwnedStringStorage>(&batch).unwrap();
+
+        // Verify results
+        assert_eq!(semantic_pool.len(), 3);
+
+        // Get semantics by ID
+        let semantic0 = semantic_pool.get(ResourceId32::new(0, 0)).unwrap();
+        let semantic1 = semantic_pool.get(ResourceId32::new(1, 0)).unwrap();
+        let semantic2 = semantic_pool.get(ResourceId32::new(2, 0)).unwrap();
+
+        // Check semantic types
+        assert_eq!(semantic0.type_semantic(), &SemanticType::RoofSurface);
+        assert_eq!(semantic1.type_semantic(), &SemanticType::WallSurface);
+        assert!(matches!(semantic2.type_semantic(), SemanticType::Extension(s) if s == "+CustomType"));
+
+        // Check parent-child relationships
+        assert!(semantic0.has_children());
+        assert_eq!(semantic0.children().unwrap().len(), 2);
+        assert!(semantic0.children().unwrap().contains(&ResourceId32::new(1, 0)));
+        assert!(semantic0.children().unwrap().contains(&ResourceId32::new(2, 0)));
+
+        assert!(semantic1.has_parent());
+        assert_eq!(semantic1.parent().unwrap(), &ResourceId32::new(0, 0));
+
+        assert!(semantic2.has_parent());
+        assert_eq!(semantic2.parent().unwrap(), &ResourceId32::new(0, 0));
+    }
+
+    // Helper function to create an empty attributes map array
+    fn create_empty_attributes_array(length: usize) -> MapArray {
+        let attrs: OwnedAttributes = Default::default();
+        let (field, map_array) = attributes_to_arrow(&attrs, "attributes").unwrap();
+        map_array
     }
 }
