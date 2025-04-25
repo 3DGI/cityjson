@@ -73,9 +73,7 @@ where
         // Geographical extent
         if let Some(geographical_extent) = cityobject.geographical_extent() {
             let values_builder = geographical_extent_builder.values();
-            for value in geographical_extent.as_slice() {
-                values_builder.append_value(*value);
-            }
+            values_builder.append_slice(geographical_extent.as_slice());
             geographical_extent_builder.append(true);
         } else {
             geographical_extent_builder.values().append_slice(&[0.0; 6]);
