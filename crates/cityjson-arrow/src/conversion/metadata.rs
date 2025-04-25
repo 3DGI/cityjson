@@ -1,11 +1,14 @@
-use crate::conversion::attributes::attributes_to_arrow;
+use crate::conversion::attributes::{arrow_to_attributes_owned, attributes_to_arrow};
 use arrow::array::{
-    ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Int8Array, StringArray, StructArray,
+    Array, ArrayData, ArrayRef, DictionaryArray, FixedSizeListArray, Float64Array, Int8Array,
+    MapArray, StringArray, StructArray,
 };
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Fields, Int8Type};
-use cityjson::prelude::{BBoxTrait, ResourceRef, StringStorage};
-use cityjson::v2_0::{Contact, Metadata};
+use cityjson::prelude::{
+    BBox, BBoxTrait, CityModelIdentifier, Date, OwnedStringStorage, ResourceRef, StringStorage,
+};
+use cityjson::v2_0::{Contact, ContactRole, ContactType, Metadata, CRS};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
@@ -173,6 +176,298 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
     StructArray::try_new(Fields::from(fields), arrays, None).map_err(Error::from)
 }
 
+pub fn arrow_to_metadata<RR: ResourceRef>(
+    arrow_struct: &StructArray,
+) -> Result<Metadata<OwnedStringStorage, RR>> {
+    // Create a new empty metadata
+    let mut metadata = Metadata::new();
+
+    // Extract geographical_extent (BBox)
+    if let Some(geo_extent_column) = arrow_struct.column_by_name("geographical_extent") {
+        if !geo_extent_column.is_null(0) {
+            let geo_extent_array = geo_extent_column
+                .as_any()
+                .downcast_ref::<FixedSizeListArray>()
+                .ok_or_else(|| {
+                    Error::Conversion("Failed to downcast geographical_extent".to_string())
+                })?;
+
+            let values = geo_extent_array.value(0);
+            let float_array = values
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast float values".to_string()))?;
+
+            if float_array.len() == 6 {
+                let bbox = BBox::new(
+                    float_array.value(0),
+                    float_array.value(1),
+                    float_array.value(2),
+                    float_array.value(3),
+                    float_array.value(4),
+                    float_array.value(5),
+                );
+                metadata.set_geographical_extent(bbox);
+            }
+        }
+    }
+
+    // Extract identifier
+    if let Some(identifier_column) = arrow_struct.column_by_name("identifier") {
+        if !identifier_column.is_null(0) {
+            let identifier_array = identifier_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast identifier".to_string()))?;
+
+            let identifier_str = identifier_array.value(0);
+            metadata.set_identifier(CityModelIdentifier::new(identifier_str.to_string()));
+        }
+    }
+
+    // Extract point_of_contact
+    if let Some(contact_column) = arrow_struct.column_by_name("point_of_contact") {
+        if !contact_column.is_null(0) {
+            let contact_struct = contact_column
+                .as_any()
+                .downcast_ref::<StructArray>()
+                .ok_or_else(|| {
+                    Error::Conversion("Failed to downcast point_of_contact".to_string())
+                })?;
+
+            let contact = arrow_to_contact(contact_struct)?;
+            metadata.set_point_of_contact(Some(contact));
+        }
+    }
+
+    // Extract reference_date
+    if let Some(date_column) = arrow_struct.column_by_name("reference_date") {
+        if !date_column.is_null(0) {
+            let date_array = date_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    Error::Conversion("Failed to downcast reference_date".to_string())
+                })?;
+
+            let date_str = date_array.value(0);
+            metadata.set_reference_date(Date::new(date_str.to_string()));
+        }
+    }
+
+    // Extract reference_system
+    if let Some(crs_column) = arrow_struct.column_by_name("reference_system") {
+        if !crs_column.is_null(0) {
+            let crs_array = crs_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    Error::Conversion("Failed to downcast reference_system".to_string())
+                })?;
+
+            let crs_str = crs_array.value(0);
+            metadata.set_reference_system(CRS::new(crs_str.to_string()));
+        }
+    }
+
+    // Extract title
+    if let Some(title_column) = arrow_struct.column_by_name("title") {
+        if !title_column.is_null(0) {
+            let title_array = title_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast title".to_string()))?;
+
+            let title_str = title_array.value(0);
+            metadata.set_title(title_str);
+        }
+    }
+
+    // Extract extra
+    if let Some(extra_column) = arrow_struct.column_by_name("extra") {
+        if !extra_column.is_null(0) {
+            let map_array = extra_column
+                .as_any()
+                .downcast_ref::<MapArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast extra".to_string()))?;
+
+            let attributes = arrow_to_attributes_owned(map_array)?;
+            metadata.set_extra(Some(attributes));
+        }
+    }
+
+    Ok(metadata)
+}
+
+/// Converts an Arrow StructArray to a cityjson-rs Contact object.
+fn arrow_to_contact<RR: ResourceRef>(
+    contact_struct: &StructArray,
+) -> Result<Contact<OwnedStringStorage, RR>> {
+    let mut contact = Contact::new();
+
+    // Extract contact_name (required field)
+    if let Some(name_column) = contact_struct.column_by_name("contact_name") {
+        let name_array = name_column
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast contact_name".to_string()))?;
+
+        if !name_array.is_null(0) {
+            contact.set_contact_name(name_array.value(0).to_string());
+        }
+    }
+
+    // Extract email_address (required field)
+    if let Some(email_column) = contact_struct.column_by_name("email_address") {
+        let email_array = email_column
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast email_address".to_string()))?;
+
+        if !email_array.is_null(0) {
+            contact.set_email_address(email_array.value(0).to_string());
+        }
+    }
+
+    // Extract role (optional field)
+    if let Some(role_column) = contact_struct.column_by_name("role") {
+        if !role_column.is_null(0) {
+            let role_array = role_column
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int8Type>>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast role".to_string()))?;
+
+            // Get the string value from the dictionary
+            let key = role_array.keys().value(0);
+            let role_values = role_array.values();
+            let role_dict = role_values
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    Error::Conversion("Expected StringArray for role dictionary".to_string())
+                })?;
+
+            let role_str = role_dict.value(key as usize);
+
+            // Convert string to ContactRole enum
+            let role = match role_str {
+                "Author" => Some(ContactRole::Author),
+                "CoAuthor" => Some(ContactRole::CoAuthor),
+                "Collaborator" => Some(ContactRole::Collaborator),
+                "Contributor" => Some(ContactRole::Contributor),
+                "Custodian" => Some(ContactRole::Custodian),
+                "Distributor" => Some(ContactRole::Distributor),
+                "Editor" => Some(ContactRole::Editor),
+                "Funder" => Some(ContactRole::Funder),
+                "Mediator" => Some(ContactRole::Mediator),
+                "Originator" => Some(ContactRole::Originator),
+                "Owner" => Some(ContactRole::Owner),
+                "PointOfContact" => Some(ContactRole::PointOfContact),
+                "PrincipalInvestigator" => Some(ContactRole::PrincipalInvestigator),
+                "Processor" => Some(ContactRole::Processor),
+                "Publisher" => Some(ContactRole::Publisher),
+                "ResourceProvider" => Some(ContactRole::ResourceProvider),
+                "RightsHolder" => Some(ContactRole::RightsHolder),
+                "Sponsor" => Some(ContactRole::Sponsor),
+                "Stakeholder" => Some(ContactRole::Stakeholder),
+                "User" => Some(ContactRole::User),
+                _ => None,
+            };
+
+            if let Some(role_value) = role {
+                contact.set_role(Some(role_value));
+            }
+        }
+    }
+
+    // Extract contact_type (optional field)
+    if let Some(type_column) = contact_struct.column_by_name("contact_type") {
+        if !type_column.is_null(0) {
+            let type_array = type_column
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int8Type>>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast contact_type".to_string()))?;
+
+            // Get the string value from the dictionary
+            let key = type_array.keys().value(0);
+            let type_values = type_array.values();
+            let type_dict = type_values
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    Error::Conversion(
+                        "Expected StringArray for contact_type dictionary".to_string(),
+                    )
+                })?;
+
+            let type_str = type_dict.value(key as usize);
+
+            // Convert string to ContactType enum
+            let contact_type = match type_str {
+                "Individual" => Some(ContactType::Individual),
+                "Organization" => Some(ContactType::Organization),
+                _ => None,
+            };
+
+            if let Some(type_value) = contact_type {
+                contact.set_contact_type(Some(type_value));
+            }
+        }
+    }
+
+    // Extract website (optional field)
+    if let Some(website_column) = contact_struct.column_by_name("website") {
+        if !website_column.is_null(0) {
+            let website_array = website_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast website".to_string()))?;
+
+            contact.set_website(Some(website_array.value(0).to_string()));
+        }
+    }
+
+    // Extract organization (optional field)
+    if let Some(org_column) = contact_struct.column_by_name("organization") {
+        if !org_column.is_null(0) {
+            let org_array = org_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast organization".to_string()))?;
+
+            contact.set_organization(Some(org_array.value(0).to_string()));
+        }
+    }
+
+    // Extract phone (optional field)
+    if let Some(phone_column) = contact_struct.column_by_name("phone") {
+        if !phone_column.is_null(0) {
+            let phone_array = phone_column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast phone".to_string()))?;
+
+            contact.set_phone(Some(phone_array.value(0).to_string()));
+        }
+    }
+
+    // Handle address field (optional)
+    // This would use a similar approach to extracting extra attributes
+    if let Some(address_column) = contact_struct.column_by_name("address") {
+        if !address_column.is_null(0) {
+            let map_array = address_column
+                .as_any()
+                .downcast_ref::<MapArray>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast address".to_string()))?;
+
+            let attributes = arrow_to_attributes_owned(map_array)?;
+            contact.set_address(Some(attributes));
+        }
+    }
+
+    Ok(contact)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +617,90 @@ mod tests {
             "Successfully converted metadata to Arrow structure with {} fields",
             arrow_struct.fields().len()
         );
+    }
+
+    #[test]
+    fn test_arrow_to_metadata() {
+        // Create a test metadata object with all fields populated
+        let mut original = Metadata::<OwnedStringStorage, ResourceId32>::new();
+
+        // Set fields
+        original.set_geographical_extent(BBox::new(10.0, 20.0, 30.0, 40.0, 50.0, 60.0));
+        original.set_identifier(CityModelIdentifier::new("test-id".to_string()));
+        original.set_reference_date(Date::new("2024-04-05".to_string()));
+        original.set_reference_system(CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/4326".to_string(),
+        ));
+        original.set_title("Test City Model");
+
+        // Set point of contact
+        original.set_contact_name("Test User");
+        original.set_email_address("test@example.com");
+        original.set_role(ContactRole::Author);
+        original.set_website("https://example.com");
+        original.set_contact_type(ContactType::Individual);
+        original.set_organization("Test Organization");
+        original.set_phone("+1-555-1234");
+
+        // Set extra attributes
+        let mut extra = OwnedAttributes::new();
+        extra.insert(
+            "version".to_string(),
+            AttributeValue::String("1.0".to_string()),
+        );
+        extra.insert(
+            "created".to_string(),
+            AttributeValue::String("2024-04-05".to_string()),
+        );
+        original.extra_mut().replace(extra);
+
+        // Convert to Arrow
+        let arrow_struct = metadata_to_arrow(&original).unwrap();
+
+        // Convert back to Metadata
+        let result = arrow_to_metadata::<ResourceId32>(&arrow_struct).unwrap();
+
+        // Verify fields
+        assert_eq!(result.geographical_extent(), original.geographical_extent());
+        assert_eq!(
+            result.identifier().unwrap().to_string(),
+            original.identifier().unwrap().to_string()
+        );
+        assert_eq!(
+            result.reference_date().unwrap().to_string(),
+            original.reference_date().unwrap().to_string()
+        );
+        assert_eq!(
+            result.reference_system().unwrap().to_string(),
+            original.reference_system().unwrap().to_string()
+        );
+        assert_eq!(result.title(), Some("Test City Model"));
+
+        // Verify contact info
+        let contact = result.point_of_contact().unwrap();
+        assert_eq!(contact.contact_name(), "Test User");
+        assert_eq!(contact.email_address(), "test@example.com");
+        assert_eq!(contact.role(), Some(ContactRole::Author));
+        assert_eq!(contact.website(), &Some("https://example.com".to_string()));
+        assert_eq!(contact.contact_type(), Some(ContactType::Individual));
+        assert_eq!(
+            contact.organization(),
+            &Some("Test Organization".to_string())
+        );
+        assert_eq!(contact.phone(), &Some("+1-555-1234".to_string()));
+
+        // Verify extra attributes
+        if let Some(extra) = result.extra() {
+            assert_eq!(
+                extra.get("version"),
+                Some(&AttributeValue::String("1.0".to_string()))
+            );
+            assert_eq!(
+                extra.get("created"),
+                Some(&AttributeValue::String("2024-04-05".to_string()))
+            );
+        } else {
+            panic!("Extra attributes not found");
+        }
     }
 }

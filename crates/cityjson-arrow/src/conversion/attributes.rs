@@ -473,7 +473,10 @@ mod tests {
             attributes.get("int_value").unwrap(),
             AttributeValue::Integer(-42)
         ));
-        assert_eq!(attributes.get("float_value").unwrap(), &AttributeValue::Float(PI));
+        assert_eq!(
+            attributes.get("float_value").unwrap(),
+            &AttributeValue::Float(PI)
+        );
         assert!(
             matches!(attributes.get("string_value").unwrap(), AttributeValue::String(val) if val == "test")
         );
