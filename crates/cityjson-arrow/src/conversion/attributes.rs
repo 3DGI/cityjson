@@ -4,7 +4,9 @@ use arrow::array::{
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
-use cityjson::prelude::{AttributeValue, Attributes, OwnedStringStorage, ResourceRef, StringStorage};
+use cityjson::prelude::{
+    AttributeValue, Attributes, OwnedStringStorage, ResourceRef, StringStorage,
+};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
@@ -188,7 +190,6 @@ pub fn union_fields() -> UnionFields {
     union_fields
 }
 
-
 /// Converts an Arrow MapArray to a cityjson-rs OwnedAttributes container.
 ///
 /// This function extracts key-value pairs from an Arrow MapArray and converts them
@@ -215,12 +216,14 @@ pub fn arrow_to_attributes_owned<RR: ResourceRef>(
     let entries = map_array.entries();
 
     // Get the keys and values arrays
-    let keys = entries.column(0)
+    let keys = entries
+        .column(0)
         .as_any()
         .downcast_ref::<StringArray>()
         .ok_or_else(|| Error::Conversion("Expected StringArray for keys".to_string()))?;
 
-    let values = entries.column(1)
+    let values = entries
+        .column(1)
         .as_any()
         .downcast_ref::<UnionArray>()
         .ok_or_else(|| Error::Conversion("Expected UnionArray for values".to_string()))?;
@@ -248,42 +251,57 @@ fn convert_union_value_to_owned_attribute_value<RR: ResourceRef>(
 
     match type_id {
         0 => Ok(AttributeValue::Null),
-        1 => { // Boolean
-            let array = union_array.child(1)
+        1 => {
+            // Boolean
+            let array = union_array
+                .child(1)
                 .as_any()
                 .downcast_ref::<BooleanArray>()
                 .ok_or_else(|| Error::Conversion("Expected BooleanArray".to_string()))?;
             Ok(AttributeValue::Bool(array.value(value_offset)))
-        },
-        2 => { // Unsigned
-            let array = union_array.child(2)
+        }
+        2 => {
+            // Unsigned
+            let array = union_array
+                .child(2)
                 .as_any()
                 .downcast_ref::<UInt64Array>()
                 .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
             Ok(AttributeValue::Unsigned(array.value(value_offset)))
-        },
-        3 => { // Integer
-            let array = union_array.child(3)
+        }
+        3 => {
+            // Integer
+            let array = union_array
+                .child(3)
                 .as_any()
                 .downcast_ref::<Int64Array>()
                 .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
             Ok(AttributeValue::Integer(array.value(value_offset)))
-        },
-        4 => { // Float
-            let array = union_array.child(4)
+        }
+        4 => {
+            // Float
+            let array = union_array
+                .child(4)
                 .as_any()
                 .downcast_ref::<Float64Array>()
                 .ok_or_else(|| Error::Conversion("Expected Float64Array".to_string()))?;
             Ok(AttributeValue::Float(array.value(value_offset)))
-        },
-        5 => { // String
-            let array = union_array.child(5)
+        }
+        5 => {
+            // String
+            let array = union_array
+                .child(5)
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
-            Ok(AttributeValue::String(array.value(value_offset).to_string()))
-        },
-        _ => Err(Error::Unsupported(format!("Nested types are not supported (type_id: {})", type_id))),
+            Ok(AttributeValue::String(
+                array.value(value_offset).to_string(),
+            ))
+        }
+        _ => Err(Error::Unsupported(format!(
+            "Nested types are not supported (type_id: {})",
+            type_id
+        ))),
     }
 }
 
@@ -293,6 +311,7 @@ mod tests {
     use arrow::array::{MapArray, RecordBatch, StringArray};
     use cityjson::prelude::{AttributeValue, OwnedAttributes, ResourceId32};
     use std::collections::HashSet;
+    use std::f64::consts::PI;
 
     #[test]
     fn test_attributes_to_arrow_conversion() {
@@ -361,8 +380,12 @@ mod tests {
     fn test_arrow_to_attributes_owned() {
         // Create test data for attributes with various primitive types
         let keys = StringArray::from(vec![
-            "null_value", "bool_value", "uint_value",
-            "int_value", "float_value", "string_value"
+            "null_value",
+            "bool_value",
+            "uint_value",
+            "int_value",
+            "float_value",
+            "string_value",
         ]);
 
         // Create child arrays for the union
@@ -370,7 +393,7 @@ mod tests {
         let bool_array = Arc::new(BooleanArray::from(vec![true])) as ArrayRef;
         let uint_array = Arc::new(UInt64Array::from(vec![42u64])) as ArrayRef;
         let int_array = Arc::new(Int64Array::from(vec![-42i64])) as ArrayRef;
-        let float_array = Arc::new(Float64Array::from(vec![3.14159])) as ArrayRef;
+        let float_array = Arc::new(Float64Array::from(vec![PI])) as ArrayRef;
         let string_array = Arc::new(StringArray::from(vec!["test"])) as ArrayRef;
 
         // Define union fields
@@ -385,27 +408,40 @@ mod tests {
 
         let type_ids_vec = vec![0i8, 1, 2, 3, 4, 5];
         let offsets_vec = vec![0, 0, 0, 0, 0, 0];
-        
+
         // Create the union array
         let union_array = UnionArray::try_new(
             union_fields.clone(),
             ScalarBuffer::from(type_ids_vec),
             Some(ScalarBuffer::from(offsets_vec)),
-            vec![null_array, bool_array, uint_array, int_array, float_array, string_array],
-        ).unwrap();
+            vec![
+                null_array,
+                bool_array,
+                uint_array,
+                int_array,
+                float_array,
+                string_array,
+            ],
+        )
+        .unwrap();
 
         // Create the struct array for entries
         let struct_array = arrow::array::StructArray::try_new(
             Fields::from(vec![
                 Field::new("key", DataType::Utf8, false),
-                Field::new("value", DataType::Union(union_fields, UnionMode::Dense), true),
+                Field::new(
+                    "value",
+                    DataType::Union(union_fields, UnionMode::Dense),
+                    true,
+                ),
             ]),
             vec![
                 Arc::new(keys) as ArrayRef,
                 Arc::new(union_array) as ArrayRef,
             ],
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Create the map array
         let map_data = arrow::array::ArrayData::builder(map_field("test").data_type().clone())
@@ -421,11 +457,25 @@ mod tests {
 
         // Verify the results
         assert_eq!(attributes.len(), 6);
-        assert!(matches!(attributes.get("null_value").unwrap(), AttributeValue::Null));
-        assert!(matches!(attributes.get("bool_value").unwrap(), AttributeValue::Bool(true)));
-        assert!(matches!(attributes.get("uint_value").unwrap(), AttributeValue::Unsigned(42)));
-        assert!(matches!(attributes.get("int_value").unwrap(), AttributeValue::Integer(-42)));
-        assert!(matches!(attributes.get("float_value").unwrap(), AttributeValue::Float(val) if *val == 3.14159));
-        assert!(matches!(attributes.get("string_value").unwrap(), AttributeValue::String(val) if val == "test"));
+        assert!(matches!(
+            attributes.get("null_value").unwrap(),
+            AttributeValue::Null
+        ));
+        assert!(matches!(
+            attributes.get("bool_value").unwrap(),
+            AttributeValue::Bool(true)
+        ));
+        assert!(matches!(
+            attributes.get("uint_value").unwrap(),
+            AttributeValue::Unsigned(42)
+        ));
+        assert!(matches!(
+            attributes.get("int_value").unwrap(),
+            AttributeValue::Integer(-42)
+        ));
+        assert_eq!(attributes.get("float_value").unwrap(), &AttributeValue::Float(PI));
+        assert!(
+            matches!(attributes.get("string_value").unwrap(), AttributeValue::String(val) if val == "test")
+        );
     }
 }

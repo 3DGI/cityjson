@@ -17,7 +17,6 @@ pub enum Error {
     Io(std::io::Error),
 }
 
-
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -51,6 +50,5 @@ impl From<std::io::Error> for Error {
         Self::Io(value)
     }
 }
-    
 
 impl std::error::Error for Error {}

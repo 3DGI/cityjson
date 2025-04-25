@@ -200,11 +200,9 @@ pub fn cityobjects_schema() -> Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{
-        Array, AsArray, DictionaryArray, FixedSizeListArray, ListArray,
-    };
+    use arrow::array::{Array, AsArray, DictionaryArray, FixedSizeListArray, ListArray};
     use arrow::datatypes::Int8Type;
-    use cityjson::prelude::{AttributeValue, BBox, ResourceId32 };
+    use cityjson::prelude::{AttributeValue, BBox, ResourceId32};
     use cityjson::v2_0::{CityObject, CityObjectType, OwnedCityObjects};
 
     #[test]

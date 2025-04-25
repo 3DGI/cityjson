@@ -1,10 +1,17 @@
-use std::collections::HashMap;
-use crate::conversion::attributes::{arrow_to_attributes_owned, attributes_to_arrow, map_field};
+use crate::conversion::attributes::{attributes_to_arrow, map_field};
 use crate::error::{Error, Result};
-use arrow::array::{Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, ListArray, ListBuilder, MapArray, RecordBatch, StringArray, StringBuilder, StringDictionaryBuilder, UInt32Array, UInt32Builder, UInt64Array, UnionArray};
+use arrow::array::{
+    Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, ListArray,
+    ListBuilder, MapArray, RecordBatch, StringArray, StringBuilder, StringDictionaryBuilder,
+    UInt32Array, UInt32Builder, UInt64Array, UnionArray,
+};
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
-use cityjson::prelude::{AttributeValue, Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32, ResourcePool, SemanticTrait, StringStorage};
+use cityjson::prelude::{
+    AttributeValue, Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32,
+    ResourcePool, SemanticTrait, StringStorage,
+};
 use cityjson::v2_0::{Semantic, SemanticType};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -133,6 +140,9 @@ pub fn semantics_schema() -> Schema {
 
 /// Converts an Arrow RecordBatch to a pool of cityjson-rs Semantic instances.
 ///
+/// This function handles the conversion of Arrow data back into cityjson-rs semantics,
+/// including proper handling of optional fields like children, parent and attributes.
+///
 /// # Arguments
 ///
 /// * `batch` - The Arrow RecordBatch containing the semantics data
@@ -176,29 +186,18 @@ where
         .downcast_ref::<StringArray>()
         .ok_or_else(|| Error::Conversion("Failed to downcast extension_value array".to_string()))?;
 
+    // Get optional columns (don't fail if they're missing)
     let children_array = batch
         .column_by_name("children")
-        .ok_or_else(|| Error::MissingField("children".to_string()))?
-        .as_any()
-        .downcast_ref::<ListArray>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast children array".to_string()))?;
+        .and_then(|col| col.as_any().downcast_ref::<ListArray>());
 
     let parent_array = batch
         .column_by_name("parent")
-        .ok_or_else(|| Error::MissingField("parent".to_string()))?
-        .as_any()
-        .downcast_ref::<UInt32Array>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast parent array".to_string()))?;
+        .and_then(|col| col.as_any().downcast_ref::<UInt32Array>());
 
-    let attributes_column = batch
+    let attributes_map_array = batch
         .column_by_name("attributes")
-        .ok_or_else(|| Error::MissingField("attributes".to_string()))?;
-
-    // For each row, convert attributes individually
-    let attributes_map_array = attributes_column
-        .as_any()
-        .downcast_ref::<MapArray>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast attributes array".to_string()))?;
+        .and_then(|col| col.as_any().downcast_ref::<MapArray>());
 
     // First pass: Create all semantics without relationships
     let mut original_ids = Vec::with_capacity(batch.num_rows());
@@ -257,78 +256,100 @@ where
         // Create a new semantic instance
         let mut semantic = Semantic::new(semantic_type);
 
-        // Set attributes if present
-        if !attributes_map_array.is_null(i) {
-            // Create a new attributes object
-            let mut attributes = Attributes::<SS, ResourceId32>::new();
+        // Set attributes if present and if attributes_map_array exists
+        if let Some(attributes_array) = attributes_map_array {
+            if !attributes_array.is_null(i) {
+                // Create a new attributes object
+                let mut attributes = Attributes::<SS, ResourceId32>::new();
 
-            // Extract the entries for this row
-            let entries = attributes_map_array.value(i);
-            let keys = entries
-                .column_by_name("key")
-                .unwrap()
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap();
+                // Extract the entries for this row
+                let entries = attributes_array.value(i);
+                let keys = entries
+                    .column_by_name("key")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .unwrap();
 
-            let values = entries
-                .column_by_name("value")
-                .unwrap()
-                .as_any()
-                .downcast_ref::<UnionArray>()
-                .unwrap();
+                let values = entries
+                    .column_by_name("value")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<UnionArray>()
+                    .unwrap();
 
-            // Process each entry
-            for j in 0..entries.len() {
-                let key = SS::String::from(keys.value(j).to_string());
+                // Process each entry
+                for j in 0..entries.len() {
+                    let key = SS::String::from(keys.value(j).to_string());
 
-                let attr_value = match values.type_id(j) {
-                    0 => AttributeValue::Null,
-                    1 => {
-                        let array = values.child(1)
-                            .as_any()
-                            .downcast_ref::<BooleanArray>()
-                            .ok_or_else(|| Error::Conversion("Expected BooleanArray".to_string()))?;
-                        AttributeValue::Bool(array.value(values.value_offset(j)))
-                    },
-                    2 => {
-                        let array = values.child(2)
-                            .as_any()
-                            .downcast_ref::<UInt64Array>()
-                            .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
-                        AttributeValue::Unsigned(array.value(values.value_offset(j)))
-                    },
-                    3 => {
-                        let array = values.child(3)
-                            .as_any()
-                            .downcast_ref::<Int64Array>()
-                            .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
-                        AttributeValue::Integer(array.value(values.value_offset(j)))
-                    },
-                    4 => {
-                        let array = values.child(4)
-                            .as_any()
-                            .downcast_ref::<Float64Array>()
-                            .ok_or_else(|| Error::Conversion("Expected Float64Array".to_string()))?;
-                        AttributeValue::Float(array.value(values.value_offset(j)))
-                    },
-                    5 => {
-                        let array = values.child(5)
-                            .as_any()
-                            .downcast_ref::<StringArray>()
-                            .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
-                        AttributeValue::String(SS::String::from(array.value(values.value_offset(j)).to_string()))
-                    },
-                    type_id => {
-                        return Err(Error::Unsupported(format!("Unsupported attribute type: {}", type_id)));
-                    }
-                };
+                    let attr_value = match values.type_id(j) {
+                        0 => AttributeValue::Null,
+                        1 => {
+                            let array = values
+                                .child(1)
+                                .as_any()
+                                .downcast_ref::<BooleanArray>()
+                                .ok_or_else(|| {
+                                    Error::Conversion("Expected BooleanArray".to_string())
+                                })?;
+                            AttributeValue::Bool(array.value(values.value_offset(j)))
+                        }
+                        2 => {
+                            let array = values
+                                .child(2)
+                                .as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .ok_or_else(|| {
+                                    Error::Conversion("Expected UInt64Array".to_string())
+                                })?;
+                            AttributeValue::Unsigned(array.value(values.value_offset(j)))
+                        }
+                        3 => {
+                            let array = values
+                                .child(3)
+                                .as_any()
+                                .downcast_ref::<Int64Array>()
+                                .ok_or_else(|| {
+                                    Error::Conversion("Expected Int64Array".to_string())
+                                })?;
+                            AttributeValue::Integer(array.value(values.value_offset(j)))
+                        }
+                        4 => {
+                            let array = values
+                                .child(4)
+                                .as_any()
+                                .downcast_ref::<Float64Array>()
+                                .ok_or_else(|| {
+                                    Error::Conversion("Expected Float64Array".to_string())
+                                })?;
+                            AttributeValue::Float(array.value(values.value_offset(j)))
+                        }
+                        5 => {
+                            let array = values
+                                .child(5)
+                                .as_any()
+                                .downcast_ref::<StringArray>()
+                                .ok_or_else(|| {
+                                    Error::Conversion("Expected StringArray".to_string())
+                                })?;
+                            AttributeValue::String(SS::String::from(
+                                array.value(values.value_offset(j)).to_string(),
+                            ))
+                        }
+                        type_id => {
+                            return Err(Error::Unsupported(format!(
+                                "Unsupported attribute type: {}",
+                                type_id
+                            )));
+                        }
+                    };
 
-                attributes.insert(key, attr_value);
-            }
+                    attributes.insert(key, attr_value);
+                }
 
-            if !attributes.is_empty() {
-                *semantic.attributes_mut() = attributes;
+                if !attributes.is_empty() {
+                    *semantic.attributes_mut() = attributes;
+                }
             }
         }
 
@@ -346,35 +367,41 @@ where
         .zip(new_ids.iter().cloned())
         .collect();
 
-    // Second pass: Set relationships
+    // Second pass: Set relationships (only if relationship columns are present)
     for i in 0..batch.num_rows() {
         let new_id = new_ids[i];
 
-        // Set parent if present
-        if !parent_array.is_null(i) {
-            let parent_original_id = parent_array.value(i);
-            if let Some(parent_new_id) = id_mapping.get(&parent_original_id) {
-                if let Some(semantic) = semantic_pool.get_mut(new_id) {
-                    semantic.set_parent(*parent_new_id);
+        // Set parent if parent array is present and the value is not null
+        if let Some(parent_arr) = parent_array {
+            if !parent_arr.is_null(i) {
+                let parent_original_id = parent_arr.value(i);
+                if let Some(parent_new_id) = id_mapping.get(&parent_original_id) {
+                    if let Some(semantic) = semantic_pool.get_mut(new_id) {
+                        semantic.set_parent(*parent_new_id);
+                    }
                 }
             }
         }
 
-        // Set children if present
-        if !children_array.is_null(i) {
-            let children_list = children_array.value(i);
-            let children_values = children_list
-                .as_any()
-                .downcast_ref::<UInt32Array>()
-                .ok_or_else(|| Error::Conversion("Failed to downcast children values".to_string()))?;
+        // Set children if children array is present and the value is not null
+        if let Some(children_arr) = children_array {
+            if !children_arr.is_null(i) {
+                let children_list = children_arr.value(i);
+                let children_values = children_list
+                    .as_any()
+                    .downcast_ref::<UInt32Array>()
+                    .ok_or_else(|| {
+                        Error::Conversion("Failed to downcast children values".to_string())
+                    })?;
 
-            if children_values.len() > 0 {
-                if let Some(semantic) = semantic_pool.get_mut(new_id) {
-                    let children_vec = semantic.children_mut();
-                    for j in 0..children_values.len() {
-                        let child_original_id = children_values.value(j);
-                        if let Some(child_new_id) = id_mapping.get(&child_original_id) {
-                            children_vec.push(*child_new_id);
+                if children_values.len() > 0 {
+                    if let Some(semantic) = semantic_pool.get_mut(new_id) {
+                        let children_vec = semantic.children_mut();
+                        for j in 0..children_values.len() {
+                            let child_original_id = children_values.value(j);
+                            if let Some(child_new_id) = id_mapping.get(&child_original_id) {
+                                children_vec.push(*child_new_id);
+                            }
                         }
                     }
                 }
@@ -388,7 +415,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cityjson::prelude::{AttributeValue, DefaultResourcePool, OwnedAttributes, OwnedStringStorage, ResourceId32};
+    use cityjson::prelude::{
+        AttributeValue, DefaultResourcePool, OwnedStringStorage, ResourceId32,
+    };
     use cityjson::v2_0::geometry::semantic::{Semantic, SemanticType};
 
     #[test]
@@ -500,30 +529,22 @@ mod tests {
         // Parent relationships: semantics 1 and 2 have parent 0
         let parent_array = UInt32Array::from(vec![None, Some(0), Some(0)]);
 
-        // Create empty attributes for simplicity
-        let attributes_array = create_empty_attributes_array(3);
-
-        // Create RecordBatch
+        // Create RecordBatch WITHOUT the attributes field
         let batch = RecordBatch::try_new(
             Arc::new(Schema::new(vec![
                 Field::new("id", DataType::UInt32, false),
                 Field::new(
                     "type_semantic",
                     DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
-                    false
+                    false,
                 ),
                 Field::new("extension_value", DataType::Utf8, true),
                 Field::new(
                     "children",
                     DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
-                    true
+                    true,
                 ),
                 Field::new("parent", DataType::UInt32, true),
-                Field::new(
-                    "attributes",
-                    map_field("attributes").data_type().clone(),
-                    true
-                ),
             ])),
             vec![
                 Arc::new(id_array),
@@ -531,9 +552,9 @@ mod tests {
                 Arc::new(extension_array),
                 Arc::new(children_array),
                 Arc::new(parent_array),
-                Arc::new(attributes_array),
             ],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Convert to semantic pool
         let semantic_pool = arrow_to_semantics::<OwnedStringStorage>(&batch).unwrap();
@@ -549,25 +570,30 @@ mod tests {
         // Check semantic types
         assert_eq!(semantic0.type_semantic(), &SemanticType::RoofSurface);
         assert_eq!(semantic1.type_semantic(), &SemanticType::WallSurface);
-        assert!(matches!(semantic2.type_semantic(), SemanticType::Extension(s) if s == "+CustomType"));
+        assert!(
+            matches!(semantic2.type_semantic(), SemanticType::Extension(s) if s == "+CustomType")
+        );
 
         // Check parent-child relationships
         assert!(semantic0.has_children());
         assert_eq!(semantic0.children().unwrap().len(), 2);
-        assert!(semantic0.children().unwrap().contains(&ResourceId32::new(1, 0)));
-        assert!(semantic0.children().unwrap().contains(&ResourceId32::new(2, 0)));
+        assert!(
+            semantic0
+                .children()
+                .unwrap()
+                .contains(&ResourceId32::new(1, 0))
+        );
+        assert!(
+            semantic0
+                .children()
+                .unwrap()
+                .contains(&ResourceId32::new(2, 0))
+        );
 
         assert!(semantic1.has_parent());
         assert_eq!(semantic1.parent().unwrap(), &ResourceId32::new(0, 0));
 
         assert!(semantic2.has_parent());
         assert_eq!(semantic2.parent().unwrap(), &ResourceId32::new(0, 0));
-    }
-
-    // Helper function to create an empty attributes map array
-    fn create_empty_attributes_array(length: usize) -> MapArray {
-        let attrs: OwnedAttributes = Default::default();
-        let (field, map_array) = attributes_to_arrow(&attrs, "attributes").unwrap();
-        map_array
     }
 }

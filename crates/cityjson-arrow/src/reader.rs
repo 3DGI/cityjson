@@ -2,15 +2,16 @@
 
 // In src/reader.rs
 
-use crate::writer::ArrowManifest; // Reuse the manifest struct from writer
+use crate::writer::ArrowManifest;
+// Reuse the manifest struct from writer
 use crate::{
-    CityModelArrowParts,
     error::{Error, Result},
+    CityModelArrowParts,
 };
 use arrow::buffer::Buffer;
 use arrow::ipc::convert::fb_to_schema;
-use arrow::ipc::reader::{FileDecoder, read_footer_length};
-use arrow::ipc::{Block, root_as_footer};
+use arrow::ipc::reader::{read_footer_length, FileDecoder};
+use arrow::ipc::{root_as_footer, Block};
 use arrow::record_batch::RecordBatch;
 use cityjson::{CityJSONVersion, CityModelType};
 use std::fs::File;
@@ -214,7 +215,7 @@ mod tests {
     use super::*;
     use crate::citymodel_to_arrow_parts;
     use crate::writer::write_to_directory;
-    use arrow::array::{StringArray};
+    use arrow::array::StringArray;
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
     use std::fs;

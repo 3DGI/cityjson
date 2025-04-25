@@ -4,8 +4,8 @@
 //! This module provides functions for writing the components of a CityJSON model
 //! represented as Arrow RecordBatches to various output formats.
 
-use crate::CityModelArrowParts;
 use crate::error::Result;
+use crate::CityModelArrowParts;
 use arrow::ipc::writer::{FileWriter, IpcWriteOptions, StreamWriter};
 use arrow::record_batch::RecordBatch;
 use cityjson::prelude::{ResourceId32, StringStorage};

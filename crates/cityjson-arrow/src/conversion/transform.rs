@@ -168,6 +168,9 @@ mod tests {
 
         // Check that values match
         assert_eq!(roundtrip_transform.scale(), original_transform.scale());
-        assert_eq!(roundtrip_transform.translate(), original_transform.translate());
+        assert_eq!(
+            roundtrip_transform.translate(),
+            original_transform.translate()
+        );
     }
 }
