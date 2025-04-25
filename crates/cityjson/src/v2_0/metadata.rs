@@ -53,6 +53,10 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
     pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS, RR>> {
         &mut self.extra
     }
+    
+    pub fn set_extra(&mut self, extra: Option<Attributes<SS, RR>>) {
+        self.extra = extra;
+    }
 
     pub fn set_geographical_extent(&mut self, bbox: BBox) {
         self.geographical_extent = Some(bbox);
@@ -162,6 +166,10 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
                 ..Default::default()
             })
         }
+    }
+    
+    pub fn set_point_of_contact(&mut self, contact: Option<Contact<SS, RR>>) {
+        self.point_of_contact = contact;
     }
 }
 
