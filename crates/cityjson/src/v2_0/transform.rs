@@ -2,6 +2,7 @@ use crate::cityjson::core;
 use crate::cityjson::traits::transform::TransformTrait;
 use std::fmt::{Display, Formatter};
 
+#[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Transform {
     inner: core::transform::TransformCore,

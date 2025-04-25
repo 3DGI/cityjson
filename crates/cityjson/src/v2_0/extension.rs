@@ -73,6 +73,7 @@ impl<SS: StringStorage> fmt::Display for Extensions<SS> {
     }
 }
 
+#[repr(transparent)]
 #[derive(Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Extension<SS: StringStorage> {
     inner: core::extension::ExtensionCore<SS>,

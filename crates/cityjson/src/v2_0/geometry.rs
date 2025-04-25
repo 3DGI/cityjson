@@ -8,7 +8,6 @@ use crate::resources::pool::ResourceRef;
 
 pub mod semantic;
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub struct Geometry<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {

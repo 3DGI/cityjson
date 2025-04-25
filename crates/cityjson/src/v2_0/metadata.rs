@@ -6,7 +6,6 @@ use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
-#[repr(C)]
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,

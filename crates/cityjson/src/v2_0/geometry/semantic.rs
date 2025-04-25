@@ -5,7 +5,6 @@ use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
-#[repr(C)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// The type of the semantic surface
@@ -90,7 +89,6 @@ impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
 /// Semantic surface type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
-#[repr(C)]
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum SemanticType<SS: StringStorage> {
     #[default]

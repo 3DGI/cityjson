@@ -91,6 +91,7 @@ use std::fmt::{Display, Formatter};
 /// assert_eq!(transform.translate(), [10.0, 20.0, 30.0]);
 /// ```
 ///
+#[repr(C)]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct TransformCore {
     scale: [f64; 3],

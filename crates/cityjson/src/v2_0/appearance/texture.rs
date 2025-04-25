@@ -8,7 +8,6 @@ pub type OwnedTexture = Texture<OwnedStringStorage>;
 /// Type alias for a texture with borrowed string storage
 pub type BorrowedTexture<'a> = Texture<BorrowedStringStorage<'a>>;
 
-#[repr(C)]
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Texture<SS: StringStorage> {
     image_type: ImageType,
