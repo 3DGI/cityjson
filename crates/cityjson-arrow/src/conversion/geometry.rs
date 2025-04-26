@@ -1,24 +1,22 @@
 use crate::error;
+use crate::error::{Error, Result};
 use arrow::array::{
-    ArrayBuilder, ArrayRef, FixedSizeListBuilder, Float64Builder, ListBuilder, RecordBatch,
-    StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
+    Array, DictionaryArray, FixedSizeListArray, Float64Array, ListArray, StringArray, UInt32Array,
+};
+use arrow::array::{
+    ArrayBuilder, ArrayRef, AsArray, FixedSizeListBuilder, Float64Builder, ListBuilder,
+    RecordBatch, StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
+use cityjson::prelude::{
+    Boundary, GeometryType, LoD, MaterialMap, ResourceRef, SemanticMap, TextureMap, VertexIndex,
+};
 use cityjson::prelude::{
     DefaultResourcePool, GeometryTrait, ResourceId32, ResourcePool, StringStorage,
 };
 use cityjson::v2_0::Geometry;
-use std::sync::Arc;
-use crate::error::{Error, Result};
-use arrow::array::{
-    Array,  DictionaryArray, FixedSizeListArray, Float64Array, ListArray, StringArray,
-    UInt32Array,
-};
-use cityjson::prelude::{
-    Boundary,  GeometryType, LoD, MaterialMap, ResourceRef,
-    SemanticMap,  TextureMap, VertexIndex,
-};
 use std::hash::Hash;
+use std::sync::Arc;
 
 // --- Shared Field Types ---
 lazy_static::lazy_static! {
@@ -311,7 +309,6 @@ fn append_list_option(builder: &mut ListBuilder<UInt32Builder>, data: &[Option<R
     }
 }
 
-
 /// Converts an Arrow RecordBatch containing geometry data into a cityjson-rs geometry resource pool.
 ///
 /// This function extracts geometry objects from the Arrow representation and reconstructs them
@@ -324,12 +321,10 @@ fn append_list_option(builder: &mut ListBuilder<UInt32Builder>, data: &[Option<R
 /// # Returns
 ///
 /// A Result containing either the populated geometry pool or an error
-pub fn arrow_to_geometries<VR, RR, SS>(
+pub fn arrow_to_geometries<SS>(
     batch: &RecordBatch,
-) -> Result<DefaultResourcePool<Geometry<VR, RR, SS>, RR>>
+) -> Result<DefaultResourcePool<Geometry<u32, ResourceId32, SS>, ResourceId32>>
 where
-    VR: cityjson::cityjson::traits::vertex::VertexRef,
-    RR: ResourceRef,
     SS: StringStorage + Default,
     SS::String: AsRef<str> + From<String> + Eq + Hash,
 {
@@ -342,73 +337,94 @@ where
     }
 
     // Extract basic arrays
-    let id_array = batch.column_by_name("id")
+    let id_array = batch
+        .column_by_name("id")
         .ok_or_else(|| Error::MissingField("id".to_string()))?
         .as_any()
         .downcast_ref::<UInt32Array>()
         .ok_or_else(|| Error::Conversion("Failed to downcast id array".to_string()))?;
 
-    let type_array = batch.column_by_name("type_geometry")
+    let type_array = batch
+        .column_by_name("type_geometry")
         .ok_or_else(|| Error::MissingField("type_geometry".to_string()))?
         .as_any()
         .downcast_ref::<DictionaryArray<Int8Type>>()
         .ok_or_else(|| Error::Conversion("Failed to downcast type_geometry array".to_string()))?;
 
-    let lod_array = batch.column_by_name("lod")
+    let lod_array = batch
+        .column_by_name("lod")
         .ok_or_else(|| Error::MissingField("lod".to_string()))?
         .as_any()
         .downcast_ref::<DictionaryArray<Int8Type>>()
         .ok_or_else(|| Error::Conversion("Failed to downcast lod array".to_string()))?;
 
     // Extract boundary arrays
-    let vertices_array = batch.column_by_name("boundary_vertices")
+    let vertices_array = batch
+        .column_by_name("boundary_vertices")
         .ok_or_else(|| Error::MissingField("boundary_vertices".to_string()))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast boundary_vertices array".to_string()))?;
+        .ok_or_else(|| {
+            Error::Conversion("Failed to downcast boundary_vertices array".to_string())
+        })?;
 
-    let rings_array = batch.column_by_name("boundary_rings")
+    let rings_array = batch
+        .column_by_name("boundary_rings")
         .ok_or_else(|| Error::MissingField("boundary_rings".to_string()))?
         .as_any()
         .downcast_ref::<ListArray>()
         .ok_or_else(|| Error::Conversion("Failed to downcast boundary_rings array".to_string()))?;
 
-    let surfaces_array = batch.column_by_name("boundary_surfaces")
+    let surfaces_array = batch
+        .column_by_name("boundary_surfaces")
         .ok_or_else(|| Error::MissingField("boundary_surfaces".to_string()))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast boundary_surfaces array".to_string()))?;
+        .ok_or_else(|| {
+            Error::Conversion("Failed to downcast boundary_surfaces array".to_string())
+        })?;
 
-    let shells_array = batch.column_by_name("boundary_shells")
+    let shells_array = batch
+        .column_by_name("boundary_shells")
         .ok_or_else(|| Error::MissingField("boundary_shells".to_string()))?
         .as_any()
         .downcast_ref::<ListArray>()
         .ok_or_else(|| Error::Conversion("Failed to downcast boundary_shells array".to_string()))?;
 
-    let solids_array = batch.column_by_name("boundary_solids")
+    let solids_array = batch
+        .column_by_name("boundary_solids")
         .ok_or_else(|| Error::MissingField("boundary_solids".to_string()))?
         .as_any()
         .downcast_ref::<ListArray>()
         .ok_or_else(|| Error::Conversion("Failed to downcast boundary_solids array".to_string()))?;
 
     // Extract instance-related arrays
-    let instance_template_array = batch.column_by_name("instance_template")
+    let instance_template_array = batch
+        .column_by_name("instance_template")
         .ok_or_else(|| Error::MissingField("instance_template".to_string()))?
         .as_any()
         .downcast_ref::<UInt32Array>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast instance_template array".to_string()))?;
+        .ok_or_else(|| {
+            Error::Conversion("Failed to downcast instance_template array".to_string())
+        })?;
 
-    let instance_reference_point_array = batch.column_by_name("instance_reference_point")
+    let instance_reference_point_array = batch
+        .column_by_name("instance_reference_point")
         .ok_or_else(|| Error::MissingField("instance_reference_point".to_string()))?
         .as_any()
         .downcast_ref::<UInt32Array>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast instance_reference_point array".to_string()))?;
+        .ok_or_else(|| {
+            Error::Conversion("Failed to downcast instance_reference_point array".to_string())
+        })?;
 
-    let instance_transformation_matrix_array = batch.column_by_name("instance_transformation_matrix")
+    let instance_transformation_matrix_array = batch
+        .column_by_name("instance_transformation_matrix")
         .ok_or_else(|| Error::MissingField("instance_transformation_matrix".to_string()))?
         .as_any()
         .downcast_ref::<FixedSizeListArray>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast instance_transformation_matrix array".to_string()))?;
+        .ok_or_else(|| {
+            Error::Conversion("Failed to downcast instance_transformation_matrix array".to_string())
+        })?;
 
     // Process each row in the batch
     for i in 0..batch.num_rows() {
@@ -445,10 +461,26 @@ where
         } else {
             // Get the arrays for this geometry
             let vertices_arr = vertices_array.value(i);
-            let rings_arr = if rings_array.is_null(i) { None } else { Some(rings_array.value(i)) };
-            let surfaces_arr = if surfaces_array.is_null(i) { None } else { Some(surfaces_array.value(i)) };
-            let shells_arr = if shells_array.is_null(i) { None } else { Some(shells_array.value(i)) };
-            let solids_arr = if solids_array.is_null(i) { None } else { Some(solids_array.value(i)) };
+            let rings_arr = if rings_array.is_null(i) {
+                None
+            } else {
+                Some(rings_array.value(i))
+            };
+            let surfaces_arr = if surfaces_array.is_null(i) {
+                None
+            } else {
+                Some(surfaces_array.value(i))
+            };
+            let shells_arr = if shells_array.is_null(i) {
+                None
+            } else {
+                Some(shells_array.value(i))
+            };
+            let solids_arr = if solids_array.is_null(i) {
+                None
+            } else {
+                Some(solids_array.value(i))
+            };
 
             // Extract boundary data
             Some(extract_boundary(
@@ -467,7 +499,7 @@ where
                 let template = if instance_template_array.is_null(i) {
                     None
                 } else {
-                    Some(RR::new(instance_template_array.value(i), 0))
+                    Some(ResourceId32::new(instance_template_array.value(i), 0))
                 };
 
                 // Reference point
@@ -475,10 +507,7 @@ where
                     None
                 } else {
                     let value = instance_reference_point_array.value(i);
-                    let vr = VR::from_u32(value)
-                        .ok_or_else(|| Error::Conversion(format!(
-                            "Failed to convert u32 to vertex reference: {}", value)))?;
-                    Some(VertexIndex::new(vr))
+                    Some(VertexIndex::new(value))
                 };
 
                 // Transformation matrix
@@ -489,7 +518,9 @@ where
                     let matrix_values = matrix_list
                         .as_any()
                         .downcast_ref::<Float64Array>()
-                        .ok_or_else(|| Error::Conversion("Failed to downcast matrix values".to_string()))?;
+                        .ok_or_else(|| {
+                            Error::Conversion("Failed to downcast matrix values".to_string())
+                        })?;
 
                     let mut matrix = [0.0; 16];
                     for j in 0..16 {
@@ -506,9 +537,9 @@ where
 
         // For the initial implementation, leave semantics, materials, and textures as None
         // These can be added in a subsequent refinement
-        let semantics: Option<SemanticMap<VR, RR>> = None;
-        let materials: Option<Vec<(SS::String, MaterialMap<VR, RR>)>> = None;
-        let textures: Option<Vec<(SS::String, TextureMap<VR, RR>)>> = None;
+        let semantics: Option<SemanticMap<u32, ResourceId32>> = None;
+        let materials: Option<Vec<(SS::String, MaterialMap<u32, ResourceId32>)>> = None;
+        let textures: Option<Vec<(SS::String, TextureMap<u32, ResourceId32>)>> = None;
 
         // Create and add the Geometry instance to the pool
         let geometry = Geometry::new(
@@ -540,7 +571,10 @@ fn parse_geometry_type(value: &str) -> Result<GeometryType> {
         "MultiSolid" => Ok(GeometryType::MultiSolid),
         "CompositeSolid" => Ok(GeometryType::CompositeSolid),
         "GeometryInstance" => Ok(GeometryType::GeometryInstance),
-        _ => Err(Error::Conversion(format!("Unknown geometry type: {}", value))),
+        _ => Err(Error::Conversion(format!(
+            "Unknown geometry type: {}",
+            value
+        ))),
     }
 }
 
@@ -585,89 +619,75 @@ fn extract_boundary(
         .downcast_ref::<UInt32Array>()
         .ok_or_else(|| Error::Conversion("Failed to downcast vertices values".to_string()))?;
 
-    let rings = rings_arr
-        .map(|arr| arr
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string())))
-        .transpose()?;
+    // let rings = rings_arr
+    //     .map(|arr| arr
+    //         .as_any()
+    //         .downcast_ref::<UInt32Array>()
+    //         .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string())))
+    //     .transpose()?;
 
     let surfaces = surfaces_arr
-        .map(|arr| arr
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .ok_or_else(|| Error::Conversion("Failed to downcast surfaces values".to_string())))
+        .map(|arr| {
+            arr.as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast surfaces values".to_string()))
+        })
         .transpose()?;
 
     let shells = shells_arr
-        .map(|arr| arr
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .ok_or_else(|| Error::Conversion("Failed to downcast shells values".to_string())))
+        .map(|arr| {
+            arr.as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast shells values".to_string()))
+        })
         .transpose()?;
 
     let solids = solids_arr
-        .map(|arr| arr
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .ok_or_else(|| Error::Conversion("Failed to downcast solids values".to_string())))
+        .map(|arr| {
+            arr.as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or_else(|| Error::Conversion("Failed to downcast solids values".to_string()))
+        })
         .transpose()?;
 
     // Create a new Boundary with appropriate capacity
     let mut boundary = Boundary::with_capacity(
         vertices.len(),
-        rings.map_or(0, |r| r.len()),
+        rings_arr.as_ref().map_or(0, |r| r.len()),
         surfaces.map_or(0, |s| s.len()),
         shells.map_or(0, |s| s.len()),
         solids.map_or(0, |s| s.len()),
     );
 
     // Convert vertices (requires copying to create VertexIndex objects)
-    boundary.set_vertices(vertices.iter().map(|v| VertexIndex::new(v.unwrap())));
+    boundary.set_vertices_from_iter(vertices.iter().map(|v| VertexIndex::new(v.unwrap())));
 
     // Convert rings if present
-    if let Some(r) = rings {
-        for i in 0..r.len() {
-            let value = r.value(i);
-            let vr = VR::from_u32(value)
-                .ok_or_else(|| Error::Conversion(format!("Failed to convert u32 to vertex reference: {}", value)))?;
-            boundary.rings.push(VertexIndex::new(vr));
-        }
+    if let Some(r) = rings_arr.map(|arr| {
+        arr.as_any()
+            .downcast_ref::<UInt32Array>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string()))?
+    }) {
+        boundary.set_rings_from_iter(r.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert surfaces if present
     if let Some(s) = surfaces {
-        for i in 0..s.len() {
-            let value = s.value(i);
-            let vr = VR::from_u32(value)
-                .ok_or_else(|| Error::Conversion(format!("Failed to convert u32 to vertex reference: {}", value)))?;
-            boundary.surfaces.push(VertexIndex::new(vr));
-        }
+        boundary.set_surfaces_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert shells if present
     if let Some(s) = shells {
-        for i in 0..s.len() {
-            let value = s.value(i);
-            let vr = VR::from_u32(value)
-                .ok_or_else(|| Error::Conversion(format!("Failed to convert u32 to vertex reference: {}", value)))?;
-            boundary.shells.push(VertexIndex::new(vr));
-        }
+        boundary.set_shells_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert solids if present
     if let Some(s) = solids {
-        for i in 0..s.len() {
-            let value = s.value(i);
-            let vr = VR::from_u32(value)
-                .ok_or_else(|| Error::Conversion(format!("Failed to convert u32 to vertex reference: {}", value)))?;
-            boundary.solids.push(VertexIndex::new(vr));
-        }
+        boundary.set_solids_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     Ok(boundary)
 }
-
 
 #[cfg(test)]
 mod tests {
