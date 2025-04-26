@@ -215,26 +215,66 @@ impl<VR: VertexRef> Boundary<VR> {
         &self.vertices
     }
 
+    /// Replaces items of the container with elements from the given iterator
+    pub fn set_vertices_from_iter<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = VertexIndex<VR>>
+    {
+        self.vertices = iter.into_iter().collect();
+    }
+
     #[inline]
     pub fn rings(&self) -> &[VertexIndex<VR>] {
         &self.rings
     }
 
+    /// Replaces items of the container with elements from the given iterator
+    pub fn set_rings_from_iter<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = VertexIndex<VR>>
+    {
+        self.rings = iter.into_iter().collect();
+    }
+    
     #[inline]
     pub fn surfaces(&self) -> &[VertexIndex<VR>] {
         &self.surfaces
     }
 
+    /// Replaces items of the container with elements from the given iterator
+    pub fn set_surfaces_from_iter<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = VertexIndex<VR>>
+    {
+        self.surfaces = iter.into_iter().collect();
+    }
+    
     #[inline]
     pub fn shells(&self) -> &[VertexIndex<VR>] {
         &self.shells
     }
 
+    /// Replaces items of the container with elements from the given iterator
+    pub fn set_shells_from_iter<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = VertexIndex<VR>>
+    {
+        self.shells = iter.into_iter().collect();
+    }
+    
     #[inline]
     pub fn solids(&self) -> &[VertexIndex<VR>] {
         &self.solids
     }
 
+    /// Replaces items of the container with elements from the given iterator
+    pub fn set_solids_from_iter<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = VertexIndex<VR>>
+    {
+        self.solids = iter.into_iter().collect();
+    }
+    
     /// Converts to a nested MultiPoint boundary representation.
     ///
     /// This method converts the flattened boundary to a nested MultiPoint representation
