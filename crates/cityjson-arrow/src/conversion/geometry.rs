@@ -619,71 +619,51 @@ fn extract_boundary(
         .downcast_ref::<UInt32Array>()
         .ok_or_else(|| Error::Conversion("Failed to downcast vertices values".to_string()))?;
 
-    // let rings = rings_arr
-    //     .map(|arr| arr
-    //         .as_any()
-    //         .downcast_ref::<UInt32Array>()
-    //         .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string())))
-    //     .transpose()?;
-
-    let surfaces = surfaces_arr
-        .map(|arr| {
-            arr.as_any()
-                .downcast_ref::<UInt32Array>()
-                .ok_or_else(|| Error::Conversion("Failed to downcast surfaces values".to_string()))
-        })
-        .transpose()?;
-
-    let shells = shells_arr
-        .map(|arr| {
-            arr.as_any()
-                .downcast_ref::<UInt32Array>()
-                .ok_or_else(|| Error::Conversion("Failed to downcast shells values".to_string()))
-        })
-        .transpose()?;
-
-    let solids = solids_arr
-        .map(|arr| {
-            arr.as_any()
-                .downcast_ref::<UInt32Array>()
-                .ok_or_else(|| Error::Conversion("Failed to downcast solids values".to_string()))
-        })
-        .transpose()?;
-
     // Create a new Boundary with appropriate capacity
     let mut boundary = Boundary::with_capacity(
         vertices.len(),
         rings_arr.as_ref().map_or(0, |r| r.len()),
-        surfaces.map_or(0, |s| s.len()),
-        shells.map_or(0, |s| s.len()),
-        solids.map_or(0, |s| s.len()),
+        surfaces_arr.as_ref().map_or(0, |r| r.len()),
+        shells_arr.as_ref().map_or(0, |r| r.len()),
+        solids_arr.as_ref().map_or(0, |r| r.len()),
     );
 
     // Convert vertices (requires copying to create VertexIndex objects)
     boundary.set_vertices_from_iter(vertices.iter().map(|v| VertexIndex::new(v.unwrap())));
-
     // Convert rings if present
-    if let Some(r) = rings_arr.map(|arr| {
-        arr.as_any()
+    if let Some(arr_ref) = rings_arr {
+        let arr_any = arr_ref.as_any();
+        let arr = arr_any
             .downcast_ref::<UInt32Array>()
-            .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string()))?
-    }) {
-        boundary.set_rings_from_iter(r.iter().map(|r| VertexIndex::new(r.unwrap())));
+            .ok_or_else(|| Error::Conversion("Failed to downcast rings values".to_string()))?;
+        boundary.set_rings_from_iter(arr.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert surfaces if present
-    if let Some(s) = surfaces {
-        boundary.set_surfaces_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
+    if let Some(arr_ref) = surfaces_arr {
+        let arr_any = arr_ref.as_any();
+        let arr = arr_any
+            .downcast_ref::<UInt32Array>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast surfaces values".to_string()))?;
+        boundary.set_surfaces_from_iter(arr.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert shells if present
-    if let Some(s) = shells {
-        boundary.set_shells_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
+    if let Some(arr_ref) = shells_arr {
+        let arr_any = arr_ref.as_any();
+        let arr = arr_any
+            .downcast_ref::<UInt32Array>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast shells values".to_string()))?;
+        boundary.set_shells_from_iter(arr.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     // Convert solids if present
-    if let Some(s) = solids {
-        boundary.set_solids_from_iter(s.iter().map(|r| VertexIndex::new(r.unwrap())));
+    if let Some(arr_ref) = solids_arr {
+        let arr_any = arr_ref.as_any();
+        let arr = arr_any
+            .downcast_ref::<UInt32Array>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast solids values".to_string()))?;
+        boundary.set_solids_from_iter(arr.iter().map(|r| VertexIndex::new(r.unwrap())));
     }
 
     Ok(boundary)
