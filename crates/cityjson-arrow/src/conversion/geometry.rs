@@ -673,9 +673,10 @@ fn extract_boundary(
 mod tests {
     use super::*;
     use arrow::array::{
-        Array, DictionaryArray, FixedSizeListArray, Float64Array, ListArray, StringArray,
-        UInt32Array,
+        Array, DictionaryArray, FixedSizeListArray, Float64Array, Int32Array, Int8Array, ListArray,
+        StringArray, UInt32Array,
     };
+    use arrow::buffer::Buffer;
     use arrow::datatypes::Int8Type;
     use cityjson::prelude::*;
     use cityjson::v2_0::{CityModel, Material, Semantic, SemanticType};
@@ -914,5 +915,400 @@ mod tests {
             30.0,
             "Expected translation Z = 30.0"
         );
+    }
+
+    #[test]
+    fn test_arrow_to_geometries() {
+        // ----- STEP 1: Create test Arrow RecordBatch -----
+
+        // Define schema fields for the batch
+        let fields = vec![
+            Field::new("id", DataType::UInt32, false),
+            Field::new(
+                "type_geometry",
+                DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+                false,
+            ),
+            Field::new(
+                "lod",
+                DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+                true,
+            ),
+            Field::new(
+                "boundary_vertices",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "boundary_rings",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "boundary_surfaces",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "boundary_shells",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "boundary_solids",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "semantics_points",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "semantics_linestrings",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "semantics_surfaces",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new(
+                "materials",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                true,
+            ),
+            Field::new("instance_template", DataType::UInt32, true),
+            Field::new("instance_reference_point", DataType::UInt32, true),
+            Field::new(
+                "instance_transformation_matrix",
+                DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, true)), 16),
+                true,
+            ),
+        ];
+
+        let schema = Schema::new(fields);
+
+        // Create arrays for three different geometries
+        // 1. MultiPoint geometry
+        // 2. MultiSurface geometry
+        // 3. GeometryInstance
+
+        // ID array
+        let id_array = UInt32Array::from(vec![1, 2, 3]);
+
+        // Type array (dictionary encoded)
+        let type_keys = Int8Array::from(vec![0, 1, 2]);
+        let type_values = StringArray::from(vec!["MultiPoint", "MultiSurface", "GeometryInstance"]);
+        let type_array = DictionaryArray::try_new(type_keys, Arc::new(type_values)).unwrap();
+
+        // LoD array (dictionary encoded with null)
+        let lod_keys = Int8Array::from(vec![0, 1, 0]);
+        let lod_values = StringArray::from(vec!["1", "2"]);
+        // Create with validity bitmap to represent the null in position 2
+        let validity = Buffer::from_slice_ref(&[0b00000011]);
+        let lod_array_data = arrow::array::ArrayData::try_new(
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            3,
+            Some(validity),
+            0,
+            vec![Buffer::from(lod_keys.to_data().buffers()[0].clone())],
+            vec![lod_values.to_data()],
+        )
+        .unwrap();
+        let lod_array: DictionaryArray<Int8Type> = DictionaryArray::from(lod_array_data);
+
+        // Boundary vertices array
+        // MultiPoint vertices: [10, 20]
+        // MultiSurface vertices: [0, 1, 2, 3, 0]
+        // GeometryInstance - null (no boundary)
+        let mp_vertices = UInt32Array::from(vec![10, 20]);
+        let ms_vertices = UInt32Array::from(vec![0, 1, 2, 3, 0]);
+
+        let offsets = Int32Array::from(vec![0, 2, 7, 7]);
+        let values = UInt32Array::from(vec![10, 20, 0, 1, 2, 3, 0]);
+
+        // Create validity buffer for nulls (third entry is null)
+        let list_validity = Buffer::from_slice_ref(&[0b00000011]);
+
+        let vertices_array_data = arrow::array::ArrayData::try_new(
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            3,
+            Some(list_validity),
+            0,
+            vec![Buffer::from(offsets.to_data().buffers()[0].clone())],
+            vec![values.to_data()],
+        )
+        .unwrap();
+        let vertices_array = ListArray::from(vertices_array_data);
+
+        // Boundary rings array
+        // MultiPoint - null (no rings)
+        // MultiSurface - [0] (one ring starting at index 0)
+        // GeometryInstance - null (no rings)
+        let ring_offsets = Int32Array::from(vec![0, 0, 1, 1]);
+        let ring_values = UInt32Array::from(vec![0]);
+
+        let ring_validity = Buffer::from_slice_ref(&[0b00000010]);
+
+        let rings_array_data = arrow::array::ArrayData::try_new(
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            3,
+            Some(ring_validity),
+            0,
+            vec![Buffer::from(ring_offsets.to_data().buffers()[0].clone())],
+            vec![ring_values.to_data()],
+        )
+        .unwrap();
+        let rings_array = ListArray::from(rings_array_data);
+
+        // Boundary surfaces array
+        // MultiPoint - null (no surfaces)
+        // MultiSurface - [0] (one surface starting at ring index 0)
+        // GeometryInstance - null (no surfaces)
+        let surface_offsets = Int32Array::from(vec![0, 0, 1, 1]);
+        let surface_values = UInt32Array::from(vec![0]);
+
+        let surface_validity = Buffer::from_slice_ref(&[0b00000010]);
+
+        let surfaces_array_data = arrow::array::ArrayData::try_new(
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            3,
+            Some(surface_validity),
+            0,
+            vec![Buffer::from(surface_offsets.to_data().buffers()[0].clone())],
+            vec![surface_values.to_data()],
+        )
+        .unwrap();
+        let surfaces_array = ListArray::from(surfaces_array_data);
+
+        // Create null arrays for the remaining boundary arrays
+        // Shells, solids, semantics, etc.
+        let null_offsets = Int32Array::from(vec![0, 0, 0, 0]);
+        let null_values = UInt32Array::from(Vec::<u32>::new());
+
+        // All entries null
+        let null_validity = Buffer::from_slice_ref(&[0b00000000]);
+
+        let null_list_data = arrow::array::ArrayData::try_new(
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            3,
+            Some(null_validity.clone()),
+            0,
+            vec![Buffer::from(null_offsets.to_data().buffers()[0].clone())],
+            vec![null_values.to_data()],
+        )
+        .unwrap();
+
+        let shells_array = ListArray::from(null_list_data.clone());
+        let solids_array = ListArray::from(null_list_data.clone());
+        let semantics_points_array = ListArray::from(null_list_data.clone());
+        let semantics_linestrings_array = ListArray::from(null_list_data.clone());
+        let semantics_surfaces_array = ListArray::from(null_list_data.clone());
+        let materials_array = ListArray::from(null_list_data);
+
+        // Instance template array (null for 0,1, value 42 for index 2)
+        let template_values = UInt32Array::from(vec![0, 0, 42]);
+        let template_validity = Buffer::from_slice_ref(&[0b00000100]);
+
+        let template_array_data = arrow::array::ArrayData::try_new(
+            DataType::UInt32,
+            3,
+            Some(template_validity),
+            0,
+            vec![Buffer::from(template_values.to_data().buffers()[0].clone())],
+            vec![],
+        )
+        .unwrap();
+        let instance_template_array = UInt32Array::from(template_array_data);
+
+        // Instance reference point array (null for 0,1, value 5 for index 2)
+        let ref_point_values = UInt32Array::from(vec![0, 0, 5]);
+        let ref_point_validity = Buffer::from_slice_ref(&[0b00000100]);
+
+        let ref_point_array_data = arrow::array::ArrayData::try_new(
+            DataType::UInt32,
+            3,
+            Some(ref_point_validity),
+            0,
+            vec![Buffer::from(
+                ref_point_values.to_data().buffers()[0].clone(),
+            )],
+            vec![],
+        )
+        .unwrap();
+        let instance_reference_point_array = UInt32Array::from(ref_point_array_data);
+
+        // Instance transformation matrix array
+        // Create a scale + translation matrix for the third geometry
+        let identity_matrix = vec![
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ];
+        let scale_matrix = vec![
+            2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 10.0, 20.0, 30.0, 1.0,
+        ];
+
+        // Create a single array with all matrices (2 null, 1 valid)
+        let all_matrices = [identity_matrix.clone(), identity_matrix, scale_matrix].concat();
+        let matrix_values = Float64Array::from(all_matrices);
+
+        let matrix_validity = Buffer::from_slice_ref(&[0b00000100]);
+
+        // Create fixed size list array for matrices
+        let matrix_array_data = arrow::array::ArrayData::try_new(
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, true)), 16),
+            3,
+            Some(matrix_validity),
+            0,
+            vec![],
+            vec![matrix_values.to_data()],
+        )
+        .unwrap();
+
+        let matrix_array = FixedSizeListArray::from(matrix_array_data);
+
+        // Combine all arrays into a RecordBatch
+        let arrays: Vec<ArrayRef> = vec![
+            Arc::new(id_array),
+            Arc::new(type_array),
+            Arc::new(lod_array),
+            Arc::new(vertices_array),
+            Arc::new(rings_array),
+            Arc::new(surfaces_array),
+            Arc::new(shells_array),
+            Arc::new(solids_array),
+            Arc::new(semantics_points_array),
+            Arc::new(semantics_linestrings_array),
+            Arc::new(semantics_surfaces_array),
+            Arc::new(materials_array),
+            Arc::new(instance_template_array),
+            Arc::new(instance_reference_point_array),
+            Arc::new(matrix_array),
+        ];
+
+        let batch = RecordBatch::try_new(Arc::new(schema), arrays).unwrap();
+
+        // ----- STEP 2: Call arrow_to_geometries function -----
+        let geometry_pool = arrow_to_geometries::<OwnedStringStorage>(&batch).unwrap();
+
+        // ----- STEP 3: Verify results -----
+
+        // Check we have three geometries
+        assert_eq!(geometry_pool.len(), 3, "Expected 3 geometries in the pool");
+
+        // Find each geometry by type
+        let types_count = geometry_pool
+            .iter()
+            .fold([0, 0, 0], |mut counts, (_id, geom)| {
+                match geom.type_geometry() {
+                    GeometryType::MultiPoint => {
+                        counts[0] += 1;
+                    }
+                    GeometryType::MultiSurface => {
+                        counts[1] += 1;
+                    }
+                    GeometryType::GeometryInstance => {
+                        counts[2] += 1;
+                    }
+                    _ => {}
+                }
+                counts
+            });
+
+        assert_eq!(types_count, [1, 1, 1], "Expected one geometry of each type");
+
+        // Check each geometry in detail
+        for (_id, geom) in geometry_pool.iter() {
+            match geom.type_geometry() {
+                GeometryType::MultiPoint => {
+                    // Verify MultiPoint properties
+                    assert_eq!(geom.lod(), Some(&LoD::LoD1), "Expected LoD1 for MultiPoint");
+
+                    // Check boundary vertices
+                    let boundary = geom.boundaries().expect("MultiPoint should have boundary");
+                    let vertices = boundary.vertices();
+                    assert_eq!(vertices.len(), 2, "Expected 2 vertices in MultiPoint");
+                    assert_eq!(vertices[0].value(), 10, "First vertex should be 10");
+                    assert_eq!(vertices[1].value(), 20, "Second vertex should be 20");
+
+                    // Should have empty rings/surfaces/etc.
+                    assert!(
+                        boundary.rings().is_empty(),
+                        "MultiPoint should have no rings"
+                    );
+                    assert!(
+                        boundary.surfaces().is_empty(),
+                        "MultiPoint should have no surfaces"
+                    );
+                }
+                GeometryType::MultiSurface => {
+                    // Verify MultiSurface properties
+                    assert_eq!(
+                        geom.lod(),
+                        Some(&LoD::LoD2),
+                        "Expected LoD2 for MultiSurface"
+                    );
+
+                    // Check boundary structure
+                    let boundary = geom
+                        .boundaries()
+                        .expect("MultiSurface should have boundary");
+
+                    // Check vertices
+                    let vertices = boundary.vertices();
+                    assert_eq!(vertices.len(), 5, "Expected 5 vertices in MultiSurface");
+
+                    // Check ring
+                    let rings = boundary.rings();
+                    assert_eq!(rings.len(), 1, "Expected 1 ring in MultiSurface");
+                    assert_eq!(rings[0].value(), 0, "Ring should start at vertex 0");
+
+                    // Check surface
+                    let surfaces = boundary.surfaces();
+                    assert_eq!(surfaces.len(), 1, "Expected 1 surface in MultiSurface");
+                    assert_eq!(surfaces[0].value(), 0, "Surface should start at ring 0");
+                }
+                GeometryType::GeometryInstance => {
+                    // Verify GeometryInstance properties
+                    assert_eq!(geom.lod(), None, "Expected no LoD for GeometryInstance");
+
+                    // Check instance properties
+                    let template = geom.instance_template().expect("Should have template");
+                    assert_eq!(template.index(), 42, "Template ID should be 42");
+
+                    let ref_point = geom
+                        .instance_reference_point()
+                        .expect("Should have reference point");
+                    assert_eq!(ref_point.value(), 5, "Reference point should be 5");
+
+                    let matrix = geom
+                        .instance_transformation_matrix()
+                        .expect("Should have matrix");
+                    assert_eq!(matrix[0], 2.0, "Matrix[0] should be 2.0 (x scale)");
+                    assert_eq!(matrix[5], 2.0, "Matrix[5] should be 2.0 (y scale)");
+                    assert_eq!(matrix[10], 2.0, "Matrix[10] should be 2.0 (z scale)");
+                    assert_eq!(
+                        matrix[12], 10.0,
+                        "Matrix[12] should be 10.0 (x translation)"
+                    );
+                    assert_eq!(
+                        matrix[13], 20.0,
+                        "Matrix[13] should be 20.0 (y translation)"
+                    );
+                    assert_eq!(
+                        matrix[14], 30.0,
+                        "Matrix[14] should be 30.0 (z translation)"
+                    );
+
+                    // Should not have a boundary
+                    assert!(
+                        geom.boundaries().is_none(),
+                        "GeometryInstance should not have boundary"
+                    );
+                }
+                _ => panic!("Unexpected geometry type: {:?}", geom.type_geometry()),
+            }
+        }
     }
 }
