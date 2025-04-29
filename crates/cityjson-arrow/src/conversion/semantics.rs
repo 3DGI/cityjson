@@ -222,7 +222,7 @@ where
                 ));
             }
             let extension_value = extension_array.value(i);
-            SemanticType::Extension(SS::String::from(extension_value.to_string()))
+            SemanticType::Extension(SS::String::from(extension_value.to_string())) // TODO: borrow
         } else {
             match type_value {
                 "Default" => SemanticType::Default,
