@@ -154,7 +154,7 @@ where
 /// A Result containing the reconstructed CityModel or an error
 pub fn arrow_parts_to_citymodel(
     parts: &CityModelArrowParts,
-) -> error::Result<CityModel<u32, ResourceId32, OwnedStringStorage>> {
+) -> Result<CityModel<u32, ResourceId32, OwnedStringStorage>> {
     // Create a new empty CityModel with the specified type
     let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(parts.type_citymodel);
 
@@ -170,13 +170,8 @@ pub fn arrow_parts_to_citymodel(
 
     // Convert and set metadata if present
     if let Some(metadata_batch) = &parts.metadata {
-        let metadata_array = metadata_batch
-            .column(0)
-            .as_any()
-            .downcast_ref::<StructArray>()
-            .ok_or_else(|| Error::Conversion("Failed to get metadata struct".to_string()))?;
-
-        let metadata = arrow_to_metadata(metadata_array)?;
+        // TODO: avoid cloning the batch
+        let metadata = arrow_to_metadata(&StructArray::from(metadata_batch.clone()))?;
         *model.metadata_mut() = metadata;
     }
 
