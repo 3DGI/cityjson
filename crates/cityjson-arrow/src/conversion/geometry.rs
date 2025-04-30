@@ -4,12 +4,12 @@ use arrow::array::{
     Array, DictionaryArray, FixedSizeListArray, Float64Array, ListArray, StringArray, UInt32Array,
 };
 use arrow::array::{
-    ArrayBuilder, ArrayRef, AsArray, FixedSizeListBuilder, Float64Builder, ListBuilder,
-    RecordBatch, StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
+    ArrayBuilder, ArrayRef, FixedSizeListBuilder, Float64Builder, ListBuilder, RecordBatch,
+    StringBuilder, StringDictionaryBuilder, StructBuilder, UInt32Builder,
 };
 use arrow::datatypes::{DataType, Field, Fields, Int8Type, Schema};
 use cityjson::prelude::{
-    Boundary, GeometryType, LoD, MaterialMap, ResourceRef, SemanticMap, TextureMap, VertexIndex,
+    Boundary, GeometryType, LoD, MaterialMap, SemanticMap, TextureMap, VertexIndex,
 };
 use cityjson::prelude::{
     DefaultResourcePool, GeometryTrait, ResourceId32, ResourcePool, StringStorage,
@@ -337,13 +337,13 @@ where
     }
 
     // Extract basic arrays
-    let id_array = batch
-        .column_by_name("id")
-        .ok_or_else(|| Error::MissingField("id".to_string()))?
-        .as_any()
-        .downcast_ref::<UInt32Array>()
-        .ok_or_else(|| Error::Conversion("Failed to downcast id array".to_string()))?;
-
+    /*    let id_array = batch
+            .column_by_name("id")
+            .ok_or_else(|| Error::MissingField("id".to_string()))?
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .ok_or_else(|| Error::Conversion("Failed to downcast id array".to_string()))?;
+    */
     let type_array = batch
         .column_by_name("type_geometry")
         .ok_or_else(|| Error::MissingField("type_geometry".to_string()))?
@@ -1023,8 +1023,8 @@ mod tests {
         // MultiPoint vertices: [10, 20]
         // MultiSurface vertices: [0, 1, 2, 3, 0]
         // GeometryInstance - null (no boundary)
-        let mp_vertices = UInt32Array::from(vec![10, 20]);
-        let ms_vertices = UInt32Array::from(vec![0, 1, 2, 3, 0]);
+        let _mp_vertices = UInt32Array::from(vec![10, 20]);
+        let _ms_vertices = UInt32Array::from(vec![0, 1, 2, 3, 0]);
 
         let offsets = Int32Array::from(vec![0, 2, 7, 7]);
         let values = UInt32Array::from(vec![10, 20, 0, 1, 2, 3, 0]);

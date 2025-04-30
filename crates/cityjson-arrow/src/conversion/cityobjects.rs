@@ -1,11 +1,18 @@
-use std::any::Any;
-use std::collections::HashMap;
-use crate::conversion::attributes::{arrow_to_attributes_owned, attributes_to_arrow, map_field};
+use crate::conversion::attributes::{attributes_to_arrow, map_field};
 use crate::error::{Error, Result};
-use arrow::array::{Array, ArrayRef, BooleanArray, DictionaryArray, FixedSizeListArray, FixedSizeListBuilder, Float64Array, Float64Builder, Int64Array, ListArray, ListBuilder, MapArray, RecordBatch, StringArray, StringBuilder, StringDictionaryBuilder, UInt32Array, UInt32Builder, UInt64Array, UnionArray};
+use arrow::array::{
+    Array, ArrayRef, BooleanArray, DictionaryArray, FixedSizeListArray, FixedSizeListBuilder,
+    Float64Array, Float64Builder, Int64Array, ListArray, ListBuilder, MapArray, RecordBatch,
+    StringArray, StringBuilder, StringDictionaryBuilder, UInt32Array, UInt32Builder, UInt64Array,
+    UnionArray,
+};
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
-use cityjson::prelude::{AttributeValue, Attributes, BBox, BBoxTrait, CityObjectTrait, CityObjectsTrait, OwnedStringStorage, ResourceId32, StringStorage};
+use cityjson::prelude::{
+    AttributeValue, Attributes, BBox, BBoxTrait, CityObjectTrait, CityObjectsTrait,
+    OwnedStringStorage, ResourceId32, StringStorage,
+};
 use cityjson::v2_0::{CityObject, CityObjectType, CityObjects};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -339,9 +346,7 @@ where
                             .child(2)
                             .as_any()
                             .downcast_ref::<UInt64Array>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected UInt64Array".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
                         AttributeValue::Unsigned(array.value(values.value_offset(j)))
                     }
                     3 => {
@@ -349,9 +354,7 @@ where
                             .child(3)
                             .as_any()
                             .downcast_ref::<Int64Array>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected Int64Array".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
                         AttributeValue::Integer(array.value(values.value_offset(j)))
                     }
                     4 => {
@@ -369,9 +372,7 @@ where
                             .child(5)
                             .as_any()
                             .downcast_ref::<StringArray>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected StringArray".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
                         AttributeValue::String(SS::String::from(
                             array.value(values.value_offset(j)).to_string(),
                         ))
@@ -398,9 +399,7 @@ where
             let extent_values = extent_list
                 .as_any()
                 .downcast_ref::<Float64Array>()
-                .ok_or_else(|| {
-                    Error::Conversion("Failed to downcast extent values".to_string())
-                })?;
+                .ok_or_else(|| Error::Conversion("Failed to downcast extent values".to_string()))?;
 
             if extent_values.len() == 6 {
                 let bbox = BBox::new(
@@ -458,9 +457,7 @@ where
                             .child(2)
                             .as_any()
                             .downcast_ref::<UInt64Array>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected UInt64Array".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
                         AttributeValue::Unsigned(array.value(values.value_offset(j)))
                     }
                     3 => {
@@ -468,9 +465,7 @@ where
                             .child(3)
                             .as_any()
                             .downcast_ref::<Int64Array>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected Int64Array".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
                         AttributeValue::Integer(array.value(values.value_offset(j)))
                     }
                     4 => {
@@ -488,9 +483,7 @@ where
                             .child(5)
                             .as_any()
                             .downcast_ref::<StringArray>()
-                            .ok_or_else(|| {
-                                Error::Conversion("Expected StringArray".to_string())
-                            })?;
+                            .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
                         AttributeValue::String(SS::String::from(
                             array.value(values.value_offset(j)).to_string(),
                         ))
@@ -865,8 +858,12 @@ mod tests {
 
         // Create building object
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
-        building.attributes_mut().insert("height".to_string(), AttributeValue::Float(25.5));
-        building.attributes_mut().insert("year_built".to_string(), AttributeValue::Integer(1985));
+        building
+            .attributes_mut()
+            .insert("height".to_string(), AttributeValue::Float(25.5));
+        building
+            .attributes_mut()
+            .insert("year_built".to_string(), AttributeValue::Integer(1985));
         building.set_geographical_extent(Some(BBox::new(100.0, 200.0, 0.0, 150.0, 250.0, 25.5)));
         building.geometry_mut().push(ResourceId32::new(1, 0));
         building.geometry_mut().push(ResourceId32::new(2, 0));
@@ -904,12 +901,12 @@ mod tests {
                         Some(&AttributeValue::Float(25.5))
                     );
                     assert_eq!(obj.geometry().unwrap().len(), 2);
-                },
+                }
                 CityObjectType::Extension(ext) => {
                     has_custom = true;
                     assert_eq!(ext.as_str(), "+CustomFeature");
                     assert_eq!(obj.children().unwrap().len(), 1);
-                },
+                }
                 _ => panic!("Unexpected object type"),
             }
         }

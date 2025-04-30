@@ -3,6 +3,15 @@ pub mod error;
 pub mod reader;
 pub mod writer;
 
+use crate::conversion::attributes::arrow_to_attributes_owned;
+use crate::conversion::cityobjects::arrow_to_cityobjects;
+use crate::conversion::geometry::arrow_to_geometries;
+use crate::conversion::metadata::arrow_to_metadata;
+use crate::conversion::semantics::arrow_to_semantics;
+use crate::conversion::transform::arrow_to_transform;
+use crate::conversion::vertices::batch_to_vertices;
+use crate::error::{Error, Result};
+use arrow::array::{MapArray, StructArray};
 use arrow::record_batch::RecordBatch;
 use cityjson::prelude::*;
 use cityjson::v2_0::CityModel;
@@ -31,7 +40,7 @@ pub struct CityModelArrowParts {
 /// Converts a cityjson-rs CityModel (v2.0) into its constituent Arrow parts.
 pub fn citymodel_to_arrow_parts<SS>(
     model: &CityModel<u32, ResourceId32, SS>,
-) -> error::Result<CityModelArrowParts>
+) -> Result<CityModelArrowParts>
 where
     SS: StringStorage + Default,
     SS::String:
@@ -41,7 +50,7 @@ where
     //  code only verifies models, not features.
     if let Some(ref version) = model.version() {
         if version != &CityJSONVersion::V2_0 {
-            return Err(error::Error::Unsupported(format!(
+            return Err(Error::Unsupported(format!(
                 "CityArrow currently only supports CityJSON v2.0, found v{}",
                 version
             )));
@@ -130,76 +139,354 @@ where
     })
 }
 
+/// Converts CityModelArrowParts back to a cityjson-rs CityModel (v2.0).
+///
+/// This function reconstructs a complete CityModel from its Arrow representation.
+/// It utilizes the component converters to transform each Arrow RecordBatch back
+/// into its corresponding cityjson-rs object.
+///
+/// # Parameters
+///
+/// * `parts` - The CityModelArrowParts containing Arrow data components
+///
+/// # Returns
+///
+/// A Result containing the reconstructed CityModel or an error
+pub fn arrow_parts_to_citymodel(
+    parts: &CityModelArrowParts,
+) -> error::Result<CityModel<u32, ResourceId32, OwnedStringStorage>> {
+    // Create a new empty CityModel with the specified type
+    let mut model = CityModel::<u32, ResourceId32, OwnedStringStorage>::new(parts.type_citymodel);
+
+    // Verify version compatibility
+    if let Some(version) = parts.version {
+        if version != CityJSONVersion::V2_0 {
+            return Err(Error::Unsupported(format!(
+                "CityArrow currently only supports CityJSON v2.0, found v{}",
+                version
+            )));
+        }
+    }
+
+    // Convert and set metadata if present
+    if let Some(metadata_batch) = &parts.metadata {
+        let metadata_array = metadata_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .ok_or_else(|| Error::Conversion("Failed to get metadata struct".to_string()))?;
+
+        let metadata = arrow_to_metadata(metadata_array)?;
+        *model.metadata_mut() = metadata;
+    }
+
+    // Convert and set transform if present
+    if let Some(transform_batch) = &parts.transform {
+        let transform = arrow_to_transform(transform_batch)?;
+        *model.transform_mut() = transform;
+    }
+
+    // Convert and set vertices if present
+    if let Some(vertices_batch) = &parts.vertices {
+        let vertices = batch_to_vertices::<u32>(vertices_batch)?;
+        *model.vertices_mut() = vertices;
+    }
+
+    // Convert and set extra attributes if present
+    if let Some(extra_batch) = &parts.extra {
+        let extra_array = extra_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<MapArray>()
+            .ok_or_else(|| Error::Conversion("Failed to get extra map".to_string()))?;
+
+        let extra_attrs = arrow_to_attributes_owned(extra_array)?;
+        *model.extra_mut() = extra_attrs;
+    }
+
+    // Convert and set geometries if present
+    if let Some(geometries_batch) = &parts.geometries {
+        let geometry_pool = arrow_to_geometries(geometries_batch)?;
+        *model.geometries_mut() = geometry_pool;
+    }
+
+    // Convert and set semantics if present
+    if let Some(semantics_batch) = &parts.semantics {
+        let semantics_pool = arrow_to_semantics(semantics_batch)?;
+        // Transfer each semantic from the returned pool to the model
+        for (_, semantic) in semantics_pool.iter() {
+            model.add_semantic(semantic.clone());
+        }
+    }
+
+    // Convert and set cityobjects if present
+    if let Some(cityobjects_batch) = &parts.cityobjects {
+        let cityobjects = arrow_to_cityobjects(cityobjects_batch)?;
+        *model.cityobjects_mut() = cityobjects;
+    }
+
+    // The following components don't have conversion functions implemented yet:
+    // - materials
+    // - textures
+    // - vertices_texture
+    // - extensions
+    // - template_vertices and template_geometries
+
+    Ok(model)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cityjson::v2_0::CityModel;
-    use cityjson::CityModelType;
+    use cityjson::v2_0::*;
+
     #[test]
     fn test_empty_model_conversion() {
-        let model =
+        // Create an empty CityModel, convert to parts, then back
+        let original_model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
 
-        assert_eq!(parts.type_citymodel, CityModelType::CityJSON);
-        assert_eq!(parts.version, Some(CityJSONVersion::V2_0)); // Default is V2_0
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
 
-        assert!(parts.metadata.is_none());
-        assert!(parts.transform.is_none());
-        assert!(parts.vertices.is_none());
-        assert!(parts.extra.is_none());
-        assert!(parts.extensions.is_none());
-        // ... assert other batch parts are None ...
+        // Verify basic properties
+        assert_eq!(converted_model.type_citymodel(), CityModelType::CityJSON);
+        assert_eq!(converted_model.version(), Some(CityJSONVersion::V2_0));
+        assert_eq!(converted_model.vertex_count(), 0);
+        assert_eq!(converted_model.geometry_count(), 0);
+        assert_eq!(converted_model.cityobjects().len(), 0);
     }
 
     #[test]
     fn test_model_with_metadata() {
-        let mut model =
+        // Create a model with metadata
+        let mut original_model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model.metadata_mut().set_title("Test Title");
+        original_model.metadata_mut().set_title("Test City");
+        original_model
+            .metadata_mut()
+            .set_reference_system(CRS::new("EPSG:4326".to_string()));
 
-        let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
+        // Convert to parts and back
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
 
-        assert_eq!(parts.type_citymodel, CityModelType::CityJSON);
-        assert_eq!(parts.version, Some(CityJSONVersion::V2_0));
-
-        assert!(parts.metadata.is_some());
-        let metadata_batch = parts.metadata.unwrap();
-        assert_eq!(metadata_batch.num_rows(), 1);
-        // Further checks on metadata content...
-
-        assert!(parts.transform.is_none()); // Transform wasn't set
-        assert!(parts.vertices.is_none()); // Vertices weren't added
-    }
-
-    // ... other tests remain valid ...
-
-    #[test]
-    fn test_model_with_extra_attrs() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        model
-            .extra_mut()
-            .insert("my_extra_prop".to_string(), AttributeValue::Integer(123));
-
-        let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
-
-        assert!(parts.extra.is_some());
-        let extra_batch = parts.extra.unwrap();
-        assert_eq!(extra_batch.num_rows(), 1);
-        // Further checks needed here based on the actual map array structure
+        // Verify metadata was preserved
+        assert_eq!(
+            converted_model.metadata().unwrap().title(),
+            Some("Test City")
+        );
+        assert_eq!(
+            converted_model
+                .metadata()
+                .unwrap()
+                .reference_system()
+                .unwrap()
+                .to_string(),
+            "EPSG:4326"
+        );
     }
 
     #[test]
-    fn test_model_with_empty_extra_attrs() {
-        let mut model =
+    fn test_model_with_vertices() {
+        // Create a model with vertices
+        let mut original_model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        // Ensure extra is Some but empty
-        let _ = model.extra_mut();
-        assert!(model.extra().is_some() && model.extra().unwrap().is_empty());
+        original_model
+            .add_vertex(QuantizedCoordinate::new(10, 20, 30))
+            .unwrap();
+        original_model
+            .add_vertex(QuantizedCoordinate::new(40, 50, 60))
+            .unwrap();
 
-        let parts = citymodel_to_arrow_parts(&model).expect("Conversion failed");
+        // Convert to parts and back
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
 
-        assert!(parts.extra.is_none()); // Empty attributes should result in None batch
+        // Verify vertices were preserved
+        assert_eq!(converted_model.vertex_count(), 2);
+        assert_eq!(
+            converted_model.get_vertex(VertexIndex::new(0)).unwrap(),
+            &QuantizedCoordinate::new(10, 20, 30)
+        );
+        assert_eq!(
+            converted_model.get_vertex(VertexIndex::new(1)).unwrap(),
+            &QuantizedCoordinate::new(40, 50, 60)
+        );
+    }
+
+    #[test]
+    fn test_model_with_transform() {
+        // Create a model with transform
+        let mut original_model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        original_model
+            .transform_mut()
+            .set_scale([0.001, 0.001, 0.001]);
+        original_model
+            .transform_mut()
+            .set_translate([1000.0, 2000.0, 0.0]);
+
+        // Convert to parts and back
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
+
+        // Verify transform was preserved
+        assert_eq!(
+            converted_model.transform().unwrap().scale(),
+            [0.001, 0.001, 0.001]
+        );
+        assert_eq!(
+            converted_model.transform().unwrap().translate(),
+            [1000.0, 2000.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn test_model_with_cityobjects() {
+        // Create a model with city objects
+        let mut original_model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add a building
+        let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
+        building
+            .attributes_mut()
+            .insert("height".to_string(), AttributeValue::Float(25.5));
+        let building_id = original_model.cityobjects_mut().add(building);
+
+        // Add a bridge that references the building
+        let mut bridge = CityObject::new("bridge-1".to_string(), CityObjectType::Bridge);
+        bridge.children_mut().push(building_id);
+        original_model.cityobjects_mut().add(bridge);
+
+        // Convert to parts and back
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
+
+        // Verify city objects were preserved
+        assert_eq!(converted_model.cityobjects().len(), 2);
+
+        // Find the objects by type
+        let mut found_building = false;
+        let mut found_bridge = false;
+
+        for (_, obj) in converted_model.cityobjects().iter() {
+            match obj.type_cityobject() {
+                CityObjectType::Building => {
+                    found_building = true;
+                    assert!(obj.attributes().is_some());
+                    let attrs = obj.attributes().unwrap();
+                    assert_eq!(attrs.get("height"), Some(&AttributeValue::Float(25.5)));
+                }
+                CityObjectType::Bridge => {
+                    found_bridge = true;
+                    assert!(obj.children().is_some());
+                    assert_eq!(obj.children().unwrap().len(), 1);
+                }
+                _ => panic!("Unexpected city object type"),
+            }
+        }
+
+        assert!(found_building, "Building not found");
+        assert!(found_bridge, "Bridge not found");
+    }
+
+    #[test]
+    fn test_complex_model_roundtrip() {
+        // Create a model with multiple components
+        let mut original_model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Set metadata
+        original_model
+            .metadata_mut()
+            .set_title("Complex Test Model");
+
+        // Set transform
+        original_model
+            .transform_mut()
+            .set_scale([0.001, 0.001, 0.001]);
+        original_model
+            .transform_mut()
+            .set_translate([1000.0, 2000.0, 0.0]);
+
+        // Create a semantic
+        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+
+        // Create a geometry
+        let mut geometry_builder = GeometryBuilder::new(
+            &mut original_model,
+            GeometryType::MultiSurface,
+            BuilderMode::Regular,
+        )
+        .with_lod(LoD::LoD2);
+
+        let v0 = geometry_builder.add_point(QuantizedCoordinate::new(10, 20, 30));
+        let v1 = geometry_builder.add_point(QuantizedCoordinate::new(40, 50, 60));
+        let v2 = geometry_builder.add_point(QuantizedCoordinate::new(70, 80, 90));
+        let v3 = geometry_builder.add_point(QuantizedCoordinate::new(100, 110, 120));
+        let ring = geometry_builder.add_ring(&[v0, v1, v2, v3]).unwrap();
+        geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring).unwrap();
+        geometry_builder
+            .set_semantic_surface(None, roof_semantic)
+            .unwrap();
+
+        let geometry_id = geometry_builder.build().unwrap();
+
+        // Create a city object that uses this geometry
+        let mut building =
+            CityObject::new("building-complex".to_string(), CityObjectType::Building);
+        building.geometry_mut().push(geometry_id);
+        building
+            .attributes_mut()
+            .insert("height".to_string(), AttributeValue::Float(25.5));
+        original_model.cityobjects_mut().add(building);
+
+        // Set extra properties at root level
+        original_model.extra_mut().insert(
+            "projectInfo".to_string(),
+            AttributeValue::String("Test project".to_string()),
+        );
+
+        // Convert to parts and back
+        let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        let converted_model =
+            arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
+
+        // Verify all components were preserved
+        assert_eq!(
+            converted_model.metadata().unwrap().title(),
+            Some("Complex Test Model")
+        );
+        assert_eq!(
+            converted_model.transform().unwrap().scale(),
+            [0.001, 0.001, 0.001]
+        );
+        assert_eq!(converted_model.vertex_count(), 4);
+        assert_eq!(converted_model.semantic_count(), 1);
+        assert_eq!(converted_model.geometry_count(), 1);
+        assert_eq!(converted_model.cityobjects().len(), 1);
+
+        // Verify extra properties
+        assert!(converted_model.extra().is_some());
+        assert_eq!(
+            converted_model.extra().unwrap().get("projectInfo"),
+            Some(&AttributeValue::String("Test project".to_string()))
+        );
+
+        // Verify the building object
+        let building_obj = converted_model.cityobjects().iter().next().unwrap().1;
+        assert_eq!(building_obj.geometry().unwrap().len(), 1);
+        assert_eq!(
+            building_obj.attributes().unwrap().get("height"),
+            Some(&AttributeValue::Float(25.5))
+        );
     }
 }
