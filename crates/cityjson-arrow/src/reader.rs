@@ -2,7 +2,7 @@
 
 // In src/reader.rs
 
-use crate::writer::ArrowManifest;
+use crate::writer::FileManifest;
 // Reuse the manifest struct from writer
 use crate::{
     error::{Error, Result},
@@ -95,7 +95,7 @@ pub fn read_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<CityModelArrow
     // 1. Read and parse the manifest
     let manifest_path = dir_path.join("manifest.json");
     let manifest_json = std::fs::read_to_string(manifest_path).map_err(|e| Error::Io(e))?; // Add Io variant to your Error enum
-    let manifest: ArrowManifest = nanoserde::DeJson::deserialize_json(&manifest_json)
+    let manifest: FileManifest = nanoserde::DeJson::deserialize_json(&manifest_json)
         .map_err(|e| Error::Conversion(format!("Failed to parse manifest: {}", e)))?; // Add/use Conversion variant
 
     // Helper function to read a single component file

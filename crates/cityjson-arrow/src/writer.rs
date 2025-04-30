@@ -15,16 +15,21 @@ use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::{Cursor, Write};
 use std::path::Path;
+// parquet
+use parquet::arrow::ArrowWriter;
+use parquet::basic::Compression;
+use parquet::file::properties::WriterProperties;
 
 #[derive(Debug, DeJson, SerJson)]
-pub struct ArrowManifest {
+pub struct FileManifest {
+    pub format: String, // "arrow" or "parquet"
     pub type_citymodel: String,
     pub version: Option<String>,
-    pub components: ArrowComponents,
+    pub components: FileComponents,
 }
 
 #[derive(Debug, DeJson, SerJson)]
-pub struct ArrowComponents {
+pub struct FileComponents {
     pub extensions: bool,
     pub extra: bool,
     pub metadata: bool,
@@ -61,10 +66,11 @@ pub fn write_to_directory<P: AsRef<Path>>(parts: &CityModelArrowParts, dir_path:
     fs::create_dir_all(dir_path)?;
 
     // Write manifest file with type_citymodel, version, and component filenames
-    let manifest = ArrowManifest {
+    let manifest = FileManifest {
+        format: "arrow".to_string(),
         type_citymodel: format!("{:?}", parts.type_citymodel),
         version: parts.version.map(|v| format!("{}", v)),
-        components: ArrowComponents {
+        components: FileComponents {
             extensions: parts.extensions.is_some(),
             extra: parts.extra.is_some(),
             metadata: parts.metadata.is_some(),
@@ -370,6 +376,149 @@ pub fn write_parts_to_stream<W: Write>(
     Ok(())
 }
 
+// --------------------- parquet
+
+/// Write CityModelArrowParts to a directory with separate Parquet files for each component
+///
+/// This function creates a directory structure and writes each component of the CityModelArrowParts
+/// as a separate Parquet file. It also generates a manifest.json file that describes the contents
+/// and structure of the files.
+///
+/// # Parameters
+///
+/// * `parts` - The CityModelArrowParts structure containing Arrow data components
+/// * `dir_path` - The directory path where the files should be written
+/// * `compression` - Optional compression type to use (defaults to SNAPPY)
+///
+/// # Returns
+///
+/// `Result<()>` - Ok(()) if successful, or an Error if writing fails
+pub fn write_to_parquet_directory<P: AsRef<Path>>(
+    parts: &CityModelArrowParts,
+    dir_path: P,
+    compression: Option<Compression>,
+) -> Result<()> {
+    let dir_path = dir_path.as_ref();
+
+    // Create directory if it doesn't exist
+    fs::create_dir_all(dir_path)?;
+
+    // Write manifest file with format type, type_citymodel, version, and component filenames
+    let manifest = FileManifest {
+        format: "parquet".to_string(),
+        type_citymodel: format!("{:?}", parts.type_citymodel),
+        version: parts.version.map(|v| format!("{}", v)),
+        components: FileComponents {
+            extensions: parts.extensions.is_some(),
+            extra: parts.extra.is_some(),
+            metadata: parts.metadata.is_some(),
+            cityobjects: parts.cityobjects.is_some(),
+            transform: parts.transform.is_some(),
+            vertices: parts.vertices.is_some(),
+            geometries: parts.geometries.is_some(),
+            template_vertices: parts.template_vertices.is_some(),
+            template_geometries: parts.template_geometries.is_some(),
+            semantics: parts.semantics.is_some(),
+            materials: parts.materials.is_some(),
+            textures: parts.textures.is_some(),
+            vertices_texture: parts.vertices_texture.is_some(),
+        },
+    };
+
+    let manifest_path = dir_path.join("manifest.json");
+    let mut manifest_file = File::create(manifest_path)?;
+    let manifest_json = manifest.serialize_json();
+    manifest_file.write_all(manifest_json.as_bytes())?;
+
+    // Configure Parquet writer properties
+    let props = WriterProperties::builder()
+        .set_compression(compression.unwrap_or(Compression::SNAPPY))
+        .build();
+
+    // Helper function to write a RecordBatch to a Parquet file
+    let write_batch = |batch: &RecordBatch, name: &str| -> Result<()> {
+        let file_path = dir_path.join(format!("{}.parquet", name));
+        let file = File::create(file_path)?;
+        let mut writer = ArrowWriter::try_new(file, batch.schema(), Some(props.clone()))?;
+        writer.write(batch)?;
+        writer.close()?;
+        Ok(())
+    };
+
+    // Write each component if it exists
+    if let Some(batch) = &parts.extensions {
+        write_batch(batch, "extensions")?;
+    }
+    if let Some(batch) = &parts.extra {
+        write_batch(batch, "extra")?;
+    }
+    if let Some(batch) = &parts.metadata {
+        write_batch(batch, "metadata")?;
+    }
+    if let Some(batch) = &parts.cityobjects {
+        write_batch(batch, "cityobjects")?;
+    }
+    if let Some(batch) = &parts.transform {
+        write_batch(batch, "transform")?;
+    }
+    if let Some(batch) = &parts.vertices {
+        write_batch(batch, "vertices")?;
+    }
+    if let Some(batch) = &parts.geometries {
+        write_batch(batch, "geometries")?;
+    }
+    if let Some(batch) = &parts.template_vertices {
+        write_batch(batch, "template_vertices")?;
+    }
+    if let Some(batch) = &parts.template_geometries {
+        write_batch(batch, "template_geometries")?;
+    }
+    if let Some(batch) = &parts.semantics {
+        write_batch(batch, "semantics")?;
+    }
+    if let Some(batch) = &parts.materials {
+        write_batch(batch, "materials")?;
+    }
+    if let Some(batch) = &parts.textures {
+        write_batch(batch, "textures")?;
+    }
+    if let Some(batch) = &parts.vertices_texture {
+        write_batch(batch, "vertices_texture")?;
+    }
+
+    Ok(())
+}
+
+/// Convenience function to write a CityModel directly to Parquet files
+///
+/// This function takes a CityModel, converts it to CityModelArrowParts using
+/// the `citymodel_to_arrow_parts` function, and then writes it to a directory
+/// in Parquet format.
+///
+/// # Parameters
+///
+/// * `model` - The CityModel to write
+/// * `dir_path` - The directory path where the files should be written
+/// * `compression` - Optional compression type to use (defaults to SNAPPY)
+///
+/// # Returns
+///
+/// `Result<()>` - Ok(()) if successful, or an Error if writing fails
+pub fn write_citymodel_to_parquet_directory<SS>(
+    model: &cityjson::v2_0::CityModel<u32, ResourceId32, SS>,
+    dir_path: impl AsRef<Path>,
+    compression: Option<Compression>,
+) -> Result<()>
+where
+    SS: StringStorage + Default,
+    SS::String: AsRef<str> + Eq + Hash + Clone + Debug + Default + Display,
+{
+    let parts = crate::citymodel_to_arrow_parts(model)?;
+    write_to_parquet_directory(&parts, dir_path, compression)
+}
+
+// ---------------------
+
 #[cfg(test)]
 mod tests {
     use super::Result;
@@ -560,6 +709,211 @@ mod tests {
         assert!(!received_parts.contains_key(&ComponentId::Transform));
         assert!(!received_parts.contains_key(&ComponentId::Geometries));
         // ... add checks for other potentially absent components
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests_parquet {
+    use super::*;
+    use crate::citymodel_to_arrow_parts;
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
+    use parquet::basic::Compression;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_write_empty_model_parquet() -> crate::error::Result<()> {
+        let model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let parts = crate::citymodel_to_arrow_parts(&model)?;
+
+        let temp_dir = tempdir()?;
+        let output_dir = temp_dir.path().join("empty_model_parquet");
+
+        write_to_parquet_directory(&parts, &output_dir, Some(Compression::SNAPPY))?;
+
+        // Check that the manifest file exists
+        let manifest_path = output_dir.join("manifest.json");
+        assert!(manifest_path.exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_model_with_data_parquet() -> crate::error::Result<()> {
+        // Create a simple model with some data
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add a vertex
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+
+        // Convert to parts
+        let parts = crate::citymodel_to_arrow_parts(&model)?;
+
+        let temp_dir = tempdir()?;
+        let output_dir = temp_dir.path().join("model_with_data_parquet");
+
+        write_to_parquet_directory(&parts, &output_dir, Some(Compression::ZSTD(parquet::basic::ZstdLevel::try_new(1).unwrap())))?;
+
+        // Check that vertices file exists
+        let vertices_path = output_dir.join("vertices.parquet");
+        assert!(vertices_path.exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_citymodel_to_parquet_directory() -> crate::error::Result<()> {
+        // Create a model with metadata and a vertex
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        model.metadata_mut().set_title("Test Parquet Model");
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+
+        let temp_dir = tempdir()?;
+        let output_dir = temp_dir.path().join("direct_model_parquet");
+
+        write_citymodel_to_parquet_directory(&model, &output_dir, None)?;
+
+        // Check that manifest and expected files exist
+        let manifest_path = output_dir.join("manifest.json");
+        let metadata_path = output_dir.join("metadata.parquet");
+        let vertices_path = output_dir.join("vertices.parquet");
+
+        assert!(manifest_path.exists());
+        assert!(metadata_path.exists());
+        assert!(vertices_path.exists());
+
+        // Read the manifest to check format
+        let manifest_json = std::fs::read_to_string(manifest_path)?;
+        let manifest: FileManifest = DeJson::deserialize_json(&manifest_json)
+            .map_err(|e| crate::error::Error::Conversion(format!("Failed to parse manifest: {}", e)))?;
+
+        assert_eq!(manifest.format, "parquet");
+        assert!(manifest.components.metadata);
+        assert!(manifest.components.vertices);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
+    use parquet::basic::Compression;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_compare_arrow_and_parquet_output() -> crate::error::Result<()> {
+        // Create a model with various components
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add metadata
+        model.metadata_mut().set_title("Multi-format Test Model");
+
+        // Add vertices
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+        model.add_vertex(QuantizedCoordinate::new(40, 50, 60))?;
+
+        // Add a city object
+        let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
+        building.attributes_mut().insert("height".to_string(), AttributeValue::Float(42.0));
+        model.cityobjects_mut().add(building);
+
+        // Add extra properties
+        model.extra_mut().insert(
+            "testProperty".to_string(),
+            AttributeValue::String("Test Value".to_string()),
+        );
+
+        // Set transform
+        model.transform_mut().set_scale([0.001, 0.001, 0.001]);
+        model.transform_mut().set_translate([1000.0, 2000.0, 0.0]);
+
+        // Convert to parts
+        let parts = crate::citymodel_to_arrow_parts(&model)?;
+
+        let temp_dir = tempdir()?;
+        let arrow_dir = temp_dir.path().join("arrow_output");
+        let parquet_dir = temp_dir.path().join("parquet_output");
+
+        // Write both formats
+        write_to_directory(&parts, &arrow_dir)?;
+        write_to_parquet_directory(&parts, &parquet_dir, Some(Compression::SNAPPY))?;
+
+        // Verify that equivalent files exist in both directories
+        let check_files = |name: &str| -> crate::error::Result<()> {
+            let arrow_path = arrow_dir.join(format!("{}.arrow", name));
+            let parquet_path = parquet_dir.join(format!("{}.parquet", name));
+
+            assert!(arrow_path.exists(), "Arrow file {} does not exist", name);
+            assert!(parquet_path.exists(), "Parquet file {} does not exist", name);
+
+            Ok(())
+        };
+
+        // Check manifest files
+        assert!(arrow_dir.join("manifest.json").exists());
+        assert!(parquet_dir.join("manifest.json").exists());
+
+        // Check component files
+        check_files("metadata")?;
+        check_files("vertices")?;
+        check_files("cityobjects")?;
+        check_files("transform")?;
+        check_files("extra")?;
+
+        // Read and verify the parquet manifest format
+        let parquet_manifest_path = parquet_dir.join("manifest.json");
+        let manifest_json = std::fs::read_to_string(parquet_manifest_path)?;
+
+        if let Ok(file_manifest) = FileManifest::deserialize_json(&manifest_json) {
+            // New format manifest
+            assert_eq!(file_manifest.format, "parquet");
+            assert!(file_manifest.components.metadata);
+            assert!(file_manifest.components.vertices);
+            assert!(file_manifest.components.cityobjects);
+            assert!(file_manifest.components.transform);
+            assert!(file_manifest.components.extra);
+        } else {
+            panic!("Could not parse manifest file");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_citymodel_direct_writers() -> crate::error::Result<()> {
+        // Create a model
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add a vertex and metadata
+        model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
+        model.metadata_mut().set_title("Direct Writer Test");
+
+        let temp_dir = tempdir()?;
+        let arrow_dir = temp_dir.path().join("direct_arrow");
+        let parquet_dir = temp_dir.path().join("direct_parquet");
+
+        // Use the direct writer functions
+        write_citymodel_to_directory(&model, &arrow_dir)?;
+        write_citymodel_to_parquet_directory(&model, &parquet_dir, None)?;
+
+        // Verify files exist
+        assert!(arrow_dir.join("vertices.arrow").exists());
+        assert!(arrow_dir.join("metadata.arrow").exists());
+        assert!(arrow_dir.join("manifest.json").exists());
+
+        assert!(parquet_dir.join("vertices.parquet").exists());
+        assert!(parquet_dir.join("metadata.parquet").exists());
+        assert!(parquet_dir.join("manifest.json").exists());
 
         Ok(())
     }

@@ -3,12 +3,14 @@
 //! When operations go wrong.
 use arrow::error::ArrowError;
 use std::fmt::{Debug, Display, Formatter};
+use parquet::errors::ParquetError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
     Arrow(ArrowError),
+    Parquet(ParquetError),
     CityJSON(cityjson::error::Error),
     Conversion(String),
     Unsupported(String),
@@ -21,6 +23,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Arrow(e) => write!(f, "Arrow error: {}", e),
+            Error::Parquet(e) => write!(f, "Parquet error: {}", e),
             Error::CityJSON(e) => write!(f, "CityJSON error: {}", e),
             Error::Conversion(s) => write!(f, "could not convert due to {}", s),
             Error::Unsupported(s) => write!(f, "feature {} is not supported", s),
@@ -36,6 +39,12 @@ impl Display for Error {
 impl From<ArrowError> for Error {
     fn from(value: ArrowError) -> Self {
         Self::Arrow(value)
+    }
+}
+
+impl From<ParquetError> for Error {
+    fn from(value: ParquetError) -> Self {
+        Self::Parquet(value)
     }
 }
 
