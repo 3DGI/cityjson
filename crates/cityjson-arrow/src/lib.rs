@@ -234,6 +234,7 @@ pub fn arrow_parts_to_citymodel(
 mod tests {
     use super::*;
     use cityjson::v2_0::*;
+    use crate::writer::write_to_json_directory;
 
     #[test]
     fn test_empty_model_conversion() {
@@ -452,6 +453,11 @@ mod tests {
 
         // Convert to parts and back
         let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
+        
+        // DEBUG JSON
+        // write_to_json_directory(&parts, "complex_model_test").expect("Failed to write JSON");
+        // end DEBUG JSON
+        
         let converted_model =
             arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
 

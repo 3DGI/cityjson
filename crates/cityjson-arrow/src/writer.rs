@@ -19,6 +19,8 @@ use std::path::Path;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
+// arrow json
+use arrow_json::LineDelimitedWriter;
 
 #[derive(Debug, DeJson, SerJson)]
 pub struct FileManifest {
@@ -375,6 +377,97 @@ pub fn write_parts_to_stream<W: Write>(
 
     Ok(())
 }
+
+// ----------------------- JSON for debug
+pub fn write_to_json_directory<P: AsRef<Path>>(
+    parts: &CityModelArrowParts,
+    dir_path: P,
+) -> Result<()> {
+    let dir_path = dir_path.as_ref();
+
+    // Create directory if it doesn't exist
+    fs::create_dir_all(dir_path)?;
+
+    // Write manifest file with type_citymodel, version, and component filenames
+    let manifest = FileManifest {
+        format: "json".to_string(),
+        type_citymodel: format!("{:?}", parts.type_citymodel),
+        version: parts.version.map(|v| format!("{}", v)),
+        components: FileComponents {
+            extensions: parts.extensions.is_some(),
+            extra: parts.extra.is_some(),
+            metadata: parts.metadata.is_some(),
+            cityobjects: parts.cityobjects.is_some(),
+            transform: parts.transform.is_some(),
+            vertices: parts.vertices.is_some(),
+            geometries: parts.geometries.is_some(),
+            template_vertices: parts.template_vertices.is_some(),
+            template_geometries: parts.template_geometries.is_some(),
+            semantics: parts.semantics.is_some(),
+            materials: parts.materials.is_some(),
+            textures: parts.textures.is_some(),
+            vertices_texture: parts.vertices_texture.is_some(),
+        },
+    };
+    let manifest_path = dir_path.join("manifest.json");
+    let mut manifest_file = File::create(manifest_path)?;
+    let manifest_json = manifest.serialize_json();
+    manifest_file.write_all(manifest_json.as_bytes())?;
+
+    // Helper function to write a RecordBatch to an Arrow file
+    let write_batch = |batch: &RecordBatch, name: &str| -> Result<()> {
+        let file_path = dir_path.join(format!("{}.json", name));
+        let file = File::create(file_path)?;
+        let mut writer = LineDelimitedWriter::new(file);
+        writer.write(batch)?;
+        writer.finish()?;
+        Ok(())
+    };
+
+    // Write each component if it exists
+    if let Some(batch) = &parts.extensions {
+        write_batch(batch, "extensions")?;
+    }
+    if let Some(batch) = &parts.extra {
+        write_batch(batch, "extra")?;
+    }
+    if let Some(batch) = &parts.metadata {
+        write_batch(batch, "metadata")?;
+    }
+    if let Some(batch) = &parts.cityobjects {
+        write_batch(batch, "cityobjects")?;
+    }
+    if let Some(batch) = &parts.transform {
+        write_batch(batch, "transform")?;
+    }
+    if let Some(batch) = &parts.vertices {
+        write_batch(batch, "vertices")?;
+    }
+    if let Some(batch) = &parts.geometries {
+        write_batch(batch, "geometries")?;
+    }
+    if let Some(batch) = &parts.template_vertices {
+        write_batch(batch, "template_vertices")?;
+    }
+    if let Some(batch) = &parts.template_geometries {
+        write_batch(batch, "template_geometries")?;
+    }
+    if let Some(batch) = &parts.semantics {
+        write_batch(batch, "semantics")?;
+    }
+    if let Some(batch) = &parts.materials {
+        write_batch(batch, "materials")?;
+    }
+    if let Some(batch) = &parts.textures {
+        write_batch(batch, "textures")?;
+    }
+    if let Some(batch) = &parts.vertices_texture {
+        write_batch(batch, "vertices_texture")?;
+    }
+
+    Ok(())
+}
+// -----------------------
 
 // --------------------- parquet
 

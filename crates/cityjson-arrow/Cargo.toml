@@ -5,7 +5,8 @@ edition = "2024"
 
 
 [dependencies]
-arrow = "55.0.0"
+arrow = { version = "55.0.0", features = ["ipc", "csv", "json"] }
+arrow-json = "55.0.0"
 cityjson = { path = "../cityjson-rs"}
 lazy_static = "1.5.0"
 tempfile = "3.19.1"
