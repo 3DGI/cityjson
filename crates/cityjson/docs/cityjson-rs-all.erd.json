@@ -1,0 +1,5444 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dineug/erd-editor/main/json-schema/schema.json",
+  "version": "3.0.0",
+  "settings": {
+    "width": 4000,
+    "height": 4000,
+    "scrollTop": 0,
+    "scrollLeft": -0.5164,
+    "zoomLevel": 1,
+    "show": 511,
+    "database": 4,
+    "databaseName": "CityJSON",
+    "canvasType": "ERD",
+    "language": 16,
+    "tableNameCase": 8,
+    "columnNameCase": 8,
+    "bracketType": 2,
+    "relationshipDataTypeSync": true,
+    "relationshipOptimization": false,
+    "columnOrder": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64
+    ],
+    "maxWidthComment": 60,
+    "ignoreSaveSettings": 0
+  },
+  "doc": {
+    "tableIds": [
+      "v2_0_CityModel",
+      "v2_0_CityObject",
+      "v2_0_CityObjectType",
+      "v2_0_Geometry",
+      "v2_0_Semantic",
+      "v2_0_SemanticType",
+      "v2_0_Material",
+      "v2_0_Texture",
+      "v2_0_Metadata",
+      "v2_0_Contact",
+      "v2_0_ContactRole",
+      "v2_0_ContactType",
+      "v2_0_Transform",
+      "v2_0_Extensions",
+      "v2_0_Extension",
+      "core_attributes_Attributes",
+      "core_attributes_AttributeValue",
+      "core_boundary_Boundary",
+      "core_coordinate_Vertices",
+      "core_coordinate_QuantizedCoordinate",
+      "core_coordinate_RealWorldCoordinate",
+      "core_coordinate_UVCoordinate",
+      "core_extension_ExtensionsCore",
+      "core_extension_ExtensionCore",
+      "core_metadata_BBox",
+      "core_metadata_CityModelIdentifier",
+      "core_metadata_Date",
+      "core_metadata_CRS",
+      "core_appearance_RGB",
+      "core_appearance_RGBA",
+      "core_appearance_ImageType",
+      "core_appearance_WrapMode",
+      "core_appearance_TextureType",
+      "core_vertex_VertexIndex",
+      "resources_mapping_SemanticOrMaterialMap",
+      "resources_mapping_SemanticMap",
+      "resources_mapping_MaterialMap",
+      "resources_mapping_TextureMap",
+      "resources_pool_DefaultResourcePool",
+      "resources_pool_ResourceId32",
+      "trait_VertexRef",
+      "trait_ResourceRef",
+      "trait_StringStorage",
+      "basic_u16",
+      "basic_u32",
+      "basic_u64",
+      "basic_String",
+      "basic_str",
+      "trait_Coordinate"
+    ],
+    "relationshipIds": [
+      "rel_citymodel_v2_0_to_cityobjects_v2_0",
+      "rel_citymodel_v2_0_to_extensions_v2_0",
+      "rel_citymodel_v2_0_to_extra_attributes_core",
+      "rel_citymodel_v2_0_to_metadata_v2_0",
+      "rel_citymodel_v2_0_to_transform_v2_0",
+      "rel_citymodel_v2_0_to_vertices_core_coordinate",
+      "rel_citymodel_v2_0_to_geometries_pool",
+      "rel_citymodel_v2_0_to_template_vertices_core_coordinate",
+      "rel_citymodel_v2_0_to_template_geometries_pool",
+      "rel_citymodel_v2_0_to_semantics_pool",
+      "rel_citymodel_v2_0_to_materials_pool",
+      "rel_citymodel_v2_0_to_textures_pool",
+      "rel_citymodel_v2_0_to_vertices_texture_core_coordinate",
+      "rel_extensions_v2_0_to_extensionscore_core_extension",
+      "rel_extensionscore_core_extension_to_extension_v2_0",
+      "rel_extension_v2_0_to_extensioncore_core_extension",
+      "rel_extensioncore_core_extension_to_stringstorage_trait",
+      "rel_attributes_core_to_stringstorage_trait",
+      "rel_attributes_core_to_attributevalue_core_attributes",
+      "rel_attributevalue_core_attributes_to_stringstorage_trait",
+      "rel_attributevalue_core_attributes_to_attributevalue_core_attributes_recursive",
+      "rel_attributevalue_core_attributes_to_resourceref_trait",
+      "rel_metadata_v2_0_to_bbox_core_metadata",
+      "rel_metadata_v2_0_to_citymodelidentifier_core_metadata",
+      "rel_metadata_v2_0_to_contact_v2_0_metadata",
+      "rel_metadata_v2_0_to_date_core_metadata",
+      "rel_metadata_v2_0_to_crs_core_metadata",
+      "rel_metadata_v2_0_to_extra_attributes_core",
+      "rel_citymodelidentifier_core_metadata_to_stringstorage_trait",
+      "rel_date_core_metadata_to_stringstorage_trait",
+      "rel_crs_core_metadata_to_stringstorage_trait",
+      "rel_contact_v2_0_metadata_to_contactrole_v2_0_metadata",
+      "rel_contact_v2_0_metadata_to_contacttype_v2_0_metadata",
+      "rel_contact_v2_0_metadata_to_address_attributes_core",
+      "rel_cityobjects_v2_0_to_defaultresourcepool_resources_pool",
+      "rel_cityobject_v2_0_to_stringstorage_trait",
+      "rel_cityobject_v2_0_to_cityobjecttype_v2_0_cityobject",
+      "rel_cityobject_v2_0_to_resourceref_trait",
+      "rel_cityobject_v2_0_to_attributes_core",
+      "rel_cityobject_v2_0_to_bbox_core_metadata",
+      "rel_cityobjecttype_v2_0_cityobject_to_stringstorage_trait",
+      "rel_transform_v2_0_to_transformcore_core_transform",
+      "rel_defaultresourcepool_resources_pool_to_contained_type",
+      "rel_resourceid32_resources_pool_to_u32_basic",
+      "rel_resourceid32_resources_pool_to_u16_basic",
+      "rel_resourceref_trait_to_resourceid32_resources_pool",
+      "rel_stringstorage_trait_to_string_basic",
+      "rel_stringstorage_trait_to_str_basic",
+      "rel_vertexindex_core_to_vertexref_trait",
+      "rel_vertexref_trait_to_u16_basic",
+      "rel_vertexref_trait_to_u32_basic",
+      "rel_vertexref_trait_to_u64_basic",
+      "rel_geometry_v2_0_to_boundary_core_boundary",
+      "rel_geometry_v2_0_to_semanticmap_resources_mapping",
+      "rel_geometry_v2_0_to_materialmap_resources_mapping",
+      "rel_geometry_v2_0_to_texturemap_resources_mapping",
+      "rel_geometry_v2_0_to_resourceref_trait",
+      "rel_geometry_v2_0_to_vertexindex_core_vertex",
+      "rel_boundary_core_boundary_to_vertexindex_core_vertex",
+      "rel_semanticmap_resources_mapping_to_semanticormaterialmap_resources_mapping",
+      "rel_materialmap_resources_mapping_to_semanticormaterialmap_resources_mapping",
+      "rel_semanticormaterialmap_resources_mapping_to_resourceref_trait",
+      "rel_semanticormaterialmap_resources_mapping_to_vertexindex_core_vertex",
+      "rel_texturemap_resources_mapping_to_vertexindex_core_vertex",
+      "rel_texturemap_resources_mapping_to_resourceref_trait",
+      "rel_semantic_v2_0_to_semantictype_v2_0_geometry_semantic",
+      "rel_semantic_v2_0_to_resourceref_trait",
+      "rel_semantic_v2_0_to_attributes_core",
+      "rel_semantictype_v2_0_geometry_semantic_to_stringstorage_trait",
+      "rel_material_v2_0_to_stringstorage_trait",
+      "rel_material_v2_0_to_rgb_core_appearance",
+      "rel_texture_v2_0_to_imagetype_core_appearance",
+      "rel_texture_v2_0_to_stringstorage_trait",
+      "rel_texture_v2_0_to_wrapmode_core_appearance",
+      "rel_texture_v2_0_to_texturetype_core_appearance",
+      "rel_texture_v2_0_to_rgba_core_appearance",
+      "rel_vertices_core_coordinate_to_coordinate_trait",
+      "rel_coordinate_trait_to_quantizedcoordinate_core_coordinate",
+      "rel_coordinate_trait_to_realworldcoordinate_core_coordinate",
+      "rel_coordinate_trait_to_uvcoordinate_core_coordinate"
+    ],
+    "indexIds": [],
+    "memoIds": []
+  },
+  "collections": {
+    "tableEntities": {
+      "v2_0_CityModel": {
+        "id": "v2_0_CityModel",
+        "name": "CityModel",
+        "comment": "Represents a CityJSON object (v2.0). Generic over VR, RR, SS.",
+        "columnIds": [
+          "col_citymodel_v2_0_type_citymodel",
+          "col_citymodel_v2_0_version",
+          "col_citymodel_v2_0_extensions",
+          "col_citymodel_v2_0_extra",
+          "col_citymodel_v2_0_metadata",
+          "col_citymodel_v2_0_cityobjects",
+          "col_citymodel_v2_0_transform",
+          "col_citymodel_v2_0_vertices",
+          "col_citymodel_v2_0_geometries",
+          "col_citymodel_v2_0_template_vertices",
+          "col_citymodel_v2_0_template_geometries",
+          "col_citymodel_v2_0_semantics",
+          "col_citymodel_v2_0_materials",
+          "col_citymodel_v2_0_textures",
+          "col_citymodel_v2_0_vertices_texture"
+        ],
+        "seqColumnIds": [
+          "col_citymodel_v2_0_type_citymodel",
+          "col_citymodel_v2_0_version",
+          "col_citymodel_v2_0_extensions",
+          "col_citymodel_v2_0_extra",
+          "col_citymodel_v2_0_metadata",
+          "col_citymodel_v2_0_cityobjects",
+          "col_citymodel_v2_0_transform",
+          "col_citymodel_v2_0_vertices",
+          "col_citymodel_v2_0_geometries",
+          "col_citymodel_v2_0_template_vertices",
+          "col_citymodel_v2_0_template_geometries",
+          "col_citymodel_v2_0_semantics",
+          "col_citymodel_v2_0_materials",
+          "col_citymodel_v2_0_textures",
+          "col_citymodel_v2_0_vertices_texture"
+        ],
+        "ui": {
+          "x": 2716,
+          "y": 518,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 338,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185543216,
+          "createAt": 0
+        }
+      },
+      "v2_0_CityObject": {
+        "id": "v2_0_CityObject",
+        "name": "CityObject",
+        "comment": "Represents a CityObject (v2.0). Generic over SS, RR.",
+        "columnIds": [
+          "col_cityobject_v2_0_id",
+          "col_cityobject_v2_0_type_cityobject",
+          "col_cityobject_v2_0_geometry",
+          "col_cityobject_v2_0_attributes",
+          "col_cityobject_v2_0_geographical_extent",
+          "col_cityobject_v2_0_children",
+          "col_cityobject_v2_0_parents",
+          "col_cityobject_v2_0_extra"
+        ],
+        "seqColumnIds": [
+          "col_cityobject_v2_0_id",
+          "col_cityobject_v2_0_type_cityobject",
+          "col_cityobject_v2_0_geometry",
+          "col_cityobject_v2_0_attributes",
+          "col_cityobject_v2_0_geographical_extent",
+          "col_cityobject_v2_0_children",
+          "col_cityobject_v2_0_parents",
+          "col_cityobject_v2_0_extra"
+        ],
+        "ui": {
+          "x": 2762,
+          "y": 1248,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 288,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185579548,
+          "createAt": 0
+        }
+      },
+      "v2_0_CityObjectType": {
+        "id": "v2_0_CityObjectType",
+        "name": "CityObjectType",
+        "comment": "Enum for CityObject types (v2.0). Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 700,
+          "y": 400,
+          "zIndex": 1,
+          "widthName": 87,
+          "widthComment": 279,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Geometry": {
+        "id": "v2_0_Geometry",
+        "name": "Geometry",
+        "comment": "Represents a Geometry object (v2.0). Generic over VR, RR, SS.",
+        "columnIds": [
+          "col_geometry_v2_0_type_geometry",
+          "col_geometry_v2_0_lod",
+          "col_geometry_v2_0_boundaries",
+          "col_geometry_v2_0_semantics",
+          "col_geometry_v2_0_materials",
+          "col_geometry_v2_0_textures",
+          "col_geometry_v2_0_instance_template",
+          "col_geometry_v2_0_instance_reference_point",
+          "col_geometry_v2_0_instance_transformation_matrix"
+        ],
+        "seqColumnIds": [
+          "col_geometry_v2_0_type_geometry",
+          "col_geometry_v2_0_lod",
+          "col_geometry_v2_0_boundaries",
+          "col_geometry_v2_0_semantics",
+          "col_geometry_v2_0_materials",
+          "col_geometry_v2_0_textures",
+          "col_geometry_v2_0_instance_template",
+          "col_geometry_v2_0_instance_reference_point",
+          "col_geometry_v2_0_instance_transformation_matrix"
+        ],
+        "ui": {
+          "x": 2578,
+          "y": 1696,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 345,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185576445,
+          "createAt": 0
+        }
+      },
+      "v2_0_Semantic": {
+        "id": "v2_0_Semantic",
+        "name": "Semantic",
+        "comment": "Represents a semantic surface (v2.0). Generic over RR, SS.",
+        "columnIds": [
+          "col_semantic_v2_0_type_semantic",
+          "col_semantic_v2_0_children",
+          "col_semantic_v2_0_parent",
+          "col_semantic_v2_0_attributes"
+        ],
+        "seqColumnIds": [
+          "col_semantic_v2_0_type_semantic",
+          "col_semantic_v2_0_children",
+          "col_semantic_v2_0_parent",
+          "col_semantic_v2_0_attributes"
+        ],
+        "ui": {
+          "x": 1200,
+          "y": 700,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 326,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_SemanticType": {
+        "id": "v2_0_SemanticType",
+        "name": "SemanticType",
+        "comment": "Enum for semantic surface types (v2.0). Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 700,
+          "zIndex": 1,
+          "widthName": 81,
+          "widthComment": 317,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Material": {
+        "id": "v2_0_Material",
+        "name": "Material",
+        "comment": "Represents a material object (v2.0). Generic over SS.",
+        "columnIds": [
+          "col_material_v2_0_name",
+          "col_material_v2_0_ambient_intensity",
+          "col_material_v2_0_diffuse_color",
+          "col_material_v2_0_emissive_color",
+          "col_material_v2_0_specular_color",
+          "col_material_v2_0_shininess",
+          "col_material_v2_0_transparency",
+          "col_material_v2_0_is_smooth"
+        ],
+        "seqColumnIds": [
+          "col_material_v2_0_name",
+          "col_material_v2_0_ambient_intensity",
+          "col_material_v2_0_diffuse_color",
+          "col_material_v2_0_emissive_color",
+          "col_material_v2_0_specular_color",
+          "col_material_v2_0_shininess",
+          "col_material_v2_0_transparency",
+          "col_material_v2_0_is_smooth"
+        ],
+        "ui": {
+          "x": 650.8197,
+          "y": 1077.0492,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 293,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185464501,
+          "createAt": 0
+        }
+      },
+      "v2_0_Texture": {
+        "id": "v2_0_Texture",
+        "name": "Texture",
+        "comment": "Represents a texture object (v2.0). Generic over SS.",
+        "columnIds": [
+          "col_texture_v2_0_image_type",
+          "col_texture_v2_0_image",
+          "col_texture_v2_0_wrap_mode",
+          "col_texture_v2_0_texture_type",
+          "col_texture_v2_0_border_color"
+        ],
+        "seqColumnIds": [
+          "col_texture_v2_0_image_type",
+          "col_texture_v2_0_image",
+          "col_texture_v2_0_wrap_mode",
+          "col_texture_v2_0_texture_type",
+          "col_texture_v2_0_border_color"
+        ],
+        "ui": {
+          "x": 622.9508,
+          "y": 1280.3279,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 287,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185463228,
+          "createAt": 0
+        }
+      },
+      "v2_0_Metadata": {
+        "id": "v2_0_Metadata",
+        "name": "Metadata",
+        "comment": "Represents the metadata object (v2.0). Generic over SS, RR.",
+        "columnIds": [
+          "col_metadata_v2_0_geographical_extent",
+          "col_metadata_v2_0_identifier",
+          "col_metadata_v2_0_point_of_contact",
+          "col_metadata_v2_0_reference_date",
+          "col_metadata_v2_0_reference_system",
+          "col_metadata_v2_0_title",
+          "col_metadata_v2_0_extra"
+        ],
+        "seqColumnIds": [
+          "col_metadata_v2_0_geographical_extent",
+          "col_metadata_v2_0_identifier",
+          "col_metadata_v2_0_point_of_contact",
+          "col_metadata_v2_0_reference_date",
+          "col_metadata_v2_0_reference_system",
+          "col_metadata_v2_0_title",
+          "col_metadata_v2_0_extra"
+        ],
+        "ui": {
+          "x": 400,
+          "y": 100,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 334,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Contact": {
+        "id": "v2_0_Contact",
+        "name": "Contact",
+        "comment": "Represents the point of contact (v2.0). Generic over SS, RR.",
+        "columnIds": [
+          "col_contact_v2_0_metadata_contact_name",
+          "col_contact_v2_0_metadata_email_address",
+          "col_contact_v2_0_metadata_role",
+          "col_contact_v2_0_metadata_website",
+          "col_contact_v2_0_metadata_contact_type",
+          "col_contact_v2_0_metadata_address",
+          "col_contact_v2_0_metadata_phone",
+          "col_contact_v2_0_metadata_organization"
+        ],
+        "seqColumnIds": [
+          "col_contact_v2_0_metadata_contact_name",
+          "col_contact_v2_0_metadata_email_address",
+          "col_contact_v2_0_metadata_role",
+          "col_contact_v2_0_metadata_website",
+          "col_contact_v2_0_metadata_contact_type",
+          "col_contact_v2_0_metadata_address",
+          "col_contact_v2_0_metadata_phone",
+          "col_contact_v2_0_metadata_organization"
+        ],
+        "ui": {
+          "x": 700,
+          "y": 100,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 331,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_ContactRole": {
+        "id": "v2_0_ContactRole",
+        "name": "ContactRole",
+        "comment": "Enum for metadata contact roles (v2.0).",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1000,
+          "y": 100,
+          "zIndex": 1,
+          "widthName": 70,
+          "widthComment": 224,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_ContactType": {
+        "id": "v2_0_ContactType",
+        "name": "ContactType",
+        "comment": "Enum for metadata contact types (v2.0).",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1000,
+          "y": 200,
+          "zIndex": 1,
+          "widthName": 72,
+          "widthComment": 226,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Transform": {
+        "id": "v2_0_Transform",
+        "name": "Transform",
+        "comment": "Represents the transform object (v2.0). Wrapper around TransformCore.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 400,
+          "y": 250,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 408,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Extensions": {
+        "id": "v2_0_Extensions",
+        "name": "Extensions",
+        "comment": "Collection of extensions (v2.0). Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 400,
+          "y": 325,
+          "zIndex": 1,
+          "widthName": 63,
+          "widthComment": 267,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "v2_0_Extension": {
+        "id": "v2_0_Extension",
+        "name": "Extension",
+        "comment": "Represents a single extension (v2.0). Generic over SS. Wrapper around ExtensionCore.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 700,
+          "y": 325,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 484,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_attributes_Attributes": {
+        "id": "core_attributes_Attributes",
+        "name": "Attributes",
+        "comment": "Container for attributes. Generic over SS, RR.",
+        "columnIds": [
+          "col_attributes_core_values"
+        ],
+        "seqColumnIds": [
+          "col_attributes_core_values"
+        ],
+        "ui": {
+          "x": 700,
+          "y": 550,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 254,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_attributes_AttributeValue": {
+        "id": "core_attributes_AttributeValue",
+        "name": "AttributeValue",
+        "comment": "Enum for attribute values. Generic over SS, RR.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1000,
+          "y": 550,
+          "zIndex": 1,
+          "widthName": 83,
+          "widthComment": 264,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_boundary_Boundary": {
+        "id": "core_boundary_Boundary",
+        "name": "Boundary",
+        "comment": "Flattened boundary representation. Generic over VR.",
+        "columnIds": [
+          "col_boundary_core_vertices",
+          "col_boundary_core_rings",
+          "col_boundary_core_surfaces",
+          "col_boundary_core_shells",
+          "col_boundary_core_solids"
+        ],
+        "seqColumnIds": [
+          "col_boundary_core_vertices",
+          "col_boundary_core_rings",
+          "col_boundary_core_surfaces",
+          "col_boundary_core_shells",
+          "col_boundary_core_solids"
+        ],
+        "ui": {
+          "x": 1100,
+          "y": 400,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 298,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_coordinate_Vertices": {
+        "id": "core_coordinate_Vertices",
+        "name": "Vertices",
+        "comment": "Container for vertex coordinates. Generic over VR, V.",
+        "columnIds": [
+          "col_vertices_core_coordinate_coordinates"
+        ],
+        "seqColumnIds": [
+          "col_vertices_core_coordinate_coordinates"
+        ],
+        "ui": {
+          "x": 400,
+          "y": 700,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 296,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_coordinate_QuantizedCoordinate": {
+        "id": "core_coordinate_QuantizedCoordinate",
+        "name": "QuantizedCoordinate",
+        "comment": "Integer-based coordinate.",
+        "columnIds": [
+          "col_quantizedcoordinate_core_coordinate_x",
+          "col_quantizedcoordinate_core_coordinate_y",
+          "col_quantizedcoordinate_core_coordinate_z"
+        ],
+        "seqColumnIds": [
+          "col_quantizedcoordinate_core_coordinate_x",
+          "col_quantizedcoordinate_core_coordinate_y",
+          "col_quantizedcoordinate_core_coordinate_z"
+        ],
+        "ui": {
+          "x": 100,
+          "y": 900,
+          "zIndex": 1,
+          "widthName": 123,
+          "widthComment": 149,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_coordinate_RealWorldCoordinate": {
+        "id": "core_coordinate_RealWorldCoordinate",
+        "name": "RealWorldCoordinate",
+        "comment": "Floating-point coordinate.",
+        "columnIds": [
+          "col_realworldcoordinate_core_coordinate_x",
+          "col_realworldcoordinate_core_coordinate_y",
+          "col_realworldcoordinate_core_coordinate_z"
+        ],
+        "seqColumnIds": [
+          "col_realworldcoordinate_core_coordinate_x",
+          "col_realworldcoordinate_core_coordinate_y",
+          "col_realworldcoordinate_core_coordinate_z"
+        ],
+        "ui": {
+          "x": 100,
+          "y": 1000,
+          "zIndex": 1,
+          "widthName": 122,
+          "widthComment": 148,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_coordinate_UVCoordinate": {
+        "id": "core_coordinate_UVCoordinate",
+        "name": "UVCoordinate",
+        "comment": "Texture coordinate.",
+        "columnIds": [
+          "col_uvcoordinate_core_coordinate_u",
+          "col_uvcoordinate_core_coordinate_v"
+        ],
+        "seqColumnIds": [
+          "col_uvcoordinate_core_coordinate_u",
+          "col_uvcoordinate_core_coordinate_v"
+        ],
+        "ui": {
+          "x": -24,
+          "y": 1288,
+          "zIndex": 1,
+          "widthName": 80,
+          "widthComment": 111,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185549692,
+          "createAt": 0
+        }
+      },
+      "core_extension_ExtensionsCore": {
+        "id": "core_extension_ExtensionsCore",
+        "name": "ExtensionsCore",
+        "comment": "Core collection of extensions. Generic over SS, E.",
+        "columnIds": [
+          "col_extensionscore_core_extension_inner"
+        ],
+        "seqColumnIds": [
+          "col_extensionscore_core_extension_inner"
+        ],
+        "ui": {
+          "x": 700,
+          "y": 250,
+          "zIndex": 1,
+          "widthName": 89,
+          "widthComment": 274,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_extension_ExtensionCore": {
+        "id": "core_extension_ExtensionCore",
+        "name": "ExtensionCore",
+        "comment": "Core extension details. Generic over SS.",
+        "columnIds": [
+          "col_extensioncore_core_extension_name",
+          "col_extensioncore_core_extension_url",
+          "col_extensioncore_core_extension_version"
+        ],
+        "seqColumnIds": [
+          "col_extensioncore_core_extension_name",
+          "col_extensioncore_core_extension_url",
+          "col_extensioncore_core_extension_version"
+        ],
+        "ui": {
+          "x": 1000,
+          "y": 325,
+          "zIndex": 1,
+          "widthName": 83,
+          "widthComment": 224,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_metadata_BBox": {
+        "id": "core_metadata_BBox",
+        "name": "BBox",
+        "comment": "Bounding Box.",
+        "columnIds": [
+          "col_bbox_core_metadata_values"
+        ],
+        "seqColumnIds": [
+          "col_bbox_core_metadata_values"
+        ],
+        "ui": {
+          "x": 700,
+          "y": 0,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 85,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_metadata_CityModelIdentifier": {
+        "id": "core_metadata_CityModelIdentifier",
+        "name": "CityModelIdentifier",
+        "comment": "City Model Identifier. Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 700,
+          "y": 50,
+          "zIndex": 1,
+          "widthName": 111,
+          "widthComment": 212,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_metadata_Date": {
+        "id": "core_metadata_Date",
+        "name": "Date",
+        "comment": "Date. Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 700,
+          "y": 150,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 126,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_metadata_CRS": {
+        "id": "core_metadata_CRS",
+        "name": "CRS",
+        "comment": "Coordinate Reference System. Generic over SS.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 700,
+          "y": 200,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 265,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_appearance_RGB": {
+        "id": "core_appearance_RGB",
+        "name": "RGB",
+        "comment": "RGB color [f32; 3].",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 900,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 103,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_appearance_RGBA": {
+        "id": "core_appearance_RGBA",
+        "name": "RGBA",
+        "comment": "RGBA color [f32; 4].",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 1100,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 110,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_appearance_ImageType": {
+        "id": "core_appearance_ImageType",
+        "name": "ImageType",
+        "comment": "Enum for image types.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 1200,
+          "zIndex": 1,
+          "widthName": 65,
+          "widthComment": 129,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_appearance_WrapMode": {
+        "id": "core_appearance_WrapMode",
+        "name": "WrapMode",
+        "comment": "Enum for texture wrap modes.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 1300,
+          "zIndex": 1,
+          "widthName": 64,
+          "widthComment": 174,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_appearance_TextureType": {
+        "id": "core_appearance_TextureType",
+        "name": "TextureType",
+        "comment": "Enum for texture types.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 1400,
+          "zIndex": 1,
+          "widthName": 71,
+          "widthComment": 134,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "core_vertex_VertexIndex": {
+        "id": "core_vertex_VertexIndex",
+        "name": "VertexIndex",
+        "comment": "Generic index type for vertices. Generic over T (VertexRef).",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1400,
+          "y": 550,
+          "zIndex": 1,
+          "widthName": 70,
+          "widthComment": 329,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "resources_mapping_SemanticOrMaterialMap": {
+        "id": "resources_mapping_SemanticOrMaterialMap",
+        "name": "SemanticOrMaterialMap",
+        "comment": "Base for Semantic/Material maps. Generic over VR, RR.",
+        "columnIds": [
+          "col_semanticormaterialmap_resources_mapping_points",
+          "col_semanticormaterialmap_resources_mapping_linestrings",
+          "col_semanticormaterialmap_resources_mapping_surfaces",
+          "col_semanticormaterialmap_resources_mapping_shells",
+          "col_semanticormaterialmap_resources_mapping_solids"
+        ],
+        "seqColumnIds": [
+          "col_semanticormaterialmap_resources_mapping_points",
+          "col_semanticormaterialmap_resources_mapping_linestrings",
+          "col_semanticormaterialmap_resources_mapping_surfaces",
+          "col_semanticormaterialmap_resources_mapping_shells",
+          "col_semanticormaterialmap_resources_mapping_solids"
+        ],
+        "ui": {
+          "x": 1500,
+          "y": 400,
+          "zIndex": 1,
+          "widthName": 140,
+          "widthComment": 309,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "resources_mapping_SemanticMap": {
+        "id": "resources_mapping_SemanticMap",
+        "name": "SemanticMap",
+        "comment": "Alias for SemanticOrMaterialMap for Semantics.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 300,
+          "zIndex": 1,
+          "widthName": 79,
+          "widthComment": 272,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "resources_mapping_MaterialMap": {
+        "id": "resources_mapping_MaterialMap",
+        "name": "MaterialMap",
+        "comment": "Alias for SemanticOrMaterialMap for Materials.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1500,
+          "y": 500,
+          "zIndex": 1,
+          "widthName": 74,
+          "widthComment": 267,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "resources_mapping_TextureMap": {
+        "id": "resources_mapping_TextureMap",
+        "name": "TextureMap",
+        "comment": "Maps textures/UVs to geometry. Generic over VR, RR.",
+        "columnIds": [
+          "col_texturemap_resources_mapping_vertices",
+          "col_texturemap_resources_mapping_rings",
+          "col_texturemap_resources_mapping_ring_textures",
+          "col_texturemap_resources_mapping_surfaces",
+          "col_texturemap_resources_mapping_shells",
+          "col_texturemap_resources_mapping_solids"
+        ],
+        "seqColumnIds": [
+          "col_texturemap_resources_mapping_vertices",
+          "col_texturemap_resources_mapping_rings",
+          "col_texturemap_resources_mapping_ring_textures",
+          "col_texturemap_resources_mapping_surfaces",
+          "col_texturemap_resources_mapping_shells",
+          "col_texturemap_resources_mapping_solids"
+        ],
+        "ui": {
+          "x": 672.1311,
+          "y": 1537.7049,
+          "zIndex": 1,
+          "widthName": 69,
+          "widthComment": 300,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185461098,
+          "createAt": 0
+        }
+      },
+      "resources_pool_DefaultResourcePool": {
+        "id": "resources_pool_DefaultResourcePool",
+        "name": "DefaultResourcePool",
+        "comment": "Generic resource pool. Generic over T, RR.",
+        "columnIds": [
+          "col_defaultresourcepool_resources_pool_resources",
+          "col_defaultresourcepool_resources_pool_generations",
+          "col_defaultresourcepool_resources_pool_free_list"
+        ],
+        "seqColumnIds": [
+          "col_defaultresourcepool_resources_pool_resources",
+          "col_defaultresourcepool_resources_pool_generations",
+          "col_defaultresourcepool_resources_pool_free_list"
+        ],
+        "ui": {
+          "x": 400,
+          "y": 850,
+          "zIndex": 1,
+          "widthName": 120,
+          "widthComment": 237,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "resources_pool_ResourceId32": {
+        "id": "resources_pool_ResourceId32",
+        "name": "ResourceId32",
+        "comment": "32-bit resource identifier.",
+        "columnIds": [
+          "col_resourceid32_resources_pool_index",
+          "col_resourceid32_resources_pool_generation"
+        ],
+        "seqColumnIds": [
+          "col_resourceid32_resources_pool_index",
+          "col_resourceid32_resources_pool_generation"
+        ],
+        "ui": {
+          "x": 86.8852,
+          "y": 1663.9344,
+          "zIndex": 1,
+          "widthName": 79,
+          "widthComment": 142,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185457230,
+          "createAt": 0
+        }
+      },
+      "trait_VertexRef": {
+        "id": "trait_VertexRef",
+        "name": "VertexRef",
+        "comment": "Trait for vertex index types (u16, u32, u64).",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1700,
+          "y": 550,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 242,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "trait_ResourceRef": {
+        "id": "trait_ResourceRef",
+        "name": "ResourceRef",
+        "comment": "Trait for resource identifiers (ResourceId32).",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 62.2951,
+          "y": 1455.7377,
+          "zIndex": 1,
+          "widthName": 72,
+          "widthComment": 249,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185459181,
+          "createAt": 0
+        }
+      },
+      "trait_StringStorage": {
+        "id": "trait_StringStorage",
+        "name": "StringStorage",
+        "comment": "Trait for string storage (String, &str). Generic over String type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1300,
+          "y": 200,
+          "zIndex": 1,
+          "widthName": 80,
+          "widthComment": 348,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "trait_Coordinate": {
+        "id": "trait_Coordinate",
+        "name": "Coordinate",
+        "comment": "Trait for coordinate types.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 99,
+          "y": 421,
+          "zIndex": 1,
+          "widthName": 65,
+          "widthComment": 147,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185731496,
+          "createAt": 0
+        }
+      },
+      "basic_u16": {
+        "id": "basic_u16",
+        "name": "u16",
+        "comment": "Basic unsigned 16-bit integer type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 2261,
+          "y": 232,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 197,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 1746185709187,
+          "createAt": 0
+        }
+      },
+      "basic_u32": {
+        "id": "basic_u32",
+        "name": "u32",
+        "comment": "Basic unsigned 32-bit integer type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 2000,
+          "y": 550,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 197,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "basic_u64": {
+        "id": "basic_u64",
+        "name": "u64",
+        "comment": "Basic unsigned 64-bit integer type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 2000,
+          "y": 600,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 197,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "basic_String": {
+        "id": "basic_String",
+        "name": "String",
+        "comment": "Owned string type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1600,
+          "y": 200,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 109,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "basic_str": {
+        "id": "basic_str",
+        "name": "&str",
+        "comment": "Borrowed string slice type.",
+        "columnIds": [],
+        "seqColumnIds": [],
+        "ui": {
+          "x": 1600,
+          "y": 250,
+          "zIndex": 1,
+          "widthName": 60,
+          "widthComment": 152,
+          "color": "#000000"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      }
+    },
+    "tableColumnEntities": {
+      "col_citymodel_v2_0_type_citymodel": {
+        "id": "col_citymodel_v2_0_type_citymodel",
+        "tableId": "v2_0_CityModel",
+        "name": "type_citymodel",
+        "comment": "",
+        "dataType": "CityModelType",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 87,
+          "widthComment": 60,
+          "widthDataType": 85,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_version": {
+        "id": "col_citymodel_v2_0_version",
+        "tableId": "v2_0_CityModel",
+        "name": "version",
+        "comment": "",
+        "dataType": "Option<CityJSONVersion>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 146,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_extensions": {
+        "id": "col_citymodel_v2_0_extensions",
+        "tableId": "v2_0_CityModel",
+        "name": "extensions",
+        "comment": "",
+        "dataType": "Option<Extensions<SS>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 142,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_extra": {
+        "id": "col_citymodel_v2_0_extra",
+        "tableId": "v2_0_CityModel",
+        "name": "extra",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_metadata": {
+        "id": "col_citymodel_v2_0_metadata",
+        "tableId": "v2_0_CityModel",
+        "name": "metadata",
+        "comment": "",
+        "dataType": "Option<Metadata<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 157,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_cityobjects": {
+        "id": "col_citymodel_v2_0_cityobjects",
+        "tableId": "v2_0_CityModel",
+        "name": "cityobjects",
+        "comment": "",
+        "dataType": "CityObjects<SS, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 62,
+          "widthComment": 60,
+          "widthDataType": 114,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_transform": {
+        "id": "col_citymodel_v2_0_transform",
+        "tableId": "v2_0_CityModel",
+        "name": "transform",
+        "comment": "",
+        "dataType": "Option<Transform>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 113,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_vertices": {
+        "id": "col_citymodel_v2_0_vertices",
+        "tableId": "v2_0_CityModel",
+        "name": "vertices",
+        "comment": "",
+        "dataType": "Vertices<VR, QuantizedCoordinate>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 202,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_geometries": {
+        "id": "col_citymodel_v2_0_geometries",
+        "tableId": "v2_0_CityModel",
+        "name": "geometries",
+        "comment": "",
+        "dataType": "DefaultResourcePool<Geometry<VR, RR, SS>, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 66,
+          "widthComment": 60,
+          "widthDataType": 280,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_template_vertices": {
+        "id": "col_citymodel_v2_0_template_vertices",
+        "tableId": "v2_0_CityModel",
+        "name": "template_vertices",
+        "comment": "",
+        "dataType": "Vertices<VR, RealWorldCoordinate>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 101,
+          "widthComment": 60,
+          "widthDataType": 201,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_template_geometries": {
+        "id": "col_citymodel_v2_0_template_geometries",
+        "tableId": "v2_0_CityModel",
+        "name": "template_geometries",
+        "comment": "",
+        "dataType": "DefaultResourcePool<Geometry<VR, RR, SS>, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 122,
+          "widthComment": 60,
+          "widthDataType": 280,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_semantics": {
+        "id": "col_citymodel_v2_0_semantics",
+        "tableId": "v2_0_CityModel",
+        "name": "semantics",
+        "comment": "",
+        "dataType": "DefaultResourcePool<Semantic<RR, SS>, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 255,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_materials": {
+        "id": "col_citymodel_v2_0_materials",
+        "tableId": "v2_0_CityModel",
+        "name": "materials",
+        "comment": "",
+        "dataType": "DefaultResourcePool<Material<SS>, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 229,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_textures": {
+        "id": "col_citymodel_v2_0_textures",
+        "tableId": "v2_0_CityModel",
+        "name": "textures",
+        "comment": "",
+        "dataType": "DefaultResourcePool<Texture<SS>, RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 224,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_citymodel_v2_0_vertices_texture": {
+        "id": "col_citymodel_v2_0_vertices_texture",
+        "tableId": "v2_0_CityModel",
+        "name": "vertices_texture",
+        "comment": "",
+        "dataType": "Vertices<VR, UVCoordinate>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 60,
+          "widthDataType": 160,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_id": {
+        "id": "col_cityobject_v2_0_id",
+        "tableId": "v2_0_CityObject",
+        "name": "id",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_type_cityobject": {
+        "id": "col_cityobject_v2_0_type_cityobject",
+        "tableId": "v2_0_CityObject",
+        "name": "type_cityobject",
+        "comment": "",
+        "dataType": "CityObjectType<SS>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 86,
+          "widthComment": 60,
+          "widthDataType": 113,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_geometry": {
+        "id": "col_cityobject_v2_0_geometry",
+        "tableId": "v2_0_CityObject",
+        "name": "geometry",
+        "comment": "References to Geometry objects in the pool.",
+        "dataType": "Option<Vec<RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 248,
+          "widthDataType": 103,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_attributes": {
+        "id": "col_cityobject_v2_0_attributes",
+        "tableId": "v2_0_CityObject",
+        "name": "attributes",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_geographical_extent": {
+        "id": "col_cityobject_v2_0_geographical_extent",
+        "tableId": "v2_0_CityObject",
+        "name": "geographical_extent",
+        "comment": "",
+        "dataType": "Option<BBox>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 117,
+          "widthComment": 60,
+          "widthDataType": 84,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_children": {
+        "id": "col_cityobject_v2_0_children",
+        "tableId": "v2_0_CityObject",
+        "name": "children",
+        "comment": "References to child CityObjects in the pool.",
+        "dataType": "Option<Vec<RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 242,
+          "widthDataType": 103,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_parents": {
+        "id": "col_cityobject_v2_0_parents",
+        "tableId": "v2_0_CityObject",
+        "name": "parents",
+        "comment": "References to parent CityObjects in the pool.",
+        "dataType": "Option<Vec<RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 253,
+          "widthDataType": 103,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_cityobject_v2_0_extra": {
+        "id": "col_cityobject_v2_0_extra",
+        "tableId": "v2_0_CityObject",
+        "name": "extra",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_type_geometry": {
+        "id": "col_geometry_v2_0_type_geometry",
+        "tableId": "v2_0_Geometry",
+        "name": "type_geometry",
+        "comment": "",
+        "dataType": "GeometryType",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 87,
+          "widthComment": 60,
+          "widthDataType": 85,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_lod": {
+        "id": "col_geometry_v2_0_lod",
+        "tableId": "v2_0_Geometry",
+        "name": "lod",
+        "comment": "",
+        "dataType": "Option<LoD>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 77,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_boundaries": {
+        "id": "col_geometry_v2_0_boundaries",
+        "tableId": "v2_0_Geometry",
+        "name": "boundaries",
+        "comment": "",
+        "dataType": "Option<Boundary<VR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 66,
+          "widthComment": 60,
+          "widthDataType": 138,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_semantics": {
+        "id": "col_geometry_v2_0_semantics",
+        "tableId": "v2_0_Geometry",
+        "name": "semantics",
+        "comment": "",
+        "dataType": "Option<SemanticMap<VR, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 181,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_materials": {
+        "id": "col_geometry_v2_0_materials",
+        "tableId": "v2_0_Geometry",
+        "name": "materials",
+        "comment": "Vec of (SS::String, MaterialMap<VR, RR>)",
+        "dataType": "Option<Vec<(SS::String, MaterialMap<VR, RR>)>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 227,
+          "widthDataType": 276,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_textures": {
+        "id": "col_geometry_v2_0_textures",
+        "tableId": "v2_0_Geometry",
+        "name": "textures",
+        "comment": "Vec of (SS::String, TextureMap<VR, RR>)",
+        "dataType": "Option<Vec<(SS::String, TextureMap<VR, RR>)>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 223,
+          "widthDataType": 271,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_instance_template": {
+        "id": "col_geometry_v2_0_instance_template",
+        "tableId": "v2_0_Geometry",
+        "name": "instance_template",
+        "comment": "Reference to a template geometry (for GeometryInstance).",
+        "dataType": "Option<RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 332,
+          "widthDataType": 70,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_instance_reference_point": {
+        "id": "col_geometry_v2_0_instance_reference_point",
+        "tableId": "v2_0_Geometry",
+        "name": "instance_reference_point",
+        "comment": "Reference point for GeometryInstance.",
+        "dataType": "Option<VertexIndex<VR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 143,
+          "widthComment": 221,
+          "widthDataType": 151,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_geometry_v2_0_instance_transformation_matrix": {
+        "id": "col_geometry_v2_0_instance_transformation_matrix",
+        "tableId": "v2_0_Geometry",
+        "name": "instance_transformation_matrix",
+        "comment": "Transformation matrix for GeometryInstance.",
+        "dataType": "Option<[f64; 16]>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 182,
+          "widthComment": 259,
+          "widthDataType": 100,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semantic_v2_0_type_semantic": {
+        "id": "col_semantic_v2_0_type_semantic",
+        "tableId": "v2_0_Semantic",
+        "name": "type_semantic",
+        "comment": "",
+        "dataType": "SemanticType<SS>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 83,
+          "widthComment": 60,
+          "widthDataType": 108,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semantic_v2_0_children": {
+        "id": "col_semantic_v2_0_children",
+        "tableId": "v2_0_Semantic",
+        "name": "children",
+        "comment": "References to child Semantics in the pool.",
+        "dataType": "Option<Vec<RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 236,
+          "widthDataType": 103,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semantic_v2_0_parent": {
+        "id": "col_semantic_v2_0_parent",
+        "tableId": "v2_0_Semantic",
+        "name": "parent",
+        "comment": "Reference to parent Semantic in the pool.",
+        "dataType": "Option<RR>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 235,
+          "widthDataType": 70,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semantic_v2_0_attributes": {
+        "id": "col_semantic_v2_0_attributes",
+        "tableId": "v2_0_Semantic",
+        "name": "attributes",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_name": {
+        "id": "col_material_v2_0_name",
+        "tableId": "v2_0_Material",
+        "name": "name",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_ambient_intensity": {
+        "id": "col_material_v2_0_ambient_intensity",
+        "tableId": "v2_0_Material",
+        "name": "ambient_intensity",
+        "comment": "",
+        "dataType": "Option<f32>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 103,
+          "widthComment": 60,
+          "widthDataType": 72,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_diffuse_color": {
+        "id": "col_material_v2_0_diffuse_color",
+        "tableId": "v2_0_Material",
+        "name": "diffuse_color",
+        "comment": "",
+        "dataType": "Option<RGB>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 74,
+          "widthComment": 60,
+          "widthDataType": 79,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_emissive_color": {
+        "id": "col_material_v2_0_emissive_color",
+        "tableId": "v2_0_Material",
+        "name": "emissive_color",
+        "comment": "",
+        "dataType": "Option<RGB>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 79,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_specular_color": {
+        "id": "col_material_v2_0_specular_color",
+        "tableId": "v2_0_Material",
+        "name": "specular_color",
+        "comment": "",
+        "dataType": "Option<RGB>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 79,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_shininess": {
+        "id": "col_material_v2_0_shininess",
+        "tableId": "v2_0_Material",
+        "name": "shininess",
+        "comment": "",
+        "dataType": "Option<f32>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 72,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_transparency": {
+        "id": "col_material_v2_0_transparency",
+        "tableId": "v2_0_Material",
+        "name": "transparency",
+        "comment": "",
+        "dataType": "Option<f32>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 76,
+          "widthComment": 60,
+          "widthDataType": 72,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_material_v2_0_is_smooth": {
+        "id": "col_material_v2_0_is_smooth",
+        "tableId": "v2_0_Material",
+        "name": "is_smooth",
+        "comment": "",
+        "dataType": "Option<bool>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 80,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texture_v2_0_image_type": {
+        "id": "col_texture_v2_0_image_type",
+        "tableId": "v2_0_Texture",
+        "name": "image_type",
+        "comment": "",
+        "dataType": "ImageType",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 67,
+          "widthComment": 60,
+          "widthDataType": 65,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texture_v2_0_image": {
+        "id": "col_texture_v2_0_image",
+        "tableId": "v2_0_Texture",
+        "name": "image",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texture_v2_0_wrap_mode": {
+        "id": "col_texture_v2_0_wrap_mode",
+        "tableId": "v2_0_Texture",
+        "name": "wrap_mode",
+        "comment": "",
+        "dataType": "Option<WrapMode>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 68,
+          "widthComment": 60,
+          "widthDataType": 117,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texture_v2_0_texture_type": {
+        "id": "col_texture_v2_0_texture_type",
+        "tableId": "v2_0_Texture",
+        "name": "texture_type",
+        "comment": "",
+        "dataType": "Option<TextureType>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 72,
+          "widthComment": 60,
+          "widthDataType": 123,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texture_v2_0_border_color": {
+        "id": "col_texture_v2_0_border_color",
+        "tableId": "v2_0_Texture",
+        "name": "border_color",
+        "comment": "",
+        "dataType": "Option<RGBA>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 74,
+          "widthComment": 60,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_geographical_extent": {
+        "id": "col_metadata_v2_0_geographical_extent",
+        "tableId": "v2_0_Metadata",
+        "name": "geographical_extent",
+        "comment": "",
+        "dataType": "Option<BBox>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 117,
+          "widthComment": 60,
+          "widthDataType": 84,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_identifier": {
+        "id": "col_metadata_v2_0_identifier",
+        "tableId": "v2_0_Metadata",
+        "name": "identifier",
+        "comment": "",
+        "dataType": "Option<CityModelIdentifier<SS>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 190,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_point_of_contact": {
+        "id": "col_metadata_v2_0_point_of_contact",
+        "tableId": "v2_0_Metadata",
+        "name": "point_of_contact",
+        "comment": "",
+        "dataType": "Option<Contact<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 95,
+          "widthComment": 60,
+          "widthDataType": 146,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_reference_date": {
+        "id": "col_metadata_v2_0_reference_date",
+        "tableId": "v2_0_Metadata",
+        "name": "reference_date",
+        "comment": "",
+        "dataType": "Option<Date<SS>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 86,
+          "widthComment": 60,
+          "widthDataType": 108,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_reference_system": {
+        "id": "col_metadata_v2_0_reference_system",
+        "tableId": "v2_0_Metadata",
+        "name": "reference_system",
+        "comment": "",
+        "dataType": "Option<CRS<SS>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 101,
+          "widthComment": 60,
+          "widthDataType": 103,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_title": {
+        "id": "col_metadata_v2_0_title",
+        "tableId": "v2_0_Metadata",
+        "name": "title",
+        "comment": "",
+        "dataType": "Option<String>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_metadata_v2_0_extra": {
+        "id": "col_metadata_v2_0_extra",
+        "tableId": "v2_0_Metadata",
+        "name": "extra",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_contact_name": {
+        "id": "col_contact_v2_0_metadata_contact_name",
+        "tableId": "v2_0_Contact",
+        "name": "contact_name",
+        "comment": "",
+        "dataType": "String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 81,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_email_address": {
+        "id": "col_contact_v2_0_metadata_email_address",
+        "tableId": "v2_0_Contact",
+        "name": "email_address",
+        "comment": "",
+        "dataType": "String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 83,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_role": {
+        "id": "col_contact_v2_0_metadata_role",
+        "tableId": "v2_0_Contact",
+        "name": "role",
+        "comment": "",
+        "dataType": "Option<ContactRole>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 123,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_website": {
+        "id": "col_contact_v2_0_metadata_website",
+        "tableId": "v2_0_Contact",
+        "name": "website",
+        "comment": "",
+        "dataType": "Option<String>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_contact_type": {
+        "id": "col_contact_v2_0_metadata_contact_type",
+        "tableId": "v2_0_Contact",
+        "name": "contact_type",
+        "comment": "",
+        "dataType": "Option<ContactType>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 74,
+          "widthComment": 60,
+          "widthDataType": 125,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_address": {
+        "id": "col_contact_v2_0_metadata_address",
+        "tableId": "v2_0_Contact",
+        "name": "address",
+        "comment": "",
+        "dataType": "Option<Attributes<SS, RR>>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 159,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_phone": {
+        "id": "col_contact_v2_0_metadata_phone",
+        "tableId": "v2_0_Contact",
+        "name": "phone",
+        "comment": "",
+        "dataType": "Option<String>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_contact_v2_0_metadata_organization": {
+        "id": "col_contact_v2_0_metadata_organization",
+        "tableId": "v2_0_Contact",
+        "name": "organization",
+        "comment": "",
+        "dataType": "Option<String>",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 73,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_attributes_core_values": {
+        "id": "col_attributes_core_values",
+        "tableId": "core_attributes_Attributes",
+        "name": "values",
+        "comment": "HashMap<SS::String, AttributeValue<SS, RR>>",
+        "dataType": "HashMap",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 259,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_boundary_core_vertices": {
+        "id": "col_boundary_core_vertices",
+        "tableId": "core_boundary_Boundary",
+        "name": "vertices",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_boundary_core_rings": {
+        "id": "col_boundary_core_rings",
+        "tableId": "core_boundary_Boundary",
+        "name": "rings",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_boundary_core_surfaces": {
+        "id": "col_boundary_core_surfaces",
+        "tableId": "core_boundary_Boundary",
+        "name": "surfaces",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_boundary_core_shells": {
+        "id": "col_boundary_core_shells",
+        "tableId": "core_boundary_Boundary",
+        "name": "shells",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_boundary_core_solids": {
+        "id": "col_boundary_core_solids",
+        "tableId": "core_boundary_Boundary",
+        "name": "solids",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_vertices_core_coordinate_coordinates": {
+        "id": "col_vertices_core_coordinate_coordinates",
+        "tableId": "core_coordinate_Vertices",
+        "name": "coordinates",
+        "comment": "Vec<V>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 68,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_quantizedcoordinate_core_coordinate_x": {
+        "id": "col_quantizedcoordinate_core_coordinate_x",
+        "tableId": "core_coordinate_QuantizedCoordinate",
+        "name": "x",
+        "comment": "",
+        "dataType": "i64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_quantizedcoordinate_core_coordinate_y": {
+        "id": "col_quantizedcoordinate_core_coordinate_y",
+        "tableId": "core_coordinate_QuantizedCoordinate",
+        "name": "y",
+        "comment": "",
+        "dataType": "i64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_quantizedcoordinate_core_coordinate_z": {
+        "id": "col_quantizedcoordinate_core_coordinate_z",
+        "tableId": "core_coordinate_QuantizedCoordinate",
+        "name": "z",
+        "comment": "",
+        "dataType": "i64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_realworldcoordinate_core_coordinate_x": {
+        "id": "col_realworldcoordinate_core_coordinate_x",
+        "tableId": "core_coordinate_RealWorldCoordinate",
+        "name": "x",
+        "comment": "",
+        "dataType": "f64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_realworldcoordinate_core_coordinate_y": {
+        "id": "col_realworldcoordinate_core_coordinate_y",
+        "tableId": "core_coordinate_RealWorldCoordinate",
+        "name": "y",
+        "comment": "",
+        "dataType": "f64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_realworldcoordinate_core_coordinate_z": {
+        "id": "col_realworldcoordinate_core_coordinate_z",
+        "tableId": "core_coordinate_RealWorldCoordinate",
+        "name": "z",
+        "comment": "",
+        "dataType": "f64",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_uvcoordinate_core_coordinate_u": {
+        "id": "col_uvcoordinate_core_coordinate_u",
+        "tableId": "core_coordinate_UVCoordinate",
+        "name": "u",
+        "comment": "",
+        "dataType": "f32",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_uvcoordinate_core_coordinate_v": {
+        "id": "col_uvcoordinate_core_coordinate_v",
+        "tableId": "core_coordinate_UVCoordinate",
+        "name": "v",
+        "comment": "",
+        "dataType": "f32",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_extensionscore_core_extension_inner": {
+        "id": "col_extensionscore_core_extension_inner",
+        "tableId": "core_extension_ExtensionsCore",
+        "name": "inner",
+        "comment": "Vec<E>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_extensioncore_core_extension_name": {
+        "id": "col_extensioncore_core_extension_name",
+        "tableId": "core_extension_ExtensionCore",
+        "name": "name",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_extensioncore_core_extension_url": {
+        "id": "col_extensioncore_core_extension_url",
+        "tableId": "core_extension_ExtensionCore",
+        "name": "url",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_extensioncore_core_extension_version": {
+        "id": "col_extensioncore_core_extension_version",
+        "tableId": "core_extension_ExtensionCore",
+        "name": "version",
+        "comment": "",
+        "dataType": "SS::String",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_bbox_core_metadata_values": {
+        "id": "col_bbox_core_metadata_values",
+        "tableId": "core_metadata_BBox",
+        "name": "values",
+        "comment": "[f64; 6]",
+        "dataType": "Array",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semanticormaterialmap_resources_mapping_points": {
+        "id": "col_semanticormaterialmap_resources_mapping_points",
+        "tableId": "resources_mapping_SemanticOrMaterialMap",
+        "name": "points",
+        "comment": "Vec<Option<RR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 103,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semanticormaterialmap_resources_mapping_linestrings": {
+        "id": "col_semanticormaterialmap_resources_mapping_linestrings",
+        "tableId": "resources_mapping_SemanticOrMaterialMap",
+        "name": "linestrings",
+        "comment": "Vec<Option<RR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 61,
+          "widthComment": 103,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semanticormaterialmap_resources_mapping_surfaces": {
+        "id": "col_semanticormaterialmap_resources_mapping_surfaces",
+        "tableId": "resources_mapping_SemanticOrMaterialMap",
+        "name": "surfaces",
+        "comment": "Vec<Option<RR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 103,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semanticormaterialmap_resources_mapping_shells": {
+        "id": "col_semanticormaterialmap_resources_mapping_shells",
+        "tableId": "resources_mapping_SemanticOrMaterialMap",
+        "name": "shells",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_semanticormaterialmap_resources_mapping_solids": {
+        "id": "col_semanticormaterialmap_resources_mapping_solids",
+        "tableId": "resources_mapping_SemanticOrMaterialMap",
+        "name": "solids",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_vertices": {
+        "id": "col_texturemap_resources_mapping_vertices",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "vertices",
+        "comment": "Vec<Option<VertexIndex<VR>>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 184,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_rings": {
+        "id": "col_texturemap_resources_mapping_rings",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "rings",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_ring_textures": {
+        "id": "col_texturemap_resources_mapping_ring_textures",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "ring_textures",
+        "comment": "Vec<Option<RR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 76,
+          "widthComment": 103,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_surfaces": {
+        "id": "col_texturemap_resources_mapping_surfaces",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "surfaces",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_shells": {
+        "id": "col_texturemap_resources_mapping_shells",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "shells",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_texturemap_resources_mapping_solids": {
+        "id": "col_texturemap_resources_mapping_solids",
+        "tableId": "resources_mapping_TextureMap",
+        "name": "solids",
+        "comment": "Vec<VertexIndex<VR>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 131,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_defaultresourcepool_resources_pool_resources": {
+        "id": "col_defaultresourcepool_resources_pool_resources",
+        "tableId": "resources_pool_DefaultResourcePool",
+        "name": "resources",
+        "comment": "Vec<Option<T>>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 94,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_defaultresourcepool_resources_pool_generations": {
+        "id": "col_defaultresourcepool_resources_pool_generations",
+        "tableId": "resources_pool_DefaultResourcePool",
+        "name": "generations",
+        "comment": "Vec<u16>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_defaultresourcepool_resources_pool_free_list": {
+        "id": "col_defaultresourcepool_resources_pool_free_list",
+        "tableId": "resources_pool_DefaultResourcePool",
+        "name": "free_list",
+        "comment": "Vec<u32>",
+        "dataType": "Vec",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_resourceid32_resources_pool_index": {
+        "id": "col_resourceid32_resources_pool_index",
+        "tableId": "resources_pool_ResourceId32",
+        "name": "index",
+        "comment": "",
+        "dataType": "u32",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "col_resourceid32_resources_pool_generation": {
+        "id": "col_resourceid32_resources_pool_generation",
+        "tableId": "resources_pool_ResourceId32",
+        "name": "generation",
+        "comment": "",
+        "dataType": "u16",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 64,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      }
+    },
+    "relationshipEntities": {
+      "rel_citymodel_v2_0_to_cityobjects_v2_0": {
+        "id": "rel_citymodel_v2_0_to_cityobjects_v2_0",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_cityobjects"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "v2_0_CityObjects",
+          "columnIds": [],
+          "x": 0,
+          "y": 0,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_extensions_v2_0": {
+        "id": "rel_citymodel_v2_0_to_extensions_v2_0",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_extensions"
+          ],
+          "x": 2716,
+          "y": 604.6666666666666,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "v2_0_Extensions",
+          "columnIds": [],
+          "x": 818,
+          "y": 367,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_extra_attributes_core": {
+        "id": "rel_citymodel_v2_0_to_extra_attributes_core",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_extra"
+          ],
+          "x": 2716,
+          "y": 639.3333333333333,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [],
+          "x": 1118,
+          "y": 590,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_metadata_v2_0": {
+        "id": "rel_citymodel_v2_0_to_metadata_v2_0",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_metadata"
+          ],
+          "x": 2716,
+          "y": 535.3333333333334,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [],
+          "x": 1005,
+          "y": 212,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_transform_v2_0": {
+        "id": "rel_citymodel_v2_0_to_transform_v2_0",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_transform"
+          ],
+          "x": 2716,
+          "y": 570,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "v2_0_Transform",
+          "columnIds": [],
+          "x": 818,
+          "y": 278,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_vertices_core_coordinate": {
+        "id": "rel_citymodel_v2_0_to_vertices_core_coordinate",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_vertices"
+          ],
+          "x": 2716,
+          "y": 673.9999999999999,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_coordinate_Vertices",
+          "columnIds": [],
+          "x": 826,
+          "y": 713.3333333333333,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_geometries_pool": {
+        "id": "rel_citymodel_v2_0_to_geometries_pool",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_geometries"
+          ],
+          "x": 2716,
+          "y": 777.9999999999998,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 828,
+          "y": 860.6666666666667,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_template_vertices_core_coordinate": {
+        "id": "rel_citymodel_v2_0_to_template_vertices_core_coordinate",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_template_vertices"
+          ],
+          "x": 2716,
+          "y": 708.6666666666665,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_coordinate_Vertices",
+          "columnIds": [],
+          "x": 826,
+          "y": 739.9999999999999,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_template_geometries_pool": {
+        "id": "rel_citymodel_v2_0_to_template_geometries_pool",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_template_geometries"
+          ],
+          "x": 2716,
+          "y": 812.6666666666664,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 828,
+          "y": 882.0000000000001,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_semantics_pool": {
+        "id": "rel_citymodel_v2_0_to_semantics_pool",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_semantics"
+          ],
+          "x": 2716,
+          "y": 847.333333333333,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 828,
+          "y": 903.3333333333335,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_materials_pool": {
+        "id": "rel_citymodel_v2_0_to_materials_pool",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_materials"
+          ],
+          "x": 2716,
+          "y": 881.9999999999997,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 828,
+          "y": 924.6666666666669,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_textures_pool": {
+        "id": "rel_citymodel_v2_0_to_textures_pool",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_textures"
+          ],
+          "x": 2716,
+          "y": 916.6666666666663,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 828,
+          "y": 946.0000000000002,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodel_v2_0_to_vertices_texture_core_coordinate": {
+        "id": "rel_citymodel_v2_0_to_vertices_texture_core_coordinate",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityModel",
+          "columnIds": [
+            "col_citymodel_v2_0_vertices_texture"
+          ],
+          "x": 2716,
+          "y": 743.3333333333331,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_coordinate_Vertices",
+          "columnIds": [],
+          "x": 826,
+          "y": 766.6666666666665,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_extensions_v2_0_to_extensionscore_core_extension": {
+        "id": "rel_extensions_v2_0_to_extensionscore_core_extension",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Extensions",
+          "columnIds": [],
+          "x": 818,
+          "y": 339,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_extension_ExtensionsCore",
+          "columnIds": [],
+          "x": 804.5,
+          "y": 330,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_extensionscore_core_extension_to_extension_v2_0": {
+        "id": "rel_extensionscore_core_extension_to_extension_v2_0",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_extension_ExtensionsCore",
+          "columnIds": [
+            "col_extensionscore_core_extension_inner"
+          ],
+          "x": 1013.5,
+          "y": 330,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "v2_0_Extension",
+          "columnIds": [],
+          "x": 909,
+          "y": 325,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_extension_v2_0_to_extensioncore_core_extension": {
+        "id": "rel_extension_v2_0_to_extensioncore_core_extension",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Extension",
+          "columnIds": [],
+          "x": 909,
+          "y": 381,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_extension_ExtensionCore",
+          "columnIds": [],
+          "x": 1000,
+          "y": 389,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_extensioncore_core_extension_to_stringstorage_trait": {
+        "id": "rel_extensioncore_core_extension_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_extension_ExtensionCore",
+          "columnIds": [
+            "col_extensioncore_core_extension_name",
+            "col_extensioncore_core_extension_url",
+            "col_extensioncore_core_extension_version"
+          ],
+          "x": 1209,
+          "y": 325,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 224.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_attributes_core_to_stringstorage_trait": {
+        "id": "rel_attributes_core_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [
+            "col_attributes_core_values"
+          ],
+          "x": 1118,
+          "y": 558,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 238.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_attributes_core_to_attributevalue_core_attributes": {
+        "id": "rel_attributes_core_to_attributevalue_core_attributes",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [
+            "col_attributes_core_values"
+          ],
+          "x": 1118,
+          "y": 574,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_attributes_AttributeValue",
+          "columnIds": [],
+          "x": 1209,
+          "y": 606,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_attributevalue_core_attributes_to_stringstorage_trait": {
+        "id": "rel_attributevalue_core_attributes_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_attributes_AttributeValue",
+          "columnIds": [],
+          "x": 1418,
+          "y": 564,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1404.5,
+          "y": 256,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_attributevalue_core_attributes_to_attributevalue_core_attributes_recursive": {
+        "id": "rel_attributevalue_core_attributes_to_attributevalue_core_attributes_recursive",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_attributes_AttributeValue",
+          "columnIds": [],
+          "x": 1398,
+          "y": 550,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "core_attributes_AttributeValue",
+          "columnIds": [],
+          "x": 1418,
+          "y": 592,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_attributevalue_core_attributes_to_resourceref_trait": {
+        "id": "rel_attributevalue_core_attributes_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_attributes_AttributeValue",
+          "columnIds": [],
+          "x": 1000,
+          "y": 578,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1469.7376999999997,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_bbox_core_metadata": {
+        "id": "rel_metadata_v2_0_to_bbox_core_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_geographical_extent"
+          ],
+          "x": 500.83333333333337,
+          "y": 100,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "core_metadata_BBox",
+          "columnIds": [],
+          "x": 700,
+          "y": 40,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_citymodelidentifier_core_metadata": {
+        "id": "rel_metadata_v2_0_to_citymodelidentifier_core_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_identifier"
+          ],
+          "x": 702.5,
+          "y": 100,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "core_metadata_CityModelIdentifier",
+          "columnIds": [],
+          "x": 700,
+          "y": 78,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_contact_v2_0_metadata": {
+        "id": "rel_metadata_v2_0_to_contact_v2_0_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_point_of_contact"
+          ],
+          "x": 500.83333333333337,
+          "y": 324,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "v2_0_Contact",
+          "columnIds": [],
+          "x": 700,
+          "y": 224,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_date_core_metadata": {
+        "id": "rel_metadata_v2_0_to_date_core_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_reference_date"
+          ],
+          "x": 904.1666666666666,
+          "y": 100,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "core_metadata_Date",
+          "columnIds": [],
+          "x": 700,
+          "y": 178,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_crs_core_metadata": {
+        "id": "rel_metadata_v2_0_to_crs_core_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_reference_system"
+          ],
+          "x": 702.5,
+          "y": 324,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_metadata_CRS",
+          "columnIds": [],
+          "x": 700,
+          "y": 228,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_metadata_v2_0_to_extra_attributes_core": {
+        "id": "rel_metadata_v2_0_to_extra_attributes_core",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Metadata",
+          "columnIds": [
+            "col_metadata_v2_0_extra"
+          ],
+          "x": 904.1666666666666,
+          "y": 324,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [],
+          "x": 700,
+          "y": 590,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_citymodelidentifier_core_metadata_to_stringstorage_trait": {
+        "id": "rel_citymodelidentifier_core_metadata_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_metadata_CityModelIdentifier",
+          "columnIds": [],
+          "x": 1118,
+          "y": 78,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 203.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_date_core_metadata_to_stringstorage_trait": {
+        "id": "rel_date_core_metadata_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_metadata_Date",
+          "columnIds": [],
+          "x": 1118,
+          "y": 178,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 210.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_crs_core_metadata_to_stringstorage_trait": {
+        "id": "rel_crs_core_metadata_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_metadata_CRS",
+          "columnIds": [],
+          "x": 1118,
+          "y": 228,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 217.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_contact_v2_0_metadata_to_contactrole_v2_0_metadata": {
+        "id": "rel_contact_v2_0_metadata_to_contactrole_v2_0_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Contact",
+          "columnIds": [
+            "col_contact_v2_0_metadata_role"
+          ],
+          "x": 970,
+          "y": 100,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "v2_0_ContactRole",
+          "columnIds": [],
+          "x": 1000,
+          "y": 128,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_contact_v2_0_metadata_to_contacttype_v2_0_metadata": {
+        "id": "rel_contact_v2_0_metadata_to_contacttype_v2_0_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Contact",
+          "columnIds": [
+            "col_contact_v2_0_metadata_contact_type"
+          ],
+          "x": 1240,
+          "y": 224,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "v2_0_ContactType",
+          "columnIds": [],
+          "x": 1209,
+          "y": 200,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_contact_v2_0_metadata_to_address_attributes_core": {
+        "id": "rel_contact_v2_0_metadata_to_address_attributes_core",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Contact",
+          "columnIds": [
+            "col_contact_v2_0_metadata_address"
+          ],
+          "x": 970,
+          "y": 348,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [],
+          "x": 909,
+          "y": 550,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobjects_v2_0_to_defaultresourcepool_resources_pool": {
+        "id": "rel_cityobjects_v2_0_to_defaultresourcepool_resources_pool",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityObjects",
+          "columnIds": [],
+          "x": 0,
+          "y": 0,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [],
+          "x": 0,
+          "y": 0,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobject_v2_0_to_stringstorage_trait": {
+        "id": "rel_cityobject_v2_0_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityObject",
+          "columnIds": [
+            "col_cityobject_v2_0_id"
+          ],
+          "x": 2762,
+          "y": 1322.3999999999999,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1718,
+          "y": 246.66666666666663,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobject_v2_0_to_cityobjecttype_v2_0_cityobject": {
+        "id": "rel_cityobject_v2_0_to_cityobjecttype_v2_0_cityobject",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityObject",
+          "columnIds": [
+            "col_cityobject_v2_0_type_cityobject"
+          ],
+          "x": 2762,
+          "y": 1371.9999999999998,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "v2_0_CityObjectType",
+          "columnIds": [],
+          "x": 1118,
+          "y": 442,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobject_v2_0_to_resourceref_trait": {
+        "id": "rel_cityobject_v2_0_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityObject",
+          "columnIds": [
+            "col_cityobject_v2_0_geometry",
+            "col_cityobject_v2_0_children",
+            "col_cityobject_v2_0_parents"
+          ],
+          "x": 2762,
+          "y": 1471.1999999999996,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1488.4043666666662,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobject_v2_0_to_attributes_core": {
+        "id": "rel_cityobject_v2_0_to_attributes_core",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityObject",
+          "columnIds": [
+            "col_cityobject_v2_0_attributes",
+            "col_cityobject_v2_0_extra"
+          ],
+          "x": 2762,
+          "y": 1421.5999999999997,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [],
+          "x": 1118,
+          "y": 622,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobject_v2_0_to_bbox_core_metadata": {
+        "id": "rel_cityobject_v2_0_to_bbox_core_metadata",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_CityObject",
+          "columnIds": [
+            "col_cityobject_v2_0_geographical_extent"
+          ],
+          "x": 2762,
+          "y": 1272.8,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_metadata_BBox",
+          "columnIds": [],
+          "x": 1118,
+          "y": 40,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_cityobjecttype_v2_0_cityobject_to_stringstorage_trait": {
+        "id": "rel_cityobjecttype_v2_0_cityobject_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_CityObjectType",
+          "columnIds": [],
+          "x": 1118,
+          "y": 414,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 231.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_transform_v2_0_to_transformcore_core_transform": {
+        "id": "rel_transform_v2_0_to_transformcore_core_transform",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Transform",
+          "columnIds": [],
+          "x": 0,
+          "y": 0,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_transform_TransformCore",
+          "columnIds": [],
+          "x": 0,
+          "y": 0,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_vertices_core_coordinate_to_coordinate_trait": {
+        "id": "rel_vertices_core_coordinate_to_coordinate_trait",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_coordinate_Vertices",
+          "columnIds": [
+            "col_vertices_core_coordinate_coordinates"
+          ],
+          "x": 613,
+          "y": 700,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "trait_Coordinate",
+          "columnIds": [],
+          "x": 517,
+          "y": 449,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_coordinate_trait_to_quantizedcoordinate_core_coordinate": {
+        "id": "rel_coordinate_trait_to_quantizedcoordinate_core_coordinate",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_Coordinate",
+          "columnIds": [],
+          "x": 308,
+          "y": 477,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_coordinate_QuantizedCoordinate",
+          "columnIds": [],
+          "x": 309,
+          "y": 900,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_coordinate_trait_to_realworldcoordinate_core_coordinate": {
+        "id": "rel_coordinate_trait_to_realworldcoordinate_core_coordinate",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_Coordinate",
+          "columnIds": [],
+          "x": 447.33333333333337,
+          "y": 477,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_coordinate_RealWorldCoordinate",
+          "columnIds": [],
+          "x": 309,
+          "y": 1000,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_coordinate_trait_to_uvcoordinate_core_coordinate": {
+        "id": "rel_coordinate_trait_to_uvcoordinate_core_coordinate",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_Coordinate",
+          "columnIds": [],
+          "x": 168.66666666666669,
+          "y": 477,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_coordinate_UVCoordinate",
+          "columnIds": [],
+          "x": 185,
+          "y": 1288,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_defaultresourcepool_resources_pool_to_contained_type": {
+        "id": "rel_defaultresourcepool_resources_pool_to_contained_type",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_pool_DefaultResourcePool",
+          "columnIds": [
+            "col_defaultresourcepool_resources_pool_resources"
+          ],
+          "x": 828,
+          "y": 967.3333333333336,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [],
+          "x": 2578,
+          "y": 1870.8571428571431,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_resourceid32_resources_pool_to_u32_basic": {
+        "id": "rel_resourceid32_resources_pool_to_u32_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_pool_ResourceId32",
+          "columnIds": [
+            "col_resourceid32_resources_pool_index"
+          ],
+          "x": 508.8852,
+          "y": 1741.9344,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_u32",
+          "columnIds": [],
+          "x": 2000,
+          "y": 578,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_resourceid32_resources_pool_to_u16_basic": {
+        "id": "rel_resourceid32_resources_pool_to_u16_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_pool_ResourceId32",
+          "columnIds": [
+            "col_resourceid32_resources_pool_generation"
+          ],
+          "x": 508.8852,
+          "y": 1689.9344,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_u16",
+          "columnIds": [],
+          "x": 2261,
+          "y": 274,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_resourceref_trait_to_resourceid32_resources_pool": {
+        "id": "rel_resourceref_trait_to_resourceid32_resources_pool",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 271.2951,
+          "y": 1511.7377,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "resources_pool_ResourceId32",
+          "columnIds": [],
+          "x": 297.8852,
+          "y": 1663.9344,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_stringstorage_trait_to_string_basic": {
+        "id": "rel_stringstorage_trait_to_string_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1718,
+          "y": 209.33333333333331,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_String",
+          "columnIds": [],
+          "x": 1809,
+          "y": 200,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_stringstorage_trait_to_str_basic": {
+        "id": "rel_stringstorage_trait_to_str_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1718,
+          "y": 227.99999999999997,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_str",
+          "columnIds": [],
+          "x": 1809,
+          "y": 250,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_vertexindex_core_to_vertexref_trait": {
+        "id": "rel_vertexindex_core_to_vertexref_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_vertex_VertexIndex",
+          "columnIds": [],
+          "x": 1818,
+          "y": 564,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "trait_VertexRef",
+          "columnIds": [],
+          "x": 1909,
+          "y": 550,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_vertexref_trait_to_u16_basic": {
+        "id": "rel_vertexref_trait_to_u16_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_VertexRef",
+          "columnIds": [],
+          "x": 2118,
+          "y": 559.3333333333333,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_u16",
+          "columnIds": [],
+          "x": 2261,
+          "y": 246,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_vertexref_trait_to_u32_basic": {
+        "id": "rel_vertexref_trait_to_u32_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_VertexRef",
+          "columnIds": [],
+          "x": 2118,
+          "y": 577.9999999999999,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_u32",
+          "columnIds": [],
+          "x": 2209,
+          "y": 550,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_vertexref_trait_to_u64_basic": {
+        "id": "rel_vertexref_trait_to_u64_basic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "trait_VertexRef",
+          "columnIds": [],
+          "x": 2118,
+          "y": 596.6666666666665,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "basic_u64",
+          "columnIds": [],
+          "x": 2209,
+          "y": 600,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_boundary_core_boundary": {
+        "id": "rel_geometry_v2_0_to_boundary_core_boundary",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_boundaries"
+          ],
+          "x": 2578,
+          "y": 1754.2857142857144,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_boundary_Boundary",
+          "columnIds": [],
+          "x": 1518,
+          "y": 488,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_semanticmap_resources_mapping": {
+        "id": "rel_geometry_v2_0_to_semanticmap_resources_mapping",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_semantics"
+          ],
+          "x": 2578,
+          "y": 1715.4285714285716,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_mapping_SemanticMap",
+          "columnIds": [],
+          "x": 1918,
+          "y": 328,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_materialmap_resources_mapping": {
+        "id": "rel_geometry_v2_0_to_materialmap_resources_mapping",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_materials"
+          ],
+          "x": 2578,
+          "y": 1793.1428571428573,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_mapping_MaterialMap",
+          "columnIds": [],
+          "x": 1918,
+          "y": 528,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_texturemap_resources_mapping": {
+        "id": "rel_geometry_v2_0_to_texturemap_resources_mapping",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_textures"
+          ],
+          "x": 2578,
+          "y": 1948.571428571429,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "resources_mapping_TextureMap",
+          "columnIds": [],
+          "x": 1106.1311,
+          "y": 1637.7049,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_resourceref_trait": {
+        "id": "rel_geometry_v2_0_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_instance_template"
+          ],
+          "x": 2578,
+          "y": 1909.714285714286,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1507.0710333333327,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_geometry_v2_0_to_vertexindex_core_vertex": {
+        "id": "rel_geometry_v2_0_to_vertexindex_core_vertex",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Geometry",
+          "columnIds": [
+            "col_geometry_v2_0_instance_reference_point"
+          ],
+          "x": 2578,
+          "y": 1832.0000000000002,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_vertex_VertexIndex",
+          "columnIds": [],
+          "x": 1818,
+          "y": 592,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_boundary_core_boundary_to_vertexindex_core_vertex": {
+        "id": "rel_boundary_core_boundary_to_vertexindex_core_vertex",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "core_boundary_Boundary",
+          "columnIds": [
+            "col_boundary_core_vertices",
+            "col_boundary_core_rings",
+            "col_boundary_core_surfaces",
+            "col_boundary_core_shells",
+            "col_boundary_core_solids"
+          ],
+          "x": 1309,
+          "y": 576,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_vertex_VertexIndex",
+          "columnIds": [],
+          "x": 1400,
+          "y": 564,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semanticmap_resources_mapping_to_semanticormaterialmap_resources_mapping": {
+        "id": "rel_semanticmap_resources_mapping_to_semanticormaterialmap_resources_mapping",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_SemanticMap",
+          "columnIds": [],
+          "x": 1709,
+          "y": 356,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "resources_mapping_SemanticOrMaterialMap",
+          "columnIds": [],
+          "x": 1709.5,
+          "y": 400,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_materialmap_resources_mapping_to_semanticormaterialmap_resources_mapping": {
+        "id": "rel_materialmap_resources_mapping_to_semanticormaterialmap_resources_mapping",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_MaterialMap",
+          "columnIds": [],
+          "x": 1709,
+          "y": 556,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "resources_mapping_SemanticOrMaterialMap",
+          "columnIds": [],
+          "x": 1814.25,
+          "y": 576,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semanticormaterialmap_resources_mapping_to_resourceref_trait": {
+        "id": "rel_semanticormaterialmap_resources_mapping_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_SemanticOrMaterialMap",
+          "columnIds": [
+            "col_semanticormaterialmap_resources_mapping_points",
+            "col_semanticormaterialmap_resources_mapping_linestrings",
+            "col_semanticormaterialmap_resources_mapping_surfaces"
+          ],
+          "x": 1500,
+          "y": 488,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1460.4043666666664,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semanticormaterialmap_resources_mapping_to_vertexindex_core_vertex": {
+        "id": "rel_semanticormaterialmap_resources_mapping_to_vertexindex_core_vertex",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_SemanticOrMaterialMap",
+          "columnIds": [
+            "col_semanticormaterialmap_resources_mapping_shells",
+            "col_semanticormaterialmap_resources_mapping_solids"
+          ],
+          "x": 1604.75,
+          "y": 576,
+          "direction": 8
+        },
+        "end": {
+          "tableId": "core_vertex_VertexIndex",
+          "columnIds": [],
+          "x": 1609,
+          "y": 550,
+          "direction": 4
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texturemap_resources_mapping_to_vertexindex_core_vertex": {
+        "id": "rel_texturemap_resources_mapping_to_vertexindex_core_vertex",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_TextureMap",
+          "columnIds": [
+            "col_texturemap_resources_mapping_vertices",
+            "col_texturemap_resources_mapping_rings",
+            "col_texturemap_resources_mapping_surfaces",
+            "col_texturemap_resources_mapping_shells",
+            "col_texturemap_resources_mapping_solids"
+          ],
+          "x": 889.1311,
+          "y": 1537.7049,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "core_vertex_VertexIndex",
+          "columnIds": [],
+          "x": 1400,
+          "y": 592,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texturemap_resources_mapping_to_resourceref_trait": {
+        "id": "rel_texturemap_resources_mapping_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "resources_mapping_TextureMap",
+          "columnIds": [
+            "col_texturemap_resources_mapping_ring_textures"
+          ],
+          "x": 672.1311,
+          "y": 1637.7049,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1497.7376999999994,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semantic_v2_0_to_semantictype_v2_0_geometry_semantic": {
+        "id": "rel_semantic_v2_0_to_semantictype_v2_0_geometry_semantic",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Semantic",
+          "columnIds": [
+            "col_semantic_v2_0_type_semantic"
+          ],
+          "x": 1740,
+          "y": 776,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "v2_0_SemanticType",
+          "columnIds": [],
+          "x": 1709,
+          "y": 756,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semantic_v2_0_to_resourceref_trait": {
+        "id": "rel_semantic_v2_0_to_resourceref_trait",
+        "identification": false,
+        "relationshipType": 4,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Semantic",
+          "columnIds": [
+            "col_semantic_v2_0_children",
+            "col_semantic_v2_0_parent"
+          ],
+          "x": 1200,
+          "y": 814,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_ResourceRef",
+          "columnIds": [],
+          "x": 480.2951,
+          "y": 1479.071033333333,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semantic_v2_0_to_attributes_core": {
+        "id": "rel_semantic_v2_0_to_attributes_core",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Semantic",
+          "columnIds": [
+            "col_semantic_v2_0_attributes"
+          ],
+          "x": 1200,
+          "y": 738,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "core_attributes_Attributes",
+          "columnIds": [],
+          "x": 1118,
+          "y": 606,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_semantictype_v2_0_geometry_semantic_to_stringstorage_trait": {
+        "id": "rel_semantictype_v2_0_geometry_semantic_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_SemanticType",
+          "columnIds": [],
+          "x": 1500,
+          "y": 728,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1613.5,
+          "y": 256,
+          "direction": 8
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_material_v2_0_to_stringstorage_trait": {
+        "id": "rel_material_v2_0_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Material",
+          "columnIds": [
+            "col_material_v2_0_name"
+          ],
+          "x": 891.3197,
+          "y": 1077.0492,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 245.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_material_v2_0_to_rgb_core_appearance": {
+        "id": "rel_material_v2_0_to_rgb_core_appearance",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Material",
+          "columnIds": [
+            "col_material_v2_0_diffuse_color",
+            "col_material_v2_0_emissive_color",
+            "col_material_v2_0_specular_color"
+          ],
+          "x": 1131.8197,
+          "y": 1201.0492,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_appearance_RGB",
+          "columnIds": [],
+          "x": 1500,
+          "y": 928,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texture_v2_0_to_imagetype_core_appearance": {
+        "id": "rel_texture_v2_0_to_imagetype_core_appearance",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Texture",
+          "columnIds": [
+            "col_texture_v2_0_image_type"
+          ],
+          "x": 1117.9508,
+          "y": 1346.3279,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_appearance_ImageType",
+          "columnIds": [],
+          "x": 1500,
+          "y": 1228,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texture_v2_0_to_stringstorage_trait": {
+        "id": "rel_texture_v2_0_to_stringstorage_trait",
+        "identification": false,
+        "relationshipType": 8,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "v2_0_Texture",
+          "columnIds": [
+            "col_texture_v2_0_image"
+          ],
+          "x": 870.4508,
+          "y": 1280.3279,
+          "direction": 4
+        },
+        "end": {
+          "tableId": "trait_StringStorage",
+          "columnIds": [],
+          "x": 1300,
+          "y": 252.5,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texture_v2_0_to_wrapmode_core_appearance": {
+        "id": "rel_texture_v2_0_to_wrapmode_core_appearance",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Texture",
+          "columnIds": [
+            "col_texture_v2_0_wrap_mode"
+          ],
+          "x": 1117.9508,
+          "y": 1390.3279,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_appearance_WrapMode",
+          "columnIds": [],
+          "x": 1500,
+          "y": 1328,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texture_v2_0_to_texturetype_core_appearance": {
+        "id": "rel_texture_v2_0_to_texturetype_core_appearance",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Texture",
+          "columnIds": [
+            "col_texture_v2_0_texture_type"
+          ],
+          "x": 1117.9508,
+          "y": 1434.3279,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_appearance_TextureType",
+          "columnIds": [],
+          "x": 1500,
+          "y": 1428,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      },
+      "rel_texture_v2_0_to_rgba_core_appearance": {
+        "id": "rel_texture_v2_0_to_rgba_core_appearance",
+        "identification": false,
+        "relationshipType": 2,
+        "startRelationshipType": 2,
+        "start": {
+          "tableId": "v2_0_Texture",
+          "columnIds": [
+            "col_texture_v2_0_border_color"
+          ],
+          "x": 1117.9508,
+          "y": 1302.3279,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "core_appearance_RGBA",
+          "columnIds": [],
+          "x": 1500,
+          "y": 1128,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      }
+    },
+    "indexEntities": {},
+    "indexColumnEntities": {},
+    "memoEntities": {}
+  },
+  "lww": {
+    "settings.databaseName": [
+      "settings",
+      -1,
+      -1,
+      {
+        "databaseName": 1746185515362
+      }
+    ],
+    "rel_vertices_core_coordinate_to_coordinate_trait": [
+      "relationshipEntities",
+      1746185737981,
+      1746185734378,
+      {}
+    ],
+    "rel_coordinate_trait_to_quantizedcoordinate_core_coordinate": [
+      "relationshipEntities",
+      1746185737981,
+      1746185734378,
+      {}
+    ],
+    "rel_coordinate_trait_to_realworldcoordinate_core_coordinate": [
+      "relationshipEntities",
+      1746185737981,
+      1746185734378,
+      {}
+    ],
+    "rel_coordinate_trait_to_uvcoordinate_core_coordinate": [
+      "relationshipEntities",
+      1746185737981,
+      1746185734378,
+      {}
+    ],
+    "trait_Coordinate": [
+      "tableEntities",
+      1746185737981,
+      1746185734378,
+      {}
+    ]
+  }
+}

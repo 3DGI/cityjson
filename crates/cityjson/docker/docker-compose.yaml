@@ -1,0 +1,56 @@
+name: cityjson-rs
+
+services:
+  # --- PostGIS Service ---
+  postgis:
+    image: postgis/postgis:latest # Use the official PostGIS image, latest tag
+    container_name: cityjson-rs_postgis # Optional: Give the container a specific name
+    environment:
+      # --- PostgreSQL User and Database Configuration ---
+      # IMPORTANT: Change these values and use a strong password!
+      POSTGRES_USER: myuser # Replace with your desired database user
+      POSTGRES_PASSWORD: mysecretpassword # !!! REPLACE THIS WITH A SECURE PASSWORD !!!
+      POSTGRES_DB: cityjson # Replace with your desired database name
+      # POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256" # Optional: Stronger authentication method
+      # PGDATA: /var/lib/postgresql/data # Default data directory, good to be explicit
+    volumes:
+      # Use a named volume for persistent storage of the database files
+      # Data will be stored in a Docker-managed volume named 'postgis_data'
+      - postgis_data:/var/lib/postgresql/data
+    ports:
+    # We typically don't need to expose the database port (5432) to the host
+    # unless other applications *outside* the Docker network need to connect.
+    # pgAdmin will connect using the internal Docker network via the service name 'postgis'.
+    - "5555:5432" # Uncomment if you need to access the database from your host machine
+    restart: unless-stopped # Always restart the container unless it's explicitly stopped
+
+  # --- pgAdmin4 Service ---
+  pgadmin:
+    image: dpage/pgadmin4:latest # Use the official pgAdmin4 image, latest tag
+    container_name: pgadmin_container # Optional: Give the container a specific name
+    environment:
+      # --- pgAdmin Configuration ---
+      # IMPORTANT: Change these values!
+      PGADMIN_DEFAULT_EMAIL: admin@example.com # Email address for pgAdmin login
+      PGADMIN_DEFAULT_PASSWORD: mysecretpassword # !!! REPLACE THIS WITH A SECURE PASSWORD !!!
+      # PGADMIN_LISTEN_PORT: 80 # Default port pgAdmin listens on inside the container
+      # PGADMIN_CONFIG_SERVER_MODE: 'True' # Optional: Run pgAdmin in server mode
+    volumes:
+      # Use a named volume for persistent storage of pgAdmin configuration and data
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      # Map host port 8080 to pgAdmin's internal port 80
+      - "8080:80" # Access pgAdmin via http://localhost:8080 on your host
+    depends_on:
+      - postgis # Ensure the postgis service starts before pgAdmin
+    restart: unless-stopped # Always restart the container unless it's explicitly stopped
+
+# Define the named volumes
+volumes:
+  # This volume will store the PostGIS database files persistently
+  postgis_data:
+  # This volume will store the pgAdmin configuration and session data persistently
+  pgadmin_data:
+
+# By default, Docker Compose creates a network and connects all services to it.
+# Services can communicate using their service names (e.g., 'postgis' or 'pgadmin').
