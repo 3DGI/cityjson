@@ -3,42 +3,6 @@
 BEGIN;
 
 
-ALTER TABLE IF EXISTS cityjson.citymodel DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.citymodel DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extensions DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extensions DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extra_citymodel DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extra_citymodel DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extra_metadata DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.extra_metadata DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.citymodel_vertices DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.citymodel_vertices DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.citymodel_semantics DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.citymodel_semantics DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.semantics_children DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.semantics_children DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.semantic_attributes DROP CONSTRAINT IF EXISTS None;
-
-ALTER TABLE IF EXISTS cityjson.semantic_attributes DROP CONSTRAINT IF EXISTS None;
-
-
-
-DROP TABLE IF EXISTS cityjson.citymodel;
-
 CREATE TABLE IF NOT EXISTS cityjson.citymodel
 (
     id serial,
@@ -52,8 +16,6 @@ CREATE TABLE IF NOT EXISTS cityjson.citymodel
 COMMENT ON TABLE cityjson.citymodel
     IS 'Represents a city model, which is conceptually equivalent to a CityJSON object.';
 
-DROP TABLE IF EXISTS cityjson.extension;
-
 CREATE TABLE IF NOT EXISTS cityjson.extension
 (
     id serial,
@@ -66,8 +28,6 @@ CREATE TABLE IF NOT EXISTS cityjson.extension
 COMMENT ON TABLE cityjson.extension
     IS 'Represents an Extension object.';
 
-DROP TABLE IF EXISTS cityjson.extensions;
-
 CREATE TABLE IF NOT EXISTS cityjson.extensions
 (
     citymodel_id integer NOT NULL,
@@ -77,8 +37,6 @@ CREATE TABLE IF NOT EXISTS cityjson.extensions
 
 COMMENT ON TABLE cityjson.extensions
     IS 'A set of Extension objects related to a CityModel.';
-
-DROP TABLE IF EXISTS cityjson.metadata;
 
 CREATE TABLE IF NOT EXISTS cityjson.metadata
 (
@@ -94,8 +52,6 @@ CREATE TABLE IF NOT EXISTS cityjson.metadata
 
 COMMENT ON TABLE cityjson.metadata
     IS 'Represents a Metadata object.';
-
-DROP TABLE IF EXISTS cityjson.attributes;
 
 CREATE TABLE IF NOT EXISTS cityjson.attributes
 (
@@ -114,8 +70,6 @@ CREATE TABLE IF NOT EXISTS cityjson.attributes
 COMMENT ON TABLE cityjson.attributes
     IS 'Attribute values.';
 
-DROP TABLE IF EXISTS cityjson.extra_citymodel;
-
 CREATE TABLE IF NOT EXISTS cityjson.extra_citymodel
 (
     citymodel_id integer,
@@ -125,8 +79,6 @@ CREATE TABLE IF NOT EXISTS cityjson.extra_citymodel
 COMMENT ON TABLE cityjson.extra_citymodel
     IS 'Extra root attributes of a CityModel.';
 
-DROP TABLE IF EXISTS cityjson.extra_metadata;
-
 CREATE TABLE IF NOT EXISTS cityjson.extra_metadata
 (
     metadata_id integer,
@@ -135,8 +87,6 @@ CREATE TABLE IF NOT EXISTS cityjson.extra_metadata
 
 COMMENT ON TABLE cityjson.extra_metadata
     IS 'Extra root attributes of a Metadata.';
-
-DROP TABLE IF EXISTS cityjson.transform;
 
 CREATE TABLE IF NOT EXISTS cityjson.transform
 (
@@ -153,8 +103,6 @@ CREATE TABLE IF NOT EXISTS cityjson.transform
 COMMENT ON TABLE cityjson.transform
     IS 'Represents a Transform object.';
 
-DROP TABLE IF EXISTS cityjson.vertices;
-
 CREATE TABLE IF NOT EXISTS cityjson.vertices
 (
     id serial,
@@ -165,8 +113,6 @@ CREATE TABLE IF NOT EXISTS cityjson.vertices
 COMMENT ON TABLE cityjson.vertices
     IS 'Represents the vertices of a CityModel';
 
-DROP TABLE IF EXISTS cityjson.citymodel_vertices;
-
 CREATE TABLE IF NOT EXISTS cityjson.citymodel_vertices
 (
     citymodel_id integer,
@@ -175,8 +121,6 @@ CREATE TABLE IF NOT EXISTS cityjson.citymodel_vertices
 
 COMMENT ON TABLE cityjson.citymodel_vertices
     IS 'Connects a CityModel to a set of vertices';
-
-DROP TABLE IF EXISTS cityjson.semantics;
 
 CREATE TABLE IF NOT EXISTS cityjson.semantics
 (
@@ -188,8 +132,6 @@ CREATE TABLE IF NOT EXISTS cityjson.semantics
 COMMENT ON TABLE cityjson.semantics
     IS 'Stores Semantic objects.';
 
-DROP TABLE IF EXISTS cityjson.citymodel_semantics;
-
 CREATE TABLE IF NOT EXISTS cityjson.citymodel_semantics
 (
     citymodel_id integer NOT NULL,
@@ -198,8 +140,6 @@ CREATE TABLE IF NOT EXISTS cityjson.citymodel_semantics
 
 COMMENT ON TABLE cityjson.citymodel_semantics
     IS 'Connects a set of Semantics to a CityModel.';
-
-DROP TABLE IF EXISTS cityjson.semantics_children;
 
 CREATE TABLE IF NOT EXISTS cityjson.semantics_children
 (
@@ -210,8 +150,6 @@ CREATE TABLE IF NOT EXISTS cityjson.semantics_children
 COMMENT ON TABLE cityjson.semantics_children
     IS 'Hierarchy of Semantic objects.';
 
-DROP TABLE IF EXISTS cityjson.semantic_attributes;
-
 CREATE TABLE IF NOT EXISTS cityjson.semantic_attributes
 (
     semantic_id integer NOT NULL,
@@ -220,6 +158,42 @@ CREATE TABLE IF NOT EXISTS cityjson.semantic_attributes
 
 COMMENT ON TABLE cityjson.semantic_attributes
     IS 'Relates attributes to semantic objects.';
+
+CREATE TABLE IF NOT EXISTS cityjson.geometries
+(
+    id serial,
+    type_geometry text NOT NULL,
+    lod text,
+    boundaries integer,
+    semantics integer,
+    materials integer,
+    textures integer,
+    instance_template integer,
+    instance_reference_point integer,
+    instance_transformation_matrix double precision[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.geometries
+    IS 'Represents a collection of Geometry objects.';
+
+CREATE TABLE IF NOT EXISTS cityjson.citymodel_geometries
+(
+    citymodel_id integer NOT NULL,
+    geometry_id integer NOT NULL
+);
+
+COMMENT ON TABLE cityjson.citymodel_geometries
+    IS 'Connects a set of Geometries to a CityModel.';
+
+CREATE TABLE IF NOT EXISTS cityjson.boundaries
+(
+    vertices integer NOT NULL,
+    rings integer,
+    surfaces integer,
+    shells integer,
+    solids integer
+);
 
 ALTER TABLE IF EXISTS cityjson.citymodel
     ADD FOREIGN KEY (metadata_id)
@@ -344,6 +318,22 @@ ALTER TABLE IF EXISTS cityjson.semantic_attributes
 ALTER TABLE IF EXISTS cityjson.semantic_attributes
     ADD FOREIGN KEY (attribute_id)
         REFERENCES cityjson.attributes (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_geometries
+    ADD FOREIGN KEY (citymodel_id)
+        REFERENCES cityjson.citymodel (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_geometries
+    ADD FOREIGN KEY (geometry_id)
+        REFERENCES cityjson.geometries (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID;
