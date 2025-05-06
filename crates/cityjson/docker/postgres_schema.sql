@@ -5,11 +5,11 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS cityjson.citymodel
 (
-    id serial,
+    id             serial,
     type_citymodel text NOT NULL,
-    version text,
-    metadata_id integer,
-    transform_id integer,
+    version        text,
+    metadata_id    integer,
+    transform_id   integer,
     PRIMARY KEY (id)
 );
 
@@ -18,9 +18,9 @@ COMMENT ON TABLE cityjson.citymodel
 
 CREATE TABLE IF NOT EXISTS cityjson.extension
 (
-    id serial,
-    name text NOT NULL,
-    url text NOT NULL,
+    id      serial,
+    name    text NOT NULL,
+    url     text NOT NULL,
     version text NOT NULL,
     PRIMARY KEY (id)
 );
@@ -40,13 +40,13 @@ COMMENT ON TABLE cityjson.extensions
 
 CREATE TABLE IF NOT EXISTS cityjson.metadata
 (
-    id serial,
+    id                  serial,
     geographical_extent geometry,
-    identifier text,
-    point_of_contact jsonb,
-    reference_date date,
-    reference_system text,
-    title text,
+    identifier          text,
+    point_of_contact    jsonb,
+    reference_date      date,
+    reference_system    text,
+    title               text,
     PRIMARY KEY (id)
 );
 
@@ -55,14 +55,14 @@ COMMENT ON TABLE cityjson.metadata
 
 CREATE TABLE IF NOT EXISTS cityjson.attributes
 (
-    id serial,
-    key text,
-    type text,
-    bool_value boolean,
-    int_value bigint,
-    uint_value bigint,
-    float_value double precision,
-    string_value text,
+    id             serial,
+    key            text,
+    type           text,
+    bool_value     boolean,
+    int_value      bigint,
+    uint_value     bigint,
+    float_value    double precision,
+    string_value   text,
     geometry_value integer,
     PRIMARY KEY (id)
 );
@@ -81,7 +81,7 @@ COMMENT ON TABLE cityjson.extra_citymodel
 
 CREATE TABLE IF NOT EXISTS cityjson.extra_metadata
 (
-    metadata_id integer,
+    metadata_id  integer,
     attribute_id integer
 );
 
@@ -90,10 +90,10 @@ COMMENT ON TABLE cityjson.extra_metadata
 
 CREATE TABLE IF NOT EXISTS cityjson.transform
 (
-    id serial,
-    scale_x double precision NOT NULL,
-    scale_y double precision NOT NULL,
-    scale_z double precision NOT NULL,
+    id          serial,
+    scale_x     double precision NOT NULL,
+    scale_y     double precision NOT NULL,
+    scale_z     double precision NOT NULL,
     translate_x double precision NOT NULL,
     translate_y double precision NOT NULL,
     translate_z double precision NOT NULL,
@@ -105,7 +105,7 @@ COMMENT ON TABLE cityjson.transform
 
 CREATE TABLE IF NOT EXISTS cityjson.vertices
 (
-    id serial,
+    id    serial,
     point geometry NOT NULL,
     PRIMARY KEY (id)
 );
@@ -116,7 +116,7 @@ COMMENT ON TABLE cityjson.vertices
 CREATE TABLE IF NOT EXISTS cityjson.citymodel_vertices
 (
     citymodel_id integer,
-    vertex_id integer
+    vertex_id    integer
 );
 
 COMMENT ON TABLE cityjson.citymodel_vertices
@@ -124,7 +124,7 @@ COMMENT ON TABLE cityjson.citymodel_vertices
 
 CREATE TABLE IF NOT EXISTS cityjson.semantics
 (
-    id serial,
+    id            serial,
     type_semantic text NOT NULL,
     PRIMARY KEY (id)
 );
@@ -135,7 +135,7 @@ COMMENT ON TABLE cityjson.semantics
 CREATE TABLE IF NOT EXISTS cityjson.citymodel_semantics
 (
     citymodel_id integer NOT NULL,
-    semantic_id integer NOT NULL
+    semantic_id  integer NOT NULL
 );
 
 COMMENT ON TABLE cityjson.citymodel_semantics
@@ -144,7 +144,7 @@ COMMENT ON TABLE cityjson.citymodel_semantics
 CREATE TABLE IF NOT EXISTS cityjson.semantics_children
 (
     parent_id integer NOT NULL,
-    child_id integer NOT NULL
+    child_id  integer NOT NULL
 );
 
 COMMENT ON TABLE cityjson.semantics_children
@@ -152,47 +152,148 @@ COMMENT ON TABLE cityjson.semantics_children
 
 CREATE TABLE IF NOT EXISTS cityjson.semantic_attributes
 (
-    semantic_id integer NOT NULL,
+    semantic_id  integer NOT NULL,
     attribute_id integer NOT NULL
 );
 
 COMMENT ON TABLE cityjson.semantic_attributes
     IS 'Relates attributes to semantic objects.';
 
-CREATE TABLE IF NOT EXISTS cityjson.geometries
+CREATE TABLE IF NOT EXISTS cityjson.geometry
 (
-    id serial,
-    type_geometry text NOT NULL,
-    lod text,
-    boundaries integer,
-    semantics integer,
-    materials integer,
-    textures integer,
-    instance_template integer,
-    instance_reference_point integer,
+    id                             serial,
+    type_geometry                  text NOT NULL,
+    lod                            text,
+    boundaries                     integer,
+    semantics                      integer,
+    instance_template              integer,
+    instance_reference_point       integer,
     instance_transformation_matrix double precision[],
     PRIMARY KEY (id)
 );
 
-COMMENT ON TABLE cityjson.geometries
+COMMENT ON TABLE cityjson.geometry
     IS 'Represents a collection of Geometry objects.';
 
 CREATE TABLE IF NOT EXISTS cityjson.citymodel_geometries
 (
     citymodel_id integer NOT NULL,
-    geometry_id integer NOT NULL
+    geometry_id  integer NOT NULL
 );
 
 COMMENT ON TABLE cityjson.citymodel_geometries
     IS 'Connects a set of Geometries to a CityModel.';
 
-CREATE TABLE IF NOT EXISTS cityjson.boundaries
+CREATE TABLE IF NOT EXISTS cityjson.boundary
 (
-    vertices integer NOT NULL,
-    rings integer,
-    surfaces integer,
-    shells integer,
-    solids integer
+    id       serial,
+    vertices integer[] NOT NULL,
+    rings    integer[],
+    surfaces integer[],
+    shells   integer[],
+    solids   integer[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.boundary
+    IS 'Represents the boundary of a geometry instance. Each record represents the complete boundary of a single geometry.';
+
+CREATE TABLE IF NOT EXISTS cityjson.semantic_map
+(
+    id          serial,
+    points      integer[],
+    linestrings integer[],
+    surfaces    integer[],
+    shells      integer[],
+    solids      integer[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.semantic_map
+    IS 'Represents the mapping of a semantic instance to the boundary of a geometry instance. Each record represents the complete semantic mapping of a single geometry, single boundary.';
+
+CREATE TABLE IF NOT EXISTS cityjson.material_map
+(
+    id       serial,
+    theme    text      NOT NULL,
+    surfaces integer[] NOT NULL,
+    shells   integer[],
+    solids   integer[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.material_map
+    IS 'Represents the mapping of a material instance to the boundary of a geometry instance. Each record represents the complete material mapping of a single geometry, single boundary.';
+
+CREATE TABLE IF NOT EXISTS cityjson.geometry_material_map
+(
+    geometry_id     integer NOT NULL,
+    material_map_id integer NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cityjson.texture_map
+(
+    id             serial,
+    theme          text      NOT NULL,
+    vertices       integer[] NOT NULL,
+    rings          integer[] NOT NULL,
+    rings_textures integer[] NOT NULL,
+    surfaces       integer[],
+    shells         integer[],
+    solids         integer[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.texture_map
+    IS 'Represents the mapping of a texture instance to the boundary of a geometry instance. Each record represents the complete texture mapping of a single geometry, single boundary.';
+
+CREATE TABLE IF NOT EXISTS cityjson.geometry_texture_map
+(
+    geometry_id    integer NOT NULL,
+    texture_map_id integer NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cityjson.material
+(
+    id                serial,
+    name              text NOT NULL,
+    ambient_intensity real,
+    diffuse_color     real[],
+    emissive_color    real[],
+    specular_color    real[],
+    shininess         real,
+    transparency      real,
+    is_smooth         boolean,
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.material
+    IS 'Represents a Material instance.';
+
+CREATE TABLE IF NOT EXISTS cityjson.citymodel_material
+(
+    citymodel_id integer NOT NULL,
+    material_id  integer NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cityjson.texture
+(
+    id           serial,
+    image_type   text NOT NULL,
+    image        text NOT NULL,
+    wrap_mode    text,
+    texture_type text,
+    border_color real[],
+    PRIMARY KEY (id)
+);
+
+COMMENT ON TABLE cityjson.texture
+    IS 'Represents a Texture instance.';
+
+CREATE TABLE IF NOT EXISTS cityjson.citymodel_texture
+(
+    citymodel_id integer NOT NULL,
+    texture_id   integer NOT NULL
 );
 
 ALTER TABLE IF EXISTS cityjson.citymodel
@@ -323,6 +424,38 @@ ALTER TABLE IF EXISTS cityjson.semantic_attributes
         NOT VALID;
 
 
+ALTER TABLE IF EXISTS cityjson.geometry
+    ADD FOREIGN KEY (instance_reference_point)
+        REFERENCES cityjson.vertices (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry
+    ADD FOREIGN KEY (instance_template)
+        REFERENCES cityjson.geometry (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry
+    ADD FOREIGN KEY (semantics)
+        REFERENCES cityjson.semantic_map (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry
+    ADD FOREIGN KEY (boundaries)
+        REFERENCES cityjson.boundary (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
 ALTER TABLE IF EXISTS cityjson.citymodel_geometries
     ADD FOREIGN KEY (citymodel_id)
         REFERENCES cityjson.citymodel (id) MATCH SIMPLE
@@ -333,7 +466,71 @@ ALTER TABLE IF EXISTS cityjson.citymodel_geometries
 
 ALTER TABLE IF EXISTS cityjson.citymodel_geometries
     ADD FOREIGN KEY (geometry_id)
-        REFERENCES cityjson.geometries (id) MATCH SIMPLE
+        REFERENCES cityjson.geometry (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry_material_map
+    ADD FOREIGN KEY (geometry_id)
+        REFERENCES cityjson.geometry (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry_material_map
+    ADD FOREIGN KEY (material_map_id)
+        REFERENCES cityjson.material_map (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry_texture_map
+    ADD FOREIGN KEY (geometry_id)
+        REFERENCES cityjson.geometry (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.geometry_texture_map
+    ADD FOREIGN KEY (texture_map_id)
+        REFERENCES cityjson.texture_map (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_material
+    ADD FOREIGN KEY (citymodel_id)
+        REFERENCES cityjson.citymodel (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_material
+    ADD FOREIGN KEY (material_id)
+        REFERENCES cityjson.material (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_texture
+    ADD FOREIGN KEY (citymodel_id)
+        REFERENCES cityjson.citymodel (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID;
+
+
+ALTER TABLE IF EXISTS cityjson.citymodel_texture
+    ADD FOREIGN KEY (texture_id)
+        REFERENCES cityjson.texture (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID;
