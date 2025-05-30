@@ -14,7 +14,7 @@ use std::process::Command;
 
 use crate::attributes::Attributes;
 use crate::v1_1::*;
-use datasize::{data_size, DataSize};
+pub use datasize::{data_size, DataSize};
 use serde::{Deserialize, Serialize};
 
 /// Returns the Cargo target directory, possibly calling `cargo metadata` to

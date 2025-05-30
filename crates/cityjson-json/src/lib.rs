@@ -279,13 +279,6 @@
 //!
 //!
 //!
-use crate::errors::Error;
-#[cfg(feature = "datasize")]
-use datasize::DataSize;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::{Display, Formatter};
-
 pub mod attributes;
 pub mod boundary;
 #[cfg_attr(docsrs, doc(cfg(feature = "datasize")))]
@@ -296,6 +289,13 @@ pub mod indices;
 pub mod labels;
 pub mod v1_1;
 pub mod v2_0;
+
+use crate::errors::Error;
+#[cfg(feature = "datasize")]
+use datasize::DataSize;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// A register of what file extensions are supported.
 /// It allows comparison for equality with an [`std::ffi::OsStr`](std::ffi::OsStr), which we get when working with
@@ -405,6 +405,7 @@ impl Display for CityModelType {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, Deserialize, Serialize, PartialOrd, Ord)]
+#[cfg_attr(feature = "datasize", derive(DataSize))]
 #[serde(tag = "version", try_from = "String", into = "String")]
 pub enum CityJSONVersion {
     V1_0,
