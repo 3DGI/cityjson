@@ -162,6 +162,7 @@ use rand::SeedableRng;
 use rand::{thread_rng, Rng};
 use serde_cityjson::attributes::Attributes;
 use serde_cityjson::boundary::Boundary;
+use serde_cityjson::{CityJSONVersion, CityModelType};
 use serde_cityjson::indices::{GeometryIndex, GeometryIndices, OptionalGeometryIndex};
 use serde_cityjson::labels::{LabelIndex, TextureIndex};
 use serde_cityjson::v1_1::*;
