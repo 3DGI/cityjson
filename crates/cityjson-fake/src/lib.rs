@@ -142,7 +142,9 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
-
+use std::str::FromStr;
+use cityjson::prelude::*;
+use cityjson::v2_0::*;
 use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::company::raw::CompanyName;
@@ -160,12 +162,6 @@ use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand::{thread_rng, Rng};
-use serde_cityjson::attributes::Attributes;
-use serde_cityjson::boundary::Boundary;
-use serde_cityjson::{CityJSONVersion, CityModelType};
-use serde_cityjson::indices::{GeometryIndex, GeometryIndices, OptionalGeometryIndex};
-use serde_cityjson::labels::{LabelIndex, TextureIndex};
-use serde_cityjson::v1_1::*;
 
 pub use crate::cli::CJFakeConfig;
 
@@ -190,23 +186,33 @@ const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 type IndexType = u32;
 
-type CityObjectGeometryTypes = HashMap<CityObjectType, Vec<GeometryType>>;
+type CityObjectGeometryTypes = HashMap<CityObjectType<OwnedStringStorage>, Vec<GeometryType>>;
 
 static CITYJSON_GEOMETRY_TYPES_BYTES: &[u8] = include_bytes!("data/cityjson_geometry_types.json");
 
 static CITYJSON_GEOMETRY_TYPES: Lazy<CityObjectGeometryTypes> = Lazy::new(|| {
-    serde_json::from_slice(CITYJSON_GEOMETRY_TYPES_BYTES)
-        .expect("Failed to deserialize cityjson_geometry_types.json")
+    let raw_data: HashMap<String, Vec<String>> = serde_json::from_slice(CITYJSON_GEOMETRY_TYPES_BYTES)
+        .expect("Failed to deserialize cityjson_geometry_types.json");
+
+    raw_data.into_iter().map(|(co_type_str, geom_type_str)| {
+        let co_type = CityObjectType::from_str(co_type_str.as_str()).unwrap();
+
+        let geom_types: Vec<GeometryType> = geom_type_str.into_iter().map(GeometryType::from_str).collect();
+
+        (co_type, geom_types)
+    }).collect()
 });
 
-type CityObjectsWithSemantics = Vec<CityObjectType>;
+type CityObjectsWithSemantics = Vec<CityObjectType<OwnedStringStorage>>;
 
 static CITYOBJECTS_WITH_SEMANTICS_BYTES: &[u8] =
     include_bytes!("data/cityjson_semantics_allowed.json");
 
 static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(|| {
-    serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
-        .expect("Failed to deserialize cityjson_semantics_allowed.json")
+    let raw_data = serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
+        .expect("Failed to deserialize cityjson_semantics_allowed.json");
+
+    raw_data.into_iter().map(CityObjectType::from_str).collect()
 });
 
 fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) -> usize {

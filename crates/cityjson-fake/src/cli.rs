@@ -1,5 +1,7 @@
+use cityjson::prelude::{GeometryType, OwnedStringStorage};
+use cityjson::v2_0::CityObjectType;
 use clap::Parser;
-use serde_cityjson::v1_1::{CityObjectType, GeometryType};
+use std::str::FromStr;
 type IndexType = u32;
 
 /// Configuration for CityJSON fake data generation
@@ -8,7 +10,7 @@ type IndexType = u32;
 pub struct CJFakeConfig {
     /// Restrict the CityObject types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_cityobject_type )]
-    pub allowed_types_cityobject: Option<Vec<CityObjectType>>,
+    pub allowed_types_cityobject: Option<Vec<CityObjectType<OwnedStringStorage>>>,
 
     /// Restrict the Geometry types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_geometry_type )]
@@ -174,13 +176,13 @@ impl Default for CJFakeConfig {
     }
 }
 
-fn parse_cityobject_type(s: &str) -> Result<CityObjectType, String> {
-    serde_json::from_str(&format!(r#""{}""#, s))
+fn parse_cityobject_type(s: &str) -> Result<CityObjectType<OwnedStringStorage>, String> {
+    CityObjectType::from_str(&format!(r#""{}""#, s))
         .map_err(|e| format!("Failed to parse CityObjectType: {}", e))
 }
 
 fn parse_geometry_type(s: &str) -> Result<GeometryType, String> {
-    serde_json::from_str(&format!(r#""{}""#, s))
+    GeometryType1::from_str(&format!(r#""{}""#, s))
         .map_err(|e| format!("Failed to parse GeometryType: {}", e))
 }
 

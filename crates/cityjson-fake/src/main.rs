@@ -1,11 +1,13 @@
 use clap::Parser;
-use serde_cityjson::v1_1::CityModel;
+use cityjson::v2_0::CityModel;
+use cityjson::prelude::*;
 
 use cjfake::{CJFakeConfig, CityModelBuilder};
 
 fn main() {
     let config = CJFakeConfig::parse();
-    let cm: CityModel = CityModelBuilder::new(config, None)
+    // Use u32 vertex refs, ResourceId32, and OwnedStringStorage as defaults
+    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
         .metadata(None)
         .vertices()
         .materials(None)
@@ -13,6 +15,6 @@ fn main() {
         .attributes()
         .cityobjects()
         .build();
-    let cj_str = serde_json::to_string::<CityModel>(&cm).unwrap();
+    let cj_str = serde_json::to_string(&cm).unwrap();
     println!("{}", cj_str);
 }
