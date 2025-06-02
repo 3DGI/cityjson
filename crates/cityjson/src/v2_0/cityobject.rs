@@ -5,6 +5,9 @@ use crate::prelude::{
     OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
 };
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use std::string::ToString;
+use crate::error::Error;
 
 #[derive(Debug, Clone)]
 pub struct CityObjects<SS: StringStorage, RR: ResourceRef> {
@@ -253,6 +256,61 @@ impl<SS: StringStorage> Display for CityObjectType<SS> {
         }
     }
 }
+impl FromStr for CityObjectType<OwnedStringStorage> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Bridge" => Ok(CityObjectType::Bridge),
+            "BridgePart" => Ok(CityObjectType::BridgePart),
+            "BridgeInstallation" => Ok(CityObjectType::BridgeInstallation),
+            "BridgeConstructiveElement" => Ok(CityObjectType::BridgeConstructiveElement),
+            "BridgeRoom" => Ok(CityObjectType::BridgeRoom),
+            "BridgeFurniture" => Ok(CityObjectType::BridgeFurniture),
+            "Building" => Ok(CityObjectType::Building),
+            "BuildingPart" => Ok(CityObjectType::BuildingPart),
+            "BuildingInstallation" => Ok(CityObjectType::BuildingInstallation),
+            "BuildingConstructiveElement" => Ok(CityObjectType::BuildingConstructiveElement),
+            "BuildingFurniture" => Ok(CityObjectType::BuildingFurniture),
+            "BuildingStorey" => Ok(CityObjectType::BuildingStorey),
+            "BuildingRoom" => Ok(CityObjectType::BuildingRoom),
+            "BuildingUnit" => Ok(CityObjectType::BuildingUnit),
+            "CityFurniture" => Ok(CityObjectType::CityFurniture),
+            "CityObjectGroup" => Ok(CityObjectType::CityObjectGroup),
+            "Default" => Ok(CityObjectType::Default),
+            "GenericCityObject" => Ok(CityObjectType::GenericCityObject),
+            "LandUse" => Ok(CityObjectType::LandUse),
+            "OtherConstruction" => Ok(CityObjectType::OtherConstruction),
+            "PlantCover" => Ok(CityObjectType::PlantCover),
+            "SolitaryVegetationObject" => Ok(CityObjectType::SolitaryVegetationObject),
+            "TINRelief" => Ok(CityObjectType::TINRelief),
+            "WaterBody" => Ok(CityObjectType::WaterBody),
+            "Road" => Ok(CityObjectType::Road),
+            "Railway" => Ok(CityObjectType::Railway),
+            "Waterway" => Ok(CityObjectType::Waterway),
+            "TransportSquare" => Ok(CityObjectType::TransportSquare),
+            "Tunnel" => Ok(CityObjectType::Tunnel),
+            "TunnelPart" => Ok(CityObjectType::TunnelPart),
+            "TunnelInstallation" => Ok(CityObjectType::TunnelInstallation),
+            "TunnelConstructiveElement" => Ok(CityObjectType::TunnelConstructiveElement),
+            "TunnelHollowSpace" => Ok(CityObjectType::TunnelHollowSpace),
+            "TunnelFurniture" => Ok(CityObjectType::TunnelFurniture),
+            _ => {
+                if s
+                    .chars()
+                    .nth(0)
+                    .is_some_and(|first_char| first_char == '+')
+                {
+                    Ok(CityObjectType::Extension(s.to_string()))
+                } else {
+                    Err(Error::InvalidCityObjectType(s.to_string()))
+                }
+            }
+        }
+    }
+}
+
+
 
 impl<SS: StringStorage> CityObjectTypeTrait<SS> for CityObjectType<SS> {}
 

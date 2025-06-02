@@ -17,7 +17,7 @@ fn build_dummy_complete_owned() -> Result<()> {
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
     let extra = model.extra_mut();
-    let mut census_map = HashMap::new();
+    let mut census_map = HashMap::new(); // todo: implementation leaks because i need to create a hashmap to insert as attribute value
     census_map.insert(
         "percent_men".to_string(),
         Box::new(AttributeValue::Float(49.5)),
@@ -29,6 +29,9 @@ fn build_dummy_complete_owned() -> Result<()> {
     extra.insert("+census".to_string(), AttributeValue::Map(census_map));
 
     // Set transform
+    // todo: i think cityjson-rs should only have real-world coordinates, because 
+    //  transforming them just adds overhead and all are store as 64bit values anyway, 
+    //  but still we need to be able to store from incoming data or set transformation properties
     let transform = model.transform_mut();
     transform.set_scale([1.0, 1.0, 1.0]);
     transform.set_translate([0.0, 0.0, 0.0]);

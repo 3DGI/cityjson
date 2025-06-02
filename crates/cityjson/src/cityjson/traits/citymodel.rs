@@ -56,7 +56,7 @@ pub trait CityModelTypes {
     type TexturePool: ResourcePool<Self::Texture, Self::ResourceRef>;
 }
 
-pub trait CityModelTrait<V: CityModelTypes>: Debug + Debug + Clone {
+pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     /// Create a new empty CityModel
     fn new(type_citymodel: CityModelType) -> Self;
     /// Create a new CityModel with the specified capacity

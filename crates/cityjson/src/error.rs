@@ -49,6 +49,7 @@ pub enum Error {
     },
     IncompleteGeometry(String),
     UnsupportedVersion(String, String),
+    InvalidCityObjectType(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -150,6 +151,9 @@ impl Display for Error {
                     "the CityJSON version should be one of {}, but got {}",
                     supported, v
                 )
+            },
+            Error::InvalidCityObjectType(v) =>  {
+                write!(f, "invalid CityObject type: {}", v)
             }
         }
     }

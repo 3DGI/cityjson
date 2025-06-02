@@ -9,6 +9,7 @@ use crate::prelude::{
     SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex,
 };
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
@@ -1267,6 +1268,28 @@ pub enum GeometryType {
 impl std::fmt::Display for GeometryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl FromStr for GeometryType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "MultiPoint" => Ok(GeometryType::MultiPoint),
+            "MultiLineString" => Ok(GeometryType::MultiLineString),
+            "MultiSurface" => Ok(GeometryType::MultiSurface),
+            "CompositeSurface" => Ok(GeometryType::CompositeSurface),
+            "Solid" => Ok(GeometryType::Solid),
+            "MultiSolid" => Ok(GeometryType::MultiSolid),
+            "CompositeSolid" => Ok(GeometryType::CompositeSolid),
+            "GeometryInstance" => Ok(GeometryType::GeometryInstance),
+            &_ => Err(Error::InvalidGeometryType {
+                expected: "one of MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, MultiSolid, CompositeSolid, GeometryInstance"
+                    .to_string(),
+                found: s.to_string(),
+            }),
+        }
     }
 }
 

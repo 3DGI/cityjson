@@ -12,6 +12,8 @@ use crate::prelude::{
     DefaultResourcePool, OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
 };
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use crate::error::Error;
 
 /// A container for efficiently storing and accessing CityObject instances.
 ///
