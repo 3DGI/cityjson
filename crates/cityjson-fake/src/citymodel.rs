@@ -1,13 +1,14 @@
-use cityjson::prelude::{Attributes, CityModelTrait, ResourceRef, StringStorage, VertexRef};
-use cityjson::v2_0::CityModel;
-use rand::prelude::SmallRng;
-use rand::{thread_rng, SeedableRng};
-use cityjson::CityModelType;
 use crate::attribute::AttributesBuilder;
 use crate::cli::CJFakeConfig;
 use crate::material::MaterialBuilder;
 use crate::metadata::MetadataBuilder;
-use crate::prelude::{TextureBuilder, VerticesBuilder};
+use crate::texture::TextureBuilder;
+use crate::vertex::VerticesFaker;
+use cityjson::prelude::*;
+use cityjson::v2_0::*;
+use fake::Fake;
+use rand::prelude::SmallRng;
+use rand::SeedableRng;
 
 /// Builder for creating CityJSON models with fake data.
 ///
@@ -27,7 +28,7 @@ use crate::prelude::{TextureBuilder, VerticesBuilder};
 /// let config = CJFakeConfig::default();
 /// let model: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
 ///     .metadata(None)
-///     .vertices(None)
+///     .vertices()
 ///     .materials(None)
 ///     .textures(None)
 ///     .attributes(None)
@@ -38,10 +39,13 @@ pub struct CityModelBuilder<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     model: CityModel<VR, RR, SS>,
     rng: SmallRng,
     config: CJFakeConfig,
+
     themes_material: Vec<String>,
     themes_texture: Vec<String>,
     attributes_cityobject: Option<Attributes<SS, RR>>,
     attributes_semantic: Option<Attributes<SS, RR>>,
+
+    progress_done_vertices: bool,
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> From<CityModelBuilder<VR, RR, SS>>
@@ -56,7 +60,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> Default for CityModelBui
     fn default() -> Self {
         CityModelBuilder::new(CJFakeConfig::default(), None)
             .metadata(None)
-            .vertices(None)
+            .vertices()
             .materials(None)
             .textures(None)
             .attributes(None)
@@ -80,7 +84,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
         let rng = if let Some(state) = seed {
             SmallRng::seed_from_u64(state)
         } else {
-            SmallRng::from_rng(thread_rng()).expect("SmallRng should be seeded from thread_rng()")
+            SmallRng::from_rng(&mut rand::rng())
         };
         Self {
             model: CityModel::new(CityModelType::CityJSON),
@@ -90,6 +94,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
             themes_texture: Vec::new(),
             attributes_cityobject: None,
             attributes_semantic: None,
+            progress_done_vertices: false
         }
     }
 
@@ -174,8 +179,12 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     /// # Returns
     ///
     /// Self with vertices added
-    pub fn vertices(mut self, vertices_builder: Option<VerticesBuilder>) -> Self {
-        todo!()
+    pub fn vertices(mut self) -> Self {
+        if !self.progress_done_vertices {
+            let mut vertices_mut = self.model.vertices_mut();
+            *vertices_mut = VerticesFaker::new(&self.config).fake_with_rng(&mut self.rng);
+        }
+        self
     }
 
     /// Builds the final CityJSON model.
@@ -189,7 +198,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     ///
     /// The complete CityJSON model
     pub fn build(mut self) -> CityModel<VR, RR, SS> {
-        todo!()
+        self.model
     }
 
     /// Builds the model and converts it to a JSON string.
@@ -212,5 +221,24 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     pub fn build_vec(self) -> serde_json::Result<Vec<u8>> {
         // serde_json::to_vec::<CityModel>(&self.into())
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vertices() {
+        let config = CJFakeConfig {
+             min_coordinate: 0,
+             max_coordinate: 100,
+             min_vertices: 3,
+             max_vertices: 5,
+             ..Default::default()
+        };
+        let cmf: CityModelBuilder<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None);
+        let cm = cmf.vertices().build();
+        assert!(cm.vertices().len() >= 3 && cm.vertices().len() <= 5);
     }
 }

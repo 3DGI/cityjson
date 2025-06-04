@@ -148,7 +148,6 @@ use cityjson::v2_0::*;
 use fake::locales::*;
 use fake::{Dummy, Fake};
 use once_cell::sync::Lazy;
-use rand::distributions::Distribution;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand::Rng;
@@ -170,7 +169,7 @@ pub mod prelude {
     pub use crate::material::MaterialBuilder;
     pub use crate::metadata::MetadataBuilder;
     pub use crate::texture::TextureBuilder;
-    pub use crate::vertex::VerticesBuilder;
+    pub use crate::vertex::VerticesFaker;
 
     pub use crate::cli::CJFakeConfig;
 }
@@ -235,7 +234,8 @@ static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(||
         .collect()
 });
 
-fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) -> usize {
+// Determine exactly how many items should we generate from a given range.
+pub(crate) fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) -> usize {
     if range.is_empty() {
         0
     } else if range.end() - range.start() == 0 {

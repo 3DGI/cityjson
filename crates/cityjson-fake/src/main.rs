@@ -6,7 +6,7 @@ fn main() {
     // Use u32 vertex refs, ResourceId32, and OwnedStringStorage as defaults
     let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
         .metadata(None)
-        .vertices(None)
+        .vertices()
         .materials(None)
         .textures(None)
         .attributes(None)
