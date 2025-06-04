@@ -182,7 +182,7 @@ fn parse_cityobject_type(s: &str) -> Result<CityObjectType<OwnedStringStorage>, 
 }
 
 fn parse_geometry_type(s: &str) -> Result<GeometryType, String> {
-    GeometryType1::from_str(&format!(r#""{}""#, s))
+    GeometryType::from_str(&format!(r#""{}""#, s))
         .map_err(|e| format!("Failed to parse GeometryType: {}", e))
 }
 
