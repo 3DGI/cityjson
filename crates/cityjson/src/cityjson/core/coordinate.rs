@@ -532,7 +532,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     }
 }
 
-impl<VR: VertexRef, V: Coordinate + Default> Default for Vertices<VR, V> {
+impl<VR: VertexRef, V: Coordinate> Default for Vertices<VR, V> {
     /// Creates a default empty `Vertices` collection.
     ///
     /// # Examples
@@ -545,6 +545,24 @@ impl<VR: VertexRef, V: Coordinate + Default> Default for Vertices<VR, V> {
     /// ```
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<VR: VertexRef, V: Coordinate> From<Vec<V>> for Vertices<VR, V> {
+    fn from(value: Vec<V>) -> Self {
+        Self {
+            coordinates: value,
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<VR: VertexRef, V: Coordinate> From<&[V]> for Vertices<VR, V> {
+    fn from(value: &[V]) -> Self {
+        Self {
+            coordinates: Vec::from(value),
+            _phantom: Default::default(),
+        }
     }
 }
 
