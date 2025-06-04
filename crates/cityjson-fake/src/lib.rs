@@ -154,6 +154,7 @@ use rand::SeedableRng;
 use rand::Rng;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 use citymodel::CityModelBuilder;
 use material::MaterialBuilder;
 use metadata::MetadataBuilder;
