@@ -28,7 +28,7 @@
 //! use cityjson::v1_1::*;
 //!
 //! // Create a new metadata object
-//! let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
+//! let mut metadata = Metadata::<ResourceId32, OwnedStringStorage>::new();
 //!
 //! // Set geographical extent using BBox
 //! let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
@@ -82,51 +82,8 @@ use crate::prelude::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
-/// Metadata for a city model.
-///
-/// There is only structural validation for the metadata items, the metadata values are not
-/// validated.
-/// For instance, a contact website must be a string, but it is not
-/// checked whether the string is a valid URL or not.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#metadata>
-///
-/// # Examples
-/// ```
-/// # use cityjson::prelude::*;
-/// # use cityjson::v1_1::*;
-/// let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
-///
-/// metadata.set_geographical_extent(BBox::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
-/// metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
-/// metadata.set_reference_date(Date::new("2024-03-20".to_string()));
-/// metadata.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string()));
-/// metadata.set_title("Test Dataset");
-/// metadata.set_contact_name("John Doe");
-/// metadata.set_email_address("john@example.com");
-/// metadata.set_role(ContactRole::Author);
-/// metadata.set_website("https://example.com");
-/// metadata.set_contact_type(ContactType::Individual);
-/// metadata.set_address("123 Test St");
-/// metadata.set_phone("+1-555-1234");
-/// metadata.set_organization("Test Corp");
-///
-/// assert_eq!(metadata.geographical_extent().unwrap().min_x(), 1.0);
-/// assert_eq!(metadata.identifier(), Some(CityModelIdentifier::new("test-id".to_string())).as_ref());
-/// assert_eq!(metadata.reference_date(), Some(Date::new("2024-03-20".to_string())).as_ref());
-/// assert_eq!(metadata.reference_system().unwrap(), &CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string()));
-/// assert_eq!(metadata.title().unwrap(), "Test Dataset");
-/// assert_eq!(metadata.point_of_contact().unwrap().contact_name(), "John Doe");
-/// assert_eq!(metadata.point_of_contact().unwrap().email_address(), "john@example.com");
-/// assert_eq!(metadata.point_of_contact().unwrap().role(), Some(ContactRole::Author));
-/// assert_eq!(metadata.point_of_contact().unwrap().website(), &Some("https://example.com".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().contact_type(), Some(ContactType::Individual));
-/// assert_eq!(metadata.point_of_contact().unwrap().address(), &Some("123 Test St".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().phone(), &Some("+1-555-1234".to_string()));
-/// assert_eq!(metadata.point_of_contact().unwrap().organization(), &Some("Test Corp".to_string()));
-/// ```
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
+pub struct Metadata<RR: ResourceRef, SS: StringStorage> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier<SS>>,
     point_of_contact: Option<Contact>,
@@ -136,7 +93,7 @@ pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     extra: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Metadata<RR, SS> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -171,6 +128,10 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
 
     pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS, RR>> {
         &mut self.extra
+    }
+
+    pub fn set_extra(&mut self, extra: Option<Attributes<SS, RR>>) {
+        self.extra = extra;
     }
 
     pub fn set_geographical_extent(&mut self, bbox: BBox) {
@@ -248,6 +209,7 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         }
     }
 
+    // TODO: maybe this should take an Option just as the Contact.set_address does. Check for consistance of the rest of the methods too
     pub fn set_address<S: AsRef<str>>(&mut self, address: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
             poc.address = Some(address.as_ref().to_owned());
@@ -280,9 +242,13 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
             })
         }
     }
+
+    pub fn set_point_of_contact(&mut self, contact: Option<Contact>) {
+        self.point_of_contact = contact;
+    }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for Metadata<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Display for Metadata<RR, SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -482,7 +448,65 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTrait<SS>
-    for Metadata<SS, RR>
+impl<RR: ResourceRef, SS: StringStorage> cityjson::traits::metadata::MetadataTrait<SS>
+for Metadata<RR, SS>
 {
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::prelude::*;
+    use crate::resources::storage::OwnedStringStorage;
+
+    #[test]
+    fn display() {
+        let mut metadata = Metadata::<ResourceId32, OwnedStringStorage>::new();
+        metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
+        metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
+        metadata.set_reference_date(Date::new("2024-03-20".to_string()));
+        metadata.set_reference_system(CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
+        ));
+        metadata.set_title("Test Dataset");
+        metadata.set_contact_name("John Doe");
+        metadata.set_email_address("john@example.com");
+        metadata.set_role(ContactRole::Author);
+        metadata.set_website("https://example.com");
+        metadata.set_contact_type(ContactType::Individual);
+        metadata.set_address("Kiskőrös utca");
+        metadata.set_phone("+1-555-1234");
+        metadata.set_organization("Test Corp");
+        println!("Metadata: {}", metadata);
+
+        let mut contact = Contact::new();
+        contact.set_contact_name("Jane Smith".to_string());
+        contact.set_email_address("jane@example.com".to_string());
+        contact.set_role(Some(ContactRole::Editor));
+        contact.set_website(Some("https://example.net".to_string()));
+        contact.set_contact_type(Some(ContactType::Organization));
+        contact.set_address(Some("Kiskőrös utca".to_string()));
+        contact.set_phone(Some("+1-555-5678".to_string()));
+        contact.set_organization(Some("Sample Inc".to_string()));
+        println!("Contact: {}", contact);
+
+        println!("ContactRole: {}", ContactRole::Publisher);
+        println!("ContactType: {}", ContactType::Organization);
+
+        let bbox: BBox = BBox::from([1.1, 2.1, 3.1, 4.1, 5.0, 6.0]);
+        let id: CityModelIdentifier<OwnedStringStorage> =
+            CityModelIdentifier::new("test-id".to_string());
+        let date: Date<OwnedStringStorage> = Date::new("2024-03-21".to_string());
+        let crs: CRS<OwnedStringStorage> =
+            CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string());
+
+        assert_eq!(metadata.geographical_extent(), Some(bbox).as_ref());
+        assert_eq!(metadata.identifier(), Some(id.clone()).as_ref());
+        assert_eq!(metadata.reference_system(), Some(crs.clone()).as_ref());
+
+        println!("BBox: {}", bbox);
+        println!("CityModelIdentifier: {}", id);
+        println!("Date: {}", date);
+        println!("CRS: {}", crs);
+    }
 }

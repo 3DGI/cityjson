@@ -7,17 +7,17 @@ use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
+pub struct Metadata<RR: ResourceRef, SS: StringStorage> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier<SS>>,
-    point_of_contact: Option<Contact<SS, RR>>,
+    point_of_contact: Option<Contact<RR, SS>>,
     reference_date: Option<Date<SS>>,
     reference_system: Option<CRS<SS>>,
     title: Option<String>,
     extra: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Metadata<RR, SS> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -30,7 +30,7 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         self.identifier.as_ref()
     }
 
-    pub fn point_of_contact(&self) -> Option<&Contact<SS, RR>> {
+    pub fn point_of_contact(&self) -> Option<&Contact<RR, SS>> {
         self.point_of_contact.as_ref()
     }
 
@@ -168,12 +168,12 @@ impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
         }
     }
     
-    pub fn set_point_of_contact(&mut self, contact: Option<Contact<SS, RR>>) {
+    pub fn set_point_of_contact(&mut self, contact: Option<Contact<RR, SS>>) {
         self.point_of_contact = contact;
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for Metadata<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Display for Metadata<RR, SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -189,8 +189,9 @@ impl<SS: StringStorage, RR: ResourceRef> Display for Metadata<SS, RR> {
     }
 }
 
+// TODO: Should use StringStorage for the String values
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Contact<SS: StringStorage, RR: ResourceRef> {
+pub struct Contact<RR: ResourceRef, SS: StringStorage> {
     contact_name: String,
     email_address: String,
     role: Option<ContactRole>,
@@ -201,7 +202,7 @@ pub struct Contact<SS: StringStorage, RR: ResourceRef> {
     organization: Option<String>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Contact<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Contact<RR, SS> {
     pub fn new() -> Self {
         Self {
             contact_name: "".to_string(),
@@ -283,7 +284,7 @@ impl<SS: StringStorage, RR: ResourceRef> Contact<SS, RR> {
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for Contact<SS, RR> {
+impl<RR: ResourceRef, SS: StringStorage> Display for Contact<RR, SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -344,8 +345,8 @@ impl Display for ContactType {
         write!(f, "{:#?}", self)
     }
 }
-impl<SS: StringStorage, RR: ResourceRef> cityjson::traits::metadata::MetadataTrait<SS>
-    for Metadata<SS, RR>
+impl<RR: ResourceRef, SS: StringStorage> cityjson::traits::metadata::MetadataTrait<SS>
+    for Metadata<RR, SS>
 {
 }
 
@@ -357,7 +358,7 @@ mod test {
 
     #[test]
     fn display() {
-        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
+        let mut metadata = Metadata::<ResourceId32, OwnedStringStorage>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
         metadata.set_reference_date(Date::new("2024-03-20".to_string()));
@@ -380,7 +381,7 @@ mod test {
         metadata.set_organization("Test Corp");
         println!("Metadata: {}", metadata);
 
-        let mut contact = Contact::<OwnedStringStorage, ResourceId32>::new();
+        let mut contact = Contact::<ResourceId32, OwnedStringStorage>::new();
         contact.set_contact_name("Jane Smith".to_string());
         contact.set_email_address("jane@example.com".to_string());
         contact.set_role(Some(ContactRole::Editor));

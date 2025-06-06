@@ -36,7 +36,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTypes for V2_0<
     type Material = Material<SS>;
     type Texture = Texture<SS>;
     type Geometry = Geometry<VR, RR, SS>;
-    type Metadata = Metadata<SS, RR>;
+    type Metadata = Metadata<RR, SS>;
     type Transform = Transform;
     type Extension = Extension<SS>;
     type Extensions = Extensions<SS>;
@@ -61,7 +61,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Extra root properties for the CityModel
     extra: Option<Attributes<SS, RR>>,
     /// CityModel metadata
-    metadata: Option<Metadata<SS, RR>>,
+    metadata: Option<Metadata<RR, SS>>,
     /// Collection of CityObjects
     cityobjects: CityObjects<SS, RR>,
     /// The transform object
@@ -215,11 +215,11 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
         self.vertices.len()
     }
 
-    fn metadata(&self) -> Option<&Metadata<SS, RR>> {
+    fn metadata(&self) -> Option<&Metadata<RR, SS>> {
         self.metadata.as_ref()
     }
 
-    fn metadata_mut(&mut self) -> &mut Metadata<SS, RR> {
+    fn metadata_mut(&mut self) -> &mut Metadata<RR, SS> {
         if self.metadata.is_none() {
             self.metadata = Some(Metadata::new());
         }
