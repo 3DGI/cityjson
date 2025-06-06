@@ -45,6 +45,8 @@ pub struct CityModelBuilder<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     attributes_cityobject: Option<Attributes<SS, RR>>,
     attributes_semantic: Option<Attributes<SS, RR>>,
 
+    progress_done_metadata: bool,
+    progress_done_transform: bool,
     progress_done_vertices: bool,
 }
 
@@ -94,7 +96,9 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
             themes_texture: Vec::new(),
             attributes_cityobject: None,
             attributes_semantic: None,
-            progress_done_vertices: false
+            progress_done_metadata: false,
+            progress_done_transform: false,
+            progress_done_vertices: false,
         }
     }
 
@@ -153,7 +157,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     ///
     /// Self with metadata added
     pub fn metadata(mut self, metadata_builder: Option<MetadataBuilder>) -> Self {
-        todo!()
+        if !self.progress_done_metadata {
+            todo!()
+        }
+        self
     }
 
     /// Adds textures to the model using an optional TextureBuilder.
@@ -172,6 +179,20 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
         todo!()
     }
 
+    /// Adds the transform member to the CityModel.
+    ///
+    /// # Returns
+    ///
+    /// Self with transform added
+    pub fn transform(mut self) -> Self {
+        if !self.progress_done_transform {
+            // Initalize a default Transform instance if doesn't exist
+            let _ = self.model.transform_mut();
+            self.progress_done_transform = true;
+        }
+        self
+    }
+
     /// Generates vertices for the model if not already present.
     ///
     /// The number and range of vertex coordinates is controlled by the configuration.
@@ -183,6 +204,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
         if !self.progress_done_vertices {
             let mut vertices_mut = self.model.vertices_mut();
             *vertices_mut = VerticesFaker::new(&self.config).fake_with_rng(&mut self.rng);
+            self.progress_done_vertices = true;
         }
         self
     }
@@ -229,15 +251,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn transform() {
+        let config = CJFakeConfig {
+            ..Default::default()
+        };
+        let cmf: CityModelBuilder<u32, ResourceId32, OwnedStringStorage> =
+            CityModelBuilder::new(config, None);
+        let cm = cmf.transform().build();
+        assert!(cm.transform().is_some());
+    }
+
+    #[test]
     fn vertices() {
         let config = CJFakeConfig {
-             min_coordinate: 0,
-             max_coordinate: 100,
-             min_vertices: 3,
-             max_vertices: 5,
-             ..Default::default()
+            min_coordinate: 0,
+            max_coordinate: 100,
+            min_vertices: 3,
+            max_vertices: 5,
+            ..Default::default()
         };
-        let cmf: CityModelBuilder<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None);
+        let cmf: CityModelBuilder<u32, ResourceId32, OwnedStringStorage> =
+            CityModelBuilder::new(config, None);
         let cm = cmf.vertices().build();
         assert!(cm.vertices().len() >= 3 && cm.vertices().len() <= 5);
     }
