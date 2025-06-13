@@ -1,3 +1,20 @@
+use cityjson::v2_0::{Metadata, ContactRole, ContactType};
+use cityjson::prelude::{BBox, CityModelIdentifier, Date, ResourceRef, StringStorage, CRS};
+use fake::uuid::UUIDv1;
+use fake::{Dummy, Fake, Faker};
+use fake::faker::name::raw::Name as FakeName;
+use fake::faker::phone_number::raw::PhoneNumber;
+use fake::locales::*;
+use fake::faker::address::raw::{BuildingNumber, CityName, CountryName, PostCode, StreetName};
+use fake::faker::chrono::raw::Date as FakeDate;
+use fake::faker::company::raw::CompanyName;
+use fake::faker::internet::raw::{DomainSuffix, SafeEmail};
+use fake::faker::lorem::raw::{Word, Words};
+use rand::prelude::{IndexedRandom, SmallRng};
+use rand::{Rng, rng};
+use crate::{CRS_AUTHORITIES, CRS_EPSG_VERSIONS, CRS_OGC_CODES, CRS_OGC_VERSIONS};
+use crate::cli::CJFakeConfig;
+
 /// Builder for creating CityJSON metadata with fake data.
 ///
 /// The builder provides methods to configure different aspects of a CityJSON metadata object
@@ -23,33 +40,24 @@
 ///     .title()
 ///     .build();
 /// ```
-use cityjson::v2_0::{Metadata, ContactRole, ContactType};
 #[derive(Clone)]
-pub struct MetadataBuilder(Metadata<SS, RR>);
+pub struct MetadataBuilder<'cmbuild, RR: ResourceRef, SS: StringStorage> {
+    rng: &'cmbuild SmallRng,
+    cjfake: &'cmbuild CJFakeConfig,
+    metadata: Metadata<RR, SS>
+}
 
-impl<'cm> From<MetadataBuilder<'cm>> for Metadata<'cm> {
+impl<RR: ResourceRef, SS: StringStorage> From<MetadataBuilder<RR, SS>> for Metadata<RR, SS> {
     /// Converts the builder into a Metadata object by returning the inner value.
-    fn from(val: MetadataBuilder<'cm>) -> Self {
-        val.0
+    fn from(val: MetadataBuilder<RR, SS>) -> Self {
+        val.build()
     }
 }
 
-impl<'cm> Default for MetadataBuilder<'cm> {
+impl<RR: ResourceRef, SS: StringStorage> Default for MetadataBuilder<RR, SS> {
     /// Creates a MetadataBuilder with all fields configured to generate random values.
-    ///
-    /// Equivalent to:
-    /// ```
-    /// # use cjfake::MetadataBuilder;
-    /// MetadataBuilder::new()
-    ///     .geographical_extent()
-    ///     .identifier()
-    ///     .point_of_contact()
-    ///     .reference_date()
-    ///     .reference_system()
-    ///     .title();
-    /// ```
     fn default() -> Self {
-        MetadataBuilder::new()
+        MetadataBuilder::new(Default::default(), Default::default())
             .geographical_extent()
             .identifier()
             .point_of_contact()
@@ -59,14 +67,18 @@ impl<'cm> Default for MetadataBuilder<'cm> {
     }
 }
 
-impl<'cm> MetadataBuilder<'cm> {
+impl<'cmbuild, RR: ResourceRef, SS: StringStorage> MetadataBuilder<RR, SS> {
     /// Creates a new MetadataBuilder with an empty metadata object.
     ///
     /// # Returns
     ///
     /// A new MetadataBuilder instance
-    pub fn new() -> Self {
-        MetadataBuilder(Metadata::new())
+    pub fn new(cjfake_config: &'cmbuild CJFakeConfig, rng: &'cmbuild mut SmallRng) -> Self {
+        MetadataBuilder{
+            rng,
+            cjfake: cjfake_config,
+            metadata: Metadata::new(),
+        }
     }
 
     /// Sets the geographical extent with randomly generated coordinates.
@@ -78,7 +90,7 @@ impl<'cm> MetadataBuilder<'cm> {
     ///
     /// Self with geographical extent set
     pub fn geographical_extent(mut self) -> Self {
-        self.0.set_geographical_extent(Faker.fake::<BBox>());
+        self.metadata.set_geographical_extent(BBoxFaker.fake_with_rng(&mut self.rng));
         self
     }
 
@@ -90,7 +102,7 @@ impl<'cm> MetadataBuilder<'cm> {
     ///
     /// Self with identifier set
     pub fn identifier(mut self) -> Self {
-        self.0.set_identifier(UUIDv1.fake::<String>());
+        self.metadata.set_identifier(CityModelIdentifier::new(UUIDv1.fake::<String>()));
         self
     }
 
@@ -110,16 +122,16 @@ impl<'cm> MetadataBuilder<'cm> {
     ///
     /// Self with contact information set
     pub fn point_of_contact(mut self) -> Self {
-        self.0.set_contact_name(FakeName(EN).fake::<String>());
-        self.0.set_email_address(SafeEmail(EN).fake::<String>());
-        self.0.set_role(ContactRoleFaker.fake());
-        self.0.set_website(format!(
+        self.metadata.set_contact_name(FakeName(EN).fake::<String>());
+        self.metadata.set_email_address(SafeEmail(EN).fake::<String>());
+        self.metadata.set_role(ContactRoleFaker.fake());
+        self.metadata.set_website(format!(
             "https://www.{}.{}",
             Word(EN).fake::<String>(),
             DomainSuffix(EN).fake::<String>()
         ));
-        self.0.set_contact_type(ContactTypeFaker.fake());
-        self.0.set_address(format!(
+        self.metadata.set_contact_type(ContactTypeFaker.fake());
+        self.metadata.set_address(format!(
             "{} {}, {}, {} {}",
             BuildingNumber(EN).fake::<String>(),
             StreetName(EN).fake::<String>(),
@@ -127,8 +139,8 @@ impl<'cm> MetadataBuilder<'cm> {
             CityName(EN).fake::<String>(),
             CountryName(EN).fake::<String>()
         ));
-        self.0.set_phone(PhoneNumber(EN).fake::<String>());
-        self.0.set_organization(CompanyName(EN).fake::<String>());
+        self.metadata.set_phone(PhoneNumber(EN).fake::<String>());
+        self.metadata.set_organization(CompanyName(EN).fake::<String>());
         self
     }
 
@@ -140,7 +152,7 @@ impl<'cm> MetadataBuilder<'cm> {
     ///
     /// Self with reference date set
     pub fn reference_date(mut self) -> Self {
-        self.0.set_reference_date(FakeDate(EN).fake::<String>());
+        self.metadata.set_reference_date(Date::new(FakeDate(EN).fake::<String>()));
         self
     }
 
@@ -156,25 +168,25 @@ impl<'cm> MetadataBuilder<'cm> {
     /// Self with reference system set
     pub fn reference_system(mut self) -> Self {
         let ogc_def_crs = "http://www.opengis.net/def/crs";
-        let authority = *CRS_AUTHORITIES.choose(&mut thread_rng()).unwrap_or(&"EPSG");
+        let authority = *CRS_AUTHORITIES.choose(&mut rng()).unwrap_or(&"EPSG");
         let version = match authority {
-            "EPSG" => *CRS_EPSG_VERSIONS.choose(&mut thread_rng()).unwrap_or(&"0"),
-            "OGC" => *CRS_OGC_VERSIONS.choose(&mut thread_rng()).unwrap_or(&"0"),
+            "EPSG" => *CRS_EPSG_VERSIONS.choose(&mut rng()).unwrap_or(&"0"),
+            "OGC" => *CRS_OGC_VERSIONS.choose(&mut rng()).unwrap_or(&"0"),
             _ => "0",
         };
         let code = match authority {
             "EPSG" => {
-                let a = thread_rng().gen_range(2000..10500);
+                let a = rng().random_range(2000..10500);
                 a.to_string()
             }
             "OGC" => CRS_OGC_CODES
-                .choose(&mut thread_rng())
+                .choose(&mut rng())
                 .unwrap_or(&"0")
                 .to_string(),
             _ => "0".to_string(),
         };
         let crs = format!("{ogc_def_crs}/{authority}/{version}/{code}");
-        self.0.set_reference_system(crs);
+        self.metadata.set_reference_system(CRS::new(crs));
         self
     }
 
@@ -185,7 +197,7 @@ impl<'cm> MetadataBuilder<'cm> {
     /// Self with title set
     pub fn title(mut self) -> Self {
         let words: Vec<String> = Words(EN, 0..6).fake();
-        self.0.set_title(words.join(" "));
+        self.metadata.set_title(words.join(" "));
         self
     }
 
@@ -196,7 +208,7 @@ impl<'cm> MetadataBuilder<'cm> {
     /// # Returns
     ///
     /// The complete Metadata object
-    pub fn build(self) -> Metadata<'cm> {
+    pub fn build(self) -> Metadata<RR, SS> {
         self.into()
     }
 }
@@ -235,10 +247,19 @@ struct ContactTypeFaker;
 
 impl Dummy<ContactTypeFaker> for ContactType {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &ContactTypeFaker, rng: &mut R) -> Self {
-        match rng.gen_range(0..2) {
+        match rng.random_range(0..2) {
             0 => ContactType::Individual,
             1 => ContactType::Organization,
             _ => unreachable!(),
         }
+    }
+}
+
+struct BBoxFaker;
+
+impl Dummy<BBoxFaker> for BBox {
+    fn dummy_with_rng<R: Rng + ?Sized>(_config: &BBoxFaker, rng: &mut R) -> Self {
+        let values: [f64; 6] = Faker.fake_with_rng(rng);
+        BBox::from(values)
     }
 }

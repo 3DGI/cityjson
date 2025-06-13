@@ -188,10 +188,10 @@ pub mod prelude {
 // todo: scj: geometry.template_boundaries needs to be [GeometryIndex; 1] instead of [usize; 1];
 // todo: if templates builder is used, make sure that at least one GeometryInstance is generated
 
-const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
-const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
-const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
-const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
+pub(crate) const CRS_AUTHORITIES: [&str; 2] = ["EPSG", "OGC"];
+pub(crate) const CRS_OGC_VERSIONS: [&str; 3] = ["0", "1.0", "1.3"];
+pub(crate) const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
+pub(crate) const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 type IndexType = u32;
 
