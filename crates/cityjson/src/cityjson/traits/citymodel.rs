@@ -130,6 +130,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn transform_mut(&mut self) -> &mut V::Transform;
     fn extensions(&self) -> Option<&V::Extensions>;
     fn extensions_mut(&mut self) -> &mut V::Extensions;
-    fn cityobjects(&self) -> &V::CityObjects;
+    fn cityobjects(&self) -> &V::CityObjects;   
     fn cityobjects_mut(&mut self) -> &mut V::CityObjects;
 }
