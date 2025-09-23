@@ -87,7 +87,7 @@ pub trait TextureTrait<SS: StringStorage> {
 
     /// Returns the wrap mode if it exists.
     ///
-    /// Wrap mode determines how texture coordinates outside the [0,1] range are handled.
+    /// Wrap mode determines how texture coordinates outside the (0,1) range are handled.
     ///
     /// # Returns
     ///

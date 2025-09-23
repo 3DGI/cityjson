@@ -18,7 +18,7 @@ use crate::{CityJSONVersion, CityModelType};
 use std::fmt::Debug;
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
-/// the [GenericCityModel].
+/// the `CityModel`.
 pub trait CityModelTypes {
     type CoordinateType: Coordinate;
     type VertexRef: VertexRef;

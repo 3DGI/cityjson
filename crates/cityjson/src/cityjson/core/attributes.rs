@@ -454,7 +454,7 @@ impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
     ///
     /// # Returns
     ///
-    /// An iterator yielding tuples of (&SS::String, &AttributeValue<SS>).
+    /// An iterator yielding tuples of (`&SS::String, &AttributeValue<SS>`).
     ///
     /// # Examples
     ///
@@ -479,7 +479,7 @@ impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
     ///
     /// # Returns
     ///
-    /// A mutable iterator yielding tuples of (&SS::String, &mut AttributeValue<SS>).
+    /// A mutable iterator yielding tuples of (`&SS::String, &mut AttributeValue<SS>`).
     ///
     /// # Examples
     ///

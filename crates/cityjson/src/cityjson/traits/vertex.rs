@@ -130,7 +130,7 @@ where
     ///
     /// # Returns
     ///
-    /// A Result containing a vector of sequential VertexIndex<T> values,
+    /// A Result containing a vector of sequential `VertexIndex<T>` values,
     /// or an error if the sequence would exceed the maximum value for type T.
     ///
     /// # Examples

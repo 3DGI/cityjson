@@ -6,10 +6,7 @@
 //!
 //! ## Key Components
 //!
-//! - [`VertexRef`]: A trait for integers that can be used as vertex references
-//! - [`VertexIndex<T>`]: A generic index type for vertices with different integer sizes
-//! - Type aliases for common uses: [`VertexIndex16`], [`VertexIndex32`], [`VertexIndex64`]
-//! - [`VertexIndexVec`]: A trait for converting vectors of raw integers to wrapped indices
+//! - todo
 //!
 //! ## Platform Support
 //!

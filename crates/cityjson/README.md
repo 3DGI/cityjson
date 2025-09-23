@@ -61,7 +61,7 @@ The library defines custom errors in the `errors` module and uses Result types t
 
 ## Performance
 
-example: https://github.com/rust-lang/regex?tab=readme-ov-file#performance
+example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](https://github.com/rust-lang/regex?tab=readme-ov-file#performance)
 
 ## API Stability
 

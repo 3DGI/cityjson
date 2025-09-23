@@ -172,7 +172,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// Add a new point to the boundary by providing its coordinates. The point will be
     /// added as a new vertex to the vertex pool. Use this method when adding completely
     /// new vertices to the CityModel and the Boundary. Can be used interchangeably
-    /// with [add_vertex] for building a Boundary.
+    /// with [GeometryBuilder::add_vertex] for building a Boundary.
     ///
     /// # Returns
     ///
@@ -190,7 +190,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
 
     /// Add an existing vertex to the boundary by providing its reference in the vertex
     /// pool. Use this method when reusing existing vertices for the boundary. Can be
-    /// used interchangeably with [add_point] for building a Boundary.
+    /// used interchangeably with [GeometryBuilder::add_point] for building a Boundary.
     ///
     /// # Returns
     ///
@@ -219,16 +219,16 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// Map a boundary vertex to a UV coordinate.
     ///
     /// # Parameters
-    /// - `vertex_idx`: Index of the target vertex, as returned from [add_point] or
-    /// [add_vertex].
+    /// - `vertex_idx`: Index of the target vertex, as returned from [GeometryBuilder::add_point] or
+    /// [GeometryBuilder::add_vertex].
     /// - `uv_idx`: Index of the corresponding UV coordinate, as returned by
-    /// [add_uv_coordinate].
+    /// [GeometryBuilder::add_uv_coordinate].
     pub fn map_vertex_to_uv(&mut self, vertex_idx: usize, uv_idx: usize) {
         self.vertex_uv_mapping.insert(vertex_idx, uv_idx);
     }
 
     /// Add a LineString to the boundary by providing its vertex indices in the boundary.
-    /// The indices are returned by the [add_point] or [add_vertex] methods.
+    /// The indices are returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods.
     ///
     /// # Errors
     /// * `InvalidLineString` - If less than two vertices have been provided
@@ -248,7 +248,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     }
 
     /// Add a ring to the boundary by providing its vertex indices in the boundary.
-    /// The indices are returned by the [add_point] or [add_vertex] methods.
+    /// The indices are returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods.
     ///
     /// # Errors
     /// * `InvalidRing` - If less than three vertices have been provided
@@ -410,7 +410,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// # Parameters
     ///
     /// * `index` - The index of the point that will get the semantic. The index is the
-    /// value returned by the [add_point] or [add_vertex] methods. If
+    /// value returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods. If
     /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the Point.
     ///
@@ -448,7 +448,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// # Parameters
     ///
     /// * `index` - The index of the LineString that will get the semantic. The index is the
-    /// value returned by the [add_linestring] or [add_ring] methods. If
+    /// value returned by the [GeometryBuilder::add_linestring] or [GeometryBuilder::add_ring] methods. If
     /// `None`, the Semantic is added to the last LineString in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the LineString.
     ///
@@ -485,8 +485,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     ///
     /// # Parameters
     ///
-    /// * `index` - The index of the surface that will get the semantic. The index is the
-    /// value returned by the [add_surface] method. If
+    /// * `index` - The index of the surface that will get the semantic. If
     /// `None`, the Semantic is added to the last surface in the GeometryBuilder.
     /// * `semantic` - The Semantic instance to add to the surface.
     ///
@@ -522,8 +521,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     ///
     /// # Parameters
     ///
-    /// * `index` - The index of the surface that will get the material. The index is the
-    /// value returned by the [add_surface] method. If
+    /// * `index` - The index of the surface that will get the material. If
     /// `None`, the Material is added to the last surface in the GeometryBuilder.
     /// * `material` - The Material instance to add to the surface.
     /// * `theme` - The theme of the material.
@@ -577,7 +575,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// # Parameters
     ///
     /// * `index` - The index of the ring that will get the texture. The index is the
-    /// value returned by the [add_ring] method. If
+    /// value returned by the [GeometryBuilder::add_ring] method. If
     /// `None`, the Texture is added to the last ring in the GeometryBuilder.
     /// * `texture` - The Texture instance to add to the ring.
     /// * `theme` - The theme of the texture.
