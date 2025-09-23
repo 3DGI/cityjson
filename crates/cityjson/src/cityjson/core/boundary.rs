@@ -190,23 +190,23 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    pub fn vertices_raw(&self) -> RawVertexView<VR> {
+    pub fn vertices_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.vertices)
     }
 
-    pub fn rings_raw(&self) -> RawVertexView<VR> {
+    pub fn rings_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.rings)
     }
 
-    pub fn surfaces_raw(&self) -> RawVertexView<VR> {
+    pub fn surfaces_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.surfaces)
     }
 
-    pub fn shells_raw(&self) -> RawVertexView<VR> {
+    pub fn shells_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.shells)
     }
 
-    pub fn solids_raw(&self) -> RawVertexView<VR> {
+    pub fn solids_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.solids)
     }
 
