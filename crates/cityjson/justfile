@@ -10,6 +10,10 @@ default:
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
 
+# Extract the crate signatures to target/doc/cityjson.json
+doc-signatures:
+    RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps
+
 test:
     echo "{{ _git_ref }}"
 

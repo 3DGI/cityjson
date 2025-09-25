@@ -9,10 +9,6 @@ pub mod geometry;
 pub mod metadata;
 pub mod transform;
 
-pub use crate::cityjson::core::metadata::BBox;
-pub use crate::cityjson::core::metadata::CityModelIdentifier;
-pub use crate::cityjson::core::metadata::Date;
-pub use crate::cityjson::core::metadata::CRS;
 pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
     texture::{BorrowedTexture, OwnedTexture, Texture},

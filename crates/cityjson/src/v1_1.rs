@@ -9,30 +9,18 @@ pub mod geometry;
 pub mod metadata;
 pub mod transform;
 
-// Re-export main types from appearance
 pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
     texture::{BorrowedTexture, OwnedTexture, Texture},
 };
-
-// Re-export main types from citymodel
 pub use citymodel::CityModel;
-
-// Re-export main types from cityobject
 pub use cityobject::{
     BorrowedCityObjects, CityObject, CityObjectType, CityObjects, OwnedCityObjects,
 };
-
 pub use extension::{Extension, Extensions};
-
-// Re-export main types from geometry
 pub use geometry::{
     semantic::{Semantic, SemanticType},
     Geometry,
 };
-
-// Re-export main types from metadata
 pub use metadata::{Contact, ContactRole, ContactType, Metadata};
-
-// Re-export main types from transform
 pub use transform::Transform;
