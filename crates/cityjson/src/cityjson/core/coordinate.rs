@@ -98,7 +98,7 @@
 
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::coordinate::Coordinate;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::error::{Error, Result};
 use std::marker::PhantomData;
 

@@ -2,7 +2,7 @@
 
 use crate::cityjson::core::boundary::BoundaryCounter;
 use crate::cityjson::traits::coordinate::Coordinate;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::error::{Error, Result};
 use crate::prelude::{
     Boundary, CityModelTrait, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate,

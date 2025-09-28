@@ -4,7 +4,7 @@
 use crate::cityjson::core::boundary::Boundary;
 use crate::cityjson::core::geometry::{GeometryType, LoD};
 use crate::cityjson::traits::geometry::GeometryTrait;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{StringStorage, VertexIndex};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::ResourceRef;

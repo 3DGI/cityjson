@@ -6,7 +6,7 @@ use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::geometry::GeometryTrait;
 use crate::cityjson::traits::metadata::MetadataTrait;
 use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::error::Result;
 use crate::prelude::{
     Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,

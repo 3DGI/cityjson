@@ -7,4 +7,3 @@ pub mod geometry;
 pub mod metadata;
 pub mod semantic;
 pub mod transform;
-pub mod vertex;

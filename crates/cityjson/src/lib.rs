@@ -64,13 +64,18 @@ pub mod prelude {
         traits::geometry::GeometryTrait,
         traits::metadata::{BBoxTrait, MetadataTrait},
         traits::semantic::{SemanticTrait, SemanticTypeTrait},
-        traits::transform::TransformTrait,
-        traits::vertex::{VertexIndexVec, VertexIndicesSequence, VertexRef},
+        traits::transform::TransformTrait
+        ,
     };
     // Re-export from errors module
     pub use crate::error::{Error, Result};
     pub use std::str::FromStr;
-
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexIndexVec;
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexIndicesSequence;
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexRef;
     // Re-export from resources module
     pub use crate::resources::{
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},

@@ -4,7 +4,7 @@ use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
 use crate::cityjson::traits::transform::TransformTrait;
-use crate::cityjson::traits::vertex::VertexRef;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
 };

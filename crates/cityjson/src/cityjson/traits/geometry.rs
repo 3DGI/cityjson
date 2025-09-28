@@ -1,6 +1,7 @@
+use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{
     Boundary, GeometryType, LoD, MaterialMap, ResourceRef, SemanticMap, StringStorage, TextureMap,
-    VertexIndex, VertexRef,
+    VertexIndex,
 };
 
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
