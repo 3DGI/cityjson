@@ -1,4 +1,5 @@
 use crate::cityjson::core::vertex::VertexIndex;
+use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::appearance::material::MaterialTrait;
 use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
@@ -6,11 +7,10 @@ use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::geometry::GeometryTrait;
 use crate::cityjson::traits::metadata::MetadataTrait;
 use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
-use crate::cityjson::core::vertex::VertexRef;
 use crate::error::Result;
 use crate::prelude::{
     Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
-    RealWorldCoordinate, TransformTrait, UVCoordinate, Vertices,
+    RealWorldCoordinate, UVCoordinate, Vertices,
 };
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
@@ -31,7 +31,7 @@ pub trait CityModelTypes {
     type Texture: TextureTrait<Self::StringStorage>;
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
     type Metadata: MetadataTrait<Self::StringStorage>;
-    type Transform: TransformTrait;
+    type Transform;
     type Extension: ExtensionTrait<Self::StringStorage>;
     type Extensions: ExtensionsTrait<Self::StringStorage, Self::Extension>;
     type CityObjectType: CityObjectTypeTrait<Self::StringStorage>;
@@ -51,7 +51,7 @@ pub trait CityModelTypes {
     type TexturePool: ResourcePool<Self::Texture, Self::ResourceRef>;
 }
 
-pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
+pub trait CityModelTrait2<V: CityModelTypes>: Debug + Clone {
     /// Create a new empty CityModel
     fn new(type_citymodel: CityModelType) -> Self;
     /// Create a new CityModel with the specified capacity

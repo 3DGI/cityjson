@@ -1,15 +1,38 @@
 //#![doc = include_str!("../../docs/boundary_guide.md")]
 
 use crate::cityjson::core::boundary::BoundaryCounter;
-use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::core::vertex::VertexRef;
+use crate::cityjson::traits::coordinate::Coordinate;
 use crate::error::{Error, Result};
 use crate::prelude::{
-    Boundary, CityModelTrait, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate,
-    SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex,
+    Boundary, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate, ResourceRef,
+    SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex, Vertices,
 };
 use std::collections::HashMap;
 use std::str::FromStr;
+
+// Local trait to decouple GeometryBuilder from any global CityModel traits.
+pub trait GeometryModelOps<V: CityModelTypes, SS: StringStorage> {
+    fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
+    fn add_material(&mut self, material: V::Material) -> V::ResourceRef;
+    fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
+    fn add_uv_coordinate(
+        &mut self,
+        uvcoordinate: UVCoordinate,
+    ) -> Result<VertexIndex<V::VertexRef>>;
+
+    fn add_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
+    fn add_template_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
+
+    fn add_vertex(&mut self, coordinate: V::CoordinateType) -> Result<VertexIndex<V::VertexRef>>;
+    fn vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, V::CoordinateType>;
+
+    fn add_template_vertex(
+        &mut self,
+        coordinate: RealWorldCoordinate,
+    ) -> Result<VertexIndex<V::VertexRef>>;
+    fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
+}
 
 /// Represents a surface under construction with one outer ring and optional inner rings
 #[derive(Default)]
@@ -47,7 +70,7 @@ pub enum BuilderMode {
 /// The GeometryBuilder is generic over the CityModel and Coordinate type, thus it can
 /// build a CityModel with either real-world coordinates or quantized coordinates,
 /// for all supported CityJSON versions.
-pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage> {
+pub struct GeometryBuilder<'a, V: CityModelTypes, M, SS: StringStorage> {
     model: &'a mut M,
     type_geometry: GeometryType,
     builder_mode: BuilderMode,
@@ -77,7 +100,7 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M: CityModelTrait<V>, SS: Stri
     ring_textures: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
 }
 
-impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: StringStorage>
+impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     GeometryBuilder<'a, V, M, SS>
 {
     /// Instantiates a new GeometryBuilder.
@@ -144,7 +167,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     ///
     /// # Returns
     ///
-    /// Self for method chaining
+    /// Self-for method chaining
     ///
     /// # Errors
     /// * [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
@@ -421,7 +444,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> Result<V::ResourceRef> {
+    ) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let vertex_i = if let Some(i) = index {
             if i >= self.vertices.len() {
@@ -459,7 +485,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> Result<V::ResourceRef> {
+    ) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
@@ -496,7 +525,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         &mut self,
         index: Option<usize>,
         semantic: V::Semantic,
-    ) -> Result<V::ResourceRef> {
+    ) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
@@ -534,7 +566,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         index: Option<usize>,
         material: V::Material,
         theme: SS::String,
-    ) -> Result<V::ResourceRef> {
+    ) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         let material_ref = self.model.get_or_insert_material(material);
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
@@ -588,7 +623,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         index: Option<usize>,
         texture: V::Texture,
         theme: SS::String,
-    ) -> Result<V::ResourceRef> {
+    ) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         let texture_ref = self.model.get_or_insert_texture(texture);
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
@@ -623,7 +661,10 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     /// # Errors
     /// * The geometry type does not match the structure (`InvalidGeometryType`)
     /// * The `model`'s vertex container has reached its maximum capacity (`VerticesContainerFull`)
-    pub fn build(self) -> Result<V::ResourceRef> {
+    pub fn build(self) -> Result<V::ResourceRef>
+    where
+        M: GeometryModelOps<V, SS>,
+    {
         // Validate structure before building
         self.validate_structure()?;
 
@@ -714,7 +755,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
             GeometryType::MultiPoint => {
                 boundary.vertices = vertex_indices;
 
-                semantic_map_option = build_semantic_map::<V, M>(
+                semantic_map_option = build_semantic_map::<V>(
                     &self.type_geometry,
                     &self.point_semantics,
                     nr_builder_vertices,
@@ -729,7 +770,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map::<V, M>(
+                semantic_map_option = build_semantic_map::<V>(
                     &self.type_geometry,
                     &self.linestring_semantics,
                     self.rings.len(),
@@ -760,14 +801,14 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map::<V, M>(
+                semantic_map_option = build_semantic_map::<V>(
                     &self.type_geometry,
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
 
                 material_map_option =
-                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
+                    build_material_map::<V, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::Solid => {
                 // Add shell index
@@ -801,14 +842,14 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map::<V, M>(
+                semantic_map_option = build_semantic_map::<V>(
                     &self.type_geometry,
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
 
                 material_map_option =
-                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
+                    build_material_map::<V, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
                 // Process each solid
@@ -900,14 +941,14 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
                     }
                 }
 
-                semantic_map_option = build_semantic_map::<V, M>(
+                semantic_map_option = build_semantic_map::<V>(
                     &self.type_geometry,
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
 
                 material_map_option =
-                    build_material_map::<V, M, SS>(&self.surface_materials, &self.surfaces);
+                    build_material_map::<V, SS>(&self.surface_materials, &self.surfaces);
             }
         }
 
@@ -915,7 +956,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
             if self.ring_textures.is_empty() && self.vertex_uv_mapping.is_empty() {
                 None
             } else {
-                Some(build_texture_map::<V, M, SS>(
+                Some(build_texture_map::<V, SS>(
                     &boundary,
                     &self.ring_textures,
                     &self.vertex_uv_mapping,
@@ -1121,7 +1162,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
     }
 }
 
-fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>>(
+fn build_semantic_map<V: CityModelTypes>(
     type_geometry: &GeometryType,
     builder_semantics: &HashMap<usize, V::ResourceRef>,
     nr_primitives: usize,
@@ -1165,7 +1206,7 @@ fn build_semantic_map<V: CityModelTypes, M: CityModelTrait<V>>(
     }
 }
 
-fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage>(
+fn build_material_map<V: CityModelTypes, SS: StringStorage>(
     surface_materials: &Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
     surfaces: &Vec<SurfaceInProgress>,
 ) -> Option<Vec<(SS::String, MaterialMap<V::VertexRef, V::ResourceRef>)>> {
@@ -1202,11 +1243,7 @@ fn build_material_map<V: CityModelTypes, M: CityModelTrait<V>, SS: StringStorage
     }
 }
 
-fn build_texture_map<
-    V: CityModelTypes<StringStorage = SS>,
-    M: CityModelTrait<V>,
-    SS: StringStorage,
->(
+fn build_texture_map<V: CityModelTypes<StringStorage = SS>, SS: StringStorage>(
     boundary: &Boundary<V::VertexRef>,
     ring_textures: &[(SS::String, Vec<(usize, V::ResourceRef)>)],
     vertex_uv_mapping: &HashMap<usize, usize>,

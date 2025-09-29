@@ -97,12 +97,12 @@
 compile_error!("This crate only supports 64-bit platforms");
 
 use crate::error::{Error, Result};
+use num::{CheckedAdd, FromPrimitive, Unsigned};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem::size_of;
 use std::num::TryFromIntError;
 use std::ops::AddAssign;
-use num::{CheckedAdd, FromPrimitive, Unsigned};
 
 //------------------------------------------------------------------------------
 // Core integer trait and implementations
@@ -677,7 +677,6 @@ impl<'a, VR: VertexRef> std::ops::Deref for RawVertexView<'a, VR> {
     }
 }
 
-
 /// A trait for converting a `Vec<T>` to a `Vec<VertexIndex<T>>`.
 ///
 /// This trait provides a convenient way to convert a vector of raw indices into
@@ -733,8 +732,8 @@ mod tests {
     use super::*;
     use crate::cityjson::core::coordinate::RealWorldCoordinate;
     use crate::cityjson::core::vertex::VertexIndexVec;
-    use std::collections::HashSet;
     use crate::cityjson::core::vertex::VertexIndicesSequence;
+    use std::collections::HashSet;
 
     #[test]
     fn test_vertex_index_creation() {

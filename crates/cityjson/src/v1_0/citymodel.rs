@@ -77,9 +77,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     default_theme_texture: Option<RR>,
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_0<VR, RR, SS>>
-    for CityModel<VR, RR, SS>
-{
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
     fn new(type_citymodel: CityModelType) -> Self {
         Self {
             type_citymodel,

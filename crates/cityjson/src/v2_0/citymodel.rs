@@ -2,9 +2,8 @@ use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
-use crate::cityjson::traits::citymodel::{CityModelTrait, CityModelTypes};
-use crate::cityjson::traits::transform::TransformTrait;
 use crate::cityjson::core::vertex::VertexRef;
+use crate::cityjson::traits::citymodel::CityModelTypes;
 use crate::prelude::{
     CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
 };
@@ -88,9 +87,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     default_theme_texture: Option<RR>,
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, RR, SS>>
-    for CityModel<VR, RR, SS>
-{
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
     fn new(type_citymodel: CityModelType) -> Self {
         Self {
             type_citymodel,

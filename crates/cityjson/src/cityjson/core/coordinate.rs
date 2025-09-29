@@ -97,8 +97,8 @@
 //! the expected number of vertices in a model.
 
 use crate::cityjson::core::vertex::VertexIndex;
-use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::core::vertex::VertexRef;
+use crate::cityjson::traits::coordinate::Coordinate;
 use crate::error::{Error, Result};
 use std::marker::PhantomData;
 

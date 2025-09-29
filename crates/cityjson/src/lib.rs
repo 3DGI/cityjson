@@ -21,6 +21,7 @@
 
 pub mod cityjson;
 pub mod error;
+pub(crate) mod macros;
 pub mod resources;
 pub mod v1_0;
 pub mod v1_1;
@@ -29,6 +30,12 @@ pub mod v2_0;
 /// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexIndexVec;
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexIndicesSequence;
+    // Re-export from cityjson module
+    pub use crate::cityjson::core::vertex::VertexRef;
     // Re-export from cityjson module
     pub use crate::cityjson::{
         core::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
@@ -57,31 +64,23 @@ pub mod prelude {
         core::metadata::{BBox, CityModelIdentifier, Date, CRS},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
-        traits::citymodel::{CityModelTrait, CityModelTypes},
+        traits::citymodel::CityModelTypes,
         traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
         traits::coordinate::Coordinate,
         traits::extension::{ExtensionTrait, ExtensionsTrait},
         traits::geometry::GeometryTrait,
         traits::metadata::{BBoxTrait, MetadataTrait},
         traits::semantic::{SemanticTrait, SemanticTypeTrait},
-        traits::transform::TransformTrait
-        ,
     };
     // Re-export from errors module
     pub use crate::error::{Error, Result};
-    pub use std::str::FromStr;
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexIndexVec;
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexIndicesSequence;
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexRef;
     // Re-export from resources module
     pub use crate::resources::{
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
         pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
+    pub use std::str::FromStr;
 }
 
 use prelude::*;

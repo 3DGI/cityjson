@@ -72,7 +72,6 @@
 //! The transformation mechanism is an important feature of CityJSON that helps reduce file sizes
 //! while maintaining precision in coordinate values.
 
-use crate::cityjson::traits::transform::TransformTrait;
 use std::fmt::{Display, Formatter};
 
 /// Transform.
@@ -98,20 +97,20 @@ pub struct TransformCore {
     translate: [f64; 3],
 }
 
-impl TransformTrait for TransformCore {
-    fn new() -> Self {
+impl TransformCore {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
-    fn scale(&self) -> [f64; 3] {
+    pub(crate) fn scale(&self) -> [f64; 3] {
         self.scale
     }
-    fn translate(&self) -> [f64; 3] {
+    pub(crate) fn translate(&self) -> [f64; 3] {
         self.translate
     }
-    fn set_scale(&mut self, scale: [f64; 3]) {
+    pub(crate) fn set_scale(&mut self, scale: [f64; 3]) {
         self.scale = scale;
     }
-    fn set_translate(&mut self, translate: [f64; 3]) {
+    pub(crate) fn set_translate(&mut self, translate: [f64; 3]) {
         self.translate = translate;
     }
 }

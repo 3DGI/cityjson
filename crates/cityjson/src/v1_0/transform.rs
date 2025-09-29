@@ -1,38 +1,15 @@
-use crate::cityjson::core;
-use crate::cityjson::traits::transform::TransformTrait;
+use crate::cityjson::core::transform;
+use crate::macros::impl_core_transform_methods;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Transform {
-    inner: core::transform::TransformCore,
-}
-
-impl TransformTrait for Transform {
-    fn new() -> Self {
-        Self {
-            inner: core::transform::TransformCore::new(),
-        }
-    }
-
-    fn scale(&self) -> [f64; 3] {
-        self.inner.scale()
-    }
-
-    fn translate(&self) -> [f64; 3] {
-        self.inner.translate()
-    }
-
-    fn set_scale(&mut self, scale: [f64; 3]) {
-        self.inner.set_scale(scale);
-    }
-
-    fn set_translate(&mut self, translate: [f64; 3]) {
-        self.inner.set_translate(translate);
-    }
-}
+#[repr(transparent)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
+pub struct Transform(transform::TransformCore);
 
 impl Display for Transform {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.inner)
+        write!(f, "{}", self.as_inner())
     }
 }
+
+impl_core_transform_methods!(Transform);
