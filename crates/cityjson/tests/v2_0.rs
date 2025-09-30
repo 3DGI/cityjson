@@ -1,6 +1,8 @@
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
+use std::sync::mpsc;
+use std::thread;
 
 /// Build a CityModel that uses the complete CityJSON v2.0 specifications with fake
 /// values.
@@ -257,8 +259,7 @@ fn build_fake_complete_owned() -> Result<()> {
                 .clone()
                 .boundaries()
                 .unwrap()
-                .to_nested_solid()
-                .unwrap();
+                .to_nested_solid()?;
             println!("CityObject id-1 nested boundary: {:?}", geom_nested);
         }
     }
@@ -354,33 +355,317 @@ fn build_fake_complete_owned() -> Result<()> {
         .get_mut(co_1_ref)
         .unwrap()
         .parents_mut()
-        .push(co_3_ref.clone());
+        .push(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
         .parents_mut()
-        .push(co_neigh_ref.clone());
+        .push(co_neigh_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
         .children_mut()
-        .push(co_1_ref.clone());
+        .push(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
         .parents_mut()
-        .push(co_neigh_ref.clone());
+        .push(co_neigh_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
         .children_mut()
-        .push(co_1_ref.clone());
+        .push(co_1_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
         .children_mut()
-        .push(co_3_ref.clone());
+        .push(co_3_ref);
 
     println!("{}", &model);
+    Ok(())
+}
+
+/// Message type for producer-consumer communication
+#[derive(Debug, Clone)]
+struct BuildingData {
+    id: String,
+    _building_type: String,
+    vertices: Vec<(i64, i64, i64)>,
+    attributes: HashMap<String, f64>,
+    transformation_matrix: [f64; 16],
+}
+
+/// Producer-consumer streaming test with memory management
+/// This test demonstrates:
+/// 1. Streaming data ingestion via channels
+/// 2. Building geometries with semantics and materials
+/// 3. Creating GeometryInstances
+/// 4. Memory management by removing processed CityObjects
+#[test]
+fn test_producer_consumer_stream() -> Result<()> {
+    // Create a channel for producer-consumer communication
+    let (tx, rx) = mpsc::channel::<Option<BuildingData>>();
+
+    // Spawn producer and consumer threads in a thread scope
+    thread::scope(|s| {
+        // Producer thread - generates building data
+        s.spawn(move || {
+            producer(tx);
+        });
+
+        // Consumer thread - ingests and processes building data
+        let consumer_handle = s.spawn(move || consumer(rx));
+
+        // Wait for consumer to finish and get results
+        consumer_handle.join().expect("Consumer thread panicked")
+    })
+}
+
+/// Producer function that generates building data
+fn producer(tx: mpsc::Sender<Option<BuildingData>>) {
+    let building_count = 5;
+
+    for i in 0..building_count {
+        let building = BuildingData {
+            id: format!("building-{}", i),
+            _building_type: "Building".to_string(),
+            vertices: vec![
+                (100 + i * 50, 200 + i * 50, 0),
+                (120 + i * 50, 200 + i * 50, 0),
+                (120 + i * 50, 220 + i * 50, 0),
+                (100 + i * 50, 220 + i * 50, 0),
+                (100 + i * 50, 200 + i * 50, 30),
+                (120 + i * 50, 200 + i * 50, 30),
+                (120 + i * 50, 220 + i * 50, 30),
+                (100 + i * 50, 220 + i * 50, 30),
+            ],
+            attributes: {
+                let mut attrs = HashMap::new();
+                attrs.insert("height".to_string(), 30.0 + i as f64 * 5.0);
+                attrs.insert("yearOfConstruction".to_string(), 2000.0 + i as f64);
+                attrs
+            },
+            transformation_matrix: [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                i as f64 * 10.0,
+                i as f64 * 10.0,
+                0.0,
+                1.0,
+            ],
+        };
+
+        // Send building data to consumer
+        tx.send(Some(building))
+            .expect("Failed to send building data");
+    }
+
+    // Signal completion
+    tx.send(None).expect("Failed to send completion signal");
+}
+
+/// Consumer function that builds CityModel and manages memory
+fn consumer(rx: mpsc::Receiver<Option<BuildingData>>) -> Result<()> {
+    // Initialize CityModel
+    let mut model =
+        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+    // Set basic metadata
+    model
+        .metadata_mut()
+        .set_identifier(CityModelIdentifier::new("streaming-test-model".to_string()));
+
+    // Create shared materials (reused across all buildings)
+    let material_wall = Material::new("wall-material".to_string());
+    let mut material_roof = Material::new("roof-material".to_string());
+    material_roof.set_diffuse_color(Some([0.8, 0.2, 0.2]));
+    material_roof.set_shininess(Some(0.5));
+
+    // Create a shared geometry template for GeometryInstances (created once, reused)
+    let template_ref = {
+        let mut template_builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Template)
+                .with_lod(LoD::LoD1);
+
+        template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.0, 0.0));
+        template_builder.add_template_point(RealWorldCoordinate::new(5.0, 0.0, 0.0));
+        template_builder.add_template_point(RealWorldCoordinate::new(5.0, 5.0, 0.0));
+        template_builder.add_template_point(RealWorldCoordinate::new(0.0, 5.0, 0.0));
+
+        template_builder.build()?
+    };
+
+    // Track memory metrics
+    let mut buildings_processed = 0;
+    let mut max_cityobjects = 0;
+    let mut max_vertices = 0;
+
+    // Process incoming building data
+    while let Ok(message) = rx.recv() {
+        match message {
+            Some(building_data) => {
+                // Create CityObject
+                let mut cityobject =
+                    CityObject::new(building_data.id.clone(), CityObjectType::Building);
+
+                // Add attributes
+                let attrs = cityobject.attributes_mut();
+                for (key, value) in building_data.attributes {
+                    attrs.insert(key, AttributeValue::Float(value));
+                }
+
+                // Add vertices to the model
+                let vertex_refs: Vec<VertexIndex<u32>> = building_data
+                    .vertices
+                    .iter()
+                    .map(|(x, y, z)| {
+                        model
+                            .add_vertex(QuantizedCoordinate::new(*x, *y, *z))
+                            .expect("Failed to add vertex")
+                    })
+                    .collect();
+
+                // Build first geometry: Solid with semantics and materials
+                let geometry1_ref = {
+                    let mut geometry_builder =
+                        GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular)
+                            .with_lod(LoD::LoD2);
+
+                    // Add vertices to geometry
+                    let bv: Vec<_> = vertex_refs
+                        .iter()
+                        .map(|vref| geometry_builder.add_vertex(*vref))
+                        .collect();
+
+                    // Create surfaces with semantics and materials
+                    // Bottom surface
+                    let ring0 = geometry_builder.add_ring(&[bv[0], bv[1], bv[2], bv[3]])?;
+                    let surface_0 = geometry_builder.start_surface();
+                    geometry_builder.add_surface_outer_ring(ring0)?;
+                    let ground_semantic = Semantic::new(SemanticType::GroundSurface);
+                    geometry_builder.set_semantic_surface(None, ground_semantic)?;
+                    geometry_builder.set_material_surface(
+                        None,
+                        material_wall.clone(),
+                        "wall".to_string(),
+                    )?;
+
+                    // Top surface (roof)
+                    let ring1 = geometry_builder.add_ring(&[bv[4], bv[5], bv[6], bv[7]])?;
+                    let surface_1 = geometry_builder.start_surface();
+                    geometry_builder.add_surface_outer_ring(ring1)?;
+                    let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+                    geometry_builder.set_semantic_surface(None, roof_semantic)?;
+                    geometry_builder.set_material_surface(
+                        None,
+                        material_roof.clone(),
+                        "roof".to_string(),
+                    )?;
+
+                    // Side surfaces (walls)
+                    let ring2 = geometry_builder.add_ring(&[bv[0], bv[1], bv[5], bv[4]])?;
+                    let surface_2 = geometry_builder.start_surface();
+                    geometry_builder.add_surface_outer_ring(ring2)?;
+                    let wall_semantic = Semantic::new(SemanticType::WallSurface);
+                    geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+                    geometry_builder.set_material_surface(
+                        None,
+                        material_wall.clone(),
+                        "wall".to_string(),
+                    )?;
+
+                    let ring3 = geometry_builder.add_ring(&[bv[1], bv[2], bv[6], bv[5]])?;
+                    let surface_3 = geometry_builder.start_surface();
+                    geometry_builder.add_surface_outer_ring(ring3)?;
+                    geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+                    geometry_builder.set_material_surface(
+                        None,
+                        material_wall.clone(),
+                        "wall".to_string(),
+                    )?;
+
+                    // Add shell
+                    geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
+
+                    geometry_builder.build()?
+                };
+
+                // Build second geometry: GeometryInstance
+                let geometry2_ref = {
+                    GeometryBuilder::new(
+                        &mut model,
+                        GeometryType::GeometryInstance,
+                        BuilderMode::Regular,
+                    )
+                    .with_template(template_ref)?
+                    .with_transformation_matrix(building_data.transformation_matrix)?
+                    .with_reference_vertex(vertex_refs[0])
+                    .build()?
+                };
+
+                // Add geometries to CityObject
+                cityobject.geometry_mut().push(geometry1_ref);
+                cityobject.geometry_mut().push(geometry2_ref);
+
+                // Add CityObject to model
+                let cityobject_ref = model.cityobjects_mut().add(cityobject);
+
+                // Track memory metrics
+                max_cityobjects = max_cityobjects.max(model.cityobjects().len());
+                max_vertices = max_vertices.max(model.vertices().len());
+
+                // Process the CityObject (extract information, validate, etc.)
+                let processed_object = model.cityobjects().get(cityobject_ref).unwrap();
+                println!(
+                    "Processed: {} (type: {}, geometries: {})",
+                    processed_object.id(),
+                    processed_object.type_cityobject(),
+                    processed_object.geometry().map_or(0, |g| g.len())
+                );
+
+                // Remove CityObject from the model to maintain stable memory
+                let removed = model.cityobjects_mut().remove(cityobject_ref);
+                assert!(removed.is_some(), "Failed to remove CityObject");
+
+                buildings_processed += 1;
+
+                // Verify memory is bounded-count active objects via iterator
+                let active_objects = model.cityobjects().iter().count();
+                assert_eq!(
+                    active_objects, 0,
+                    "CityObjects should be removed after processing"
+                );
+            }
+            None => {
+                // Completion signal received
+                println!("Consumer: Received completion signal");
+                break;
+            }
+        }
+    }
+
+    // Final assertions
+    assert_eq!(buildings_processed, 5, "Should have processed 5 buildings");
+
+    // Verify all CityObjects were removed (count active objects via iterator)
+    let final_active_objects = model.cityobjects().iter().count();
+    assert_eq!(final_active_objects, 0, "All CityObjects should be removed");
+
+    println!(
+        "Stream processing complete: {} buildings processed, max_objects={}, max_vertices={}",
+        buildings_processed, max_cityobjects, max_vertices
+    );
+
     Ok(())
 }
