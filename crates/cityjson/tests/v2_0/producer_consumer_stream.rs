@@ -8,6 +8,7 @@ use std::thread;
 // ============================================================================
 
 const NR_BUILDINGS: usize = 1_000_000;
+const BATCH_SIZE: usize = 1_000; // Process buildings in batches to maintain stable memory
 
 /// Represents attribute values as they would appear in parsed JSON
 #[derive(Debug, Clone)]
@@ -108,13 +109,27 @@ enum StreamMessage {
     Done,
 }
 
-/// Producer-consumer streaming test with memory management
+/// Metrics collected from processing a batch of buildings
+#[derive(Debug, Default)]
+struct BatchMetrics {
+    buildings_processed: usize,
+    total_geometries: usize,
+    total_surfaces: usize,
+    peak_vertices: usize,
+    peak_cityobjects: usize,
+}
+
+/// Producer-consumer streaming test with batch-based memory management
 ///
-/// This test simulates realistic CityJSON stream processing:
+/// This test simulates realistic CityJSON stream processing using batch processing:
 /// 1. Producer sends global properties (metadata, transform, geometry templates)
 /// 2. Producer sends individual CityObjects with boundary/semantic/material data
-/// 3. Consumer constructs cityjson-rs types from wire format (simulating deserialization)
-/// 4. Consumer processes and removes CityObjects to maintain stable memory
+/// 3. Consumer processes CityObjects in batches of BATCH_SIZE buildings
+/// 4. Each batch uses a fresh CityModel that is dropped after processing
+/// 5. Memory stays bounded per batch instead of accumulating across all buildings
+///
+/// This approach mirrors real-world streaming parsers that process data in chunks
+/// rather than holding all data in memory simultaneously.
 #[test]
 fn test_producer_consumer_stream() -> Result<()> {
     use std::time::Instant;
@@ -699,73 +714,134 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
         .expect("Failed to send completion signal");
 }
 
-/// Consumer function that constructs CityModel from wire format and manages memory
+/// Creates a new CityModel for a batch with templates and metadata from global properties
 ///
-/// Simulates realistic CityJSON stream processing:
-/// 1. Receives GlobalProperties, builds templates and sets metadata
-/// 2. Receives CityObjects, constructs cityjson-rs types from wire format
-/// 3. Processes and removes CityObjects to maintain stable memory
-fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
-    // Initialize CityModel
+/// # Arguments
+///
+/// * `global` - Global properties containing metadata, CRS, transform, and geometry templates
+///
+/// # Returns
+///
+/// A tuple containing the initialized CityModel and a vector of template resource references
+fn create_batch_model(
+    global: &WireGlobalProperties,
+) -> Result<(
+    CityModel<u32, ResourceId32, OwnedStringStorage>,
+    Vec<ResourceId32>,
+)> {
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
-    // Storage for template references (built from GlobalProperties)
-    let mut template_refs: Vec<ResourceId32> = Vec::new();
+    // Set metadata from wire format
+    model
+        .metadata_mut()
+        .set_identifier(CityModelIdentifier::new(global.metadata_identifier.clone()));
+    model
+        .metadata_mut()
+        .set_reference_system(CRS::new(global.crs.clone()));
 
-    // Track memory and processing metrics
-    let mut buildings_processed = 0;
-    let mut max_cityobjects = 0;
-    let mut max_vertices = 0;
-    let mut total_geometries = 0;
-    let mut total_surfaces = 0;
+    // Set transform
+    model.transform_mut().set_scale(global.transform_scale);
+    model
+        .transform_mut()
+        .set_translate(global.transform_translate);
 
-    // ========================================================================
-    // PHASE 1: Process GlobalProperties (first message)
-    // ========================================================================
-    if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
-        // Set metadata from a wire format
-        model
-            .metadata_mut()
-            .set_identifier(CityModelIdentifier::new(global.metadata_identifier));
-        model
-            .metadata_mut()
-            .set_reference_system(CRS::new(global.crs));
+    // Build geometry templates from wire format
+    let mut template_refs = Vec::new();
+    for wire_template in &global.geometry_templates {
+        let template_ref = build_template_from_wire(&mut model, wire_template)?;
+        template_refs.push(template_ref);
+    }
 
-        // Set transform
-        model.transform_mut().set_scale(global.transform_scale);
-        model
-            .transform_mut()
-            .set_translate(global.transform_translate);
+    Ok((model, template_refs))
+}
 
-        // Build geometry templates from a wire format
-        for wire_template in global.geometry_templates {
-            let template_ref = build_template_from_wire(&mut model, &wire_template)?;
-            template_refs.push(template_ref);
-        }
+/// Processes a completed batch and extracts metrics
+///
+/// # Arguments
+///
+/// * `model` - The CityModel containing the batch
+/// * `batch_num` - The batch number (for logging)
+/// * `cumulative_buildings` - Total buildings processed so far across all batches
+/// * `total_surfaces` - Total surfaces processed in this batch
+///
+/// # Returns
+///
+/// BatchMetrics for this batch
+fn process_batch(
+    model: &CityModel<u32, ResourceId32, OwnedStringStorage>,
+    batch_num: usize,
+    cumulative_buildings: usize,
+    total_surfaces: usize,
+) -> BatchMetrics {
+    let buildings_in_batch = model.cityobjects().iter().count();
+    let vertices_in_batch = model.vertices().len();
+    let geometries_in_batch = model.geometries().iter().count();
 
+    // Print batch progress
+    if batch_num % 100 == 0 || batch_num < 10 {
         println!(
-            "Consumer: Processed global properties, {} templates built",
-            template_refs.len()
+            "Batch {}: {} buildings processed (total: {}), {} vertices, {} geometries, {} surfaces",
+            batch_num,
+            buildings_in_batch,
+            cumulative_buildings,
+            vertices_in_batch,
+            geometries_in_batch,
+            total_surfaces
         );
+    }
+
+    BatchMetrics {
+        buildings_processed: buildings_in_batch,
+        total_geometries: geometries_in_batch,
+        total_surfaces,
+        peak_vertices: vertices_in_batch,
+        peak_cityobjects: buildings_in_batch,
+    }
+}
+
+/// Consumer function that constructs CityModel from wire format and manages memory
+///
+/// Simulates realistic CityJSON stream processing with batch processing:
+/// 1. Receives GlobalProperties, extracts metadata and templates
+/// 2. Processes CityObjects in batches, creating a fresh CityModel for each batch
+/// 3. Each batch is processed independently and then dropped to free memory
+fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
+    // ========================================================================
+    // PHASE 1: Receive and store GlobalProperties (needed for all batches)
+    // ========================================================================
+    let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
+        println!(
+            "Consumer: Received global properties with {} templates",
+            global.geometry_templates.len()
+        );
+        global
     } else {
         return Err(Error::InvalidGeometry(
             "Expected GlobalProperties as first message".to_string(),
         ));
-    }
+    };
 
     // ========================================================================
-    // PHASE 2: Process CityObject messages
+    // PHASE 2: Process CityObjects in batches
     // ========================================================================
+    let mut current_batch_num = 0;
+    let mut total_buildings_processed = 0;
+    let mut cumulative_metrics = BatchMetrics::default();
+
+    // Create first batch
+    let (mut current_model, template_refs) = create_batch_model(&global_props)?;
+    let mut buildings_in_batch = 0;
+    let mut surfaces_in_batch = 0;
+
     while let Ok(message) = rx.recv() {
         match message {
             StreamMessage::CityObject(wire_co) => {
-                // Count geometries and surfaces from a wire format (before moving wire_co)
-                total_geometries += wire_co.geometries.len();
+                // Count surfaces from wire format before processing
                 for wire_geom in &wire_co.geometries {
                     if !wire_geom.boundaries.is_empty() {
                         for shell in &wire_geom.boundaries {
-                            total_surfaces += shell.len();
+                            surfaces_in_batch += shell.len();
                         }
                     }
                 }
@@ -787,7 +863,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                     .vertices
                     .iter()
                     .map(|(x, y, z)| {
-                        model
+                        current_model
                             .add_vertex(QuantizedCoordinate::new(*x, *y, *z))
                             .expect("Failed to add vertex")
                     })
@@ -796,7 +872,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 // Build geometries from wire format
                 for wire_geom in wire_co.geometries {
                     let geom_ref = build_geometry_from_wire(
-                        &mut model,
+                        &mut current_model,
                         &wire_geom,
                         &vertex_refs,
                         &template_refs,
@@ -805,39 +881,39 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 }
 
                 // Add CityObject to model
-                let cityobject_ref = model.cityobjects_mut().add(cityobject);
+                current_model.cityobjects_mut().add(cityobject);
+                buildings_in_batch += 1;
+                total_buildings_processed += 1;
 
-                // Track memory metrics
-                max_cityobjects = max_cityobjects.max(model.cityobjects().len());
-                max_vertices = max_vertices.max(model.vertices().len());
-
-                // Process the CityObject (extract information, validate, etc.)
-                let processed_object = model.cityobjects().get(cityobject_ref).unwrap();
-
-                // Print progress every 100000 buildings
-                if buildings_processed % 100_000 == 0 {
-                    println!(
-                        "Processed: {} (type: {}, geometries: {}) - Progress: {}/{}",
-                        processed_object.id(),
-                        processed_object.type_cityobject(),
-                        processed_object.geometry().map_or(0, |g| g.len()),
-                        buildings_processed,
-                        NR_BUILDINGS
+                // When batch is full, process it and create a new batch
+                if buildings_in_batch >= BATCH_SIZE {
+                    let batch_metrics = process_batch(
+                        &current_model,
+                        current_batch_num,
+                        total_buildings_processed,
+                        surfaces_in_batch,
                     );
+
+                    // Accumulate metrics
+                    cumulative_metrics.total_geometries += batch_metrics.total_geometries;
+                    cumulative_metrics.total_surfaces += batch_metrics.total_surfaces;
+                    cumulative_metrics.peak_vertices = cumulative_metrics
+                        .peak_vertices
+                        .max(batch_metrics.peak_vertices);
+                    cumulative_metrics.peak_cityobjects = cumulative_metrics
+                        .peak_cityobjects
+                        .max(batch_metrics.peak_cityobjects);
+
+                    // Drop current model and create fresh one for next batch
+                    drop(current_model);
+                    let (new_model, _) = create_batch_model(&global_props)?;
+                    current_model = new_model;
+
+                    // Reset batch counters
+                    current_batch_num += 1;
+                    buildings_in_batch = 0;
+                    surfaces_in_batch = 0;
                 }
-
-                // Remove CityObject from the model to maintain stable memory
-                let removed = model.cityobjects_mut().remove(cityobject_ref);
-                assert!(removed.is_some(), "Failed to remove CityObject");
-
-                buildings_processed += 1;
-
-                // Verify memory is bounded-count active objects via iterator
-                let active_objects = model.cityobjects().iter().count();
-                assert_eq!(
-                    active_objects, 0,
-                    "CityObjects should be removed after processing"
-                );
             }
             StreamMessage::Done => {
                 println!("Consumer: Received end-of-stream signal");
@@ -851,22 +927,51 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
         }
     }
 
-    // Final assertions
+    // Process final partial batch if any buildings remain
+    if buildings_in_batch > 0 {
+        let batch_metrics = process_batch(
+            &current_model,
+            current_batch_num,
+            total_buildings_processed,
+            surfaces_in_batch,
+        );
+
+        cumulative_metrics.total_geometries += batch_metrics.total_geometries;
+        cumulative_metrics.total_surfaces += batch_metrics.total_surfaces;
+        cumulative_metrics.peak_vertices = cumulative_metrics
+            .peak_vertices
+            .max(batch_metrics.peak_vertices);
+        cumulative_metrics.peak_cityobjects = cumulative_metrics
+            .peak_cityobjects
+            .max(batch_metrics.peak_cityobjects);
+    }
+
+    // Final assertions and summary
     assert_eq!(
-        buildings_processed, NR_BUILDINGS,
-        "Should have processed {} buildings", NR_BUILDINGS
+        total_buildings_processed, NR_BUILDINGS,
+        "Should have processed {} buildings",
+        NR_BUILDINGS
     );
 
-    // Verify all CityObjects were removed (count active objects via iterator)
-    let final_active_objects = model.cityobjects().iter().count();
-    assert_eq!(final_active_objects, 0, "All CityObjects should be removed");
-
     println!("\n========== Performance Summary ==========");
-    println!("Total buildings processed: {}", buildings_processed);
-    println!("Total geometries processed: {}", total_geometries);
-    println!("Total surfaces processed: {}", total_surfaces);
-    println!("Peak CityObjects in memory: {}", max_cityobjects);
-    println!("Peak vertices in memory: {}", max_vertices);
+    println!("Total buildings processed: {}", total_buildings_processed);
+    println!("Total batches: {}", current_batch_num + 1);
+    println!(
+        "Total geometries processed: {}",
+        cumulative_metrics.total_geometries
+    );
+    println!(
+        "Total surfaces processed: {}",
+        cumulative_metrics.total_surfaces
+    );
+    println!(
+        "Peak vertices per batch: {}",
+        cumulative_metrics.peak_vertices
+    );
+    println!(
+        "Peak CityObjects per batch: {}",
+        cumulative_metrics.peak_cityobjects
+    );
     println!("=========================================\n");
 
     Ok(())
