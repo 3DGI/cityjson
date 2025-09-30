@@ -6,7 +6,7 @@
 //! <details>
 //!
 //! ```
-#![doc = include_str!("../tests/build_dummy_complete_owned.rs")]
+#![doc = include_str!("../examples/cityjson_fake_complete_owned.rs")]
 //! ```
 //! </details>
 //!
@@ -15,7 +15,7 @@
 //! <details>
 //!
 //! ```json
-#![doc = include_str!("../tests/data/v1_1/cityjson_dummy_complete.city.json")]
+#![doc = include_str!("../tests/data/v1_1/cityjson_fake_complete.city.json")]
 //! ```
 //! </details>
 

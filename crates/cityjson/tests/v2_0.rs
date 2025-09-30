@@ -1,17 +1,25 @@
 use cityjson::prelude::*;
-use cityjson::v1_1::*;
+use cityjson::v2_0::*;
 use std::collections::HashMap;
 
+/// Build a CityModel that uses the complete CityJSON v2.0 specifications with fake
+/// values.
+/// Builds the same CityModel that is stored in
+/// `tests/data/v2_0/cityjson_fake_complete.city.json`.
 #[test]
-fn build_dummy_complete_owned() -> Result<()> {
-    // A CityModel for CityJSON v1.1, that uses u32 indices and owned strings.
+fn build_fake_complete_owned() -> Result<()> {
+    // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata
     let metadata = model.metadata_mut();
-    metadata.set_identifier(CityModelIdentifier::new("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string()));
-    metadata.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/2355".to_string()));
+    metadata.set_identifier(CityModelIdentifier::new(
+        "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string(),
+    ));
+    metadata.set_reference_system(CRS::new(
+        "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
+    ));
     metadata.set_contact_name("3DGI");
     metadata.set_email_address("info@3dgi.nl");
 
@@ -29,8 +37,8 @@ fn build_dummy_complete_owned() -> Result<()> {
     extra.insert("+census".to_string(), AttributeValue::Map(census_map));
 
     // Set transform
-    // todo: i think cityjson-rs should only have real-world coordinates, because 
-    //  transforming them just adds overhead and all are store as 64bit values anyway, 
+    // todo: i think cityjson-rs should only have real-world coordinates, because
+    //  transforming them just adds overhead and all are store as 64bit values anyway,
     //  but still we need to be able to store from incoming data or set transformation properties
     let transform = model.transform_mut();
     transform.set_scale([1.0, 1.0, 1.0]);
@@ -251,7 +259,7 @@ fn build_dummy_complete_owned() -> Result<()> {
                 .unwrap()
                 .to_nested_solid()
                 .unwrap();
-            println!("{:?}", geom_nested);
+            println!("CityObject id-1 nested boundary: {:?}", geom_nested);
         }
     }
 

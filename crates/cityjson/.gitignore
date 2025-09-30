@@ -4,5 +4,9 @@ Cargo.lock
 .run
 
 # Data
+tests/data/v1_0/schemas/*.schema.json
+!tests/data/v1_0/schemas/noise.ext.json
 tests/data/v1_1/schemas/*.schema.json
 !tests/data/v1_1/schemas/noise.ext.json
+tests/data/v2_0/schemas/*.schema.json
+!tests/data/v2_0/schemas/noise.ext.json
