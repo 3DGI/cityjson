@@ -12,6 +12,18 @@
 //! - Prevents use-after-free bugs through generation counters
 //! - Supports zero-cost abstraction over different resource reference types
 //!
+//! ## Generation Counter Overflow Protection
+//!
+//! Resource identifiers use a 16-bit generation counter to track slot reuse. When a slot's
+//! generation reaches `u16::MAX` (65,535), the slot is retired and will not be reused, preventing
+//! generation counter wraparound.
+//!
+//! **Memory Implications:**
+//! - Normal usage (< 65K reuses per slot): No impact
+//! - Aggressive reuse scenarios: Memory grows by one slot per 65,536 operations on the same slot
+//! - Example: 100,000 operations with single-slot reuse = ~35,000 retired slots
+//! - Retired slots remain allocated for the lifetime of the pool
+//!
 //! ## Key Components
 //!
 //! - [`ResourcePool`]: Trait defining the interface for resource pools
@@ -216,7 +228,8 @@ pub trait ResourceRef:
 /// A 32-bit resource identifier that combines a 32-bit index with a 16-bit generation counter.
 ///
 /// This structure allows for up to 2^32 (approximately 4.2 billion) unique resource slots,
-/// and each slot can be reused up to 2^16 (65,536) times before the generation counter wraps around.
+/// and each slot can be reused up to 2^16 (65,536) times. When a slot reaches generation
+/// `u16::MAX`, it is retired and will not be reused, preventing generation counter overflow.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct ResourceId32 {
     /// The index of the resource in the storage
@@ -289,6 +302,12 @@ impl ResourceRef for ResourceId32 {
 ///
 /// This implementation provides efficient O(1) lookups, additions, and removals of resources.
 /// When resources are removed, their slots are tracked in a free list and reused for future additions.
+///
+/// # Generation Counter Overflow
+///
+/// Slots with generation counter at `u16::MAX` (65,535) are retired and not reused, preventing
+/// overflow. In extreme reuse scenarios (> 65K operations on the same slot), memory usage grows
+/// as retired slots accumulate. See module-level documentation for details.
 ///
 /// # Type Parameters
 ///
@@ -409,18 +428,29 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         }
     }
     fn add(&mut self, resource: T) -> RR {
-        let index = if let Some(free_index) = self.free_list.pop() {
-            // Reuse a freed slot
-            let generation = self.generations[free_index as usize] + 1;
-            self.generations[free_index as usize] = generation;
-            self.resources[free_index as usize] = Some(resource);
-            free_index
-        } else {
-            // Create new slot
-            let index = self.resources.len() as u32;
-            self.resources.push(Some(resource));
-            self.generations.push(0);
-            index
+        let index = loop {
+            if let Some(free_index) = self.free_list.pop() {
+                let current_gen = self.generations[free_index as usize];
+
+                // Check if generation would overflow
+                if current_gen == u16::MAX {
+                    // Retire this slot - don't reuse it, don't put it back on free_list
+                    // Continue to try the next free slot or allocate a new one
+                    continue;
+                }
+
+                // Reuse the freed slot with incremented generation
+                let generation = current_gen + 1;
+                self.generations[free_index as usize] = generation;
+                self.resources[free_index as usize] = Some(resource);
+                break free_index;
+            } else {
+                // No reusable slots - create a new slot
+                let index = self.resources.len() as u32;
+                self.resources.push(Some(resource));
+                self.generations.push(0);
+                break index;
+            }
         };
 
         RR::new(index, self.generations[index as usize])
@@ -997,6 +1027,82 @@ mod tests {
             // Generation should have wrapped around to 0
             assert_eq!(id2.generation(), 0);
             assert_eq!(pool.get(id2), Some(&43));
+        }
+
+        #[test]
+        fn test_generation_overflow_prevention() {
+            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
+
+            // Add a resource and get its ID
+            let id1 = pool.add(100);
+            let original_index = id1.index();
+
+            // Manually set the generation to u16::MAX - 1
+            pool.generations[original_index as usize] = u16::MAX - 1;
+
+            // Create a valid ID with the updated generation
+            let id1_updated = ResourceId32::new(original_index, u16::MAX - 1);
+
+            // Remove and re-add once - this should increment to u16::MAX
+            pool.remove(id1_updated);
+            let id2 = pool.add(200);
+            assert_eq!(id2.index(), original_index);
+            assert_eq!(id2.generation(), u16::MAX);
+            assert_eq!(pool.get(id2), Some(&200));
+
+            // Remove again - now generation is at u16::MAX
+            pool.remove(id2);
+
+            // Add another resource - should NOT reuse the slot at MAX generation
+            // Instead, it should allocate a new slot
+            let id3 = pool.add(300);
+            assert_ne!(id3.index(), original_index, "Should allocate new slot instead of reusing overflowed slot");
+            assert_eq!(id3.generation(), 0, "New slot should start at generation 0");
+            assert_eq!(pool.get(id3), Some(&300));
+
+            // Verify the old slot at MAX generation is retired (not accessible)
+            let retired_id = ResourceId32::new(original_index, u16::MAX);
+            assert_eq!(pool.get(retired_id), None, "Retired slot should not be accessible");
+
+            // Verify pool length increased (new slot was allocated)
+            assert_eq!(pool.len(), 2, "Pool should have 2 slots (1 retired, 1 active)");
+        }
+
+        #[test]
+        fn test_multiple_generation_overflows() {
+            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
+
+            // Create two slots and set both to u16::MAX
+            let id1 = pool.add(1);
+            let id2 = pool.add(2);
+            let index1 = id1.index();
+            let index2 = id2.index();
+
+            pool.generations[index1 as usize] = u16::MAX;
+            pool.generations[index2 as usize] = u16::MAX;
+
+            // Create valid IDs with the updated generations
+            let id1_updated = ResourceId32::new(index1, u16::MAX);
+            let id2_updated = ResourceId32::new(index2, u16::MAX);
+
+            // Remove both
+            pool.remove(id1_updated);
+            pool.remove(id2_updated);
+
+            // Add new resources - should allocate new slots, not reuse the overflowed ones
+            let id3 = pool.add(3);
+            let id4 = pool.add(4);
+
+            assert_ne!(id3.index(), index1);
+            assert_ne!(id3.index(), index2);
+            assert_ne!(id4.index(), index1);
+            assert_ne!(id4.index(), index2);
+
+            assert_eq!(id3.generation(), 0);
+            assert_eq!(id4.generation(), 0);
+
+            // Pool should now have 4 slots (2 retired, 2 active)
+            assert_eq!(pool.len(), 4);
         }
 
         #[test]

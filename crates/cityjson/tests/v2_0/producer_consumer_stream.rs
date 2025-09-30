@@ -7,7 +7,7 @@ use std::thread;
 // Wire Format Structs - Simulate data structures from parsed CityJSON
 // ============================================================================
 
-const NR_BUILDINGS: usize = 100_000;
+const NR_BUILDINGS: usize = 1_000_000;
 
 /// Represents attribute values as they would appear in parsed JSON
 #[derive(Debug, Clone)]
@@ -211,8 +211,8 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
     let building_count = NR_BUILDINGS as u64;
 
     for i in 0..building_count {
-        // Print producer progresses every 1000 buildings
-        if i % 1000 == 0 && i > 0 {
+        // Print producer progresses every 100000 buildings
+        if i % 100_000 == 0 && i > 0 {
             println!("Producer: Generated {} / {} buildings", i, building_count);
         }
         // Vary complexity: simple (8 verts), medium (16 verts), complex (24 verts)
@@ -814,8 +814,8 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 // Process the CityObject (extract information, validate, etc.)
                 let processed_object = model.cityobjects().get(cityobject_ref).unwrap();
 
-                // Print progress every 1000 buildings
-                if buildings_processed % 1000 == 0 {
+                // Print progress every 100000 buildings
+                if buildings_processed % 100_000 == 0 {
                     println!(
                         "Processed: {} (type: {}, geometries: {}) - Progress: {}/{}",
                         processed_object.id(),
