@@ -7,15 +7,19 @@ use std::thread;
 // Wire Format Structs - Simulate data structures from parsed CityJSON
 // ============================================================================
 
+const NR_BUILDINGS: usize = 10_000;
+
 /// Represents attribute values as they would appear in parsed JSON
 #[derive(Debug, Clone)]
 enum WireAttributeValue {
-    #[allow(dead_code)]
+    Null,
     String(String),
     Float(f64),
     Integer(i64),
-    #[allow(dead_code)]
+    Unsigned(u64),
     Bool(bool),
+    Vec(Vec<WireAttributeValue>),
+    Map(Vec<(String, WireAttributeValue)>),
 }
 
 /// Represents material data as it would appear in parsed JSON
@@ -113,22 +117,58 @@ enum StreamMessage {
 /// 4. Consumer processes and removes CityObjects to maintain stable memory
 #[test]
 fn test_producer_consumer_stream() -> Result<()> {
-    // Create a channel for producer-consumer communication
-    let (tx, rx) = mpsc::channel::<StreamMessage>();
+    use std::time::Instant;
+
+    // Create a bounded channel for producer-consumer communication with backpressure
+    // Buffer size of 10 means producer will block if the consumer is slower
+    let (tx, rx) = mpsc::sync_channel::<StreamMessage>(10);
+
+    let start_time = Instant::now();
 
     // Spawn producer and consumer threads in a thread scope
-    thread::scope(|s| {
+    let result = thread::scope(|s| {
         // Producer thread - generates CityJSON stream data
-        s.spawn(move || {
+        let producer_handle = s.spawn(move || {
+            let producer_start = Instant::now();
             producer(tx);
+            let producer_duration = producer_start.elapsed();
+            println!(
+                "Producer finished in {:.2}s",
+                producer_duration.as_secs_f64()
+            );
         });
 
         // Consumer thread - ingests and constructs CityModel
-        let consumer_handle = s.spawn(move || consumer(rx));
+        let consumer_handle = s.spawn(move || {
+            let consumer_start = Instant::now();
+            let result = consumer(rx);
+            let consumer_duration = consumer_start.elapsed();
+            println!(
+                "Consumer finished in {:.2}s",
+                consumer_duration.as_secs_f64()
+            );
+            result
+        });
 
-        // Wait for consumer to finish and get results
+        // Wait for both threads to finish
+        producer_handle.join().expect("Producer thread panicked");
         consumer_handle.join().expect("Consumer thread panicked")
-    })
+    });
+
+    let total_duration = start_time.elapsed();
+    let total_duration_secs = total_duration.as_secs_f64();
+    let throughput = NR_BUILDINGS as f64 / total_duration_secs;
+
+    println!("\n========== Overall Test Summary ==========");
+    println!("Total test duration: {:.2}s", total_duration_secs);
+    println!("Throughput: {:.0} buildings/sec", throughput);
+    println!(
+        "Average processing time per building: {:.3}ms",
+        (total_duration_secs / NR_BUILDINGS as f64) * 1000.0
+    );
+    println!("==========================================\n");
+
+    result
 }
 
 /// Producer function that generates CityJSON stream data
@@ -137,7 +177,7 @@ fn test_producer_consumer_stream() -> Result<()> {
 /// 1. First line: global properties (metadata, CRS, transform, templates)
 /// 2. Subsequent lines: individual CityObjects
 /// 3. End of stream
-fn producer(tx: mpsc::Sender<StreamMessage>) {
+fn producer(tx: mpsc::SyncSender<StreamMessage>) {
     // ========================================================================
     // STEP 1: Send global properties (first message in stream)
     // ========================================================================
@@ -168,20 +208,57 @@ fn producer(tx: mpsc::Sender<StreamMessage>) {
     // ========================================================================
     // STEP 2: Send CityObject messages (one per building)
     // ========================================================================
-    let building_count = 5;
+    let building_count = NR_BUILDINGS as u64;
 
     for i in 0..building_count {
-        // Define vertices for this building (simple box)
-        let vertices = vec![
-            (100 + i * 50, 200 + i * 50, 0),  // 0: bottom-front-left
-            (120 + i * 50, 200 + i * 50, 0),  // 1: bottom-front-right
-            (120 + i * 50, 220 + i * 50, 0),  // 2: bottom-back-right
-            (100 + i * 50, 220 + i * 50, 0),  // 3: bottom-back-left
-            (100 + i * 50, 200 + i * 50, 30), // 4: top-front-left
-            (120 + i * 50, 200 + i * 50, 30), // 5: top-front-right
-            (120 + i * 50, 220 + i * 50, 30), // 6: top-back-right
-            (100 + i * 50, 220 + i * 50, 30), // 7: top-back-left
+        // Print producer progresses every 1000 buildings
+        if i % 1000 == 0 && i > 0 {
+            println!("Producer: Generated {} / {} buildings", i, building_count);
+        }
+        // Vary complexity: simple (8 verts), medium (16 verts), complex (24 verts)
+        let complexity = i % 3;
+
+        // Base coordinates with offset to create spatial variation
+        let base_x = (100 + (i * 50) % 10000) as i64;
+        let base_y = (200 + (i * 37) % 10000) as i64; // Use prime to vary the pattern
+        let height = (30 + (i % 20) * 3) as i64; // Height varies 30-87
+
+        // Define vertices for this building
+        let mut vertices = vec![
+            (base_x, base_y, 0),                // 0: bottom-front-left
+            (base_x + 20, base_y, 0),           // 1: bottom-front-right
+            (base_x + 20, base_y + 20, 0),      // 2: bottom-back-right
+            (base_x, base_y + 20, 0),           // 3: bottom-back-left
+            (base_x, base_y, height),           // 4: top-front-left
+            (base_x + 20, base_y, height),      // 5: top-front-right
+            (base_x + 20, base_y + 20, height), // 6: top-back-right
+            (base_x, base_y + 20, height),      // 7: top-back-left
         ];
+
+        // Add more vertices for medium complexity (add mid-level)
+        if complexity >= 1 {
+            let mid_height = height / 2;
+            vertices.extend_from_slice(&[
+                (base_x, base_y, mid_height),           // 8
+                (base_x + 20, base_y, mid_height),      // 9
+                (base_x + 20, base_y + 20, mid_height), // 10
+                (base_x, base_y + 20, mid_height),      // 11
+            ]);
+        }
+
+        // Add even more vertices for complex buildings (add details)
+        if complexity == 2 {
+            vertices.extend_from_slice(&[
+                (base_x + 10, base_y, 0),           // 12
+                (base_x + 10, base_y + 20, 0),      // 13
+                (base_x, base_y + 10, 0),           // 14
+                (base_x + 20, base_y + 10, 0),      // 15
+                (base_x + 10, base_y, height),      // 16
+                (base_x + 10, base_y + 20, height), // 17
+                (base_x, base_y + 10, height),      // 18
+                (base_x + 20, base_y + 10, height), // 19
+            ]);
+        }
 
         // Define materials for this building
         let material_wall = WireMaterial {
@@ -206,48 +283,226 @@ fn producer(tx: mpsc::Sender<StreamMessage>) {
             is_smooth: None,
         };
 
-        // Geometry 1: Solid with semantics and materials
+        // Geometry 1: Solid with semantics and materials (complexity varies)
+        let (boundaries, semantics, materials) = match complexity {
+            0 => {
+                // Simple: 6 surfaces (cube)
+                let bounds = vec![vec![
+                    vec![vec![0, 1, 2, 3]], // Bottom
+                    vec![vec![4, 5, 6, 7]], // Top
+                    vec![vec![0, 1, 5, 4]], // Front
+                    vec![vec![1, 2, 6, 5]], // Right
+                    vec![vec![2, 3, 7, 6]], // Back
+                    vec![vec![3, 0, 4, 7]], // Left
+                ]];
+                let sems = vec![
+                    Some(WireSemantic {
+                        surface_type: "GroundSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "RoofSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                ];
+                let mats = vec![
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_roof.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                ];
+                (bounds, sems, mats)
+            }
+            1 => {
+                // Medium: 10 surfaces (with mid-level)
+                let bounds = vec![vec![
+                    vec![vec![0, 1, 2, 3]],   // Bottom
+                    vec![vec![4, 5, 6, 7]],   // Top
+                    vec![vec![0, 1, 9, 8]],   // Front lower
+                    vec![vec![8, 9, 5, 4]],   // Front upper
+                    vec![vec![1, 2, 10, 9]],  // Right lower
+                    vec![vec![9, 10, 6, 5]],  // Right upper
+                    vec![vec![2, 3, 11, 10]], // Back lower
+                    vec![vec![10, 11, 7, 6]], // Back upper
+                    vec![vec![3, 0, 8, 11]],  // Left lower
+                    vec![vec![11, 8, 4, 7]],  // Left upper
+                ]];
+                let sems = vec![
+                    Some(WireSemantic {
+                        surface_type: "GroundSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "RoofSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                ];
+                let mats = vec![
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_roof.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                ];
+                (bounds, sems, mats)
+            }
+            _ => {
+                // Complex: 14 surfaces (with additional details)
+                let bounds = vec![vec![
+                    vec![vec![0, 1, 2, 3]],   // Bottom
+                    vec![vec![4, 5, 6, 7]],   // Top
+                    vec![vec![0, 12, 16, 4]], // Front left
+                    vec![vec![12, 1, 5, 16]], // Front right
+                    vec![vec![1, 15, 19, 5]], // Right front
+                    vec![vec![15, 2, 6, 19]], // Right back
+                    vec![vec![2, 13, 17, 6]], // Back right
+                    vec![vec![13, 3, 7, 17]], // Back left
+                    vec![vec![3, 14, 18, 7]], // Left back
+                    vec![vec![14, 0, 4, 18]], // Left front
+                    vec![vec![12, 15, 1]],    // Bottom detail
+                    vec![vec![13, 14, 3]],    // Bottom detail
+                    vec![vec![16, 19, 5]],    // Top detail
+                    vec![vec![17, 18, 7]],    // Top detail
+                ]];
+                let sems = vec![
+                    Some(WireSemantic {
+                        surface_type: "GroundSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "RoofSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "WallSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "GroundSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "GroundSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "RoofSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                    Some(WireSemantic {
+                        surface_type: "RoofSurface".to_string(),
+                        attributes: vec![],
+                    }),
+                ];
+                let mats = vec![
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_roof.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_wall.clone()),
+                    ("default".to_string(), material_roof.clone()),
+                    ("default".to_string(), material_roof.clone()),
+                ];
+                (bounds, sems, mats)
+            }
+        };
+
         let geometry_solid = WireGeometry {
             geometry_type: "Solid".to_string(),
             lod: "2".to_string(),
-            // Boundaries: [shells[surfaces[rings[vertex_indices]]]]
-            boundaries: vec![
-                // Shell 0
-                vec![
-                    // Surface 0: Bottom (GroundSurface)
-                    vec![vec![0, 1, 2, 3]],
-                    // Surface 1: Top/Roof (RoofSurface)
-                    vec![vec![4, 5, 6, 7]],
-                    // Surface 2: Front wall (WallSurface)
-                    vec![vec![0, 1, 5, 4]],
-                    // Surface 3: Right wall (WallSurface)
-                    vec![vec![1, 2, 6, 5]],
-                ],
-            ],
-            semantics: vec![
-                Some(WireSemantic {
-                    surface_type: "GroundSurface".to_string(),
-                    attributes: vec![],
-                }),
-                Some(WireSemantic {
-                    surface_type: "RoofSurface".to_string(),
-                    attributes: vec![],
-                }),
-                Some(WireSemantic {
-                    surface_type: "WallSurface".to_string(),
-                    attributes: vec![],
-                }),
-                Some(WireSemantic {
-                    surface_type: "WallSurface".to_string(),
-                    attributes: vec![],
-                }),
-            ],
-            materials: vec![
-                ("default".to_string(), material_wall.clone()),
-                ("default".to_string(), material_roof.clone()),
-                ("default".to_string(), material_wall.clone()),
-                ("default".to_string(), material_wall.clone()),
-            ],
+            boundaries,
+            semantics,
+            materials,
             template_ref: None,
             transformation_matrix: None,
         };
@@ -280,22 +535,156 @@ fn producer(tx: mpsc::Sender<StreamMessage>) {
             ]),
         };
 
+        // Create comprehensive attributes using all AttributeValue types
+        let mut attributes = vec![
+            // Float: height, area, volume
+            (
+                "height".to_string(),
+                WireAttributeValue::Float(height as f64),
+            ),
+            (
+                "floorArea".to_string(),
+                WireAttributeValue::Float(400.0 + (i % 100) as f64 * 10.0),
+            ),
+            (
+                "volume".to_string(),
+                WireAttributeValue::Float(height as f64 * 400.0),
+            ),
+            // Integer: year of construction
+            (
+                "yearOfConstruction".to_string(),
+                WireAttributeValue::Integer(1950 + ((i % 75) as i64)),
+            ),
+            (
+                "renovationYear".to_string(),
+                WireAttributeValue::Integer(2000 + ((i % 25) as i64)),
+            ),
+            // Unsigned: counts
+            (
+                "floorCount".to_string(),
+                WireAttributeValue::Unsigned(1 + (i % 20)),
+            ),
+            (
+                "roomCount".to_string(),
+                WireAttributeValue::Unsigned(3 + (i % 50)),
+            ),
+            (
+                "windowCount".to_string(),
+                WireAttributeValue::Unsigned(5 + (i % 30)),
+            ),
+            // Bool: flags
+            (
+                "isCommercial".to_string(),
+                WireAttributeValue::Bool(i % 5 == 0),
+            ),
+            (
+                "hasElevator".to_string(),
+                WireAttributeValue::Bool(i % 3 == 0),
+            ),
+            (
+                "hasParking".to_string(),
+                WireAttributeValue::Bool(i % 2 == 0),
+            ),
+            // String: textual data
+            (
+                "owner".to_string(),
+                WireAttributeValue::String(format!("Owner-{}", i % 100)),
+            ),
+            (
+                "address".to_string(),
+                WireAttributeValue::String(format!("{} Main St, City {}", i, i % 50)),
+            ),
+            (
+                "buildingClass".to_string(),
+                WireAttributeValue::String(
+                    match i % 4 {
+                        0 => "residential",
+                        1 => "commercial",
+                        2 => "industrial",
+                        _ => "mixed-use",
+                    }
+                    .to_string(),
+                ),
+            ),
+            // Vec: arrays of values
+            (
+                "historicalDates".to_string(),
+                WireAttributeValue::Vec(vec![
+                    WireAttributeValue::Integer(1950 + (i % 50) as i64),
+                    WireAttributeValue::Integer(1980 + (i % 30) as i64),
+                    WireAttributeValue::Integer(2010 + (i % 15) as i64),
+                ]),
+            ),
+            (
+                "measurements".to_string(),
+                WireAttributeValue::Vec(vec![
+                    WireAttributeValue::Float(height as f64),
+                    WireAttributeValue::Float(20.0),
+                    WireAttributeValue::Float(20.0),
+                ]),
+            ),
+            // Map: nested objects
+            (
+                "energyRating".to_string(),
+                WireAttributeValue::Map(vec![
+                    (
+                        "class".to_string(),
+                        WireAttributeValue::String(
+                            match i % 7 {
+                                0 => "A++",
+                                1 => "A+",
+                                2 => "A",
+                                3 => "B",
+                                4 => "C",
+                                5 => "D",
+                                _ => "E",
+                            }
+                            .to_string(),
+                        ),
+                    ),
+                    (
+                        "consumption".to_string(),
+                        WireAttributeValue::Float(50.0 + (i % 150) as f64),
+                    ),
+                    (
+                        "certified".to_string(),
+                        WireAttributeValue::Bool(i % 2 == 0),
+                    ),
+                ]),
+            ),
+            (
+                "ownership".to_string(),
+                WireAttributeValue::Map(vec![
+                    (
+                        "type".to_string(),
+                        WireAttributeValue::String(
+                            if i % 2 == 0 { "private" } else { "public" }.to_string(),
+                        ),
+                    ),
+                    (
+                        "cadastralId".to_string(),
+                        WireAttributeValue::String(format!("CAD-{:06}", i)),
+                    ),
+                    (
+                        "registrationYear".to_string(),
+                        WireAttributeValue::Integer(1990 + (i % 35) as i64),
+                    ),
+                ]),
+            ),
+        ];
+
+        // Add Null for some buildings
+        if i % 10 == 0 {
+            attributes.push(("futureExpansion".to_string(), WireAttributeValue::Null));
+        }
+
         // Construct CityObject message
         let cityobject = WireCityObjectData {
             id: format!("building-{}", i),
             object_type: "Building".to_string(),
             vertices,
             geometries: vec![geometry_solid, geometry_instance],
-            attributes: vec![
-                (
-                    "height".to_string(),
-                    WireAttributeValue::Float(30.0 + i as f64 * 5.0),
-                ),
-                (
-                    "yearOfConstruction".to_string(),
-                    WireAttributeValue::Integer(2000 + i),
-                ),
-            ],
+            attributes,
         };
 
         // Send CityObject to consumer
@@ -324,10 +713,12 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     // Storage for template references (built from GlobalProperties)
     let mut template_refs: Vec<ResourceId32> = Vec::new();
 
-    // Track memory metrics
+    // Track memory and processing metrics
     let mut buildings_processed = 0;
     let mut max_cityobjects = 0;
     let mut max_vertices = 0;
+    let mut total_geometries = 0;
+    let mut total_surfaces = 0;
 
     // ========================================================================
     // PHASE 1: Process GlobalProperties (first message)
@@ -369,6 +760,16 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     while let Ok(message) = rx.recv() {
         match message {
             StreamMessage::CityObject(wire_co) => {
+                // Count geometries and surfaces from a wire format (before moving wire_co)
+                total_geometries += wire_co.geometries.len();
+                for wire_geom in &wire_co.geometries {
+                    if !wire_geom.boundaries.is_empty() {
+                        for shell in &wire_geom.boundaries {
+                            total_surfaces += shell.len();
+                        }
+                    }
+                }
+
                 // Construct CityObject from wire format
                 let mut cityobject = CityObject::new(
                     wire_co.id.clone(),
@@ -412,12 +813,18 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
 
                 // Process the CityObject (extract information, validate, etc.)
                 let processed_object = model.cityobjects().get(cityobject_ref).unwrap();
-                println!(
-                    "Processed: {} (type: {}, geometries: {})",
-                    processed_object.id(),
-                    processed_object.type_cityobject(),
-                    processed_object.geometry().map_or(0, |g| g.len())
-                );
+
+                // Print progress every 1000 buildings
+                if buildings_processed % 1000 == 0 {
+                    println!(
+                        "Processed: {} (type: {}, geometries: {}) - Progress: {}/{}",
+                        processed_object.id(),
+                        processed_object.type_cityobject(),
+                        processed_object.geometry().map_or(0, |g| g.len()),
+                        buildings_processed,
+                        NR_BUILDINGS
+                    );
+                }
 
                 // Remove CityObject from the model to maintain stable memory
                 let removed = model.cityobjects_mut().remove(cityobject_ref);
@@ -445,16 +852,22 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     }
 
     // Final assertions
-    assert_eq!(buildings_processed, 5, "Should have processed 5 buildings");
+    assert_eq!(
+        buildings_processed, NR_BUILDINGS,
+        "Should have processed {} buildings", NR_BUILDINGS
+    );
 
     // Verify all CityObjects were removed (count active objects via iterator)
     let final_active_objects = model.cityobjects().iter().count();
     assert_eq!(final_active_objects, 0, "All CityObjects should be removed");
 
-    println!(
-        "Stream processing complete: {} buildings processed, max_objects={}, max_vertices={}",
-        buildings_processed, max_cityobjects, max_vertices
-    );
+    println!("\n========== Performance Summary ==========");
+    println!("Total buildings processed: {}", buildings_processed);
+    println!("Total geometries processed: {}", total_geometries);
+    println!("Total surfaces processed: {}", total_surfaces);
+    println!("Peak CityObjects in memory: {}", max_cityobjects);
+    println!("Peak vertices in memory: {}", max_vertices);
+    println!("=========================================\n");
 
     Ok(())
 }
@@ -643,10 +1056,26 @@ fn convert_wire_attribute_value(
     wire_value: WireAttributeValue,
 ) -> AttributeValue<OwnedStringStorage, ResourceId32> {
     match wire_value {
+        WireAttributeValue::Null => AttributeValue::Null,
         WireAttributeValue::String(s) => AttributeValue::String(s),
         WireAttributeValue::Float(f) => AttributeValue::Float(f),
         WireAttributeValue::Integer(i) => AttributeValue::Integer(i),
+        WireAttributeValue::Unsigned(u) => AttributeValue::Unsigned(u),
         WireAttributeValue::Bool(b) => AttributeValue::Bool(b),
+        WireAttributeValue::Vec(vec) => {
+            let converted: Vec<Box<AttributeValue<OwnedStringStorage, ResourceId32>>> = vec
+                .into_iter()
+                .map(|v| Box::new(convert_wire_attribute_value(v)))
+                .collect();
+            AttributeValue::Vec(converted)
+        }
+        WireAttributeValue::Map(map) => {
+            let mut hash_map = std::collections::HashMap::new();
+            for (key, value) in map {
+                hash_map.insert(key, Box::new(convert_wire_attribute_value(value)));
+            }
+            AttributeValue::Map(hash_map)
+        }
     }
 }
 
