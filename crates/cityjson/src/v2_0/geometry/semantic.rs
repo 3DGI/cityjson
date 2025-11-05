@@ -236,4 +236,101 @@ mod tests {
         let display_str = format!("{}", semantic);
         assert!(display_str.contains("Extension"));
     }
+
+    #[test]
+    fn test_semantic_equality() {
+        // Test 1: Two semantics with same type and no other fields are equal
+        let semantic1 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        let semantic2 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        assert_eq!(semantic1, semantic2);
+
+        // Test 2: Two semantics with different types are not equal
+        let semantic3 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+        assert_ne!(semantic1, semantic3);
+
+        // Test 3: Two semantics with same type and same children are equal
+        let mut semantic4 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+        let mut semantic5 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+
+        semantic4.children_mut().push(ResourceId32::new(1, 0));
+        semantic4.children_mut().push(ResourceId32::new(2, 0));
+        semantic5.children_mut().push(ResourceId32::new(1, 0));
+        semantic5.children_mut().push(ResourceId32::new(2, 0));
+        assert_eq!(semantic4, semantic5);
+
+        // Test 4: Two semantics with different children are not equal
+        let mut semantic6 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+        semantic6.children_mut().push(ResourceId32::new(3, 0));
+        assert_ne!(semantic4, semantic6);
+
+        // Test 5: Two semantics with same parent are equal
+        let mut semantic7 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
+        let mut semantic8 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
+        semantic7.set_parent(ResourceId32::new(10, 0));
+        semantic8.set_parent(ResourceId32::new(10, 0));
+        assert_eq!(semantic7, semantic8);
+
+        // Test 6: Two semantics with different parents are not equal
+        let mut semantic9 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
+        semantic9.set_parent(ResourceId32::new(20, 0));
+        assert_ne!(semantic7, semantic9);
+
+        // Test 7: Two semantics with same attributes are equal
+        let mut semantic10 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        let mut semantic11 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+
+        semantic10.attributes_mut().insert(
+            "material".to_string(),
+            AttributeValue::String("tile".to_string()),
+        );
+        semantic10.attributes_mut().insert(
+            "year".to_string(),
+            AttributeValue::Integer(2020),
+        );
+
+        semantic11.attributes_mut().insert(
+            "material".to_string(),
+            AttributeValue::String("tile".to_string()),
+        );
+        semantic11.attributes_mut().insert(
+            "year".to_string(),
+            AttributeValue::Integer(2020),
+        );
+        assert_eq!(semantic10, semantic11);
+
+        // Test 8: Two semantics with different attributes are not equal
+        let mut semantic12 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        semantic12.attributes_mut().insert(
+            "material".to_string(),
+            AttributeValue::String("slate".to_string()),
+        );
+        assert_ne!(semantic10, semantic12);
+
+        // Test 9: Two semantics with all fields equal are equal
+        let mut semantic13 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+        let mut semantic14 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+
+        semantic13.children_mut().push(ResourceId32::new(1, 0));
+        semantic13.set_parent(ResourceId32::new(5, 0));
+        semantic13.attributes_mut().insert(
+            "color".to_string(),
+            AttributeValue::String("blue".to_string()),
+        );
+
+        semantic14.children_mut().push(ResourceId32::new(1, 0));
+        semantic14.set_parent(ResourceId32::new(5, 0));
+        semantic14.attributes_mut().insert(
+            "color".to_string(),
+            AttributeValue::String("blue".to_string()),
+        );
+        assert_eq!(semantic13, semantic14);
+    }
 }
