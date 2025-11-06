@@ -68,6 +68,16 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn type_citymodel(&self) -> CityModelType;
     /// Get the CityJSON version that this CityModel represents
     fn version(&self) -> Option<CityJSONVersion>;
+    /// Gets an existing semantic or adds a new one.
+    ///
+    /// # Arguments
+    /// * `semantic` - The semantic to get or add
+    ///
+    /// # Returns
+    /// The resource ID of the existing or newly added semantic
+    fn get_or_insert_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef
+    where
+        V::Semantic: PartialEq;
     /// Add a semantic object to the pool
     fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
     /// Get a reference to a semantic object
@@ -75,9 +85,29 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     /// Get a mutable reference to a semantic object
     fn get_semantic_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Semantic>;
     fn semantics(&self) -> &V::SemanticPool;
+    /// Gets an existing material or adds a new one.
+    ///
+    /// # Arguments
+    /// * `material` - The material to get or add
+    ///
+    /// # Returns
+    /// The resource ID of the existing or newly added material
+    fn get_or_insert_material(&mut self, material: V::Material) -> V::ResourceRef
+    where
+        V::Material: PartialEq;
     fn add_material(&mut self, material: V::Material) -> V::ResourceRef;
     fn get_material(&self, id: V::ResourceRef) -> Option<&V::Material>;
     fn get_material_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Material>;
+    /// Gets an existing texture or adds a new one.
+    ///
+    /// # Arguments
+    /// * `texture` - The material to get or add
+    ///
+    /// # Returns
+    /// The resource ID of the existing or newly added material
+    fn get_or_insert_texture(&mut self, texture: V::Texture) -> V::ResourceRef
+    where
+        V::Texture: PartialEq;
     fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
     fn get_texture(&self, id: V::ResourceRef) -> Option<&V::Texture>;
     fn get_texture_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Texture>;

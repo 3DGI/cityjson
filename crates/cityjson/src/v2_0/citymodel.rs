@@ -146,7 +146,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
         self.semantics.get_mut(id)
     }
-
+    fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR
+    where
+        Semantic<RR, SS>: PartialEq,
+    {
+        if let Some(existing_id) = self.semantics.find(&semantic) {
+            return existing_id;
+        }
+        self.semantics.add(semantic)
+    }
     fn semantics(&self) -> &DefaultResourcePool<Semantic<RR, SS>, RR> {
         &self.semantics
     }
@@ -162,7 +170,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<SS>> {
         self.materials.get_mut(id)
     }
-
+    fn get_or_insert_material(&mut self, material: Material<SS>) -> RR
+    where
+        Material<SS>: PartialEq,
+    {
+        if let Some(existing_id) = self.materials.find(&material) {
+            return existing_id;
+        }
+        self.materials.add(material)
+    }
     fn add_texture(&mut self, texture: Texture<SS>) -> RR {
         self.textures.add(texture)
     }
@@ -174,7 +190,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<SS>> {
         self.textures.get_mut(id)
     }
-
+    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR
+    where
+        Texture<SS>: PartialEq,
+    {
+        if let Some(existing_id) = self.textures.find(&texture) {
+            return existing_id;
+        }
+        self.textures.add(texture)
+    }
     fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
         self.geometries.add(geometry)
     }
