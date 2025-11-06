@@ -211,10 +211,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
         &mut self.geometries
     }
     fn clear_geometries(&mut self) {
-        let ids: Vec<RR> = self.geometries.iter().map(|(id, _)| id).collect();
-        for id in ids {
-            self.geometries.remove(id);
-        }
+        self.geometries.clear();
     }
     fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
         &self.vertices
@@ -301,10 +298,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     }
 
     fn clear_cityobjects(&mut self) {
-        let ids: Vec<RR> = self.cityobjects.iter().map(|(id, _)| id).collect();
-        for id in ids {
-            self.cityobjects.remove(id);
-        }
+        self.cityobjects.clear();
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {

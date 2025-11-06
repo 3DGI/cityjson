@@ -588,6 +588,8 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
 
     fn clear(&mut self) {
         self.resources.clear();
+        self.generations.clear();
+        self.free_list.clear();
     }
 }
 
@@ -1066,6 +1068,84 @@ mod tests {
                 let _ = pool.remove(id);
             }
             assert_eq!(*counter.borrow(), 0);
+        }
+    }
+
+    mod clear_tests {
+        use super::*;
+
+        #[test]
+        fn test_clear_basic() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+            let id1 = pool.add(10);
+            let id2 = pool.add(20);
+            let id3 = pool.add(30);
+
+            assert_eq!(pool.len(), 3);
+            assert_eq!(pool.get(id1), Some(&10));
+            assert_eq!(pool.get(id2), Some(&20));
+            assert_eq!(pool.get(id3), Some(&30));
+
+            pool.clear();
+
+            // After clear, pool should be empty
+            assert_eq!(pool.len(), 0);
+            assert!(pool.is_empty());
+
+            // Old IDs should no longer be valid
+            assert_eq!(pool.get(id1), None);
+            assert_eq!(pool.get(id2), None);
+            assert_eq!(pool.get(id3), None);
+        }
+
+        #[test]
+        fn test_clear_with_reuse() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            // Add and remove to populate free_list
+            let id1 = pool.add(10);
+            let id2 = pool.add(20);
+            pool.remove(id1);
+
+            assert_eq!(pool.len(), 2);
+            assert!(!pool.free_list.is_empty());
+
+            pool.clear();
+
+            // After clear, everything should be reset
+            assert_eq!(pool.len(), 0);
+            assert!(pool.is_empty());
+            assert!(pool.free_list.is_empty());
+            assert!(pool.generations.is_empty());
+        }
+
+        #[test]
+        fn test_add_after_clear() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            // Add some resources
+            let id1 = pool.add(10);
+            let id2 = pool.add(20);
+            pool.remove(id1); // Create free slot
+
+            pool.clear();
+
+            // Adding after clear should work correctly
+            let new_id = pool.add(100);
+            assert_eq!(new_id.index(), 0);
+            assert_eq!(new_id.generation(), 0);
+            assert_eq!(pool.get(new_id), Some(&100));
+            assert_eq!(pool.len(), 1);
+        }
+
+        #[test]
+        fn test_clear_empty_pool() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            pool.clear();
+
+            assert_eq!(pool.len(), 0);
+            assert!(pool.is_empty());
         }
     }
 

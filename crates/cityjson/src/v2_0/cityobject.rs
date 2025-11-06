@@ -85,10 +85,7 @@ impl<SS: StringStorage, RR: ResourceRef>
     }
 
     fn clear(&mut self) {
-        let ids: Vec<RR> = self.ids();
-        for id in ids {
-            self.remove(id);
-        }
+        self.inner.clear()
     }
 
     fn filter<F>(&self, predicate: F) -> Vec<(RR, &CityObject<SS, RR>)>
