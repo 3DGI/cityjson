@@ -206,12 +206,23 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         &mut self.geometries
     }
 
+    fn clear_geometries(&mut self) {
+        let ids: Vec<RR> = self.geometries.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            self.geometries.remove(id);
+        }
+    }
+
     fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
         &self.vertices
     }
 
     fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
         &mut self.vertices
+    }
+
+    fn clear_vertices(&mut self) {
+        self.vertices.clear();
     }
 
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
@@ -286,6 +297,13 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
         &mut self.cityobjects
     }
 
+    fn clear_cityobjects(&mut self) {
+        let ids: Vec<RR> = self.cityobjects.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            self.cityobjects.remove(id);
+        }
+    }
+
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices_texture.push(uvcoordinate)
     }
@@ -320,6 +338,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         &mut self.template_vertices
+    }
+
+    fn clear_template_vertices(&mut self) {
+        self.template_vertices.clear();
     }
 
     fn type_citymodel(&self) -> CityModelType {

@@ -530,6 +530,26 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     pub fn as_slice(&self) -> &[V] {
         &self.coordinates
     }
+
+    /// Clears the collection, removing all vertices.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson::prelude::*;
+    ///
+    /// let mut vertices = GeometryVertices16::new();
+    /// vertices.push(RealWorldCoordinate::new(1.0, 2.0, 3.0)).unwrap();
+    /// assert_eq!(vertices.len(), 1);
+    ///
+    /// vertices.clear();
+    /// assert_eq!(vertices.len(), 0);
+    /// assert!(vertices.is_empty());
+    /// ```
+    #[inline]
+    pub fn clear(&mut self) {
+        self.coordinates.clear();
+    }
 }
 
 impl<VR: VertexRef, V: Coordinate> Default for Vertices<VR, V> {

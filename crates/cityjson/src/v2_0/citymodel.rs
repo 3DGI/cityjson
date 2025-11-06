@@ -224,6 +224,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
         &mut self.vertices
     }
 
+    fn clear_vertices(&mut self) {
+        self.vertices.clear();
+    }
+
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
@@ -337,6 +341,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         &mut self.template_vertices
+    }
+
+    fn clear_template_vertices(&mut self) {
+        self.template_vertices.clear();
     }
 
     fn type_citymodel(&self) -> CityModelType {
