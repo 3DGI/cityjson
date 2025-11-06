@@ -16,11 +16,183 @@ example:
 test:
     cargo test -- --nocapture
 
-test-massif:
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif_test_producer_consumer_stream.out" \
-        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --show-output
-    ms_print ./profiling/massif_test_producer_consumer_stream.out | head -n 50
-
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
+
+# ============================================================================
+# Memory and Performance Analysis Recipes
+# ============================================================================
+
+# Quick memory check with GNU time
+test-memory-quick:
+    #!/usr/bin/env bash
+    echo "Running quick memory test..."
+    OUTPUT=$(/usr/bin/time -v cargo test test_producer_consumer_stream --release 2>&1)
+    echo "$OUTPUT"
+    MAX_MEM=$(echo "$OUTPUT" | grep "Maximum resident set size" | awk '{print $6}')
+    echo "================================"
+    echo "Peak RSS: ${MAX_MEM} KB ($(($MAX_MEM / 1024)) MB)"
+    echo "================================"
+
+# 1. HEAP PROFILING with Massif - Track memory allocation patterns
+test-massif:
+    #!/usr/bin/env bash
+    echo "Running Massif heap profiler..."
+    echo "This will take longer than normal test execution..."
+    echo ""
+
+    # Run with massif
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1" \
+        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+
+    echo ""
+    echo "================================"
+    echo "Massif output saved to massif.out"
+    echo "================================"
+    echo ""
+
+    # Generate readable report
+    ms_print massif.out > massif-report.txt
+
+    # Extract key metrics
+    echo "=== HEAP USAGE SUMMARY ==="
+    grep -E "peak|MB|KB|snapshot" massif-report.txt | head -n 30
+    echo ""
+
+    echo "=== TOP ALLOCATION SITES ==="
+    grep -A 5 "% (" massif-report.txt | head -n 50
+    echo ""
+
+    echo "Full report saved to massif-report.txt"
+    echo "Visualize with: massif-visualizer massif.out"
+
+# 2. MEMORY LEAK DETECTION with Memcheck
+test-memcheck:
+    #!/usr/bin/env bash
+    echo "Running Memcheck for memory leak detection..."
+    echo "⚠️  WARNING: This will be VERY slow (20-50x slower than normal test)"
+    echo "Consider running with smaller NR_BUILDINGS for faster results"
+    echo ""
+
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=memcheck.log" \
+        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+
+    echo ""
+    echo "================================"
+    echo "LEAK SUMMARY:"
+    echo "================================"
+    grep -A 20 "LEAK SUMMARY" memcheck.log
+    echo ""
+
+    echo "================================"
+    echo "HEAP SUMMARY:"
+    echo "================================"
+    grep -A 10 "HEAP SUMMARY" memcheck.log
+    echo ""
+
+    echo "Full report saved to memcheck.log"
+    echo ""
+
+    # Check for leaks
+    LEAKED=$(grep "definitely lost" memcheck.log | grep -oP '\d+(?= bytes)' | head -1)
+    if [ "$LEAKED" != "0" ] && [ -n "$LEAKED" ]; then
+        echo "⚠️  WARNING: Found $LEAKED bytes definitely lost!"
+        exit 1
+    else
+        echo "✓ No definite memory leaks detected"
+    fi
+
+# 3. CACHE UTILIZATION with Cachegrind
+test-cachegrind:
+    #!/usr/bin/env bash
+    echo "Running Cachegrind for cache analysis..."
+    echo "This will take 10-20x longer than normal execution"
+    echo ""
+
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file=cachegrind.out" \
+        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+
+    echo ""
+    echo "================================"
+    echo "CACHE STATISTICS:"
+    echo "================================"
+    cg_annotate cachegrind.out > cachegrind-report.txt
+
+    # Show summary
+    head -n 50 cachegrind-report.txt
+    echo ""
+
+    echo "=== KEY METRICS ==="
+    grep -E "I refs|D refs|LL misses|branches" cachegrind-report.txt | head -n 20
+    echo ""
+
+    echo "Full report saved to cachegrind-report.txt"
+    echo "Analyze with: kcachegrind cachegrind.out"
+
+# 4. COMPLETE ANALYSIS - Run all tools sequentially
+test-analyze-all:
+    @echo "Running complete memory and cache analysis..."
+    @echo "⚠️  This will take significant time..."
+    @echo ""
+    @echo "Step 1/3: Running Massif heap profiler..."
+    @just test-massif
+    @echo ""
+    @echo "Step 2/3: Running Cachegrind cache analyzer..."
+    @just test-cachegrind
+    @echo ""
+    @echo "Skipping Memcheck (very slow). Run 'just test-memcheck' separately if needed."
+    @echo ""
+    @echo "=== ANALYSIS COMPLETE ==="
+    @echo "Reports generated:"
+    @echo "  - massif-report.txt (heap profiling)"
+    @echo "  - cachegrind-report.txt (cache analysis)"
+    @echo ""
+    @echo "See VALGRIND_GUIDE.md for interpretation help"
+
+# 5. Compare two massif runs (useful for regression testing)
+test-massif-compare baseline:
+    #!/usr/bin/env bash
+    echo "Running new massif profile..."
+    just test-massif
+    echo ""
+
+    if [ -f "{{baseline}}" ]; then
+        echo "=== COMPARING WITH BASELINE ==="
+        echo "Baseline: {{baseline}}"
+        echo "Current:  massif.out"
+        echo ""
+
+        BASELINE_PEAK=$(grep "mem_heap_B=" {{baseline}} | awk -F= '{print $2}' | sort -n | tail -1)
+        CURRENT_PEAK=$(grep "mem_heap_B=" massif.out | awk -F= '{print $2}' | sort -n | tail -1)
+
+        echo "Baseline peak: $BASELINE_PEAK bytes ($(($BASELINE_PEAK / 1024 / 1024)) MB)"
+        echo "Current peak:  $CURRENT_PEAK bytes ($(($CURRENT_PEAK / 1024 / 1024)) MB)"
+
+        DIFF=$(($CURRENT_PEAK - $BASELINE_PEAK))
+        if [ $BASELINE_PEAK -ne 0 ]; then
+            PCT=$((100 * $DIFF / $BASELINE_PEAK))
+        else
+            PCT=0
+        fi
+
+        if [ $DIFF -gt 0 ]; then
+            echo "⚠️  Memory increased by $DIFF bytes ($PCT%)"
+        elif [ $DIFF -lt 0 ]; then
+            echo "✓ Memory decreased by ${DIFF#-} bytes"
+        else
+            echo "✓ Memory unchanged"
+        fi
+    else
+        echo "Baseline file not found. Saving current as baseline..."
+        cp massif.out "{{baseline}}"
+        echo "Baseline saved to {{baseline}}"
+    fi
+
+# Clean analysis artifacts
+clean-analysis:
+    rm -f massif.out massif-report.txt
+    rm -f memcheck.log
+    rm -f cachegrind.out cachegrind-report.txt
+    rm -f vgcore.*
+    @echo "Analysis artifacts cleaned"

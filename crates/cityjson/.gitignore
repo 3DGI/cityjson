@@ -10,3 +10,17 @@ tests/data/v1_1/schemas/*.schema.json
 !tests/data/v1_1/schemas/noise.ext.json
 tests/data/v2_0/schemas/*.schema.json
 !tests/data/v2_0/schemas/noise.ext.json
+
+# Valgrind and memory analysis artifacts
+massif.out
+massif-*.out
+massif-report.txt
+memcheck.log
+cachegrind.out
+cachegrind-report.txt
+memory-timeline.dat
+memory-timeline.csv
+time-output.txt
+massif-run.log
+analysis-summary.txt
+vgcore.*
