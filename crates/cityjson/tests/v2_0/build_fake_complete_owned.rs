@@ -211,7 +211,7 @@ fn build_fake_complete_owned() -> Result<()> {
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_ring(None, texture_0, "theme-texture".to_string())?;
+            geometry_builder.set_texture_ring(None, texture_0, "winter-textures".to_string())?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
