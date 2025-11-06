@@ -11,10 +11,10 @@ Peak vertices per batch: 13340
 Peak CityObjects per batch: 1000
 =========================================
 
-Consumer finished in 11.46s
+Consumer finished in 10.92s
 
 ========== Overall Test Summary ==========
-Total test duration: 11.46s
-Throughput: 87239 buildings/sec
+Total test duration: 10.92s
+Throughput: 91578 buildings/sec
 Average processing time per building: 0.011ms
 ==========================================

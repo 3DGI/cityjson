@@ -7,7 +7,7 @@ use std::thread;
 // Wire Format Structs - Simulate data structures from parsed CityJSON
 // ============================================================================
 
-const NR_BUILDINGS: usize = 1_000_000;
+const NR_BUILDINGS: usize = 10_000_000;
 const BATCH_SIZE: usize = 1_000; // Process buildings in batches to maintain stable memory
 
 /// Represents attribute values as they would appear in parsed JSON
@@ -112,7 +112,7 @@ enum StreamMessage {
 /// Metrics collected from processing a batch of buildings
 #[derive(Debug, Default)]
 struct BatchMetrics {
-    buildings_processed: usize,
+    _buildings_processed: usize,
     total_geometries: usize,
     total_surfaces: usize,
     peak_vertices: usize,
@@ -792,7 +792,7 @@ fn process_batch(
     }
 
     BatchMetrics {
-        buildings_processed: buildings_in_batch,
+        _buildings_processed: buildings_in_batch,
         total_geometries: geometries_in_batch,
         total_surfaces,
         peak_vertices: vertices_in_batch,

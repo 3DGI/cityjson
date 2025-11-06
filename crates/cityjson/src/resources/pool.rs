@@ -1104,7 +1104,7 @@ mod tests {
 
             // Add and remove to populate free_list
             let id1 = pool.add(10);
-            let id2 = pool.add(20);
+            let _id2 = pool.add(20);
             pool.remove(id1);
 
             assert_eq!(pool.len(), 2);
@@ -1125,7 +1125,7 @@ mod tests {
 
             // Add some resources
             let id1 = pool.add(10);
-            let id2 = pool.add(20);
+            let _id2 = pool.add(20);
             pool.remove(id1); // Create free slot
 
             pool.clear();

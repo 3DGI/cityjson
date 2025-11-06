@@ -16,6 +16,11 @@ example:
 test:
     cargo test -- --nocapture
 
+test-massif:
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif_test_producer_consumer_stream.out" \
+        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --show-output
+    ms_print ./profiling/massif_test_producer_consumer_stream.out | head -n 50
+
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
