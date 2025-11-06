@@ -151,8 +151,8 @@ impl Display for Error {
                     "the CityJSON version should be one of {}, but got {}",
                     supported, v
                 )
-            },
-            Error::InvalidCityObjectType(v) =>  {
+            }
+            Error::InvalidCityObjectType(v) => {
                 write!(f, "invalid CityObject type: {}", v)
             }
         }

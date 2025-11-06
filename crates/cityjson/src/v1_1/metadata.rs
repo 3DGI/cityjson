@@ -449,7 +449,7 @@ impl Display for ContactType {
     }
 }
 impl<RR: ResourceRef, SS: StringStorage> cityjson::traits::metadata::MetadataTrait<SS>
-for Metadata<RR, SS>
+    for Metadata<RR, SS>
 {
 }
 

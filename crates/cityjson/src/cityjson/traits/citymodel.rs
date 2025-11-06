@@ -36,20 +36,15 @@ pub trait CityModelTypes {
     type Extensions: ExtensionsTrait<Self::StringStorage, Self::Extension>;
     type CityObjectType: CityObjectTypeTrait<Self::StringStorage>;
     type BBox: BBoxTrait;
-    type CityObject: CityObjectTrait<
-        Self::StringStorage,
-        Self::ResourceRef,
-        Self::CityObjectType,
-        Self::BBox,
-    >;
+    type CityObject: CityObjectTrait<Self::StringStorage, Self::ResourceRef, Self::CityObjectType, Self::BBox>;
 
     type CityObjects: CityObjectsTrait<
-        Self::StringStorage,
-        Self::ResourceRef,
-        Self::CityObject,
-        Self::CityObjectType,
-        Self::BBox,
-    >;
+            Self::StringStorage,
+            Self::ResourceRef,
+            Self::CityObject,
+            Self::CityObjectType,
+            Self::BBox,
+        >;
     type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;
@@ -109,7 +104,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
         coordinate: RealWorldCoordinate,
     ) -> Result<VertexIndex<V::VertexRef>>;
     fn get_template_vertex(&self, index: VertexIndex<V::VertexRef>)
-        -> Option<&RealWorldCoordinate>;
+    -> Option<&RealWorldCoordinate>;
     fn template_vertices(&self) -> &Vertices<V::VertexRef, RealWorldCoordinate>;
     fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
     /// Add a geometry template
@@ -130,6 +125,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn transform_mut(&mut self) -> &mut V::Transform;
     fn extensions(&self) -> Option<&V::Extensions>;
     fn extensions_mut(&mut self) -> &mut V::Extensions;
-    fn cityobjects(&self) -> &V::CityObjects;   
+    fn cityobjects(&self) -> &V::CityObjects;
     fn cityobjects_mut(&mut self) -> &mut V::CityObjects;
 }

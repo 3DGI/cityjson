@@ -1,5 +1,6 @@
 use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
+use crate::error::Error;
 use crate::prelude::{
     Attributes, BorrowedStringStorage, CityObjectTrait, CityObjectTypeTrait, DefaultResourcePool,
     OwnedStringStorage, ResourcePool, ResourceRef, StringStorage,
@@ -7,7 +8,6 @@ use crate::prelude::{
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::string::ToString;
-use crate::error::Error;
 
 #[derive(Debug, Clone)]
 pub struct CityObjects<SS: StringStorage, RR: ResourceRef> {
@@ -296,11 +296,7 @@ impl FromStr for CityObjectType<OwnedStringStorage> {
             "TunnelHollowSpace" => Ok(CityObjectType::TunnelHollowSpace),
             "TunnelFurniture" => Ok(CityObjectType::TunnelFurniture),
             _ => {
-                if s
-                    .chars()
-                    .nth(0)
-                    .is_some_and(|first_char| first_char == '+')
-                {
+                if s.chars().nth(0).is_some_and(|first_char| first_char == '+') {
                     Ok(CityObjectType::Extension(s.to_string()))
                 } else {
                     Err(Error::InvalidCityObjectType(s.to_string()))
@@ -309,8 +305,6 @@ impl FromStr for CityObjectType<OwnedStringStorage> {
         }
     }
 }
-
-
 
 impl<SS: StringStorage> CityObjectTypeTrait<SS> for CityObjectType<SS> {}
 

@@ -200,6 +200,18 @@ pub trait ResourcePool<T, RR> {
     /// `Some((RR, &T))` containing the identifier and a reference to the last resource,
     /// or `None` if the pool is empty
     fn last(&self) -> Option<(RR, &T)>;
+
+    /// Searches the pool for a resource equivalent to the target.
+    /// Returns the resource ID if found, None otherwise.
+    ///
+    /// # Arguments
+    /// * `target` - The resource to search for
+    ///
+    /// # Returns
+    /// `Some(RR)` if an equivalent resource exists, `None` otherwise
+    fn find(&self, target: &T) -> Option<RR>
+    where
+        T: PartialEq;
 }
 
 /// Abstraction over a resource identifier.
@@ -559,6 +571,16 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         }
         None
     }
+
+    // Linear search through to pool to find the reference of the provided resource.
+    fn find(&self, target: &T) -> Option<RR>
+    where
+        T: PartialEq,
+    {
+        self.iter()
+            .find(|(_, resource)| *resource == target)
+            .map(|(id, _)| id)
+    }
 }
 
 #[cfg(test)]
@@ -664,6 +686,28 @@ mod tests {
             pool.remove(id);
             // Length doesn't decrease, as it counts slots not resources
             assert_eq!(pool.len(), 3);
+        }
+
+        #[test]
+        fn test_find() {
+            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+
+            let id1 = pool.add(10);
+            let id2 = pool.add(20);
+            let id3 = pool.add(10); // duplicate
+
+            // Finds the first matching resource
+            assert_eq!(pool.find(&10), Some(id1));
+            assert_eq!(pool.find(&20), Some(id2));
+            assert_eq!(pool.find(&30), None);
+
+            // After removing the first match, it should find the next one
+            pool.remove(id1);
+            assert_eq!(pool.find(&10), Some(id3));
+
+            // After removing all matches, it should return None
+            pool.remove(id3);
+            assert_eq!(pool.find(&10), None);
         }
     }
 
@@ -865,15 +909,21 @@ mod tests {
             assert_eq!(resources.len(), 3);
 
             // Verify specific resources
-            assert!(resources
-                .iter()
-                .any(|(id, value)| id == &id1 && *value == 1));
-            assert!(resources
-                .iter()
-                .any(|(id, value)| id.index() == id4.index() && *value == 4));
-            assert!(resources
-                .iter()
-                .any(|(id, value)| id == &id3 && *value == 3));
+            assert!(
+                resources
+                    .iter()
+                    .any(|(id, value)| id == &id1 && *value == 1)
+            );
+            assert!(
+                resources
+                    .iter()
+                    .any(|(id, value)| id.index() == id4.index() && *value == 4)
+            );
+            assert!(
+                resources
+                    .iter()
+                    .any(|(id, value)| id == &id3 && *value == 3)
+            );
 
             // Original id2 should not be present
             assert!(!resources.iter().any(|(id, _)| id == &id2));
@@ -1056,16 +1106,28 @@ mod tests {
             // Add another resource - should NOT reuse the slot at MAX generation
             // Instead, it should allocate a new slot
             let id3 = pool.add(300);
-            assert_ne!(id3.index(), original_index, "Should allocate new slot instead of reusing overflowed slot");
+            assert_ne!(
+                id3.index(),
+                original_index,
+                "Should allocate new slot instead of reusing overflowed slot"
+            );
             assert_eq!(id3.generation(), 0, "New slot should start at generation 0");
             assert_eq!(pool.get(id3), Some(&300));
 
             // Verify the old slot at MAX generation is retired (not accessible)
             let retired_id = ResourceId32::new(original_index, u16::MAX);
-            assert_eq!(pool.get(retired_id), None, "Retired slot should not be accessible");
+            assert_eq!(
+                pool.get(retired_id),
+                None,
+                "Retired slot should not be accessible"
+            );
 
             // Verify pool length increased (new slot was allocated)
-            assert_eq!(pool.len(), 2, "Pool should have 2 slots (1 retired, 1 active)");
+            assert_eq!(
+                pool.len(),
+                2,
+                "Pool should have 2 slots (1 retired, 1 active)"
+            );
         }
 
         #[test]

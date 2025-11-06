@@ -28,7 +28,6 @@ pub mod v2_0;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
-    pub use std::str::FromStr;
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
     // Re-export from cityjson module
     pub use crate::cityjson::{
@@ -45,8 +44,8 @@ pub mod prelude {
                 BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
                 BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
                 BoundaryNestedSolid32, BoundaryNestedSolid64,
-            },
-            Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
+            }, Boundary, Boundary16, Boundary32, Boundary64,
+            BoundaryType,
         },
         core::coordinate::{
             FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
@@ -70,6 +69,7 @@ pub mod prelude {
     };
     // Re-export from errors module
     pub use crate::error::{Error, Result};
+    pub use std::str::FromStr;
 
     // Re-export from resources module
     pub use crate::resources::{

@@ -53,7 +53,7 @@ impl<RR: ResourceRef, SS: StringStorage> Metadata<RR, SS> {
     pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS, RR>> {
         &mut self.extra
     }
-    
+
     pub fn set_extra(&mut self, extra: Option<Attributes<SS, RR>>) {
         self.extra = extra;
     }
@@ -167,7 +167,7 @@ impl<RR: ResourceRef, SS: StringStorage> Metadata<RR, SS> {
             })
         }
     }
-    
+
     pub fn set_point_of_contact(&mut self, contact: Option<Contact<RR, SS>>) {
         self.point_of_contact = contact;
     }

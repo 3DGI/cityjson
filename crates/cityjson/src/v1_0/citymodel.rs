@@ -315,7 +315,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             self.cityobjects.len(),
             self.geometries.len()
         )?;
-        writeln!(f, "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}", self.materials.len(), self.textures.len(), self.vertices_texture.len(), "not implemented", "not implemented")?;
+        writeln!(
+            f,
+            "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}",
+            self.materials.len(),
+            self.textures.len(),
+            self.vertices_texture.len(),
+            "not implemented",
+            "not implemented"
+        )?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
         writeln!(
             f,

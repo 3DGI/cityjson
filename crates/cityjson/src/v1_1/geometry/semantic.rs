@@ -336,12 +336,15 @@ mod tests {
     #[test]
     fn test_semantic_equality() {
         // Test 1: Two semantics with same type and no other fields are equal
-        let semantic1 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        let semantic2 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        let semantic1 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
+        let semantic2 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
         assert_eq!(semantic1, semantic2);
 
         // Test 2: Two semantics with different types are not equal
-        let semantic3 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
+        let semantic3 =
+            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
         assert_ne!(semantic1, semantic3);
 
         // Test 3: Two semantics with same type and same children are equal
@@ -384,19 +387,17 @@ mod tests {
             "material".to_string(),
             AttributeValue::String("tile".to_string()),
         );
-        semantic10.attributes_mut().insert(
-            "year".to_string(),
-            AttributeValue::Integer(2020),
-        );
+        semantic10
+            .attributes_mut()
+            .insert("year".to_string(), AttributeValue::Integer(2020));
 
         semantic11.attributes_mut().insert(
             "material".to_string(),
             AttributeValue::String("tile".to_string()),
         );
-        semantic11.attributes_mut().insert(
-            "year".to_string(),
-            AttributeValue::Integer(2020),
-        );
+        semantic11
+            .attributes_mut()
+            .insert("year".to_string(), AttributeValue::Integer(2020));
         assert_eq!(semantic10, semantic11);
 
         // Test 8: Two semantics with different attributes are not equal
