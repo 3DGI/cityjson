@@ -390,3 +390,162 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         writeln!(f, "}}")
     }
 }
+
+mod tests {
+    use crate::prelude::*;
+    use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
+    use crate::v2_0::*;
+    #[test]
+    fn test_clear_cityobjects() {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add some cityobjects
+        let co1 = CityObject::new("obj-1".to_string(), CityObjectType::Building);
+        let co2 = CityObject::new("obj-2".to_string(), CityObjectType::Bridge);
+        model.cityobjects_mut().add(co1);
+        model.cityobjects_mut().add(co2);
+
+        assert_eq!(model.cityobjects().len(), 2);
+
+        // Clear cityobjects
+        model.clear_cityobjects();
+
+        assert_eq!(model.cityobjects().len(), 0);
+    }
+
+    #[test]
+    fn test_clear_geometries() {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add some geometries
+        let mut builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
+        builder.add_point(QuantizedCoordinate::new(0, 0, 0));
+        builder.build().unwrap();
+        let mut builder =
+            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
+        builder.add_point(QuantizedCoordinate::new(1, 0, 0));
+        builder.build().unwrap();
+        assert_eq!(model.geometry_count(), 2);
+
+        // Clear geometries
+        model.clear_geometries();
+
+        assert_eq!(model.geometry_count(), 0);
+    }
+
+    #[test]
+    fn test_clear_vertices() -> Result<()> {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add some vertices
+        model.add_vertex(QuantizedCoordinate::new(100, 200, 300))?;
+        model.add_vertex(QuantizedCoordinate::new(400, 500, 600))?;
+        model.add_vertex(QuantizedCoordinate::new(700, 800, 900))?;
+
+        assert_eq!(model.vertex_count(), 3);
+
+        // Clear vertices
+        model.clear_vertices();
+
+        assert_eq!(model.vertex_count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_clear_template_vertices() -> Result<()> {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Add some template vertices
+        model.add_template_vertex(RealWorldCoordinate::new(1.0, 2.0, 3.0))?;
+        model.add_template_vertex(RealWorldCoordinate::new(4.0, 5.0, 6.0))?;
+
+        assert_eq!(model.template_vertices().len(), 2);
+
+        // Clear template vertices
+        model.clear_template_vertices();
+
+        assert_eq!(model.template_vertices().len(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_or_insert_semantic() {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Create a semantic
+        let semantic1 = Semantic::new(SemanticType::RoofSurface);
+        let semantic2 = Semantic::new(SemanticType::RoofSurface);
+
+        // Insert first semantic
+        let id1 = model.get_or_insert_semantic(semantic1);
+
+        assert_eq!(model.semantic_count(), 1);
+
+        // Insert same semantic again - should return same ID
+        let id2 = model.get_or_insert_semantic(semantic2);
+
+        assert_eq!(model.semantic_count(), 1);
+        assert_eq!(id1, id2);
+
+        // Insert different semantic
+        let semantic3 = Semantic::new(SemanticType::WallSurface);
+        let id3 = model.get_or_insert_semantic(semantic3);
+
+        assert_eq!(model.semantic_count(), 2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_get_or_insert_material() {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Create materials
+        let material1 = Material::new("red".to_string());
+        let material2 = Material::new("red".to_string());
+
+        // Insert first material
+        let id1 = model.get_or_insert_material(material1);
+
+        // Insert same material again - should return same ID
+        let id2 = model.get_or_insert_material(material2);
+
+        assert_eq!(id1, id2);
+
+        // Insert different material
+        let material3 = Material::new("blue".to_string());
+        let id3 = model.get_or_insert_material(material3);
+
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_get_or_insert_texture() {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+
+        // Create textures
+        let texture1 = Texture::new("texture1.png".to_string(), ImageType::Png);
+        let texture2 = Texture::new("texture1.png".to_string(), ImageType::Png);
+
+        // Insert first texture
+        let id1 = model.get_or_insert_texture(texture1);
+
+        // Insert same texture again - should return same ID
+        let id2 = model.get_or_insert_texture(texture2);
+
+        assert_eq!(id1, id2);
+
+        // Insert different texture
+        let texture3 = Texture::new("texture2.jpg".to_string(), ImageType::Jpg);
+        let id3 = model.get_or_insert_texture(texture3);
+
+        assert_ne!(id1, id3);
+    }
+}

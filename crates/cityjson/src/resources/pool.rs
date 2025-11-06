@@ -212,6 +212,10 @@ pub trait ResourcePool<T, RR> {
     fn find(&self, target: &T) -> Option<RR>
     where
         T: PartialEq;
+
+    /// Clears the resource pool, removing all resources. Keeps allocated memory for
+    /// reuse.
+    fn clear(&mut self);
 }
 
 /// Abstraction over a resource identifier.
@@ -580,6 +584,10 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         self.iter()
             .find(|(_, resource)| *resource == target)
             .map(|(id, _)| id)
+    }
+
+    fn clear(&mut self) {
+        self.resources.clear();
     }
 }
 
