@@ -210,7 +210,12 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
     fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.geometries
     }
-
+    fn clear_geometries(&mut self) {
+        let ids: Vec<RR> = self.geometries.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            self.geometries.remove(id);
+        }
+    }
     fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
         &self.vertices
     }
@@ -289,6 +294,13 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V2_0<VR, 
 
     fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
         &mut self.cityobjects
+    }
+
+    fn clear_cityobjects(&mut self) {
+        let ids: Vec<RR> = self.cityobjects.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            self.cityobjects.remove(id);
+        }
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {

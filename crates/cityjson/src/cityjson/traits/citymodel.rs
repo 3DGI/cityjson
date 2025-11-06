@@ -120,6 +120,9 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn add_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
     fn geometries(&self) -> &V::GeometryPool;
     fn geometries_mut(&mut self) -> &mut V::GeometryPool;
+    /// Clears geometries from the model while preserving pool capacity.
+    /// Shared resources (semantics, materials) are not removed.
+    fn clear_geometries(&mut self);
     /// Add a vertex coordinate
     fn add_vertex(&mut self, coordinate: V::CoordinateType) -> Result<VertexIndex<V::VertexRef>>;
     /// Get a reference to a vertex coordinate
@@ -128,6 +131,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn vertices(&self) -> &Vertices<V::VertexRef, V::CoordinateType>;
     /// Get a mutable reference to the vertices pool
     fn vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, V::CoordinateType>;
+    fn clear_vertices(&mut self);
     /// Add a vertex coordinate of a geometry template
     fn add_template_vertex(
         &mut self,
@@ -137,6 +141,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     -> Option<&RealWorldCoordinate>;
     fn template_vertices(&self) -> &Vertices<V::VertexRef, RealWorldCoordinate>;
     fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
+    fn clear_template_vertices(&mut self);
     /// Add a geometry template
     fn add_template_geometry(&mut self, geometry: V::Geometry) -> V::ResourceRef;
     fn template_geometries(&self) -> &V::GeometryPool;
@@ -157,4 +162,6 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn extensions_mut(&mut self) -> &mut V::Extensions;
     fn cityobjects(&self) -> &V::CityObjects;
     fn cityobjects_mut(&mut self) -> &mut V::CityObjects;
+    /// Clears CityObjects from the model while preserving pool capacity.
+    fn clear_cityobjects(&mut self);
 }
