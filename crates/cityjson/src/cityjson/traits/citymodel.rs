@@ -98,6 +98,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn add_material(&mut self, material: V::Material) -> V::ResourceRef;
     fn get_material(&self, id: V::ResourceRef) -> Option<&V::Material>;
     fn get_material_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Material>;
+    fn materials(&self) -> &V::MaterialPool;
     /// Gets an existing texture or adds a new one.
     ///
     /// # Arguments

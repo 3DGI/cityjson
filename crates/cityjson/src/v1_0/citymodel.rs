@@ -172,6 +172,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_0<VR, 
         self.materials.add(material)
     }
 
+    fn materials(&self) -> &DefaultResourcePool<Material<SS>, RR> {
+        &self.materials
+    }
+
     fn add_texture(&mut self, texture: Texture<SS>) -> RR {
         self.textures.add(texture)
     }
