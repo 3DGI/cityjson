@@ -76,12 +76,16 @@ fn build_fake_complete_owned() -> Result<()> {
     material_irradiation.set_transparency(Some(0.5));
     material_irradiation.set_is_smooth(Some(false));
     let material_red = Material::new("red".to_string());
+    let ref_material_irradiation = model.add_material(material_red.clone());
+    model.set_default_theme_material(Some(ref_material_irradiation));
 
     // Create textures
     let texture_0 = Texture::new(
         "http://www.someurl.org/filename.jpg".to_string(),
         ImageType::Png,
     );
+    let ref_texture_winter = model.add_texture(texture_0.clone());
+    model.set_default_theme_texture(Some(ref_texture_winter));
 
     // Because we want to reuse vertices, we need to create them first
     let v0 = model.add_vertex(QuantizedCoordinate::new(102, 103, 1))?;

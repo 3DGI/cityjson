@@ -147,7 +147,7 @@
       [1.0, 1.0],
       [0.0, 1.0]
     ],
-    "default-theme-texture": "summer-textures",
+    "default-theme-texture": "winter-textures",
     "default-theme-material": "irradiation"
   },
   "geometry-templates": {
