@@ -75,6 +75,10 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     textures: DefaultResourcePool<Texture<SS>, RR>,
     /// Pool of vertex textures (UV coordinates)
     vertices_texture: Vertices<VR, UVCoordinate>,
+    /// Default theme material reference
+    default_theme_material: Option<RR>,
+    /// Default theme texture reference
+    default_theme_texture: Option<RR>,
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, RR, SS>>
@@ -97,6 +101,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             materials: DefaultResourcePool::new_pool(),
             textures: DefaultResourcePool::new_pool(),
             vertices_texture: Vertices::new(),
+            default_theme_material: None,
+            default_theme_texture: None,
         }
     }
 
@@ -125,6 +131,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
             materials: DefaultResourcePool::with_capacity(material_capacity),
             textures: DefaultResourcePool::with_capacity(texture_capacity),
             vertices_texture: Vertices::new(),
+            default_theme_material: None,
+            default_theme_texture: None,
         }
     }
 
@@ -354,6 +362,22 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelTrait<V1_1<VR, 
     fn version(&self) -> Option<CityJSONVersion> {
         self.version
     }
+
+    fn default_theme_material(&self) -> Option<RR> {
+        self.default_theme_material
+    }
+
+    fn set_default_theme_material(&mut self, material_ref: Option<RR>) {
+        self.default_theme_material = material_ref;
+    }
+
+    fn default_theme_texture(&self) -> Option<RR> {
+        self.default_theme_texture
+    }
+
+    fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) {
+        self.default_theme_texture = texture_ref;
+    }
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
@@ -376,8 +400,8 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             self.materials.len(),
             self.textures.len(),
             self.vertices_texture.len(),
-            "not implemented",
-            "not implemented"
+            format_option(&self.default_theme_texture),
+            format_option(&self.default_theme_material)
         )?;
         writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
         writeln!(

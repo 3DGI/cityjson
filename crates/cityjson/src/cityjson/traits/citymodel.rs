@@ -166,4 +166,12 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     fn cityobjects_mut(&mut self) -> &mut V::CityObjects;
     /// Clears CityObjects from the model while preserving pool capacity.
     fn clear_cityobjects(&mut self);
+    /// Get the default theme material reference
+    fn default_theme_material(&self) -> Option<V::ResourceRef>;
+    /// Set the default theme material reference
+    fn set_default_theme_material(&mut self, material_ref: Option<V::ResourceRef>);
+    /// Get the default theme texture reference
+    fn default_theme_texture(&self) -> Option<V::ResourceRef>;
+    /// Set the default theme texture reference
+    fn set_default_theme_texture(&mut self, texture_ref: Option<V::ResourceRef>);
 }
