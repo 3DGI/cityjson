@@ -85,6 +85,7 @@ pub trait CityModelTrait<V: CityModelTypes>: Debug + Clone {
     /// Get a mutable reference to a semantic object
     fn get_semantic_mut(&mut self, id: V::ResourceRef) -> Option<&mut V::Semantic>;
     fn semantics(&self) -> &V::SemanticPool;
+    fn textures(&self) -> &V::TexturePool;
     /// Gets an existing material or adds a new one.
     ///
     /// # Arguments
