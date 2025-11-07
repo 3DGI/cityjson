@@ -395,6 +395,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::prelude::*;
     use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
