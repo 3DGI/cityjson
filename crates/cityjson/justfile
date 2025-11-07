@@ -33,11 +33,11 @@ test-memory-quick:
 test-massif:
     #!/usr/bin/env bash
     # Run with massif
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1" \
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
         cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     # Generate readable report
-    ms_print ./profiling/massif.out > ./profiling/massif-report.txt
+    ms_print ./profiling/massif.out | cat > ./profiling/massif-report.txt
 
     # Extract key metrics
     echo "=== HEAP USAGE SUMMARY ==="
@@ -48,7 +48,7 @@ test-massif:
     grep -A 5 "% (" ./profiling/massif-report.txt | head -n 50
     echo ""
 
-    echo "Full report saved to massif-report.txt"
+    echo "Full report saved to ./profiling/massif-report.txt"
     echo "Visualize with: massif-visualizer ./profiling/massif.out"
 
 test-memcheck:
@@ -84,7 +84,7 @@ test-cachegrind:
     echo "================================"
     echo "CACHE STATISTICS:"
     echo "================================"
-    cg_annotate ./profiling/cachegrind.out > ./profiling/cachegrind-report.txt
+    cg_annotate ./profiling/cachegrind.out | cat > ./profiling/cachegrind-report.txt
 
     # Show summary
     head -n 50 ./profiling/cachegrind-report.txt
