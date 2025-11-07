@@ -422,7 +422,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         index: Option<usize>,
         semantic: V::Semantic,
     ) -> Result<V::ResourceRef> {
-        let semantic_ref = self.model.add_semantic(semantic);
+        let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let vertex_i = if let Some(i) = index {
             if i >= self.vertices.len() {
                 return Err(Error::InvalidReference {
@@ -460,7 +460,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         index: Option<usize>,
         semantic: V::Semantic,
     ) -> Result<V::ResourceRef> {
-        let semantic_ref = self.model.add_semantic(semantic);
+        let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
@@ -497,7 +497,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         index: Option<usize>,
         semantic: V::Semantic,
     ) -> Result<V::ResourceRef> {
-        let semantic_ref = self.model.add_semantic(semantic);
+        let semantic_ref = self.model.get_or_insert_semantic(semantic);
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -535,7 +535,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         material: V::Material,
         theme: SS::String,
     ) -> Result<V::ResourceRef> {
-        let material_ref = self.model.add_material(material);
+        let material_ref = self.model.get_or_insert_material(material);
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -589,7 +589,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M: CityModelTrait<V>, SS: String
         texture: V::Texture,
         theme: SS::String,
     ) -> Result<V::ResourceRef> {
-        let texture_ref = self.model.add_texture(texture);
+        let texture_ref = self.model.get_or_insert_texture(texture);
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {

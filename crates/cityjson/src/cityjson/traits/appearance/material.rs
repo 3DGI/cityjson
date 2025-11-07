@@ -48,7 +48,7 @@ use crate::resources::storage::StringStorage;
 ///     is_smooth: Some(true),
 /// };
 /// ```
-pub trait MaterialTrait<SS: StringStorage> {
+pub trait MaterialTrait<SS: StringStorage>: PartialEq {
     /// Creates a new material with the given name.
     ///
     /// # Parameters

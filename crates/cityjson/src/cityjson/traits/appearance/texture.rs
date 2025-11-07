@@ -42,7 +42,7 @@ use crate::resources::storage::StringStorage;
 ///     border_color: Some([0.0, 0.0, 0.0, 1.0]),
 /// };
 /// ```
-pub trait TextureTrait<SS: StringStorage> {
+pub trait TextureTrait<SS: StringStorage>: PartialEq {
     /// Creates a new texture with the given image source and type.
     ///
     /// # Parameters

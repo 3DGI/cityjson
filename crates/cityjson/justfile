@@ -23,7 +23,7 @@ doc:
 test-memory-quick:
     #!/usr/bin/env bash
     echo "Running quick memory test..."
-    OUTPUT=$(/usr/bin/time -v cargo test test_producer_consumer_stream --release 2>&1)
+    OUTPUT=$(/usr/bin/time -v cargo test --package cityjson --test v2_0 test_producer_consumer_stream --release 2>&1)
     echo "$OUTPUT"
     MAX_MEM=$(echo "$OUTPUT" | grep "Maximum resident set size" | awk '{print $6}')
     echo "================================"
@@ -34,7 +34,7 @@ test-massif:
     #!/usr/bin/env bash
     # Run with massif
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1" \
-        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     # Generate readable report
     ms_print ./profiling/massif.out > ./profiling/massif-report.txt
@@ -54,7 +54,7 @@ test-massif:
 test-memcheck:
     #!/usr/bin/env bash
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=./profiling/memcheck.log" \
-        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     echo "================================"
     echo "LEAK SUMMARY:"
@@ -79,7 +79,7 @@ test-memcheck:
 test-cachegrind:
     #!/usr/bin/env bash
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file=./profiling/cachegrind.out" \
-        cargo test test_producer_consumer_stream -- --test-threads=1 --nocapture
+        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     echo "================================"
     echo "CACHE STATISTICS:"
