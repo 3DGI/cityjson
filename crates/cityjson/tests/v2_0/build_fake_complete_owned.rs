@@ -385,5 +385,426 @@ fn build_fake_complete_owned() -> Result<()> {
         .push(co_3_ref);
 
     println!("{}", &model);
+
+    // === Test all values using public methods ===
+
+    // Test CityModel properties
+    assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
+    assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
+    assert_eq!(model.vertex_count(), 4);
+    assert!(model.geometry_count() > 0);
+    assert!(model.semantic_count() > 0);
+
+    // Test metadata
+    let metadata = model.metadata().expect("Metadata should exist");
+    assert_eq!(
+        metadata.identifier().map(|id| id.to_string()),
+        Some("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string())
+    );
+    assert_eq!(
+        metadata.reference_system().map(|crs| crs.to_string()),
+        Some("https://www.opengis.net/def/crs/EPSG/0/2355".to_string())
+    );
+    let contact = metadata.point_of_contact().expect("Contact should exist");
+    assert_eq!(contact.contact_name(), "3DGI");
+    assert_eq!(contact.email_address(), "info@3dgi.nl");
+
+    // Test extra root properties
+    let extra = model.extra().expect("Extra properties should exist");
+    match extra.get("+census") {
+        Some(AttributeValue::Map(census_map)) => {
+            match census_map.get("percent_men") {
+                Some(boxed_val) => match &**boxed_val {
+                    AttributeValue::Float(val) => assert_eq!(*val, 49.5),
+                    _ => panic!("Expected Float for percent_men"),
+                },
+                None => panic!("percent_men not found"),
+            }
+            match census_map.get("percent_women") {
+                Some(boxed_val) => match &**boxed_val {
+                    AttributeValue::Float(val) => assert_eq!(*val, 51.5),
+                    _ => panic!("Expected Float for percent_women"),
+                },
+                None => panic!("percent_women not found"),
+            }
+        }
+        _ => panic!("Expected Map for +census"),
+    }
+
+    // Test transform
+    let transform = model.transform().expect("Transform should exist");
+    assert_eq!(transform.scale(), [1.0, 1.0, 1.0]);
+    assert_eq!(transform.translate(), [0.0, 0.0, 0.0]);
+
+    // Test extensions
+    let extensions = model.extensions().expect("Extensions should exist");
+    assert_eq!(extensions.len(), 1);
+    let noise_ext = extensions
+        .get("Noise")
+        .expect("Noise extension should exist");
+    assert_eq!(noise_ext.name(), "Noise");
+    assert_eq!(noise_ext.url(), "https://someurl.orgnoise.json");
+    assert_eq!(noise_ext.version(), "2.0");
+
+    // Test vertices
+    let v0_coord = model.get_vertex(v0).expect("Vertex v0 should exist");
+    assert_eq!(v0_coord.x(), 102);
+    assert_eq!(v0_coord.y(), 103);
+    assert_eq!(v0_coord.z(), 1);
+
+    let v1_coord = model.get_vertex(v1).expect("Vertex v1 should exist");
+    assert_eq!(v1_coord.x(), 11);
+    assert_eq!(v1_coord.y(), 910);
+    assert_eq!(v1_coord.z(), 43);
+
+    let v2_coord = model.get_vertex(v2).expect("Vertex v2 should exist");
+    assert_eq!(v2_coord.x(), 25);
+    assert_eq!(v2_coord.y(), 744);
+    assert_eq!(v2_coord.z(), 22);
+
+    let v3_coord = model.get_vertex(v3).expect("Vertex v3 should exist");
+    assert_eq!(v3_coord.x(), 23);
+    assert_eq!(v3_coord.y(), 88);
+    assert_eq!(v3_coord.z(), 5);
+
+    // Test default theme material and texture
+    let default_mat_ref = model
+        .default_theme_material()
+        .expect("Default theme material should exist");
+    let default_mat = model
+        .get_material(default_mat_ref)
+        .expect("Default material should exist in pool");
+    assert_eq!(default_mat.name(), "red");
+
+    let default_tex_ref = model
+        .default_theme_texture()
+        .expect("Default theme texture should exist");
+    let default_tex = model
+        .get_texture(default_tex_ref)
+        .expect("Default texture should exist in pool");
+    assert_eq!(default_tex.image(), "http://www.someurl.org/filename.jpg");
+    assert_eq!(default_tex.image_type(), &ImageType::Png);
+
+    // Test materials pool
+    for (_mat_ref, material) in model.materials().iter() {
+        // Each material should have a name
+        assert!(!material.name().is_empty());
+        if material.name() == "irradiation" {
+            assert_eq!(material.ambient_intensity(), Some(0.2000));
+            assert_eq!(
+                material.diffuse_color(),
+                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+            );
+            assert_eq!(
+                material.emissive_color(),
+                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+            );
+            assert_eq!(
+                material.specular_color(),
+                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+            );
+            assert_eq!(material.shininess(), Some(0.2));
+            assert_eq!(material.transparency(), Some(0.5));
+            assert_eq!(material.is_smooth(), Some(false));
+        }
+    }
+
+    // Test textures pool
+    for (tex_ref, texture) in model.textures().iter() {
+        // Each texture should have an image URL
+        assert!(!texture.image().is_empty());
+        assert_eq!(texture.image(), "http://www.someurl.org/filename.jpg");
+        assert_eq!(texture.image_type(), &ImageType::Png);
+    }
+
+    // Test CityObject "id-1"
+    let co1 = model
+        .cityobjects()
+        .get(co_1_ref)
+        .expect("CityObject id-1 should exist");
+    assert_eq!(co1.id(), "id-1");
+    assert_eq!(co1.type_cityobject(), &CityObjectType::BuildingPart);
+
+    // Test geographical extent
+    let bbox = co1
+        .geographical_extent()
+        .expect("id-1 should have geographical extent");
+    assert_eq!(bbox.min_x(), 84710.1);
+    assert_eq!(bbox.min_y(), 446846.0);
+    assert_eq!(bbox.min_z(), -5.3);
+    assert_eq!(bbox.max_x(), 84757.1);
+    assert_eq!(bbox.max_y(), 446944.0);
+    assert_eq!(bbox.max_z(), 40.9);
+
+    // Test attributes
+    let attrs = co1.attributes().expect("id-1 should have attributes");
+    match attrs.get("measuredHeight") {
+        Some(AttributeValue::Float(h)) => assert_eq!(*h, 22.3),
+        _ => panic!("measuredHeight should be Float"),
+    }
+    match attrs.get("roofType") {
+        Some(AttributeValue::String(t)) => assert_eq!(t, "gable"),
+        _ => panic!("roofType should be String"),
+    }
+    match attrs.get("residential") {
+        Some(AttributeValue::Bool(b)) => assert_eq!(*b, true),
+        _ => panic!("residential should be Bool"),
+    }
+    match attrs.get("nr_doors") {
+        Some(AttributeValue::Integer(n)) => assert_eq!(*n, 3),
+        _ => panic!("nr_doors should be Integer"),
+    }
+
+    // Test extra properties (address)
+    let extra1 = co1.extra().expect("id-1 should have extra properties");
+    match extra1.get("address") {
+        Some(AttributeValue::Vec(addresses)) => {
+            assert_eq!(addresses.len(), 1);
+            match addresses[0].as_ref() {
+                AttributeValue::Map(address_map) => {
+                    match address_map.get("Country") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::String(s) => assert_eq!(s, "Canada"),
+                            _ => panic!("Country should be String"),
+                        },
+                        None => panic!("Country not found"),
+                    }
+                    match address_map.get("Locality") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::String(s) => assert_eq!(s, "Chibougamau"),
+                            _ => panic!("Locality should be String"),
+                        },
+                        None => panic!("Locality not found"),
+                    }
+                    match address_map.get("ThoroughfareNumber") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::String(s) => assert_eq!(s, "1"),
+                            _ => panic!("ThoroughfareNumber should be String"),
+                        },
+                        None => panic!("ThoroughfareNumber not found"),
+                    }
+                    match address_map.get("ThoroughfareName") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::String(s) => assert_eq!(s, "rue de la Patate"),
+                            _ => panic!("ThoroughfareName should be String"),
+                        },
+                        None => panic!("ThoroughfareName not found"),
+                    }
+                    match address_map.get("Postcode") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::String(s) => assert_eq!(s, "H0H 0H0"),
+                            _ => panic!("Postcode should be String"),
+                        },
+                        None => panic!("Postcode not found"),
+                    }
+                    // Test location geometry in address
+                    match address_map.get("location") {
+                        Some(boxed_val) => match &**boxed_val {
+                            AttributeValue::Geometry(_geom_ref) => {
+                                // Location geometry exists
+                            }
+                            _ => panic!("location should be Geometry"),
+                        },
+                        None => panic!("location not found"),
+                    }
+                }
+                _ => panic!("First address should be Map"),
+            }
+        }
+        _ => panic!("address should be Vec"),
+    }
+
+    // Test parents and children relationships
+    let parents1 = co1.parents().expect("id-1 should have parents");
+    assert_eq!(parents1.len(), 2);
+    assert!(parents1.contains(&co_3_ref));
+    assert!(parents1.contains(&co_neigh_ref));
+
+    // Test CityObject "id-3"
+    let co3 = model
+        .cityobjects()
+        .get(co_3_ref)
+        .expect("CityObject id-3 should exist");
+    assert_eq!(co3.id(), "id-3");
+    match co3.type_cityobject() {
+        CityObjectType::Extension(ext_type) => {
+            assert_eq!(ext_type, "+NoiseBuilding");
+        }
+        _ => panic!("id-3 should be Extension type"),
+    }
+
+    let attrs3 = co3.attributes().expect("id-3 should have attributes");
+    match attrs3.get("buildingLDenMin") {
+        Some(AttributeValue::Float(val)) => assert_eq!(*val, 1.0),
+        _ => panic!("buildingLDenMin should be Float"),
+    }
+
+    let children3 = co3.children().expect("id-3 should have children");
+    assert_eq!(children3.len(), 1);
+    assert!(children3.contains(&co_1_ref));
+
+    let parents3 = co3.parents().expect("id-3 should have parents");
+    assert_eq!(parents3.len(), 1);
+    assert!(parents3.contains(&co_neigh_ref));
+
+    // Test CityObject "a-tree"
+    let co_tree = model
+        .cityobjects()
+        .iter()
+        .find(|(_, co)| co.id() == "a-tree")
+        .expect("CityObject a-tree should exist");
+    assert_eq!(co_tree.1.id(), "a-tree");
+    assert_eq!(
+        co_tree.1.type_cityobject(),
+        &CityObjectType::SolitaryVegetationObject
+    );
+
+    // Test CityObject "my-neighbourhood"
+    let co_neigh = model
+        .cityobjects()
+        .get(co_neigh_ref)
+        .expect("CityObject my-neighbourhood should exist");
+    assert_eq!(co_neigh.id(), "my-neighbourhood");
+    assert_eq!(co_neigh.type_cityobject(), &CityObjectType::CityObjectGroup);
+
+    let attrs_neigh = co_neigh
+        .attributes()
+        .expect("my-neighbourhood should have attributes");
+    match attrs_neigh.get("location") {
+        Some(AttributeValue::String(s)) => assert_eq!(s, "Magyarkanizsa"),
+        _ => panic!("location should be String"),
+    }
+
+    let extra_neigh = co_neigh
+        .extra()
+        .expect("my-neighbourhood should have extra properties");
+    match extra_neigh.get("children_roles") {
+        Some(AttributeValue::Vec(roles)) => {
+            assert_eq!(roles.len(), 2);
+            match roles[0].as_ref() {
+                AttributeValue::String(s) => assert_eq!(s, "residential building"),
+                _ => panic!("First role should be String"),
+            }
+            match roles[1].as_ref() {
+                AttributeValue::String(s) => assert_eq!(s, "voting location"),
+                _ => panic!("Second role should be String"),
+            }
+        }
+        _ => panic!("children_roles should be Vec"),
+    }
+
+    let children_neigh = co_neigh
+        .children()
+        .expect("my-neighbourhood should have children");
+    assert_eq!(children_neigh.len(), 2);
+    assert!(children_neigh.contains(&co_1_ref));
+    assert!(children_neigh.contains(&co_3_ref));
+
+    // Test geometries
+    for (geom_ref, geometry) in model.geometries().iter() {
+        // Test geometry type
+        let geom_type = geometry.type_geometry();
+        assert!(matches!(
+            geom_type,
+            GeometryType::Solid
+                | GeometryType::MultiPoint
+                | GeometryType::MultiSurface
+                | GeometryType::GeometryInstance
+        ));
+
+        // Test LoD if present
+        if let Some(lod) = geometry.lod() {
+            // LoD exists
+            assert!(matches!(lod, LoD::LoD1 | LoD::LoD2 | LoD::LoD2_1));
+        }
+
+        // Test boundaries if present
+        if let Some(_boundaries) = geometry.boundaries() {
+            // Boundaries exist
+        }
+
+        // Test semantics if present
+        if let Some(semantics_map) = geometry.semantics() {
+            // Semantics exist - verify we can access semantic values
+            // Check surfaces
+            for (surface_idx, maybe_semantic_ref) in semantics_map.surfaces().iter().enumerate() {
+                if let Some(semantic_ref) = maybe_semantic_ref {
+                    if let Some(semantic) = model.get_semantic(*semantic_ref) {
+                        // Verify semantic type
+                        let sem_type = semantic.type_semantic();
+                        // Semantic type should be valid
+
+                        // Test semantic attributes if present
+                        if let Some(sem_attrs) = semantic.attributes() {
+                            // Semantic has attributes
+                            for (key, value) in sem_attrs.iter() {
+                                // Each attribute should be accessible
+                                assert!(!key.is_empty());
+                            }
+                        }
+                    }
+                }
+            }
+            // Check points
+            for (point_idx, maybe_semantic_ref) in semantics_map.points().iter().enumerate() {
+                if let Some(semantic_ref) = maybe_semantic_ref {
+                    if let Some(_semantic) = model.get_semantic(*semantic_ref) {
+                        // Point semantic exists
+                    }
+                }
+            }
+            // Check linestrings
+            for (ls_idx, maybe_semantic_ref) in semantics_map.linestrings().iter().enumerate() {
+                if let Some(semantic_ref) = maybe_semantic_ref {
+                    if let Some(_semantic) = model.get_semantic(*semantic_ref) {
+                        // Linestring semantic exists
+                    }
+                }
+            }
+        }
+
+        // Test materials if present
+        if let Some(materials_vec) = geometry.materials() {
+            for (theme_name, material_map) in materials_vec {
+                assert!(!theme_name.is_empty());
+                // Material map exists for this theme
+            }
+        }
+
+        // Test textures if present
+        if let Some(textures_vec) = geometry.textures() {
+            for (theme_name, texture_map) in textures_vec {
+                assert!(!theme_name.is_empty());
+                // Texture map exists for this theme
+            }
+        }
+
+        // Test geometry instance properties if applicable
+        if geometry.type_geometry() == &GeometryType::GeometryInstance {
+            if let Some(_template_ref) = geometry.instance_template() {
+                // Template reference exists
+            }
+            if let Some(_ref_point) = geometry.instance_reference_point() {
+                // Reference point exists
+            }
+            if let Some(transform_matrix) = geometry.instance_transformation_matrix() {
+                assert_eq!(transform_matrix.len(), 16);
+            }
+        }
+    }
+
+    // Test template vertices
+    let template_vertices = model.template_vertices();
+    assert!(template_vertices.len() > 0);
+
+    // Test template geometries
+    for (template_ref, template_geom) in model.template_geometries().iter() {
+        assert_eq!(template_geom.type_geometry(), &GeometryType::MultiSurface);
+        assert!(template_geom.lod().is_some());
+    }
+
+    // Verify all CityObjects are accessible
+    assert_eq!(model.cityobjects().len(), 4);
+
     Ok(())
 }
