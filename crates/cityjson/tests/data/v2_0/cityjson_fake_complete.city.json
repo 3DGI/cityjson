@@ -8,15 +8,11 @@
   }
  },
  "transform": {
-  "scale": [
-   1.000000, 1.000000, 1.000000
-  ],
-  "translate": [ 0.000000, 0.000000, 0.000000 ]
+  "scale": [ 1, 1, 1 ],
+  "translate": [ 0, 0, 0 ]
  },
  "metadata": {
-  "geographicalExtent": [
-   84710.100000, 446846.000000, -5.300000, 84757.100000, 446944.000000, 40.900000
-  ],
+  "geographicalExtent": [ 84710.1, 446846, -5.3, 84757.1, 446944, 40.9 ],
   "identifier": "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
   "pointOfContact": {
    "contactName": "3DGI",
@@ -27,9 +23,7 @@
  "CityObjects": {
   "id-1": {
    "type": "BuildingPart",
-   "geographicalExtent": [
-    84710.100000, 446846.000000, -5.300000, 84757.100000, 446944.000000, 40.900000
-   ],
+   "geographicalExtent": [ 84710.1, 446846, -5.3, 84757.1, 446944, 40.9 ],
    "address": [
     {
      "Country": "Canada",
@@ -40,54 +34,22 @@
      "location": {
       "type": "MultiPoint",
       "lod": "1",
-      "boundaries": [
-       0
-      ]
+      "boundaries": [ 0 ]
      }
     }
    ],
    "attributes": {
-    "measuredHeight": 22.300000,
+    "measuredHeight": 22.3,
     "roofType": "gable",
     "residential": true,
     "nr_doors": 3
    },
-   "parents": [
-    "id-3", "my-neighbourhood"
-   ],
+   "parents": [ "id-3", "my-neighbourhood" ],
    "geometry": [
     {
      "type": "Solid",
      "lod": "2.1",
-     "boundaries": [
-      [
-       [
-        [
-         0, 3, 2, 1
-        ]
-       ], [
-       [
-        0, 3, 2, 1
-       ]
-      ], [
-       [
-        0, 3, 2, 1
-       ]
-      ], [
-       [
-        0, 3, 2, 1
-       ]
-      ]
-      ], [
-       [
-        [
-         1, 2, 3, 0
-        ], [
-        1, 2, 3, 0
-       ]
-       ]
-      ]
-     ],
+     "boundaries": [ [ [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ] ], [ [ [ 1, 2, 3, 0 ], [ 1, 2, 3, 0 ] ] ] ],
      "semantics": {
       "surfaces": [
        {
@@ -97,23 +59,11 @@
         "type": "+PatioDoor"
        }
       ],
-      "values": [
-       [
-        0, 0, null, 1
-       ], [
-        null
-       ]
-      ]
+      "values": [ [ 0, 0, null, 1 ], [ null ] ]
      },
      "material": {
       "irradiation": {
-       "values": [
-        [
-         0, 0, 0, null
-        ], [
-         null
-        ]
-       ]
+       "values": [ [ 0, 0, 0, null ], [ null ] ]
       },
       "red": {
        "value": 0
@@ -121,35 +71,7 @@
      },
      "texture": {
       "winter-textures": {
-       "values": [
-        [
-         [
-          [
-           0, 0, 1, 2, 3
-          ]
-         ], [
-         [
-          0, 0, 1, 2, 3
-         ]
-        ], [
-         [
-          null
-         ]
-        ], [
-         [
-          null
-         ]
-        ]
-        ], [
-         [
-          [
-           null
-          ], [
-          null
-         ]
-         ]
-        ]
-       ]
+       "values": [ [ [ [ 0, 0, 1, 2, 3 ] ], [ [ 0, 0, 1, 2, 3 ] ], [ [ null ] ], [ [ null ] ] ], [ [ [ null ], [ null ] ] ] ]
       }
      }
     }
@@ -157,14 +79,10 @@
   },
   "id-3": {
    "type": "+NoiseBuilding",
-   "children": [
-    "id-1"
-   ],
-   "parents": [
-    "my-neighbourhood"
-   ],
+   "children": [ "id-1" ],
+   "parents": [ "my-neighbourhood" ],
    "attributes": {
-    "buildingLDenMin": 1.000000
+    "buildingLDenMin": 1
    }
   },
   "a-tree": {
@@ -173,12 +91,8 @@
     {
      "type": "GeometryInstance",
      "template": 0,
-     "boundaries": [
-      1
-     ],
-     "transformationMatrix": [
-      2.000000, 0.000000, 0.000000, 0.000000, 0.000000, 2.000000, 0.000000, 0.000000, 0.000000, 0.000000, 2.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.000000
-     ]
+     "boundaries": [ 1 ],
+     "transformationMatrix": [ 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1 ]
     }
    ]
   },
@@ -187,54 +101,28 @@
    "attributes": {
     "location": "Magyarkanizsa"
    },
-   "children": [
-    "id-1", "id-3"
-   ],
-   "children_roles": [
-    "residential building", "voting location"
-   ],
+   "children": [ "id-1", "id-3" ],
+   "children_roles": [ "residential building", "voting location" ],
    "geometry": [
     {
      "type": "MultiSurface",
      "lod": "2",
-     "boundaries": [
-      [
-       [
-        0, 1, 2, 3
-       ]
-      ]
-     ]
+     "boundaries": [ [ [ 0, 1, 2, 3 ] ] ]
     }
    ]
   }
  },
- "vertices": [
-  [
-   102, 103, 1
-  ], [
-   11, 910, 43
-  ], [
-   25, 744, 22
-  ], [
-   23, 88, 5
-  ]
- ],
+ "vertices": [ [ 102, 103, 1 ], [ 11, 910, 43 ], [ 25, 744, 22 ], [ 23, 88, 5 ] ],
  "appearance": {
   "materials": [
    {
     "name": "irradiation",
-    "ambientIntensity": 0.200000,
-    "diffuseColor": [
-     0.900000, 0.100000, 0.750000
-    ],
-    "emissiveColor": [
-     0.900000, 0.100000, 0.750000
-    ],
-    "specularColor": [
-     0.900000, 0.100000, 0.750000
-    ],
-    "shininess": 0.200000,
-    "transparency": 0.500000,
+    "ambientIntensity": 0.2,
+    "diffuseColor": [ 0.9, 0.1, 0.75 ],
+    "emissiveColor": [ 0.9, 0.1, 0.75 ],
+    "specularColor": [ 0.9, 0.1, 0.75 ],
+    "shininess": 0.2,
+    "transparency": 0.5,
     "isSmooth": false
    }, {
     "name": "red"
@@ -246,17 +134,7 @@
     "image": "http://www.someurl.org/filename.jpg"
    }
   ],
-  "vertices-texture": [
-   [
-    0.000000, 0.500000
-   ], [
-    1.000000, 0.000000
-   ], [
-    1.000000, 1.000000
-   ], [
-    0.000000, 1.000000
-   ]
-  ],
+  "vertices-texture": [ [ 0, 0.5 ], [ 1, 0 ], [ 1, 1 ], [ 0, 1 ] ],
   "default-theme-texture": "summer-textures",
   "default-theme-material": "irradiation"
  },
@@ -265,37 +143,13 @@
    {
     "type": "MultiSurface",
     "lod": "2.1",
-    "boundaries": [
-     [
-      [
-       0, 3, 2, 1
-      ]
-     ], [
-      [
-       1, 2, 0, 3
-      ]
-     ], [
-      [
-       0, 1, 3, 2
-      ]
-     ]
-    ]
+    "boundaries": [ [ [ 0, 3, 2, 1 ] ], [ [ 1, 2, 0, 3 ] ], [ [ 0, 1, 3, 2 ] ] ]
    }
   ],
-  "vertices-templates": [
-   [
-    0.000000, 0.500000, 0.000000
-   ], [
-    1.000000, 1.000000, 0.000000
-   ], [
-    0.000000, 1.000000, 0.000000
-   ], [
-    2.100000, 4.200000, 1.200000
-   ]
-  ]
+  "vertices-templates": [ [ 0, 0.5, 0 ], [ 1, 1, 0 ], [ 0, 1, 0 ], [ 2.1, 4.2, 1.2 ] ]
  },
  "+census": {
-  "percent_men": 49.500000,
-  "percent_women": 51.500000
+  "percent_men": 49.5,
+  "percent_women": 51.5
  }
 }

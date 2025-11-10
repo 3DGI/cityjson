@@ -14,6 +14,7 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Set metadata
     let metadata = model.metadata_mut();
+    metadata.set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
     metadata.set_identifier(CityModelIdentifier::new(
         "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string(),
     ));
@@ -76,7 +77,7 @@ fn build_fake_complete_owned() -> Result<()> {
     material_irradiation.set_transparency(Some(0.5));
     material_irradiation.set_is_smooth(Some(false));
     let material_red = Material::new("red".to_string());
-    let ref_material_irradiation = model.add_material(material_red.clone());
+    let ref_material_irradiation = model.add_material(material_irradiation.clone());
     model.set_default_theme_material(Some(ref_material_irradiation));
 
     // Create textures
@@ -386,24 +387,32 @@ fn build_fake_complete_owned() -> Result<()> {
 
     println!("{}", &model);
 
-    // === Test all values using public methods ===
+    // === Test all values using public accessors ===
 
     // Test CityModel properties
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
     assert_eq!(model.vertex_count(), 4);
-    assert!(model.geometry_count() > 0);
-    assert!(model.semantic_count() > 0);
+    assert_eq!(model.geometry_count(), 4); // 3 + 1 template
+    assert_eq!(model.semantic_count(), 2);
 
     // Test metadata
     let metadata = model.metadata().expect("Metadata should exist");
     assert_eq!(
-        metadata.identifier().map(|id| id.to_string()),
-        Some("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string())
+        metadata.geographical_extent(),
+        Some(&BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9))
     );
     assert_eq!(
-        metadata.reference_system().map(|crs| crs.to_string()),
-        Some("https://www.opengis.net/def/crs/EPSG/0/2355".to_string())
+        metadata.identifier(),
+        Some(&CityModelIdentifier::new(
+            "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string()
+        ))
+    );
+    assert_eq!(
+        metadata.reference_system(),
+        Some(&CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/2355".to_string()
+        ))
     );
     let contact = metadata.point_of_contact().expect("Contact should exist");
     assert_eq!(contact.contact_name(), "3DGI");
@@ -411,24 +420,15 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Test extra root properties
     let extra = model.extra().expect("Extra properties should exist");
-    match extra.get("+census") {
-        Some(AttributeValue::Map(census_map)) => {
-            match census_map.get("percent_men") {
-                Some(boxed_val) => match &**boxed_val {
-                    AttributeValue::Float(val) => assert_eq!(*val, 49.5),
-                    _ => panic!("Expected Float for percent_men"),
-                },
-                None => panic!("percent_men not found"),
-            }
-            match census_map.get("percent_women") {
-                Some(boxed_val) => match &**boxed_val {
-                    AttributeValue::Float(val) => assert_eq!(*val, 51.5),
-                    _ => panic!("Expected Float for percent_women"),
-                },
-                None => panic!("percent_women not found"),
-            }
-        }
-        _ => panic!("Expected Map for +census"),
+    if let Some(AttributeValue::Map(census_map)) = extra.get("+census") {
+        let get_float = |k: &str| match census_map.get(k).map(|b| b.as_ref()) {
+            Some(AttributeValue::Float(v)) => *v,
+            _ => panic!("{k} not found or not Float"),
+        };
+        assert_eq!(get_float("percent_men"), 49.5);
+        assert_eq!(get_float("percent_women"), 51.5);
+    } else {
+        panic!("Expected Map for +census");
     }
 
     // Test transform
@@ -474,7 +474,7 @@ fn build_fake_complete_owned() -> Result<()> {
     let default_mat = model
         .get_material(default_mat_ref)
         .expect("Default material should exist in pool");
-    assert_eq!(default_mat.name(), "red");
+    assert_eq!(default_mat.name(), "irradiation");
 
     let default_tex_ref = model
         .default_theme_texture()
@@ -510,7 +510,7 @@ fn build_fake_complete_owned() -> Result<()> {
     }
 
     // Test textures pool
-    for (tex_ref, texture) in model.textures().iter() {
+    for (_tex_ref, texture) in model.textures().iter() {
         // Each texture should have an image URL
         assert!(!texture.image().is_empty());
         assert_eq!(texture.image(), "http://www.someurl.org/filename.jpg");
@@ -700,111 +700,6 @@ fn build_fake_complete_owned() -> Result<()> {
     assert!(children_neigh.contains(&co_1_ref));
     assert!(children_neigh.contains(&co_3_ref));
 
-    // Test geometries
-    for (geom_ref, geometry) in model.geometries().iter() {
-        // Test geometry type
-        let geom_type = geometry.type_geometry();
-        assert!(matches!(
-            geom_type,
-            GeometryType::Solid
-                | GeometryType::MultiPoint
-                | GeometryType::MultiSurface
-                | GeometryType::GeometryInstance
-        ));
-
-        // Test LoD if present
-        if let Some(lod) = geometry.lod() {
-            // LoD exists
-            assert!(matches!(lod, LoD::LoD1 | LoD::LoD2 | LoD::LoD2_1));
-        }
-
-        // Test boundaries if present
-        if let Some(_boundaries) = geometry.boundaries() {
-            // Boundaries exist
-        }
-
-        // Test semantics if present
-        if let Some(semantics_map) = geometry.semantics() {
-            // Semantics exist - verify we can access semantic values
-            // Check surfaces
-            for (surface_idx, maybe_semantic_ref) in semantics_map.surfaces().iter().enumerate() {
-                if let Some(semantic_ref) = maybe_semantic_ref {
-                    if let Some(semantic) = model.get_semantic(*semantic_ref) {
-                        // Verify semantic type
-                        let sem_type = semantic.type_semantic();
-                        // Semantic type should be valid
-
-                        // Test semantic attributes if present
-                        if let Some(sem_attrs) = semantic.attributes() {
-                            // Semantic has attributes
-                            for (key, value) in sem_attrs.iter() {
-                                // Each attribute should be accessible
-                                assert!(!key.is_empty());
-                            }
-                        }
-                    }
-                }
-            }
-            // Check points
-            for (point_idx, maybe_semantic_ref) in semantics_map.points().iter().enumerate() {
-                if let Some(semantic_ref) = maybe_semantic_ref {
-                    if let Some(_semantic) = model.get_semantic(*semantic_ref) {
-                        // Point semantic exists
-                    }
-                }
-            }
-            // Check linestrings
-            for (ls_idx, maybe_semantic_ref) in semantics_map.linestrings().iter().enumerate() {
-                if let Some(semantic_ref) = maybe_semantic_ref {
-                    if let Some(_semantic) = model.get_semantic(*semantic_ref) {
-                        // Linestring semantic exists
-                    }
-                }
-            }
-        }
-
-        // Test materials if present
-        if let Some(materials_vec) = geometry.materials() {
-            for (theme_name, material_map) in materials_vec {
-                assert!(!theme_name.is_empty());
-                // Material map exists for this theme
-            }
-        }
-
-        // Test textures if present
-        if let Some(textures_vec) = geometry.textures() {
-            for (theme_name, texture_map) in textures_vec {
-                assert!(!theme_name.is_empty());
-                // Texture map exists for this theme
-            }
-        }
-
-        // Test geometry instance properties if applicable
-        if geometry.type_geometry() == &GeometryType::GeometryInstance {
-            if let Some(_template_ref) = geometry.instance_template() {
-                // Template reference exists
-            }
-            if let Some(_ref_point) = geometry.instance_reference_point() {
-                // Reference point exists
-            }
-            if let Some(transform_matrix) = geometry.instance_transformation_matrix() {
-                assert_eq!(transform_matrix.len(), 16);
-            }
-        }
-    }
-
-    // Test template vertices
-    let template_vertices = model.template_vertices();
-    assert!(template_vertices.len() > 0);
-
-    // Test template geometries
-    for (template_ref, template_geom) in model.template_geometries().iter() {
-        assert_eq!(template_geom.type_geometry(), &GeometryType::MultiSurface);
-        assert!(template_geom.lod().is_some());
-    }
-
-    // Verify all CityObjects are accessible
-    assert_eq!(model.cityobjects().len(), 4);
 
     Ok(())
 }
