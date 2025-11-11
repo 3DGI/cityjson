@@ -13,3 +13,16 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
 num = "0.4.3"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+# For custom profiling and benchmarking
+dhat = "0.3"  # Heap profiling
+pprof = { version = "0.13", features = ["flamegraph", "criterion"] }  # Flamegraph profiling
+
+[[bench]]
+name = "builder"
+harness = false
+
+[profile.bench]
+debug = true  # Enable debug symbols for better profiling

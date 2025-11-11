@@ -12,6 +12,7 @@ tests/data/v2_0/schemas/*.schema.json
 !tests/data/v2_0/schemas/noise.ext.json
 
 # Valgrind and memory analysis artifacts
+time.out
 massif.out
 massif-*.out
 massif-report.txt

@@ -1,0 +1,20 @@
+# Cargo configuration for cityjson-rs
+
+# Custom cargo aliases for benchmarking and profiling
+[alias]
+# Benchmark aliases
+bench-all = "bench --workspace"
+bench-builder = "bench --bench builder"
+
+# Build aliases
+build-prof = "build --release --profile bench"
+test-prof = "test --release --profile bench"
+
+# Combined commands
+perf-check = "bench --workspace --no-fail-fast"
+full-bench = "bench --workspace --verbose"
+
+# Example usage:
+# cargo bench-all
+# cargo bench-parsing
+# cargo perf-check

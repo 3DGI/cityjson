@@ -7,7 +7,7 @@ use std::thread;
 // Wire Format Structs - Simulate data structures from parsed CityJSON
 // ============================================================================
 
-const NR_BUILDINGS: usize = 100_000;
+const NR_BUILDINGS: usize = 10_000;
 const BATCH_SIZE: usize = 1_000; // Process buildings in batches to maintain stable memory
 
 /// Represents attribute values as they would appear in parsed JSON

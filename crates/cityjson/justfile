@@ -1,74 +1,70 @@
 #!/usr/bin/env just --justfile
 
-release:
-  cargo build --release    
+_git_ref := shell('git -C . rev-parse --short HEAD')
+_profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
 
-lint:
-  cargo clippy
-
-bin:
-  cargo run --bin bin -- arg1
-
-example:
-  cargo run --example exname -- arg1
-
-# Run all tests
-test:
-    cargo test -- --nocapture
+default:
+    just --list
 
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
 
-test-memory-quick:
-    #!/usr/bin/env bash
-    echo "Running quick memory test..."
-    OUTPUT=$(/usr/bin/time -v cargo test --package cityjson --test v2_0 test_producer_consumer_stream --release 2>&1)
-    echo "$OUTPUT"
-    MAX_MEM=$(echo "$OUTPUT" | grep "Maximum resident set size" | awk '{print $6}')
-    echo "================================"
-    echo "Peak RSS: ${MAX_MEM} KB ($(($MAX_MEM / 1024)) MB)"
-    echo "================================"
+test:
+    echo "{{ _git_ref }}"
 
-test-massif:
+# ============================================================================
+# Memory profiling
+# ============================================================================
+
+_create_profile_dir:
+    -@mkdir "{{ _profile_dir }}" > /dev/null 2>&1 || true
+
+profile-memory-time: _create_profile_dir
+    #!/usr/bin/env bash
+    OUTFILE="{{ _profile_dir }}/time.out"
+    /usr/bin/time -v cargo test --package cityjson --test v2_0 test_producer_consumer_stream --release > $OUTFILE 2>&1
+    cat $OUTFILE
+
+profile-massif: _create_profile_dir
     #!/usr/bin/env bash
     # Run with massif
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file=./profiling/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file={{ _profile_dir }}/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
         cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     # Generate readable report
-    ms_print ./profiling/massif.out | cat > ./profiling/massif-report.txt
+    ms_print {{ _profile_dir }}/massif.out | cat > {{ _profile_dir }}/massif-report.txt
 
     # Extract key metrics
     echo "=== HEAP USAGE SUMMARY ==="
-    grep -E "peak|MB|KB|snapshot" ./profiling/massif-report.txt | head -n 30
+    grep -E "peak|MB|KB|snapshot" {{ _profile_dir }}/massif-report.txt | head -n 30
     echo ""
 
     echo "=== TOP ALLOCATION SITES ==="
-    grep -A 5 "% (" ./profiling/massif-report.txt | head -n 50
+    grep -A 5 "% (" {{ _profile_dir }}/massif-report.txt | head -n 50
     echo ""
 
-    echo "Full report saved to ./profiling/massif-report.txt"
-    echo "Visualize with: massif-visualizer ./profiling/massif.out"
+    echo "Full report saved to {{ _profile_dir }}/massif-report.txt"
+    echo "Visualize with: massif-visualizer {{ _profile_dir }}/massif.out"
 
-test-memcheck:
+profile-memcheck: _create_profile_dir
     #!/usr/bin/env bash
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=./profiling/memcheck.log" \
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file={{ _profile_dir }}/memcheck.log" \
         cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     echo "================================"
     echo "LEAK SUMMARY:"
     echo "================================"
-    grep -A 20 "LEAK SUMMARY" ./profiling/memcheck.log
+    grep -A 20 "LEAK SUMMARY" {{ _profile_dir }}/memcheck.log
 
     echo "================================"
     echo "HEAP SUMMARY:"
     echo "================================"
-    grep -A 10 "HEAP SUMMARY" ./profiling/memcheck.log
-    echo "Full report saved to ./profiling/memcheck.log"
+    grep -A 10 "HEAP SUMMARY" {{ _profile_dir }}/memcheck.log
+    echo "Full report saved to {{ _profile_dir }}/memcheck.log"
 
     # Check for leaks
-    LEAKED=$(grep "definitely lost" ./profiling/memcheck.log | grep -oP '\d+(?= bytes)' | head -1)
+    LEAKED=$(grep "definitely lost" {{ _profile_dir }}/memcheck.log | grep -oP '\d+(?= bytes)' | head -1)
     if [ "$LEAKED" != "0" ] && [ -n "$LEAKED" ]; then
         echo "Found $LEAKED bytes definitely lost!"
         exit 1
@@ -76,67 +72,149 @@ test-memcheck:
         echo "No definite memory leaks detected"
     fi
 
-test-cachegrind:
+profile-cachegrind: _create_profile_dir
     #!/usr/bin/env bash
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file=./profiling/cachegrind.out" \
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file={{ _profile_dir }}/cachegrind.out" \
         cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
 
     echo "================================"
     echo "CACHE STATISTICS:"
     echo "================================"
-    cg_annotate ./profiling/cachegrind.out | cat > ./profiling/cachegrind-report.txt
+    cg_annotate {{ _profile_dir }}/cachegrind.out | cat > {{ _profile_dir }}/cachegrind-report.txt
 
     # Show summary
-    head -n 50 ./profiling/cachegrind-report.txt
+    head -n 50 {{ _profile_dir }}/cachegrind-report.txt
 
     echo "=== KEY METRICS ==="
-    grep -E "I refs|D refs|LL misses|branches" ./profiling/cachegrind-report.txt | head -n 20
+    grep -E "I refs|D refs|LL misses|branches" {{ _profile_dir }}/cachegrind-report.txt | head -n 20
 
-    echo "Full report saved to ./profiling/cachegrind-report.txt"
-    echo "Analyze with: kcachegrind ./profiling/cachegrind.out"
+    echo "Full report saved to {{ _profile_dir }}/cachegrind-report.txt"
+    echo "Analyze with: kcachegrind {{ _profile_dir }}/cachegrind.out"
 
-test-analyse-all: test-massif test-cachegrind test-memcheck
+profile-all: profile-massif profile-cachegrind profile-memcheck
 
-test-massif-compare baseline:
+
+# Run all benchmarks
+bench-all:
+    cargo bench-all
+
+# Run specific benchmark suite
+bench suite:
+    cargo bench --bench {{suite}}
+
+# Benchmark with baseline for future comparison
+bench-baseline name:
+    cargo bench --workspace -- --save-baseline {{name}}
+
+# Compare current performance against a baseline
+bench-compare baseline:
+    cargo bench --workspace -- --baseline {{baseline}}
+
+
+# ============================================================================
+# Results Tracking and Documentation
+# ============================================================================
+
+# Capture benchmark results with timestamp and description
+bench-record description:
     #!/usr/bin/env bash
-    echo "Running new massif profile..."
-    just test-massif
+    DATE=$(date +%Y-%m-%d)
+    TIME=$(date +%H-%M-%S)
+    COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    RUST_VERSION=$(rustc --version | cut -d' ' -f2)
+    DIR="bench_results/history"
+    FILE="${DIR}/${DATE}_{{description}}.md"
+
+    mkdir -p "$DIR"
+
+    echo "# Benchmark Results: ${DATE} - {{description}}" > "$FILE"
+    echo "" >> "$FILE"
+    echo "- **Date**: ${DATE} ${TIME}" >> "$FILE"
+    echo "- **Commit**: $COMMIT" >> "$FILE"
+    echo "- **Rust Version**: $RUST_VERSION" >> "$FILE"
+    echo "- **System**: $(uname -srm)" >> "$FILE"
+    echo "" >> "$FILE"
+    echo "## Criterion Benchmarks" >> "$FILE"
+    echo "" >> "$FILE"
+
+    cargo bench --workspace 2>&1 | tee -a "$FILE"
+
+    echo "" >> "$FILE"
+    echo "## Memory Profiling" >> "$FILE"
+    echo "" >> "$FILE"
+    just profile-all 2>&1 | tee -a "$FILE"
+
     echo ""
+    echo "Results saved to $FILE"
 
-    if [ -f "{{baseline}}" ]; then
-        echo "=== COMPARING WITH BASELINE ==="
-        echo "Baseline: {{baseline}}"
-        echo "Current:  massif.out"
-        echo ""
+# Export all benchmark results for archival
+bench-export:
+    #!/usr/bin/env bash
+    DATE=$(date +%Y-%m-%d_%H-%M-%S)
+    EXPORT_DIR="bench_results/exports/${DATE}"
 
-        BASELINE_PEAK=$(grep "mem_heap_B=" {{baseline}} | awk -F= '{print $2}' | sort -n | tail -1)
-        CURRENT_PEAK=$(grep "mem_heap_B=" massif.out | awk -F= '{print $2}' | sort -n | tail -1)
+    mkdir -p "$EXPORT_DIR"
 
-        echo "Baseline peak: $BASELINE_PEAK bytes ($(($BASELINE_PEAK / 1024 / 1024)) MB)"
-        echo "Current peak:  $CURRENT_PEAK bytes ($(($CURRENT_PEAK / 1024 / 1024)) MB)"
-
-        DIFF=$(($CURRENT_PEAK - $BASELINE_PEAK))
-        if [ $BASELINE_PEAK -ne 0 ]; then
-            PCT=$((100 * $DIFF / $BASELINE_PEAK))
-        else
-            PCT=0
-        fi
-
-        if [ $DIFF -gt 0 ]; then
-            echo "⚠️  Memory increased by $DIFF bytes ($PCT%)"
-        elif [ $DIFF -lt 0 ]; then
-            echo "✓ Memory decreased by ${DIFF#-} bytes"
-        else
-            echo "✓ Memory unchanged"
-        fi
-    else
-        echo "Baseline file not found. Saving current as baseline..."
-        cp massif.out "{{baseline}}"
-        echo "Baseline saved to {{baseline}}"
+    # Copy Criterion HTML reports
+    if [ -d "target/criterion" ]; then
+        cp -r target/criterion "$EXPORT_DIR/"
     fi
 
-# Clean analysis artifacts
-clean-analysis:
-    rm -f ./profiling/massif.out ./profiling/massif-report.txt
-    rm -f ./profiling/memcheck.log
-    rm -f ./profiling/cachegrind.out ./profiling/cachegrind-report.txt
+    # Copy profiling results
+    if [ -d "profiling" ]; then
+        cp profiling/*.txt "$EXPORT_DIR/" 2>/dev/null || true
+        cp profiling/*.log "$EXPORT_DIR/" 2>/dev/null || true
+    fi
+
+    # Create metadata file
+    echo "Export Date: ${DATE}" > "$EXPORT_DIR/metadata.txt"
+    echo "Commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" >> "$EXPORT_DIR/metadata.txt"
+    echo "Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')" >> "$EXPORT_DIR/metadata.txt"
+
+    echo "✅ Results exported to $EXPORT_DIR"
+
+# Compare two git commits
+bench-compare-commits commit1 commit2:
+    #!/usr/bin/env bash
+    echo "⚠️  This will checkout different commits. Ensure working tree is clean."
+    read -p "Continue? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+
+    CURRENT=$(git branch --show-current)
+
+    echo "=== Benchmarking {{commit1}} ==="
+    git checkout {{commit1}}
+    cargo bench --workspace -- --save-baseline {{commit1}}
+
+    echo ""
+    echo "=== Benchmarking {{commit2}} ==="
+    git checkout {{commit2}}
+    cargo bench --workspace -- --baseline {{commit1}}
+
+    git checkout "$CURRENT"
+    echo ""
+    echo "Comparison complete. Check target/criterion/ for detailed results."
+
+
+# ============================================================================
+# Viewing Results
+# ============================================================================
+
+# Open Criterion HTML report in browser
+bench-view:
+    @echo "Opening Criterion report..."
+    @command -v xdg-open >/dev/null && xdg-open target/criterion/index.html || \
+     command -v open >/dev/null && open target/criterion/index.html || \
+     echo "Please open target/criterion/index.html manually"
+
+# Show latest benchmark results summary
+bench-summary:
+    @echo "=== Latest Benchmark Results ==="
+    @if [ -d "bench_results/history" ]; then \
+        ls -t bench_results/history/*.md | head -1 | xargs tail -n 50; \
+    else \
+        echo "No benchmark history found. Run 'just bench-record <description>' first."; \
+    fi
