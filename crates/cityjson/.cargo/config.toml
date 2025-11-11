@@ -5,6 +5,7 @@
 # Benchmark aliases
 bench-all = "bench --workspace"
 bench-builder = "bench --bench builder"
+bench-processor = "bench --bench processor"
 
 # Build aliases
 build-prof = "build --release --profile bench"

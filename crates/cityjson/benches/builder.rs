@@ -1,8 +1,9 @@
 //! Benchmarks that build objects
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::collections::HashMap;
+use std::hint::black_box;
 
 /// Helper function to build a geometry with semantics, materials, and textures
 fn build_geometry_with_semantics_materials_textures(
@@ -296,8 +297,12 @@ fn bench_build_cityobjects_without_geometry(c: &mut Criterion) {
     // Set throughput for better reporting
     group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-    group.bench_function("build_10000_cityobjects_without_geometry", |b| {
-        b.iter(|| build_cityobjects(black_box((nr_cityobjects, false))));
+    group.bench_function("build_cityobjects_without_geometry", |b| {
+        b.iter(|| {
+            let refs = build_cityobjects(black_box((nr_cityobjects, false)))
+                .expect("cityobjects builder failed");
+            black_box(refs);
+        });
     });
 
     group.finish();
@@ -310,8 +315,12 @@ fn bench_build_cityobjects_with_geometry(c: &mut Criterion) {
     // Set throughput for better reporting
     group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-    group.bench_function("build_10000_cityobjects_with_geometry", |b| {
-        b.iter(|| build_cityobjects(black_box((nr_cityobjects, true))));
+    group.bench_function("build_cityobjects_with_geometry", |b| {
+        b.iter(|| {
+            let refs = build_cityobjects(black_box((nr_cityobjects, true)))
+                .expect("cityobjects builder failed");
+            black_box(refs);
+        });
     });
 
     group.finish();
