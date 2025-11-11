@@ -6,6 +6,7 @@
 bench-all = "bench --workspace"
 bench-builder = "bench --bench builder"
 bench-processor = "bench --bench processor"
+bench-memory = "bench --bench memory"
 
 # Build aliases
 build-prof = "build --release --profile bench"
