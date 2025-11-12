@@ -3,8 +3,8 @@ use crate::cityjson::core::geometry::GeometryModelOps;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
-use crate::resources::pool::{ResourcePool, ResourceRef};
-use crate::resources::storage::StringStorage;
+use crate::resources::pool::{ResourceId32, ResourceRef};
+use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
 use crate::v2_0::geometry::Geometry;
@@ -15,7 +15,11 @@ use crate::{CityJSONVersion, format_option};
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+pub struct CityModel<
+    VR: VertexRef = u32,
+    RR: ResourceRef = ResourceId32,
+    SS: StringStorage = OwnedStringStorage,
+> {
     #[allow(clippy::type_complexity)]
     inner: crate::cityjson::core::citymodel::CityModelCore<
         QuantizedCoordinate,
@@ -51,13 +55,13 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             f,
             "\tCityObjects: {{ nr. cityobjects: {}, nr. geometries: {} }}",
             self.cityobjects().len(),
-            self.geometries().len()
+            self.geometry_count()
         )?;
         writeln!(
             f,
             "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}",
-            self.materials().len(),
-            self.textures().len(),
+            self.material_count(),
+            self.texture_count(),
             self.vertices_texture().len(),
             format_option(&self.default_theme_texture()),
             format_option(&self.default_theme_material())
@@ -164,12 +168,12 @@ mod tests {
             GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
         builder.add_point(QuantizedCoordinate::new(1, 0, 0));
         builder.build().unwrap();
-        assert_eq!(model.geometries().len(), 2);
+        assert_eq!(model.geometry_count(), 2);
 
         // Clear geometries
         model.clear_geometries();
 
-        assert_eq!(model.geometries().len(), 0);
+        assert_eq!(model.geometry_count(), 0);
     }
 
     #[test]
@@ -221,19 +225,19 @@ mod tests {
         // Insert first semantic
         let id1 = model.get_or_insert_semantic(semantic1);
 
-        assert_eq!(model.semantics().len(), 1);
+        assert_eq!(model.semantic_count(), 1);
 
         // Insert same semantic again - should return same ID
         let id2 = model.get_or_insert_semantic(semantic2);
 
-        assert_eq!(model.semantics().len(), 1);
+        assert_eq!(model.semantic_count(), 1);
         assert_eq!(id1, id2);
 
         // Insert different semantic
         let semantic3 = Semantic::new(SemanticType::WallSurface);
         let id3 = model.get_or_insert_semantic(semantic3);
 
-        assert_eq!(model.semantics().len(), 2);
+        assert_eq!(model.semantic_count(), 2);
         assert_ne!(id1, id3);
     }
 

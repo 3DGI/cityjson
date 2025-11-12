@@ -144,8 +144,8 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
     assert_eq!(model.vertices().len(), 8);
-    assert_eq!(model.geometries().len(), 1);
-    assert_eq!(model.semantics().len(), 3); // ground, roof, wall
+    assert_eq!(model.geometry_count(), 1);
+    assert_eq!(model.semantic_count(), 3); // ground, roof, wall
 
     // Verify metadata with borrowed strings
     let metadata = model.metadata().expect("Metadata should exist");
@@ -192,8 +192,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
         .expect("Building should have geometry");
     assert_eq!(geometries.len(), 1);
     let geom = model
-        .geometries()
-        .get(geometries[0])
+        .get_geometry(geometries[0])
         .expect("Geometry should exist");
     assert_eq!(geom.type_geometry(), &GeometryType::Solid);
     assert_eq!(geom.lod(), Some(&LoD::LoD1));

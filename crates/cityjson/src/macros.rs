@@ -910,9 +910,7 @@ macro_rules! impl_citymodel_methods {
                 }
             }
 
-            pub fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
-                self.inner.add_semantic(semantic)
-            }
+            // ==================== SEMANTICS ====================
 
             pub fn get_semantic(&self, id: RR) -> Option<&Semantic<RR, SS>> {
                 self.inner.get_semantic(id)
@@ -922,6 +920,41 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_semantic_mut(id)
             }
 
+            pub fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
+                self.inner.add_semantic(semantic)
+            }
+
+            pub fn semantic_count(&self) -> usize {
+                self.inner.semantic_count()
+            }
+
+            pub fn has_semantics(&self) -> bool {
+                self.inner.has_semantics()
+            }
+
+            pub fn iter_semantics(&self) -> impl Iterator<Item = (RR, &Semantic<RR, SS>)> + '_ {
+                self.inner.iter_semantics()
+            }
+
+            pub fn iter_semantics_mut(&mut self) -> impl Iterator<Item = (RR, &mut Semantic<RR, SS>)> + '_ {
+                self.inner.iter_semantics_mut()
+            }
+
+            pub fn find_semantic(&self, semantic: &Semantic<RR, SS>) -> Option<RR>
+            where
+                Semantic<RR, SS>: PartialEq,
+            {
+                self.inner.find_semantic(semantic)
+            }
+
+            pub fn remove_semantic(&mut self, id: RR) -> Option<Semantic<RR, SS>> {
+                self.inner.remove_semantic(id)
+            }
+
+            pub fn clear_semantics(&mut self) {
+                self.inner.clear_semantics();
+            }
+
             pub fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR
             where
                 Semantic<RR, SS>: PartialEq,
@@ -929,17 +962,7 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_or_insert_semantic(semantic)
             }
 
-            pub fn semantics(&self) -> &crate::resources::pool::DefaultResourcePool<Semantic<RR, SS>, RR> {
-                self.inner.semantics()
-            }
-
-            pub fn semantics_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Semantic<RR, SS>, RR> {
-                self.inner.semantics_mut()
-            }
-
-            pub fn add_material(&mut self, material: Material<SS>) -> RR {
-                self.inner.add_material(material)
-            }
+            // ==================== MATERIALS ====================
 
             pub fn get_material(&self, id: RR) -> Option<&Material<SS>> {
                 self.inner.get_material(id)
@@ -949,6 +972,37 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_material_mut(id)
             }
 
+            pub fn add_material(&mut self, material: Material<SS>) -> RR {
+                self.inner.add_material(material)
+            }
+
+            pub fn material_count(&self) -> usize {
+                self.inner.material_count()
+            }
+
+            pub fn iter_materials(&self) -> impl Iterator<Item = (RR, &Material<SS>)> + '_ {
+                self.inner.iter_materials()
+            }
+
+            pub fn iter_materials_mut(&mut self) -> impl Iterator<Item = (RR, &mut Material<SS>)> + '_ {
+                self.inner.iter_materials_mut()
+            }
+
+            pub fn find_material(&self, material: &Material<SS>) -> Option<RR>
+            where
+                Material<SS>: PartialEq,
+            {
+                self.inner.find_material(material)
+            }
+
+            pub fn remove_material(&mut self, id: RR) -> Option<Material<SS>> {
+                self.inner.remove_material(id)
+            }
+
+            pub fn clear_materials(&mut self) {
+                self.inner.clear_materials();
+            }
+
             pub fn get_or_insert_material(&mut self, material: Material<SS>) -> RR
             where
                 Material<SS>: PartialEq,
@@ -956,17 +1010,7 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_or_insert_material(material)
             }
 
-            pub fn materials(&self) -> &crate::resources::pool::DefaultResourcePool<Material<SS>, RR> {
-                self.inner.materials()
-            }
-
-            pub fn materials_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Material<SS>, RR> {
-                self.inner.materials_mut()
-            }
-
-            pub fn add_texture(&mut self, texture: Texture<SS>) -> RR {
-                self.inner.add_texture(texture)
-            }
+            // ==================== TEXTURES ====================
 
             pub fn get_texture(&self, id: RR) -> Option<&Texture<SS>> {
                 self.inner.get_texture(id)
@@ -976,6 +1020,37 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_texture_mut(id)
             }
 
+            pub fn add_texture(&mut self, texture: Texture<SS>) -> RR {
+                self.inner.add_texture(texture)
+            }
+
+            pub fn texture_count(&self) -> usize {
+                self.inner.texture_count()
+            }
+
+            pub fn iter_textures(&self) -> impl Iterator<Item = (RR, &Texture<SS>)> + '_ {
+                self.inner.iter_textures()
+            }
+
+            pub fn iter_textures_mut(&mut self) -> impl Iterator<Item = (RR, &mut Texture<SS>)> + '_ {
+                self.inner.iter_textures_mut()
+            }
+
+            pub fn find_texture(&self, texture: &Texture<SS>) -> Option<RR>
+            where
+                Texture<SS>: PartialEq,
+            {
+                self.inner.find_texture(texture)
+            }
+
+            pub fn remove_texture(&mut self, id: RR) -> Option<Texture<SS>> {
+                self.inner.remove_texture(id)
+            }
+
+            pub fn clear_textures(&mut self) {
+                self.inner.clear_textures();
+            }
+
             pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR
             where
                 Texture<SS>: PartialEq,
@@ -983,24 +1058,34 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_or_insert_texture(texture)
             }
 
-            pub fn textures(&self) -> &crate::resources::pool::DefaultResourcePool<Texture<SS>, RR> {
-                self.inner.textures()
+            // ==================== GEOMETRIES ====================
+
+            pub fn get_geometry(&self, id: RR) -> Option<&Geometry<VR, RR, SS>> {
+                self.inner.get_geometry(id)
             }
 
-            pub fn textures_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Texture<SS>, RR> {
-                self.inner.textures_mut()
+            pub fn get_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry<VR, RR, SS>> {
+                self.inner.get_geometry_mut(id)
             }
 
             pub fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
                 self.inner.add_geometry(geometry)
             }
 
-            pub fn geometries(&self) -> &crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
-                self.inner.geometries()
+            pub fn geometry_count(&self) -> usize {
+                self.inner.geometry_count()
             }
 
-            pub fn geometries_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
-                self.inner.geometries_mut()
+            pub fn iter_geometries(&self) -> impl Iterator<Item = (RR, &Geometry<VR, RR, SS>)> + '_ {
+                self.inner.iter_geometries()
+            }
+
+            pub fn iter_geometries_mut(&mut self) -> impl Iterator<Item = (RR, &mut Geometry<VR, RR, SS>)> + '_ {
+                self.inner.iter_geometries_mut()
+            }
+
+            pub fn remove_geometry(&mut self, id: RR) -> Option<Geometry<VR, RR, SS>> {
+                self.inner.remove_geometry(id)
             }
 
             pub fn clear_geometries(&mut self) {
@@ -1110,16 +1195,38 @@ macro_rules! impl_citymodel_methods {
                 self.inner.clear_template_vertices();
             }
 
+            // ==================== TEMPLATE GEOMETRIES ====================
+
+            pub fn get_template_geometry(&self, id: RR) -> Option<&Geometry<VR, RR, SS>> {
+                self.inner.get_template_geometry(id)
+            }
+
+            pub fn get_template_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry<VR, RR, SS>> {
+                self.inner.get_template_geometry_mut(id)
+            }
+
             pub fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
                 self.inner.add_template_geometry(geometry)
             }
 
-            pub fn template_geometries(&self) -> &crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
-                self.inner.template_geometries()
+            pub fn template_geometry_count(&self) -> usize {
+                self.inner.template_geometry_count()
             }
 
-            pub fn template_geometries_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
-                self.inner.template_geometries_mut()
+            pub fn iter_template_geometries(&self) -> impl Iterator<Item = (RR, &Geometry<VR, RR, SS>)> + '_ {
+                self.inner.iter_template_geometries()
+            }
+
+            pub fn iter_template_geometries_mut(&mut self) -> impl Iterator<Item = (RR, &mut Geometry<VR, RR, SS>)> + '_ {
+                self.inner.iter_template_geometries_mut()
+            }
+
+            pub fn remove_template_geometry(&mut self, id: RR) -> Option<Geometry<VR, RR, SS>> {
+                self.inner.remove_template_geometry(id)
+            }
+
+            pub fn clear_template_geometries(&mut self) {
+                self.inner.clear_template_geometries();
             }
 
             pub fn type_citymodel(&self) -> crate::CityModelType {

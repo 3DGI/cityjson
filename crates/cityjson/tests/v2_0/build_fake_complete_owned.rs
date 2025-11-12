@@ -259,8 +259,7 @@ fn build_fake_complete_owned() -> Result<()> {
 
             // For debug only
             let geom_nested = model
-                .geometries()
-                .get(geometry_ref)
+                .get_geometry(geometry_ref)
                 .unwrap()
                 .clone()
                 .boundaries()
@@ -404,8 +403,8 @@ fn build_fake_complete_owned() -> Result<()> {
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
     assert_eq!(model.vertices().len(), 4);
-    assert_eq!(model.geometries().len(), 4); // 3 + 1 template
-    assert_eq!(model.semantics().len(), 2);
+    assert_eq!(model.geometry_count(), 4); // 3 + 1 template
+    assert_eq!(model.semantic_count(), 2);
 
     // Test metadata
     let metadata = model.metadata().expect("Metadata should exist");
@@ -497,7 +496,7 @@ fn build_fake_complete_owned() -> Result<()> {
     assert_eq!(default_tex.image_type(), &ImageType::Png);
 
     // Test materials pool
-    for (_mat_ref, material) in model.materials().iter() {
+    for (_mat_ref, material) in model.iter_materials() {
         // Each material should have a name
         assert!(!material.name().is_empty());
         if material.name() == "irradiation" {
@@ -521,7 +520,7 @@ fn build_fake_complete_owned() -> Result<()> {
     }
 
     // Test textures pool
-    for (_tex_ref, texture) in model.textures().iter() {
+    for (_tex_ref, texture) in model.iter_textures() {
         // Each texture should have an image URL
         assert!(!texture.image().is_empty());
         assert_eq!(texture.image(), "http://www.someurl.org/filename.jpg");
@@ -636,8 +635,7 @@ fn build_fake_complete_owned() -> Result<()> {
     assert_eq!(geometries1.len(), 1);
     let geom1 = &geometries1[0];
     let geom1_data = model
-        .geometries()
-        .get(*geom1)
+        .get_geometry(*geom1)
         .expect("Geometry should exist in pool");
     assert_eq!(geom1_data.type_geometry(), &GeometryType::Solid);
     assert_eq!(geom1_data.lod(), Some(&LoD::LoD2_1));
@@ -817,8 +815,7 @@ fn build_fake_complete_owned() -> Result<()> {
     assert_eq!(geometries_tree.len(), 1);
     let geom_tree = &geometries_tree[0];
     let geom_tree_data = model
-        .geometries()
-        .get(*geom_tree)
+        .get_geometry(*geom_tree)
         .expect("Geometry should exist in pool");
     assert_eq!(
         geom_tree_data.type_geometry(),
@@ -835,8 +832,7 @@ fn build_fake_complete_owned() -> Result<()> {
     // (the location geometry from the address attribute). This appears to be due to how template
     // indices are assigned. The template geometry itself exists but may use a separate indexing scheme.
     let template_geom = model
-        .geometries()
-        .get(*template_ref)
+        .get_geometry(*template_ref)
         .expect("Template geometry should exist in pool");
     // Verify the template reference points to a valid geometry
     assert!(matches!(
@@ -921,8 +917,7 @@ fn build_fake_complete_owned() -> Result<()> {
     assert_eq!(geometries_neigh.len(), 1);
     let geom_neigh = &geometries_neigh[0];
     let geom_neigh_data = model
-        .geometries()
-        .get(*geom_neigh)
+        .get_geometry(*geom_neigh)
         .expect("Geometry should exist in pool");
     assert_eq!(geom_neigh_data.type_geometry(), &GeometryType::MultiSurface);
     assert_eq!(geom_neigh_data.lod(), Some(&LoD::LoD2));

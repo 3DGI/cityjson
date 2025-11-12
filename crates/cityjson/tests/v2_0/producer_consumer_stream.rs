@@ -776,7 +776,7 @@ fn process_batch(
 ) -> BatchMetrics {
     let buildings_in_batch = model.cityobjects().iter().count();
     let vertices_in_batch = model.vertices().len();
-    let geometries_in_batch = model.geometries().iter().count();
+    let geometries_in_batch = model.iter_geometries().count();
 
     // Print batch progress
     if batch_num.is_multiple_of(100) || batch_num < 10 {

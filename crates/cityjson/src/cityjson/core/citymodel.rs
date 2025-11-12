@@ -169,19 +169,62 @@ where
         }
     }
 
-    // Semantic methods
-    pub fn add_semantic(&mut self, semantic: Semantic) -> RR {
-        self.semantics.add(semantic)
-    }
+    // ==================== SEMANTICS ====================
 
+    /// Get a semantic by its resource reference
     pub fn get_semantic(&self, id: RR) -> Option<&Semantic> {
         self.semantics.get(id)
     }
 
+    /// Get a mutable reference to a semantic
     pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic> {
         self.semantics.get_mut(id)
     }
 
+    /// Add a semantic and return its resource reference
+    pub fn add_semantic(&mut self, semantic: Semantic) -> RR {
+        self.semantics.add(semantic)
+    }
+
+    /// Get the number of semantics in the model
+    pub fn semantic_count(&self) -> usize {
+        self.semantics.len()
+    }
+
+    /// Check if there are any semantics
+    pub fn has_semantics(&self) -> bool {
+        !self.semantics.is_empty()
+    }
+
+    /// Iterate over all semantics
+    pub fn iter_semantics(&self) -> impl Iterator<Item = (RR, &Semantic)> + '_ {
+        self.semantics.iter()
+    }
+
+    /// Iterate over all semantics with mutable references
+    pub fn iter_semantics_mut(&mut self) -> impl Iterator<Item = (RR, &mut Semantic)> + '_ {
+        self.semantics.iter_mut()
+    }
+
+    /// Find a semantic by value (if it implements PartialEq)
+    pub fn find_semantic(&self, semantic: &Semantic) -> Option<RR>
+    where
+        Semantic: PartialEq,
+    {
+        self.semantics.find(semantic)
+    }
+
+    /// Remove a semantic by its resource reference
+    pub fn remove_semantic(&mut self, id: RR) -> Option<Semantic> {
+        self.semantics.remove(id)
+    }
+
+    /// Clear all semantics
+    pub fn clear_semantics(&mut self) {
+        self.semantics.clear();
+    }
+
+    /// Get or insert a semantic, returning the resource reference
     pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> RR
     where
         Semantic: PartialEq,
@@ -192,27 +235,57 @@ where
         self.semantics.add(semantic)
     }
 
-    pub fn semantics(&self) -> &DefaultResourcePool<Semantic, RR> {
-        &self.semantics
-    }
+    // ==================== MATERIALS ====================
 
-    pub fn semantics_mut(&mut self) -> &mut DefaultResourcePool<Semantic, RR> {
-        &mut self.semantics
-    }
-
-    // Material methods
-    pub fn add_material(&mut self, material: Material) -> RR {
-        self.materials.add(material)
-    }
-
+    /// Get a material by its resource reference
     pub fn get_material(&self, id: RR) -> Option<&Material> {
         self.materials.get(id)
     }
 
+    /// Get a mutable reference to a material
     pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Material> {
         self.materials.get_mut(id)
     }
 
+    /// Add a material and return its resource reference
+    pub fn add_material(&mut self, material: Material) -> RR {
+        self.materials.add(material)
+    }
+
+    /// Get the number of materials in the model
+    pub fn material_count(&self) -> usize {
+        self.materials.len()
+    }
+
+    /// Iterate over all materials
+    pub fn iter_materials(&self) -> impl Iterator<Item = (RR, &Material)> + '_ {
+        self.materials.iter()
+    }
+
+    /// Iterate over all materials with mutable references
+    pub fn iter_materials_mut(&mut self) -> impl Iterator<Item = (RR, &mut Material)> + '_ {
+        self.materials.iter_mut()
+    }
+
+    /// Find a material by value (if it implements PartialEq)
+    pub fn find_material(&self, material: &Material) -> Option<RR>
+    where
+        Material: PartialEq,
+    {
+        self.materials.find(material)
+    }
+
+    /// Remove a material by its resource reference
+    pub fn remove_material(&mut self, id: RR) -> Option<Material> {
+        self.materials.remove(id)
+    }
+
+    /// Clear all materials
+    pub fn clear_materials(&mut self) {
+        self.materials.clear();
+    }
+
+    /// Get or insert a material, returning the resource reference
     pub fn get_or_insert_material(&mut self, material: Material) -> RR
     where
         Material: PartialEq,
@@ -223,27 +296,57 @@ where
         self.materials.add(material)
     }
 
-    pub fn materials(&self) -> &DefaultResourcePool<Material, RR> {
-        &self.materials
-    }
+    // ==================== TEXTURES ====================
 
-    pub fn materials_mut(&mut self) -> &mut DefaultResourcePool<Material, RR> {
-        &mut self.materials
-    }
-
-    // Texture methods
-    pub fn add_texture(&mut self, texture: Texture) -> RR {
-        self.textures.add(texture)
-    }
-
+    /// Get a texture by its resource reference
     pub fn get_texture(&self, id: RR) -> Option<&Texture> {
         self.textures.get(id)
     }
 
+    /// Get a mutable reference to a texture
     pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture> {
         self.textures.get_mut(id)
     }
 
+    /// Add a texture and return its resource reference
+    pub fn add_texture(&mut self, texture: Texture) -> RR {
+        self.textures.add(texture)
+    }
+
+    /// Get the number of textures in the model
+    pub fn texture_count(&self) -> usize {
+        self.textures.len()
+    }
+
+    /// Iterate over all textures
+    pub fn iter_textures(&self) -> impl Iterator<Item = (RR, &Texture)> + '_ {
+        self.textures.iter()
+    }
+
+    /// Iterate over all textures with mutable references
+    pub fn iter_textures_mut(&mut self) -> impl Iterator<Item = (RR, &mut Texture)> + '_ {
+        self.textures.iter_mut()
+    }
+
+    /// Find a texture by value (if it implements PartialEq)
+    pub fn find_texture(&self, texture: &Texture) -> Option<RR>
+    where
+        Texture: PartialEq,
+    {
+        self.textures.find(texture)
+    }
+
+    /// Remove a texture by its resource reference
+    pub fn remove_texture(&mut self, id: RR) -> Option<Texture> {
+        self.textures.remove(id)
+    }
+
+    /// Clear all textures
+    pub fn clear_textures(&mut self) {
+        self.textures.clear();
+    }
+
+    /// Get or insert a texture, returning the resource reference
     pub fn get_or_insert_texture(&mut self, texture: Texture) -> RR
     where
         Texture: PartialEq,
@@ -254,27 +357,44 @@ where
         self.textures.add(texture)
     }
 
-    pub fn textures(&self) -> &DefaultResourcePool<Texture, RR> {
-        &self.textures
+    // ==================== GEOMETRIES ====================
+
+    /// Get a geometry by its resource reference
+    pub fn get_geometry(&self, id: RR) -> Option<&Geometry> {
+        self.geometries.get(id)
     }
 
-    pub fn textures_mut(&mut self) -> &mut DefaultResourcePool<Texture, RR> {
-        &mut self.textures
+    /// Get a mutable reference to a geometry
+    pub fn get_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry> {
+        self.geometries.get_mut(id)
     }
 
-    // Geometry methods
+    /// Add a geometry and return its resource reference
     pub fn add_geometry(&mut self, geometry: Geometry) -> RR {
         self.geometries.add(geometry)
     }
 
-    pub fn geometries(&self) -> &DefaultResourcePool<Geometry, RR> {
-        &self.geometries
+    /// Get the number of geometries in the model
+    pub fn geometry_count(&self) -> usize {
+        self.geometries.len()
     }
 
-    pub fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry, RR> {
-        &mut self.geometries
+    /// Iterate over all geometries
+    pub fn iter_geometries(&self) -> impl Iterator<Item = (RR, &Geometry)> + '_ {
+        self.geometries.iter()
     }
 
+    /// Iterate over all geometries with mutable references
+    pub fn iter_geometries_mut(&mut self) -> impl Iterator<Item = (RR, &mut Geometry)> + '_ {
+        self.geometries.iter_mut()
+    }
+
+    /// Remove a geometry by its resource reference
+    pub fn remove_geometry(&mut self, id: RR) -> Option<Geometry> {
+        self.geometries.remove(id)
+    }
+
+    /// Clear all geometries
     pub fn clear_geometries(&mut self) {
         self.geometries.clear();
     }
@@ -407,17 +527,48 @@ where
         self.template_vertices.clear();
     }
 
-    // Template geometry methods
+    // ==================== TEMPLATE GEOMETRIES ====================
+
+    /// Get a template geometry by its resource reference
+    pub fn get_template_geometry(&self, id: RR) -> Option<&Geometry> {
+        self.template_geometries.get(id)
+    }
+
+    /// Get a mutable reference to a template geometry
+    pub fn get_template_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry> {
+        self.template_geometries.get_mut(id)
+    }
+
+    /// Add a template geometry and return its resource reference
     pub fn add_template_geometry(&mut self, geometry: Geometry) -> RR {
         self.template_geometries.add(geometry)
     }
 
-    pub fn template_geometries(&self) -> &DefaultResourcePool<Geometry, RR> {
-        &self.template_geometries
+    /// Get the number of template geometries in the model
+    pub fn template_geometry_count(&self) -> usize {
+        self.template_geometries.len()
     }
 
-    pub fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry, RR> {
-        &mut self.template_geometries
+    /// Iterate over all template geometries
+    pub fn iter_template_geometries(&self) -> impl Iterator<Item = (RR, &Geometry)> + '_ {
+        self.template_geometries.iter()
+    }
+
+    /// Iterate over all template geometries with mutable references
+    pub fn iter_template_geometries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (RR, &mut Geometry)> + '_ {
+        self.template_geometries.iter_mut()
+    }
+
+    /// Remove a template geometry by its resource reference
+    pub fn remove_template_geometry(&mut self, id: RR) -> Option<Geometry> {
+        self.template_geometries.remove(id)
+    }
+
+    /// Clear all template geometries
+    pub fn clear_template_geometries(&mut self) {
+        self.template_geometries.clear();
     }
 
     // Type and version methods

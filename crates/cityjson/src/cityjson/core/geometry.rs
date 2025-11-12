@@ -1428,7 +1428,7 @@ mod tests {
     use super::*;
     use crate::CityModelType;
     use crate::cityjson::core::geometry::GeometryType;
-    use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate, ResourcePool};
+    use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
@@ -1462,8 +1462,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1501,8 +1500,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type and LoD
@@ -1546,8 +1544,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1590,8 +1587,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1686,8 +1682,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1822,8 +1817,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -2042,8 +2036,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -2282,8 +2275,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .geometries()
-            .get(geom_ref)
+            .get_geometry(geom_ref)
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -2404,14 +2396,13 @@ mod tests {
 
         // Verify template was created correctly and placed in the template pool
         assert!(
-            model.template_geometries().get(template_ref).is_some(),
+            model.get_template_geometry(template_ref).is_some(),
             "Template geometry not found in template pool"
         );
 
         // Get the template from the pool for further verification
         let template = model
-            .template_geometries()
-            .get(template_ref)
+            .get_template_geometry(template_ref)
             .expect("Failed to get template geometry");
 
         // Verify template properties
@@ -2482,8 +2473,7 @@ mod tests {
 
         // Get the geometry instance for verification
         let instance = model
-            .geometries()
-            .get(instance_ref)
+            .get_geometry(instance_ref)
             .expect("Failed to get geometry instance");
 
         // Verify the instance properties
@@ -2506,7 +2496,7 @@ mod tests {
 
         // Make sure the instance is in the regular geometries pool, not the template pool
         assert!(
-            model.geometries().get(instance_ref).is_some(),
+            model.get_geometry(instance_ref).is_some(),
             "Geometry instance not found in regular geometry pool"
         );
     }

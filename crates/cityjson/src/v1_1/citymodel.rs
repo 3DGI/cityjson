@@ -3,7 +3,8 @@
 //! Represents a [CityJSON object](https://www.cityjson.org/specs/1.1.3/#cityjson-object).
 
 use crate::prelude::*;
-use crate::resources::pool::ResourcePool;
+use crate::resources::pool::ResourceId32;
+use crate::resources::storage::OwnedStringStorage;
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
 use crate::v1_1::geometry::Geometry;
@@ -14,7 +15,11 @@ use crate::{CityJSONVersion, format_option};
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
+pub struct CityModel<
+    VR: VertexRef = u32,
+    RR: ResourceRef = ResourceId32,
+    SS: StringStorage = OwnedStringStorage,
+> {
     #[allow(clippy::type_complexity)]
     inner: crate::cityjson::core::citymodel::CityModelCore<
         QuantizedCoordinate,
@@ -50,13 +55,13 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             f,
             "\tCityObjects: {{ nr. cityobjects: {}, nr. geometries: {} }}",
             self.cityobjects().len(),
-            self.geometries().len()
+            self.geometry_count()
         )?;
         writeln!(
             f,
             "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}",
-            self.materials().len(),
-            self.textures().len(),
+            self.material_count(),
+            self.texture_count(),
             self.vertices_texture().len(),
             format_option(&self.default_theme_texture()),
             format_option(&self.default_theme_material())

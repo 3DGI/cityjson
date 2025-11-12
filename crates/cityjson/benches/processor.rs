@@ -127,7 +127,7 @@ fn compute_mean_coordinates(
         // Iterate through all geometries of the cityobject
         if let Some(geometries) = cityobject.geometry() {
             for geometry_ref in geometries {
-                if let Some(geometry) = model.geometries().get(*geometry_ref) {
+                if let Some(geometry) = model.get_geometry(*geometry_ref) {
                     // Get all vertices used by this geometry
                     if let Some(boundary) = geometry.boundaries() {
                         let vertex_indices = boundary.vertices();
