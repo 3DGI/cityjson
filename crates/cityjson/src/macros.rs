@@ -933,6 +933,10 @@ macro_rules! impl_citymodel_methods {
                 self.inner.semantics()
             }
 
+            pub fn semantics_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Semantic<RR, SS>, RR> {
+                self.inner.semantics_mut()
+            }
+
             pub fn add_material(&mut self, material: Material<SS>) -> RR {
                 self.inner.add_material(material)
             }
@@ -956,6 +960,10 @@ macro_rules! impl_citymodel_methods {
                 self.inner.materials()
             }
 
+            pub fn materials_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Material<SS>, RR> {
+                self.inner.materials_mut()
+            }
+
             pub fn add_texture(&mut self, texture: Texture<SS>) -> RR {
                 self.inner.add_texture(texture)
             }
@@ -977,6 +985,10 @@ macro_rules! impl_citymodel_methods {
 
             pub fn textures(&self) -> &crate::resources::pool::DefaultResourcePool<Texture<SS>, RR> {
                 self.inner.textures()
+            }
+
+            pub fn textures_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Texture<SS>, RR> {
+                self.inner.textures_mut()
             }
 
             pub fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {

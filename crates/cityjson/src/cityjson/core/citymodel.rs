@@ -196,6 +196,10 @@ where
         &self.semantics
     }
 
+    pub fn semantics_mut(&mut self) -> &mut DefaultResourcePool<Semantic, RR> {
+        &mut self.semantics
+    }
+
     // Material methods
     pub fn add_material(&mut self, material: Material) -> RR {
         self.materials.add(material)
@@ -223,6 +227,10 @@ where
         &self.materials
     }
 
+    pub fn materials_mut(&mut self) -> &mut DefaultResourcePool<Material, RR> {
+        &mut self.materials
+    }
+
     // Texture methods
     pub fn add_texture(&mut self, texture: Texture) -> RR {
         self.textures.add(texture)
@@ -248,6 +256,10 @@ where
 
     pub fn textures(&self) -> &DefaultResourcePool<Texture, RR> {
         &self.textures
+    }
+
+    pub fn textures_mut(&mut self) -> &mut DefaultResourcePool<Texture, RR> {
+        &mut self.textures
     }
 
     // Geometry methods
