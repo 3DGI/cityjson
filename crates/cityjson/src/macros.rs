@@ -28,3 +28,102 @@ macro_rules! impl_core_transform_methods {
     };
 }
 pub(crate) use impl_core_transform_methods;
+
+macro_rules! impl_extension_trait {
+    () => {
+        impl<SS: crate::resources::storage::StringStorage>
+            crate::cityjson::traits::extension::ExtensionTrait<SS> for Extension<SS>
+        {
+            fn new(name: SS::String, url: SS::String, version: SS::String) -> Self {
+                Self {
+                    inner: crate::cityjson::core::extension::ExtensionCore::new(name, url, version),
+                }
+            }
+
+            fn name(&self) -> &SS::String {
+                self.inner.name()
+            }
+
+            fn url(&self) -> &SS::String {
+                self.inner.url()
+            }
+
+            fn version(&self) -> &SS::String {
+                self.inner.version()
+            }
+        }
+    };
+}
+pub(crate) use impl_extension_trait;
+
+macro_rules! impl_extensions_trait {
+    () => {
+        impl<SS: crate::resources::storage::StringStorage>
+            crate::cityjson::traits::extension::ExtensionsTrait<SS, Extension<SS>>
+            for Extensions<SS>
+        {
+            fn new() -> Self {
+                Self {
+                    inner: crate::cityjson::core::extension::ExtensionsCore::new(),
+                }
+            }
+
+            fn add(&mut self, extension: Extension<SS>) -> &mut Self {
+                self.inner.add(extension);
+                self
+            }
+
+            fn remove(&mut self, name: SS::String) -> bool {
+                self.inner.remove(name)
+            }
+
+            fn get(&self, name: &str) -> Option<&Extension<SS>> {
+                self.inner.get(name)
+            }
+
+            fn len(&self) -> usize {
+                self.inner.len()
+            }
+
+            fn is_empty(&self) -> bool {
+                self.inner.is_empty()
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage> IntoIterator for Extensions<SS> {
+            type Item = Extension<SS>;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.inner.into_iter()
+            }
+        }
+
+        impl<'a, SS: crate::resources::storage::StringStorage> IntoIterator for &'a Extensions<SS> {
+            type Item = &'a Extension<SS>;
+            type IntoIter = std::slice::Iter<'a, Extension<SS>>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                (&self.inner).into_iter()
+            }
+        }
+
+        impl<'a, SS: crate::resources::storage::StringStorage> IntoIterator
+            for &'a mut Extensions<SS>
+        {
+            type Item = &'a mut Extension<SS>;
+            type IntoIter = std::slice::IterMut<'a, Extension<SS>>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                (&mut self.inner).into_iter()
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage> std::fmt::Display for Extensions<SS> {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{}", self.inner)
+            }
+        }
+    };
+}
+pub(crate) use impl_extensions_trait;
