@@ -19,8 +19,8 @@ pub use cityobject::{
 };
 pub use extension::{Extension, Extensions};
 pub use geometry::{
-    semantic::{Semantic, SemanticType},
     Geometry,
+    semantic::{Semantic, SemanticType},
 };
 pub use metadata::{Contact, ContactRole, ContactType, Metadata};
 pub use transform::Transform;

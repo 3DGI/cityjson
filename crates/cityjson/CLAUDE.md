@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```shell
 # Check code
-cargo check
+just check
 
 # Build
 cargo build

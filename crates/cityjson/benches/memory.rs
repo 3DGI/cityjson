@@ -6,7 +6,7 @@
 
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::Rng;
 use std::hint::black_box;
 

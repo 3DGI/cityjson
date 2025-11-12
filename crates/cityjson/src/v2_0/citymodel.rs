@@ -1,22 +1,24 @@
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
+use crate::cityjson::core::geometry::GeometryModelOps;
 use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::citymodel::CityModelTypes;
-use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result};
+use crate::prelude::{
+    CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
+};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
 use crate::v2_0::geometry::Geometry;
+use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform};
-use crate::{format_option, CityJSONVersion, CityModelType};
+use crate::{CityJSONVersion, CityModelType, format_option};
 use std::fmt;
 use std::marker::PhantomData;
-use crate::cityjson::core::geometry::GeometryModelOps;
 
 pub struct V2_0<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -324,7 +326,10 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         self.vertices_texture.get(index)
     }
 
-    pub fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
+    pub fn add_template_vertex(
+        &mut self,
+        coordinate: RealWorldCoordinate,
+    ) -> Result<VertexIndex<VR>> {
         self.template_vertices.push(coordinate)
     }
 
@@ -340,7 +345,9 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         &self.template_geometries
     }
 
-    pub fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+    pub fn template_geometries_mut(
+        &mut self,
+    ) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.template_geometries
     }
 
@@ -416,7 +423,9 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
     }
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryModelOps<V2_0<VR, RR, SS>, SS> for CityModel<VR, RR, SS>{
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryModelOps<V2_0<VR, RR, SS>, SS>
+    for CityModel<VR, RR, SS>
+{
     fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
         self.get_or_insert_semantic(semantic)
     }

@@ -38,9 +38,10 @@ pub mod prelude {
     pub use crate::cityjson::core::vertex::VertexRef;
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        core::appearance::{ImageType, TextureType, WrapMode, RGB, RGBA},
+        core::appearance::{ImageType, RGB, RGBA, TextureType, WrapMode},
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         core::boundary::{
+            Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
             nested::{
                 BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
                 BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
@@ -51,8 +52,7 @@ pub mod prelude {
                 BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
                 BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
                 BoundaryNestedSolid32, BoundaryNestedSolid64,
-            }, Boundary, Boundary16, Boundary32, Boundary64,
-            BoundaryType,
+            },
         },
         core::coordinate::{
             FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
@@ -61,7 +61,7 @@ pub mod prelude {
         },
         core::extension::{ExtensionCore, ExtensionsCore},
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
-        core::metadata::{BBox, CityModelIdentifier, Date, CRS},
+        core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::CityModelTypes,

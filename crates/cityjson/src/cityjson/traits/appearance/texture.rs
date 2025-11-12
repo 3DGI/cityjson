@@ -1,4 +1,4 @@
-use crate::cityjson::core::appearance::{ImageType, TextureType, WrapMode, RGBA};
+use crate::cityjson::core::appearance::{ImageType, RGBA, TextureType, WrapMode};
 use crate::resources::storage::StringStorage;
 
 /// Defines the interface for texture objects in CityJSON.

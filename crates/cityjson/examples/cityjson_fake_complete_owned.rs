@@ -1,13 +1,13 @@
 use cityjson::prelude::*;
-use cityjson::v1_1::*;
+use cityjson::v2_0::*;
 use std::collections::HashMap;
 
-/// Build a CityModel that uses the complete CityJSON v1.1 specifications with fake
+/// Build a CityModel that uses the complete CityJSON v2.0 specifications with fake
 /// values.
 /// Builds the same CityModel that is stored in
-/// `tests/data/v1_1/cityjson_fake_complete.city.json`, with owned values.
+/// `tests/data/v2_0/cityjson_fake_complete.city.json`, with owned values.
 fn main() -> Result<()> {
-    // A CityModel for CityJSON v1.1 that uses u32 indices and owned strings.
+    // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
@@ -246,7 +246,7 @@ fn main() -> Result<()> {
             geometry_builder.add_shell(&[surface_4])?;
 
             // Consume the builder by building a Geometry and adding it to the CityModel
-            let geometry_ref = geometry_builder.build()?;
+            let _geometry_ref = geometry_builder.build()?;
         }
     }
 

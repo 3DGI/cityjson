@@ -6,6 +6,12 @@ _profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
 default:
     just --list
 
+check:
+    cargo check --all-targets
+
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples

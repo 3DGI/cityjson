@@ -1,6 +1,6 @@
 use cityjson::prelude::*;
-use cityjson::v1_1::*;
-use criterion::{criterion_group, criterion_main, Criterion};
+use cityjson::v2_0::*;
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand::Rng;
 use std::hint::black_box;
 

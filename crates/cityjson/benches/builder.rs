@@ -1,7 +1,7 @@
 //! Benchmarks that build objects
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::collections::HashMap;
 use std::hint::black_box;
 

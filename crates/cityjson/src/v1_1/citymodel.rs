@@ -5,11 +5,11 @@
 use crate::prelude::*;
 use crate::v1_1::appearance::material::Material;
 use crate::v1_1::appearance::texture::Texture;
-use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::geometry::Geometry;
+use crate::v1_1::geometry::semantic::{Semantic, SemanticType};
 use crate::v1_1::metadata::Metadata;
 use crate::v1_1::{CityObject, CityObjectType, CityObjects, Extension, Extensions, Transform};
-use crate::{format_option, CityJSONVersion, CityModelType};
+use crate::{CityJSONVersion, CityModelType, format_option};
 use std::fmt;
 use std::marker::PhantomData;
 

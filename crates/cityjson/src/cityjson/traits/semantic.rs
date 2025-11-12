@@ -38,7 +38,9 @@ pub trait SemanticTypeTrait: Default + fmt::Display + Clone {}
 /// //    // ...
 /// // }
 /// ```
-pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTypeTrait>: PartialEq {
+pub trait SemanticTrait<RR: ResourceRef, SS: StringStorage, SemType: SemanticTypeTrait>:
+    PartialEq
+{
     /// Creates a new semantic with the given type.
     ///
     /// # Parameters
