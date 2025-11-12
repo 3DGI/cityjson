@@ -106,7 +106,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// The type of the semantic surface
-    type_semantic: SemanticType,
+    type_semantic: SemanticType<SS>,
     /// Indices to child semantics in the global semantics pool
     children: Option<Vec<RR>>,
     /// Index to parent semantic in the global semantics pool
@@ -115,9 +115,11 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     attributes: Option<Attributes<SS, RR>>,
 }
 
-impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for Semantic<RR, SS> {
+impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType<SS>>
+    for Semantic<RR, SS>
+{
     #[inline]
-    fn new(type_semantic: SemanticType) -> Self {
+    fn new(type_semantic: SemanticType<SS>) -> Self {
         Self {
             type_semantic,
             children: None,
@@ -126,7 +128,7 @@ impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType> for
         }
     }
     #[inline]
-    fn type_semantic(&self) -> &SemanticType {
+    fn type_semantic(&self) -> &SemanticType<SS> {
         &self.type_semantic
     }
     #[inline]
@@ -186,7 +188,7 @@ impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub enum SemanticType {
+pub enum SemanticType<SS: StringStorage> {
     #[default]
     Default,
     RoofSurface,
@@ -207,16 +209,16 @@ pub enum SemanticType {
     AuxiliaryTrafficArea,
     TransportationMarking,
     TransportationHole,
-    Extension(String),
+    Extension(SS::String),
 }
 
-impl Display for SemanticType {
+impl<SS: StringStorage> Display for SemanticType<SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl SemanticTypeTrait for SemanticType {}
+impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
 
 #[cfg(test)]
 mod tests {
