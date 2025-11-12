@@ -81,6 +81,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     default_theme_texture: Option<RR>,
 }
 
+#[allow(dead_code)]
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
     fn new(type_citymodel: CityModelType) -> Self {
         Self {

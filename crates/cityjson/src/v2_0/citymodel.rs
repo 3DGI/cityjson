@@ -4,7 +4,7 @@ use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::citymodel::CityModelTypes;
-use crate::prelude::{CityObjectsTrait, ExtensionsTrait, OwnedStringStorage, QuantizedCoordinate, RealWorldCoordinate, ResourceId32, Result};
+use crate::prelude::{CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v2_0::appearance::material::Material;
@@ -86,6 +86,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     default_theme_texture: Option<RR>,
 }
 
+#[allow(dead_code)]
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
     pub fn new(type_citymodel: CityModelType) -> Self {
         Self {
@@ -417,43 +418,43 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryModelOps<V2_0<VR, RR, SS>, SS> for CityModel<VR, RR, SS>{
     fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
-        todo!()
+        self.get_or_insert_semantic(semantic)
     }
 
     fn get_or_insert_material(&mut self, semantic: Material<SS>) -> RR {
-        todo!()
+        self.get_or_insert_material(semantic)
     }
 
     fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR {
-        todo!()
+        self.get_or_insert_texture(texture)
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
-        todo!()
+        self.add_uv_coordinate(uvcoordinate)
     }
 
     fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
-        todo!()
+        self.add_geometry(geometry)
     }
 
     fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
-        todo!()
+        self.add_template_geometry(geometry)
     }
 
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
-        todo!()
+        self.add_vertex(coordinate)
     }
 
     fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
-        todo!()
+        self.vertices_mut()
     }
 
     fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
-        todo!()
+        self.add_template_vertex(coordinate)
     }
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
-        todo!()
+        self.template_vertices_mut()
     }
 }
 

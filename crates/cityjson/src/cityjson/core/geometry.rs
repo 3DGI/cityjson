@@ -5,7 +5,7 @@ use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::error::{Error, Result};
 use crate::prelude::{
-    Boundary, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate, ResourceRef,
+    Boundary, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate,
     SemanticMap, StringStorage, TextureMap, UVCoordinate, VertexIndex, Vertices,
 };
 use std::collections::HashMap;
