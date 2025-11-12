@@ -25,3 +25,6 @@ time-output.txt
 massif-run.log
 analysis-summary.txt
 vgcore.*
+
+# Misc
+.claude
