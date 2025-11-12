@@ -63,7 +63,6 @@ pub mod prelude {
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
         core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
-        traits::citymodel::CityModelTypes,
         traits::coordinate::Coordinate,
         traits::semantic::SemanticTypeTrait,
     };
