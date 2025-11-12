@@ -873,3 +873,275 @@ macro_rules! impl_contact_common_methods {
     };
 }
 pub(crate) use impl_contact_common_methods;
+
+macro_rules! impl_citymodel_methods {
+    ($coordinate_type:ty, $version:expr, $metadata_type:ty) => {
+        impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
+            pub fn new(type_citymodel: crate::CityModelType) -> Self {
+                Self {
+                    inner: crate::cityjson::core::citymodel::CityModelCore::new(
+                        type_citymodel,
+                        Some($version),
+                    ),
+                }
+            }
+
+            pub fn with_capacity(
+                type_citymodel: crate::CityModelType,
+                cityobjects_capacity: usize,
+                vertex_capacity: usize,
+                semantic_capacity: usize,
+                material_capacity: usize,
+                texture_capacity: usize,
+                geometry_capacity: usize,
+            ) -> Self {
+                Self {
+                    inner: crate::cityjson::core::citymodel::CityModelCore::with_capacity(
+                        type_citymodel,
+                        Some($version),
+                        cityobjects_capacity,
+                        vertex_capacity,
+                        semantic_capacity,
+                        material_capacity,
+                        texture_capacity,
+                        geometry_capacity,
+                        |capacity| CityObjects::with_capacity(capacity),
+                    ),
+                }
+            }
+
+            pub fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
+                self.inner.add_semantic(semantic)
+            }
+
+            pub fn get_semantic(&self, id: RR) -> Option<&Semantic<RR, SS>> {
+                self.inner.get_semantic(id)
+            }
+
+            pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
+                self.inner.get_semantic_mut(id)
+            }
+
+            pub fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR
+            where
+                Semantic<RR, SS>: PartialEq,
+            {
+                self.inner.get_or_insert_semantic(semantic)
+            }
+
+            pub fn semantics(&self) -> &crate::resources::pool::DefaultResourcePool<Semantic<RR, SS>, RR> {
+                self.inner.semantics()
+            }
+
+            pub fn add_material(&mut self, material: Material<SS>) -> RR {
+                self.inner.add_material(material)
+            }
+
+            pub fn get_material(&self, id: RR) -> Option<&Material<SS>> {
+                self.inner.get_material(id)
+            }
+
+            pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<SS>> {
+                self.inner.get_material_mut(id)
+            }
+
+            pub fn get_or_insert_material(&mut self, material: Material<SS>) -> RR
+            where
+                Material<SS>: PartialEq,
+            {
+                self.inner.get_or_insert_material(material)
+            }
+
+            pub fn materials(&self) -> &crate::resources::pool::DefaultResourcePool<Material<SS>, RR> {
+                self.inner.materials()
+            }
+
+            pub fn add_texture(&mut self, texture: Texture<SS>) -> RR {
+                self.inner.add_texture(texture)
+            }
+
+            pub fn get_texture(&self, id: RR) -> Option<&Texture<SS>> {
+                self.inner.get_texture(id)
+            }
+
+            pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<SS>> {
+                self.inner.get_texture_mut(id)
+            }
+
+            pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR
+            where
+                Texture<SS>: PartialEq,
+            {
+                self.inner.get_or_insert_texture(texture)
+            }
+
+            pub fn textures(&self) -> &crate::resources::pool::DefaultResourcePool<Texture<SS>, RR> {
+                self.inner.textures()
+            }
+
+            pub fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+                self.inner.add_geometry(geometry)
+            }
+
+            pub fn geometries(&self) -> &crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+                self.inner.geometries()
+            }
+
+            pub fn geometries_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+                self.inner.geometries_mut()
+            }
+
+            pub fn clear_geometries(&mut self) {
+                self.inner.clear_geometries();
+            }
+
+            pub fn vertices(&self) -> &crate::cityjson::core::coordinate::Vertices<VR, $coordinate_type> {
+                self.inner.vertices()
+            }
+
+            pub fn vertices_mut(&mut self) -> &mut crate::cityjson::core::coordinate::Vertices<VR, $coordinate_type> {
+                self.inner.vertices_mut()
+            }
+
+            pub fn clear_vertices(&mut self) {
+                self.inner.clear_vertices();
+            }
+
+            pub fn add_vertex(&mut self, coordinate: $coordinate_type) -> crate::error::Result<crate::cityjson::core::vertex::VertexIndex<VR>> {
+                self.inner.add_vertex(coordinate)
+            }
+
+            pub fn get_vertex(&self, index: crate::cityjson::core::vertex::VertexIndex<VR>) -> Option<&$coordinate_type> {
+                self.inner.get_vertex(index)
+            }
+
+            pub fn geometry_count(&self) -> usize {
+                self.inner.geometry_count()
+            }
+
+            pub fn semantic_count(&self) -> usize {
+                self.inner.semantic_count()
+            }
+
+            pub fn vertex_count(&self) -> usize {
+                self.inner.vertex_count()
+            }
+
+            pub fn metadata(&self) -> Option<&$metadata_type> {
+                self.inner.metadata()
+            }
+
+            pub fn metadata_mut(&mut self) -> &mut $metadata_type {
+                self.inner.metadata_mut()
+            }
+
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                self.inner.extra()
+            }
+
+            pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+                self.inner.extra_mut()
+            }
+
+            pub fn transform(&self) -> Option<&Transform> {
+                self.inner.transform()
+            }
+
+            pub fn transform_mut(&mut self) -> &mut Transform {
+                self.inner.transform_mut()
+            }
+
+            pub fn extensions(&self) -> Option<&Extensions<SS>> {
+                self.inner.extensions()
+            }
+
+            pub fn extensions_mut(&mut self) -> &mut Extensions<SS> {
+                self.inner.extensions_mut()
+            }
+
+            pub fn cityobjects(&self) -> &CityObjects<SS, RR> {
+                self.inner.cityobjects()
+            }
+
+            pub fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
+                self.inner.cityobjects_mut()
+            }
+
+            pub fn clear_cityobjects(&mut self) {
+                self.inner.cityobjects_mut().clear();
+            }
+
+            pub fn add_uv_coordinate(&mut self, uvcoordinate: crate::cityjson::core::coordinate::UVCoordinate) -> crate::error::Result<crate::cityjson::core::vertex::VertexIndex<VR>> {
+                self.inner.add_uv_coordinate(uvcoordinate)
+            }
+
+            pub fn get_uv_coordinate(&self, index: crate::cityjson::core::vertex::VertexIndex<VR>) -> Option<&crate::cityjson::core::coordinate::UVCoordinate> {
+                self.inner.get_uv_coordinate(index)
+            }
+
+            pub fn uv_coordinate_count(&self) -> usize {
+                self.inner.uv_coordinate_count()
+            }
+
+            pub fn add_template_vertex(
+                &mut self,
+                coordinate: crate::prelude::RealWorldCoordinate,
+            ) -> crate::error::Result<crate::cityjson::core::vertex::VertexIndex<VR>> {
+                self.inner.add_template_vertex(coordinate)
+            }
+
+            pub fn get_template_vertex(&self, index: crate::cityjson::core::vertex::VertexIndex<VR>) -> Option<&crate::prelude::RealWorldCoordinate> {
+                self.inner.get_template_vertex(index)
+            }
+
+            pub fn template_vertices(&self) -> &crate::cityjson::core::coordinate::Vertices<VR, crate::prelude::RealWorldCoordinate> {
+                self.inner.template_vertices()
+            }
+
+            pub fn template_vertices_mut(&mut self) -> &mut crate::cityjson::core::coordinate::Vertices<VR, crate::prelude::RealWorldCoordinate> {
+                self.inner.template_vertices_mut()
+            }
+
+            pub fn clear_template_vertices(&mut self) {
+                self.inner.clear_template_vertices();
+            }
+
+            pub fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+                self.inner.add_template_geometry(geometry)
+            }
+
+            pub fn template_geometries(&self) -> &crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+                self.inner.template_geometries()
+            }
+
+            pub fn template_geometries_mut(&mut self) -> &mut crate::resources::pool::DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+                self.inner.template_geometries_mut()
+            }
+
+            pub fn type_citymodel(&self) -> crate::CityModelType {
+                self.inner.type_citymodel()
+            }
+
+            pub fn version(&self) -> Option<crate::CityJSONVersion> {
+                self.inner.version()
+            }
+
+            pub fn default_theme_material(&self) -> Option<RR> {
+                self.inner.default_theme_material()
+            }
+
+            pub fn set_default_theme_material(&mut self, material_ref: Option<RR>) {
+                self.inner.set_default_theme_material(material_ref);
+            }
+
+            pub fn default_theme_texture(&self) -> Option<RR> {
+                self.inner.default_theme_texture()
+            }
+
+            pub fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) {
+                self.inner.set_default_theme_texture(texture_ref);
+            }
+        }
+    };
+}
+pub(crate) use impl_citymodel_methods;
