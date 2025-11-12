@@ -1476,7 +1476,7 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
-        assert_eq!(model.vertex_count(), 3);
+        assert_eq!(model.vertices().len(), 3);
         assert_eq!(nested, vec![0, 1, 2, 1]);
     }
 
@@ -1516,7 +1516,7 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
-        assert_eq!(model.vertex_count(), 3);
+        assert_eq!(model.vertices().len(), 3);
         assert_eq!(nested, vec![0, 1, 2]);
     }
 
@@ -1560,7 +1560,7 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
-        assert_eq!(model.vertex_count(), 4);
+        assert_eq!(model.vertices().len(), 4);
         assert_eq!(nested, vec![0, 2, 1, 3, 0]);
     }
 
@@ -1604,7 +1604,7 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation (should have 3 points)
-        assert_eq!(model.vertex_count(), 3);
+        assert_eq!(model.vertices().len(), 3);
         assert_eq!(nested, vec![0, 1, 2]);
 
         // Check semantics
@@ -1700,7 +1700,7 @@ mod tests {
             .expect("Failed to convert to nested");
 
         // Verify the nested representation
-        assert_eq!(model.vertex_count(), 6);
+        assert_eq!(model.vertices().len(), 6);
         assert_eq!(nested, vec![vec![0, 1, 2, 3, 4], vec![0, 2], vec![1, 4, 5]]);
 
         // Check semantics
@@ -1841,7 +1841,7 @@ mod tests {
             vec![vec![1, 2, 5, 6], vec![0, 1, 2]],
             vec![vec![2, 3, 4, 8, 7]],
         ];
-        assert_eq!(model.vertex_count(), 9);
+        assert_eq!(model.vertices().len(), 9);
         assert_eq!(nested, nested_expected);
 
         // Check semantics

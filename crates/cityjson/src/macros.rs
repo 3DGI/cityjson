@@ -1015,18 +1015,6 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_vertex(index)
             }
 
-            pub fn geometry_count(&self) -> usize {
-                self.inner.geometry_count()
-            }
-
-            pub fn semantic_count(&self) -> usize {
-                self.inner.semantic_count()
-            }
-
-            pub fn vertex_count(&self) -> usize {
-                self.inner.vertex_count()
-            }
-
             pub fn metadata(&self) -> Option<&$metadata_type> {
                 self.inner.metadata()
             }
@@ -1079,8 +1067,12 @@ macro_rules! impl_citymodel_methods {
                 self.inner.get_uv_coordinate(index)
             }
 
-            pub fn uv_coordinate_count(&self) -> usize {
-                self.inner.uv_coordinate_count()
+            pub fn vertices_texture(&self) -> &crate::cityjson::core::coordinate::Vertices<VR, crate::cityjson::core::coordinate::UVCoordinate> {
+                self.inner.vertices_texture()
+            }
+
+            pub fn vertices_texture_mut(&mut self) -> &mut crate::cityjson::core::coordinate::Vertices<VR, crate::cityjson::core::coordinate::UVCoordinate> {
+                self.inner.vertices_texture_mut()
             }
 
             pub fn add_template_vertex(

@@ -143,9 +143,9 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     // Test that we can access the borrowed strings through the model
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
-    assert_eq!(model.vertex_count(), 8);
-    assert_eq!(model.geometry_count(), 1);
-    assert_eq!(model.semantic_count(), 3); // ground, roof, wall
+    assert_eq!(model.vertices().len(), 8);
+    assert_eq!(model.geometries().len(), 1);
+    assert_eq!(model.semantics().len(), 3); // ground, roof, wall
 
     // Verify metadata with borrowed strings
     let metadata = model.metadata().expect("Metadata should exist");
@@ -222,7 +222,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     println!("Successfully created and verified CityModel with BorrowedStringStorage");
     println!(
         "Model contains {} vertices and {} city objects",
-        model.vertex_count(),
+        model.vertices().len(),
         model.cityobjects().len()
     );
 

@@ -53,7 +53,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             "\tappearance: {{ nr. materials: {}, nr. textures: {}, nr. vertices-texture: {}, default-theme-texture: {}, default-theme-material: {} }}",
             self.materials().len(),
             self.textures().len(),
-            self.uv_coordinate_count(),
+            self.vertices_texture().len(),
             format_option(&self.default_theme_texture()),
             format_option(&self.default_theme_material())
         )?;

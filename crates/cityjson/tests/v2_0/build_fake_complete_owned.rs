@@ -403,9 +403,9 @@ fn build_fake_complete_owned() -> Result<()> {
     // Test CityModel properties
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
-    assert_eq!(model.vertex_count(), 4);
-    assert_eq!(model.geometry_count(), 4); // 3 + 1 template
-    assert_eq!(model.semantic_count(), 2);
+    assert_eq!(model.vertices().len(), 4);
+    assert_eq!(model.geometries().len(), 4); // 3 + 1 template
+    assert_eq!(model.semantics().len(), 2);
 
     // Test metadata
     let metadata = model.metadata().expect("Metadata should exist");

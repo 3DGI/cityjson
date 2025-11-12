@@ -288,19 +288,6 @@ where
         self.vertices.get(index)
     }
 
-    // Count methods
-    pub fn geometry_count(&self) -> usize {
-        self.geometries.len()
-    }
-
-    pub fn semantic_count(&self) -> usize {
-        self.semantics.len()
-    }
-
-    pub fn vertex_count(&self) -> usize {
-        self.vertices.len()
-    }
-
     // Metadata methods
     pub fn metadata(&self) -> Option<&Metadata> {
         self.metadata.as_ref()
@@ -376,8 +363,12 @@ where
         self.vertices_texture.get(index)
     }
 
-    pub fn uv_coordinate_count(&self) -> usize {
-        self.vertices_texture.len()
+    pub fn vertices_texture(&self) -> &Vertices<VR, UVCoordinate> {
+        &self.vertices_texture
+    }
+
+    pub fn vertices_texture_mut(&mut self) -> &mut Vertices<VR, UVCoordinate> {
+        &mut self.vertices_texture
     }
 
     // Template vertex methods
