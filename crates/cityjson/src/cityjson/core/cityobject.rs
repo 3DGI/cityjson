@@ -13,6 +13,12 @@ pub struct CityObjectsCore<SS: StringStorage, RR: ResourceRef, CO> {
     _phantom: std::marker::PhantomData<SS>,
 }
 
+impl<SS: StringStorage, RR: ResourceRef, CO> Default for CityObjectsCore<SS, RR, CO> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
     pub fn new() -> Self {
         Self {

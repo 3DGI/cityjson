@@ -40,8 +40,8 @@ pub trait GeometryModelOps<V: CityModelTypes, SS: StringStorage> {
     fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
 }
 
-// Internal trait for geometry construction (not exported publicly)
-pub(crate) trait GeometryConstructor<VR: VertexRef, RR: crate::resources::pool::ResourceRef, SS> {
+// Trait for geometry construction
+pub trait GeometryConstructor<VR: VertexRef, RR: crate::resources::pool::ResourceRef, SS> {
     #[allow(clippy::too_many_arguments)]
     fn new(
         type_geometry: GeometryType,
