@@ -358,3 +358,192 @@ macro_rules! impl_semantic_trait {
     };
 }
 pub(crate) use impl_semantic_trait;
+
+macro_rules! impl_metadata_methods {
+    () => {
+        impl<RR: crate::resources::pool::ResourceRef, SS: crate::resources::storage::StringStorage>
+            Metadata<RR, SS>
+        {
+            pub fn new() -> Self {
+                Self::default()
+            }
+
+            pub fn geographical_extent(&self) -> Option<&crate::cityjson::core::metadata::BBox> {
+                self.geographical_extent.as_ref()
+            }
+
+            pub fn identifier(
+                &self,
+            ) -> Option<&crate::cityjson::core::metadata::CityModelIdentifier<SS>> {
+                self.identifier.as_ref()
+            }
+
+            pub fn reference_date(&self) -> Option<&crate::cityjson::core::metadata::Date<SS>> {
+                self.reference_date.as_ref()
+            }
+
+            pub fn reference_system(&self) -> Option<&crate::cityjson::core::metadata::CRS<SS>> {
+                self.reference_system.as_ref()
+            }
+
+            pub fn title(&self) -> Option<&str> {
+                self.title.as_deref()
+            }
+
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                self.extra.as_ref()
+            }
+
+            pub fn extra_mut(
+                &mut self,
+            ) -> &mut Option<crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                &mut self.extra
+            }
+
+            pub fn set_extra(
+                &mut self,
+                extra: Option<crate::cityjson::core::attributes::Attributes<SS, RR>>,
+            ) {
+                self.extra = extra;
+            }
+
+            pub fn set_geographical_extent(&mut self, bbox: crate::cityjson::core::metadata::BBox) {
+                self.geographical_extent = Some(bbox);
+            }
+
+            pub fn set_identifier(
+                &mut self,
+                identifier: crate::cityjson::core::metadata::CityModelIdentifier<SS>,
+            ) {
+                self.identifier = Some(identifier);
+            }
+
+            pub fn set_reference_date(&mut self, date: crate::cityjson::core::metadata::Date<SS>) {
+                self.reference_date = Some(date);
+            }
+
+            pub fn set_reference_system(&mut self, crs: crate::cityjson::core::metadata::CRS<SS>) {
+                self.reference_system = Some(crs);
+            }
+
+            pub fn set_title<S: AsRef<str>>(&mut self, title: S) {
+                self.title = Some(title.as_ref().to_owned());
+            }
+
+            pub fn set_phone<S: AsRef<str>>(&mut self, phone: S) {
+                if let Some(poc) = self.point_of_contact.as_mut() {
+                    poc.phone = Some(phone.as_ref().to_owned());
+                } else {
+                    self.point_of_contact = Some(Contact {
+                        phone: Some(phone.as_ref().to_owned()),
+                        ..Default::default()
+                    })
+                }
+            }
+
+            pub fn set_organization<S: AsRef<str>>(&mut self, organization: S) {
+                if let Some(poc) = self.point_of_contact.as_mut() {
+                    poc.organization = Some(organization.as_ref().to_owned());
+                } else {
+                    self.point_of_contact = Some(Contact {
+                        organization: Some(organization.as_ref().to_owned()),
+                        ..Default::default()
+                    })
+                }
+            }
+        }
+
+        impl<RR: crate::resources::pool::ResourceRef, SS: crate::resources::storage::StringStorage>
+            std::fmt::Display for Metadata<RR, SS>
+        {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(
+                    f,
+                    "geographical_extent: {}, identifier: {}, point_of_contact: {},
+            reference_date: {}, reference_system: {}, title: {}",
+                    crate::format_option(&self.geographical_extent),
+                    crate::format_option(&self.identifier),
+                    crate::format_option(&self.point_of_contact),
+                    crate::format_option(&self.reference_date),
+                    crate::format_option(&self.reference_system),
+                    crate::format_option(&self.title)
+                )
+            }
+        }
+    };
+}
+pub(crate) use impl_metadata_methods;
+
+macro_rules! impl_contact_common_methods {
+    () => {
+        pub fn new() -> Self {
+            Self {
+                contact_name: "".to_string(),
+                email_address: "".to_string(),
+                role: None,
+                website: None,
+                contact_type: None,
+                address: None,
+                phone: None,
+                organization: None,
+            }
+        }
+
+        pub fn contact_name(&self) -> &str {
+            &self.contact_name
+        }
+
+        pub fn email_address(&self) -> &str {
+            &self.email_address
+        }
+
+        pub fn role(&self) -> Option<ContactRole> {
+            self.role
+        }
+
+        pub fn website(&self) -> &Option<String> {
+            &self.website
+        }
+
+        pub fn contact_type(&self) -> Option<ContactType> {
+            self.contact_type
+        }
+
+        pub fn phone(&self) -> &Option<String> {
+            &self.phone
+        }
+
+        pub fn organization(&self) -> &Option<String> {
+            &self.organization
+        }
+
+        pub fn set_contact_name(&mut self, contact_name: String) {
+            self.contact_name = contact_name;
+        }
+
+        pub fn set_email_address(&mut self, email_address: String) {
+            self.email_address = email_address;
+        }
+
+        pub fn set_role(&mut self, role: Option<ContactRole>) {
+            self.role = role;
+        }
+
+        pub fn set_website(&mut self, website: Option<String>) {
+            self.website = website;
+        }
+
+        pub fn set_contact_type(&mut self, contact_type: Option<ContactType>) {
+            self.contact_type = contact_type;
+        }
+
+        pub fn set_phone(&mut self, phone: Option<String>) {
+            self.phone = phone;
+        }
+
+        pub fn set_organization(&mut self, organization: Option<String>) {
+            self.organization = organization;
+        }
+    };
+}
+pub(crate) use impl_contact_common_methods;
