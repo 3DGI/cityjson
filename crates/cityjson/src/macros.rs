@@ -294,3 +294,67 @@ macro_rules! impl_texture_trait {
     };
 }
 pub(crate) use impl_texture_trait;
+
+macro_rules! impl_semantic_trait {
+    ($semantic_type:ty) => {
+        impl<RR: crate::resources::pool::ResourceRef, SS: crate::resources::storage::StringStorage>
+            crate::cityjson::traits::semantic::SemanticTrait<RR, SS, $semantic_type>
+            for Semantic<RR, SS>
+        {
+            #[inline]
+            fn new(type_semantic: $semantic_type) -> Self {
+                Self {
+                    type_semantic,
+                    children: None,
+                    parent: None,
+                    attributes: None,
+                }
+            }
+            #[inline]
+            fn type_semantic(&self) -> &$semantic_type {
+                &self.type_semantic
+            }
+            #[inline]
+            fn has_children(&self) -> bool {
+                self.children.as_ref().is_some_and(|c| !c.is_empty())
+            }
+            #[inline]
+            fn has_parent(&self) -> bool {
+                self.parent.is_some()
+            }
+            #[inline]
+            fn children(&self) -> Option<&Vec<RR>> {
+                self.children.as_ref()
+            }
+            #[inline]
+            fn children_mut(&mut self) -> &mut Vec<RR> {
+                if self.children.is_none() {
+                    self.children = Some(Vec::new());
+                }
+                self.children.as_mut().unwrap()
+            }
+            #[inline]
+            fn parent(&self) -> Option<&RR> {
+                self.parent.as_ref()
+            }
+            #[inline]
+            fn set_parent(&mut self, parent_ref: RR) {
+                self.parent = Some(parent_ref);
+            }
+            #[inline]
+            fn attributes(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                self.attributes.as_ref()
+            }
+            #[inline]
+            fn attributes_mut(
+                &mut self,
+            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+                if self.attributes.is_none() {
+                    self.attributes = Some(crate::cityjson::core::attributes::Attributes::new());
+                }
+                self.attributes.as_mut().unwrap()
+            }
+        }
+    };
+}
+pub(crate) use impl_semantic_trait;

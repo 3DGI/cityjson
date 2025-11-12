@@ -71,8 +71,9 @@
 //! The module implements all standard semantic surface types defined in the specification.
 
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::traits::semantic::SemanticTypeTrait;
 use crate::format_option;
+use crate::macros::impl_semantic_trait;
 use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
@@ -115,61 +116,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     attributes: Option<Attributes<SS, RR>>,
 }
 
-impl<RR: ResourceRef, SS: StringStorage> SemanticTrait<RR, SS, SemanticType<SS>>
-    for Semantic<RR, SS>
-{
-    #[inline]
-    fn new(type_semantic: SemanticType<SS>) -> Self {
-        Self {
-            type_semantic,
-            children: None,
-            parent: None,
-            attributes: None,
-        }
-    }
-    #[inline]
-    fn type_semantic(&self) -> &SemanticType<SS> {
-        &self.type_semantic
-    }
-    #[inline]
-    fn has_children(&self) -> bool {
-        self.children.as_ref().is_some_and(|c| !c.is_empty())
-    }
-    #[inline]
-    fn has_parent(&self) -> bool {
-        self.parent.is_some()
-    }
-    #[inline]
-    fn children(&self) -> Option<&Vec<RR>> {
-        self.children.as_ref()
-    }
-    #[inline]
-    fn children_mut(&mut self) -> &mut Vec<RR> {
-        if self.children.is_none() {
-            self.children = Some(Vec::new());
-        }
-        self.children.as_mut().unwrap()
-    }
-    #[inline]
-    fn parent(&self) -> Option<&RR> {
-        self.parent.as_ref()
-    }
-    #[inline]
-    fn set_parent(&mut self, parent_ref: RR) {
-        self.parent = Some(parent_ref);
-    }
-    #[inline]
-    fn attributes(&self) -> Option<&Attributes<SS, RR>> {
-        self.attributes.as_ref()
-    }
-    #[inline]
-    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
-        if self.attributes.is_none() {
-            self.attributes = Some(Attributes::new());
-        }
-        self.attributes.as_mut().unwrap()
-    }
-}
+impl_semantic_trait!(SemanticType<SS>);
 
 impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -224,6 +171,7 @@ impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
 mod tests {
     use super::*;
     use crate::cityjson::core::attributes::AttributeValue;
+    use crate::cityjson::traits::semantic::SemanticTrait;
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
