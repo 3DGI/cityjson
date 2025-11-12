@@ -4,9 +4,7 @@ use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::citymodel::CityModelTypes;
-use crate::prelude::{
-    CityObjectsTrait, ExtensionsTrait, QuantizedCoordinate, RealWorldCoordinate, Result,
-};
+use crate::prelude::{CityObjectsTrait, ExtensionsTrait, OwnedStringStorage, QuantizedCoordinate, RealWorldCoordinate, ResourceId32, Result};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v2_0::appearance::material::Material;
@@ -18,6 +16,7 @@ use crate::v2_0::{CityObject, CityObjectType, CityObjects, Extension, Extensions
 use crate::{format_option, CityJSONVersion, CityModelType};
 use std::fmt;
 use std::marker::PhantomData;
+use crate::cityjson::core::geometry::GeometryModelOps;
 
 pub struct V2_0<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     _phantom_vr: PhantomData<VR>,
@@ -88,7 +87,7 @@ pub struct CityModel<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 }
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
-    fn new(type_citymodel: CityModelType) -> Self {
+    pub fn new(type_citymodel: CityModelType) -> Self {
         Self {
             type_citymodel,
             version: Some(CityJSONVersion::V2_0),
@@ -110,7 +109,7 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         }
     }
 
-    fn with_capacity(
+    pub fn with_capacity(
         type_citymodel: CityModelType,
         cityobjects_capacity: usize,
         vertex_capacity: usize,
@@ -140,18 +139,18 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         }
     }
 
-    fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
+    pub fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
         self.semantics.add(semantic)
     }
 
-    fn get_semantic(&self, id: RR) -> Option<&Semantic<RR, SS>> {
+    pub fn get_semantic(&self, id: RR) -> Option<&Semantic<RR, SS>> {
         self.semantics.get(id)
     }
 
-    fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
+    pub fn get_semantic_mut(&mut self, id: RR) -> Option<&mut Semantic<RR, SS>> {
         self.semantics.get_mut(id)
     }
-    fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR
+    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR
     where
         Semantic<RR, SS>: PartialEq,
     {
@@ -160,22 +159,22 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         }
         self.semantics.add(semantic)
     }
-    fn semantics(&self) -> &DefaultResourcePool<Semantic<RR, SS>, RR> {
+    pub fn semantics(&self) -> &DefaultResourcePool<Semantic<RR, SS>, RR> {
         &self.semantics
     }
 
-    fn add_material(&mut self, material: Material<SS>) -> RR {
+    pub fn add_material(&mut self, material: Material<SS>) -> RR {
         self.materials.add(material)
     }
 
-    fn get_material(&self, id: RR) -> Option<&Material<SS>> {
+    pub fn get_material(&self, id: RR) -> Option<&Material<SS>> {
         self.materials.get(id)
     }
 
-    fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<SS>> {
+    pub fn get_material_mut(&mut self, id: RR) -> Option<&mut Material<SS>> {
         self.materials.get_mut(id)
     }
-    fn get_or_insert_material(&mut self, material: Material<SS>) -> RR
+    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> RR
     where
         Material<SS>: PartialEq,
     {
@@ -185,22 +184,22 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         self.materials.add(material)
     }
 
-    fn materials(&self) -> &DefaultResourcePool<Material<SS>, RR> {
+    pub fn materials(&self) -> &DefaultResourcePool<Material<SS>, RR> {
         &self.materials
     }
 
-    fn add_texture(&mut self, texture: Texture<SS>) -> RR {
+    pub fn add_texture(&mut self, texture: Texture<SS>) -> RR {
         self.textures.add(texture)
     }
 
-    fn get_texture(&self, id: RR) -> Option<&Texture<SS>> {
+    pub fn get_texture(&self, id: RR) -> Option<&Texture<SS>> {
         self.textures.get(id)
     }
 
-    fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<SS>> {
+    pub fn get_texture_mut(&mut self, id: RR) -> Option<&mut Texture<SS>> {
         self.textures.get_mut(id)
     }
-    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR
+    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR
     where
         Texture<SS>: PartialEq,
     {
@@ -210,105 +209,105 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         self.textures.add(texture)
     }
 
-    fn textures(&self) -> &DefaultResourcePool<Texture<SS>, RR> {
+    pub fn textures(&self) -> &DefaultResourcePool<Texture<SS>, RR> {
         &self.textures
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+    pub fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
         self.geometries.add(geometry)
     }
 
-    fn geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+    pub fn geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &self.geometries
     }
 
-    fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+    pub fn geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.geometries
     }
-    fn clear_geometries(&mut self) {
+    pub fn clear_geometries(&mut self) {
         self.geometries.clear();
     }
-    fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
+    pub fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
         &self.vertices
     }
 
-    fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
+    pub fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
         &mut self.vertices
     }
 
-    fn clear_vertices(&mut self) {
+    pub fn clear_vertices(&mut self) {
         self.vertices.clear();
     }
 
-    fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
+    pub fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
-    fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&QuantizedCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&QuantizedCoordinate> {
         self.vertices.get(index)
     }
 
-    fn geometry_count(&self) -> usize {
+    pub fn geometry_count(&self) -> usize {
         self.geometries.len()
     }
 
-    fn semantic_count(&self) -> usize {
+    pub fn semantic_count(&self) -> usize {
         self.semantics.len()
     }
 
-    fn vertex_count(&self) -> usize {
+    pub fn vertex_count(&self) -> usize {
         self.vertices.len()
     }
 
-    fn metadata(&self) -> Option<&Metadata<RR, SS>> {
+    pub fn metadata(&self) -> Option<&Metadata<RR, SS>> {
         self.metadata.as_ref()
     }
 
-    fn metadata_mut(&mut self) -> &mut Metadata<RR, SS> {
+    pub fn metadata_mut(&mut self) -> &mut Metadata<RR, SS> {
         if self.metadata.is_none() {
             self.metadata = Some(Metadata::new());
         }
         self.metadata.as_mut().unwrap()
     }
 
-    fn extra(&self) -> Option<&Attributes<SS, RR>> {
+    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
 
-    fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
         if self.extra.is_none() {
             self.extra = Some(Attributes::new());
         }
         self.extra.as_mut().unwrap()
     }
 
-    fn transform(&self) -> Option<&Transform> {
+    pub fn transform(&self) -> Option<&Transform> {
         self.transform.as_ref()
     }
 
-    fn transform_mut(&mut self) -> &mut Transform {
+    pub fn transform_mut(&mut self) -> &mut Transform {
         if self.transform.is_none() {
             self.transform = Some(Transform::new());
         }
         self.transform.as_mut().unwrap()
     }
 
-    fn extensions(&self) -> Option<&Extensions<SS>> {
+    pub fn extensions(&self) -> Option<&Extensions<SS>> {
         self.extensions.as_ref()
     }
 
-    fn extensions_mut(&mut self) -> &mut Extensions<SS> {
+    pub fn extensions_mut(&mut self) -> &mut Extensions<SS> {
         if self.extensions.is_none() {
             self.extensions = Some(Extensions::new());
         }
         self.extensions.as_mut().unwrap()
     }
 
-    fn cityobjects(&self) -> &CityObjects<SS, RR> {
+    pub fn cityobjects(&self) -> &CityObjects<SS, RR> {
         &self.cityobjects
     }
 
-    fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
+    pub fn cityobjects_mut(&mut self) -> &mut CityObjects<SS, RR> {
         &mut self.cityobjects
     }
 
@@ -316,67 +315,67 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModel<VR, RR, SS> {
         self.cityobjects.clear();
     }
 
-    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
+    pub fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices_texture.push(uvcoordinate)
     }
 
-    fn get_uv_coordinate(&self, index: VertexIndex<VR>) -> Option<&UVCoordinate> {
+    pub fn get_uv_coordinate(&self, index: VertexIndex<VR>) -> Option<&UVCoordinate> {
         self.vertices_texture.get(index)
     }
 
-    fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
+    pub fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
         self.template_vertices.push(coordinate)
     }
 
-    fn get_template_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
+    pub fn get_template_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.template_vertices.get(index)
     }
 
-    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+    pub fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
         self.template_geometries.add(geometry)
     }
 
-    fn template_geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+    pub fn template_geometries(&self) -> &DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &self.template_geometries
     }
 
-    fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
+    pub fn template_geometries_mut(&mut self) -> &mut DefaultResourcePool<Geometry<VR, RR, SS>, RR> {
         &mut self.template_geometries
     }
 
-    fn template_vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
+    pub fn template_vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
         &self.template_vertices
     }
 
-    fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
+    pub fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         &mut self.template_vertices
     }
 
-    fn clear_template_vertices(&mut self) {
+    pub fn clear_template_vertices(&mut self) {
         self.template_vertices.clear();
     }
 
-    fn type_citymodel(&self) -> CityModelType {
+    pub fn type_citymodel(&self) -> CityModelType {
         self.type_citymodel
     }
 
-    fn version(&self) -> Option<CityJSONVersion> {
+    pub fn version(&self) -> Option<CityJSONVersion> {
         self.version
     }
 
-    fn default_theme_material(&self) -> Option<RR> {
+    pub fn default_theme_material(&self) -> Option<RR> {
         self.default_theme_material
     }
 
-    fn set_default_theme_material(&mut self, material_ref: Option<RR>) {
+    pub fn set_default_theme_material(&mut self, material_ref: Option<RR>) {
         self.default_theme_material = material_ref;
     }
 
-    fn default_theme_texture(&self) -> Option<RR> {
+    pub fn default_theme_texture(&self) -> Option<RR> {
         self.default_theme_texture
     }
 
-    fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) {
+    pub fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) {
         self.default_theme_texture = texture_ref;
     }
 }
@@ -413,6 +412,48 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
         )?;
         writeln!(f, "\textra: {}", format_option(&self.extra))?;
         writeln!(f, "}}")
+    }
+}
+
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryModelOps<V2_0<VR, RR, SS>, SS> for CityModel<VR, RR, SS>{
+    fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
+        todo!()
+    }
+
+    fn get_or_insert_material(&mut self, semantic: Material<SS>) -> RR {
+        todo!()
+    }
+
+    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR {
+        todo!()
+    }
+
+    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
+        todo!()
+    }
+
+    fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+        todo!()
+    }
+
+    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
+        todo!()
+    }
+
+    fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
+        todo!()
+    }
+
+    fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
+        todo!()
+    }
+
+    fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
+        todo!()
+    }
+
+    fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
+        todo!()
     }
 }
 

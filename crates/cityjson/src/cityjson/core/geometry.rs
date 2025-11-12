@@ -13,9 +13,9 @@ use std::str::FromStr;
 
 // Local trait to decouple GeometryBuilder from any global CityModel traits.
 pub trait GeometryModelOps<V: CityModelTypes, SS: StringStorage> {
-    fn add_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
-    fn add_material(&mut self, material: V::Material) -> V::ResourceRef;
-    fn add_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
+    fn get_or_insert_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
+    fn get_or_insert_material(&mut self, material: V::Material) -> V::ResourceRef;
+    fn get_or_insert_texture(&mut self, texture: V::Texture) -> V::ResourceRef;
     fn add_uv_coordinate(
         &mut self,
         uvcoordinate: UVCoordinate,
@@ -1391,7 +1391,7 @@ mod tests {
     };
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
-    use crate::v1_1::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
+    use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
     use crate::CityModelType;
 
     // Test helper to create a new model

@@ -14,9 +14,6 @@ doc:
 doc-signatures:
     RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps
 
-test:
-    echo "{{ _git_ref }}"
-
 # ============================================================================
 # Memory profiling
 # ============================================================================
