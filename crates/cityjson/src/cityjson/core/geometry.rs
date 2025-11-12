@@ -5,8 +5,8 @@ use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::error::{Error, Result};
 use crate::prelude::{
-    Boundary, CityModelTypes, GeometryTrait, MaterialMap, RealWorldCoordinate, SemanticMap,
-    StringStorage, TextureMap, UVCoordinate, VertexIndex, Vertices,
+    Boundary, CityModelTypes, MaterialMap, RealWorldCoordinate, SemanticMap, StringStorage,
+    TextureMap, UVCoordinate, VertexIndex, Vertices,
 };
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -38,6 +38,22 @@ pub trait GeometryModelOps<V: CityModelTypes, SS: StringStorage> {
         coordinate: RealWorldCoordinate,
     ) -> Result<VertexIndex<V::VertexRef>>;
     fn template_vertices_mut(&mut self) -> &mut Vertices<V::VertexRef, RealWorldCoordinate>;
+}
+
+// Internal trait for geometry construction (not exported publicly)
+pub(crate) trait GeometryConstructor<VR: VertexRef, RR: crate::resources::pool::ResourceRef, SS> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        type_geometry: GeometryType,
+        lod: Option<LoD>,
+        boundaries: Option<Boundary<VR>>,
+        semantics: Option<SemanticMap<VR, RR>>,
+        materials: Option<Vec<(SS, MaterialMap<VR, RR>)>>,
+        textures: Option<Vec<(SS, TextureMap<VR, RR>)>>,
+        instance_template: Option<RR>,
+        instance_reference_point: Option<VertexIndex<VR>>,
+        instance_transformation_matrix: Option<[f64; 16]>,
+    ) -> Self;
 }
 
 /// Represents a surface under construction with one outer ring and optional inner rings

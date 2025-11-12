@@ -108,6 +108,42 @@ macro_rules! impl_geometry_methods {
                 self.inner.instance_transformation_matrix()
             }
         }
+
+        // Internal trait implementation for geometry construction
+        impl<
+            VR: crate::cityjson::core::vertex::VertexRef,
+            RR: crate::resources::pool::ResourceRef,
+            SS: crate::resources::storage::StringStorage,
+        > crate::cityjson::core::geometry::GeometryConstructor<VR, RR, SS::String>
+            for Geometry<VR, RR, SS>
+        {
+            #[allow(clippy::too_many_arguments)]
+            fn new(
+                type_geometry: crate::cityjson::core::geometry::GeometryType,
+                lod: Option<crate::cityjson::core::geometry::LoD>,
+                boundaries: Option<crate::cityjson::core::boundary::Boundary<VR>>,
+                semantics: Option<crate::resources::mapping::SemanticMap<VR, RR>>,
+                materials: Option<
+                    Vec<(SS::String, crate::resources::mapping::MaterialMap<VR, RR>)>,
+                >,
+                textures: Option<Vec<(SS::String, crate::resources::mapping::TextureMap<VR, RR>)>>,
+                instance_template: Option<RR>,
+                instance_reference_point: Option<crate::cityjson::core::vertex::VertexIndex<VR>>,
+                instance_transformation_matrix: Option<[f64; 16]>,
+            ) -> Self {
+                Self::new(
+                    type_geometry,
+                    lod,
+                    boundaries,
+                    semantics,
+                    materials,
+                    textures,
+                    instance_template,
+                    instance_reference_point,
+                    instance_transformation_matrix,
+                )
+            }
+        }
     };
 }
 pub(crate) use impl_geometry_methods;

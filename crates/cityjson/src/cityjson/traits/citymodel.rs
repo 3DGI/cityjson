@@ -1,17 +1,13 @@
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
-use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::cityjson::traits::coordinate::Coordinate;
-use crate::cityjson::traits::geometry::GeometryTrait;
 use crate::cityjson::traits::semantic::SemanticTypeTrait;
 use crate::error::Result;
-use crate::prelude::{
-    Attributes, CityObjectTrait, CityObjectTypeTrait, RealWorldCoordinate, UVCoordinate, Vertices,
-};
+use crate::prelude::{Attributes, RealWorldCoordinate, UVCoordinate, Vertices};
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{CityJSONVersion, CityModelType};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 /// Bundles all the associated types for a CityJSON version implementation, specializing
 /// the `CityModel`.
@@ -25,22 +21,20 @@ pub trait CityModelTypes {
     type Semantic;
     type Material;
     type Texture;
-    type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
+    type Geometry: crate::cityjson::core::geometry::GeometryConstructor<
+            Self::VertexRef,
+            Self::ResourceRef,
+            <Self::StringStorage as StringStorage>::String,
+        >;
     type Metadata;
     type Transform;
     type Extension;
     type Extensions;
-    type CityObjectType: CityObjectTypeTrait<Self::StringStorage>;
+    type CityObjectType: Default + Display + Clone;
     type BBox;
-    type CityObject: CityObjectTrait<Self::StringStorage, Self::ResourceRef, Self::CityObjectType, Self::BBox>;
+    type CityObject;
 
-    type CityObjects: CityObjectsTrait<
-            Self::StringStorage,
-            Self::ResourceRef,
-            Self::CityObject,
-            Self::CityObjectType,
-            Self::BBox,
-        >;
+    type CityObjects;
     type GeometryPool: ResourcePool<Self::Geometry, Self::ResourceRef>;
     type SemanticPool: ResourcePool<Self::Semantic, Self::ResourceRef>;
     type MaterialPool: ResourcePool<Self::Material, Self::ResourceRef>;

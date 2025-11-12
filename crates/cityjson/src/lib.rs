@@ -64,9 +64,7 @@ pub mod prelude {
         core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::citymodel::CityModelTypes,
-        traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
         traits::coordinate::Coordinate,
-        traits::geometry::GeometryTrait,
         traits::semantic::SemanticTypeTrait,
     };
     // Re-export from errors module

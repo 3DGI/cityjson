@@ -1,5 +1,4 @@
 use crate::cityjson::core::cityobject::{CityObjectCore, CityObjectsCore};
-use crate::cityjson::traits::cityobject::CityObjectTypeTrait;
 use crate::error::Error;
 use crate::prelude::*;
 use std::fmt::{Display, Formatter};
@@ -24,119 +23,6 @@ pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
 }
 
 crate::macros::impl_cityobject_methods!(CityObjectType<SS>);
-
-// Trait implementations for internal use (required by CityModelTypes)
-impl<SS: StringStorage, RR: ResourceRef> CityObjectTrait<SS, RR, CityObjectType<SS>, BBox>
-    for CityObject<SS, RR>
-{
-    fn new(id: SS::String, type_cityobject: CityObjectType<SS>) -> Self {
-        Self::new(id, type_cityobject)
-    }
-    fn id(&self) -> &SS::String {
-        self.id()
-    }
-    fn type_cityobject(&self) -> &CityObjectType<SS> {
-        self.type_cityobject()
-    }
-    fn geometry(&self) -> Option<&Vec<RR>> {
-        self.geometry()
-    }
-    fn geometry_mut(&mut self) -> &mut Vec<RR> {
-        self.geometry_mut()
-    }
-    fn attributes(&self) -> Option<&Attributes<SS, RR>> {
-        self.attributes()
-    }
-    fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
-        self.attributes_mut()
-    }
-    fn geographical_extent(&self) -> Option<&BBox> {
-        self.geographical_extent()
-    }
-    fn set_geographical_extent(&mut self, bbox: Option<BBox>) {
-        self.set_geographical_extent(bbox);
-    }
-    fn children(&self) -> Option<&Vec<RR>> {
-        self.children()
-    }
-    fn children_mut(&mut self) -> &mut Vec<RR> {
-        self.children_mut()
-    }
-    fn parents(&self) -> Option<&Vec<RR>> {
-        self.parents()
-    }
-    fn parents_mut(&mut self) -> &mut Vec<RR> {
-        self.parents_mut()
-    }
-    fn extra(&self) -> Option<&Attributes<SS, RR>> {
-        self.extra()
-    }
-    fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
-        self.extra_mut()
-    }
-}
-
-impl<SS: StringStorage, RR: ResourceRef>
-    CityObjectsTrait<SS, RR, CityObject<SS, RR>, CityObjectType<SS>, BBox> for CityObjects<SS, RR>
-{
-    fn new() -> Self {
-        Self::new()
-    }
-    fn with_capacity(capacity: usize) -> Self {
-        Self::with_capacity(capacity)
-    }
-    fn add(&mut self, city_object: CityObject<SS, RR>) -> RR {
-        self.add(city_object)
-    }
-    fn get(&self, id: RR) -> Option<&CityObject<SS, RR>> {
-        self.get(id)
-    }
-    fn get_mut(&mut self, id: RR) -> Option<&mut CityObject<SS, RR>> {
-        self.get_mut(id)
-    }
-    fn remove(&mut self, id: RR) -> Option<CityObject<SS, RR>> {
-        self.remove(id)
-    }
-    fn len(&self) -> usize {
-        self.len()
-    }
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (RR, &'a CityObject<SS, RR>)>
-    where
-        CityObject<SS, RR>: 'a,
-    {
-        self.iter()
-    }
-    fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = (RR, &'a mut CityObject<SS, RR>)>
-    where
-        CityObject<SS, RR>: 'a,
-    {
-        self.iter_mut()
-    }
-    fn first(&self) -> Option<(RR, &CityObject<SS, RR>)> {
-        self.first()
-    }
-    fn last(&self) -> Option<(RR, &CityObject<SS, RR>)> {
-        self.last()
-    }
-    fn ids(&self) -> Vec<RR> {
-        self.ids()
-    }
-    fn add_many<I: IntoIterator<Item = CityObject<SS, RR>>>(&mut self, objects: I) -> Vec<RR> {
-        self.add_many(objects)
-    }
-    fn clear(&mut self) {
-        self.clear();
-    }
-    fn filter<F>(&self, predicate: F) -> Vec<(RR, &CityObject<SS, RR>)>
-    where
-        F: Fn(&CityObject<SS, RR>) -> bool,
-    {
-        self.filter(predicate)
-    }
-}
 
 impl<SS: StringStorage, RR: ResourceRef> Display for CityObject<SS, RR> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -243,8 +129,6 @@ impl FromStr for CityObjectType<OwnedStringStorage> {
         }
     }
 }
-
-impl<SS: StringStorage> CityObjectTypeTrait<SS> for CityObjectType<SS> {}
 
 #[cfg(test)]
 mod tests_cityobjects_container {
