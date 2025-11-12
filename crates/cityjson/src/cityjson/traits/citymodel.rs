@@ -1,16 +1,12 @@
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
-use crate::cityjson::traits::appearance::material::MaterialTrait;
-use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::cityjson::traits::cityobject::CityObjectsTrait;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::cityjson::traits::geometry::GeometryTrait;
-use crate::cityjson::traits::metadata::MetadataTrait;
-use crate::cityjson::traits::semantic::{SemanticTrait, SemanticTypeTrait};
+use crate::cityjson::traits::semantic::SemanticTypeTrait;
 use crate::error::Result;
 use crate::prelude::{
-    Attributes, BBoxTrait, CityObjectTrait, CityObjectTypeTrait, ExtensionTrait, ExtensionsTrait,
-    RealWorldCoordinate, UVCoordinate, Vertices,
+    Attributes, CityObjectTrait, CityObjectTypeTrait, RealWorldCoordinate, UVCoordinate, Vertices,
 };
 use crate::resources::pool::{ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
@@ -26,16 +22,16 @@ pub trait CityModelTypes {
     type StringStorage: StringStorage;
     type SemType: SemanticTypeTrait;
 
-    type Semantic: SemanticTrait<Self::ResourceRef, Self::StringStorage, Self::SemType>;
-    type Material: MaterialTrait<Self::StringStorage>;
-    type Texture: TextureTrait<Self::StringStorage>;
+    type Semantic;
+    type Material;
+    type Texture;
     type Geometry: GeometryTrait<Self::VertexRef, Self::ResourceRef, Self::StringStorage>;
-    type Metadata: MetadataTrait<Self::StringStorage>;
+    type Metadata;
     type Transform;
-    type Extension: ExtensionTrait<Self::StringStorage>;
-    type Extensions: ExtensionsTrait<Self::StringStorage, Self::Extension>;
+    type Extension;
+    type Extensions;
     type CityObjectType: CityObjectTypeTrait<Self::StringStorage>;
-    type BBox: BBoxTrait;
+    type BBox;
     type CityObject: CityObjectTrait<Self::StringStorage, Self::ResourceRef, Self::CityObjectType, Self::BBox>;
 
     type CityObjects: CityObjectsTrait<

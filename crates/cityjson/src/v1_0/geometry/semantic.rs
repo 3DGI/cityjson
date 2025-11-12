@@ -65,7 +65,6 @@ impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
 mod tests {
     use super::*;
     use crate::cityjson::core::attributes::AttributeValue;
-    use crate::cityjson::traits::semantic::SemanticTrait;
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 

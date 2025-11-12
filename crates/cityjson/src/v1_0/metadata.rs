@@ -1,5 +1,3 @@
-use crate::prelude::{Attributes, MetadataTrait, ResourceRef, StringStorage};
+use crate::prelude::Attributes;
 
 pub type Metadata<SS, RR> = Attributes<SS, RR>;
-
-impl<SS: StringStorage, RR: ResourceRef> MetadataTrait<SS> for Metadata<SS, RR> {}

@@ -1,4 +1,4 @@
-use crate::prelude::{BBoxTrait, StringStorage};
+use crate::prelude::StringStorage;
 use std::fmt::{Display, Formatter};
 
 /// Bounding Box.
@@ -18,50 +18,59 @@ pub struct BBox {
     values: [f64; 6],
 }
 
-impl BBoxTrait for BBox {
-    fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
+impl BBox {
+    pub fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
         Self {
             values: [min_x, min_y, min_z, max_x, max_y, max_z],
         }
     }
 
-    fn as_slice(&self) -> &[f64] {
+    pub fn as_slice(&self) -> &[f64] {
         &self.values
     }
 
-    fn min_x(&self) -> f64 {
+    /// Returns the minimum x coordinate.
+    pub fn min_x(&self) -> f64 {
         self.values[0]
     }
 
-    fn min_y(&self) -> f64 {
+    /// Returns the minimum y coordinate.
+    pub fn min_y(&self) -> f64 {
         self.values[1]
     }
 
-    fn min_z(&self) -> f64 {
+    /// Returns the minimum z coordinate.
+    pub fn min_z(&self) -> f64 {
         self.values[2]
     }
 
-    fn max_x(&self) -> f64 {
+    /// Returns the maximum x coordinate.
+    pub fn max_x(&self) -> f64 {
         self.values[3]
     }
 
-    fn max_y(&self) -> f64 {
+    /// Returns the maximum y coordinate.
+    pub fn max_y(&self) -> f64 {
         self.values[4]
     }
 
-    fn max_z(&self) -> f64 {
+    /// Returns the maximum z coordinate.
+    pub fn max_z(&self) -> f64 {
         self.values[5]
     }
 
-    fn width(&self) -> f64 {
+    /// Calculates the width (x-axis length) of the bounding box.
+    pub fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }
 
-    fn length(&self) -> f64 {
+    /// Calculates the length (y-axis length) of the bounding box.
+    pub fn length(&self) -> f64 {
         self.max_y() - self.min_y()
     }
 
-    fn height(&self) -> f64 {
+    /// Calculates the height (z-axis length) of the bounding box.
+    pub fn height(&self) -> f64 {
         self.max_z() - self.min_z()
     }
 }

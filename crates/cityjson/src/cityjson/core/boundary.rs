@@ -1129,7 +1129,7 @@ mod nested_tests {
         // The empty linestring should be preserved
         assert_eq!(round_trip.len(), 3);
         assert_eq!(round_trip[0], vec![0, 1, 2]);
-        assert_eq!(round_trip[1], vec![]); // Empty linestring preserved
+        assert_eq!(round_trip[1], Vec::<u32>::new()); // Empty linestring preserved
         assert_eq!(round_trip[2], vec![3, 4, 5]);
     }
 

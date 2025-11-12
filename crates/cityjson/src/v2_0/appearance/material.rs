@@ -25,7 +25,6 @@ impl_material_trait!();
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::traits::appearance::material::MaterialTrait;
 
     #[test]
     fn test_material_equality() {

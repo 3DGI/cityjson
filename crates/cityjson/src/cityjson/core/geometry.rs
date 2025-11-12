@@ -1399,10 +1399,7 @@ mod tests {
     use super::*;
     use crate::CityModelType;
     use crate::cityjson::core::geometry::GeometryType;
-    use crate::prelude::{
-        BoundaryType, ImageType, MaterialTrait, QuantizedCoordinate, ResourcePool, SemanticTrait,
-        TextureTrait,
-    };
+    use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate, ResourcePool};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};

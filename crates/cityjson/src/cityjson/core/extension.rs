@@ -1,4 +1,3 @@
-use crate::cityjson::traits::extension::{ExtensionTrait, ExtensionsTrait};
 use crate::prelude::StringStorage;
 use std::fmt;
 use std::marker::PhantomData;
@@ -35,18 +34,20 @@ pub struct ExtensionsCore<SS: StringStorage, E> {
     _marker: PhantomData<SS>,
 }
 
-impl<SS: StringStorage, E> ExtensionsTrait<SS, E> for ExtensionsCore<SS, E>
-where
-    E: ExtensionTrait<SS>,
-{
-    fn new() -> Self {
+// Trait to define the interface for extension items
+pub trait ExtensionItem<SS: StringStorage> {
+    fn name(&self) -> &SS::String;
+}
+
+impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
+    pub fn new() -> Self {
         Self {
             inner: Vec::new(),
             _marker: Default::default(),
         }
     }
 
-    fn add(&mut self, extension: E) -> &mut Self {
+    pub fn add(&mut self, extension: E) -> &mut Self {
         if let Some(pos) = self.inner.iter().position(|e| e.name() == extension.name()) {
             self.inner[pos] = extension;
         } else {
@@ -55,7 +56,7 @@ where
         self
     }
 
-    fn remove(&mut self, name: SS::String) -> bool {
+    pub fn remove(&mut self, name: SS::String) -> bool {
         if let Some(pos) = self.inner.iter().position(|e| e.name() == &name) {
             self.inner.remove(pos);
             true
@@ -64,21 +65,21 @@ where
         }
     }
 
-    fn get(&self, name: &str) -> Option<&E> {
+    pub fn get(&self, name: &str) -> Option<&E> {
         self.inner.iter().find(|e| e.name().as_ref() == name)
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 }
 
 // Allow consuming iteration
-impl<SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for ExtensionsCore<SS, E> {
+impl<SS: StringStorage, E: ExtensionItem<SS>> IntoIterator for ExtensionsCore<SS, E> {
     type Item = E;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -88,7 +89,7 @@ impl<SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for ExtensionsCore<S
 }
 
 // Allow iterating by reference
-impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a ExtensionsCore<SS, E> {
+impl<'a, SS: StringStorage, E: ExtensionItem<SS>> IntoIterator for &'a ExtensionsCore<SS, E> {
     type Item = &'a E;
     type IntoIter = std::slice::Iter<'a, E>;
 
@@ -98,7 +99,7 @@ impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a Extensio
 }
 
 // Allow iterating by mutable reference
-impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a mut ExtensionsCore<SS, E> {
+impl<'a, SS: StringStorage, E: ExtensionItem<SS>> IntoIterator for &'a mut ExtensionsCore<SS, E> {
     type Item = &'a mut E;
     type IntoIter = std::slice::IterMut<'a, E>;
 
@@ -107,7 +108,7 @@ impl<'a, SS: StringStorage, E: ExtensionTrait<SS>> IntoIterator for &'a mut Exte
     }
 }
 
-impl<SS: StringStorage, E: ExtensionTrait<SS>> fmt::Display for ExtensionsCore<SS, E> {
+impl<SS: StringStorage, E: ExtensionItem<SS>> fmt::Display for ExtensionsCore<SS, E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "available extensions: ")?;
         let mut iter = self.into_iter();
@@ -149,7 +150,7 @@ pub struct ExtensionCore<SS: StringStorage> {
     version: SS::String,
 }
 
-impl<SS: StringStorage> ExtensionTrait<SS> for ExtensionCore<SS> {
+impl<SS: StringStorage> ExtensionCore<SS> {
     /// Creates a new extension with the specified name, URL, and version.
     ///
     /// # Arguments
@@ -157,23 +158,29 @@ impl<SS: StringStorage> ExtensionTrait<SS> for ExtensionCore<SS> {
     /// * `name` - The unique identifier for this extension
     /// * `url` - URL where the extension schema can be found
     /// * `version` - Version identifier of the extension
-    fn new(name: SS::String, url: SS::String, version: SS::String) -> Self {
+    pub fn new(name: SS::String, url: SS::String, version: SS::String) -> Self {
         Self { name, url, version }
     }
 
     /// Returns a reference to the extension name.
-    fn name(&self) -> &SS::String {
+    pub fn name(&self) -> &SS::String {
         &self.name
     }
 
     /// Returns a reference to the extension schema URL.
-    fn url(&self) -> &SS::String {
+    pub fn url(&self) -> &SS::String {
         &self.url
     }
 
     /// Returns a reference to the extension version.
-    fn version(&self) -> &SS::String {
+    pub fn version(&self) -> &SS::String {
         &self.version
+    }
+}
+
+impl<SS: StringStorage> ExtensionItem<SS> for ExtensionCore<SS> {
+    fn name(&self) -> &SS::String {
+        &self.name
     }
 }
 

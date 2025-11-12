@@ -22,7 +22,6 @@ impl_texture_trait!();
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::traits::appearance::texture::TextureTrait;
 
     #[test]
     fn test_texture_equality() {

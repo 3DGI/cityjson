@@ -59,18 +59,15 @@ pub mod prelude {
             QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
             UVVertices64, Vertices,
         },
-        core::extension::{ExtensionCore, ExtensionsCore},
+        core::extension::{ExtensionCore, ExtensionItem, ExtensionsCore},
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
         core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
-        traits::appearance::{material::MaterialTrait, texture::TextureTrait},
         traits::citymodel::CityModelTypes,
         traits::cityobject::{CityObjectTrait, CityObjectTypeTrait, CityObjectsTrait},
         traits::coordinate::Coordinate,
-        traits::extension::{ExtensionTrait, ExtensionsTrait},
         traits::geometry::GeometryTrait,
-        traits::metadata::{BBoxTrait, MetadataTrait},
-        traits::semantic::{SemanticTrait, SemanticTypeTrait},
+        traits::semantic::SemanticTypeTrait,
     };
     // Re-export from errors module
     pub use crate::error::{Error, Result};

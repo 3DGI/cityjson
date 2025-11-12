@@ -1,5 +1,3 @@
-use crate::cityjson::traits::appearance::material::MaterialTrait;
-use crate::cityjson::traits::appearance::texture::TextureTrait;
 use crate::resources::storage::StringStorage;
 use std::{fmt, write};
 
@@ -77,8 +75,8 @@ pub struct MaterialCore<SS: StringStorage> {
     is_smooth: Option<bool>,
 }
 
-impl<SS: StringStorage> MaterialTrait<SS> for MaterialCore<SS> {
-    fn new(name: SS::String) -> Self {
+impl<SS: StringStorage> MaterialCore<SS> {
+    pub fn new(name: SS::String) -> Self {
         Self {
             name,
             ambient_intensity: None,
@@ -91,67 +89,67 @@ impl<SS: StringStorage> MaterialTrait<SS> for MaterialCore<SS> {
         }
     }
     #[inline]
-    fn name(&self) -> &SS::String {
+    pub fn name(&self) -> &SS::String {
         &self.name
     }
     #[inline]
-    fn set_name(&mut self, name: SS::String) {
+    pub fn set_name(&mut self, name: SS::String) {
         self.name = name;
     }
     #[inline]
-    fn ambient_intensity(&self) -> Option<f32> {
+    pub fn ambient_intensity(&self) -> Option<f32> {
         self.ambient_intensity
     }
     #[inline]
-    fn set_ambient_intensity(&mut self, ambient_intensity: Option<f32>) {
+    pub fn set_ambient_intensity(&mut self, ambient_intensity: Option<f32>) {
         self.ambient_intensity = ambient_intensity;
     }
     #[inline]
-    fn diffuse_color(&self) -> Option<&RGB> {
+    pub fn diffuse_color(&self) -> Option<&RGB> {
         self.diffuse_color.as_ref()
     }
     #[inline]
-    fn set_diffuse_color(&mut self, diffuse_color: Option<RGB>) {
+    pub fn set_diffuse_color(&mut self, diffuse_color: Option<RGB>) {
         self.diffuse_color = diffuse_color;
     }
     #[inline]
-    fn emissive_color(&self) -> Option<&RGB> {
+    pub fn emissive_color(&self) -> Option<&RGB> {
         self.emissive_color.as_ref()
     }
     #[inline]
-    fn set_emissive_color(&mut self, emissive_color: Option<RGB>) {
+    pub fn set_emissive_color(&mut self, emissive_color: Option<RGB>) {
         self.emissive_color = emissive_color;
     }
     #[inline]
-    fn specular_color(&self) -> Option<&RGB> {
+    pub fn specular_color(&self) -> Option<&RGB> {
         self.specular_color.as_ref()
     }
     #[inline]
-    fn set_specular_color(&mut self, specular_color: Option<RGB>) {
+    pub fn set_specular_color(&mut self, specular_color: Option<RGB>) {
         self.specular_color = specular_color;
     }
     #[inline]
-    fn shininess(&self) -> Option<f32> {
+    pub fn shininess(&self) -> Option<f32> {
         self.shininess
     }
     #[inline]
-    fn set_shininess(&mut self, shininess: Option<f32>) {
+    pub fn set_shininess(&mut self, shininess: Option<f32>) {
         self.shininess = shininess;
     }
     #[inline]
-    fn transparency(&self) -> Option<f32> {
+    pub fn transparency(&self) -> Option<f32> {
         self.transparency
     }
     #[inline]
-    fn set_transparency(&mut self, transparency: Option<f32>) {
+    pub fn set_transparency(&mut self, transparency: Option<f32>) {
         self.transparency = transparency;
     }
     #[inline]
-    fn is_smooth(&self) -> Option<bool> {
+    pub fn is_smooth(&self) -> Option<bool> {
         self.is_smooth
     }
     #[inline]
-    fn set_is_smooth(&mut self, is_smooth: Option<bool>) {
+    pub fn set_is_smooth(&mut self, is_smooth: Option<bool>) {
         self.is_smooth = is_smooth;
     }
 }
@@ -165,9 +163,9 @@ pub struct TextureCore<SS: StringStorage> {
     border_color: Option<RGBA>,
 }
 
-impl<SS: StringStorage> TextureTrait<SS> for TextureCore<SS> {
+impl<SS: StringStorage> TextureCore<SS> {
     #[inline]
-    fn new(image: SS::String, image_type: ImageType) -> Self {
+    pub fn new(image: SS::String, image_type: ImageType) -> Self {
         Self {
             image_type,
             image,
@@ -177,43 +175,43 @@ impl<SS: StringStorage> TextureTrait<SS> for TextureCore<SS> {
         }
     }
     #[inline]
-    fn image_type(&self) -> &ImageType {
+    pub fn image_type(&self) -> &ImageType {
         &self.image_type
     }
     #[inline]
-    fn set_image_type(&mut self, image_type: ImageType) {
+    pub fn set_image_type(&mut self, image_type: ImageType) {
         self.image_type = image_type;
     }
     #[inline]
-    fn image(&self) -> &SS::String {
+    pub fn image(&self) -> &SS::String {
         &self.image
     }
     #[inline]
-    fn set_image(&mut self, image: SS::String) {
+    pub fn set_image(&mut self, image: SS::String) {
         self.image = image;
     }
     #[inline]
-    fn wrap_mode(&self) -> Option<WrapMode> {
+    pub fn wrap_mode(&self) -> Option<WrapMode> {
         self.wrap_mode
     }
     #[inline]
-    fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>) {
+    pub fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>) {
         self.wrap_mode = wrap_mode;
     }
     #[inline]
-    fn texture_type(&self) -> Option<TextureType> {
+    pub fn texture_type(&self) -> Option<TextureType> {
         self.texture_type
     }
     #[inline]
-    fn set_texture_type(&mut self, texture_type: Option<TextureType>) {
+    pub fn set_texture_type(&mut self, texture_type: Option<TextureType>) {
         self.texture_type = texture_type;
     }
     #[inline]
-    fn border_color(&self) -> Option<RGBA> {
+    pub fn border_color(&self) -> Option<RGBA> {
         self.border_color
     }
     #[inline]
-    fn set_border_color(&mut self, border_color: Option<RGBA>) {
+    pub fn set_border_color(&mut self, border_color: Option<RGBA>) {
         self.border_color = border_color;
     }
 }

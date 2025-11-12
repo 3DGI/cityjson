@@ -1,4 +1,4 @@
-use crate::prelude::{Attributes, BBoxTrait, ResourceRef, StringStorage};
+use crate::prelude::{Attributes, ResourceRef, StringStorage};
 use std::fmt;
 
 pub trait CityObjectsTrait<SS, RR, Co, CoType, BBox>
@@ -7,7 +7,6 @@ where
     RR: ResourceRef,
     Co: CityObjectTrait<SS, RR, CoType, BBox>,
     CoType: CityObjectTypeTrait<SS>,
-    BBox: BBoxTrait,
 {
     /// Creates a new empty CityObjects container.
     fn new() -> Self;
@@ -72,12 +71,7 @@ where
         F: Fn(&Co) -> bool;
 }
 
-pub trait CityObjectTrait<
-    SS: StringStorage,
-    RR: ResourceRef,
-    CoType: CityObjectTypeTrait<SS>,
-    BBox: BBoxTrait,
->
+pub trait CityObjectTrait<SS: StringStorage, RR: ResourceRef, CoType: CityObjectTypeTrait<SS>, BBox>
 {
     fn new(id: SS::String, type_cityobject: CoType) -> Self;
     fn id(&self) -> &SS::String;
