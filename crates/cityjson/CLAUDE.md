@@ -12,7 +12,7 @@ just check
 cargo build
 
 # Run linter
-cargo clippy --all-targets --all-features -- -D warnings
+just clippy
 
 # Run tests
 cargo test

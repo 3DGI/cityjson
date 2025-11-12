@@ -19,7 +19,6 @@
 //!
 //! ```rust
 //! use cityjson::cityjson::core::transform::TransformCore;
-//! use cityjson::cityjson::traits::transform::TransformTrait;
 //!
 //! // Create a transform with default values
 //! let mut transform = TransformCore::default();
@@ -46,7 +45,6 @@
 //!
 //! ```rust
 //! use cityjson::cityjson::core::transform::TransformCore;
-//! use cityjson::cityjson::traits::transform::TransformTrait;
 //!
 //! // Create a transform
 //! let transform = TransformCore::new();
@@ -81,7 +79,6 @@ use std::fmt::{Display, Formatter};
 /// # Examples
 /// ```
 /// # use cityjson::cityjson::core::transform::TransformCore;
-/// # use cityjson::cityjson::traits::transform::TransformTrait;
 /// let mut transform = TransformCore::new();
 /// transform.set_scale([2.0, 2.0, 2.0]);
 /// transform.set_translate([10.0, 20.0, 30.0]);
@@ -98,19 +95,19 @@ pub struct TransformCore {
 }
 
 impl TransformCore {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
-    pub(crate) fn scale(&self) -> [f64; 3] {
+    pub fn scale(&self) -> [f64; 3] {
         self.scale
     }
-    pub(crate) fn translate(&self) -> [f64; 3] {
+    pub fn translate(&self) -> [f64; 3] {
         self.translate
     }
-    pub(crate) fn set_scale(&mut self, scale: [f64; 3]) {
+    pub fn set_scale(&mut self, scale: [f64; 3]) {
         self.scale = scale;
     }
-    pub(crate) fn set_translate(&mut self, translate: [f64; 3]) {
+    pub fn set_translate(&mut self, translate: [f64; 3]) {
         self.translate = translate;
     }
 }
