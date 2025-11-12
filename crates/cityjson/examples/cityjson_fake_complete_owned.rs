@@ -341,32 +341,32 @@ fn main() -> Result<()> {
         .get_mut(co_1_ref)
         .unwrap()
         .parents_mut()
-        .push(co_3_ref.clone());
+        .push(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
         .parents_mut()
-        .push(co_neigh_ref.clone());
+        .push(co_neigh_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
         .children_mut()
-        .push(co_1_ref.clone());
+        .push(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
         .parents_mut()
-        .push(co_neigh_ref.clone());
+        .push(co_neigh_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
         .children_mut()
-        .push(co_1_ref.clone());
+        .push(co_1_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
         .children_mut()
-        .push(co_3_ref.clone());
+        .push(co_3_ref);
 
     println!("{}", &model);
     Ok(())

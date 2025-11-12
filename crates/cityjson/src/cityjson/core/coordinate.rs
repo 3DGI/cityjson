@@ -423,7 +423,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     pub fn new() -> Self {
         Self {
             coordinates: Vec::new(),
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 
@@ -436,7 +436,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             coordinates: Vec::with_capacity(capacity),
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 
@@ -450,7 +450,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     /// # Errors
     ///
     /// * `VerticesContainerFull` if the current or new capacity is equal or greater
-    /// than the maximum indexable size by the vertex reference type
+    ///   than the maximum indexable size by the vertex reference type
     ///
     #[inline]
     pub fn reserve(&mut self, additional_capacity: usize) -> Result<()> {

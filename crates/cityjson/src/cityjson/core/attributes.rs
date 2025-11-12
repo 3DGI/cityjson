@@ -667,12 +667,11 @@ mod tests {
         attrs.insert("nested".to_string(), AttributeValue::Map(map));
 
         // Test nested mutation
-        if let Some(AttributeValue::Map(map)) = attrs.get_mut("nested") {
-            if let Some(inner_value) = map.get_mut("inner") {
-                if let AttributeValue::String(value) = &mut **inner_value {
-                    *value = "modified".to_string();
-                }
-            }
+        if let Some(AttributeValue::Map(map)) = attrs.get_mut("nested")
+            && let Some(inner_value) = map.get_mut("inner")
+            && let AttributeValue::String(value) = &mut **inner_value
+        {
+            *value = "modified".to_string();
         }
 
         // Verify mutation
@@ -992,32 +991,32 @@ mod tests {
             }
 
             // Check address
-            if let Some(address_box) = person_map.get("address") {
-                if let AttributeValue::Map(address_map) = address_box.as_ref() {
-                    // Check street
-                    if let Some(street_box) = address_map.get("street") {
-                        if let AttributeValue::String(street) = street_box.as_ref() {
-                            assert_eq!(street, "123 Main St");
-                        } else {
-                            panic!("Expected String value for street");
-                        }
+            if let Some(address_box) = person_map.get("address")
+                && let AttributeValue::Map(address_map) = address_box.as_ref()
+            {
+                // Check street
+                if let Some(street_box) = address_map.get("street") {
+                    if let AttributeValue::String(street) = street_box.as_ref() {
+                        assert_eq!(street, "123 Main St");
+                    } else {
+                        panic!("Expected String value for street");
                     }
+                }
 
-                    // Check coordinates
-                    if let Some(coordinates_box) = address_map.get("coordinates") {
-                        if let AttributeValue::Vec(coordinates_vec) = coordinates_box.as_ref() {
-                            assert_eq!(coordinates_vec.len(), 2);
-                            if let AttributeValue::Float(lat) = coordinates_vec[0].as_ref() {
-                                assert_eq!(*lat, 40.7128);
-                            } else {
-                                panic!("Expected Float value for latitude");
-                            }
+                // Check coordinates
+                if let Some(coordinates_box) = address_map.get("coordinates") {
+                    if let AttributeValue::Vec(coordinates_vec) = coordinates_box.as_ref() {
+                        assert_eq!(coordinates_vec.len(), 2);
+                        if let AttributeValue::Float(lat) = coordinates_vec[0].as_ref() {
+                            assert_eq!(*lat, 40.7128);
+                        } else {
+                            panic!("Expected Float value for latitude");
+                        }
 
-                            if let AttributeValue::Float(lon) = coordinates_vec[1].as_ref() {
-                                assert_eq!(*lon, -74.0060);
-                            } else {
-                                panic!("Expected Float value for longitude");
-                            }
+                        if let AttributeValue::Float(lon) = coordinates_vec[1].as_ref() {
+                            assert_eq!(*lon, -74.0060);
+                        } else {
+                            panic!("Expected Float value for longitude");
                         }
                     } else {
                         panic!("Expected Vec value for coordinates");

@@ -11,6 +11,12 @@ use crate::prelude::{
 use std::collections::HashMap;
 use std::str::FromStr;
 
+// Type aliases to simplify complex type signatures
+type ThemedMaterialMappings<RR> = Vec<(usize, RR)>;
+type ThemedTextureMappings<RR> = Vec<(usize, RR)>;
+type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
+type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
+
 // Local trait to decouple GeometryBuilder from any global CityModel traits.
 pub trait GeometryModelOps<V: CityModelTypes, SS: StringStorage> {
     fn get_or_insert_semantic(&mut self, semantic: V::Semantic) -> V::ResourceRef;
@@ -95,9 +101,9 @@ pub struct GeometryBuilder<'a, V: CityModelTypes, M, SS: StringStorage> {
     linestring_semantics: HashMap<usize, V::ResourceRef>,
     surface_semantics: HashMap<usize, V::ResourceRef>,
     // Material storage with themes as [(theme, [(surface idx, material ref)])]
-    surface_materials: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
+    surface_materials: Vec<(SS::String, ThemedMaterialMappings<V::ResourceRef>)>,
     // Maps ring index to texture reference
-    ring_textures: Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
+    ring_textures: Vec<(SS::String, ThemedTextureMappings<V::ResourceRef>)>,
 }
 
 impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
@@ -243,9 +249,9 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     ///
     /// # Parameters
     /// - `vertex_idx`: Index of the target vertex, as returned from [GeometryBuilder::add_point] or
-    /// [GeometryBuilder::add_vertex].
+    ///   [GeometryBuilder::add_vertex].
     /// - `uv_idx`: Index of the corresponding UV coordinate, as returned by
-    /// [GeometryBuilder::add_uv_coordinate].
+    ///   [GeometryBuilder::add_uv_coordinate].
     pub fn map_vertex_to_uv(&mut self, vertex_idx: usize, uv_idx: usize) {
         self.vertex_uv_mapping.insert(vertex_idx, uv_idx);
     }
@@ -433,8 +439,8 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     /// # Parameters
     ///
     /// * `index` - The index of the point that will get the semantic. The index is the
-    /// value returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods. If
-    /// `None`, the Semantic is added to the last vertex in the GeometryBuilder.
+    ///   value returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods. If
+    ///   `None`, the Semantic is added to the last vertex in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the Point.
     ///
     /// # Returns
@@ -474,8 +480,8 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     /// # Parameters
     ///
     /// * `index` - The index of the LineString that will get the semantic. The index is the
-    /// value returned by the [GeometryBuilder::add_linestring] or [GeometryBuilder::add_ring] methods. If
-    /// `None`, the Semantic is added to the last LineString in the GeometryBuilder.
+    ///   value returned by the [GeometryBuilder::add_linestring] or [GeometryBuilder::add_ring] methods. If
+    ///   `None`, the Semantic is added to the last LineString in the GeometryBuilder.
     /// * `semantic` - The semantic instance to add to the LineString.
     ///
     /// # Returns
@@ -515,7 +521,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     /// # Parameters
     ///
     /// * `index` - The index of the surface that will get the semantic. If
-    /// `None`, the Semantic is added to the last surface in the GeometryBuilder.
+    ///   `None`, the Semantic is added to the last surface in the GeometryBuilder.
     /// * `semantic` - The Semantic instance to add to the surface.
     ///
     /// # Returns
@@ -554,7 +560,7 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     /// # Parameters
     ///
     /// * `index` - The index of the surface that will get the material. If
-    /// `None`, the Material is added to the last surface in the GeometryBuilder.
+    ///   `None`, the Material is added to the last surface in the GeometryBuilder.
     /// * `material` - The Material instance to add to the surface.
     /// * `theme` - The theme of the material.
     ///
@@ -610,8 +616,8 @@ impl<'a, V: CityModelTypes<StringStorage = SS>, M, SS: StringStorage>
     /// # Parameters
     ///
     /// * `index` - The index of the ring that will get the texture. The index is the
-    /// value returned by the [GeometryBuilder::add_ring] method. If
-    /// `None`, the Texture is added to the last ring in the GeometryBuilder.
+    ///   value returned by the [GeometryBuilder::add_ring] method. If
+    ///   `None`, the Texture is added to the last ring in the GeometryBuilder.
     /// * `texture` - The Texture instance to add to the ring.
     /// * `theme` - The theme of the texture.
     ///
@@ -1171,10 +1177,12 @@ fn build_semantic_map<V: CityModelTypes>(
         GeometryType::GeometryInstance => None,
         GeometryType::MultiPoint => {
             if !builder_semantics.is_empty() {
-                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.points = (0..nr_primitives)
-                    .map(|i| builder_semantics.get(&i).copied())
-                    .collect();
+                let semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef> {
+                    points: (0..nr_primitives)
+                        .map(|i| builder_semantics.get(&i).copied())
+                        .collect(),
+                    ..Default::default()
+                };
                 Some(semantic_map)
             } else {
                 None
@@ -1182,10 +1190,12 @@ fn build_semantic_map<V: CityModelTypes>(
         }
         GeometryType::MultiLineString => {
             if !builder_semantics.is_empty() {
-                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.linestrings = (0..nr_primitives)
-                    .map(|i| builder_semantics.get(&i).copied())
-                    .collect();
+                let semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef> {
+                    linestrings: (0..nr_primitives)
+                        .map(|i| builder_semantics.get(&i).copied())
+                        .collect(),
+                    ..Default::default()
+                };
                 Some(semantic_map)
             } else {
                 None
@@ -1194,10 +1204,12 @@ fn build_semantic_map<V: CityModelTypes>(
         _ => {
             // Handle semantics, materials and textures for surfaces
             if !builder_semantics.is_empty() {
-                let mut semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef>::default();
-                semantic_map.surfaces = (0..nr_primitives)
-                    .map(|i| builder_semantics.get(&i).copied())
-                    .collect();
+                let semantic_map = SemanticMap::<V::VertexRef, V::ResourceRef> {
+                    surfaces: (0..nr_primitives)
+                        .map(|i| builder_semantics.get(&i).copied())
+                        .collect(),
+                    ..Default::default()
+                };
                 Some(semantic_map)
             } else {
                 None
@@ -1207,20 +1219,21 @@ fn build_semantic_map<V: CityModelTypes>(
 }
 
 fn build_material_map<V: CityModelTypes, SS: StringStorage>(
-    surface_materials: &Vec<(SS::String, Vec<(usize, V::ResourceRef)>)>,
-    surfaces: &Vec<SurfaceInProgress>,
-) -> Option<Vec<(SS::String, MaterialMap<V::VertexRef, V::ResourceRef>)>> {
+    surface_materials: &[(SS::String, ThemedMaterialMappings<V::ResourceRef>)],
+    surfaces: &[SurfaceInProgress],
+) -> Option<ThemedMaterials<V::VertexRef, V::ResourceRef, SS::String>> {
     if !surface_materials.is_empty() {
         // Create a vector to hold all theme/materialmap pairs
         let mut themed_materials = Vec::with_capacity(surface_materials.len());
 
         // For each theme, create a MaterialMap
         for (theme_name, surface_mappings) in surface_materials {
-            let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef>::default();
-
             // We need to ensure the materials vector has entries for all surfaces
             // by creating an array of the right size with all None values
-            material_map.surfaces = vec![None; surfaces.len()];
+            let mut material_map = MaterialMap::<V::VertexRef, V::ResourceRef> {
+                surfaces: vec![None; surfaces.len()],
+                ..Default::default()
+            };
 
             // Now fill in the materials that are defined for this theme
             for (surface_idx, material_ref) in surface_mappings {
@@ -1245,9 +1258,9 @@ fn build_material_map<V: CityModelTypes, SS: StringStorage>(
 
 fn build_texture_map<V: CityModelTypes<StringStorage = SS>, SS: StringStorage>(
     boundary: &Boundary<V::VertexRef>,
-    ring_textures: &[(SS::String, Vec<(usize, V::ResourceRef)>)],
+    ring_textures: &[(SS::String, ThemedTextureMappings<V::ResourceRef>)],
     vertex_uv_mapping: &HashMap<usize, usize>,
-) -> Vec<(SS::String, TextureMap<V::VertexRef, V::ResourceRef>)> {
+) -> ThemedTextures<V::VertexRef, V::ResourceRef, SS::String> {
     let mut themed_texture_maps = Vec::new();
 
     for (theme_name, ring_mappings) in ring_textures {
@@ -1271,15 +1284,15 @@ fn build_texture_map<V: CityModelTypes<StringStorage = SS>, SS: StringStorage>(
 
         // Map UV coordinates to vertices
         for (vertex_idx, uv_idx) in vertex_uv_mapping {
-            if *vertex_idx < texture_map.vertices_mut().len() {
-                if let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx) {
-                    texture_map.vertices_mut()[*vertex_idx] = Some(uv_vertex_idx);
-                }
+            if *vertex_idx < texture_map.vertices_mut().len()
+                && let Ok(uv_vertex_idx) = VertexIndex::<V::VertexRef>::try_from(*uv_idx)
+            {
+                texture_map.vertices_mut()[*vertex_idx] = Some(uv_vertex_idx);
             }
         }
 
         // Only add the texture map if it has at least one ring with texture
-        if texture_map.rings().len() > 0 {
+        if !texture_map.rings().is_empty() {
             themed_texture_maps.push((theme_name.clone(), texture_map));
         }
     }
@@ -1850,12 +1863,12 @@ mod tests {
 
         // Verify we have texture mappings
         assert!(
-            texture_map.vertices().len() > 0,
+            !texture_map.vertices().is_empty(),
             "No texture vertices found"
         );
-        assert!(texture_map.rings().len() > 0, "No texture rings found");
+        assert!(!texture_map.rings().is_empty(), "No texture rings found");
         assert!(
-            texture_map.ring_textures().len() > 0,
+            !texture_map.ring_textures().is_empty(),
             "No ring textures found"
         );
 

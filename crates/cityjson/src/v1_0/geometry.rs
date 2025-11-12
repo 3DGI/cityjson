@@ -6,6 +6,10 @@ use crate::prelude::{StringStorage, VertexIndex};
 use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use crate::resources::pool::ResourceRef;
 
+// Type aliases to simplify complex type signatures
+type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
+type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
+
 pub mod semantic;
 
 #[derive(Clone, Debug)]
@@ -15,8 +19,8 @@ pub struct Geometry<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     lod: Option<LoD>,
     boundaries: Option<Boundary<VR>>,
     semantics: Option<SemanticMap<VR, RR>>,
-    materials: Option<Vec<(SS::String, MaterialMap<VR, RR>)>>,
-    textures: Option<Vec<(SS::String, TextureMap<VR, RR>)>>,
+    materials: Option<ThemedMaterials<VR, RR, SS::String>>,
+    textures: Option<ThemedTextures<VR, RR, SS::String>>,
     instance_template: Option<RR>,
     instance_reference_point: Option<VertexIndex<VR>>,
     instance_transformation_matrix: Option<[f64; 16]>,
@@ -68,12 +72,12 @@ where
         self.semantics.as_ref()
     }
 
-    fn materials(&self) -> Option<&[(SS::String, MaterialMap<VR, RR>)]> {
-        self.materials.as_deref()
+    fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>> {
+        self.materials.as_ref()
     }
 
-    fn textures(&self) -> Option<&[(SS::String, TextureMap<VR, RR>)]> {
-        self.textures.as_deref()
+    fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>> {
+        self.textures.as_ref()
     }
 
     fn instance_template(&self) -> Option<&RR> {

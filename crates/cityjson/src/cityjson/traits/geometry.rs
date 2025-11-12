@@ -4,15 +4,20 @@ use crate::prelude::{
     VertexIndex,
 };
 
+// Type aliases to simplify complex type signatures
+type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
+type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
+
 pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     /// Create a new geometry given the parts
+    #[allow(clippy::too_many_arguments)]
     fn new(
         type_geometry: GeometryType,
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
         semantics: Option<SemanticMap<VR, RR>>,
-        materials: Option<Vec<(SS::String, MaterialMap<VR, RR>)>>,
-        textures: Option<Vec<(SS::String, TextureMap<VR, RR>)>>,
+        materials: Option<ThemedMaterials<VR, RR, SS::String>>,
+        textures: Option<ThemedTextures<VR, RR, SS::String>>,
         instance_template: Option<RR>,
         instance_reference_point: Option<VertexIndex<VR>>,
         instance_transformation_matrix: Option<[f64; 16]>,
@@ -31,10 +36,10 @@ pub trait GeometryTrait<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     fn semantics(&self) -> Option<&SemanticMap<VR, RR>>;
 
     /// Returns the material mapping
-    fn materials(&self) -> Option<&[(SS::String, MaterialMap<VR, RR>)]>;
+    fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>>;
 
     /// Returns the texture mapping
-    fn textures(&self) -> Option<&[(SS::String, TextureMap<VR, RR>)]>;
+    fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>>;
 
     /// Returns the template of the GeometryInstance
     fn instance_template(&self) -> Option<&RR>;

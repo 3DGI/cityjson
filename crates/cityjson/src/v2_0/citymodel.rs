@@ -411,12 +411,11 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
             format_option(&self.default_theme_texture),
             format_option(&self.default_theme_material)
         )?;
-        writeln!(f, "\tgeometry-templates: {}", "not implemented")?;
+        writeln!(f, "\tgeometry-templates: not implemented")?;
         writeln!(
             f,
-            "\tvertices: {{ nr. vertices: {}, quantized coordinates: {} }}",
-            self.vertices.len(),
-            "not implemented"
+            "\tvertices: {{ nr. vertices: {}, quantized coordinates: not implemented }}",
+            self.vertices.len()
         )?;
         writeln!(f, "\textra: {}", format_option(&self.extra))?;
         writeln!(f, "}}")

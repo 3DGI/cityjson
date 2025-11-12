@@ -376,7 +376,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
     type Item = (RR, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((index, opt)) = self.inner.next() {
+        for (index, opt) in &mut self.inner {
             if let Some(r) = opt.as_ref() {
                 let id = RR::new(index as u32, self.generations[index]);
                 return Some((id, r));
@@ -409,7 +409,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIterMut<'a, T, RR> 
     type Item = (RR, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((index, opt)) = self.inner.next() {
+        for (index, opt) in &mut self.inner {
             if let Some(r) = opt.as_mut() {
                 let id = RR::new(index as u32, self.generations[index]);
                 return Some((id, r));

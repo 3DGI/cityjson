@@ -558,7 +558,7 @@ fn build_fake_complete_owned() -> Result<()> {
         _ => panic!("roofType should be String"),
     }
     match attrs.get("residential") {
-        Some(AttributeValue::Bool(b)) => assert_eq!(*b, true),
+        Some(AttributeValue::Bool(b)) => assert!(*b),
         _ => panic!("residential should be Bool"),
     }
     match attrs.get("nr_doors") {
@@ -662,7 +662,7 @@ fn build_fake_complete_owned() -> Result<()> {
             .attributes()
             .expect("Semantic should have attributes");
         match sem0_attrs.get("surfaceAttribute") {
-            Some(AttributeValue::Bool(b)) => assert_eq!(*b, true),
+            Some(AttributeValue::Bool(b)) => assert!(*b),
             _ => panic!("surfaceAttribute should be Bool"),
         }
     } else {

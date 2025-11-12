@@ -144,9 +144,9 @@ fn compute_mean_coordinates(
 
                         for vertex_idx in vertex_indices.iter() {
                             if let Some(vertex) = model.get_vertex(*vertex_idx) {
-                                sum_x += vertex.x() as i64;
-                                sum_y += vertex.y() as i64;
-                                sum_z += vertex.z() as i64;
+                                sum_x += vertex.x();
+                                sum_y += vertex.y();
+                                sum_z += vertex.z();
                                 count += 1;
                             }
                         }

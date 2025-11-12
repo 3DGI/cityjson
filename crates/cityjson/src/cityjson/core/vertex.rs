@@ -847,8 +847,8 @@ mod tests {
         let vertex_indices = raw_indices.to_vertex_indices();
 
         assert_eq!(vertex_indices.len(), 5);
-        for i in 0..5 {
-            assert_eq!(vertex_indices[i].value(), i as u16);
+        for (i, idx) in vertex_indices.iter().enumerate().take(5) {
+            assert_eq!(idx.value(), i as u16);
         }
 
         // Test conversion of Vec<u32> to Vec<VertexIndex<u32>>

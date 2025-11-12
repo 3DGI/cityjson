@@ -256,12 +256,12 @@ mod tests {
         exts.add(ext);
 
         // Remove non-existent extension
-        assert_eq!(exts.remove("other".to_string()), false);
+        assert!(!exts.remove("other".to_string()));
         assert_eq!(exts.len(), 1);
         assert!(!exts.is_empty());
 
         // Remove existing extension
-        assert_eq!(exts.remove("noise".to_string()), true);
+        assert!(exts.remove("noise".to_string()));
         assert_eq!(exts.len(), 0);
         assert!(exts.is_empty());
     }

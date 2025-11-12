@@ -58,7 +58,7 @@ fn build_geometry_with_semantics_materials_textures(
     );
     roof_attrs.insert(
         "solarPanels".to_string(),
-        AttributeValue::Bool(index % 3 == 0),
+        AttributeValue::Bool(index.is_multiple_of(3)),
     );
     geometry_builder.set_semantic_surface(None, roof_semantic)?;
 

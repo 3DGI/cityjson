@@ -779,7 +779,7 @@ fn process_batch(
     let geometries_in_batch = model.geometries().iter().count();
 
     // Print batch progress
-    if batch_num % 100 == 0 || batch_num < 10 {
+    if batch_num.is_multiple_of(100) || batch_num < 10 {
         println!(
             "Batch {}: {} buildings processed (total: {}), {} vertices, {} geometries, {} surfaces",
             batch_num,
