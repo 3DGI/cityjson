@@ -1,5 +1,5 @@
 use crate::cityjson::core::appearance::*;
-use crate::cityjson::traits::appearance::*;
+use crate::macros::impl_texture_trait;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 
 /// Type alias for a texture with owned string storage
@@ -17,62 +17,12 @@ pub struct Texture<SS: StringStorage> {
     border_color: Option<RGBA>,
 }
 
-impl<SS: StringStorage> TextureTrait<SS> for Texture<SS> {
-    #[inline]
-    fn new(image: SS::String, image_type: ImageType) -> Self {
-        Self {
-            image_type,
-            image,
-            wrap_mode: None,
-            texture_type: None,
-            border_color: None,
-        }
-    }
-    #[inline]
-    fn image_type(&self) -> &ImageType {
-        &self.image_type
-    }
-    #[inline]
-    fn set_image_type(&mut self, image_type: ImageType) {
-        self.image_type = image_type;
-    }
-    #[inline]
-    fn image(&self) -> &SS::String {
-        &self.image
-    }
-    #[inline]
-    fn set_image(&mut self, image: SS::String) {
-        self.image = image;
-    }
-    #[inline]
-    fn wrap_mode(&self) -> Option<WrapMode> {
-        self.wrap_mode
-    }
-    #[inline]
-    fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>) {
-        self.wrap_mode = wrap_mode;
-    }
-    #[inline]
-    fn texture_type(&self) -> Option<TextureType> {
-        self.texture_type
-    }
-    #[inline]
-    fn set_texture_type(&mut self, texture_type: Option<TextureType>) {
-        self.texture_type = texture_type;
-    }
-    #[inline]
-    fn border_color(&self) -> Option<RGBA> {
-        self.border_color
-    }
-    #[inline]
-    fn set_border_color(&mut self, border_color: Option<RGBA>) {
-        self.border_color = border_color;
-    }
-}
+impl_texture_trait!();
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cityjson::traits::appearance::texture::TextureTrait;
 
     #[test]
     fn test_texture_equality() {

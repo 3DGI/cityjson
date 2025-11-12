@@ -127,3 +127,170 @@ macro_rules! impl_extensions_trait {
     };
 }
 pub(crate) use impl_extensions_trait;
+
+macro_rules! impl_material_trait {
+    () => {
+        impl<SS: crate::resources::storage::StringStorage>
+            crate::cityjson::traits::appearance::material::MaterialTrait<SS> for Material<SS>
+        {
+            fn new(name: SS::String) -> Self {
+                Self {
+                    name,
+                    ambient_intensity: None,
+                    diffuse_color: None,
+                    emissive_color: None,
+                    specular_color: None,
+                    shininess: None,
+                    transparency: None,
+                    is_smooth: None,
+                }
+            }
+            #[inline]
+            fn name(&self) -> &SS::String {
+                &self.name
+            }
+            #[inline]
+            fn set_name(&mut self, name: SS::String) {
+                self.name = name;
+            }
+            #[inline]
+            fn ambient_intensity(&self) -> Option<f32> {
+                self.ambient_intensity
+            }
+            #[inline]
+            fn set_ambient_intensity(&mut self, ambient_intensity: Option<f32>) {
+                self.ambient_intensity = ambient_intensity;
+            }
+            #[inline]
+            fn diffuse_color(&self) -> Option<&crate::cityjson::core::appearance::RGB> {
+                self.diffuse_color.as_ref()
+            }
+            #[inline]
+            fn set_diffuse_color(
+                &mut self,
+                diffuse_color: Option<crate::cityjson::core::appearance::RGB>,
+            ) {
+                self.diffuse_color = diffuse_color;
+            }
+            #[inline]
+            fn emissive_color(&self) -> Option<&crate::cityjson::core::appearance::RGB> {
+                self.emissive_color.as_ref()
+            }
+            #[inline]
+            fn set_emissive_color(
+                &mut self,
+                emissive_color: Option<crate::cityjson::core::appearance::RGB>,
+            ) {
+                self.emissive_color = emissive_color;
+            }
+            #[inline]
+            fn specular_color(&self) -> Option<&crate::cityjson::core::appearance::RGB> {
+                self.specular_color.as_ref()
+            }
+            #[inline]
+            fn set_specular_color(
+                &mut self,
+                specular_color: Option<crate::cityjson::core::appearance::RGB>,
+            ) {
+                self.specular_color = specular_color;
+            }
+            #[inline]
+            fn shininess(&self) -> Option<f32> {
+                self.shininess
+            }
+            #[inline]
+            fn set_shininess(&mut self, shininess: Option<f32>) {
+                self.shininess = shininess;
+            }
+            #[inline]
+            fn transparency(&self) -> Option<f32> {
+                self.transparency
+            }
+            #[inline]
+            fn set_transparency(&mut self, transparency: Option<f32>) {
+                self.transparency = transparency;
+            }
+            #[inline]
+            fn is_smooth(&self) -> Option<bool> {
+                self.is_smooth
+            }
+            #[inline]
+            fn set_is_smooth(&mut self, is_smooth: Option<bool>) {
+                self.is_smooth = is_smooth;
+            }
+        }
+    };
+}
+pub(crate) use impl_material_trait;
+
+macro_rules! impl_texture_trait {
+    () => {
+        impl<SS: crate::resources::storage::StringStorage>
+            crate::cityjson::traits::appearance::texture::TextureTrait<SS> for Texture<SS>
+        {
+            #[inline]
+            fn new(
+                image: SS::String,
+                image_type: crate::cityjson::core::appearance::ImageType,
+            ) -> Self {
+                Self {
+                    image_type,
+                    image,
+                    wrap_mode: None,
+                    texture_type: None,
+                    border_color: None,
+                }
+            }
+            #[inline]
+            fn image_type(&self) -> &crate::cityjson::core::appearance::ImageType {
+                &self.image_type
+            }
+            #[inline]
+            fn set_image_type(&mut self, image_type: crate::cityjson::core::appearance::ImageType) {
+                self.image_type = image_type;
+            }
+            #[inline]
+            fn image(&self) -> &SS::String {
+                &self.image
+            }
+            #[inline]
+            fn set_image(&mut self, image: SS::String) {
+                self.image = image;
+            }
+            #[inline]
+            fn wrap_mode(&self) -> Option<crate::cityjson::core::appearance::WrapMode> {
+                self.wrap_mode
+            }
+            #[inline]
+            fn set_wrap_mode(
+                &mut self,
+                wrap_mode: Option<crate::cityjson::core::appearance::WrapMode>,
+            ) {
+                self.wrap_mode = wrap_mode;
+            }
+            #[inline]
+            fn texture_type(&self) -> Option<crate::cityjson::core::appearance::TextureType> {
+                self.texture_type
+            }
+            #[inline]
+            fn set_texture_type(
+                &mut self,
+                texture_type: Option<crate::cityjson::core::appearance::TextureType>,
+            ) {
+                self.texture_type = texture_type;
+            }
+            #[inline]
+            fn border_color(&self) -> Option<crate::cityjson::core::appearance::RGBA> {
+                self.border_color
+            }
+            #[inline]
+            fn set_border_color(
+                &mut self,
+                border_color: Option<crate::cityjson::core::appearance::RGBA>,
+            ) {
+                self.border_color = border_color;
+            }
+        }
+    };
+}
+pub(crate) use impl_texture_trait;
