@@ -29,6 +29,293 @@ macro_rules! impl_core_transform_methods {
 }
 pub(crate) use impl_core_transform_methods;
 
+macro_rules! impl_geometry_methods {
+    () => {
+        impl<
+            VR: crate::cityjson::core::vertex::VertexRef,
+            RR: crate::resources::pool::ResourceRef,
+            SS: crate::resources::storage::StringStorage,
+        > Geometry<VR, RR, SS>
+        {
+            #[allow(clippy::too_many_arguments)]
+            pub fn new(
+                type_geometry: crate::cityjson::core::geometry::GeometryType,
+                lod: Option<crate::cityjson::core::geometry::LoD>,
+                boundaries: Option<crate::cityjson::core::boundary::Boundary<VR>>,
+                semantics: Option<crate::resources::mapping::SemanticMap<VR, RR>>,
+                materials: Option<
+                    Vec<(SS::String, crate::resources::mapping::MaterialMap<VR, RR>)>,
+                >,
+                textures: Option<Vec<(SS::String, crate::resources::mapping::TextureMap<VR, RR>)>>,
+                instance_template: Option<RR>,
+                instance_reference_point: Option<crate::cityjson::core::vertex::VertexIndex<VR>>,
+                instance_transformation_matrix: Option<[f64; 16]>,
+            ) -> Self {
+                Self {
+                    inner: crate::cityjson::core::geometry_struct::GeometryCore::new(
+                        type_geometry,
+                        lod,
+                        boundaries,
+                        semantics,
+                        materials,
+                        textures,
+                        instance_template,
+                        instance_reference_point,
+                        instance_transformation_matrix,
+                    ),
+                }
+            }
+
+            pub fn type_geometry(&self) -> &crate::cityjson::core::geometry::GeometryType {
+                self.inner.type_geometry()
+            }
+
+            pub fn lod(&self) -> Option<&crate::cityjson::core::geometry::LoD> {
+                self.inner.lod()
+            }
+
+            pub fn boundaries(&self) -> Option<&crate::cityjson::core::boundary::Boundary<VR>> {
+                self.inner.boundaries()
+            }
+
+            pub fn semantics(&self) -> Option<&crate::resources::mapping::SemanticMap<VR, RR>> {
+                self.inner.semantics()
+            }
+
+            pub fn materials(
+                &self,
+            ) -> Option<&Vec<(SS::String, crate::resources::mapping::MaterialMap<VR, RR>)>> {
+                self.inner.materials()
+            }
+
+            pub fn textures(
+                &self,
+            ) -> Option<&Vec<(SS::String, crate::resources::mapping::TextureMap<VR, RR>)>> {
+                self.inner.textures()
+            }
+
+            pub fn instance_template(&self) -> Option<&RR> {
+                self.inner.instance_template()
+            }
+
+            pub fn instance_reference_point(
+                &self,
+            ) -> Option<&crate::cityjson::core::vertex::VertexIndex<VR>> {
+                self.inner.instance_reference_point()
+            }
+
+            pub fn instance_transformation_matrix(&self) -> Option<&[f64; 16]> {
+                self.inner.instance_transformation_matrix()
+            }
+        }
+    };
+}
+pub(crate) use impl_geometry_methods;
+
+macro_rules! impl_cityobject_methods {
+    ($cityobject_type:ty) => {
+        impl<SS: crate::resources::storage::StringStorage, RR: crate::resources::pool::ResourceRef>
+            CityObject<SS, RR>
+        {
+            pub fn new(id: SS::String, type_cityobject: $cityobject_type) -> Self {
+                Self {
+                    inner: crate::cityjson::core::cityobject::CityObjectCore::new(
+                        id,
+                        type_cityobject,
+                    ),
+                }
+            }
+
+            pub fn id(&self) -> &SS::String {
+                self.inner.id()
+            }
+
+            pub fn type_cityobject(&self) -> &$cityobject_type {
+                self.inner.type_cityobject()
+            }
+
+            pub fn geometry(&self) -> Option<&Vec<RR>> {
+                self.inner.geometry()
+            }
+
+            pub fn geometry_mut(&mut self) -> &mut Vec<RR> {
+                self.inner.geometry_mut()
+            }
+
+            pub fn attributes(
+                &self,
+            ) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                self.inner.attributes()
+            }
+
+            pub fn attributes_mut(
+                &mut self,
+            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+                self.inner.attributes_mut()
+            }
+
+            pub fn geographical_extent(&self) -> Option<&crate::cityjson::core::metadata::BBox> {
+                self.inner.geographical_extent()
+            }
+
+            pub fn set_geographical_extent(
+                &mut self,
+                bbox: Option<crate::cityjson::core::metadata::BBox>,
+            ) {
+                self.inner.set_geographical_extent(bbox);
+            }
+
+            pub fn children(&self) -> Option<&Vec<RR>> {
+                self.inner.children()
+            }
+
+            pub fn children_mut(&mut self) -> &mut Vec<RR> {
+                self.inner.children_mut()
+            }
+
+            pub fn parents(&self) -> Option<&Vec<RR>> {
+                self.inner.parents()
+            }
+
+            pub fn parents_mut(&mut self) -> &mut Vec<RR> {
+                self.inner.parents_mut()
+            }
+
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+                self.inner.extra()
+            }
+
+            pub fn extra_mut(
+                &mut self,
+            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+                self.inner.extra_mut()
+            }
+        }
+    };
+}
+pub(crate) use impl_cityobject_methods;
+
+macro_rules! impl_cityobjects_methods {
+    () => {
+        impl<SS: crate::resources::storage::StringStorage, RR: crate::resources::pool::ResourceRef>
+            CityObjects<SS, RR>
+        {
+            pub fn new() -> Self {
+                Self {
+                    inner: crate::cityjson::core::cityobject::CityObjectsCore::new(),
+                }
+            }
+
+            pub fn with_capacity(capacity: usize) -> Self {
+                Self {
+                    inner: crate::cityjson::core::cityobject::CityObjectsCore::with_capacity(
+                        capacity,
+                    ),
+                }
+            }
+
+            pub fn add(&mut self, city_object: CityObject<SS, RR>) -> RR {
+                self.inner.add(city_object)
+            }
+
+            pub fn get(&self, id: RR) -> Option<&CityObject<SS, RR>> {
+                self.inner.get(id)
+            }
+
+            pub fn get_mut(&mut self, id: RR) -> Option<&mut CityObject<SS, RR>> {
+                self.inner.get_mut(id)
+            }
+
+            pub fn remove(&mut self, id: RR) -> Option<CityObject<SS, RR>> {
+                self.inner.remove(id)
+            }
+
+            pub fn len(&self) -> usize {
+                self.inner.len()
+            }
+
+            pub fn is_empty(&self) -> bool {
+                self.inner.is_empty()
+            }
+
+            pub fn iter<'a>(&'a self) -> impl Iterator<Item = (RR, &'a CityObject<SS, RR>)>
+            where
+                CityObject<SS, RR>: 'a,
+            {
+                self.inner.iter()
+            }
+
+            pub fn iter_mut<'a>(
+                &'a mut self,
+            ) -> impl Iterator<Item = (RR, &'a mut CityObject<SS, RR>)>
+            where
+                CityObject<SS, RR>: 'a,
+            {
+                self.inner.iter_mut()
+            }
+
+            pub fn first(&self) -> Option<(RR, &CityObject<SS, RR>)> {
+                self.inner.first()
+            }
+
+            pub fn last(&self) -> Option<(RR, &CityObject<SS, RR>)> {
+                self.inner.last()
+            }
+
+            pub fn ids(&self) -> Vec<RR> {
+                self.inner.ids()
+            }
+
+            pub fn add_many<I: IntoIterator<Item = CityObject<SS, RR>>>(
+                &mut self,
+                objects: I,
+            ) -> Vec<RR> {
+                self.inner.add_many(objects)
+            }
+
+            pub fn clear(&mut self) {
+                self.inner.clear();
+            }
+
+            pub fn filter<F>(&self, predicate: F) -> Vec<(RR, &CityObject<SS, RR>)>
+            where
+                F: Fn(&CityObject<SS, RR>) -> bool,
+            {
+                self.inner.filter(predicate)
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage, RR: crate::resources::pool::ResourceRef>
+            Default for CityObjects<SS, RR>
+        {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage, RR: crate::resources::pool::ResourceRef>
+            Extend<CityObject<SS, RR>> for CityObjects<SS, RR>
+        {
+            fn extend<T: IntoIterator<Item = CityObject<SS, RR>>>(&mut self, iter: T) {
+                for obj in iter {
+                    self.add(obj);
+                }
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage, RR: crate::resources::pool::ResourceRef>
+            FromIterator<CityObject<SS, RR>> for CityObjects<SS, RR>
+        {
+            fn from_iter<T: IntoIterator<Item = CityObject<SS, RR>>>(iter: T) -> Self {
+                let mut objects = Self::new();
+                objects.extend(iter);
+                objects
+            }
+        }
+    };
+}
+pub(crate) use impl_cityobjects_methods;
+
 macro_rules! impl_extension_trait {
     () => {
         impl<SS: crate::resources::storage::StringStorage> Extension<SS> {

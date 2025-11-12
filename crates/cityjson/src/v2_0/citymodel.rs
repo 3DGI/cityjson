@@ -5,7 +5,7 @@ use crate::cityjson::core::metadata::BBox;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::citymodel::CityModelTypes;
-use crate::prelude::{CityObjectsTrait, QuantizedCoordinate, RealWorldCoordinate, Result};
+use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::v2_0::appearance::material::Material;

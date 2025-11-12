@@ -1,52 +1,38 @@
 //! # Geometry
 //!
 //! Represents a [Geometry object](https://www.cityjson.org/specs/1.1.3/#geometry-objects).
-use crate::cityjson::core::boundary::Boundary;
-use crate::cityjson::core::geometry::{GeometryType, LoD};
+use crate::cityjson::core::geometry_struct::GeometryCore;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::geometry::GeometryTrait;
-use crate::prelude::{StringStorage, VertexIndex};
-use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
+use crate::prelude::StringStorage;
 use crate::resources::pool::ResourceRef;
-
-// Type aliases to simplify complex type signatures
-type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
-type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
 
 pub mod semantic;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub struct Geometry<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
-    type_geometry: GeometryType,
-    lod: Option<LoD>,
-    boundaries: Option<Boundary<VR>>,
-    semantics: Option<SemanticMap<VR, RR>>,
-    materials: Option<ThemedMaterials<VR, RR, SS::String>>,
-    textures: Option<ThemedTextures<VR, RR, SS::String>>,
-    instance_template: Option<RR>,
-    instance_reference_point: Option<VertexIndex<VR>>,
-    instance_transformation_matrix: Option<[f64; 16]>,
+    inner: GeometryCore<VR, RR, SS>,
 }
 
+crate::macros::impl_geometry_methods!();
+
+// Trait implementation for internal use (required by CityModelTypes)
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryTrait<VR, RR, SS>
     for Geometry<VR, RR, SS>
-where
-    VR: VertexRef,
-    RR: ResourceRef,
 {
     fn new(
-        type_geometry: GeometryType,
-        lod: Option<LoD>,
-        boundaries: Option<Boundary<VR>>,
-        semantics: Option<SemanticMap<VR, RR>>,
-        materials: Option<Vec<(SS::String, MaterialMap<VR, RR>)>>,
-        textures: Option<Vec<(SS::String, TextureMap<VR, RR>)>>,
+        type_geometry: crate::cityjson::core::geometry::GeometryType,
+        lod: Option<crate::cityjson::core::geometry::LoD>,
+        boundaries: Option<crate::cityjson::core::boundary::Boundary<VR>>,
+        semantics: Option<crate::resources::mapping::SemanticMap<VR, RR>>,
+        materials: Option<Vec<(SS::String, crate::resources::mapping::MaterialMap<VR, RR>)>>,
+        textures: Option<Vec<(SS::String, crate::resources::mapping::TextureMap<VR, RR>)>>,
         instance_template: Option<RR>,
-        instance_reference_point: Option<VertexIndex<VR>>,
+        instance_reference_point: Option<crate::cityjson::core::vertex::VertexIndex<VR>>,
         instance_transformation_matrix: Option<[f64; 16]>,
     ) -> Self {
-        Self {
+        Self::new(
             type_geometry,
             lod,
             boundaries,
@@ -56,42 +42,46 @@ where
             instance_template,
             instance_reference_point,
             instance_transformation_matrix,
-        }
+        )
     }
 
-    fn type_geometry(&self) -> &GeometryType {
-        &self.type_geometry
+    fn type_geometry(&self) -> &crate::cityjson::core::geometry::GeometryType {
+        self.type_geometry()
     }
 
-    fn lod(&self) -> Option<&LoD> {
-        self.lod.as_ref()
+    fn lod(&self) -> Option<&crate::cityjson::core::geometry::LoD> {
+        self.lod()
     }
 
-    fn boundaries(&self) -> Option<&Boundary<VR>> {
-        self.boundaries.as_ref()
+    fn boundaries(&self) -> Option<&crate::cityjson::core::boundary::Boundary<VR>> {
+        self.boundaries()
     }
 
-    fn semantics(&self) -> Option<&SemanticMap<VR, RR>> {
-        self.semantics.as_ref()
+    fn semantics(&self) -> Option<&crate::resources::mapping::SemanticMap<VR, RR>> {
+        self.semantics()
     }
 
-    fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>> {
-        self.materials.as_ref()
+    fn materials(
+        &self,
+    ) -> Option<&Vec<(SS::String, crate::resources::mapping::MaterialMap<VR, RR>)>> {
+        self.materials()
     }
 
-    fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>> {
-        self.textures.as_ref()
+    fn textures(
+        &self,
+    ) -> Option<&Vec<(SS::String, crate::resources::mapping::TextureMap<VR, RR>)>> {
+        self.textures()
     }
 
     fn instance_template(&self) -> Option<&RR> {
-        self.instance_template.as_ref()
+        self.instance_template()
     }
 
-    fn instance_reference_point(&self) -> Option<&VertexIndex<VR>> {
-        self.instance_reference_point.as_ref()
+    fn instance_reference_point(&self) -> Option<&crate::cityjson::core::vertex::VertexIndex<VR>> {
+        self.instance_reference_point()
     }
 
     fn instance_transformation_matrix(&self) -> Option<&[f64; 16]> {
-        self.instance_transformation_matrix.as_ref()
+        self.instance_transformation_matrix()
     }
 }
