@@ -467,7 +467,6 @@ mod tests {
     use arrow::array::{Array, FixedSizeListArray, StringArray, StructArray};
     use cityjson::prelude::{
         AttributeValue, BBox, CRS, CityModelIdentifier, Date, OwnedAttributes, OwnedStringStorage,
-        ResourceId32,
     };
     use cityjson::v2_0::{ContactRole, ContactType, Metadata};
 
