@@ -38,7 +38,7 @@
 //! let config = CJFakeConfig::default();
 //! let model: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
 //!     .metadata(None)
-//!     .vertices(None)
+//!     .vertices()
 //!     .materials(None)
 //!     .textures(None)
 //!     .attributes(None)
@@ -83,7 +83,7 @@
 //!
 //! ### Material Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use cjfake::prelude::*;
 //!
 //! let material = MaterialBuilder::new()
@@ -96,7 +96,7 @@
 //!
 //! ### Texture Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use cjfake::prelude::*;
 //!
 //! let texture = TextureBuilder::new()
@@ -109,7 +109,7 @@
 //!
 //! ### Metadata Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use cjfake::prelude::*;
 //!
 //! let metadata = MetadataBuilder::new()

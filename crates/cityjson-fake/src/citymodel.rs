@@ -8,7 +8,7 @@ use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use fake::Fake;
 use rand::prelude::SmallRng;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 
 /// Builder for creating CityJSON models with fake data.
 ///
@@ -54,15 +54,17 @@ pub struct CityModelBuilder<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     progress_done_vertices: bool,
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> From<CityModelBuilder<VR, RR, SS>>
-    for CityModel<VR, RR, SS>
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage<String = String>>
+    From<CityModelBuilder<VR, RR, SS>> for CityModel<VR, RR, SS>
 {
     fn from(val: CityModelBuilder<VR, RR, SS>) -> Self {
         val.build()
     }
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> Default for CityModelBuilder<VR, RR, SS> {
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage<String = String>> Default
+    for CityModelBuilder<VR, RR, SS>
+{
     fn default() -> Self {
         CityModelBuilder::new(CJFakeConfig::default(), None)
             .metadata(None)
@@ -74,7 +76,9 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> Default for CityModelBui
     }
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR, SS> {
+impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage<String = String>>
+    CityModelBuilder<VR, RR, SS>
+{
     /// Creates a new CityModelBuilder with the given configuration and optional random seed.
     ///
     /// # Arguments
@@ -113,8 +117,11 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     /// # Returns
     ///
     /// Self with attributes added
-    pub fn attributes(self, _attributes_builder: Option<AttributesBuilder>) -> Self {
-        // TODO: implement attributes generation
+    pub fn attributes(mut self, _attributes_builder: Option<AttributesBuilder>) -> Self {
+        // Create empty attributes for cityobjects and semantics
+        // These can be populated later if needed
+        self.attributes_cityobject = Some(Attributes::new());
+        self.attributes_semantic = Some(Attributes::new());
         self
     }
 
@@ -130,8 +137,64 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     /// # Returns
     ///
     /// Self with CityObjects added
-    pub fn cityobjects(self) -> Self {
-        // TODO: implement cityobjects generation
+    pub fn cityobjects(mut self) -> Self {
+        use fake::faker::lorem::raw::Word;
+        use fake::locales::EN;
+        use fake::Fake;
+
+        let nr_cityobjects = crate::get_nr_items(
+            self.config.min_cityobjects..=self.config.max_cityobjects,
+            &mut self.rng,
+        );
+
+        // Make sure we have vertices
+        self = self.vertices();
+
+        // Get available vertices
+        let vertex_count = self.model.vertices().len();
+        if vertex_count == 0 {
+            return self;
+        }
+
+        // Generate cityobjects
+        for _ in 0..nr_cityobjects {
+            let co_id: String = Word(EN).fake_with_rng(&mut self.rng);
+            let mut cityobject = CityObject::new(co_id.clone(), CityObjectType::Building);
+
+            // Create a simple geometry if we have vertices
+            if vertex_count >= 4 {
+                // Get vertex indices from the model
+                let v0 = VertexIndex::new(VR::from_usize(0).unwrap());
+                let v1 = VertexIndex::new(VR::from_usize(1).unwrap());
+                let v2 = VertexIndex::new(VR::from_usize(2).unwrap());
+                let v3 = VertexIndex::new(VR::from_usize(3).unwrap());
+
+                let mut geometry_builder = GeometryBuilder::new(
+                    &mut self.model,
+                    GeometryType::MultiSurface,
+                    BuilderMode::Regular,
+                )
+                .with_lod(LoD::LoD2);
+
+                let bv0 = geometry_builder.add_vertex(v0);
+                let bv1 = geometry_builder.add_vertex(v1);
+                let bv2 = geometry_builder.add_vertex(v2);
+                let bv3 = geometry_builder.add_vertex(v3);
+
+                geometry_builder.start_surface();
+                if let Ok(ring) = geometry_builder.add_ring(&[bv0, bv1, bv2, bv3]) {
+                    let _ = geometry_builder.add_surface_outer_ring(ring);
+                }
+
+                if let Ok(geometry_ref) = geometry_builder.build() {
+                    cityobject.geometry_mut().push(geometry_ref);
+                }
+            }
+
+            // Add cityobject to model
+            self.model.cityobjects_mut().add(cityobject);
+        }
+
         self
     }
 
@@ -147,8 +210,59 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     /// # Returns
     ///
     /// Self with materials added
-    pub fn materials(self, _material_builder: Option<MaterialBuilder>) -> Self {
-        // TODO: implement materials generation
+    pub fn materials(mut self, _material_builder: Option<MaterialBuilder>) -> Self {
+        use fake::faker::lorem::raw::Word;
+        use fake::locales::EN;
+        use fake::Fake;
+
+        let nr_materials = crate::get_nr_items(
+            self.config.min_materials..=self.config.max_materials,
+            &mut self.rng,
+        );
+        let nr_themes = crate::get_nr_items(1..=self.config.nr_themes_materials, &mut self.rng);
+
+        // Generate theme names
+        let themes: Vec<String> = (0..nr_themes)
+            .map(|_| Word(EN).fake_with_rng(&mut self.rng))
+            .collect();
+
+        // Store themes for later use
+        self.themes_material = themes.clone();
+
+        // Generate materials
+        for _ in 0..nr_materials {
+            let material_name: String = Word(EN).fake_with_rng(&mut self.rng);
+            let mut material = Material::new(material_name);
+
+            // Add some random properties
+            if self.rng.random_bool(0.5) {
+                material.set_ambient_intensity(Some(self.rng.random_range(0.0..=1.0)));
+            }
+            if self.rng.random_bool(0.5) {
+                material.set_diffuse_color(Some([
+                    self.rng.random_range(0.0..=1.0),
+                    self.rng.random_range(0.0..=1.0),
+                    self.rng.random_range(0.0..=1.0),
+                ]));
+            }
+            if self.rng.random_bool(0.5) {
+                material.set_shininess(Some(self.rng.random_range(0.0..=1.0)));
+            }
+            if self.rng.random_bool(0.5) {
+                material.set_transparency(Some(self.rng.random_range(0.0..=1.0)));
+            }
+
+            self.model.add_material(material);
+        }
+
+        // Set default theme if we have materials
+        if nr_materials > 0 && !themes.is_empty() {
+            let first_mat_ref = self.model.iter_materials().next().map(|(r, _)| r);
+            if let Some(mat_ref) = first_mat_ref {
+                self.model.set_default_theme_material(Some(mat_ref));
+            }
+        }
+
         self
     }
 
@@ -184,8 +298,47 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> CityModelBuilder<VR, RR,
     /// # Returns
     ///
     /// Self with textures added
-    pub fn textures(self, _texture_builder: Option<TextureBuilder>) -> Self {
-        // TODO: implement textures generation
+    pub fn textures(mut self, _texture_builder: Option<TextureBuilder>) -> Self {
+        use fake::faker::filesystem::raw::FilePath;
+        use fake::faker::lorem::raw::Word;
+        use fake::locales::EN;
+        use fake::Fake;
+
+        let nr_textures = crate::get_nr_items(
+            self.config.min_textures..=self.config.max_textures,
+            &mut self.rng,
+        );
+        let nr_themes = crate::get_nr_items(1..=self.config.nr_themes_textures, &mut self.rng);
+
+        // Generate theme names
+        let themes: Vec<String> = (0..nr_themes)
+            .map(|_| Word(EN).fake_with_rng(&mut self.rng))
+            .collect();
+
+        // Store themes for later use
+        self.themes_texture = themes.clone();
+
+        // Generate textures
+        for _ in 0..nr_textures {
+            let image_path: String = FilePath(EN).fake_with_rng(&mut self.rng);
+            let image_type = if self.rng.random_bool(0.5) {
+                ImageType::Png
+            } else {
+                ImageType::Jpg
+            };
+
+            let texture = Texture::new(image_path, image_type);
+            self.model.add_texture(texture);
+        }
+
+        // Set default theme if we have textures
+        if nr_textures > 0 && !themes.is_empty() {
+            let first_tex_ref = self.model.iter_textures().next().map(|(r, _)| r);
+            if let Some(tex_ref) = first_tex_ref {
+                self.model.set_default_theme_texture(Some(tex_ref));
+            }
+        }
+
         self
     }
 

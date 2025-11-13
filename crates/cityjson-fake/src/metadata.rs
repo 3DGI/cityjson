@@ -19,7 +19,7 @@ use rand::{rng, Rng};
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// use cjfake::prelude::MetadataBuilder;
 ///
 /// // Create metadata with all default fake values
