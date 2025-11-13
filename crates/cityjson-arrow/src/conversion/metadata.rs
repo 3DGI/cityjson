@@ -6,9 +6,10 @@ use arrow::array::{
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Fields, Int8Type};
 use cityjson::prelude::{
-    BBox, BBoxTrait, CityModelIdentifier, Date, OwnedStringStorage, ResourceRef, StringStorage,
+    BBox, CityModelIdentifier, Date, OwnedStringStorage, StringStorage,
 };
-use cityjson::v2_0::{CRS, Contact, ContactRole, ContactType, Metadata};
+use cityjson::prelude::CRS;
+use cityjson::v2_0::{Contact, ContactRole, ContactType, Metadata};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};

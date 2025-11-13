@@ -96,19 +96,19 @@ where
         }
     };
 
-    let geometries_batch = if model.geometries().is_empty() {
+    let geometries_batch = if model.iter_geometries().len() == 0 {
         None
     } else {
         Some(conversion::geometry::geometries_to_arrow(
-            model.geometries(),
+            model.iter_geometries(),
         )?)
     };
 
-    let semantics_batch = if model.semantics().is_empty() {
+    let semantics_batch = if model.iter_semantics().len() == 0 {
         None
     } else {
         Some(conversion::semantics::semantics_to_arrow(
-            model.semantics(),
+            model.iter_semantics(),
         )?)
     };
 
@@ -202,7 +202,7 @@ pub fn arrow_parts_to_citymodel(
     // Convert and set geometries if present
     if let Some(geometries_batch) = &parts.geometries {
         let geometry_pool = arrow_to_geometries(geometries_batch)?;
-        *model.geometries_mut() = geometry_pool;
+        *model.iter_geometries_mut() = geometry_pool;
     }
 
     // Convert and set semantics if present
@@ -352,9 +352,8 @@ mod tests {
 
         // Add a building
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
-        building
-            .attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(25.5));
+        let height_id = building.attributes_mut().add(AttributeValue::Float(25.5));
+        building.attributes_mut().insert("height".to_string(), height_id);
         let building_id = original_model.cityobjects_mut().add(building);
 
         // Add a bridge that references the building
@@ -442,16 +441,13 @@ mod tests {
         let mut building =
             CityObject::new("building-complex".to_string(), CityObjectType::Building);
         building.geometry_mut().push(geometry_id);
-        building
-            .attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(25.5));
+        let height_id = building.attributes_mut().add(AttributeValue::Float(25.5));
+        building.attributes_mut().insert("height".to_string(), height_id);
         original_model.cityobjects_mut().add(building);
 
         // Set extra properties at root level
-        original_model.extra_mut().insert(
-            "projectInfo".to_string(),
-            AttributeValue::String("Test project".to_string()),
-        );
+        let project_id = original_model.extra_mut().add(AttributeValue::String("Test project".to_string()));
+        original_model.extra_mut().insert("projectInfo".to_string(), project_id);
 
         // Convert to parts and back
         let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");

@@ -232,9 +232,8 @@ mod tests {
         model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
 
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
-        building
-            .attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(25.5));
+        let height_id = building.attributes_mut().add(AttributeValue::Float(25.5));
+        building.attributes_mut().insert("height".to_string(), height_id);
         model.cityobjects_mut().add(building);
 
         // 2. Convert model to Arrow parts

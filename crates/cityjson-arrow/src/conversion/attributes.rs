@@ -5,7 +5,7 @@ use arrow::array::{
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
 use cityjson::prelude::{
-    AttributeValue, Attributes, OwnedStringStorage, ResourceRef, StringStorage,
+    AttributeValue, Attributes, OwnedStringStorage, ResourceId32, StringStorage,
 };
 use std::sync::Arc;
 
@@ -39,8 +39,12 @@ pub fn attributes_to_arrow<SS: StringStorage>(
     let mut string_values: Vec<&str> = Vec::new();
 
     // Iterate over each attribute, record the key and update the union accumulators.
-    for (key, value) in attributes.iter() {
+    for (key, value_id) in attributes.iter() {
         keys.push(key.as_ref());
+        // Get the actual value using the key
+        let value = attributes.get(&key).ok_or_else(|| {
+            Error::Conversion(format!("Failed to get attribute value for key: {:?}", key.as_ref()))
+        })?;
         match value {
             AttributeValue::Null => {
                 union_type_ids.push(0);
@@ -230,7 +234,9 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
     for i in 0..entries.len() {
         let key = keys.value(i).to_string();
         let attr_value = convert_union_value_to_owned_attribute_value(values, i)?;
-        attributes.insert(key, attr_value);
+        // Add the value to the attributes (which manages its own value pool)
+        let value_id = attributes.add(attr_value);
+        attributes.insert(key, value_id);
     }
 
     Ok(attributes)
@@ -243,7 +249,7 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
 fn convert_union_value_to_owned_attribute_value(
     union_array: &UnionArray,
     index: usize,
-) -> Result<AttributeValue<OwnedStringStorage>> {
+) -> Result<AttributeValue<OwnedStringStorage, ResourceId32>> {
     let type_id = union_array.type_id(index);
     let value_offset = union_array.value_offset(index);
 
@@ -315,18 +321,18 @@ mod tests {
     fn test_attributes_to_arrow_conversion() {
         // Create a set of test attributes.
         let mut attributes = OwnedAttributes::new();
-        attributes.insert("null_value".to_string(), AttributeValue::Null);
-        attributes.insert("bool_value".to_string(), AttributeValue::Bool(true));
-        attributes.insert("uint_value".to_string(), AttributeValue::Unsigned(100));
-        attributes.insert("int_value".to_string(), AttributeValue::Integer(-42));
-        attributes.insert(
-            "float_value".to_string(),
-            AttributeValue::Float(std::f64::consts::E),
-        );
-        attributes.insert(
-            "string_value".to_string(),
-            AttributeValue::String("test".to_string()),
-        );
+        let null_id = attributes.add(AttributeValue::Null);
+        attributes.insert("null_value".to_string(), null_id);
+        let bool_id = attributes.add(AttributeValue::Bool(true));
+        attributes.insert("bool_value".to_string(), bool_id);
+        let uint_id = attributes.add(AttributeValue::Unsigned(100));
+        attributes.insert("uint_value".to_string(), uint_id);
+        let int_id = attributes.add(AttributeValue::Integer(-42));
+        attributes.insert("int_value".to_string(), int_id);
+        let float_id = attributes.add(AttributeValue::Float(std::f64::consts::E));
+        attributes.insert("float_value".to_string(), float_id);
+        let string_id = attributes.add(AttributeValue::String("test".to_string()));
+        attributes.insert("string_value".to_string(), string_id);
 
         // Convert attributes to an Arrow RecordBatch.
         let (schema, map_array) = attributes_to_arrow(&attributes, "attributes")

@@ -8,7 +8,7 @@ use arrow::array::{
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
 use cityjson::prelude::{
     AttributeValue, Attributes, DefaultResourcePool, OwnedStringStorage, ResourceId32,
-    ResourcePool, SemanticTrait, StringStorage,
+    ResourcePool, StringStorage,
 };
 use cityjson::v2_0::{Semantic, SemanticType};
 use std::collections::HashMap;
@@ -344,7 +344,8 @@ where
                         }
                     };
 
-                    attributes.insert(key, attr_value);
+                    let value_id = attributes.add(attr_value);
+                    attributes.insert(key, value_id);
                 }
 
                 if !attributes.is_empty() {
@@ -472,16 +473,14 @@ mod tests {
 
         // Add a roof semantic
         let mut roof = Semantic::new(SemanticType::RoofSurface);
-        roof.attributes_mut().insert(
-            "material".to_string(),
-            AttributeValue::String("shingles".to_string()),
-        );
+        let material_id = roof.attributes_mut().add(AttributeValue::String("shingles".to_string()));
+        roof.attributes_mut().insert("material".to_string(), material_id);
         let roof_id = semantics.add(roof);
 
         // Add a wall semantic with parent reference
         let mut wall = Semantic::new(SemanticType::WallSurface);
-        wall.attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(3.5));
+        let height_id = wall.attributes_mut().add(AttributeValue::Float(3.5));
+        wall.attributes_mut().insert("height".to_string(), height_id);
         wall.set_parent(roof_id);
         let wall_id = semantics.add(wall);
 

@@ -1,7 +1,6 @@
 use arrow::array::{Array, ArrayData, ArrayRef, FixedSizeListArray, Float64Array, RecordBatch};
 use arrow::buffer::Buffer;
 use arrow::datatypes::{DataType, Field, Schema};
-use cityjson::prelude::TransformTrait;
 use cityjson::v2_0::Transform;
 use std::sync::Arc;
 

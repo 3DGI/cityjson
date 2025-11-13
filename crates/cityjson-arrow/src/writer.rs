@@ -693,10 +693,8 @@ mod tests {
         model.metadata_mut().set_title("Stream Test");
         model.add_vertex(QuantizedCoordinate::new(10, 20, 30))?;
         let mut obj = CityObject::new("obj-stream".to_string(), CityObjectType::Building);
-        obj.attributes_mut().insert(
-            "status".to_string(),
-            AttributeValue::String("ok".to_string()),
-        );
+        let status_id = obj.attributes_mut().add(AttributeValue::String("ok".to_string()));
+        obj.attributes_mut().insert("status".to_string(), status_id);
         model.cityobjects_mut().add(obj);
 
         let parts = citymodel_to_arrow_parts(&model)?;
@@ -924,17 +922,14 @@ mod integration_tests {
         // Add a city object
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
         // TODO: https://github.com/apache/arrow-rs/issues/73
-        building
-            .attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(42.0));
+        let height_id = building.attributes_mut().add(AttributeValue::Float(42.0));
+        building.attributes_mut().insert("height".to_string(), height_id);
         model.cityobjects_mut().add(building);
 
         // TODO: https://github.com/apache/arrow-rs/issues/73
         // Add extra properties
-        model.extra_mut().insert(
-            "testProperty".to_string(),
-            AttributeValue::String("Test Value".to_string()),
-        );
+        let test_id = model.extra_mut().add(AttributeValue::String("Test Value".to_string()));
+        model.extra_mut().insert("testProperty".to_string(), test_id);
 
         // Set transform
         model.transform_mut().set_scale([0.001, 0.001, 0.001]);

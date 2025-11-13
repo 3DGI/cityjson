@@ -8,7 +8,7 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Field, Int8Type, Schema};
 use cityjson::prelude::{
-    AttributeValue, Attributes, BBox, BBoxTrait, CityObjectTrait, CityObjectsTrait,
+    AttributeValue, Attributes, BBox,
     OwnedStringStorage, ResourceId32, StringStorage,
 };
 use cityjson::v2_0::{CityObject, CityObjectType, CityObjects};
@@ -385,7 +385,8 @@ where
                     }
                 };
 
-                attributes.insert(key, attr_value);
+                let value_id = attributes.add(attr_value);
+                attributes.insert(key, value_id);
             }
 
             if !attributes.is_empty() {
@@ -496,7 +497,8 @@ where
                     }
                 };
 
-                extra_attrs.insert(key, attr_value);
+                let value_id = extra_attrs.add(attr_value);
+                extra_attrs.insert(key, value_id);
             }
 
             if !extra_attrs.is_empty() {
@@ -677,12 +679,12 @@ mod tests {
 
         // Add attributes
         let attributes = building.attributes_mut();
-        attributes.insert("height".to_string(), AttributeValue::Float(25.5));
-        attributes.insert("year_built".to_string(), AttributeValue::Integer(1985));
-        attributes.insert(
-            "name".to_string(),
-            AttributeValue::String("Main Tower".to_string()),
-        );
+        let height_id = attributes.add(AttributeValue::Float(25.5));
+        attributes.insert("height".to_string(), height_id);
+        let year_id = attributes.add(AttributeValue::Integer(1985));
+        attributes.insert("year_built".to_string(), year_id);
+        let name_id = attributes.add(AttributeValue::String("Main Tower".to_string()));
+        attributes.insert("name".to_string(), name_id);
 
         // Add geographical extent
         building.set_geographical_extent(Some(BBox::new(100.0, 200.0, 0.0, 150.0, 250.0, 25.5)));
@@ -858,12 +860,10 @@ mod tests {
 
         // Create building object
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
-        building
-            .attributes_mut()
-            .insert("height".to_string(), AttributeValue::Float(25.5));
-        building
-            .attributes_mut()
-            .insert("year_built".to_string(), AttributeValue::Integer(1985));
+        let height_id = building.attributes_mut().add(AttributeValue::Float(25.5));
+        building.attributes_mut().insert("height".to_string(), height_id);
+        let year_id = building.attributes_mut().add(AttributeValue::Integer(1985));
+        building.attributes_mut().insert("year_built".to_string(), year_id);
         building.set_geographical_extent(Some(BBox::new(100.0, 200.0, 0.0, 150.0, 250.0, 25.5)));
         building.geometry_mut().push(ResourceId32::new(1, 0));
         building.geometry_mut().push(ResourceId32::new(2, 0));

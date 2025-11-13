@@ -12,7 +12,7 @@ use cityjson::prelude::{
     Boundary, GeometryType, LoD, MaterialMap, SemanticMap, TextureMap, VertexIndex,
 };
 use cityjson::prelude::{
-    DefaultResourcePool, GeometryTrait, ResourceId32, ResourcePool, StringStorage,
+    DefaultResourcePool, ResourceId32, ResourcePool, StringStorage,
 };
 use cityjson::v2_0::Geometry;
 use std::hash::Hash;
@@ -767,14 +767,14 @@ mod tests {
 
         // Verify we have all geometries in the model
         assert_eq!(
-            model.geometries().len(),
+            model.iter_geometries().len(),
             3,
             "Expected 3 geometries in the model"
         );
 
         // Convert geometries to Arrow
         let batch =
-            geometries_to_arrow(model.geometries()).expect("Failed to convert geometries to Arrow");
+            geometries_to_arrow(model.iter_geometries()).expect("Failed to convert geometries to Arrow");
 
         // Verify batch structure
         assert_eq!(batch.num_rows(), 3, "Expected 3 rows in the batch");
