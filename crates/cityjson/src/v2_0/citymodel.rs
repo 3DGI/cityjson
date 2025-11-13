@@ -89,12 +89,24 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage>
         SS,
     > for CityModel<VR, RR, SS>
 {
+    fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
+        self.add_semantic(semantic)
+    }
+
     fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
         self.get_or_insert_semantic(semantic)
     }
 
+    fn add_material(&mut self, material: Material<SS>) -> RR {
+        self.add_material(material)
+    }
+
     fn get_or_insert_material(&mut self, material: Material<SS>) -> RR {
         self.get_or_insert_material(material)
+    }
+
+    fn add_texture(&mut self, texture: Texture<SS>) -> RR {
+        self.add_texture(texture)
     }
 
     fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR {
@@ -218,7 +230,7 @@ mod tests {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
-        // Create a semantic
+        // Create semantics WITHOUT attributes - these deduplicate based on type
         let semantic1 = Semantic::new(SemanticType::RoofSurface);
         let semantic2 = Semantic::new(SemanticType::RoofSurface);
 
@@ -239,6 +251,11 @@ mod tests {
 
         assert_eq!(model.semantic_count(), 2);
         assert_ne!(id1, id3);
+
+        // Note: Deduplication currently doesn't work when semantics have attributes with
+        // different AttributeId32 values, even if the attribute values are logically identical.
+        // This is because PartialEq compares AttributeId32 references, not the actual values.
+        // For deduplication with attributes, reuse the same Semantic instance.
     }
 
     #[test]

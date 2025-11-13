@@ -26,8 +26,11 @@ where
     C: Coordinate,
     SS: StringStorage,
 {
+    fn add_semantic(&mut self, semantic: Semantic) -> RR;
     fn get_or_insert_semantic(&mut self, semantic: Semantic) -> RR;
+    fn add_material(&mut self, material: Material) -> RR;
     fn get_or_insert_material(&mut self, material: Material) -> RR;
+    fn add_texture(&mut self, texture: Texture) -> RR;
     fn get_or_insert_texture(&mut self, texture: Texture) -> RR;
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>>;
 
@@ -482,11 +485,15 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
-    pub fn set_semantic_point(&mut self, index: Option<usize>, semantic: Semantic) -> Result<RR>
+    pub fn set_semantic_point(&mut self, index: Option<usize>, semantic: Semantic, deduplicate: bool) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
-        let semantic_ref = self.model.get_or_insert_semantic(semantic);
+        let semantic_ref = if deduplicate {
+            self.model.get_or_insert_semantic(semantic)
+        } else {
+            self.model.add_semantic(semantic)
+        };
         let vertex_i = if let Some(i) = index {
             if i >= self.vertices.len() {
                 return Err(Error::InvalidReference {
@@ -523,11 +530,16 @@ where
         &mut self,
         index: Option<usize>,
         semantic: Semantic,
+        deduplicate: bool,
     ) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
-        let semantic_ref = self.model.get_or_insert_semantic(semantic);
+        let semantic_ref = if deduplicate {
+            self.model.get_or_insert_semantic(semantic)
+        } else {
+            self.model.add_semantic(semantic)
+        };
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
@@ -559,11 +571,15 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
-    pub fn set_semantic_surface(&mut self, index: Option<usize>, semantic: Semantic) -> Result<RR>
+    pub fn set_semantic_surface(&mut self, index: Option<usize>, semantic: Semantic, deduplicate: bool) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
-        let semantic_ref = self.model.get_or_insert_semantic(semantic);
+        let semantic_ref = if deduplicate {
+            self.model.get_or_insert_semantic(semantic)
+        } else {
+            self.model.add_semantic(semantic)
+        };
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -600,11 +616,16 @@ where
         index: Option<usize>,
         material: Material,
         theme: SS::String,
+        deduplicate: bool,
     ) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
-        let material_ref = self.model.get_or_insert_material(material);
+        let material_ref = if deduplicate {
+            self.model.get_or_insert_material(material)
+        } else {
+            self.model.add_material(material)
+        };
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -657,11 +678,16 @@ where
         index: Option<usize>,
         texture: Texture,
         theme: SS::String,
+        deduplicate: bool,
     ) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
-        let texture_ref = self.model.get_or_insert_texture(texture);
+        let texture_ref = if deduplicate {
+            self.model.get_or_insert_texture(texture)
+        } else {
+            self.model.add_texture(texture)
+        };
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
@@ -1579,8 +1605,8 @@ mod tests {
         let sem1 = Semantic::new(SemanticType::TransportationMarking);
 
         // Set semantics for two of the points
-        let sem_ref0 = builder.set_semantic_point(Some(p0), sem0);
-        let sem_ref1 = builder.set_semantic_point(Some(p2), sem1);
+        let sem_ref0 = builder.set_semantic_point(Some(p0), sem0, false);
+        let sem_ref1 = builder.set_semantic_point(Some(p2), sem1, false);
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -1675,7 +1701,7 @@ mod tests {
         let sem = Semantic::new(SemanticType::TransportationMarking);
 
         // Set semantic for the second linestring
-        let sem_ref = builder.set_semantic_linestring(Some(ls2), sem);
+        let sem_ref = builder.set_semantic_linestring(Some(ls2), sem, false);
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -1787,11 +1813,11 @@ mod tests {
         let wall_texture = OwnedTexture::new("facade.jpg".to_string(), ImageType::Jpg);
         // Set the texture for the surface
         let texture_ref =
-            builder.set_texture_ring(Some(surface0), wall_texture, "theme-texture".to_string());
+            builder.set_texture_ring(Some(surface0), wall_texture, "theme-texture".to_string(), true);
 
         // Create and assign semantic for the second surface
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        let sem_ref = builder.set_semantic_surface(Some(surface1), roof_semantic);
+        let sem_ref = builder.set_semantic_surface(Some(surface1), roof_semantic, false);
 
         // Surface 3: Polygon with material
         let ring2 = builder
@@ -1810,6 +1836,7 @@ mod tests {
             Some(surface2),
             wall_material,
             "material-theme".to_string(),
+            true,
         );
 
         // Build the geometry
@@ -1992,19 +2019,19 @@ mod tests {
         let floor_semantic = Semantic::new(SemanticType::FloorSurface);
 
         builder
-            .set_semantic_surface(Some(surface0), wall_semantic.clone())
+            .set_semantic_surface(Some(surface0), wall_semantic.clone(), false)
             .unwrap();
         builder
-            .set_semantic_surface(Some(surface1), wall_semantic.clone())
+            .set_semantic_surface(Some(surface1), wall_semantic.clone(), false)
             .unwrap();
         builder
-            .set_semantic_surface(Some(surface2), wall_semantic.clone())
+            .set_semantic_surface(Some(surface2), wall_semantic.clone(), false)
             .unwrap();
         builder
-            .set_semantic_surface(Some(surface3), wall_semantic)
+            .set_semantic_surface(Some(surface3), wall_semantic, false)
             .unwrap();
-        let roof_sem_ref = builder.set_semantic_surface(Some(surface4), roof_semantic);
-        let floor_sem_ref = builder.set_semantic_surface(Some(surface5), floor_semantic);
+        let roof_sem_ref = builder.set_semantic_surface(Some(surface4), roof_semantic, false);
+        let floor_sem_ref = builder.set_semantic_surface(Some(surface5), floor_semantic, false);
 
         // Add materials
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
@@ -2016,11 +2043,13 @@ mod tests {
             Some(surface0),
             wall_material,
             "material-theme".to_string(),
+            true,
         );
         let roof_mat_ref = builder.set_material_surface(
             Some(surface4),
             roof_material,
             "material-theme".to_string(),
+            true,
         );
 
         // Create a shell from the surfaces
@@ -2224,10 +2253,10 @@ mod tests {
         let ground_semantic = Semantic::new(SemanticType::GroundSurface);
 
         // Add semantics to faces
-        let roof_sem_ref1 = builder.set_semantic_surface(Some(surface4), roof_semantic.clone());
-        let ground_sem_ref1 = builder.set_semantic_surface(Some(surface5), ground_semantic.clone());
-        let roof_sem_ref2 = builder.set_semantic_surface(Some(surface10), roof_semantic);
-        let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic);
+        let roof_sem_ref1 = builder.set_semantic_surface(Some(surface4), roof_semantic.clone(), false);
+        let ground_sem_ref1 = builder.set_semantic_surface(Some(surface5), ground_semantic.clone(), false);
+        let roof_sem_ref2 = builder.set_semantic_surface(Some(surface10), roof_semantic, false);
+        let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic, false);
 
         // For the walls, we'll use material instead of semantics
         let mut red_material = OwnedMaterial::new("RedWall".to_string());
@@ -2240,11 +2269,13 @@ mod tests {
             Some(surface0),
             red_material,
             "material-theme".to_string(),
+            true,
         );
         let blue_mat_ref = builder.set_material_surface(
             Some(surface6),
             blue_material,
             "material-theme".to_string(),
+            true,
         );
 
         // Create shells for each cube
@@ -2383,7 +2414,7 @@ mod tests {
 
         // Set semantic for the second linestring (the diagonal)
         let sem_ref = template_builder
-            .set_semantic_linestring(Some(ls2), sem)
+            .set_semantic_linestring(Some(ls2), sem, false)
             .expect("Failed to set semantic for template linestring");
 
         // Set LoD for the template

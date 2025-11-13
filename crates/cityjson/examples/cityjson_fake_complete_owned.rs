@@ -259,14 +259,15 @@ fn main() -> Result<()> {
                 None,
             );
             sem_attr.insert("surfaceAttribute".to_string(), surface_attr_id);
-            geometry_builder.set_semantic_surface(None, roof_semantic.clone())?;
+            geometry_builder.set_semantic_surface(None, roof_semantic.clone(), false)?;
             // Material
             geometry_builder.set_material_surface(
                 None,
                 material_irradiation.clone(),
                 "irradiation".to_string(),
+                true,
             )?;
-            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string(), true)?;
             // Texture
             let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
             let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
@@ -280,6 +281,7 @@ fn main() -> Result<()> {
                 None,
                 texture_0.clone(),
                 "winter-textures".to_string(),
+                true,
             )?;
 
             // 1st Surface ---
@@ -287,18 +289,19 @@ fn main() -> Result<()> {
             let surface_1 = geometry_builder.start_surface();
             geometry_builder.add_surface_outer_ring(ring1)?;
             // We reuse the previously created Semantic
-            geometry_builder.set_semantic_surface(None, roof_semantic)?;
+            geometry_builder.set_semantic_surface(None, roof_semantic, false)?;
             geometry_builder.set_material_surface(
                 None,
                 material_irradiation.clone(),
                 "irradiation".to_string(),
+                true,
             )?;
-            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string(), true)?;
             geometry_builder.map_vertex_to_uv(bv0, uv0);
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_ring(None, texture_0, "theme-texture".to_string())?;
+            geometry_builder.set_texture_ring(None, texture_0, "theme-texture".to_string(), true)?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
@@ -309,8 +312,9 @@ fn main() -> Result<()> {
                 None,
                 material_irradiation.clone(),
                 "irradiation".to_string(),
+                true,
             )?;
-            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string(), true)?;
 
             // 3rd Surface ---
             // This surface has a type from an Extension
@@ -320,9 +324,9 @@ fn main() -> Result<()> {
             geometry_builder.add_surface_outer_ring(ring3)?;
             let patio_door_semantic =
                 Semantic::new(SemanticType::Extension(semantic_extension_type.clone()));
-            geometry_builder.set_semantic_surface(None, patio_door_semantic.clone())?;
+            geometry_builder.set_semantic_surface(None, patio_door_semantic.clone(), false)?;
             // This surface does not have the "irradiation" material
-            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string())?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string(), true)?;
             geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
 
             // Inner shell

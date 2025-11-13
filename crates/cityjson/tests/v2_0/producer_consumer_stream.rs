@@ -1101,13 +1101,13 @@ fn build_geometry_from_wire(
                 .and_then(|s| s.as_ref())
             {
                 let semantic = convert_wire_semantic(wire_semantic)?;
-                builder.set_semantic_surface(None, semantic)?;
+                builder.set_semantic_surface(None, semantic, false)?;
             }
 
             // Add materials from a wire format
             if let Some((theme, wire_material)) = wire_geom.materials.get(surface_idx) {
                 let material = convert_wire_material(wire_material);
-                builder.set_material_surface(None, material, theme.clone())?;
+                builder.set_material_surface(None, material, theme.clone(), true)?;
             }
         }
 

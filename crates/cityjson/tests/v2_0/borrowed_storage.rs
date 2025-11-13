@@ -108,36 +108,36 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
         let surface_bottom = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_bottom)?;
         let ground_semantic = Semantic::new(SemanticType::GroundSurface);
-        geometry_builder.set_semantic_surface(None, ground_semantic)?;
+        geometry_builder.set_semantic_surface(None, ground_semantic, false)?;
 
         // Create top face
         let ring_top = geometry_builder.add_ring(&[bv4, bv7, bv6, bv5])?;
         let surface_top = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_top)?;
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        geometry_builder.set_semantic_surface(None, roof_semantic)?;
+        geometry_builder.set_semantic_surface(None, roof_semantic, false)?;
 
         // Create wall faces
         let ring_wall1 = geometry_builder.add_ring(&[bv0, bv4, bv5, bv1])?;
         let surface_wall1 = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_wall1)?;
         let wall_semantic = Semantic::new(SemanticType::WallSurface);
-        geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+        geometry_builder.set_semantic_surface(None, wall_semantic.clone(), true)?;
 
         let ring_wall2 = geometry_builder.add_ring(&[bv1, bv5, bv6, bv2])?;
         let surface_wall2 = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_wall2)?;
-        geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+        geometry_builder.set_semantic_surface(None, wall_semantic.clone(), true)?;
 
         let ring_wall3 = geometry_builder.add_ring(&[bv2, bv6, bv7, bv3])?;
         let surface_wall3 = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_wall3)?;
-        geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+        geometry_builder.set_semantic_surface(None, wall_semantic.clone(), true)?;
 
         let ring_wall4 = geometry_builder.add_ring(&[bv3, bv7, bv4, bv0])?;
         let surface_wall4 = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_wall4)?;
-        geometry_builder.set_semantic_surface(None, wall_semantic)?;
+        geometry_builder.set_semantic_surface(None, wall_semantic, true)?;
 
         // Create the shell and build the geometry
         geometry_builder.add_shell(&[

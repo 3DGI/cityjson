@@ -6,7 +6,8 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::collections::HashMap;
 use std::hint::black_box;
 
-/// Helper function to build a geometry with semantics, materials, and textures
+/// Helper function to build a geometry with semantics, materials, and textures.
+/// Tests the realistic case where each surface has unique attributes (e.g., azimuth, slope, area).
 fn build_geometry_with_semantics_materials_textures(
     model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
     pool: &mut OwnedAttributePool,
@@ -37,48 +38,56 @@ fn build_geometry_with_semantics_materials_textures(
     let surface_bottom = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_bottom)?;
 
-    // Add semantic: GroundSurface
+    // Add semantic: GroundSurface with unique attributes
     let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
-    let sem_attrs = ground_semantic.attributes_mut();
-    let surface_type_id = pool.add_string(
-        "surfaceType".to_string(),
+    let ground_attrs = ground_semantic.attributes_mut();
+    let area_id = pool.add_float(
+        "area".to_string(),
         true,
-        "ground".to_string(),
+        100.0 + (index as f64) * 0.5,  // Unique area per surface
         AttributeOwnerType::Semantic,
         None,
     );
-    sem_attrs.insert("surfaceType".to_string(), surface_type_id);
-    geometry_builder.set_semantic_surface(None, ground_semantic)?;
+    ground_attrs.insert("area".to_string(), area_id);
+    geometry_builder.set_semantic_surface(None, ground_semantic, false)?;
 
     // Top surface (Roof)
     let ring_top = geometry_builder.add_ring(&[bv4, bv5, bv6, bv7])?;
     let surface_top = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_top)?;
 
-    // Add semantic: RoofSurface
+    // Add semantic: RoofSurface with unique attributes (azimuth, slope, area)
     let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
     let roof_attrs = roof_semantic.attributes_mut();
-    let roof_type_id = pool.add_string(
-        "roofType".to_string(),
+    let azimuth_id = pool.add_float(
+        "azimuth".to_string(),
         true,
-        "flat".to_string(),
+        (index % 360) as f64,  // Unique azimuth per roof
         AttributeOwnerType::Semantic,
         None,
     );
-    let solar_panels_id = pool.add_bool(
-        "solarPanels".to_string(),
+    let slope_id = pool.add_float(
+        "slope".to_string(),
         true,
-        index.is_multiple_of(3),
+        15.0 + ((index % 30) as f64),  // Unique slope per roof
         AttributeOwnerType::Semantic,
         None,
     );
-    roof_attrs.insert("roofType".to_string(), roof_type_id);
-    roof_attrs.insert("solarPanels".to_string(), solar_panels_id);
-    geometry_builder.set_semantic_surface(None, roof_semantic)?;
+    let roof_area_id = pool.add_float(
+        "area".to_string(),
+        true,
+        200.0 + (index as f64) * 1.2,  // Unique area per roof
+        AttributeOwnerType::Semantic,
+        None,
+    );
+    roof_attrs.insert("azimuth".to_string(), azimuth_id);
+    roof_attrs.insert("slope".to_string(), slope_id);
+    roof_attrs.insert("area".to_string(), roof_area_id);
+    geometry_builder.set_semantic_surface(None, roof_semantic, false)?;
 
     // Add material to roof if available
     if let Some((material, _mat_ref)) = material_data {
-        geometry_builder.set_material_surface(None, material.clone(), "default".to_string())?;
+        geometry_builder.set_material_surface(None, material.clone(), "default".to_string(), true)?;
     }
 
     // Front wall (WallSurface)
@@ -86,18 +95,26 @@ fn build_geometry_with_semantics_materials_textures(
     let surface_front = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_front)?;
 
-    // Add semantic: WallSurface
-    let mut wall_semantic = Semantic::new(SemanticType::WallSurface);
-    let wall_attrs = wall_semantic.attributes_mut();
-    let orientation_id = pool.add_string(
+    // Add semantic: WallSurface (north) with unique attributes
+    let mut wall_north = Semantic::new(SemanticType::WallSurface);
+    let wall_north_attrs = wall_north.attributes_mut();
+    let orientation_n_id = pool.add_string(
         "orientation".to_string(),
         true,
         "north".to_string(),
         AttributeOwnerType::Semantic,
         None,
     );
-    wall_attrs.insert("orientation".to_string(), orientation_id);
-    geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+    let wall_area_n_id = pool.add_float(
+        "area".to_string(),
+        true,
+        50.0 + (index as f64) * 0.3,
+        AttributeOwnerType::Semantic,
+        None,
+    );
+    wall_north_attrs.insert("orientation".to_string(), orientation_n_id);
+    wall_north_attrs.insert("area".to_string(), wall_area_n_id);
+    geometry_builder.set_semantic_surface(None, wall_north, false)?;
 
     // Add texture to wall if available
     if let Some((texture, _tex_ref)) = texture_data {
@@ -114,56 +131,80 @@ fn build_geometry_with_semantics_materials_textures(
         geometry_builder.map_vertex_to_uv(bv4, uv3);
 
         // Apply texture to the ring
-        geometry_builder.set_texture_ring(None, texture.clone(), "default".to_string())?;
+        geometry_builder.set_texture_ring(None, texture.clone(), "default".to_string(), true)?;
     }
 
     // Back wall
     let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
     let surface_back = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_back)?;
-    let orientation_south_id = pool.add_string(
+    let mut wall_south = Semantic::new(SemanticType::WallSurface);
+    let wall_south_attrs = wall_south.attributes_mut();
+    let orientation_s_id = pool.add_string(
         "orientation".to_string(),
         true,
         "south".to_string(),
         AttributeOwnerType::Semantic,
         None,
     );
-    wall_semantic
-        .attributes_mut()
-        .insert("orientation".to_string(), orientation_south_id);
-    geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+    let wall_area_s_id = pool.add_float(
+        "area".to_string(),
+        true,
+        50.0 + (index as f64) * 0.3 + 0.1,
+        AttributeOwnerType::Semantic,
+        None,
+    );
+    wall_south_attrs.insert("orientation".to_string(), orientation_s_id);
+    wall_south_attrs.insert("area".to_string(), wall_area_s_id);
+    geometry_builder.set_semantic_surface(None, wall_south, false)?;
 
     // Left wall
     let ring_left = geometry_builder.add_ring(&[bv0, bv4, bv7, bv3])?;
     let surface_left = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_left)?;
-    let orientation_west_id = pool.add_string(
+    let mut wall_west = Semantic::new(SemanticType::WallSurface);
+    let wall_west_attrs = wall_west.attributes_mut();
+    let orientation_w_id = pool.add_string(
         "orientation".to_string(),
         true,
         "west".to_string(),
         AttributeOwnerType::Semantic,
         None,
     );
-    wall_semantic
-        .attributes_mut()
-        .insert("orientation".to_string(), orientation_west_id);
-    geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
+    let wall_area_w_id = pool.add_float(
+        "area".to_string(),
+        true,
+        50.0 + (index as f64) * 0.3 + 0.2,
+        AttributeOwnerType::Semantic,
+        None,
+    );
+    wall_west_attrs.insert("orientation".to_string(), orientation_w_id);
+    wall_west_attrs.insert("area".to_string(), wall_area_w_id);
+    geometry_builder.set_semantic_surface(None, wall_west, false)?;
 
     // Right wall
     let ring_right = geometry_builder.add_ring(&[bv1, bv2, bv6, bv5])?;
     let surface_right = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_right)?;
-    let orientation_east_id = pool.add_string(
+    let mut wall_east = Semantic::new(SemanticType::WallSurface);
+    let wall_east_attrs = wall_east.attributes_mut();
+    let orientation_e_id = pool.add_string(
         "orientation".to_string(),
         true,
         "east".to_string(),
         AttributeOwnerType::Semantic,
         None,
     );
-    wall_semantic
-        .attributes_mut()
-        .insert("orientation".to_string(), orientation_east_id);
-    geometry_builder.set_semantic_surface(None, wall_semantic)?;
+    let wall_area_e_id = pool.add_float(
+        "area".to_string(),
+        true,
+        50.0 + (index as f64) * 0.3 + 0.3,
+        AttributeOwnerType::Semantic,
+        None,
+    );
+    wall_east_attrs.insert("orientation".to_string(), orientation_e_id);
+    wall_east_attrs.insert("area".to_string(), wall_area_e_id);
+    geometry_builder.set_semantic_surface(None, wall_east, false)?;
 
     // Create shell from all surfaces
     let shell_surfaces = vec![

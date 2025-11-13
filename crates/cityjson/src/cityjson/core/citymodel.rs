@@ -225,6 +225,10 @@ where
     }
 
     /// Get or insert a semantic, returning the resource reference
+    ///
+    /// Note: Deduplication works when semantics are reused (same instance cloned).
+    /// Creating new semantics with different AttributeId32 values won't deduplicate
+    /// even if attribute values are logically identical.
     pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> RR
     where
         Semantic: PartialEq,
