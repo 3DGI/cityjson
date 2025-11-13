@@ -1,0 +1,21 @@
+#!/usr/bin/env just --justfile
+
+_git_ref := shell('git -C . rev-parse --short HEAD')
+_profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
+
+default:
+    just --list
+
+check:
+    cargo check --all-targets
+
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+# Build and open the crate documentation
+doc:
+    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
+
+# Extract the crate signatures to target/doc/cityjson.json
+doc-signatures:
+    RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps

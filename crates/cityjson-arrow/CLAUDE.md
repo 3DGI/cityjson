@@ -11,9 +11,9 @@ CityArrow is a Rust library that converts between CityJSON models and Apache Arr
 - **Build**: `cargo build`
 - **Test**: `cargo test`
 - **Test specific test**: `cargo test <testname>`
-- **Check/lint**: `cargo check`
+- **Check/lint**: `just check`
 - **Format**: `cargo fmt`
-- **Clippy**: `cargo clippy`
+- **Clippy**: `just clippy`
 
 ## Architecture
 
