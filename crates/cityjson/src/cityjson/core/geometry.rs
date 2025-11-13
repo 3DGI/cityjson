@@ -485,7 +485,12 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
-    pub fn set_semantic_point(&mut self, index: Option<usize>, semantic: Semantic, deduplicate: bool) -> Result<RR>
+    pub fn set_semantic_point(
+        &mut self,
+        index: Option<usize>,
+        semantic: Semantic,
+        deduplicate: bool,
+    ) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
@@ -571,7 +576,12 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
-    pub fn set_semantic_surface(&mut self, index: Option<usize>, semantic: Semantic, deduplicate: bool) -> Result<RR>
+    pub fn set_semantic_surface(
+        &mut self,
+        index: Option<usize>,
+        semantic: Semantic,
+        deduplicate: bool,
+    ) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
     {
@@ -1812,8 +1822,12 @@ mod tests {
         // Create a texture
         let wall_texture = OwnedTexture::new("facade.jpg".to_string(), ImageType::Jpg);
         // Set the texture for the surface
-        let texture_ref =
-            builder.set_texture_ring(Some(surface0), wall_texture, "theme-texture".to_string(), true);
+        let texture_ref = builder.set_texture_ring(
+            Some(surface0),
+            wall_texture,
+            "theme-texture".to_string(),
+            true,
+        );
 
         // Create and assign semantic for the second surface
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
@@ -2253,8 +2267,10 @@ mod tests {
         let ground_semantic = Semantic::new(SemanticType::GroundSurface);
 
         // Add semantics to faces
-        let roof_sem_ref1 = builder.set_semantic_surface(Some(surface4), roof_semantic.clone(), false);
-        let ground_sem_ref1 = builder.set_semantic_surface(Some(surface5), ground_semantic.clone(), false);
+        let roof_sem_ref1 =
+            builder.set_semantic_surface(Some(surface4), roof_semantic.clone(), false);
+        let ground_sem_ref1 =
+            builder.set_semantic_surface(Some(surface5), ground_semantic.clone(), false);
         let roof_sem_ref2 = builder.set_semantic_surface(Some(surface10), roof_semantic, false);
         let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic, false);
 

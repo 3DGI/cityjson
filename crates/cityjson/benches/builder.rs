@@ -44,7 +44,7 @@ fn build_geometry_with_semantics_materials_textures(
     let area_id = pool.add_float(
         "area".to_string(),
         true,
-        100.0 + (index as f64) * 0.5,  // Unique area per surface
+        100.0 + (index as f64) * 0.5, // Unique area per surface
         AttributeOwnerType::Semantic,
         None,
     );
@@ -62,21 +62,21 @@ fn build_geometry_with_semantics_materials_textures(
     let azimuth_id = pool.add_float(
         "azimuth".to_string(),
         true,
-        (index % 360) as f64,  // Unique azimuth per roof
+        (index % 360) as f64, // Unique azimuth per roof
         AttributeOwnerType::Semantic,
         None,
     );
     let slope_id = pool.add_float(
         "slope".to_string(),
         true,
-        15.0 + ((index % 30) as f64),  // Unique slope per roof
+        15.0 + ((index % 30) as f64), // Unique slope per roof
         AttributeOwnerType::Semantic,
         None,
     );
     let roof_area_id = pool.add_float(
         "area".to_string(),
         true,
-        200.0 + (index as f64) * 1.2,  // Unique area per roof
+        200.0 + (index as f64) * 1.2, // Unique area per roof
         AttributeOwnerType::Semantic,
         None,
     );
@@ -87,7 +87,12 @@ fn build_geometry_with_semantics_materials_textures(
 
     // Add material to roof if available
     if let Some((material, _mat_ref)) = material_data {
-        geometry_builder.set_material_surface(None, material.clone(), "default".to_string(), true)?;
+        geometry_builder.set_material_surface(
+            None,
+            material.clone(),
+            "default".to_string(),
+            true,
+        )?;
     }
 
     // Front wall (WallSurface)
