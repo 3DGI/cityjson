@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b23d3b9eb32bd20a034c6f612a930c0dfd1087f340327d035b25bcdf5a02e3ee # shrinks to allowed_types_cityobject = [Bridge], allowed_types_geometry = [MultiPoint], cityobject_hierarchy = false, min_coordinate = -1, max_coordinate = 0, nr_themes_materials = 1, nr_themes_textures = 1, max_vertices_texture = 4, use_templates = false
