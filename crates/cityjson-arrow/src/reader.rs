@@ -5,13 +5,13 @@
 use crate::writer::FileManifest;
 // Reuse the manifest struct from writer
 use crate::{
-    error::{Error, Result},
     CityModelArrowParts,
+    error::{Error, Result},
 };
 use arrow::buffer::Buffer;
 use arrow::ipc::convert::fb_to_schema;
-use arrow::ipc::reader::{read_footer_length, FileDecoder};
-use arrow::ipc::{root_as_footer, Block};
+use arrow::ipc::reader::{FileDecoder, read_footer_length};
+use arrow::ipc::{Block, root_as_footer};
 use arrow::record_batch::RecordBatch;
 use cityjson::{CityJSONVersion, CityModelType};
 use std::fs::File;

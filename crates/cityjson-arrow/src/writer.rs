@@ -4,8 +4,8 @@
 //! This module provides functions for writing the components of a CityJSON model
 //! represented as Arrow RecordBatches to various output formats.
 
-use crate::error::Result;
 use crate::CityModelArrowParts;
+use crate::error::Result;
 use arrow::ipc::writer::{FileWriter, IpcWriteOptions, StreamWriter};
 use arrow::record_batch::RecordBatch;
 use cityjson::prelude::{ResourceId32, StringStorage};
@@ -848,7 +848,13 @@ mod tests_parquet {
         let temp_dir = tempdir()?;
         let output_dir = temp_dir.path().join("model_with_data_parquet");
 
-        write_to_parquet_directory(&parts, &output_dir, Some(Compression::ZSTD(parquet::basic::ZstdLevel::try_new(1).unwrap())))?;
+        write_to_parquet_directory(
+            &parts,
+            &output_dir,
+            Some(Compression::ZSTD(
+                parquet::basic::ZstdLevel::try_new(1).unwrap(),
+            )),
+        )?;
 
         // Check that vertices file exists
         let vertices_path = output_dir.join("vertices.parquet");
@@ -881,8 +887,9 @@ mod tests_parquet {
 
         // Read the manifest to check format
         let manifest_json = std::fs::read_to_string(manifest_path)?;
-        let manifest: FileManifest = DeJson::deserialize_json(&manifest_json)
-            .map_err(|e| crate::error::Error::Conversion(format!("Failed to parse manifest: {}", e)))?;
+        let manifest: FileManifest = DeJson::deserialize_json(&manifest_json).map_err(|e| {
+            crate::error::Error::Conversion(format!("Failed to parse manifest: {}", e))
+        })?;
 
         assert_eq!(manifest.format, "parquet");
         assert!(manifest.components.metadata);
@@ -917,7 +924,9 @@ mod integration_tests {
         // Add a city object
         let mut building = CityObject::new("building-1".to_string(), CityObjectType::Building);
         // TODO: https://github.com/apache/arrow-rs/issues/73
-        building.attributes_mut().insert("height".to_string(), AttributeValue::Float(42.0));
+        building
+            .attributes_mut()
+            .insert("height".to_string(), AttributeValue::Float(42.0));
         model.cityobjects_mut().add(building);
 
         // TODO: https://github.com/apache/arrow-rs/issues/73
@@ -948,7 +957,11 @@ mod integration_tests {
             let parquet_path = parquet_dir.join(format!("{}.parquet", name));
 
             assert!(arrow_path.exists(), "Arrow file {} does not exist", name);
-            assert!(parquet_path.exists(), "Parquet file {} does not exist", name);
+            assert!(
+                parquet_path.exists(),
+                "Parquet file {} does not exist",
+                name
+            );
 
             Ok(())
         };

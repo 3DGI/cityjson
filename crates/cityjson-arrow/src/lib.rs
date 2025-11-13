@@ -232,11 +232,11 @@ pub fn arrow_parts_to_citymodel(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::writer::write_to_directory;
+    use cityjson::v2_0::*;
     use std::env;
     use std::path::PathBuf;
-    use super::*;
-    use cityjson::v2_0::*;
-    use crate::writer::{write_to_directory};
 
     #[test]
     fn test_empty_model_conversion() {
@@ -455,7 +455,7 @@ mod tests {
 
         // Convert to parts and back
         let parts = citymodel_to_arrow_parts(&original_model).expect("Failed to convert to parts");
-        
+
         // DEBUG JSON
         // write_to_json_directory(&parts, "complex_model_test").expect("Failed to write JSON");
         // end DEBUG JSON
@@ -467,7 +467,7 @@ mod tests {
         dbg!(&output_dir);
         write_to_directory(&parts, output_dir).expect("Failed to write Arrow files");
         // end DEBUG ARROW
-        
+
         let converted_model =
             arrow_parts_to_citymodel(&parts).expect("Failed to convert back to model");
 

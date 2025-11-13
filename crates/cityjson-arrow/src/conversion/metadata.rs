@@ -8,14 +8,12 @@ use arrow::datatypes::{DataType, Field, Fields, Int8Type};
 use cityjson::prelude::{
     BBox, BBoxTrait, CityModelIdentifier, Date, OwnedStringStorage, ResourceRef, StringStorage,
 };
-use cityjson::v2_0::{Contact, ContactRole, ContactType, Metadata, CRS};
+use cityjson::v2_0::{CRS, Contact, ContactRole, ContactType, Metadata};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
 
-pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
-    metadata: &Metadata<SS, RR>,
-) -> Result<StructArray> {
+pub fn metadata_to_arrow<SS: StringStorage>(metadata: &Metadata<SS>) -> Result<StructArray> {
     let mut fields = Vec::with_capacity(7);
     let mut arrays = Vec::with_capacity(7);
 
@@ -93,9 +91,7 @@ pub fn metadata_to_arrow<SS: StringStorage, RR: ResourceRef>(
     StructArray::try_new(Fields::from(fields), arrays, None).map_err(Error::from)
 }
 
-pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
-    contact: &Contact<SS, RR>,
-) -> Result<StructArray> {
+pub fn contact_to_arrow<SS: StringStorage>(contact: &Contact<SS>) -> Result<StructArray> {
     let mut fields = Vec::with_capacity(8);
     let mut arrays = Vec::with_capacity(8);
 
@@ -176,9 +172,7 @@ pub fn contact_to_arrow<SS: StringStorage, RR: ResourceRef>(
     StructArray::try_new(Fields::from(fields), arrays, None).map_err(Error::from)
 }
 
-pub fn arrow_to_metadata<RR: ResourceRef>(
-    arrow_struct: &StructArray,
-) -> Result<Metadata<OwnedStringStorage, RR>> {
+pub fn arrow_to_metadata(arrow_struct: &StructArray) -> Result<Metadata<OwnedStringStorage>> {
     // Create a new empty metadata
     let mut metadata = Metadata::new();
 
@@ -300,9 +294,7 @@ pub fn arrow_to_metadata<RR: ResourceRef>(
 }
 
 /// Converts an Arrow StructArray to a cityjson-rs Contact object.
-fn arrow_to_contact<RR: ResourceRef>(
-    contact_struct: &StructArray,
-) -> Result<Contact<OwnedStringStorage, RR>> {
+fn arrow_to_contact(contact_struct: &StructArray) -> Result<Contact<OwnedStringStorage>> {
     let mut contact = Contact::new();
 
     // Extract contact_name (required field)
@@ -473,15 +465,15 @@ mod tests {
     use super::*;
     use arrow::array::{Array, FixedSizeListArray, StringArray, StructArray};
     use cityjson::prelude::{
-        AttributeValue, BBox, CityModelIdentifier, Date, OwnedAttributes, OwnedStringStorage, ResourceId32,
-        CRS,
+        AttributeValue, BBox, CRS, CityModelIdentifier, Date, OwnedAttributes, OwnedStringStorage,
+        ResourceId32,
     };
     use cityjson::v2_0::{ContactRole, ContactType, Metadata};
 
     #[test]
     fn test_metadata_to_arrow() {
         // Create a test metadata object with all fields populated
-        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
+        let mut metadata = Metadata::<OwnedStringStorage>::new();
 
         // Set geographic extent (bounding box)
         metadata.set_geographical_extent(BBox::new(10.0, 20.0, 30.0, 40.0, 50.0, 60.0));
@@ -622,7 +614,7 @@ mod tests {
     #[test]
     fn test_arrow_to_metadata() {
         // Create a test metadata object with all fields populated
-        let mut original = Metadata::<OwnedStringStorage, ResourceId32>::new();
+        let mut original = Metadata::<OwnedStringStorage>::new();
 
         // Set fields
         original.set_geographical_extent(BBox::new(10.0, 20.0, 30.0, 40.0, 50.0, 60.0));
@@ -658,7 +650,7 @@ mod tests {
         let arrow_struct = metadata_to_arrow(&original).unwrap();
 
         // Convert back to Metadata
-        let result = arrow_to_metadata::<ResourceId32>(&arrow_struct).unwrap();
+        let result = arrow_to_metadata(&arrow_struct).unwrap();
 
         // Verify fields
         assert_eq!(result.geographical_extent(), original.geographical_extent());

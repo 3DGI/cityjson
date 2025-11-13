@@ -81,7 +81,7 @@ where
             attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         } else {
             // Create an empty MapArray with the correct structure
-            let empty_attributes = Attributes::<OwnedStringStorage, ResourceId32>::new();
+            let empty_attributes = Attributes::<OwnedStringStorage>::new();
             let (_, map_array) = attributes_to_arrow(&empty_attributes, "attributes")?;
             attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         }
@@ -260,7 +260,7 @@ where
         if let Some(attributes_array) = attributes_map_array {
             if !attributes_array.is_null(i) {
                 // Create a new attributes object
-                let mut attributes = Attributes::<SS, ResourceId32>::new();
+                let mut attributes = Attributes::<SS>::new();
 
                 // Extract the entries for this row
                 let entries = attributes_array.value(i);

@@ -114,7 +114,7 @@ where
             attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         } else {
             // Create an empty MapArray with the correct structure
-            let empty_attributes = Attributes::<OwnedStringStorage, ResourceId32>::new();
+            let empty_attributes = Attributes::<OwnedStringStorage>::new();
             let (_, map_array) = attributes_to_arrow(&empty_attributes, "attributes")?;
             attribute_arrays.push(Arc::new(map_array) as ArrayRef);
         }
@@ -126,7 +126,7 @@ where
             extra_arrays.push(Arc::new(map_array) as ArrayRef);
         } else {
             // Create an empty MapArray with the correct structure
-            let empty_extra = Attributes::<OwnedStringStorage, ResourceId32>::new();
+            let empty_extra = Attributes::<OwnedStringStorage>::new();
             let (_, map_array) = attributes_to_arrow(&empty_extra, "extra")?;
             extra_arrays.push(Arc::new(map_array) as ArrayRef);
         }
@@ -305,7 +305,7 @@ where
 
         // Set attributes if present
         if !attributes_array.is_null(i) {
-            let mut attributes = Attributes::<SS, ResourceId32>::new();
+            let mut attributes = Attributes::<SS>::new();
 
             // Get the entries struct array for this row
             let entries = attributes_array.value(i);
@@ -416,7 +416,7 @@ where
 
         // Set extra properties if present
         if !extra_array.is_null(i) {
-            let mut extra_attrs = Attributes::<SS, ResourceId32>::new();
+            let mut extra_attrs = Attributes::<SS>::new();
 
             // Get the entries struct array for this row
             let entries = extra_array.value(i);

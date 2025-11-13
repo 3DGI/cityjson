@@ -673,7 +673,7 @@ fn extract_boundary(
 mod tests {
     use super::*;
     use arrow::array::{
-        Array, DictionaryArray, FixedSizeListArray, Float64Array, Int32Array, Int8Array, ListArray,
+        Array, DictionaryArray, FixedSizeListArray, Float64Array, Int8Array, Int32Array, ListArray,
         StringArray, UInt32Array,
     };
     use arrow::buffer::Buffer;

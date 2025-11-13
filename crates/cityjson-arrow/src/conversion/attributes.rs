@@ -19,8 +19,8 @@ use crate::error::{Error, Result};
 ///
 /// ## Returns
 /// A tuple containing the schema of the Map and the MapArray.
-pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
-    attributes: &Attributes<SS, RR>,
+pub fn attributes_to_arrow<SS: StringStorage>(
+    attributes: &Attributes<SS>,
     map_field_name: &str,
 ) -> Result<(Schema, MapArray)> {
     // ----- Step 1: Accumulate keys and union components -----
@@ -202,10 +202,8 @@ pub fn union_fields() -> UnionFields {
 /// # Returns
 ///
 /// A Result containing the converted Attributes container or an error
-pub fn arrow_to_attributes_owned<RR: ResourceRef>(
-    map_array: &MapArray,
-) -> Result<Attributes<OwnedStringStorage, RR>> {
-    let mut attributes = Attributes::<OwnedStringStorage, RR>::new();
+pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<OwnedStringStorage>> {
+    let mut attributes = Attributes::<OwnedStringStorage>::new();
 
     // Handle empty map
     if map_array.len() == 0 {
@@ -242,10 +240,10 @@ pub fn arrow_to_attributes_owned<RR: ResourceRef>(
 ///
 /// This function handles the different types of values that can be stored in the UnionArray
 /// and converts them to the appropriate AttributeValue variant.
-fn convert_union_value_to_owned_attribute_value<RR: ResourceRef>(
+fn convert_union_value_to_owned_attribute_value(
     union_array: &UnionArray,
     index: usize,
-) -> Result<AttributeValue<OwnedStringStorage, RR>> {
+) -> Result<AttributeValue<OwnedStringStorage>> {
     let type_id = union_array.type_id(index);
     let value_offset = union_array.value_offset(index);
 
@@ -453,7 +451,7 @@ mod tests {
         let map_array = MapArray::from(map_data);
 
         // Convert to Attributes
-        let attributes = arrow_to_attributes_owned::<ResourceId32>(&map_array).unwrap();
+        let attributes = arrow_to_attributes_owned(&map_array).unwrap();
 
         // Verify the results
         assert_eq!(attributes.len(), 6);

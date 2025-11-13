@@ -2,8 +2,8 @@
 //!
 //! When operations go wrong.
 use arrow::error::ArrowError;
-use std::fmt::{Debug, Display, Formatter};
 use parquet::errors::ParquetError;
+use std::fmt::{Debug, Display, Formatter};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
