@@ -10,7 +10,6 @@ pub mod error;
 pub mod reader;
 pub mod writer;
 
-use crate::conversion::attributes::arrow_to_attributes_owned;
 use crate::conversion::cityobjects::arrow_to_cityobjects;
 use crate::conversion::geometry::arrow_to_geometries;
 use crate::conversion::metadata::arrow_to_metadata;
@@ -18,13 +17,12 @@ use crate::conversion::semantics::arrow_to_semantics;
 use crate::conversion::transform::arrow_to_transform;
 use crate::conversion::vertices::batch_to_vertices;
 use crate::error::{Error, Result};
-use arrow::array::{MapArray, StructArray};
+use arrow::array::StructArray;
 use arrow::record_batch::RecordBatch;
 use cityjson::prelude::*;
 use cityjson::v2_0::CityModel;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::sync::Arc;
 
 pub struct CityModelArrowParts {
     pub type_citymodel: CityModelType,
@@ -87,14 +85,24 @@ where
         None
     };
 
+    // TODO: Attribute conversion requires an AttributePool which is managed separately
+    // from the CityModel in the new cityjson-rs API. To properly support attributes,
+    // we need to:
+    // 1. Add an AttributePool parameter to this function, OR
+    // 2. Add AttributePool serialization to CityModelArrowParts, OR
+    // 3. Design a way to extract/reconstruct the AttributePool from the model
+    // For now, attributes/extra are not converted.
+    let extra_batch = None;
+    /*
     let extra_batch = match model.extra() {
         None => None,
         Some(extra_attrs) => {
             if extra_attrs.is_empty() {
                 None
             } else {
+                // This requires an AttributePool to work
                 let (schema, map_array) =
-                    conversion::attributes::attributes_to_arrow(extra_attrs, "extra")?;
+                    conversion::attributes::attributes_to_arrow(extra_attrs, pool, "extra")?;
                 Some(RecordBatch::try_new(
                     Arc::new(schema),
                     vec![Arc::new(map_array)],
@@ -102,6 +110,7 @@ where
             }
         }
     };
+    */
 
     // TODO: The new cityjson-rs API doesn't provide direct pool access methods.
     // We need to refactor the conversion functions to work with iterators or
@@ -185,7 +194,9 @@ pub fn arrow_parts_to_citymodel(
         *model.vertices_mut() = vertices;
     }
 
-    // Convert and set extra attributes if present
+    // TODO: Convert and set extra attributes if present
+    // This requires an AttributePool which is not part of CityModelArrowParts yet
+    /*
     if let Some(extra_batch) = &parts.extra {
         let extra_array = extra_batch
             .column(0)
@@ -193,9 +204,15 @@ pub fn arrow_parts_to_citymodel(
             .downcast_ref::<MapArray>()
             .ok_or_else(|| Error::Conversion("Failed to get extra map".to_string()))?;
 
-        let extra_attrs = arrow_to_attributes_owned(extra_array)?;
+        let mut pool = cityjson::cityjson::core::attributes::OwnedAttributePool::new();
+        let extra_attrs = arrow_to_attributes_owned(
+            extra_array,
+            &mut pool,
+            cityjson::cityjson::core::attributes::AttributeOwnerType::CityModel
+        )?;
         *model.extra_mut() = extra_attrs;
     }
+    */
 
     // Convert and set geometries if present
     if let Some(geometries_batch) = &parts.geometries {
@@ -232,6 +249,7 @@ pub fn arrow_parts_to_citymodel(
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use crate::writer::write_to_directory;

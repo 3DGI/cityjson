@@ -4,9 +4,8 @@ use arrow::array::{
 };
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, Fields, Schema, UnionFields, UnionMode};
-use cityjson::prelude::{
-    AttributeValue, Attributes, OwnedStringStorage, ResourceId32, StringStorage,
-};
+use cityjson::cityjson::core::attributes::{AttributePool, AttributeValueType};
+use cityjson::prelude::{Attributes, OwnedStringStorage, ResourceRef, StringStorage};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
@@ -15,31 +14,94 @@ use crate::error::{Error, Result};
 ///
 /// ## Arguments
 ///
-/// - `map_field_name` is either "attributes" or "extra", depending on wether the
+/// - `attributes` - The attributes container with references to attribute values
+/// - `pool` - The attribute pool containing the actual attribute values
+/// - `map_field_name` is either "attributes" or "extra", depending on whether the
 ///   attributes are used as object attributes or extra properties.
 ///
 /// ## Returns
 /// A tuple containing the schema of the Map and the MapArray.
-///
-/// ## Note
-/// This function currently returns an empty MapArray because the new cityjson-rs API
-/// requires an AttributePool to access the actual attribute values, which is not available
-/// in this context. This needs to be refactored to accept an AttributePool parameter.
-pub fn attributes_to_arrow<SS: StringStorage>(
-    _attributes: &Attributes<SS>,
+pub fn attributes_to_arrow<SS: StringStorage, RR: ResourceRef>(
+    attributes: &Attributes<SS>,
+    pool: &AttributePool<SS, RR>,
     map_field_name: &str,
-) -> Result<(Schema, MapArray)> {
-    // TODO: Refactor this function to work with the new AttributePool-based API
-    // For now, return an empty map
-    let keys: Vec<&str> = Vec::new();
-    let union_type_ids: Vec<i8> = Vec::new();
-    let union_offsets: Vec<i32> = Vec::new();
-    let null_count = 0;
-    let bool_values: Vec<bool> = Vec::new();
-    let uint_values: Vec<u64> = Vec::new();
-    let int_values: Vec<i64> = Vec::new();
-    let float_values: Vec<f64> = Vec::new();
-    let string_values: Vec<&str> = Vec::new();
+) -> Result<(Schema, MapArray)>
+where
+    SS::String: AsRef<str>,
+{
+    let mut keys: Vec<String> = Vec::new();
+    let mut union_type_ids: Vec<i8> = Vec::new();
+    let mut union_offsets: Vec<i32> = Vec::new();
+    let mut null_count: usize = 0;
+    let mut bool_values: Vec<bool> = Vec::new();
+    let mut uint_values: Vec<u64> = Vec::new();
+    let mut int_values: Vec<i64> = Vec::new();
+    let mut float_values: Vec<f64> = Vec::new();
+    let mut string_values: Vec<String> = Vec::new();
+
+    // Iterate through all attributes and build the Arrow arrays
+    for (key, attr_id) in attributes.iter() {
+        keys.push(key.as_ref().to_string());
+
+        // Get the attribute type and value from the pool
+        let attr_type = pool
+            .get_type(attr_id)
+            .ok_or_else(|| Error::Conversion(format!("Invalid attribute ID: {}", attr_id)))?;
+
+        match attr_type {
+            AttributeValueType::Null => {
+                union_type_ids.push(0);
+                union_offsets.push(null_count as i32);
+                null_count += 1;
+            }
+            AttributeValueType::Bool => {
+                union_type_ids.push(1);
+                union_offsets.push(bool_values.len() as i32);
+                let value = pool.get_bool(attr_id).ok_or_else(|| {
+                    Error::Conversion(format!("Failed to get bool value for ID: {}", attr_id))
+                })?;
+                bool_values.push(value);
+            }
+            AttributeValueType::Unsigned => {
+                union_type_ids.push(2);
+                union_offsets.push(uint_values.len() as i32);
+                let value = pool.get_unsigned(attr_id).ok_or_else(|| {
+                    Error::Conversion(format!("Failed to get unsigned value for ID: {}", attr_id))
+                })?;
+                uint_values.push(value);
+            }
+            AttributeValueType::Integer => {
+                union_type_ids.push(3);
+                union_offsets.push(int_values.len() as i32);
+                let value = pool.get_integer(attr_id).ok_or_else(|| {
+                    Error::Conversion(format!("Failed to get integer value for ID: {}", attr_id))
+                })?;
+                int_values.push(value);
+            }
+            AttributeValueType::Float => {
+                union_type_ids.push(4);
+                union_offsets.push(float_values.len() as i32);
+                let value = pool.get_float(attr_id).ok_or_else(|| {
+                    Error::Conversion(format!("Failed to get float value for ID: {}", attr_id))
+                })?;
+                float_values.push(value);
+            }
+            AttributeValueType::String => {
+                union_type_ids.push(5);
+                union_offsets.push(string_values.len() as i32);
+                let value = pool.get_string(attr_id).ok_or_else(|| {
+                    Error::Conversion(format!("Failed to get string value for ID: {}", attr_id))
+                })?;
+                string_values.push(value.as_ref().to_string());
+            }
+            AttributeValueType::Vec | AttributeValueType::Map | AttributeValueType::Geometry => {
+                return Err(Error::Unsupported(format!(
+                    "Nested types (Vec, Map, Geometry) are not yet supported in Arrow conversion: {:?}",
+                    attr_type
+                )));
+            }
+        }
+    }
 
     // ----- Step 2: Build the child arrays for the union -----
     let null_array = Arc::new(NullArray::new(null_count)) as ArrayRef;
@@ -47,7 +109,9 @@ pub fn attributes_to_arrow<SS: StringStorage>(
     let uint_array = Arc::new(UInt64Array::from(uint_values)) as ArrayRef;
     let int_array = Arc::new(Int64Array::from(int_values)) as ArrayRef;
     let float_array = Arc::new(Float64Array::from(float_values)) as ArrayRef;
-    let string_array = Arc::new(StringArray::from(string_values)) as ArrayRef;
+    let string_array = Arc::new(StringArray::from(
+        string_values.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+    )) as ArrayRef;
 
     let children = vec![
         null_array,
@@ -73,7 +137,7 @@ pub fn attributes_to_arrow<SS: StringStorage>(
 
     // ----- Step 3: Build the StructArray for map entries -----
     // Build the keys array.
-    let keys_array = StringArray::from(keys);
+    let keys_array = StringArray::from(keys.iter().map(|s| s.as_str()).collect::<Vec<_>>());
     // Create a struct array with fields "key" and "value".
     let struct_array = StructArray::try_new(
         Fields::from(vec![
@@ -156,12 +220,18 @@ pub fn union_fields() -> UnionFields {
 /// # Parameters
 ///
 /// * `map_array` - The Arrow MapArray containing attribute data
+/// * `pool` - The attribute pool to store the converted attribute values
+/// * `owner_type` - The type of entity that owns these attributes
 ///
 /// # Returns
 ///
 /// A Result containing the converted Attributes container or an error
-pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<OwnedStringStorage>> {
-    let attributes = Attributes::<OwnedStringStorage>::new();
+pub fn arrow_to_attributes_owned<RR: ResourceRef>(
+    map_array: &MapArray,
+    pool: &mut cityjson::cityjson::core::attributes::AttributePool<OwnedStringStorage, RR>,
+    owner_type: cityjson::cityjson::core::attributes::AttributeOwnerType,
+) -> Result<Attributes<OwnedStringStorage>> {
+    let mut attributes = Attributes::<OwnedStringStorage>::new();
 
     // Handle empty map
     if map_array.len() == 0 {
@@ -184,12 +254,41 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
         .downcast_ref::<UnionArray>()
         .ok_or_else(|| Error::Conversion("Expected UnionArray for values".to_string()))?;
 
-    // TODO: Process each entry and populate attributes
-    // In the new API, we need an AttributePool to store the actual values.
-    // Attributes is just a container for AttributeId32 references.
-    // This function needs to be refactored to accept an AttributePool parameter.
-    let _ = keys; // Silence unused variable warning
-    let _ = values; // Silence unused variable warning
+    // Process each entry and populate attributes
+    for i in 0..keys.len() {
+        let key = keys.value(i).to_string();
+        let attr_value = convert_union_value_to_owned_attribute_value::<RR>(values, i)?;
+
+        // Add the value to the pool and get the ID
+        let attr_id = match attr_value {
+            cityjson::cityjson::core::attributes::AttributeValue::Null => {
+                pool.add_null(key.clone(), true, owner_type, None)
+            }
+            cityjson::cityjson::core::attributes::AttributeValue::Bool(v) => {
+                pool.add_bool(key.clone(), true, v, owner_type, None)
+            }
+            cityjson::cityjson::core::attributes::AttributeValue::Unsigned(v) => {
+                pool.add_unsigned(key.clone(), true, v, owner_type, None)
+            }
+            cityjson::cityjson::core::attributes::AttributeValue::Integer(v) => {
+                pool.add_integer(key.clone(), true, v, owner_type, None)
+            }
+            cityjson::cityjson::core::attributes::AttributeValue::Float(v) => {
+                pool.add_float(key.clone(), true, v, owner_type, None)
+            }
+            cityjson::cityjson::core::attributes::AttributeValue::String(v) => {
+                pool.add_string(key.clone(), true, v, owner_type, None)
+            }
+            _ => {
+                return Err(Error::Unsupported(
+                    "Nested attribute types (Vec, Map, Geometry) are not yet supported".to_string(),
+                ));
+            }
+        };
+
+        // Add the reference to the attributes container
+        attributes.insert(key, attr_id);
+    }
 
     Ok(attributes)
 }
@@ -198,16 +297,15 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
 ///
 /// This function handles the different types of values that can be stored in the UnionArray
 /// and converts them to the appropriate AttributeValue variant.
-#[allow(dead_code)]
-fn convert_union_value_to_owned_attribute_value(
+fn convert_union_value_to_owned_attribute_value<RR: ResourceRef>(
     union_array: &UnionArray,
     index: usize,
-) -> Result<AttributeValue<OwnedStringStorage, ResourceId32>> {
+) -> Result<cityjson::cityjson::core::attributes::AttributeValue<OwnedStringStorage, RR>> {
     let type_id = union_array.type_id(index);
     let value_offset = union_array.value_offset(index);
 
     match type_id {
-        0 => Ok(AttributeValue::Null),
+        0 => Ok(cityjson::cityjson::core::attributes::AttributeValue::Null),
         1 => {
             // Boolean
             let array = union_array
@@ -215,7 +313,9 @@ fn convert_union_value_to_owned_attribute_value(
                 .as_any()
                 .downcast_ref::<BooleanArray>()
                 .ok_or_else(|| Error::Conversion("Expected BooleanArray".to_string()))?;
-            Ok(AttributeValue::Bool(array.value(value_offset)))
+            Ok(cityjson::cityjson::core::attributes::AttributeValue::Bool(
+                array.value(value_offset),
+            ))
         }
         2 => {
             // Unsigned
@@ -224,7 +324,11 @@ fn convert_union_value_to_owned_attribute_value(
                 .as_any()
                 .downcast_ref::<UInt64Array>()
                 .ok_or_else(|| Error::Conversion("Expected UInt64Array".to_string()))?;
-            Ok(AttributeValue::Unsigned(array.value(value_offset)))
+            Ok(
+                cityjson::cityjson::core::attributes::AttributeValue::Unsigned(
+                    array.value(value_offset),
+                ),
+            )
         }
         3 => {
             // Integer
@@ -233,7 +337,11 @@ fn convert_union_value_to_owned_attribute_value(
                 .as_any()
                 .downcast_ref::<Int64Array>()
                 .ok_or_else(|| Error::Conversion("Expected Int64Array".to_string()))?;
-            Ok(AttributeValue::Integer(array.value(value_offset)))
+            Ok(
+                cityjson::cityjson::core::attributes::AttributeValue::Integer(
+                    array.value(value_offset),
+                ),
+            )
         }
         4 => {
             // Float
@@ -242,7 +350,9 @@ fn convert_union_value_to_owned_attribute_value(
                 .as_any()
                 .downcast_ref::<Float64Array>()
                 .ok_or_else(|| Error::Conversion("Expected Float64Array".to_string()))?;
-            Ok(AttributeValue::Float(array.value(value_offset)))
+            Ok(cityjson::cityjson::core::attributes::AttributeValue::Float(
+                array.value(value_offset),
+            ))
         }
         5 => {
             // String
@@ -251,9 +361,11 @@ fn convert_union_value_to_owned_attribute_value(
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .ok_or_else(|| Error::Conversion("Expected StringArray".to_string()))?;
-            Ok(AttributeValue::String(
-                array.value(value_offset).to_string(),
-            ))
+            Ok(
+                cityjson::cityjson::core::attributes::AttributeValue::String(
+                    array.value(value_offset).to_string(),
+                ),
+            )
         }
         _ => Err(Error::Unsupported(format!(
             "Nested types are not supported (type_id: {})",
@@ -263,10 +375,12 @@ fn convert_union_value_to_owned_attribute_value(
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
-    use arrow::array::{MapArray, RecordBatch, StringArray};
-    use cityjson::prelude::{AttributeValue, OwnedAttributes, ResourceId32};
+    use arrow::array::{MapArray, StringArray};
+    use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+    use cityjson::prelude::{OwnedAttributes, ResourceId32};
     use std::collections::HashSet;
     use std::f64::consts::PI;
 
@@ -295,6 +409,7 @@ mod tests {
     // TODO: This test needs to be refactored to work with the new AttributePool-based API
     #[test]
     #[ignore]
+    #[allow(dead_code)]
     fn test_arrow_to_attributes_owned() {
         // Create test data for attributes with various primitive types
         let keys = StringArray::from(vec![
@@ -368,10 +483,13 @@ mod tests {
             .add_child_data(struct_array.to_data().clone())
             .build()
             .unwrap();
-        let map_array = MapArray::from(map_data);
+        let _map_array = MapArray::from(map_data);
 
         // Convert to Attributes
-        let attributes = arrow_to_attributes_owned(&map_array).unwrap();
+        /* TODO: Needs AttributePool parameter
+        let mut pool = OwnedAttributePool::new();
+        let attributes = arrow_to_attributes_owned(&map_array, &mut pool, AttributeOwnerType::CityObject).unwrap();
+        */
 
         /* // Verify the results
         assert_eq!(attributes.len(), 6);

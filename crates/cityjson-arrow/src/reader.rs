@@ -211,6 +211,7 @@ pub fn read_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<CityModelArrow
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use crate::citymodel_to_arrow_parts;

@@ -103,29 +103,21 @@ where
             parents_builder.append(false); // Append null list
         }
 
-        // Attributes
-        if let Some(attributes) = cityobject.attributes() {
-            // Convert these attributes to a MapArray
-            let (_, map_array) = attributes_to_arrow(attributes, "attributes")?;
-            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
-        } else {
-            // Create an empty MapArray with the correct structure
-            let empty_attributes = Attributes::<OwnedStringStorage>::new();
-            let (_, map_array) = attributes_to_arrow(&empty_attributes, "attributes")?;
-            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
-        }
+        // TODO: Attributes conversion requires an AttributePool
+        // For now, create empty MapArrays
+        // See lib.rs for more details on this limitation
+        let empty_attributes = Attributes::<OwnedStringStorage>::new();
+        let empty_pool = cityjson::cityjson::core::attributes::AttributePool::<
+            OwnedStringStorage,
+            ResourceId32,
+        >::new();
+        let (_, map_array) = attributes_to_arrow(&empty_attributes, &empty_pool, "attributes")?;
+        attribute_arrays.push(Arc::new(map_array) as ArrayRef);
 
-        // Extra properties
-        if let Some(extra) = cityobject.extra() {
-            // Convert these extra properties to a MapArray
-            let (_, map_array) = attributes_to_arrow(extra, "extra")?;
-            extra_arrays.push(Arc::new(map_array) as ArrayRef);
-        } else {
-            // Create an empty MapArray with the correct structure
-            let empty_extra = Attributes::<OwnedStringStorage>::new();
-            let (_, map_array) = attributes_to_arrow(&empty_extra, "extra")?;
-            extra_arrays.push(Arc::new(map_array) as ArrayRef);
-        }
+        // TODO: Extra properties conversion requires an AttributePool
+        let empty_extra = Attributes::<OwnedStringStorage>::new();
+        let (_, map_array) = attributes_to_arrow(&empty_extra, &empty_pool, "extra")?;
+        extra_arrays.push(Arc::new(map_array) as ArrayRef);
     }
 
     // Concatenate all attribute arrays
@@ -679,6 +671,7 @@ pub fn cityobjects_schema() -> Schema {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use arrow::array::{Array, AsArray, DictionaryArray, FixedSizeListArray, ListArray};

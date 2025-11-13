@@ -613,6 +613,7 @@ where
 // ---------------------
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::Result;
     use super::*;
@@ -670,6 +671,7 @@ mod tests {
     use std::io::{Cursor, Read};
 
     // Helper function to read a frame from a reader
+    #[allow(dead_code)]
     fn read_frame<R: Read>(reader: &mut R) -> Result<(ComponentId, Vec<u8>)> {
         let mut id_buf = [0u8; 1];
         reader.read_exact(&mut id_buf)?;
@@ -812,6 +814,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests_parquet {
     use super::*;
     use cityjson::prelude::*;
@@ -908,6 +911,7 @@ mod tests_parquet {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod integration_tests {
     use super::*;
     use cityjson::prelude::*;

@@ -116,6 +116,7 @@ pub fn arrow_to_transform(batch: &RecordBatch) -> Result<Transform> {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use arrow::array::FixedSizeListArray;

@@ -72,17 +72,15 @@ where
         // Parent
         parent_builder.append_option(semantic.parent().map(|rr| rr.index()));
 
-        // Attributes
-        if let Some(attributes) = semantic.attributes() {
-            // Convert these attributes to a MapArray
-            let (_, map_array) = attributes_to_arrow(attributes, "attributes")?;
-            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
-        } else {
-            // Create an empty MapArray with the correct structure
-            let empty_attributes = Attributes::<OwnedStringStorage>::new();
-            let (_, map_array) = attributes_to_arrow(&empty_attributes, "attributes")?;
-            attribute_arrays.push(Arc::new(map_array) as ArrayRef);
-        }
+        // TODO: Attributes conversion requires an AttributePool
+        // For now, create empty MapArrays
+        let empty_attributes = Attributes::<OwnedStringStorage>::new();
+        let empty_pool = cityjson::cityjson::core::attributes::AttributePool::<
+            OwnedStringStorage,
+            ResourceId32,
+        >::new();
+        let (_, map_array) = attributes_to_arrow(&empty_attributes, &empty_pool, "attributes")?;
+        attribute_arrays.push(Arc::new(map_array) as ArrayRef);
     }
 
     // Concatenate all attribute arrays
@@ -422,6 +420,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use cityjson::prelude::{
