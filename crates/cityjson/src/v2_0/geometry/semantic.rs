@@ -15,7 +15,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// Index to parent semantic in the global semantics pool
     parent: Option<RR>,
     /// Additional attributes of the semantic surface
-    attributes: Option<Attributes<SS, RR>>,
+    attributes: Option<Attributes<SS>>,
 }
 
 impl_semantic_trait!(SemanticType<SS>);
@@ -72,7 +72,9 @@ impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::core::attributes::AttributeValue;
+    use crate::cityjson::core::attributes::{
+        AttributeOwnerType, AttributeValue, OwnedAttributePool,
+    };
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
@@ -266,19 +268,34 @@ mod tests {
         let mut semantic14 =
             Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
 
+        // Create attribute pool for test
+        let mut pool = OwnedAttributePool::new();
+        let color_id1 = pool.add_string(
+            "color".to_string(),
+            true,
+            "blue".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let color_id2 = pool.add_string(
+            "color".to_string(),
+            true,
+            "blue".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
+        );
+
         semantic13.children_mut().push(ResourceId32::new(1, 0));
         semantic13.set_parent(ResourceId32::new(5, 0));
-        semantic13.attributes_mut().insert(
-            "color".to_string(),
-            AttributeValue::String("blue".to_string()),
-        );
+        semantic13
+            .attributes_mut()
+            .insert("color".to_string(), color_id1);
 
         semantic14.children_mut().push(ResourceId32::new(1, 0));
         semantic14.set_parent(ResourceId32::new(5, 0));
-        semantic14.attributes_mut().insert(
-            "color".to_string(),
-            AttributeValue::String("blue".to_string()),
-        );
+        semantic14
+            .attributes_mut()
+            .insert("color".to_string(), color_id2);
         assert_eq!(semantic13, semantic14);
     }
 }

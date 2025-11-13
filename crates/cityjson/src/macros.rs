@@ -178,15 +178,13 @@ macro_rules! impl_cityobject_methods {
                 self.inner.geometry_mut()
             }
 
-            pub fn attributes(
-                &self,
-            ) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            pub fn attributes(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
                 self.inner.attributes()
             }
 
             pub fn attributes_mut(
                 &mut self,
-            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+            ) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
                 self.inner.attributes_mut()
             }
 
@@ -217,13 +215,11 @@ macro_rules! impl_cityobject_methods {
                 self.inner.parents_mut()
             }
 
-            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
                 self.inner.extra()
             }
 
-            pub fn extra_mut(
-                &mut self,
-            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+            pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
                 self.inner.extra_mut()
             }
         }
@@ -666,15 +662,13 @@ macro_rules! impl_semantic_trait {
                 self.parent = Some(parent_ref);
             }
             #[inline]
-            pub fn attributes(
-                &self,
-            ) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            pub fn attributes(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
                 self.attributes.as_ref()
             }
             #[inline]
             pub fn attributes_mut(
                 &mut self,
-            ) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+            ) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
                 if self.attributes.is_none() {
                     self.attributes = Some(crate::cityjson::core::attributes::Attributes::new());
                 }
@@ -687,9 +681,7 @@ pub(crate) use impl_semantic_trait;
 
 macro_rules! impl_metadata_methods {
     () => {
-        impl<RR: crate::resources::pool::ResourceRef, SS: crate::resources::storage::StringStorage>
-            Metadata<RR, SS>
-        {
+        impl<SS: crate::resources::storage::StringStorage> Metadata<SS> {
             pub fn new() -> Self {
                 Self::default()
             }
@@ -716,19 +708,19 @@ macro_rules! impl_metadata_methods {
                 self.title.as_deref()
             }
 
-            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
                 self.extra.as_ref()
             }
 
             pub fn extra_mut(
                 &mut self,
-            ) -> &mut Option<crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            ) -> &mut Option<crate::cityjson::core::attributes::Attributes<SS>> {
                 &mut self.extra
             }
 
             pub fn set_extra(
                 &mut self,
-                extra: Option<crate::cityjson::core::attributes::Attributes<SS, RR>>,
+                extra: Option<crate::cityjson::core::attributes::Attributes<SS>>,
             ) {
                 self.extra = extra;
             }
@@ -779,9 +771,7 @@ macro_rules! impl_metadata_methods {
             }
         }
 
-        impl<RR: crate::resources::pool::ResourceRef, SS: crate::resources::storage::StringStorage>
-            std::fmt::Display for Metadata<RR, SS>
-        {
+        impl<SS: crate::resources::storage::StringStorage> std::fmt::Display for Metadata<SS> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(
                     f,
@@ -1120,11 +1110,11 @@ macro_rules! impl_citymodel_methods {
                 self.inner.metadata_mut()
             }
 
-            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS, RR>> {
+            pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
                 self.inner.extra()
             }
 
-            pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS, RR> {
+            pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
                 self.inner.extra_mut()
             }
 

@@ -113,7 +113,7 @@ pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
     /// Index to parent semantic in the global semantics pool
     parent: Option<RR>,
     /// Additional attributes of the semantic surface
-    attributes: Option<Attributes<SS, RR>>,
+    attributes: Option<Attributes<SS>>,
 }
 
 impl_semantic_trait!(SemanticType<SS>);

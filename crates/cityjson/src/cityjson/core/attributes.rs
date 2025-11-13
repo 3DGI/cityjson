@@ -139,10 +139,10 @@ pub type AttributeId32 = ResourceId32;
 #[derive(Debug, Clone)]
 pub struct AttributePool<SS: StringStorage, RR: ResourceRef> {
     // Metadata
-    keys: Vec<SS>,                  // Attribute keys (empty for unnamed attributes)
+    keys: Vec<SS::String>, // Attribute keys (empty for unnamed attributes)
     types: Vec<AttributeValueType>, // Type of each attribute
-    generations: Vec<u16>,          // Generation counter for safety
-    is_named: Vec<bool>,            // Whether the attribute has a name
+    generations: Vec<u16>, // Generation counter for safety
+    is_named: Vec<bool>,   // Whether the attribute has a name
 
     // Type-specific value arrays (null everywhere except for attributes of that type)
     // These map directly to Parquet columns
@@ -150,7 +150,7 @@ pub struct AttributePool<SS: StringStorage, RR: ResourceRef> {
     unsigned_values: Vec<Option<u64>>,
     integer_values: Vec<Option<i64>>,
     float_values: Vec<Option<f64>>,
-    string_values: Vec<Option<SS>>,
+    string_values: Vec<Option<SS::String>>,
     geometry_values: Vec<Option<RR>>,
 
     // Owner tracking fields
@@ -159,11 +159,11 @@ pub struct AttributePool<SS: StringStorage, RR: ResourceRef> {
 
     // Nested structures (self-referential attribute structure)
     // These map to Parquet LIST and MAP types
-    vector_elements: HashMap<usize, Vec<AttributeId32>>,              // Parquet LIST
-    map_elements: HashMap<usize, HashMap<SS, AttributeId32>>,         // Parquet MAP
+    vector_elements: HashMap<usize, Vec<AttributeId32>>, // Parquet LIST
+    map_elements: HashMap<usize, HashMap<SS::String, AttributeId32>>, // Parquet MAP
 
     // Fast lookups
-    key_to_index: HashMap<SS, usize>, // For named attributes
+    key_to_index: HashMap<SS::String, usize>, // For named attributes
 
     // Memory management
     free_list: Vec<usize>, // Indices that can be reused
@@ -227,7 +227,7 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
     /// Allocates a new slot or reuses a freed one
     fn allocate_slot(
         &mut self,
-        key: SS,
+        key: SS::String,
         is_named: bool,
         attr_type: AttributeValueType,
         owner_type: AttributeOwnerType,
@@ -302,11 +302,11 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
     /// Adds a null value
     pub fn add_null(
         &mut self,
-        key: SS,
+        key: SS::String,
         is_named: bool,
         owner_type: AttributeOwnerType,
         owner_ref: Option<RR>,
-    ) -> RR {
+    ) -> AttributeId32 {
         let (idx, generation) = self.allocate_slot(
             key,
             is_named,
@@ -314,7 +314,7 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        RR::new(idx as u32, generation)
+        AttributeId32::new(idx as u32, generation)
     }
 
     /// Adds a boolean value
@@ -574,7 +574,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
     }
 
     /// Gets map elements as a HashMap
-    pub fn get_map_elements(&self, id: AttributeId32) -> Option<&HashMap<SS::String, AttributeId32>> {
+    pub fn get_map_elements(
+        &self,
+        id: AttributeId32,
+    ) -> Option<&HashMap<SS::String, AttributeId32>> {
         if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Map {
             return None;
         }
@@ -600,7 +603,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
     }
 
     /// Returns an iterator over map entries (key-value pairs)
-    pub fn get_map_iter(&self, id: AttributeId32) -> Option<impl Iterator<Item = (&SS::String, AttributeId32)>> {
+    pub fn get_map_iter(
+        &self,
+        id: AttributeId32,
+    ) -> Option<impl Iterator<Item = (&SS::String, AttributeId32)>> {
         let elements = self.get_map_elements(id)?;
         Some(elements.iter().map(|(k, &v)| (k, v)))
     }
@@ -615,7 +621,7 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
 
         // If this is a named attribute, remove from key index
         if self.is_named[idx] {
-            self.key_to_index.remove(&self.keys[idx]);
+            self.key_to_index.remove(self.keys[idx].as_ref());
             self.is_named[idx] = false;
         }
 
@@ -646,11 +652,7 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
     pub fn get_id_by_key(&self, key: &str) -> Option<AttributeId32> {
         let idx = self.find_key_index(key)?;
         let id = AttributeId32::new(idx as u32, self.generations[idx]);
-        if self.is_valid(id) {
-            Some(id)
-        } else {
-            None
-        }
+        if self.is_valid(id) { Some(id) } else { None }
     }
 
     /// Clears all attributes from the pool
@@ -982,27 +984,9 @@ mod tests {
         let mut pool = OwnedAttributePool::new();
 
         // Create vector elements
-        let elem1 = pool.add_integer(
-            "".to_string(),
-            false,
-            1,
-            AttributeOwnerType::Element,
-            None,
-        );
-        let elem2 = pool.add_integer(
-            "".to_string(),
-            false,
-            2,
-            AttributeOwnerType::Element,
-            None,
-        );
-        let elem3 = pool.add_integer(
-            "".to_string(),
-            false,
-            3,
-            AttributeOwnerType::Element,
-            None,
-        );
+        let elem1 = pool.add_integer("".to_string(), false, 1, AttributeOwnerType::Element, None);
+        let elem2 = pool.add_integer("".to_string(), false, 2, AttributeOwnerType::Element, None);
+        let elem3 = pool.add_integer("".to_string(), false, 3, AttributeOwnerType::Element, None);
 
         // Create vector
         let vec_id = pool.add_vector(
@@ -1218,7 +1202,10 @@ mod tests {
 
         // Retrieve and verify via pool
         let retrieved_name_id = attrs.get("name").unwrap();
-        assert_eq!(pool.get_string(retrieved_name_id), Some(&"Building A".to_string()));
+        assert_eq!(
+            pool.get_string(retrieved_name_id),
+            Some(&"Building A".to_string())
+        );
     }
 
     #[test]
