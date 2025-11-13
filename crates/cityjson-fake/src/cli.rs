@@ -177,13 +177,11 @@ impl Default for CJFakeConfig {
 }
 
 fn parse_cityobject_type(s: &str) -> Result<CityObjectType<OwnedStringStorage>, String> {
-    CityObjectType::from_str(&format!(r#""{}""#, s))
-        .map_err(|e| format!("Failed to parse CityObjectType: {}", e))
+    CityObjectType::from_str(s).map_err(|e| format!("Failed to parse CityObjectType: {}", e))
 }
 
 fn parse_geometry_type(s: &str) -> Result<GeometryType, String> {
-    GeometryType::from_str(&format!(r#""{}""#, s))
-        .map_err(|e| format!("Failed to parse GeometryType: {}", e))
+    GeometryType::from_str(s).map_err(|e| format!("Failed to parse GeometryType: {}", e))
 }
 
 #[cfg(test)]
@@ -198,7 +196,7 @@ mod tests {
         assert_eq!(config.allowed_types_geometry, None);
         assert_eq!(config.min_cityobjects, 1);
         assert_eq!(config.max_cityobjects, 1);
-        assert_eq!(config.cityobject_hierarchy, false);
+        assert!(!config.cityobject_hierarchy);
         assert_eq!(config.min_coordinate, i64::MIN);
         assert_eq!(config.max_coordinate, i64::MAX);
         assert_eq!(config.min_vertices, 8);
@@ -224,8 +222,8 @@ mod tests {
         assert_eq!(config.max_vertices_texture, 10);
         assert_eq!(config.min_templates, 1);
         assert_eq!(config.max_templates, 10);
-        assert_eq!(config.use_templates, false);
-        assert_eq!(config.texture_allow_none, false);
+        assert!(!config.use_templates);
+        assert!(!config.texture_allow_none);
     }
 
     #[test]
@@ -305,7 +303,7 @@ mod tests {
         );
         assert_eq!(config.min_cityobjects, 5);
         assert_eq!(config.max_cityobjects, 10);
-        assert_eq!(config.cityobject_hierarchy, true);
+        assert!(config.cityobject_hierarchy);
         assert_eq!(config.min_coordinate, -1000);
         assert_eq!(config.max_coordinate, 1000);
         assert_eq!(config.min_vertices, 4);
@@ -331,7 +329,7 @@ mod tests {
         assert_eq!(config.max_vertices_texture, 15);
         assert_eq!(config.min_templates, 2);
         assert_eq!(config.max_templates, 5);
-        assert_eq!(config.use_templates, true);
-        assert_eq!(config.texture_allow_none, true);
+        assert!(config.use_templates);
+        assert!(config.texture_allow_none);
     }
 }

@@ -135,35 +135,26 @@
 //! - Semantic relationships may not make real-world sense
 //! - Generated file paths for textures do not point to real files
 //!
-mod cli;
 pub mod attribute;
+pub mod citymodel;
+mod cli;
 pub mod material;
 pub mod metadata;
 pub mod texture;
 pub mod vertex;
-pub mod citymodel;
 
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
-use fake::locales::*;
-use fake::{Dummy, Fake};
 use once_cell::sync::Lazy;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use rand::Rng;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
-use citymodel::CityModelBuilder;
-use material::MaterialBuilder;
-use metadata::MetadataBuilder;
-use texture::TextureBuilder;
-use crate::cli::CJFakeConfig;
 
 pub mod prelude {
     pub use cityjson::prelude::*;
     pub use cityjson::v2_0::*;
-    
+
     pub use crate::attribute::AttributesBuilder;
     pub use crate::citymodel::CityModelBuilder;
     pub use crate::material::MaterialBuilder;
@@ -195,10 +186,13 @@ pub(crate) const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 type IndexType = u32;
 
+#[allow(dead_code)]
 type CityObjectGeometryTypes = HashMap<CityObjectType<OwnedStringStorage>, Vec<GeometryType>>;
 
+#[allow(dead_code)]
 static CITYJSON_GEOMETRY_TYPES_BYTES: &[u8] = include_bytes!("data/cityjson_geometry_types.json");
 
+#[allow(dead_code)]
 static CITYJSON_GEOMETRY_TYPES: Lazy<CityObjectGeometryTypes> = Lazy::new(|| {
     let raw_data: HashMap<String, Vec<String>> =
         serde_json::from_slice(CITYJSON_GEOMETRY_TYPES_BYTES)
@@ -219,11 +213,14 @@ static CITYJSON_GEOMETRY_TYPES: Lazy<CityObjectGeometryTypes> = Lazy::new(|| {
         .collect()
 });
 
+#[allow(dead_code)]
 type CityObjectsWithSemantics = Vec<CityObjectType<OwnedStringStorage>>;
 
+#[allow(dead_code)]
 static CITYOBJECTS_WITH_SEMANTICS_BYTES: &[u8] =
     include_bytes!("data/cityjson_semantics_allowed.json");
 
+#[allow(dead_code)]
 static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(|| {
     let raw_data: Vec<String> = serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
         .expect("Failed to deserialize cityjson_semantics_allowed.json");
@@ -235,13 +232,16 @@ static CITYOBJECTS_WITH_SEMANTICS: Lazy<CityObjectsWithSemantics> = Lazy::new(||
 });
 
 // Determine exactly how many items should we generate from a given range.
-pub(crate) fn get_nr_items<R: Rng + ?Sized>(range: RangeInclusive<IndexType>, rng: &mut R) -> usize {
+pub(crate) fn get_nr_items<R: Rng + ?Sized>(
+    range: RangeInclusive<IndexType>,
+    rng: &mut R,
+) -> usize {
     if range.is_empty() {
         0
     } else if range.end() - range.start() == 0 {
         // e.g. MIN=2 MAX=2 should generate exactly 2 items
         *range.end() as usize
     } else {
-        rng.gen_range(range) as usize
+        rng.random_range(range) as usize
     }
 }

@@ -1,10 +1,10 @@
-use clap::Parser;
 use cjfake::prelude::*;
+use clap::Parser;
 
 fn main() {
     let config = CJFakeConfig::parse();
     // Use u32 vertex refs, ResourceId32, and OwnedStringStorage as defaults
-    let cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
+    let _cm: CityModel<u32, ResourceId32, OwnedStringStorage> = CityModelBuilder::new(config, None)
         .metadata(None)
         .vertices()
         .materials(None)
