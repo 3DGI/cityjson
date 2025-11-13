@@ -14,8 +14,9 @@ use crate::error::{Error, Result};
 /// Converts [Attributes] to an Arrow MapArray.
 ///
 /// ## Arguments
+///
 /// - `map_field_name` is either "attributes" or "extra", depending on wether the
-/// attributes are used as object attributes or extra properties.
+///   attributes are used as object attributes or extra properties.
 ///
 /// ## Returns
 /// A tuple containing the schema of the Map and the MapArray.
@@ -133,20 +134,18 @@ pub fn union_type() -> DataType {
     // Define the union fields for attribute values
     let union_fields = union_fields();
     let union_mode = UnionMode::Dense;
-    let value_type = DataType::Union(union_fields, union_mode);
-    value_type
+    DataType::Union(union_fields, union_mode)
 }
 
 pub fn union_fields() -> UnionFields {
-    let union_fields = UnionFields::from_iter(vec![
+    UnionFields::from_iter(vec![
         (0i8, Arc::new(Field::new("null", DataType::Null, true))),
         (1i8, Arc::new(Field::new("bool", DataType::Boolean, true))),
         (2i8, Arc::new(Field::new("uint", DataType::UInt64, true))),
         (3i8, Arc::new(Field::new("int", DataType::Int64, true))),
         (4i8, Arc::new(Field::new("float", DataType::Float64, true))),
         (5i8, Arc::new(Field::new("string", DataType::Utf8, true))),
-    ]);
-    union_fields
+    ])
 }
 
 /// Converts an Arrow MapArray to a cityjson-rs OwnedAttributes container.
@@ -162,7 +161,7 @@ pub fn union_fields() -> UnionFields {
 ///
 /// A Result containing the converted Attributes container or an error
 pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<OwnedStringStorage>> {
-    let mut attributes = Attributes::<OwnedStringStorage>::new();
+    let attributes = Attributes::<OwnedStringStorage>::new();
 
     // Handle empty map
     if map_array.len() == 0 {
@@ -189,8 +188,8 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
     // In the new API, we need an AttributePool to store the actual values.
     // Attributes is just a container for AttributeId32 references.
     // This function needs to be refactored to accept an AttributePool parameter.
-    let _ = keys;  // Silence unused variable warning
-    let _ = values;  // Silence unused variable warning
+    let _ = keys; // Silence unused variable warning
+    let _ = values; // Silence unused variable warning
 
     Ok(attributes)
 }
@@ -199,6 +198,7 @@ pub fn arrow_to_attributes_owned(map_array: &MapArray) -> Result<Attributes<Owne
 ///
 /// This function handles the different types of values that can be stored in the UnionArray
 /// and converts them to the appropriate AttributeValue variant.
+#[allow(dead_code)]
 fn convert_union_value_to_owned_attribute_value(
     union_array: &UnionArray,
     index: usize,
