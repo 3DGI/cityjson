@@ -64,7 +64,7 @@ impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cityjson::core::attributes::AttributeValue;
+    use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
@@ -86,27 +86,42 @@ mod tests {
         // Initially no attributes
         assert!(semantic.attributes().is_none());
 
+        // Create attribute pool
+        let mut pool = OwnedAttributePool::new();
+
         // Get mutable reference and add attributes
         let attrs = semantic.attributes_mut();
-        attrs.insert(
+        let material_id = pool.add_string(
             "material".to_string(),
-            AttributeValue::String("brick".to_string()),
+            true,
+            "brick".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
         );
-        attrs.insert(
+        let color_id = pool.add_string(
             "color".to_string(),
-            AttributeValue::String("red".to_string()),
+            true,
+            "red".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
         );
+        attrs.insert("material".to_string(), material_id);
+        attrs.insert("color".to_string(), color_id);
 
         // Now attributes should exist
         assert!(semantic.attributes().is_some());
-        match semantic.attributes().unwrap().get("material") {
-            Some(AttributeValue::String(v)) => assert_eq!(v, "brick"),
-            _ => panic!("Expected string value"),
-        }
-        match semantic.attributes().unwrap().get("color") {
-            Some(AttributeValue::String(v)) => assert_eq!(v, "red"),
-            _ => panic!("Expected string value"),
-        }
+        let retrieved_material_id = semantic.attributes().unwrap().get("material");
+        assert!(retrieved_material_id.is_some());
+        assert_eq!(
+            pool.get_string(retrieved_material_id.unwrap()),
+            Some(&"brick".to_string())
+        );
+        let retrieved_color_id = semantic.attributes().unwrap().get("color");
+        assert!(retrieved_color_id.is_some());
+        assert_eq!(
+            pool.get_string(retrieved_color_id.unwrap()),
+            Some(&"red".to_string())
+        );
     }
 
     #[test]
@@ -155,12 +170,19 @@ mod tests {
         let display_str = format!("{}", semantic);
         assert!(display_str.contains("RoofSurface"));
 
+        // Create attribute pool
+        let mut pool = OwnedAttributePool::new();
+
         // Add attributes and check display again
         let attrs = semantic.attributes_mut();
-        attrs.insert(
+        let material_id = pool.add_string(
             "material".to_string(),
-            AttributeValue::String("tile".to_string()),
+            true,
+            "tile".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
         );
+        attrs.insert("material".to_string(), material_id);
 
         let display_str = format!("{}", semantic);
         assert!(display_str.contains("RoofSurface"));
@@ -226,30 +248,52 @@ mod tests {
         let mut semantic11 =
             Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
 
-        semantic10.attributes_mut().insert(
+        // Create attribute pool for test 7, 8, and 9
+        let mut pool = OwnedAttributePool::new();
+        let material_id = pool.add_string(
             "material".to_string(),
-            AttributeValue::String("tile".to_string()),
+            true,
+            "tile".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
         );
+        let year_id = pool.add_integer(
+            "year".to_string(),
+            true,
+            2020,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+
+        // Use the same attribute IDs for both semantics to make them equal
         semantic10
             .attributes_mut()
-            .insert("year".to_string(), AttributeValue::Integer(2020));
+            .insert("material".to_string(), material_id);
+        semantic10
+            .attributes_mut()
+            .insert("year".to_string(), year_id);
 
-        semantic11.attributes_mut().insert(
-            "material".to_string(),
-            AttributeValue::String("tile".to_string()),
-        );
         semantic11
             .attributes_mut()
-            .insert("year".to_string(), AttributeValue::Integer(2020));
+            .insert("material".to_string(), material_id);
+        semantic11
+            .attributes_mut()
+            .insert("year".to_string(), year_id);
         assert_eq!(semantic10, semantic11);
 
         // Test 8: Two semantics with different attributes are not equal
         let mut semantic12 =
             Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        semantic12.attributes_mut().insert(
+        let material_id12 = pool.add_string(
             "material".to_string(),
-            AttributeValue::String("slate".to_string()),
+            true,
+            "slate".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
         );
+        semantic12
+            .attributes_mut()
+            .insert("material".to_string(), material_id12);
         assert_ne!(semantic10, semantic12);
 
         // Test 9: Two semantics with all fields equal are equal
@@ -258,19 +302,26 @@ mod tests {
         let mut semantic14 =
             Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
 
+        let color_id = pool.add_string(
+            "color".to_string(),
+            true,
+            "blue".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
+        );
+
+        // Use the same attribute ID for both semantics to make them equal
         semantic13.children_mut().push(ResourceId32::new(1, 0));
         semantic13.set_parent(ResourceId32::new(5, 0));
-        semantic13.attributes_mut().insert(
-            "color".to_string(),
-            AttributeValue::String("blue".to_string()),
-        );
+        semantic13
+            .attributes_mut()
+            .insert("color".to_string(), color_id);
 
         semantic14.children_mut().push(ResourceId32::new(1, 0));
         semantic14.set_parent(ResourceId32::new(5, 0));
-        semantic14.attributes_mut().insert(
-            "color".to_string(),
-            AttributeValue::String("blue".to_string()),
-        );
+        semantic14
+            .attributes_mut()
+            .insert("color".to_string(), color_id);
         assert_eq!(semantic13, semantic14);
     }
 }

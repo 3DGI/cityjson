@@ -45,6 +45,7 @@
 //!
 //! ```rust
 //! use cityjson::prelude::*;
+//! use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
 //!
 //! // Create a new attributes pool
 //! let mut pool = OwnedAttributePool::new();
@@ -76,6 +77,7 @@
 //!
 //! ```rust
 //! use cityjson::prelude::*;
+//! use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
 //! use std::collections::HashMap;
 //!
 //! let mut pool = OwnedAttributePool::new();

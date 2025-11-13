@@ -191,7 +191,6 @@ impl Display for ContactType {
 mod test {
     use super::*;
     use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
-    use crate::prelude::*;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]

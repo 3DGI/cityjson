@@ -1,4 +1,5 @@
 //! Benchmarks that build objects
+use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
@@ -8,6 +9,7 @@ use std::hint::black_box;
 /// Helper function to build a geometry with semantics, materials, and textures
 fn build_geometry_with_semantics_materials_textures(
     model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+    pool: &mut OwnedAttributePool,
     vertices: &[VertexIndex32],
     index: usize,
     material_data: Option<&(Material<OwnedStringStorage>, ResourceId32)>,
@@ -38,10 +40,14 @@ fn build_geometry_with_semantics_materials_textures(
     // Add semantic: GroundSurface
     let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
     let sem_attrs = ground_semantic.attributes_mut();
-    sem_attrs.insert(
+    let surface_type_id = pool.add_string(
         "surfaceType".to_string(),
-        AttributeValue::String("ground".to_string()),
+        true,
+        "ground".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    sem_attrs.insert("surfaceType".to_string(), surface_type_id);
     geometry_builder.set_semantic_surface(None, ground_semantic)?;
 
     // Top surface (Roof)
@@ -52,14 +58,22 @@ fn build_geometry_with_semantics_materials_textures(
     // Add semantic: RoofSurface
     let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
     let roof_attrs = roof_semantic.attributes_mut();
-    roof_attrs.insert(
+    let roof_type_id = pool.add_string(
         "roofType".to_string(),
-        AttributeValue::String("flat".to_string()),
+        true,
+        "flat".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
-    roof_attrs.insert(
+    let solar_panels_id = pool.add_bool(
         "solarPanels".to_string(),
-        AttributeValue::Bool(index.is_multiple_of(3)),
+        true,
+        index.is_multiple_of(3),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    roof_attrs.insert("roofType".to_string(), roof_type_id);
+    roof_attrs.insert("solarPanels".to_string(), solar_panels_id);
     geometry_builder.set_semantic_surface(None, roof_semantic)?;
 
     // Add material to roof if available
@@ -75,10 +89,14 @@ fn build_geometry_with_semantics_materials_textures(
     // Add semantic: WallSurface
     let mut wall_semantic = Semantic::new(SemanticType::WallSurface);
     let wall_attrs = wall_semantic.attributes_mut();
-    wall_attrs.insert(
+    let orientation_id = pool.add_string(
         "orientation".to_string(),
-        AttributeValue::String("north".to_string()),
+        true,
+        "north".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    wall_attrs.insert("orientation".to_string(), orientation_id);
     geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
 
     // Add texture to wall if available
@@ -103,30 +121,48 @@ fn build_geometry_with_semantics_materials_textures(
     let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
     let surface_back = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_back)?;
-    wall_semantic.attributes_mut().insert(
+    let orientation_south_id = pool.add_string(
         "orientation".to_string(),
-        AttributeValue::String("south".to_string()),
+        true,
+        "south".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    wall_semantic
+        .attributes_mut()
+        .insert("orientation".to_string(), orientation_south_id);
     geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
 
     // Left wall
     let ring_left = geometry_builder.add_ring(&[bv0, bv4, bv7, bv3])?;
     let surface_left = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_left)?;
-    wall_semantic.attributes_mut().insert(
+    let orientation_west_id = pool.add_string(
         "orientation".to_string(),
-        AttributeValue::String("west".to_string()),
+        true,
+        "west".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    wall_semantic
+        .attributes_mut()
+        .insert("orientation".to_string(), orientation_west_id);
     geometry_builder.set_semantic_surface(None, wall_semantic.clone())?;
 
     // Right wall
     let ring_right = geometry_builder.add_ring(&[bv1, bv2, bv6, bv5])?;
     let surface_right = geometry_builder.start_surface();
     geometry_builder.add_surface_outer_ring(ring_right)?;
-    wall_semantic.attributes_mut().insert(
+    let orientation_east_id = pool.add_string(
         "orientation".to_string(),
-        AttributeValue::String("east".to_string()),
+        true,
+        "east".to_string(),
+        AttributeOwnerType::Semantic,
+        None,
     );
+    wall_semantic
+        .attributes_mut()
+        .insert("orientation".to_string(), orientation_east_id);
     geometry_builder.set_semantic_surface(None, wall_semantic)?;
 
     // Create shell from all surfaces
@@ -168,6 +204,9 @@ pub fn build_cityobjects(config: (usize, bool)) -> Result<Vec<ResourceId32>> {
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
     let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
+
+    // Create attribute pool for all attributes
+    let mut pool = OwnedAttributePool::new();
 
     // Create materials and textures if geometries are needed
     let (material_ref, texture_ref) = if with_geometries {
@@ -224,39 +263,97 @@ pub fn build_cityobjects(config: (usize, bool)) -> Result<Vec<ResourceId32>> {
 
         // Add attributes to the CityObject
         let attrs = cityobject.attributes_mut();
-        attrs.insert(
+        let measured_height_id = pool.add_float(
             "measuredHeight".to_string(),
-            AttributeValue::Float(10.0 + (i as f64) * 0.5),
+            true,
+            10.0 + (i as f64) * 0.5,
+            AttributeOwnerType::CityObject,
+            None,
         );
-        attrs.insert(
+        let year_of_construction_id = pool.add_integer(
             "yearOfConstruction".to_string(),
-            AttributeValue::Integer(2000 + (i as i64 % 24)),
+            true,
+            2000 + (i as i64 % 24),
+            AttributeOwnerType::CityObject,
+            None,
         );
-        attrs.insert(
+        let function_id = pool.add_string(
             "function".to_string(),
-            AttributeValue::String(format!("function_{}", i % 10)),
+            true,
+            format!("function_{}", i % 10),
+            AttributeOwnerType::CityObject,
+            None,
         );
-        attrs.insert("active".to_string(), AttributeValue::Bool(i % 2 == 0));
+        let active_id = pool.add_bool(
+            "active".to_string(),
+            true,
+            i % 2 == 0,
+            AttributeOwnerType::CityObject,
+            None,
+        );
+        attrs.insert("measuredHeight".to_string(), measured_height_id);
+        attrs.insert("yearOfConstruction".to_string(), year_of_construction_id);
+        attrs.insert("function".to_string(), function_id);
+        attrs.insert("active".to_string(), active_id);
 
         // Add complex nested attributes
-        let mut nested_map = HashMap::new();
-        nested_map.insert(
+        let owner_id = pool.add_string(
             "owner".to_string(),
-            Box::new(AttributeValue::String(format!("Owner {}", i % 5))),
+            true,
+            format!("Owner {}", i % 5),
+            AttributeOwnerType::Element,
+            None,
         );
-        nested_map.insert(
+        let value_id = pool.add_float(
             "value".to_string(),
-            Box::new(AttributeValue::Float(100000.0 + (i as f64) * 1000.0)),
+            true,
+            100000.0 + (i as f64) * 1000.0,
+            AttributeOwnerType::Element,
+            None,
         );
-        attrs.insert("details".to_string(), AttributeValue::Map(nested_map));
+        let mut nested_map = HashMap::new();
+        nested_map.insert("owner".to_string(), owner_id);
+        nested_map.insert("value".to_string(), value_id);
+        let details_id = pool.add_map(
+            "details".to_string(),
+            true,
+            nested_map,
+            AttributeOwnerType::CityObject,
+            None,
+        );
+        attrs.insert("details".to_string(), details_id);
 
         // Add an array attribute
-        let array_values = vec![
-            Box::new(AttributeValue::Integer(i as i64)),
-            Box::new(AttributeValue::Integer((i * 2) as i64)),
-            Box::new(AttributeValue::Integer((i * 3) as i64)),
-        ];
-        attrs.insert("values".to_string(), AttributeValue::Vec(array_values));
+        let val1_id = pool.add_integer(
+            "".to_string(),
+            false,
+            i as i64,
+            AttributeOwnerType::Element,
+            None,
+        );
+        let val2_id = pool.add_integer(
+            "".to_string(),
+            false,
+            (i * 2) as i64,
+            AttributeOwnerType::Element,
+            None,
+        );
+        let val3_id = pool.add_integer(
+            "".to_string(),
+            false,
+            (i * 3) as i64,
+            AttributeOwnerType::Element,
+            None,
+        );
+        let array_values = vec![val1_id, val2_id, val3_id];
+        let values_id = pool.add_vector(
+            "values".to_string(),
+            true,
+            array_values,
+            AttributeOwnerType::CityObject,
+            None,
+        );
+        attrs.insert("values".to_string(), values_id);
 
         // Set geographical extent
         let offset = (i as f64) * 100.0;
@@ -273,6 +370,7 @@ pub fn build_cityobjects(config: (usize, bool)) -> Result<Vec<ResourceId32>> {
         if with_geometries {
             let geometry_ref = build_geometry_with_semantics_materials_textures(
                 &mut model,
+                &mut pool,
                 &vertices,
                 i,
                 material_ref.as_ref(),

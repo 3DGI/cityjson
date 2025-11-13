@@ -28,7 +28,7 @@
 //! use cityjson::v1_1::*;
 //!
 //! // Create a new metadata object
-//! let mut metadata = Metadata::<ResourceId32, OwnedStringStorage>::new();
+//! let mut metadata = Metadata::<OwnedStringStorage>::new();
 //!
 //! // Set geographical extent using BBox
 //! let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
@@ -293,7 +293,6 @@ impl Display for ContactType {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::prelude::*;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]
