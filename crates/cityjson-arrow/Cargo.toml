@@ -7,7 +7,7 @@ edition = "2024"
 [dependencies]
 arrow = { version = "57.0.0", features = ["ipc", "csv", "json"] }
 arrow-json = "57.0.0"
-cityjson = { git = "https://github.com/3DGI/cityjson-rs.git"}
+cityjson = { path = "../cityjson-rs" }
 lazy_static = "1.5.0"
 tempfile = "3.23.0"
 nanoserde = { version = "0.2.1", features = ["json", "std"] }
