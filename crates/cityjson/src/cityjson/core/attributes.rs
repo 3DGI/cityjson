@@ -146,14 +146,18 @@ pub struct AttributePool<SS: StringStorage, RR: ResourceRef> {
     generations: Vec<u16>, // Generation counter for safety
     is_named: Vec<bool>,   // Whether the attribute has a name
 
-    // Type-specific value arrays (null everywhere except for attributes of that type)
+    // Null tracking - indicates whether each attribute has a value
+    null_map: Vec<bool>, // true if attribute has a value, false if null
+    value_indices: Vec<Option<usize>>, // Index into the type-specific value array
+
+    // Type-specific value arrays (only store actual values, not Options)
     // These map directly to Parquet columns
-    bool_values: Vec<Option<bool>>,
-    unsigned_values: Vec<Option<u64>>,
-    integer_values: Vec<Option<i64>>,
-    float_values: Vec<Option<f64>>,
-    string_values: Vec<Option<SS::String>>,
-    geometry_values: Vec<Option<RR>>,
+    bool_values: Vec<bool>,
+    unsigned_values: Vec<u64>,
+    integer_values: Vec<i64>,
+    float_values: Vec<f64>,
+    string_values: Vec<SS::String>,
+    geometry_values: Vec<RR>,
 
     // Owner tracking fields
     owner_types: Vec<AttributeOwnerType>,
@@ -179,6 +183,8 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             types: Vec::new(),
             generations: Vec::new(),
             is_named: Vec::new(),
+            null_map: Vec::new(),
+            value_indices: Vec::new(),
             bool_values: Vec::new(),
             unsigned_values: Vec::new(),
             integer_values: Vec::new(),
@@ -201,12 +207,14 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             types: Vec::with_capacity(capacity),
             generations: Vec::with_capacity(capacity),
             is_named: Vec::with_capacity(capacity),
-            bool_values: Vec::with_capacity(capacity),
-            unsigned_values: Vec::with_capacity(capacity),
-            integer_values: Vec::with_capacity(capacity),
-            float_values: Vec::with_capacity(capacity),
-            string_values: Vec::with_capacity(capacity),
-            geometry_values: Vec::with_capacity(capacity),
+            null_map: Vec::with_capacity(capacity),
+            value_indices: Vec::with_capacity(capacity),
+            bool_values: Vec::new(),
+            unsigned_values: Vec::new(),
+            integer_values: Vec::new(),
+            float_values: Vec::new(),
+            string_values: Vec::new(),
+            geometry_values: Vec::new(),
             owner_types: Vec::with_capacity(capacity),
             owner_refs: Vec::with_capacity(capacity),
             vector_elements: HashMap::new(),
@@ -260,13 +268,9 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             self.owner_refs.push(owner_ref);
             self.generations.push(0);
 
-            // Initialize value arrays
-            self.bool_values.push(None);
-            self.unsigned_values.push(None);
-            self.integer_values.push(None);
-            self.float_values.push(None);
-            self.string_values.push(None);
-            self.geometry_values.push(None);
+            // Initialize null tracking (not set until value is added)
+            self.null_map.push(false);
+            self.value_indices.push(None);
 
             if is_named {
                 self.key_to_index.insert(key, idx);
@@ -278,12 +282,8 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
 
     /// Clears value at the given index
     fn clear_value(&mut self, idx: usize) {
-        self.bool_values[idx] = None;
-        self.unsigned_values[idx] = None;
-        self.integer_values[idx] = None;
-        self.float_values[idx] = None;
-        self.string_values[idx] = None;
-        self.geometry_values[idx] = None;
+        self.null_map[idx] = false;
+        self.value_indices[idx] = None;
         self.vector_elements.remove(&idx);
         self.map_elements.remove(&idx);
     }
@@ -316,6 +316,7 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
+        // null_map[idx] is already false from allocate_slot
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -335,7 +336,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.bool_values[idx] = Some(value);
+        let value_index = self.bool_values.len();
+        self.bool_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -355,7 +359,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.unsigned_values[idx] = Some(value);
+        let value_index = self.unsigned_values.len();
+        self.unsigned_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -375,7 +382,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.integer_values[idx] = Some(value);
+        let value_index = self.integer_values.len();
+        self.integer_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -395,7 +405,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.float_values[idx] = Some(value);
+        let value_index = self.float_values.len();
+        self.float_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -415,7 +428,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.string_values[idx] = Some(value);
+        let value_index = self.string_values.len();
+        self.string_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -435,7 +451,10 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_type,
             owner_ref,
         );
-        self.geometry_values[idx] = Some(value);
+        let value_index = self.geometry_values.len();
+        self.geometry_values.push(value);
+        self.null_map[idx] = true;
+        self.value_indices[idx] = Some(value_index);
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -458,6 +477,8 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_ref,
         );
         self.vector_elements.insert(idx, elements);
+        self.null_map[idx] = true;
+        // value_indices[idx] remains None for vectors (stored in vector_elements HashMap)
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -482,6 +503,8 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
             owner_ref,
         );
         self.map_elements.insert(idx, elements);
+        self.null_map[idx] = true;
+        // value_indices[idx] remains None for maps (stored in map_elements HashMap)
         AttributeId32::new(idx as u32, generation)
     }
 
@@ -505,58 +528,92 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
 
     /// Gets a boolean value
     pub fn get_bool(&self, id: AttributeId32) -> Option<bool> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Bool {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Bool {
             return None;
         }
-        self.bool_values[id.index() as usize]
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(self.bool_values[value_index])
     }
 
     /// Gets an unsigned integer value
     pub fn get_unsigned(&self, id: AttributeId32) -> Option<u64> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Unsigned {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Unsigned {
             return None;
         }
-        self.unsigned_values[id.index() as usize]
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(self.unsigned_values[value_index])
     }
 
     /// Gets a signed integer value
     pub fn get_integer(&self, id: AttributeId32) -> Option<i64> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Integer {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Integer {
             return None;
         }
-        self.integer_values[id.index() as usize]
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(self.integer_values[value_index])
     }
 
     /// Gets a floating-point value
     pub fn get_float(&self, id: AttributeId32) -> Option<f64> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Float {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Float {
             return None;
         }
-        self.float_values[id.index() as usize]
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(self.float_values[value_index])
     }
 
     /// Gets a string value
     pub fn get_string(&self, id: AttributeId32) -> Option<&SS::String> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::String {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::String {
             return None;
         }
-        self.string_values[id.index() as usize].as_ref()
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(&self.string_values[value_index])
     }
 
     /// Gets a geometry reference value
     pub fn get_geometry(&self, id: AttributeId32) -> Option<RR> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Geometry {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Geometry {
             return None;
         }
-        self.geometry_values[id.index() as usize]
+        if !self.null_map[idx] {
+            return None;
+        }
+        let value_index = self.value_indices[idx]?;
+        Some(self.geometry_values[value_index])
     }
 
     /// Gets vector elements
     pub fn get_vector_elements(&self, id: AttributeId32) -> Option<&Vec<AttributeId32>> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Vec {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Vec {
             return None;
         }
-        self.vector_elements.get(&(id.index() as usize))
+        if !self.null_map[idx] {
+            return None;
+        }
+        self.vector_elements.get(&idx)
     }
 
     /// Gets a vector element by index
@@ -580,10 +637,14 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
         &self,
         id: AttributeId32,
     ) -> Option<&HashMap<SS::String, AttributeId32>> {
-        if !self.is_valid(id) || self.types[id.index() as usize] != AttributeValueType::Map {
+        let idx = id.index() as usize;
+        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Map {
             return None;
         }
-        self.map_elements.get(&(id.index() as usize))
+        if !self.null_map[idx] {
+            return None;
+        }
+        self.map_elements.get(&idx)
     }
 
     /// Gets a map value by key
@@ -663,6 +724,8 @@ impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
         self.types.clear();
         self.generations.clear();
         self.is_named.clear();
+        self.null_map.clear();
+        self.value_indices.clear();
         self.bool_values.clear();
         self.unsigned_values.clear();
         self.integer_values.clear();
