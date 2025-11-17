@@ -1,8 +1,7 @@
 //! Boundary types for the nested backend.
 //!
-//! TODO: Implement nested backend boundary types.
 
-use crate::prelude::RealWorldCoordinate;
+use crate::prelude::{VertexIndex32};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Boundary {
@@ -15,7 +14,7 @@ pub enum Boundary {
     CompositeSolid(BoundaryMultiOrCompositeSolid),
 }
 
-pub type BoundaryMultiPoint = Vec<RealWorldCoordinate>;
+pub type BoundaryMultiPoint = Vec<VertexIndex32>;
 pub type BoundaryMultiLineString = Vec<BoundaryMultiPoint>;
 pub type BoundaryMultiOrCompositeSurface = Vec<BoundaryMultiLineString>;
 

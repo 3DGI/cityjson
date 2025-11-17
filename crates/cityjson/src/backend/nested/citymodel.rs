@@ -5,7 +5,8 @@ use crate::backend::nested::appearance::Appearance;
 use crate::backend::nested::attributes::Attributes;
 use crate::backend::nested::cityobject::CityObjects;
 use crate::backend::nested::geometry::GeometryTemplates;
-use crate::prelude::StringStorage;
+use crate::backend::nested::vertex::Vertices;
+use crate::prelude::{QuantizedCoordinate, StringStorage, Vertices};
 use crate::v2_0::extension::Extensions;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::transform::Transform;
@@ -21,4 +22,5 @@ pub struct CityModel<SS: StringStorage> {
     pub geometry_templates: Option<GeometryTemplates<SS>>,
     pub extra: Option<Attributes<SS>>,
     pub extensions: Option<Extensions<SS>>,
+    pub vertices: Vertices<u32, QuantizedCoordinate>,
 }
