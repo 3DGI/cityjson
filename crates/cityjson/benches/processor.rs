@@ -27,7 +27,7 @@ use std::hint::black_box;
 #[cfg(feature = "backend-default")]
 mod default_benches {
     use super::*;
-    use cityjson::backend::default::*;
+    
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
 
@@ -135,8 +135,8 @@ mod default_benches {
         for (_id, cityobject) in model.cityobjects().iter() {
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
-                    if let Some(geometry) = model.get_geometry(*geometry_ref) {
-                        if let Some(boundary) = geometry.boundaries() {
+                    if let Some(geometry) = model.get_geometry(*geometry_ref)
+                        && let Some(boundary) = geometry.boundaries() {
                             let vertex_indices = boundary.vertices();
 
                             if vertex_indices.is_empty() {
@@ -164,7 +164,6 @@ mod default_benches {
                                 means.push((mean_x, mean_y, mean_z));
                             }
                         }
-                    }
                 }
             }
         }

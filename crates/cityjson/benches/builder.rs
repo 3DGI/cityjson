@@ -25,11 +25,11 @@ use std::hint::black_box;
 #[cfg(feature = "backend-default")]
 mod default_benches {
     use super::*;
-    use cityjson::backend::default::*;
+    
     use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
-    use std::collections::HashMap;
+    
 
     /// Helper function to build a geometry with semantics, materials, and textures.
     fn build_geometry_with_semantics_materials_textures(
