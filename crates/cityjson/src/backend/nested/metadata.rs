@@ -1,3 +1,5 @@
 //! Metadata types for the nested backend.
 //!
-//! TODO: Implement nested backend metadata types.
+//! Metadata is shared from v2_0 implementation.
+
+pub use crate::v2_0::metadata::*;

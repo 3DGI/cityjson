@@ -1,7 +1,7 @@
 //! Boundary types for the nested backend.
 //!
 
-use crate::prelude::{VertexIndex32};
+use crate::prelude::VertexIndex32;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Boundary {
