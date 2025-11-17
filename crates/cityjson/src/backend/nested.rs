@@ -13,6 +13,6 @@ pub mod extension;
 pub mod geometry;
 pub mod geometry_struct;
 pub mod metadata;
-mod semantics;
+pub mod semantics;
 pub mod transform;
 pub mod vertex;
