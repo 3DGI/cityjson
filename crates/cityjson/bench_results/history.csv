@@ -3,3 +3,13 @@ timestamp,commit,description,benchmark,backend,time_ms,throughput,change_vs_nest
 2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_with_geometry,default,74.19,134.78K,-12.35
 2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_without_geometry,nested,5.72,1748.11K,0.00
 2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_with_geometry,nested,84.64,118.14K,0.00
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_with_geometry,nested,33.05,302.56K,0.00
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_10000_cityobjects_without_geometry,default,7.12,1404.31K,
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_with_geometry,default,25.93,385.70K,-21.55
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_cityobjects_with_geometry,default,59.00,169.50K,
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_without_geometry,default,1.41,7099.78K,-26.80
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_cityobjects_without_geometry,default,10.40,961.64K,
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_without_geometry,nested,1.92,5196.74K,0.00
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,builder/build_10000_cityobjects_with_geometry,default,34.32,291.36K,
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,nested/compute_mean_coordinates_10k,default,0.77,,
+2025-11-17T22:23:50+01:00,53a58cb,Initial setup with flat attributes,default/compute_mean_coordinates_10k,default,0.33,,
