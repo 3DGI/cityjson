@@ -295,8 +295,9 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
+    use cityjson::backend::nested::attributes::AttributeValue;
+    use cityjson::backend::nested::semantics::Semantic;
     use cityjson::prelude::*;
-    use std::collections::HashMap;
 
     /// Helper function to build a geometry with semantics (simplified for nested backend).
     fn build_geometry_with_semantics(
@@ -317,52 +318,43 @@ mod nested_benches {
         let ring_bottom = geometry_builder.add_ring(&[0, 3, 2, 1])?;
         geometry_builder.start_surface()?;
         geometry_builder.add_surface_outer_ring(ring_bottom)?;
-        let mut ground_attrs = HashMap::new();
+        let mut ground_semantic = Semantic::new(nested::semantics::SemanticType::GroundSurface);
+        let ground_attrs = ground_semantic.attributes_mut();
         ground_attrs.insert(
             "area".to_string(),
-            nested::AttributeValue::Float(100.0 + (index as f64) * 0.5),
+            AttributeValue::Float(100.0 + (index as f64) * 0.5),
         );
-        let ground_semantic = nested::Semantic::new_with_attributes(
-            nested::semantics::SemanticType::GroundSurface,
-            ground_attrs,
-        );
-        geometry_builder.set_semantic_surface(None, ground_semantic)?;
+        geometry_builder.set_semantic_surface(0, ground_semantic, false)?;
         let surface_bottom = geometry_builder.end_surface()?;
 
         // Top surface (Roof)
         let ring_top = geometry_builder.add_ring(&[4, 5, 6, 7])?;
         geometry_builder.start_surface()?;
         geometry_builder.add_surface_outer_ring(ring_top)?;
-        let mut roof_attrs = HashMap::new();
+        let mut roof_semantic = Semantic::new(nested::semantics::SemanticType::RoofSurface);
+        let roof_attrs = roof_semantic.attributes_mut();
         roof_attrs.insert(
             "azimuth".to_string(),
-            nested::AttributeValue::Float((index % 360) as f64),
+            AttributeValue::Float((index % 360) as f64),
         );
         roof_attrs.insert(
             "slope".to_string(),
-            nested::AttributeValue::Float(15.0 + ((index % 30) as f64)),
+            AttributeValue::Float(15.0 + ((index % 30) as f64)),
         );
-        let roof_semantic = nested::Semantic::new_with_attributes(
-            nested::semantics::SemanticType::RoofSurface,
-            roof_attrs,
-        );
-        geometry_builder.set_semantic_surface(None, roof_semantic)?;
+        geometry_builder.set_semantic_surface(1, roof_semantic, true)?;
         let surface_top = geometry_builder.end_surface()?;
 
         // Front wall
         let ring_front = geometry_builder.add_ring(&[0, 1, 5, 4])?;
         geometry_builder.start_surface()?;
         geometry_builder.add_surface_outer_ring(ring_front)?;
-        let mut wall_attrs = HashMap::new();
+        let mut wall_semantic = Semantic::new(nested::semantics::SemanticType::WallSurface);
+        let wall_attrs = wall_semantic.attributes_mut();
         wall_attrs.insert(
             "orientation".to_string(),
-            nested::AttributeValue::String("north".to_string()),
+            AttributeValue::String("north".to_string()),
         );
-        let wall_semantic = nested::Semantic::new_with_attributes(
-            nested::semantics::SemanticType::WallSurface,
-            wall_attrs,
-        );
-        geometry_builder.set_semantic_surface(None, wall_semantic)?;
+        geometry_builder.set_semantic_surface(2, wall_semantic, false)?;
         let surface_front = geometry_builder.end_surface()?;
 
         // Back, left, right walls (simplified, no semantics)
@@ -428,12 +420,11 @@ mod nested_benches {
             let mut cityobject = nested::CityObject::new(co_type);
 
             // Add attributes using nested backend's inline AttributeValue
-            let mut attrs = HashMap::new();
+            let attrs = cityobject.attributes_mut();
             attrs.insert(
                 "measuredHeight".to_string(),
-                nested::AttributeValue::Float(10.0 + (i as f64) * 0.5),
+                AttributeValue::Float(10.0 + (i as f64) * 0.5),
             );
-            cityobject.set_attributes(Some(attrs));
 
             let offset = (i as f64) * 100.0;
             cityobject.set_geographical_extent(Some(BBox::new(

@@ -189,6 +189,7 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
+    use cityjson::backend::nested::boundary::Boundary;
     use cityjson::prelude::*;
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
@@ -294,25 +295,22 @@ mod nested_benches {
                         let mut count = 0usize;
 
                         // For nested backend, boundaries are directly accessible
-                        match boundary {
-                            nested::Boundary::Solid(shells) => {
-                                for shell in shells {
-                                    for surface in shell {
-                                        for ring in surface {
-                                            for vertex_idx in ring {
-                                                if let Some(vertex) = model.get_vertex(*vertex_idx)
-                                                {
-                                                    sum_x += vertex.x();
-                                                    sum_y += vertex.y();
-                                                    sum_z += vertex.z();
-                                                    count += 1;
-                                                }
+                        if let Boundary::Solid(shells) = boundary {
+                            for shell in shells {
+                                for surface in shell {
+                                    for ring in surface {
+                                        for vertex_idx in ring {
+                                            if let Some(vertex) = model.get_vertex(*vertex_idx)
+                                            {
+                                                sum_x += vertex.x();
+                                                sum_y += vertex.y();
+                                                sum_z += vertex.z();
+                                                count += 1;
                                             }
                                         }
                                     }
                                 }
                             }
-                            _ => {} // Handle other boundary types if needed
                         }
 
                         if count > 0 {
