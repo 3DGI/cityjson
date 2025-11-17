@@ -1,180 +1,312 @@
-//! Memory-focused benchmarks that compare heap allocation sizes across different vertex index types
+//! Memory-focused benchmarks that compare heap allocation sizes between backends
 //!
-//! This benchmark builds CityModels with three different vertex index sizes (u16, u32, u64)
-//! and measures the heap allocated memory for each. This helps understand the memory overhead
-//! of different index types.
+//! This benchmark builds CityModels with both backend implementations and measures the heap
+//! allocated memory for each. This helps understand the memory overhead of different
+//! backend architectures.
+//!
+//! ## Running Benchmarks
+//!
+//! Run with specific backend:
+//! ```bash
+//! # Default backend (flattened representation)
+//! cargo bench --bench memory --features backend-default
+//!
+//! # Nested backend (JSON-like representation)
+//! cargo bench --bench memory --features backend-nested
+//!
+//! # Both backends (for comparison)
+//! cargo bench --bench memory --features backend-both
+//! ```
+//!
+//! View the generated dhat-heap.json at https://nnethercote.github.io/dh_view/dh_view.html
 
-use cityjson::prelude::*;
-use cityjson::v2_0::*;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::Rng;
 use std::hint::black_box;
 
 // Enable dhat heap profiling for the entire benchmark
-// Run with: cargo bench --bench memory
-// Then view the generated dhat-heap.json at https://nnethercote.github.io/dh_view/dh_view.html
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-/// Build a CityModel with the specified vertex index type and number of cityobjects.
-/// Each cityobject will have a solid geometry with 8 vertices (a cube).
-fn build_model<VR: VertexRef>(
-    n_cityobjects: usize,
-) -> CityModel<VR, ResourceId32, OwnedStringStorage> {
-    let mut model = CityModel::<VR, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-    let mut rng = rand::rng();
+// ==================== DEFAULT BACKEND BENCHMARKS ====================
 
-    // Set basic metadata
-    let metadata = model.metadata_mut();
-    metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
-    metadata.set_reference_system(CRS::new(
-        "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
-    ));
+#[cfg(feature = "backend-default")]
+mod default_benches {
+    use super::*;
+    use cityjson::backend::default::*;
+    use cityjson::prelude::*;
+    use cityjson::v2_0::*;
 
-    for i in 0..n_cityobjects {
-        // Generate 8 random vertices for a cube-like solid
-        let vertices: Vec<_> = (0..8)
-            .map(|_| {
-                let x = rng.random_range(0..100000);
-                let y = rng.random_range(0..100000);
-                let z = rng.random_range(0..1000);
-                model.add_vertex(QuantizedCoordinate::new(x, y, z)).unwrap()
-            })
-            .collect();
+    /// Build a CityModel with the specified vertex index type and number of cityobjects.
+    /// Each cityobject will have a solid geometry with 8 vertices (a cube).
+    fn build_model<VR: VertexRef>(
+        n_cityobjects: usize,
+    ) -> CityModel<VR, ResourceId32, OwnedStringStorage> {
+        let mut model =
+            CityModel::<VR, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut rng = rand::rng();
 
-        // Create a CityObject
-        let mut cityobject =
-            CityObject::new(format!("building-{:06}", i), CityObjectType::Building);
+        // Set basic metadata
+        let metadata = model.metadata_mut();
+        metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
+        metadata.set_reference_system(CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
+        ));
 
-        // Build a solid geometry using GeometryBuilder
-        {
-            let mut geometry_builder =
-                GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular)
-                    .with_lod(LoD::LoD2);
-
-            // Add vertices to the builder
-            let bv: Vec<_> = vertices
-                .iter()
-                .map(|&v| geometry_builder.add_vertex(v))
+        for i in 0..n_cityobjects {
+            // Generate 8 random vertices for a cube-like solid
+            let vertices: Vec<_> = (0..8)
+                .map(|_| {
+                    let x = rng.random_range(0..100000);
+                    let y = rng.random_range(0..100000);
+                    let z = rng.random_range(0..1000);
+                    model.add_vertex(QuantizedCoordinate::new(x, y, z)).unwrap()
+                })
                 .collect();
 
-            // Create 6 faces of the cube (simplified solid)
-            // Bottom face
-            let ring_bottom = geometry_builder
-                .add_ring(&[bv[0], bv[1], bv[2], bv[3]])
-                .unwrap();
-            let surface_bottom = geometry_builder.start_surface();
-            geometry_builder
-                .add_surface_outer_ring(ring_bottom)
-                .unwrap();
+            // Create a CityObject
+            let mut cityobject =
+                CityObject::new(format!("building-{:06}", i), CityObjectType::Building);
 
-            // Top face
-            let ring_top = geometry_builder
-                .add_ring(&[bv[4], bv[7], bv[6], bv[5]])
-                .unwrap();
-            let surface_top = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(ring_top).unwrap();
+            // Build a solid geometry using GeometryBuilder
+            {
+                let mut geometry_builder =
+                    GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular)
+                        .with_lod(LoD::LoD2);
 
-            // Front face
-            let ring_front = geometry_builder
-                .add_ring(&[bv[0], bv[1], bv[5], bv[4]])
-                .unwrap();
-            let surface_front = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(ring_front).unwrap();
+                // Add vertices to the builder
+                let bv: Vec<_> = vertices
+                    .iter()
+                    .map(|&v| geometry_builder.add_vertex(v))
+                    .collect();
 
-            // Right face
-            let ring_right = geometry_builder
-                .add_ring(&[bv[1], bv[2], bv[6], bv[5]])
-                .unwrap();
-            let surface_right = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(ring_right).unwrap();
+                // Create 6 faces of the cube (simplified solid)
+                // Bottom face
+                let ring_bottom = geometry_builder
+                    .add_ring(&[bv[0], bv[1], bv[2], bv[3]])
+                    .unwrap();
+                let surface_bottom = geometry_builder.start_surface();
+                geometry_builder
+                    .add_surface_outer_ring(ring_bottom)
+                    .unwrap();
 
-            // Back face
-            let ring_back = geometry_builder
-                .add_ring(&[bv[2], bv[3], bv[7], bv[6]])
-                .unwrap();
-            let surface_back = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(ring_back).unwrap();
+                // Top face
+                let ring_top = geometry_builder
+                    .add_ring(&[bv[4], bv[7], bv[6], bv[5]])
+                    .unwrap();
+                let surface_top = geometry_builder.start_surface();
+                geometry_builder.add_surface_outer_ring(ring_top).unwrap();
 
-            // Left face
-            let ring_left = geometry_builder
-                .add_ring(&[bv[3], bv[0], bv[4], bv[7]])
-                .unwrap();
-            let surface_left = geometry_builder.start_surface();
-            geometry_builder.add_surface_outer_ring(ring_left).unwrap();
+                // Front face
+                let ring_front = geometry_builder
+                    .add_ring(&[bv[0], bv[1], bv[5], bv[4]])
+                    .unwrap();
+                let surface_front = geometry_builder.start_surface();
+                geometry_builder.add_surface_outer_ring(ring_front).unwrap();
 
-            // Create the shell from all surfaces
-            geometry_builder
-                .add_shell(&[
-                    surface_bottom,
-                    surface_top,
-                    surface_front,
-                    surface_right,
-                    surface_back,
-                    surface_left,
-                ])
-                .unwrap();
+                // Right face
+                let ring_right = geometry_builder
+                    .add_ring(&[bv[1], bv[2], bv[6], bv[5]])
+                    .unwrap();
+                let surface_right = geometry_builder.start_surface();
+                geometry_builder.add_surface_outer_ring(ring_right).unwrap();
 
-            // Build the geometry
-            let geometry_ref = geometry_builder.build().unwrap();
+                // Back face
+                let ring_back = geometry_builder
+                    .add_ring(&[bv[2], bv[3], bv[7], bv[6]])
+                    .unwrap();
+                let surface_back = geometry_builder.start_surface();
+                geometry_builder.add_surface_outer_ring(ring_back).unwrap();
 
-            // Add geometry to the CityObject
-            cityobject.geometry_mut().push(geometry_ref);
+                // Left face
+                let ring_left = geometry_builder
+                    .add_ring(&[bv[3], bv[0], bv[4], bv[7]])
+                    .unwrap();
+                let surface_left = geometry_builder.start_surface();
+                geometry_builder.add_surface_outer_ring(ring_left).unwrap();
+
+                // Create the shell from all surfaces
+                geometry_builder
+                    .add_shell(&[
+                        surface_bottom,
+                        surface_top,
+                        surface_front,
+                        surface_right,
+                        surface_back,
+                        surface_left,
+                    ])
+                    .unwrap();
+
+                // Build the geometry
+                let geometry_ref = geometry_builder.build().unwrap();
+
+                // Add geometry to the CityObject
+                cityobject.geometry_mut().push(geometry_ref);
+            }
+
+            // Add the CityObject to the model
+            model.cityobjects_mut().add(cityobject);
         }
 
-        // Add the CityObject to the model
-        model.cityobjects_mut().add(cityobject);
+        model
     }
 
-    model
-}
+    pub fn bench_memory_u32(c: &mut Criterion) {
+        let mut group = c.benchmark_group("memory");
+        let n_cityobjects = 7_000;
 
-fn bench_memory_u16(c: &mut Criterion) {
-    let mut group = c.benchmark_group("memory");
-    let n_cityobjects = 7_000;
-
-    group.bench_function(BenchmarkId::new("u16", n_cityobjects), |b| {
-        b.iter(|| {
-            let model = build_model::<u16>(black_box(n_cityobjects));
-            black_box(model);
+        group.bench_function(BenchmarkId::new("default/u32", n_cityobjects), |b| {
+            b.iter(|| {
+                let model = build_model::<u32>(black_box(n_cityobjects));
+                black_box(model);
+            });
         });
-    });
 
-    group.finish();
+        group.finish();
+    }
 }
 
-fn bench_memory_u32(c: &mut Criterion) {
-    let mut group = c.benchmark_group("memory");
-    let n_cityobjects = 7_000;
+// ==================== NESTED BACKEND BENCHMARKS ====================
 
-    group.bench_function(BenchmarkId::new("u32", n_cityobjects), |b| {
-        b.iter(|| {
-            let model = build_model::<u32>(black_box(n_cityobjects));
-            black_box(model);
+#[cfg(feature = "backend-nested")]
+mod nested_benches {
+    use super::*;
+    use cityjson::backend::nested;
+    use cityjson::prelude::*;
+
+    /// Build a CityModel with the nested backend and the specified number of cityobjects.
+    /// Each cityobject will have a solid geometry with 8 vertices (a cube).
+    fn build_model(n_cityobjects: usize) -> nested::CityModel<OwnedStringStorage> {
+        let mut model = nested::CityModel::<OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut rng = rand::rng();
+
+        // Set basic metadata
+        let metadata = model.metadata_mut();
+        metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
+        metadata.set_reference_system(CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
+        ));
+
+        for i in 0..n_cityobjects {
+            // Generate 8 random vertices for a cube-like solid
+            let vertices: Vec<_> = (0..8)
+                .map(|_| {
+                    let x = rng.random_range(0..100000);
+                    let y = rng.random_range(0..100000);
+                    let z = rng.random_range(0..1000);
+                    model.add_vertex(QuantizedCoordinate::new(x, y, z)).unwrap()
+                })
+                .collect();
+
+            // Create a CityObject ID
+            let co_id = format!("building-{:06}", i);
+
+            // Create and add a CityObject
+            let cityobject = nested::CityObject::new(nested::cityobject::CityObjectType::Building);
+            model.add_cityobject(co_id.clone(), cityobject);
+
+            // Build a solid geometry using GeometryBuilder
+            {
+                let mut geometry_builder = nested::GeometryBuilder::new(
+                    &mut model,
+                    GeometryType::Solid,
+                    nested::BuilderMode::Regular,
+                )
+                .with_lod(LoD::LoD2);
+
+                // Add vertices to the builder
+                for &v in &vertices {
+                    geometry_builder.add_vertex(v).unwrap();
+                }
+
+                // Create 6 faces of the cube (simplified solid)
+                // Bottom face (indices 0-3)
+                let ring_bottom = geometry_builder.add_ring(&[0, 1, 2, 3]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder
+                    .add_surface_outer_ring(ring_bottom)
+                    .unwrap();
+                let surface_bottom = geometry_builder.end_surface().unwrap();
+
+                // Top face (indices 4-7)
+                let ring_top = geometry_builder.add_ring(&[4, 7, 6, 5]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder.add_surface_outer_ring(ring_top).unwrap();
+                let surface_top = geometry_builder.end_surface().unwrap();
+
+                // Front face
+                let ring_front = geometry_builder.add_ring(&[0, 1, 5, 4]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder.add_surface_outer_ring(ring_front).unwrap();
+                let surface_front = geometry_builder.end_surface().unwrap();
+
+                // Right face
+                let ring_right = geometry_builder.add_ring(&[1, 2, 6, 5]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder.add_surface_outer_ring(ring_right).unwrap();
+                let surface_right = geometry_builder.end_surface().unwrap();
+
+                // Back face
+                let ring_back = geometry_builder.add_ring(&[2, 3, 7, 6]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder.add_surface_outer_ring(ring_back).unwrap();
+                let surface_back = geometry_builder.end_surface().unwrap();
+
+                // Left face
+                let ring_left = geometry_builder.add_ring(&[3, 0, 4, 7]).unwrap();
+                geometry_builder.start_surface().unwrap();
+                geometry_builder.add_surface_outer_ring(ring_left).unwrap();
+                let surface_left = geometry_builder.end_surface().unwrap();
+
+                // Create the shell from all surfaces
+                geometry_builder.start_shell().unwrap();
+                geometry_builder.add_shell_surface(surface_bottom).unwrap();
+                geometry_builder.add_shell_surface(surface_top).unwrap();
+                geometry_builder.add_shell_surface(surface_front).unwrap();
+                geometry_builder.add_shell_surface(surface_right).unwrap();
+                geometry_builder.add_shell_surface(surface_back).unwrap();
+                geometry_builder.add_shell_surface(surface_left).unwrap();
+                geometry_builder.end_shell().unwrap();
+
+                // Build the geometry
+                let geometry = geometry_builder.build().unwrap();
+
+                // Add geometry to the CityObject
+                model.add_geometry_to_cityobject(&co_id, geometry).unwrap();
+            }
+        }
+
+        model
+    }
+
+    pub fn bench_memory_nested(c: &mut Criterion) {
+        let mut group = c.benchmark_group("memory");
+        let n_cityobjects = 7_000;
+
+        group.bench_function(BenchmarkId::new("nested", n_cityobjects), |b| {
+            b.iter(|| {
+                let model = build_model(black_box(n_cityobjects));
+                black_box(model);
+            });
         });
-    });
 
-    group.finish();
+        group.finish();
+    }
 }
 
-fn bench_memory_u64(c: &mut Criterion) {
-    let mut group = c.benchmark_group("memory");
-    let n_cityobjects = 7_000;
+// ==================== CRITERION GROUPS ====================
 
-    group.bench_function(BenchmarkId::new("u64", n_cityobjects), |b| {
-        b.iter(|| {
-            let model = build_model::<u64>(black_box(n_cityobjects));
-            black_box(model);
-        });
-    });
+#[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
+criterion_group!(benches, default_benches::bench_memory_u32);
 
-    group.finish();
-}
+#[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]
+criterion_group!(benches, nested_benches::bench_memory_nested);
 
+#[cfg(all(feature = "backend-default", feature = "backend-nested"))]
 criterion_group!(
     benches,
-    bench_memory_u16,
-    bench_memory_u32,
-    bench_memory_u64
+    default_benches::bench_memory_u32,
+    nested_benches::bench_memory_nested
 );
+
 criterion_main!(benches);
