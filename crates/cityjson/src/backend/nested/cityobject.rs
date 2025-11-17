@@ -4,8 +4,10 @@
 use crate::backend::nested::attributes::Attributes;
 use crate::backend::nested::geometry::Geometry;
 use crate::prelude::{BBox, StringStorage};
-use crate::v2_0::CityObjectType;
 use std::collections::HashMap;
+
+// Re-export CityObjectType for convenience
+pub use crate::v2_0::CityObjectType;
 
 #[derive(Debug, Clone)]
 pub struct CityObject<SS: StringStorage> {
