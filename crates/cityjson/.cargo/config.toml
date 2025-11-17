@@ -3,18 +3,18 @@
 # Custom cargo aliases for benchmarking and profiling
 [alias]
 # Benchmark aliases
-bench-all = "bench --workspace"
-bench-builder = "bench --bench builder"
-bench-processor = "bench --bench processor"
-bench-memory = "bench --bench memory"
+bench-all = "bench --workspace --all-features"
+bench-builder = "bench --bench builder --all-features"
+bench-processor = "bench --bench processor --all-features"
+bench-memory = "bench --bench memory --all-features"
 
 # Build aliases
 build-prof = "build --release --profile bench"
 test-prof = "test --release --profile bench"
 
 # Combined commands
-perf-check = "bench --workspace --no-fail-fast"
-full-bench = "bench --workspace --verbose"
+perf-check = "bench --workspace --no-fail-fast --all-features"
+full-bench = "bench --workspace --verbose --all-features"
 
 # Example usage:
 # cargo bench-all
