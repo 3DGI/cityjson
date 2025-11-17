@@ -1,0 +1,5 @@
+timestamp,commit,description,benchmark,backend,time_ms,throughput,change_vs_nested_percent
+2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_without_geometry,default,3.56,2806.42K,-37.71
+2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_with_geometry,default,74.19,134.78K,-12.35
+2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_without_geometry,nested,5.72,1748.11K,0.00
+2025-11-17T20:52:40+00:00,68897c8,baseline comparison test,builder/build_with_geometry,nested,84.64,118.14K,0.00

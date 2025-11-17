@@ -516,12 +516,91 @@ When adding new benchmarks:
 
 ---
 
+## Tracking Results Over Time
+
+cityjson-rs now includes an automated tracking system that records benchmark results to CSV for visualization and progress tracking.
+
+### Running Benchmarks with Tracking
+
+```bash
+# Run benchmarks and track results (both backends)
+just bench-track "your description here"
+
+# Run only default backend and track
+just bench-track "optimized attributes" default
+
+# Run only nested backend and track
+just bench-track "baseline update" nested
+```
+
+### Viewing Results
+
+```bash
+# View recent results (last 20 by default)
+just bench-history
+
+# View more results
+just bench-history 50
+```
+
+### CSV Output
+
+Results are stored in `bench_results/history.csv` with the following columns:
+- `timestamp`: ISO 8601 timestamp
+- `commit`: Git commit hash
+- `description`: Your description of the changes
+- `benchmark`: Benchmark name (e.g., `builder/build_with_geometry`)
+- `backend`: `default` or `nested`
+- `time_ms`: Execution time in milliseconds
+- `throughput`: Throughput (if available)
+- `change_vs_nested_percent`: Performance change vs nested backend baseline
+
+**Example output:**
+```csv
+timestamp,commit,description,benchmark,backend,time_ms,throughput,change_vs_nested_percent
+2025-11-17T20:35:00,68897c8,baseline,builder/build_with_geometry,default,150.23,305.17K,-19.1%
+2025-11-17T20:35:00,68897c8,baseline,builder/build_with_geometry,nested,185.67,268.45K,0.0%
+```
+
+### Visualization
+
+The CSV format is designed for easy import into visualization tools:
+
+**Python (Pandas/Plotly):**
+```python
+import pandas as pd
+import plotly.express as px
+
+df = pd.read_csv('bench_results/history.csv')
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+# Plot time trends for a specific benchmark
+fig = px.line(df[df['benchmark'] == 'builder/build_with_geometry'],
+              x='timestamp', y='time_ms', color='backend',
+              title='Build Performance Over Time')
+fig.show()
+```
+
+**Excel/Google Sheets:**
+Simply import the CSV file and create charts from the data.
+
+**Grafana:**
+Use the CSV datasource plugin to create dashboards.
+
+---
+
 ## Quick Reference
 
 ```bash
 # Most common commands
 
-# Compare both backends
+# Run benchmarks with tracking (recommended)
+just bench-track "description of changes"
+
+# View recent results
+just bench-history
+
+# Compare both backends (without tracking)
 cargo bench --features backend-both
 
 # Memory analysis with dhat

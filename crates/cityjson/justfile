@@ -125,6 +125,45 @@ bench-compare baseline:
 # Results Tracking and Documentation
 # ============================================================================
 
+# Run benchmarks and track results to CSV (both backends)
+bench-track description backend="both":
+    #!/usr/bin/env bash
+    set -e
+    echo "Running benchmarks with backend: {{backend}}"
+
+    if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "nested" ]; then
+        echo "=== Running nested backend (baseline) ==="
+        cargo bench --features backend-nested -- --save-baseline nested
+    fi
+
+    if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "default" ]; then
+        echo ""
+        echo "=== Running default backend ==="
+        cargo bench --features backend-default -- --baseline nested
+    fi
+
+    echo ""
+    echo "=== Tracking results ==="
+    ./tools/track_bench.sh "{{description}}"
+
+# View recent benchmark history from CSV
+bench-history lines="20":
+    #!/usr/bin/env bash
+    if [ -f "bench_results/history.csv" ]; then
+        echo "=== Recent Benchmark Results ==="
+        echo ""
+        # Use column if available, otherwise just cat
+        if command -v column &> /dev/null; then
+            head -1 bench_results/history.csv | column -t -s,
+            echo "----------------------------------------"
+            tail -n {{lines}} bench_results/history.csv | column -t -s,
+        else
+            cat bench_results/history.csv | head -n $(({{lines}} + 1))
+        fi
+    else
+        echo "No benchmark history found. Run 'just bench-track <description>' first."
+    fi
+
 # Capture benchmark results with timestamp and description
 bench-record description:
     #!/usr/bin/env bash
