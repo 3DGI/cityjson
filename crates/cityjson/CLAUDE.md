@@ -12,7 +12,7 @@ just check
 cargo build
 
 # Run linter
-just clippy
+just lint
 
 # Run tests
 cargo test

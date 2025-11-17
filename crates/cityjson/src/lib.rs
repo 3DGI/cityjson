@@ -19,6 +19,7 @@
 //! ```
 //! </details>
 
+pub(crate) mod backend;
 pub mod cityjson;
 pub mod error;
 pub(crate) mod macros;
