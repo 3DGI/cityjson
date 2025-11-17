@@ -7,12 +7,83 @@ pub struct Semantics<SS: StringStorage> {
     pub values: SemanticValues,
 }
 
+impl<SS: StringStorage> Semantics<SS> {
+    pub fn new(surfaces: Vec<Semantic<SS>>, values: SemanticValues) -> Self {
+        Self { surfaces, values }
+    }
+
+    pub fn surfaces(&self) -> &Vec<Semantic<SS>> {
+        &self.surfaces
+    }
+
+    pub fn surfaces_mut(&mut self) -> &mut Vec<Semantic<SS>> {
+        &mut self.surfaces
+    }
+
+    pub fn values(&self) -> &SemanticValues {
+        &self.values
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Semantic<SS: StringStorage> {
     pub type_sem: SemanticType,
     pub children: Option<Vec<usize>>,
     pub parent: Option<usize>,
     pub attributes: Option<Attributes<SS>>,
+}
+
+impl<SS: StringStorage> Semantic<SS> {
+    pub fn new(type_semantic: SemanticType) -> Self {
+        Self {
+            type_sem: type_semantic,
+            children: None,
+            parent: None,
+            attributes: None,
+        }
+    }
+
+    pub fn type_semantic(&self) -> &SemanticType {
+        &self.type_sem
+    }
+
+    pub fn has_children(&self) -> bool {
+        self.children.as_ref().is_some_and(|c| !c.is_empty())
+    }
+
+    pub fn has_parent(&self) -> bool {
+        self.parent.is_some()
+    }
+
+    pub fn children(&self) -> Option<&Vec<usize>> {
+        self.children.as_ref()
+    }
+
+    pub fn children_mut(&mut self) -> &mut Vec<usize> {
+        if self.children.is_none() {
+            self.children = Some(Vec::new());
+        }
+        self.children.as_mut().unwrap()
+    }
+
+    pub fn parent(&self) -> Option<usize> {
+        self.parent
+    }
+
+    pub fn set_parent(&mut self, parent_idx: usize) {
+        self.parent = Some(parent_idx);
+    }
+
+    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+        self.attributes.as_ref()
+    }
+
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+        if self.attributes.is_none() {
+            self.attributes = Some(Attributes::new());
+        }
+        self.attributes.as_mut().unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
