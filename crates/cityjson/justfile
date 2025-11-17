@@ -114,11 +114,11 @@ bench suite:
 
 # Benchmark with baseline for future comparison
 bench-baseline name:
-    cargo bench --workspace -- --save-baseline {{name}}
+    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --save-baseline {{name}}
 
 # Compare current performance against a baseline
 bench-compare baseline:
-    cargo bench --workspace -- --baseline {{baseline}}
+    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --baseline {{baseline}}
 
 
 # ============================================================================
@@ -133,13 +133,13 @@ bench-track description backend="both":
 
     if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "nested" ]; then
         echo "=== Running nested backend (baseline) ==="
-        cargo bench --benches --features backend-nested -- --save-baseline nested
+        cargo bench --bench backend_comparison --bench memory --bench builder --bench processor --features backend-nested -- --save-baseline nested
     fi
 
     if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "default" ]; then
         echo ""
         echo "=== Running default backend ==="
-        cargo bench --benches --features backend-default -- --baseline nested
+        cargo bench --bench backend_comparison --bench memory --bench builder --bench processor --features backend-default -- --baseline nested
     fi
 
     echo ""
@@ -236,12 +236,12 @@ bench-compare-commits commit1 commit2:
 
     echo "=== Benchmarking {{commit1}} ==="
     git checkout {{commit1}}
-    cargo bench --workspace -- --save-baseline {{commit1}}
+    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --save-baseline {{commit1}}
 
     echo ""
     echo "=== Benchmarking {{commit2}} ==="
     git checkout {{commit2}}
-    cargo bench --workspace -- --baseline {{commit1}}
+    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --baseline {{commit1}}
 
     git checkout "$CURRENT"
     echo ""
