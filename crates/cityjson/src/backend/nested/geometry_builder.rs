@@ -138,7 +138,7 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
     // ========== Vertex Operations ==========
 
     pub fn add_vertex(&mut self, index: VertexIndex<u32>) -> Result<&mut Self, Error> {
-        self.vertices.push(VertexOrPoint::Index(index.into()));
+        self.vertices.push(VertexOrPoint::Index(index));
         Ok(self)
     }
 
@@ -149,7 +149,7 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
 
     pub fn add_template_vertex(&mut self, index: VertexIndex<u32>) -> Result<&mut Self, Error> {
         self.template_vertices
-            .push(TemplateVertexOrPoint::Index(index.into()));
+            .push(TemplateVertexOrPoint::Index(index));
         Ok(self)
     }
 
@@ -591,13 +591,13 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
         let mut surfaces = Vec::new();
         let mut semantic_index_map: HashMap<String, usize> = HashMap::new();
 
-        for (_, semantic) in &self.surface_semantics {
+        for semantic in self.surface_semantics.values() {
             let key = format!("{:?}", semantic.type_semantic());
-            if !semantic_index_map.contains_key(&key) {
+            semantic_index_map.entry(key).or_insert_with(|| {
                 let idx = surfaces.len();
                 surfaces.push(semantic.clone());
-                semantic_index_map.insert(key, idx);
-            }
+                idx
+            });
         }
 
         // Build SemanticValues based on geometry type
@@ -778,7 +778,11 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
                                 .iter()
                                 .find(|(idx, _)| *idx == outer_idx)
                                 .map(|(_, tex_idx)| *tex_idx);
-                            surface_ring_values.push(texture_idx);
+                            let ring = &self.rings[outer_idx];
+                            // Replicate texture for each vertex in the ring
+                            let vertex_values: Vec<Option<usize>> =
+                                ring.iter().map(|_| texture_idx).collect();
+                            surface_ring_values.push(vertex_values);
                         }
 
                         // Inner rings
@@ -787,12 +791,16 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
                                 .iter()
                                 .find(|(idx, _)| *idx == inner_idx)
                                 .map(|(_, tex_idx)| *tex_idx);
-                            surface_ring_values.push(texture_idx);
+                            let ring = &self.rings[inner_idx];
+                            // Replicate texture for each vertex in the ring
+                            let vertex_values: Vec<Option<usize>> =
+                                ring.iter().map(|_| texture_idx).collect();
+                            surface_ring_values.push(vertex_values);
                         }
 
                         surface_values.push(surface_ring_values);
                     }
-                    TextureValues::PointOrLineStringOrSurface(surface_values)
+                    TextureValues::MultiOrCompositeSurface(surface_values)
                 }
 
                 GeometryType::Solid => {
@@ -809,7 +817,11 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
                                     .iter()
                                     .find(|(idx, _)| *idx == outer_idx)
                                     .map(|(_, tex_idx)| *tex_idx);
-                                surface_ring_values.push(texture_idx);
+                                let ring = &self.rings[outer_idx];
+                                // Replicate texture for each vertex in the ring
+                                let vertex_values: Vec<Option<usize>> =
+                                    ring.iter().map(|_| texture_idx).collect();
+                                surface_ring_values.push(vertex_values);
                             }
 
                             // Inner rings
@@ -818,7 +830,11 @@ impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
                                     .iter()
                                     .find(|(idx, _)| *idx == inner_idx)
                                     .map(|(_, tex_idx)| *tex_idx);
-                                surface_ring_values.push(texture_idx);
+                                let ring = &self.rings[inner_idx];
+                                // Replicate texture for each vertex in the ring
+                                let vertex_values: Vec<Option<usize>> =
+                                    ring.iter().map(|_| texture_idx).collect();
+                                surface_ring_values.push(vertex_values);
                             }
 
                             shell_values.push(surface_ring_values);

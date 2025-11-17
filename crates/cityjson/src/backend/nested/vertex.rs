@@ -3,4 +3,5 @@
 //! The nested backend uses the same vertex storage as the default backend
 //! for cache locality. Vertex pools are backend-agnostic.
 
+#[allow(unused_imports)]
 pub use crate::backend::default::vertex::*;

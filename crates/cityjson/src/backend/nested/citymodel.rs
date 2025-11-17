@@ -61,9 +61,11 @@ impl<SS: StringStorage> CityModel<SS> {
         material_capacity: usize,
         texture_capacity: usize,
     ) -> Self {
-        let mut appearance = Appearance::default();
-        appearance.materials = Some(Vec::with_capacity(material_capacity));
-        appearance.textures = Some(Vec::with_capacity(texture_capacity));
+        let appearance = Appearance {
+            materials: Some(Vec::with_capacity(material_capacity)),
+            textures: Some(Vec::with_capacity(texture_capacity)),
+            ..Default::default()
+        };
 
         Self {
             id: None,
@@ -215,11 +217,11 @@ impl<SS: StringStorage> CityModel<SS> {
             .flat_map(|materials| materials.iter_mut().enumerate())
     }
 
-    pub fn default_theme_material(&self) -> Option<&SS> {
+    pub fn default_theme_material(&self) -> Option<&SS::String> {
         self.appearance.as_ref()?.default_theme_material.as_ref()
     }
 
-    pub fn set_default_theme_material(&mut self, theme: Option<SS>) {
+    pub fn set_default_theme_material(&mut self, theme: Option<SS::String>) {
         if self.appearance.is_none() {
             self.appearance = Some(Appearance::default());
         }
@@ -280,11 +282,11 @@ impl<SS: StringStorage> CityModel<SS> {
             .flat_map(|textures| textures.iter().enumerate())
     }
 
-    pub fn default_theme_texture(&self) -> Option<&SS> {
+    pub fn default_theme_texture(&self) -> Option<&SS::String> {
         self.appearance.as_ref()?.default_theme_texture.as_ref()
     }
 
-    pub fn set_default_theme_texture(&mut self, theme: Option<SS>) {
+    pub fn set_default_theme_texture(&mut self, theme: Option<SS::String>) {
         if self.appearance.is_none() {
             self.appearance = Some(Appearance::default());
         }
