@@ -133,13 +133,13 @@ bench-track description backend="both":
 
     if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "nested" ]; then
         echo "=== Running nested backend (baseline) ==="
-        cargo bench --features backend-nested -- --save-baseline nested
+        cargo bench --benches --features backend-nested -- --save-baseline nested
     fi
 
     if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "default" ]; then
         echo ""
         echo "=== Running default backend ==="
-        cargo bench --features backend-default -- --baseline nested
+        cargo bench --benches --features backend-default -- --baseline nested
     fi
 
     echo ""
