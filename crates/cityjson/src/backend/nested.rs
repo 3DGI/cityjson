@@ -29,3 +29,30 @@ pub use cityobject::CityObject;
 pub use geometry::Geometry;
 #[allow(unused_imports)]
 pub use geometry_builder::{BuilderMode, GeometryBuilder};
+
+// Type aliases for common usage
+use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage};
+
+/// CityModel with owned string storage
+#[allow(dead_code)]
+pub type OwnedCityModel = CityModel<OwnedStringStorage>;
+
+/// CityModel with borrowed string storage
+#[allow(dead_code)]
+pub type BorrowedCityModel<'a> = CityModel<BorrowedStringStorage<'a>>;
+
+/// CityObject with owned string storage
+#[allow(dead_code)]
+pub type OwnedCityObject = CityObject<OwnedStringStorage>;
+
+/// CityObject with borrowed string storage
+#[allow(dead_code)]
+pub type BorrowedCityObject<'a> = CityObject<BorrowedStringStorage<'a>>;
+
+/// Geometry with owned string storage
+#[allow(dead_code)]
+pub type OwnedGeometry = Geometry<OwnedStringStorage>;
+
+/// Geometry with borrowed string storage
+#[allow(dead_code)]
+pub type BorrowedGeometry<'a> = Geometry<BorrowedStringStorage<'a>>;
