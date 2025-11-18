@@ -6,7 +6,7 @@
 //! used by all CityJSON versions. Version-specific implementations wrap this core type
 //! and provide version-specific behavior through macros.
 
-use crate::cityjson::core::attributes::Attributes;
+use crate::cityjson::core::attributes::{AttributePool, Attributes};
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::cityjson::traits::coordinate::Coordinate;
@@ -75,6 +75,8 @@ pub struct CityModelCore<
     textures: DefaultResourcePool<Texture, RR>,
     /// Pool of vertex textures (UV coordinates)
     vertices_texture: Vertices<VR, UVCoordinate>,
+    /// Global attribute pool for all attributes in the model
+    attributes: AttributePool<SS, RR>,
     /// Default theme material reference
     default_theme_material: Option<RR>,
     /// Default theme texture reference
@@ -130,6 +132,7 @@ where
             materials: DefaultResourcePool::new_pool(),
             textures: DefaultResourcePool::new_pool(),
             vertices_texture: Vertices::new(),
+            attributes: AttributePool::new(),
             default_theme_material: None,
             default_theme_texture: None,
         }
@@ -164,6 +167,7 @@ where
             materials: DefaultResourcePool::with_capacity(material_capacity),
             textures: DefaultResourcePool::with_capacity(texture_capacity),
             vertices_texture: Vertices::new(),
+            attributes: AttributePool::new(),
             default_theme_material: None,
             default_theme_texture: None,
         }
@@ -573,6 +577,33 @@ where
     /// Clear all template geometries
     pub fn clear_template_geometries(&mut self) {
         self.template_geometries.clear();
+    }
+
+    // ==================== ATTRIBUTES ====================
+
+    /// Get a reference to the attribute pool
+    pub fn attributes(&self) -> &AttributePool<SS, RR> {
+        &self.attributes
+    }
+
+    /// Get a mutable reference to the attribute pool
+    pub fn attributes_mut(&mut self) -> &mut AttributePool<SS, RR> {
+        &mut self.attributes
+    }
+
+    /// Get the number of attributes in the model
+    pub fn attribute_count(&self) -> usize {
+        self.attributes.len()
+    }
+
+    /// Check if there are any attributes
+    pub fn has_attributes(&self) -> bool {
+        !self.attributes.is_empty()
+    }
+
+    /// Clear all attributes from the pool
+    pub fn clear_attributes(&mut self) {
+        self.attributes.clear();
     }
 
     // Type and version methods

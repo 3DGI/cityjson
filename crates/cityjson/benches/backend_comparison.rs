@@ -15,7 +15,7 @@ use std::hint::black_box;
 #[cfg(feature = "backend-default")]
 mod default_benches {
     use super::*;
-    
+
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
 

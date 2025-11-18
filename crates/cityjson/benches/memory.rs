@@ -33,7 +33,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[cfg(feature = "backend-default")]
 mod default_benches {
     use super::*;
-    
+
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
 

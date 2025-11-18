@@ -27,7 +27,7 @@ use std::hint::black_box;
 #[cfg(feature = "backend-default")]
 mod default_benches {
     use super::*;
-    
+
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
 
@@ -136,34 +136,35 @@ mod default_benches {
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
                     if let Some(geometry) = model.get_geometry(*geometry_ref)
-                        && let Some(boundary) = geometry.boundaries() {
-                            let vertex_indices = boundary.vertices();
+                        && let Some(boundary) = geometry.boundaries()
+                    {
+                        let vertex_indices = boundary.vertices();
 
-                            if vertex_indices.is_empty() {
-                                continue;
-                            }
+                        if vertex_indices.is_empty() {
+                            continue;
+                        }
 
-                            let mut sum_x = 0i64;
-                            let mut sum_y = 0i64;
-                            let mut sum_z = 0i64;
-                            let mut count = 0usize;
+                        let mut sum_x = 0i64;
+                        let mut sum_y = 0i64;
+                        let mut sum_z = 0i64;
+                        let mut count = 0usize;
 
-                            for vertex_idx in vertex_indices.iter() {
-                                if let Some(vertex) = model.get_vertex(*vertex_idx) {
-                                    sum_x += vertex.x();
-                                    sum_y += vertex.y();
-                                    sum_z += vertex.z();
-                                    count += 1;
-                                }
-                            }
-
-                            if count > 0 {
-                                let mean_x = sum_x as f64 / count as f64;
-                                let mean_y = sum_y as f64 / count as f64;
-                                let mean_z = sum_z as f64 / count as f64;
-                                means.push((mean_x, mean_y, mean_z));
+                        for vertex_idx in vertex_indices.iter() {
+                            if let Some(vertex) = model.get_vertex(*vertex_idx) {
+                                sum_x += vertex.x();
+                                sum_y += vertex.y();
+                                sum_z += vertex.z();
+                                count += 1;
                             }
                         }
+
+                        if count > 0 {
+                            let mean_x = sum_x as f64 / count as f64;
+                            let mean_y = sum_y as f64 / count as f64;
+                            let mean_z = sum_z as f64 / count as f64;
+                            means.push((mean_x, mean_y, mean_z));
+                        }
+                    }
                 }
             }
         }
@@ -300,8 +301,7 @@ mod nested_benches {
                                 for surface in shell {
                                     for ring in surface {
                                         for vertex_idx in ring {
-                                            if let Some(vertex) = model.get_vertex(*vertex_idx)
-                                            {
+                                            if let Some(vertex) = model.get_vertex(*vertex_idx) {
                                                 sum_x += vertex.x();
                                                 sum_y += vertex.y();
                                                 sum_z += vertex.z();
