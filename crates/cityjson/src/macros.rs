@@ -1219,6 +1219,28 @@ macro_rules! impl_citymodel_methods {
                 self.inner.clear_template_geometries();
             }
 
+            // ==================== ATTRIBUTES ====================
+
+            pub fn attributes(&self) -> &crate::cityjson::core::attributes::AttributePool<SS, RR> {
+                self.inner.attributes()
+            }
+
+            pub fn attributes_mut(&mut self) -> &mut crate::cityjson::core::attributes::AttributePool<SS, RR> {
+                self.inner.attributes_mut()
+            }
+
+            pub fn attribute_count(&self) -> usize {
+                self.inner.attribute_count()
+            }
+
+            pub fn has_attributes(&self) -> bool {
+                self.inner.has_attributes()
+            }
+
+            pub fn clear_attributes(&mut self) {
+                self.inner.clear_attributes();
+            }
+
             pub fn type_citymodel(&self) -> crate::CityModelType {
                 self.inner.type_citymodel()
             }
