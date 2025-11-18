@@ -71,13 +71,15 @@ Attributes (properties of CityObjects, Semantic surfaces, etc.) use a flattened 
 **Creating and using attributes:**
 
 ```rust
-use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+use cityjson::cityjson::core::attributes::AttributeOwnerType;
+use cityjson::prelude::*;
+use cityjson::v1_1::*;
 
-// Create a shared attribute pool
-let mut pool = OwnedAttributePool::new();
+// The attribute pool is now a member of CityModel
+let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
 
-// Add attributes to the pool
-let height_id = pool.add_float(
+// Add attributes to the global pool
+let height_id = city_model.attributes_mut().add_float(
     "measuredHeight".to_string(),
     true,  // is_named
     22.3,
@@ -86,11 +88,12 @@ let height_id = pool.add_float(
 );
 
 // Link attribute to CityObject
-let co_attrs = city_object.attributes_mut();
-co_attrs.insert("measuredHeight".to_string(), height_id);
+let mut city_object = CityObject::new("building-1".to_string(), CityObjectType::Building);
+city_object.attributes_mut().insert("measuredHeight".to_string(), height_id);
+city_model.cityobjects_mut().add(city_object);
 
 // Retrieve values from the pool
-if let Some(height) = pool.get_float(height_id) {
+if let Some(height) = city_model.attributes().get_float(height_id) {
     println!("Height: {}", height);
 }
 ```
@@ -98,34 +101,116 @@ if let Some(height) = pool.get_float(height_id) {
 **Nested attributes (Maps and Vectors):**
 
 ```rust
+use std::collections::HashMap;
+
 // Create nested structure: address with location geometry
 let mut address_map = HashMap::new();
 
-let country_id = pool.add_string(
+let country_id = city_model.attributes_mut().add_string(
     "Country".to_string(), true, "Canada".to_string(),
     AttributeOwnerType::Element, None,
 );
 address_map.insert("Country".to_string(), country_id);
 
-// Add geometry to address
+// Add geometry to address using GeometryBuilder
 let location_geometry_ref = geometry_builder.build()?;
-let location_id = pool.add_geometry(
+let location_id = city_model.attributes_mut().add_geometry(
     "location".to_string(), true, location_geometry_ref,
     AttributeOwnerType::Element, None,
 );
 address_map.insert("location".to_string(), location_id);
 
 // Create the address map attribute
-let address_id = pool.add_map(
+let address_id = city_model.attributes_mut().add_map(
     "address".to_string(), false, address_map,
     AttributeOwnerType::Element, None,
 );
 
 // Wrap in vector (CityJSON allows multiple addresses)
-let addresses_vec_id = pool.add_vector(
+let addresses_vec_id = city_model.attributes_mut().add_vector(
     "address".to_string(), true, vec![address_id],
     AttributeOwnerType::CityObject, None,
 );
+
+// Link to CityObject
+city_object.attributes_mut().insert("address".to_string(), addresses_vec_id);
+```
+
+### Using Attributes During Geometry Construction
+
+When building geometries with `GeometryBuilder`, you have access to the global attribute pool through the model reference:
+
+```rust
+use cityjson::prelude::*;
+use cityjson::v1_1::*;
+use cityjson::cityjson::core::attributes::AttributeOwnerType;
+
+let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
+
+// Add semantic attributes BEFORE creating GeometryBuilder
+let material_id = city_model.attributes_mut().add_string(
+    "material".to_string(),
+    true,
+    "concrete".to_string(),
+    AttributeOwnerType::Semantic,
+    None,
+);
+
+let year_id = city_model.attributes_mut().add_integer(
+    "year_constructed".to_string(),
+    true,
+    1985,
+    AttributeOwnerType::Semantic,
+    None,
+);
+
+// Create semantic and attach attributes
+let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+roof_semantic.attributes_mut().insert("material".to_string(), material_id);
+roof_semantic.attributes_mut().insert("year_constructed".to_string(), year_id);
+
+// Use semantic in geometry (through GeometryBuilder or other means)
+```
+
+### Important Usage Pattern: Ordering Matters
+
+Because Rust enforces exclusive mutable borrows, follow this pattern when working with attributes:
+
+**✅ CORRECT - Add to pool first, then use references:**
+```rust
+// 1. Add attribute to pool (borrows city_model.attributes)
+let height_id = city_model.attributes_mut().add_float(
+    "height".to_string(), true, 42.0,
+    AttributeOwnerType::CityObject, None,
+);
+// Borrow ends here
+
+// 2. Get object and use attribute ID (new borrow of city_model.cityobjects)
+let city_object = city_model.cityobjects_mut().get_mut(co_ref).unwrap();
+city_object.attributes_mut().insert("height".to_string(), height_id);
+```
+
+**❌ INCORRECT - Borrowing conflicts:**
+```rust
+// This won't compile:
+let city_object = city_model.cityobjects_mut().get_mut(co_ref).unwrap(); // borrows city_model
+let height_id = city_model.attributes_mut().add_float(...); // ERROR: already borrowed!
+city_object.attributes_mut().insert("height".to_string(), height_id);
+```
+
+**For Multiple Attributes:**
+```rust
+// Add all attributes first
+let height_id = city_model.attributes_mut().add_float(...);
+let width_id = city_model.attributes_mut().add_float(...);
+let name_id = city_model.attributes_mut().add_string(...);
+
+// Then attach to objects
+let city_object = city_model.cityobjects_mut().get_mut(co_ref).unwrap();
+let attrs = city_object.attributes_mut();
+attrs.insert("height".to_string(), height_id);
+attrs.insert("width".to_string(), width_id);
+attrs.insert("name".to_string(), name_id);
 ```
 
 ### Usage Patterns
@@ -134,13 +219,15 @@ Recommended imports:
 
 ```rust
 use cityjson::prelude::*;
-use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+use cityjson::cityjson::core::attributes::AttributeOwnerType;
 use cityjson::v1_1::*;  // or v1_0, v2_0
 ```
 
 **Creating geometries:** Always use `GeometryBuilder` rather than manual boundary construction
 
-**Managing attributes:** Create an `AttributePool` at the start, add attributes to it, and reference them by ID from CityObjects
+**Managing attributes:** The `AttributePool` is a member of `CityModel`. Add attributes using `city_model.attributes_mut()`, and reference them by ID from CityObjects, Semantics, etc.
+
+**Ordering pattern:** Always add attributes to the pool before attaching them to objects to avoid borrow checker conflicts
 
 **Error handling:** All operations return `Result<T>` - handle errors appropriately
 
