@@ -28,4 +28,4 @@ vgcore.*
 
 # Misc
 .claude
-!.claude/nested-plan.md
+!.claude/attributes-plan.md
