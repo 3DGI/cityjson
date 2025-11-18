@@ -1,4 +1,4 @@
-use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+use cityjson::cityjson::core::attributes::AttributeOwnerType;
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 use std::collections::HashMap;
@@ -13,9 +13,6 @@ fn build_fake_complete_owned() -> Result<()> {
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
-    // Create attribute pool for managing all attributes
-    let mut pool = OwnedAttributePool::new();
-
     // Set metadata
     let metadata = model.metadata_mut();
     metadata.set_identifier(CityModelIdentifier::new(
@@ -28,15 +25,14 @@ fn build_fake_complete_owned() -> Result<()> {
     metadata.set_email_address("info@3dgi.nl");
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
-    let extra = model.extra_mut();
-    let percent_men_id = pool.add_float(
+    let percent_men_id = model.attributes_mut().add_float(
         "percent_men".to_string(),
         true,
         49.5,
         AttributeOwnerType::Element,
         None,
     );
-    let percent_women_id = pool.add_float(
+    let percent_women_id = model.attributes_mut().add_float(
         "percent_women".to_string(),
         true,
         51.5,
@@ -46,13 +42,14 @@ fn build_fake_complete_owned() -> Result<()> {
     let mut census_map = HashMap::new();
     census_map.insert("percent_men".to_string(), percent_men_id);
     census_map.insert("percent_women".to_string(), percent_women_id);
-    let census_id = pool.add_map(
+    let census_id = model.attributes_mut().add_map(
         "+census".to_string(),
         true,
         census_map,
         AttributeOwnerType::CityModel,
         None,
     );
+    let extra = model.extra_mut();
     extra.insert("+census".to_string(), census_id);
 
     // Set transform
@@ -124,36 +121,36 @@ fn build_fake_complete_owned() -> Result<()> {
         // add it as an extra property, just as if it was a property from an Extension.
         let co_1_extra = co_1.extra_mut();
 
-        // Add address fields to pool
-        let country_id = pool.add_string(
+        // Add address fields to global attribute pool
+        let country_id = model.attributes_mut().add_string(
             "Country".to_string(),
             true,
             "Canada".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let locality_id = pool.add_string(
+        let locality_id = model.attributes_mut().add_string(
             "Locality".to_string(),
             true,
             "Chibougamau".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let thoroughfare_number_id = pool.add_string(
+        let thoroughfare_number_id = model.attributes_mut().add_string(
             "ThoroughfareNumber".to_string(),
             true,
             "1".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let thoroughfare_name_id = pool.add_string(
+        let thoroughfare_name_id = model.attributes_mut().add_string(
             "ThoroughfareName".to_string(),
             true,
             "rue de la Patate".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let postcode_id = pool.add_string(
+        let postcode_id = model.attributes_mut().add_string(
             "Postcode".to_string(),
             true,
             "H0H 0H0".to_string(),
@@ -177,7 +174,7 @@ fn build_fake_complete_owned() -> Result<()> {
                     .with_lod(LoD::LoD1);
             let _location_p = location_builder.add_vertex(v0);
             if let Ok(location_geometry_ref) = location_builder.build() {
-                let location_id = pool.add_geometry(
+                let location_id = model.attributes_mut().add_geometry(
                     "location".to_string(),
                     true,
                     location_geometry_ref,
@@ -188,8 +185,8 @@ fn build_fake_complete_owned() -> Result<()> {
             }
         }
 
-        // Create address map attribute and add to pool
-        let address_map_id = pool.add_map(
+        // Create address map attribute and add to global attribute pool
+        let address_map_id = model.attributes_mut().add_map(
             "".to_string(),
             false,
             address_map,
@@ -198,7 +195,7 @@ fn build_fake_complete_owned() -> Result<()> {
         );
 
         // Per CityJSON specifications, we can have multiple addresses assigned to a single CityObject.
-        let addresses_vec_id = pool.add_vector(
+        let addresses_vec_id = model.attributes_mut().add_vector(
             "address".to_string(),
             true,
             vec![address_map_id],
@@ -208,39 +205,50 @@ fn build_fake_complete_owned() -> Result<()> {
         co_1_extra.insert("address".to_string(), addresses_vec_id);
 
         // Set regular attributes that will be stored in the "attributes" member of the CityObject.
-        let co_1_attrs = co_1.attributes_mut();
-        let measured_height_id = pool.add_float(
+        let measured_height_id = model.attributes_mut().add_float(
             "measuredHeight".to_string(),
             true,
             22.3,
             AttributeOwnerType::CityObject,
             None,
         );
-        let roof_type_id = pool.add_string(
+        let roof_type_id = model.attributes_mut().add_string(
             "roofType".to_string(),
             true,
             "gable".to_string(),
             AttributeOwnerType::CityObject,
             None,
         );
-        let residential_id = pool.add_bool(
+        let residential_id = model.attributes_mut().add_bool(
             "residential".to_string(),
             true,
             true,
             AttributeOwnerType::CityObject,
             None,
         );
-        let nr_doors_id = pool.add_integer(
+        let nr_doors_id = model.attributes_mut().add_integer(
             "nr_doors".to_string(),
             true,
             3,
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_1_attrs = co_1.attributes_mut();
         co_1_attrs.insert("measuredHeight".to_string(), measured_height_id);
         co_1_attrs.insert("roofType".to_string(), roof_type_id);
         co_1_attrs.insert("residential".to_string(), residential_id);
         co_1_attrs.insert("nr_doors".to_string(), nr_doors_id);
+
+        // Create semantic attributes BEFORE creating GeometryBuilder (to avoid borrow conflicts)
+        let surface_attr_id = model.attributes_mut().add_bool(
+            "surfaceAttribute".to_string(),
+            true,
+            true,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        roof_semantic.attributes_mut().insert("surfaceAttribute".to_string(), surface_attr_id);
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -259,16 +267,6 @@ fn build_fake_complete_owned() -> Result<()> {
             let surface_0 = geometry_builder.start_surface();
             geometry_builder.add_surface_outer_ring(ring0)?;
             // Semantic
-            let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
-            let sem_attr = roof_semantic.attributes_mut();
-            let surface_attr_id = pool.add_bool(
-                "surfaceAttribute".to_string(),
-                true,
-                true,
-                AttributeOwnerType::Semantic,
-                None,
-            );
-            sem_attr.insert("surfaceAttribute".to_string(), surface_attr_id);
             geometry_builder.set_semantic_surface(None, roof_semantic.clone(), false)?;
             // Material
             geometry_builder.set_material_surface(
@@ -365,14 +363,14 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "id-3".
     {
-        let co_3_attrs = co_3.attributes_mut();
-        let building_lden_id = pool.add_float(
+        let building_lden_id = model.attributes_mut().add_float(
             "buildingLDenMin".to_string(),
             true,
             1.0,
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_3_attrs = co_3.attributes_mut();
         co_3_attrs.insert("buildingLDenMin".to_string(), building_lden_id);
     }
 
@@ -420,38 +418,38 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "my-neighbourhood"
     {
-        let co_neigh_attrs = co_neighbourhood.attributes_mut();
-        let location_id = pool.add_string(
+        let location_id = model.attributes_mut().add_string(
             "location".to_string(),
             true,
             "Magyarkanizsa".to_string(),
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_neigh_attrs = co_neighbourhood.attributes_mut();
         co_neigh_attrs.insert("location".to_string(), location_id);
 
-        let co_neigh_extra = co_neighbourhood.extra_mut();
-        let role1_id = pool.add_string(
+        let role1_id = model.attributes_mut().add_string(
             "".to_string(),
             false,
             "residential building".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let role2_id = pool.add_string(
+        let role2_id = model.attributes_mut().add_string(
             "".to_string(),
             false,
             "voting location".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let children_roles_id = pool.add_vector(
+        let children_roles_id = model.attributes_mut().add_vector(
             "children_roles".to_string(),
             true,
             vec![role1_id, role2_id],
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_neigh_extra = co_neighbourhood.extra_mut();
         co_neigh_extra.insert("children_roles".to_string(), children_roles_id);
         {
             let mut geometry_builder =

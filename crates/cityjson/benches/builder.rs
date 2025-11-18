@@ -26,19 +26,67 @@ use std::hint::black_box;
 mod default_benches {
     use super::*;
 
-    use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+    use cityjson::cityjson::core::attributes::AttributeOwnerType;
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
 
     /// Helper function to build a geometry with semantics, materials, and textures.
     fn build_geometry_with_semantics_materials_textures(
         model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
-        pool: &mut OwnedAttributePool,
         vertices: &[VertexIndex32],
         index: usize,
         material_data: Option<&(Material<OwnedStringStorage>, ResourceId32)>,
         texture_data: Option<&(Texture<OwnedStringStorage>, ResourceId32)>,
     ) -> Result<ResourceId32> {
+        // Create all semantic attributes BEFORE creating GeometryBuilder (to avoid borrow conflicts)
+        let area_id = model.attributes_mut().add_float(
+            "area".to_string(),
+            true,
+            100.0 + (index as f64) * 0.5,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
+        ground_semantic.attributes_mut().insert("area".to_string(), area_id);
+
+        let azimuth_id = model.attributes_mut().add_float(
+            "azimuth".to_string(),
+            true,
+            (index % 360) as f64,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let slope_id = model.attributes_mut().add_float(
+            "slope".to_string(),
+            true,
+            15.0 + ((index % 30) as f64),
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let roof_area_id = model.attributes_mut().add_float(
+            "area".to_string(),
+            true,
+            200.0 + (index as f64) * 1.2,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let roof_attrs = roof_semantic.attributes_mut();
+        roof_attrs.insert("azimuth".to_string(), azimuth_id);
+        roof_attrs.insert("slope".to_string(), slope_id);
+        roof_attrs.insert("area".to_string(), roof_area_id);
+
+        let orientation_n_id = model.attributes_mut().add_string(
+            "orientation".to_string(),
+            true,
+            "north".to_string(),
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let mut wall_north = Semantic::new(SemanticType::WallSurface);
+        wall_north.attributes_mut().insert("orientation".to_string(), orientation_n_id);
+
+        // Now create the GeometryBuilder
         let mut geometry_builder =
             GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
                 .with_lod(LoD::LoD2_2);
@@ -56,48 +104,12 @@ mod default_benches {
         let ring_bottom = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
         let surface_bottom = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_bottom)?;
-        let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
-        let ground_attrs = ground_semantic.attributes_mut();
-        let area_id = pool.add_float(
-            "area".to_string(),
-            true,
-            100.0 + (index as f64) * 0.5,
-            AttributeOwnerType::Semantic,
-            None,
-        );
-        ground_attrs.insert("area".to_string(), area_id);
         geometry_builder.set_semantic_surface(None, ground_semantic, false)?;
 
         // Top surface (Roof)
         let ring_top = geometry_builder.add_ring(&[bv4, bv5, bv6, bv7])?;
         let surface_top = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_top)?;
-        let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        let roof_attrs = roof_semantic.attributes_mut();
-        let azimuth_id = pool.add_float(
-            "azimuth".to_string(),
-            true,
-            (index % 360) as f64,
-            AttributeOwnerType::Semantic,
-            None,
-        );
-        let slope_id = pool.add_float(
-            "slope".to_string(),
-            true,
-            15.0 + ((index % 30) as f64),
-            AttributeOwnerType::Semantic,
-            None,
-        );
-        let roof_area_id = pool.add_float(
-            "area".to_string(),
-            true,
-            200.0 + (index as f64) * 1.2,
-            AttributeOwnerType::Semantic,
-            None,
-        );
-        roof_attrs.insert("azimuth".to_string(), azimuth_id);
-        roof_attrs.insert("slope".to_string(), slope_id);
-        roof_attrs.insert("area".to_string(), roof_area_id);
         geometry_builder.set_semantic_surface(None, roof_semantic, false)?;
 
         if let Some((material, _mat_ref)) = material_data {
@@ -113,16 +125,6 @@ mod default_benches {
         let ring_front = geometry_builder.add_ring(&[bv0, bv1, bv5, bv4])?;
         let surface_front = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_front)?;
-        let mut wall_north = Semantic::new(SemanticType::WallSurface);
-        let wall_north_attrs = wall_north.attributes_mut();
-        let orientation_n_id = pool.add_string(
-            "orientation".to_string(),
-            true,
-            "north".to_string(),
-            AttributeOwnerType::Semantic,
-            None,
-        );
-        wall_north_attrs.insert("orientation".to_string(), orientation_n_id);
         geometry_builder.set_semantic_surface(None, wall_north, false)?;
 
         if let Some((texture, _tex_ref)) = texture_data {
@@ -175,7 +177,6 @@ mod default_benches {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
-        let mut pool = OwnedAttributePool::new();
 
         let (material_ref, texture_ref) = if with_geometries {
             let mut material = Material::new("benchmark_material".to_string());
@@ -216,14 +217,14 @@ mod default_benches {
 
             let mut cityobject = CityObject::new(co_id.clone(), co_type);
 
-            let attrs = cityobject.attributes_mut();
-            let measured_height_id = pool.add_float(
+            let measured_height_id = model.attributes_mut().add_float(
                 "measuredHeight".to_string(),
                 true,
                 10.0 + (i as f64) * 0.5,
                 AttributeOwnerType::CityObject,
                 None,
             );
+            let attrs = cityobject.attributes_mut();
             attrs.insert("measuredHeight".to_string(), measured_height_id);
 
             let offset = (i as f64) * 100.0;
@@ -239,7 +240,6 @@ mod default_benches {
             if with_geometries {
                 let geometry_ref = build_geometry_with_semantics_materials_textures(
                     &mut model,
-                    &mut pool,
                     &vertices,
                     i,
                     material_ref.as_ref(),

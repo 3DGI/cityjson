@@ -1,4 +1,4 @@
-use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+use cityjson::cityjson::core::attributes::AttributeOwnerType;
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
@@ -13,9 +13,6 @@ fn build_fake_complete_owned() -> Result<()> {
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
-    // Create attribute pool for managing all attributes
-    let mut pool = OwnedAttributePool::new();
-
     // Set metadata
     let metadata = model.metadata_mut();
     metadata.set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
@@ -29,15 +26,14 @@ fn build_fake_complete_owned() -> Result<()> {
     metadata.set_email_address("info@3dgi.nl");
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
-    let extra = model.extra_mut();
-    let percent_men_id = pool.add_float(
+    let percent_men_id = model.attributes_mut().add_float(
         "percent_men".to_string(),
         true,
         49.5,
         AttributeOwnerType::Element,
         None,
     );
-    let percent_women_id = pool.add_float(
+    let percent_women_id = model.attributes_mut().add_float(
         "percent_women".to_string(),
         true,
         51.5,
@@ -47,13 +43,14 @@ fn build_fake_complete_owned() -> Result<()> {
     let mut census_map = HashMap::new();
     census_map.insert("percent_men".to_string(), percent_men_id);
     census_map.insert("percent_women".to_string(), percent_women_id);
-    let census_id = pool.add_map(
+    let census_id = model.attributes_mut().add_map(
         "+census".to_string(),
         true,
         census_map,
         AttributeOwnerType::CityModel,
         None,
     );
+    let extra = model.extra_mut();
     extra.insert("+census".to_string(), census_id);
 
     // Set transform
@@ -125,36 +122,36 @@ fn build_fake_complete_owned() -> Result<()> {
         // add it as an extra property, just as if it was a property from an Extension.
         let co_1_extra = co_1.extra_mut();
 
-        // Add address fields to pool
-        let country_id = pool.add_string(
+        // Add address fields to global attribute pool
+        let country_id = model.attributes_mut().add_string(
             "Country".to_string(),
             true,
             "Canada".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let locality_id = pool.add_string(
+        let locality_id = model.attributes_mut().add_string(
             "Locality".to_string(),
             true,
             "Chibougamau".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let thoroughfare_number_id = pool.add_string(
+        let thoroughfare_number_id = model.attributes_mut().add_string(
             "ThoroughfareNumber".to_string(),
             true,
             "1".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let thoroughfare_name_id = pool.add_string(
+        let thoroughfare_name_id = model.attributes_mut().add_string(
             "ThoroughfareName".to_string(),
             true,
             "rue de la Patate".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let postcode_id = pool.add_string(
+        let postcode_id = model.attributes_mut().add_string(
             "Postcode".to_string(),
             true,
             "H0H 0H0".to_string(),
@@ -178,7 +175,7 @@ fn build_fake_complete_owned() -> Result<()> {
                     .with_lod(LoD::LoD1);
             let _location_p = location_builder.add_vertex(v0);
             if let Ok(location_geometry_ref) = location_builder.build() {
-                let location_id = pool.add_geometry(
+                let location_id = model.attributes_mut().add_geometry(
                     "location".to_string(),
                     true,
                     location_geometry_ref,
@@ -189,8 +186,8 @@ fn build_fake_complete_owned() -> Result<()> {
             }
         }
 
-        // Create address map attribute and add to pool
-        let address_map_id = pool.add_map(
+        // Create address map attribute and add to global attribute pool
+        let address_map_id = model.attributes_mut().add_map(
             "".to_string(),
             false,
             address_map,
@@ -199,7 +196,7 @@ fn build_fake_complete_owned() -> Result<()> {
         );
 
         // Per CityJSON specifications, we can have multiple addresses assigned to a single CityObject.
-        let addresses_vec_id = pool.add_vector(
+        let addresses_vec_id = model.attributes_mut().add_vector(
             "address".to_string(),
             true,
             vec![address_map_id],
@@ -209,39 +206,50 @@ fn build_fake_complete_owned() -> Result<()> {
         co_1_extra.insert("address".to_string(), addresses_vec_id);
 
         // Set regular attributes that will be stored in the "attributes" member of the CityObject.
-        let co_1_attrs = co_1.attributes_mut();
-        let measured_height_id = pool.add_float(
+        let measured_height_id = model.attributes_mut().add_float(
             "measuredHeight".to_string(),
             true,
             22.3,
             AttributeOwnerType::CityObject,
             None,
         );
-        let roof_type_id = pool.add_string(
+        let roof_type_id = model.attributes_mut().add_string(
             "roofType".to_string(),
             true,
             "gable".to_string(),
             AttributeOwnerType::CityObject,
             None,
         );
-        let residential_id = pool.add_bool(
+        let residential_id = model.attributes_mut().add_bool(
             "residential".to_string(),
             true,
             true,
             AttributeOwnerType::CityObject,
             None,
         );
-        let nr_doors_id = pool.add_integer(
+        let nr_doors_id = model.attributes_mut().add_integer(
             "nr_doors".to_string(),
             true,
             3,
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_1_attrs = co_1.attributes_mut();
         co_1_attrs.insert("measuredHeight".to_string(), measured_height_id);
         co_1_attrs.insert("roofType".to_string(), roof_type_id);
         co_1_attrs.insert("residential".to_string(), residential_id);
         co_1_attrs.insert("nr_doors".to_string(), nr_doors_id);
+
+        // Create semantic attributes BEFORE creating GeometryBuilder (to avoid borrow conflicts)
+        let surface_attr_id = model.attributes_mut().add_bool(
+            "surfaceAttribute".to_string(),
+            true,
+            true,
+            AttributeOwnerType::Semantic,
+            None,
+        );
+        let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        roof_semantic.attributes_mut().insert("surfaceAttribute".to_string(), surface_attr_id);
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -260,16 +268,6 @@ fn build_fake_complete_owned() -> Result<()> {
             let surface_0 = geometry_builder.start_surface();
             geometry_builder.add_surface_outer_ring(ring0)?;
             // Semantic
-            let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
-            let sem_attr = roof_semantic.attributes_mut();
-            let surface_attr_id = pool.add_bool(
-                "surfaceAttribute".to_string(),
-                true,
-                true,
-                AttributeOwnerType::Semantic,
-                None,
-            );
-            sem_attr.insert("surfaceAttribute".to_string(), surface_attr_id);
             geometry_builder.set_semantic_surface(None, roof_semantic.clone(), true)?;
             // Material
             geometry_builder.set_material_surface(
@@ -393,14 +391,14 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "id-3".
     {
-        let co_3_attrs = co_3.attributes_mut();
-        let building_lden_id = pool.add_float(
+        let building_lden_id = model.attributes_mut().add_float(
             "buildingLDenMin".to_string(),
             true,
             1.0,
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_3_attrs = co_3.attributes_mut();
         co_3_attrs.insert("buildingLDenMin".to_string(), building_lden_id);
     }
 
@@ -451,38 +449,38 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "my-neighbourhood"
     {
-        let co_neigh_attrs = co_neighbourhood.attributes_mut();
-        let location_id = pool.add_string(
+        let location_id = model.attributes_mut().add_string(
             "location".to_string(),
             true,
             "Magyarkanizsa".to_string(),
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_neigh_attrs = co_neighbourhood.attributes_mut();
         co_neigh_attrs.insert("location".to_string(), location_id);
 
-        let co_neigh_extra = co_neighbourhood.extra_mut();
-        let role1_id = pool.add_string(
+        let role1_id = model.attributes_mut().add_string(
             "".to_string(),
             false,
             "residential building".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let role2_id = pool.add_string(
+        let role2_id = model.attributes_mut().add_string(
             "".to_string(),
             false,
             "voting location".to_string(),
             AttributeOwnerType::Element,
             None,
         );
-        let children_roles_id = pool.add_vector(
+        let children_roles_id = model.attributes_mut().add_vector(
             "children_roles".to_string(),
             true,
             vec![role1_id, role2_id],
             AttributeOwnerType::CityObject,
             None,
         );
+        let co_neigh_extra = co_neighbourhood.extra_mut();
         co_neigh_extra.insert("children_roles".to_string(), children_roles_id);
         {
             let mut geometry_builder =
@@ -579,18 +577,18 @@ fn build_fake_complete_owned() -> Result<()> {
     // Test extra root properties
     let extra = model.extra().expect("Extra properties should exist");
     let census_id = extra.get("+census").expect("+census should exist");
-    let percent_men_id = pool
+    let percent_men_id = model.attributes()
         .get_map_value(census_id, "percent_men")
         .expect("percent_men should exist in census map");
-    let percent_men = pool
+    let percent_men = model.attributes()
         .get_float(percent_men_id)
         .expect("percent_men should be Float");
     assert_eq!(percent_men, 49.5);
 
-    let percent_women_id = pool
+    let percent_women_id = model.attributes()
         .get_map_value(census_id, "percent_women")
         .expect("percent_women should exist in census map");
-    let percent_women = pool
+    let percent_women = model.attributes()
         .get_float(percent_women_id)
         .expect("percent_women should be Float");
     assert_eq!(percent_women, 51.5);
@@ -706,25 +704,25 @@ fn build_fake_complete_owned() -> Result<()> {
     let measured_height_attr_id = attrs
         .get("measuredHeight")
         .expect("measuredHeight should exist");
-    let h = pool
+    let h = model.attributes()
         .get_float(measured_height_attr_id)
         .expect("measuredHeight should be Float");
     assert_eq!(h, 22.3);
 
     let roof_type_attr_id = attrs.get("roofType").expect("roofType should exist");
-    let t = pool
+    let t = model.attributes()
         .get_string(roof_type_attr_id)
         .expect("roofType should be String");
     assert_eq!(t, "gable");
 
     let residential_attr_id = attrs.get("residential").expect("residential should exist");
-    let b = pool
+    let b = model.attributes()
         .get_bool(residential_attr_id)
         .expect("residential should be Bool");
     assert!(b);
 
     let nr_doors_attr_id = attrs.get("nr_doors").expect("nr_doors should exist");
-    let n = pool
+    let n = model.attributes()
         .get_integer(nr_doors_attr_id)
         .expect("nr_doors should be Integer");
     assert_eq!(n, 3);
@@ -732,57 +730,57 @@ fn build_fake_complete_owned() -> Result<()> {
     // Test extra properties (address)
     let extra1 = co1.extra().expect("id-1 should have extra properties");
     let addresses_vec_id = extra1.get("address").expect("address should exist");
-    let addresses = pool
+    let addresses = model.attributes()
         .get_vector_elements(addresses_vec_id)
         .expect("address should be Vec");
     assert_eq!(addresses.len(), 1);
 
     let address_map_id = addresses[0];
-    let country_id = pool
+    let country_id = model.attributes()
         .get_map_value(address_map_id, "Country")
         .expect("Country should exist in address map");
-    let country = pool
+    let country = model.attributes()
         .get_string(country_id)
         .expect("Country should be String");
     assert_eq!(country, "Canada");
 
-    let locality_id = pool
+    let locality_id = model.attributes()
         .get_map_value(address_map_id, "Locality")
         .expect("Locality should exist in address map");
-    let locality = pool
+    let locality = model.attributes()
         .get_string(locality_id)
         .expect("Locality should be String");
     assert_eq!(locality, "Chibougamau");
 
-    let thoroughfare_number_id = pool
+    let thoroughfare_number_id = model.attributes()
         .get_map_value(address_map_id, "ThoroughfareNumber")
         .expect("ThoroughfareNumber should exist in address map");
-    let thoroughfare_number = pool
+    let thoroughfare_number = model.attributes()
         .get_string(thoroughfare_number_id)
         .expect("ThoroughfareNumber should be String");
     assert_eq!(thoroughfare_number, "1");
 
-    let thoroughfare_name_id = pool
+    let thoroughfare_name_id = model.attributes()
         .get_map_value(address_map_id, "ThoroughfareName")
         .expect("ThoroughfareName should exist in address map");
-    let thoroughfare_name = pool
+    let thoroughfare_name = model.attributes()
         .get_string(thoroughfare_name_id)
         .expect("ThoroughfareName should be String");
     assert_eq!(thoroughfare_name, "rue de la Patate");
 
-    let postcode_id = pool
+    let postcode_id = model.attributes()
         .get_map_value(address_map_id, "Postcode")
         .expect("Postcode should exist in address map");
-    let postcode = pool
+    let postcode = model.attributes()
         .get_string(postcode_id)
         .expect("Postcode should be String");
     assert_eq!(postcode, "H0H 0H0");
 
     // Test location geometry in address
-    let location_id = pool
+    let location_id = model.attributes()
         .get_map_value(address_map_id, "location")
         .expect("location should exist in address map");
-    let _geom_ref = pool
+    let _geom_ref = model.attributes()
         .get_geometry(location_id)
         .expect("location should be Geometry");
 
@@ -824,7 +822,7 @@ fn build_fake_complete_owned() -> Result<()> {
         let surface_attr_id = sem0_attrs
             .get("surfaceAttribute")
             .expect("surfaceAttribute should exist");
-        let surface_attr = pool
+        let surface_attr = model.attributes()
             .get_bool(surface_attr_id)
             .expect("surfaceAttribute should be Bool");
         assert!(surface_attr);
@@ -920,7 +918,7 @@ fn build_fake_complete_owned() -> Result<()> {
     let building_lden_attr_id = attrs3
         .get("buildingLDenMin")
         .expect("buildingLDenMin should exist");
-    let val = pool
+    let val = model.attributes()
         .get_float(building_lden_attr_id)
         .expect("buildingLDenMin should be Float");
     assert_eq!(val, 1.0);
@@ -1037,7 +1035,7 @@ fn build_fake_complete_owned() -> Result<()> {
         .attributes()
         .expect("my-neighbourhood should have attributes");
     let location_attr_id = attrs_neigh.get("location").expect("location should exist");
-    let location = pool
+    let location = model.attributes()
         .get_string(location_attr_id)
         .expect("location should be String");
     assert_eq!(location, "Magyarkanizsa");
@@ -1048,17 +1046,17 @@ fn build_fake_complete_owned() -> Result<()> {
     let children_roles_id = extra_neigh
         .get("children_roles")
         .expect("children_roles should exist");
-    let roles = pool
+    let roles = model.attributes()
         .get_vector_elements(children_roles_id)
         .expect("children_roles should be Vec");
     assert_eq!(roles.len(), 2);
 
-    let role1 = pool
+    let role1 = model.attributes()
         .get_string(roles[0])
         .expect("First role should be String");
     assert_eq!(role1, "residential building");
 
-    let role2 = pool
+    let role2 = model.attributes()
         .get_string(roles[1])
         .expect("Second role should be String");
     assert_eq!(role2, "voting location");
