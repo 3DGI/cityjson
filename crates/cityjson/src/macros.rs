@@ -344,6 +344,131 @@ macro_rules! impl_cityobjects_methods {
                 objects
             }
         }
+
+        #[cfg(test)]
+        mod cityobjects_macro_tests {
+            use super::*;
+            use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+            use crate::resources::pool::ResourceId32;
+            use crate::resources::storage::OwnedStringStorage;
+
+            #[test]
+            fn test_basic_operations() {
+                let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
+
+                // Create a test object
+                let obj = CityObject::new("id-1".to_string(), CityObjectType::default());
+
+                // Add the object
+                let id = objects.add(obj);
+
+                // Check length
+                assert_eq!(objects.len(), 1);
+                assert!(!objects.is_empty());
+
+                // Get the object
+                let retrieved_obj = objects.get(id).unwrap();
+                assert_eq!(retrieved_obj.id(), &"id-1".to_string());
+
+                // Create attribute pool
+                let mut pool = OwnedAttributePool::new();
+
+                // Modify the object
+                if let Some(obj_mut) = objects.get_mut(id) {
+                    let test_id = pool.add_string(
+                        "test".to_string(),
+                        true,
+                        "value".to_string(),
+                        AttributeOwnerType::CityObject,
+                        None,
+                    );
+                    obj_mut.attributes_mut().insert("test".to_string(), test_id);
+                }
+
+                // Verify modification
+                let modified_obj = objects.get(id).unwrap();
+                assert!(modified_obj.attributes().is_some());
+
+                // Remove the object
+                let removed_obj = objects.remove(id).unwrap();
+                assert_eq!(removed_obj.id(), &"id-1".to_string());
+            }
+
+            #[test]
+            fn test_filtering() {
+                let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
+
+                // Add various types of objects
+                objects.add(CityObject::new(
+                    "id-1".to_string(),
+                    CityObjectType::default(),
+                ));
+                objects.add(CityObject::new("id-2".to_string(), CityObjectType::default()));
+                objects.add(CityObject::new(
+                    "id-3".to_string(),
+                    CityObjectType::default(),
+                ));
+
+                // Test filtering
+                assert_eq!(objects.len(), 3);
+            }
+
+            #[test]
+            fn test_bulk_operations() {
+                let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
+
+                // Create multiple objects
+                let objs = vec![
+                    CityObject::new("id-1".to_string(), CityObjectType::default()),
+                    CityObject::new("id-2".to_string(), CityObjectType::default()),
+                    CityObject::new("id-3".to_string(), CityObjectType::default()),
+                ];
+
+                // Add in bulk
+                let ids = objects.add_many(objs);
+                assert_eq!(ids.len(), 3);
+                assert_eq!(objects.len(), 3);
+            }
+
+            #[test]
+            fn test_attribute_filtering() {
+                let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
+
+                // Create attribute pool
+                let mut pool = OwnedAttributePool::new();
+
+                // Create objects with attributes
+                let mut building1 = CityObject::new("id-1".to_string(), CityObjectType::default());
+                let height_id = pool.add_float(
+                    "height".to_string(),
+                    true,
+                    15.0,
+                    AttributeOwnerType::CityObject,
+                    None,
+                );
+                building1.attributes_mut().insert("height".to_string(), height_id);
+                objects.add(building1);
+
+                let mut building2 = CityObject::new("id-2".to_string(), CityObjectType::default());
+                let height_id2 = pool.add_float(
+                    "height".to_string(),
+                    true,
+                    25.0,
+                    AttributeOwnerType::CityObject,
+                    None,
+                );
+                building2.attributes_mut().insert("height".to_string(), height_id2);
+                objects.add(building2);
+
+                assert_eq!(objects.len(), 2);
+
+                // Test that we can filter based on attributes
+                let with_height = objects.filter(|obj| {
+                    obj.attributes().is_some_and(|attrs| attrs.contains_key("height"))
+                });
+                assert_eq!(with_height.len(), 2);
+            }
+        }
     };
 }
 pub(crate) use impl_cityobjects_methods;
@@ -673,6 +798,115 @@ macro_rules! impl_semantic_trait {
                     self.attributes = Some(crate::cityjson::core::attributes::Attributes::new());
                 }
                 self.attributes.as_mut().unwrap()
+            }
+        }
+
+        #[cfg(test)]
+        mod semantic_trait_macro_tests {
+            use super::*;
+            use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+            use crate::resources::pool::ResourceId32;
+            use crate::resources::storage::OwnedStringStorage;
+
+            #[test]
+            fn test_semantic_creation() {
+                let semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(
+                    SemanticType::RoofSurface
+                );
+                assert!(!semantic.has_children());
+                assert!(!semantic.has_parent());
+                assert!(semantic.children().is_none());
+                assert!(semantic.parent().is_none());
+                assert!(semantic.attributes().is_none());
+            }
+
+            #[test]
+            fn test_semantic_attributes() {
+                let mut semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(
+                    SemanticType::WallSurface
+                );
+
+                // Initially no attributes
+                assert!(semantic.attributes().is_none());
+
+                // Create attribute pool
+                let mut pool = OwnedAttributePool::new();
+
+                // Get mutable reference and add attributes
+                let attrs = semantic.attributes_mut();
+                let material_id = pool.add_string(
+                    "material".to_string(),
+                    true,
+                    "brick".to_string(),
+                    AttributeOwnerType::Semantic,
+                    None,
+                );
+                let color_id = pool.add_string(
+                    "color".to_string(),
+                    true,
+                    "red".to_string(),
+                    AttributeOwnerType::Semantic,
+                    None,
+                );
+                attrs.insert("material".to_string(), material_id);
+                attrs.insert("color".to_string(), color_id);
+
+                // Now attributes should exist
+                assert!(semantic.attributes().is_some());
+                let retrieved_material_id = semantic.attributes().unwrap().get("material");
+                assert!(retrieved_material_id.is_some());
+                assert_eq!(
+                    pool.get_string(retrieved_material_id.unwrap()),
+                    Some(&"brick".to_string())
+                );
+                let retrieved_color_id = semantic.attributes().unwrap().get("color");
+                assert!(retrieved_color_id.is_some());
+                assert_eq!(
+                    pool.get_string(retrieved_color_id.unwrap()),
+                    Some(&"red".to_string())
+                );
+            }
+
+            #[test]
+            fn test_semantic_children() {
+                let mut semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(
+                    SemanticType::WallSurface
+                );
+
+                // Initially no children
+                assert!(!semantic.has_children());
+
+                // Add children
+                let children = semantic.children_mut();
+                children.push(ResourceId32::new(1, 0));
+                children.push(ResourceId32::new(2, 0));
+
+                // Now should have children
+                assert!(semantic.has_children());
+                assert_eq!(semantic.children().unwrap().len(), 2);
+                assert_eq!(semantic.children().unwrap()[0], ResourceId32::new(1, 0));
+                assert_eq!(semantic.children().unwrap()[1], ResourceId32::new(2, 0));
+            }
+
+            #[test]
+            fn test_semantic_parent() {
+                let mut semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(
+                    SemanticType::Window
+                );
+
+                // Initially no parent
+                assert!(!semantic.has_parent());
+                assert!(semantic.parent().is_none());
+
+                // Set parent
+                semantic.set_parent(ResourceId32::new(5, 0));
+
+                // Now should have parent
+                assert!(semantic.has_parent());
+                assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(5, 0));
+
+                semantic.set_parent(ResourceId32::new(10, 0));
+                assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(10, 0));
             }
         }
     };

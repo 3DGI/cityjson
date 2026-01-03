@@ -967,7 +967,6 @@ mod tests {
         }
 
         #[test]
-        #[ignore] // This test is for performance profiling, not regular testing
         fn test_performance() {
             let mut pool = DefaultResourcePool::<u32, ResourceId32>::with_capacity(100_000);
             let start = Instant::now();
