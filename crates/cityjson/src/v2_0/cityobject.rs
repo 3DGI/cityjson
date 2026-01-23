@@ -130,6 +130,7 @@ impl FromStr for CityObjectType<OwnedStringStorage> {
     }
 }
 
+// Tests for macro-generated CityObjects methods (tested once here for v2_0)
 #[cfg(test)]
 mod tests_cityobjects_container {
     use super::*;
@@ -176,10 +177,6 @@ mod tests_cityobjects_container {
         // Remove the object
         let removed_obj = objects.remove(id).unwrap();
         assert_eq!(removed_obj.type_cityobject(), &CityObjectType::Building);
-
-        // Check the container is empty
-        // assert_eq!(objects.len(), 0);
-        // assert!(objects.is_empty());
     }
 
     #[test]
@@ -213,10 +210,6 @@ mod tests_cityobjects_container {
         let ids = objects.add_many(objs);
         assert_eq!(ids.len(), 3);
         assert_eq!(objects.len(), 3);
-
-        // Clear all
-        // objects.clear();
-        // assert_eq!(objects.len(), 0);
     }
 
     #[test]

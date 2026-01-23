@@ -76,6 +76,7 @@ mod tests {
     use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
+    // Tests for macro-generated methods (tested once here for v2_0)
     #[test]
     fn test_semantic_creation() {
         let semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
@@ -160,8 +161,8 @@ mod tests {
         assert!(!semantic.has_parent());
         assert!(semantic.parent().is_none());
 
-        // Set parent manually
-        semantic.parent = Some(ResourceId32::new(5, 0));
+        // Set parent
+        semantic.set_parent(ResourceId32::new(5, 0));
 
         // Now should have parent
         assert!(semantic.has_parent());
