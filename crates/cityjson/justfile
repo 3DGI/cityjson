@@ -15,6 +15,11 @@ build:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
+test:
+    -cargo test --all-features
+    -cargo run --example cityjson_fake_complete_owned
+    -cargo run --example global_attribute_pool
+
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
