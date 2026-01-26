@@ -1,4 +1,4 @@
-use cityjson::cityjson::core::attributes::AttributeOwnerType;
+use cityjson::cityjson::core::attributes::{AttributeOwnerType, AttributePool};
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
@@ -13,16 +13,17 @@ fn build_fake_complete_owned() -> Result<()> {
     // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+    let attribute_pool_ref = model.attributes_mut();
 
     // Three patterns of adding Metadata to the CityModel.
     // 1) Take the CityModel with mutable reference.
     build_metadata_with_reference(&mut model)?;
     // 2) Build a Metadata instance and add it to the CityModel.
-    let metadata = build_metadata_with_return()?;
+    let metadata = build_metadata_with_return(attribute_pool_ref)?;
     *model.metadata_mut() = metadata;
     // 3) Take a mutable reference to the Metadata instance of the CityModel and set the data.
     let metadata_ref = model.metadata_mut();
-    build_metadata(metadata_ref);
+    build_metadata(metadata_ref, attribute_pool_ref);
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
     let percent_men_id = model.attributes_mut().add_float(
@@ -1151,19 +1152,25 @@ fn build_fake_complete_owned() -> Result<()> {
 /// Takes the CityModel by mutable reference.
 fn build_metadata_with_reference(model: &mut CityModel) -> Result<()> {
     let metadata_ref = model.metadata_mut();
-    build_metadata(metadata_ref);
+    let attribute_pool_ref = model.attributes_mut();
+    build_metadata(metadata_ref, attribute_pool_ref);
     Ok(())
 }
 
 /// Build a complete Metadata instance with all data set and return it.
-fn build_metadata_with_return() -> Result<Metadata<OwnedStringStorage>> {
+fn build_metadata_with_return(
+    attribute_pool_ref: &mut AttributePool<OwnedStringStorage, ResourceId32>,
+) -> Result<Metadata<OwnedStringStorage>> {
     let mut metadata = Metadata::new();
-    build_metadata(&mut metadata);
+    build_metadata(&mut metadata, attribute_pool_ref);
     Ok(metadata)
 }
 
 /// Set data on a Metadata instance.
-fn build_metadata(metadata_ref: &mut Metadata<OwnedStringStorage>) {
+fn build_metadata(
+    metadata_ref: &mut Metadata<OwnedStringStorage>,
+    attribute_pool_ref: &mut AttributePool<OwnedStringStorage, ResourceId32>,
+) {
     metadata_ref
         .set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
     metadata_ref.set_identifier(CityModelIdentifier::new(
@@ -1172,6 +1179,29 @@ fn build_metadata(metadata_ref: &mut Metadata<OwnedStringStorage>) {
     metadata_ref.set_reference_system(CRS::new(
         "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
     ));
-    metadata_ref.set_contact_name("3DGI");
-    metadata_ref.set_email_address("info@3dgi.nl");
+    metadata_ref.set_contact_name("Kitalált Név");
+    metadata_ref.set_email_address("spam@3dgi.nl");
+    metadata_ref.set_role(ContactRole::Author);
+    metadata_ref.set_website("https://3dgi.nl");
+    metadata_ref.set_contact_type(ContactType::Organization);
+    let mut address = Attributes::<OwnedStringStorage>::new();
+    let mut attribute_id = attribute_pool_ref.add_string(
+        "city".to_string(),
+        true,
+        "Den Haag".to_string(),
+        AttributeOwnerType::Metadata,
+        None,
+    );
+    address.insert("city".to_string(), attribute_id);
+    attribute_id = attribute_pool_ref.add_string(
+        "country".to_string(),
+        true,
+        "The Netherlands".to_string(),
+        AttributeOwnerType::Metadata,
+        None,
+    );
+    address.insert("country".to_string(), attribute_id);
+    metadata_ref.set_address(address);
+    metadata_ref.set_phone("+36612345678");
+    metadata_ref.set_organization("3DGI");
 }

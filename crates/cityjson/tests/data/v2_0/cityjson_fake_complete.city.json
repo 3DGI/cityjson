@@ -15,10 +15,22 @@
   "geographicalExtent": [ 84710.1, 446846, -5.3, 84757.1, 446944, 40.9 ],
   "identifier": "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
   "pointOfContact": {
-   "contactName": "3DGI",
-   "emailAddress": "info@3dgi.nl"
+   "contactName": "Kitalált Név",
+   "emailAddress": "spam@3dgi.nl",
+   "role": "author",
+   "website": "https://3dgi.nl",
+   "contactType": "organization",
+   "address": {
+    "city": "Den Haag",
+    "country": "The Netherlands"
+   },
+   "phone": "+36612345678",
+   "organization": "3DGI"
   },
-  "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/2355"
+  "referenceDate": "2026-01-26",
+  "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/2355",
+  "title": "Complete and fake CityJSON",
+  "nospec_description": "A CityJSON object with all existing properties set to a fake value",
  },
  "CityObjects": {
   "id-1": {
