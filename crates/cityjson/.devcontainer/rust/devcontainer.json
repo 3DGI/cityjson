@@ -3,8 +3,10 @@
  "image": "mcr.microsoft.com/devcontainers/rust:2-1",
  "remoteUser": "vscode",
  "containerUser": "vscode",
- "runArgs": [ "--userns=keep-id" ],
- "updateRemoteUserUID": true,
+ "runArgs": [
+  "--userns=keep-id", "--security-opt", "label=disable"
+ ],
+ "updateRemoteUserUID": false,
  "workspaceFolder": "/workspace/${localWorkspaceFolderBasename}",
  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/${localWorkspaceFolderBasename},type=bind,options=relabel=shared",
  "mounts": [
@@ -16,16 +18,25 @@
     "com.intellij:app:DateTimeFormatter.overrideSystemDateFormat": true,
     "com.intellij:app:EditorSettings.soft_wrap_file_masks": "*.md; *.txt; *.rst; *.adoc; *.ipynb; *.yml",
     "com.intellij:app:EditorSettings.insert_parentheses_automatically": false,
-    "com.intellij:app:VcsApplicationSettings.patch_storage_location": "/home/balazs/Development/cityjson-rs",
     "com.intellij:app:HttpConfigurable.use_proxy_pac": true,
     "com.intellij:app:Vcs-Log-App-Settings.show_changes_from_parents": true,
     "com.intellij:app:Vcs-Log-App-Settings.show_tag_names": true
    },
    "backend": "RustRover",
    "plugins": [
-    "org.jetbrains.junie", "com.anthropic.code.plugin", "com.intellij.ml.llm", "org.mvnsearch.plugins.justPlugin"
+    "org.jetbrains.junie", "com.anthropic.code.plugin", "com.intellij.ml.llm"
    ]
   }
+ },
+ "features": {
+  "ghcr.io/devcontainers/features/node:1": {
+   "installYarnUsingApt": false
+  }
+ },
+ "containerEnv": {
+  "SHELL": "/usr/bin/bash",
+  "PNPM_HOME": "/home/vscode/.local/share/pnpm",
+  "PATH": "/home/vscode/.local/share/pnpm:/home/vscode/.local/bin:${PATH}"
  },
  "postCreateCommand": "bash /workspace/${localWorkspaceFolderBasename}/.devcontainer/postCreateCommand.sh 2>&1 | tee /workspace/${localWorkspaceFolderBasename}/.devcontainer/postCreateCommand.log"
 }

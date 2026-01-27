@@ -6,6 +6,11 @@ set -x
 
 echo "=== Starting postCreateCommand ==="
 
+# Init Node
+. ${NVM_DIR}/nvm.sh
+nvm install --lts
+pnpm setup
+
 # Install just
 curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
 just --version
@@ -15,7 +20,7 @@ curl -fsSL https://claude.ai/install.sh | bash
 claude --version
 
 # Install Codex
-npm install -g @openai/codex
+pnpm install -g @openai/codex
 codex --version
 
 ## Create vcpkg directories
