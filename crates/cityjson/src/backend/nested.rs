@@ -31,15 +31,16 @@ pub use geometry::Geometry;
 pub use geometry_builder::{BuilderMode, GeometryBuilder};
 
 // Type aliases for common usage
+use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage};
 
 /// CityModel with owned string storage
 #[allow(dead_code)]
-pub type OwnedCityModel = CityModel<OwnedStringStorage>;
+pub type OwnedCityModel = CityModel<OwnedStringStorage, ResourceId32>;
 
 /// CityModel with borrowed string storage
 #[allow(dead_code)]
-pub type BorrowedCityModel<'a> = CityModel<BorrowedStringStorage<'a>>;
+pub type BorrowedCityModel<'a> = CityModel<BorrowedStringStorage<'a>, ResourceId32>;
 
 /// CityObject with owned string storage
 #[allow(dead_code)]

@@ -134,7 +134,7 @@ impl FromStr for CityObjectType<OwnedStringStorage> {
 #[cfg(test)]
 mod tests_cityobjects_container {
     use super::*;
-    use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+    use crate::cityjson::core::attributes::OwnedAttributeValue;
     use crate::resources::pool::ResourceId32;
 
     #[test]
@@ -155,19 +155,9 @@ mod tests_cityobjects_container {
         let retrieved_obj = objects.get(id).unwrap();
         assert_eq!(retrieved_obj.type_cityobject(), &CityObjectType::Building);
 
-        // Create attribute pool
-        let mut pool = OwnedAttributePool::new();
-
         // Modify the object
         if let Some(obj_mut) = objects.get_mut(id) {
-            let test_id = pool.add_string(
-                "test".to_string(),
-                true,
-                "value".to_string(),
-                AttributeOwnerType::CityObject,
-                None,
-            );
-            obj_mut.attributes_mut().insert("test".to_string(), test_id);
+            obj_mut.attributes_mut().insert("test".to_string(), OwnedAttributeValue::String("value".to_string()));
         }
 
         // Verify modification
@@ -216,34 +206,17 @@ mod tests_cityobjects_container {
     fn test_attribute_filtering() {
         let mut objects = CityObjects::<OwnedStringStorage, ResourceId32>::new();
 
-        // Create attribute pool
-        let mut pool = OwnedAttributePool::new();
-
         // Create objects with attributes
         let mut building1 = CityObject::new("id-1".to_string(), CityObjectType::Building);
-        let height_id = pool.add_float(
-            "height".to_string(),
-            true,
-            15.0,
-            AttributeOwnerType::CityObject,
-            None,
-        );
         building1
             .attributes_mut()
-            .insert("height".to_string(), height_id);
+            .insert("height".to_string(), OwnedAttributeValue::Float(15.0));
         objects.add(building1);
 
         let mut building2 = CityObject::new("id-2".to_string(), CityObjectType::Building);
-        let width_id = pool.add_float(
-            "width".to_string(),
-            true,
-            30.0,
-            AttributeOwnerType::CityObject,
-            None,
-        );
         building2
             .attributes_mut()
-            .insert("width".to_string(), width_id);
+            .insert("width".to_string(), OwnedAttributeValue::Float(30.0));
         objects.add(building2);
     }
 }

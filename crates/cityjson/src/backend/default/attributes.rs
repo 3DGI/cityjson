@@ -59,7 +59,7 @@
 use crate::prelude::{ResourceId32, ResourceRef};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::Debug;
 
 /// Represents the different types of values that can be stored in an attribute.
 ///
@@ -427,7 +427,7 @@ mod tests {
         attrs.insert("b".to_string(), AttributeValue::Integer(2));
         attrs.insert("c".to_string(), AttributeValue::Integer(3));
 
-        let mut keys: Vec<_> = attrs.keys().map(|k| k.as_ref()).collect();
+        let mut keys: Vec<&str> = attrs.keys().map(|k| k.as_ref()).collect();
         keys.sort();
 
         assert_eq!(keys, vec!["a", "b", "c"]);
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_attribute_value_display() {
-        let values = vec![
+        let values: Vec<(OwnedAttributeValue, &str)> = vec![
             (AttributeValue::Null, "null"),
             (AttributeValue::Bool(true), "true"),
             (AttributeValue::Integer(42), "42"),

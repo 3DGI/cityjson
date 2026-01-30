@@ -3,12 +3,12 @@
 
 use crate::Error;
 use crate::backend::nested::appearance::{Appearance, Material, Texture};
-use crate::backend::nested::attributes::Attributes;
+use crate::backend::nested::attributes::Attributes as NestedAttributes;
 use crate::backend::nested::cityobject::{CityObject, CityObjects};
 use crate::backend::nested::coordinate::Vertices;
 use crate::backend::nested::geometry::{Geometry, GeometryTemplates};
 use crate::prelude::{
-    CityJSONVersion, CityModelType, QuantizedCoordinate, RealWorldCoordinate, StringStorage,
+    CityJSONVersion, CityModelType, QuantizedCoordinate, RealWorldCoordinate, ResourceRef, StringStorage,
     UVCoordinate, VertexIndex,
 };
 use crate::v2_0::extension::Extensions;
@@ -17,23 +17,23 @@ use crate::v2_0::transform::Transform;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct CityModel<SS: StringStorage> {
+pub struct CityModel<SS: StringStorage, RR: ResourceRef> {
     id: Option<SS::String>,
     type_cm: CityModelType,
     version: Option<CityJSONVersion>,
     transform: Option<Transform>,
     cityobjects: CityObjects<SS>,
-    metadata: Option<Metadata<SS>>,
+    metadata: Option<Metadata<SS, RR>>,
     appearance: Option<Appearance<SS>>,
     geometry_templates: Option<GeometryTemplates<SS>>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<NestedAttributes<SS>>,
     extensions: Option<Extensions<SS>>,
     vertices: Vertices<u32, QuantizedCoordinate>,
     vertices_texture: Vertices<u32, UVCoordinate>,
     vertices_template: Vertices<u32, RealWorldCoordinate>,
 }
 
-impl<SS: StringStorage> CityModel<SS> {
+impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
     // ========== Constructors ==========
 
     pub fn new(type_citymodel: CityModelType) -> Self {
@@ -375,11 +375,11 @@ impl<SS: StringStorage> CityModel<SS> {
 
     // ========== Metadata, Extensions, Transform ==========
 
-    pub fn metadata(&self) -> Option<&Metadata<SS>> {
+    pub fn metadata(&self) -> Option<&Metadata<SS, RR>> {
         self.metadata.as_ref()
     }
 
-    pub fn metadata_mut(&mut self) -> &mut Metadata<SS> {
+    pub fn metadata_mut(&mut self) -> &mut Metadata<SS, RR> {
         self.metadata.get_or_insert_with(Metadata::default)
     }
 
@@ -391,12 +391,12 @@ impl<SS: StringStorage> CityModel<SS> {
         self.extensions.get_or_insert_with(Extensions::default)
     }
 
-    pub fn extra(&self) -> Option<&Attributes<SS>> {
+    pub fn extra(&self) -> Option<&NestedAttributes<SS>> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
-        self.extra.get_or_insert_with(Attributes::new)
+    pub fn extra_mut(&mut self) -> &mut NestedAttributes<SS> {
+        self.extra.get_or_insert_with(NestedAttributes::new)
     }
 
     pub fn transform(&self) -> Option<&Transform> {

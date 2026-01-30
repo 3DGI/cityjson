@@ -9,7 +9,7 @@ use crate::backend::nested::citymodel::CityModel;
 use crate::backend::nested::geometry::Geometry;
 use crate::backend::nested::semantics::{Semantic, SemanticValues, Semantics};
 use crate::prelude::{
-    GeometryType, LoD, QuantizedCoordinate, RealWorldCoordinate, StringStorage, UVCoordinate,
+    GeometryType, LoD, QuantizedCoordinate, RealWorldCoordinate, ResourceRef, StringStorage, UVCoordinate,
     VertexIndex, VertexIndex32,
 };
 use std::collections::HashMap;
@@ -47,8 +47,8 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,
 }
 
-pub struct GeometryBuilder<'a, SS: StringStorage> {
-    model: &'a mut CityModel<SS>,
+pub struct GeometryBuilder<'a, SS: StringStorage, RR: ResourceRef> {
+    model: &'a mut CityModel<SS, RR>,
     type_geometry: GeometryType,
     builder_mode: BuilderMode,
     lod: Option<LoD>,
@@ -85,11 +85,11 @@ pub struct GeometryBuilder<'a, SS: StringStorage> {
     vertex_uv_mapping: HashMap<usize, usize>,
 }
 
-impl<'a, SS: StringStorage> GeometryBuilder<'a, SS> {
+impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
     // ========== Constructor ==========
 
     pub fn new(
-        model: &'a mut CityModel<SS>,
+        model: &'a mut CityModel<SS, RR>,
         type_geometry: GeometryType,
         builder_mode: BuilderMode,
     ) -> Self {

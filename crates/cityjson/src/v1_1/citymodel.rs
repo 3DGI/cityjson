@@ -30,14 +30,14 @@ pub struct CityModel<
         Material<SS>,
         Texture<SS>,
         Geometry<VR, RR, SS>,
-        Metadata<SS>,
+        Metadata<SS, RR>,
         Transform,
         Extensions<SS>,
         CityObjects<SS, RR>,
     >,
 }
 
-crate::macros::impl_citymodel_methods!(QuantizedCoordinate, CityJSONVersion::V1_1, Metadata<SS>);
+crate::macros::impl_citymodel_methods!(QuantizedCoordinate, CityJSONVersion::V1_1, Metadata<SS, RR>);
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

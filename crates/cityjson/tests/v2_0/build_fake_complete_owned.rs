@@ -1184,7 +1184,7 @@ fn build_metadata(
     metadata_ref.set_role(ContactRole::Author);
     metadata_ref.set_website("https://3dgi.nl");
     metadata_ref.set_contact_type(ContactType::Organization);
-    let mut address = Attributes::<OwnedStringStorage>::new();
+    let mut address = Attributes::<OwnedStringStorage, ResourceId32>::new();
     let mut attribute_id = attribute_pool_ref.add_string(
         "city".to_string(),
         true,

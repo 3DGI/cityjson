@@ -1,3 +1,3 @@
-use crate::prelude::Attributes;
+use crate::prelude::{Attributes, ResourceRef};
 
-pub type Metadata<SS> = Attributes<SS>;
+pub type Metadata<SS, RR: ResourceRef> = Attributes<SS, RR>;

@@ -104,11 +104,11 @@ pub struct CityObjectCore<SS: StringStorage, RR: ResourceRef, CoType> {
     id: SS::String,
     type_cityobject: CoType,
     geometry: Option<Vec<RR>>,
-    attributes: Option<Attributes<SS>>,
+    attributes: Option<Attributes<SS, RR>>,
     geographical_extent: Option<BBox>,
     children: Option<Vec<RR>>,
     parents: Option<Vec<RR>>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
 impl<SS: StringStorage, RR: ResourceRef, CoType> CityObjectCore<SS, RR, CoType> {
@@ -141,11 +141,11 @@ impl<SS: StringStorage, RR: ResourceRef, CoType> CityObjectCore<SS, RR, CoType> 
         self.geometry.get_or_insert_with(Vec::new)
     }
 
-    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+    pub fn attributes(&self) -> Option<&Attributes<SS, RR>> {
         self.attributes.as_ref()
     }
 
-    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.attributes.get_or_insert_with(Attributes::new)
     }
 
@@ -173,11 +173,11 @@ impl<SS: StringStorage, RR: ResourceRef, CoType> CityObjectCore<SS, RR, CoType> 
         self.parents.get_or_insert_with(Vec::new)
     }
 
-    pub fn extra(&self) -> Option<&Attributes<SS>> {
+    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.extra.get_or_insert_with(Attributes::new)
     }
 }

@@ -2,24 +2,25 @@ use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
 use crate::format_option;
 use crate::macros::{impl_contact_common_methods, impl_metadata_methods};
+use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Metadata<SS: StringStorage> {
+pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier<SS>>,
-    point_of_contact: Option<Contact<SS>>,
+    point_of_contact: Option<Contact<SS, RR>>,
     reference_date: Option<Date<SS>>,
     reference_system: Option<CRS<SS>>,
     title: Option<String>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
 impl_metadata_methods!();
 
-impl<SS: StringStorage> Metadata<SS> {
-    pub fn point_of_contact(&self) -> Option<&Contact<SS>> {
+impl<SS: StringStorage, RR: ResourceRef> Metadata<SS, RR> {
+    pub fn point_of_contact(&self) -> Option<&Contact<SS, RR>> {
         self.point_of_contact.as_ref()
     }
 
@@ -78,7 +79,7 @@ impl<SS: StringStorage> Metadata<SS> {
         }
     }
 
-    pub fn set_address(&mut self, address: Attributes<SS>) {
+    pub fn set_address(&mut self, address: Attributes<SS, RR>) {
         if let Some(poc) = self.point_of_contact.as_mut() {
             poc.address = Some(address);
         } else {
@@ -91,41 +92,41 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn address_mut(&mut self) {}
 
-    pub fn set_point_of_contact(&mut self, contact: Option<Contact<SS>>) {
+    pub fn set_point_of_contact(&mut self, contact: Option<Contact<SS, RR>>) {
         self.point_of_contact = contact;
     }
 }
 
 // TODO: Should use StringStorage for the String values
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Contact<SS: StringStorage> {
+pub struct Contact<SS: StringStorage, RR: ResourceRef> {
     contact_name: String,
     email_address: String,
     role: Option<ContactRole>,
     website: Option<String>,
     contact_type: Option<ContactType>,
-    address: Option<Attributes<SS>>,
+    address: Option<Attributes<SS, RR>>,
     phone: Option<String>,
     organization: Option<String>,
 }
 
-impl<SS: StringStorage> Contact<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Contact<SS, RR> {
     impl_contact_common_methods!();
 
-    pub fn address(&self) -> Option<&Attributes<SS>> {
+    pub fn address(&self) -> Option<&Attributes<SS, RR>> {
         self.address.as_ref()
     }
 
-    pub fn address_mut(&mut self) -> Option<&mut Attributes<SS>> {
+    pub fn address_mut(&mut self) -> Option<&mut Attributes<SS, RR>> {
         self.address.as_mut()
     }
 
-    pub fn set_address(&mut self, address: Option<Attributes<SS>>) {
+    pub fn set_address(&mut self, address: Option<Attributes<SS, RR>>) {
         self.address = address;
     }
 }
 
-impl<SS: StringStorage> Display for Contact<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Display for Contact<SS, RR> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -190,12 +191,13 @@ impl Display for ContactType {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+    use crate::cityjson::core::attributes::OwnedAttributeValue;
+    use crate::prelude::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]
     fn display() {
-        let mut metadata = Metadata::<OwnedStringStorage>::new();
+        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
         metadata.set_reference_date(Date::new("2024-03-20".to_string()));
@@ -209,42 +211,27 @@ mod test {
         metadata.set_website("https://example.com");
         metadata.set_contact_type(ContactType::Individual);
 
-        // Create attribute pool and attributes container for address
-        let mut pool = OwnedAttributePool::new();
-        let street_id = pool.add_string(
-            "street".to_string(),
-            true,
-            "Kiskőrös utca".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
+        // Create attributes for address using inline storage
         let mut address = Attributes::new();
-        address.insert("street".to_string(), street_id);
+        address.insert("street".to_string(), OwnedAttributeValue::String("Kiskőrös utca".to_string()));
 
         metadata.set_address(address);
         metadata.set_phone("+1-555-1234");
         metadata.set_organization("Test Corp");
         println!("Metadata: {}", metadata);
 
-        let mut contact = Contact::<OwnedStringStorage>::new();
+        let mut contact = Contact::<OwnedStringStorage, ResourceId32>::new();
         contact.set_contact_name("Jane Smith".to_string());
         contact.set_email_address("jane@example.com".to_string());
         contact.set_role(Some(ContactRole::Editor));
         contact.set_website(Some("https://example.net".to_string()));
         contact.set_contact_type(Some(ContactType::Organization));
 
-        // Create attributes for contact address
-        let street_id2 = pool.add_string(
-            "street".to_string(),
-            true,
-            "Kiskőrös utca".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let mut address2 = Attributes::new();
-        address2.insert("street".to_string(), street_id2);
+        // Create attributes for contact address using inline storage
+        let mut contact_address = Attributes::new();
+        contact_address.insert("street".to_string(), OwnedAttributeValue::String("Main Street".to_string()));
 
-        contact.set_address(Some(address2));
+        contact.set_address(Some(contact_address));
         contact.set_phone(Some("+1-555-5678".to_string()));
         contact.set_organization(Some("Sample Inc".to_string()));
         println!("Contact: {}", contact);

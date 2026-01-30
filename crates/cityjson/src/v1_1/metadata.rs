@@ -78,23 +78,24 @@ use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
 use crate::format_option;
 use crate::macros::{impl_contact_common_methods, impl_metadata_methods};
+use crate::resources::pool::ResourceRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct Metadata<SS: StringStorage> {
+pub struct Metadata<SS: StringStorage, RR: ResourceRef> {
     geographical_extent: Option<BBox>,
     identifier: Option<CityModelIdentifier<SS>>,
     point_of_contact: Option<Contact>,
     reference_date: Option<Date<SS>>,
     reference_system: Option<CRS<SS>>,
     title: Option<String>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
 impl_metadata_methods!();
 
-impl<SS: StringStorage> Metadata<SS> {
+impl<SS: StringStorage, RR: crate::resources::pool::ResourceRef> Metadata<SS, RR> {
     pub fn point_of_contact(&self) -> Option<&Contact> {
         self.point_of_contact.as_ref()
     }
@@ -293,11 +294,12 @@ impl Display for ContactType {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
 
     #[test]
     fn display() {
-        let mut metadata = Metadata::<OwnedStringStorage>::new();
+        let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
         metadata.set_geographical_extent(BBox::new(1.1, 2.1, 3.1, 4.1, 5.0, 6.0));
         metadata.set_identifier(CityModelIdentifier::new("test-id".to_string()));
         metadata.set_reference_date(Date::new("2024-03-20".to_string()));
