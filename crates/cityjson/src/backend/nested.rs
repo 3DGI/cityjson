@@ -44,16 +44,16 @@ pub type BorrowedCityModel<'a> = CityModel<BorrowedStringStorage<'a>, ResourceId
 
 /// CityObject with owned string storage
 #[allow(dead_code)]
-pub type OwnedCityObject = CityObject<OwnedStringStorage>;
+pub type OwnedCityObject = CityObject<OwnedStringStorage, ResourceId32>;
 
 /// CityObject with borrowed string storage
 #[allow(dead_code)]
-pub type BorrowedCityObject<'a> = CityObject<BorrowedStringStorage<'a>>;
+pub type BorrowedCityObject<'a> = CityObject<BorrowedStringStorage<'a>, ResourceId32>;
 
 /// Geometry with owned string storage
 #[allow(dead_code)]
-pub type OwnedGeometry = Geometry<OwnedStringStorage>;
+pub type OwnedGeometry = Geometry<OwnedStringStorage, ResourceId32>;
 
 /// Geometry with borrowed string storage
 #[allow(dead_code)]
-pub type BorrowedGeometry<'a> = Geometry<BorrowedStringStorage<'a>>;
+pub type BorrowedGeometry<'a> = Geometry<BorrowedStringStorage<'a>, ResourceId32>;

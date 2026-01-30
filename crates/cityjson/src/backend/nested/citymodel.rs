@@ -22,11 +22,11 @@ pub struct CityModel<SS: StringStorage, RR: ResourceRef> {
     type_cm: CityModelType,
     version: Option<CityJSONVersion>,
     transform: Option<Transform>,
-    cityobjects: CityObjects<SS>,
+    cityobjects: CityObjects<SS, RR>,
     metadata: Option<Metadata<SS, RR>>,
     appearance: Option<Appearance<SS>>,
-    geometry_templates: Option<GeometryTemplates<SS>>,
-    extra: Option<NestedAttributes<SS>>,
+    geometry_templates: Option<GeometryTemplates<SS, RR>>,
+    extra: Option<NestedAttributes<SS, RR>>,
     extensions: Option<Extensions<SS>>,
     vertices: Vertices<u32, QuantizedCoordinate>,
     vertices_texture: Vertices<u32, UVCoordinate>,
@@ -298,7 +298,7 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
     pub fn add_geometry_to_cityobject(
         &mut self,
         cityobject_id: &str,
-        geometry: Geometry<SS>,
+        geometry: Geometry<SS, RR>,
     ) -> Result<usize, Error> {
         let cityobject = self.cityobjects.get_mut(cityobject_id).ok_or_else(|| {
             Error::InvalidGeometry(format!("CityObject not found: {}", cityobject_id))
@@ -314,14 +314,14 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
         &self,
         cityobject_id: &str,
         geometry_idx: usize,
-    ) -> Option<&Geometry<SS>> {
+    ) -> Option<&Geometry<SS, RR>> {
         self.cityobjects
             .get(cityobject_id)?
             .geometry()?
             .get(geometry_idx)
     }
 
-    pub fn add_template_geometry(&mut self, geometry: Geometry<SS>) -> usize {
+    pub fn add_template_geometry(&mut self, geometry: Geometry<SS, RR>) -> usize {
         if self.geometry_templates.is_none() {
             self.geometry_templates = Some(GeometryTemplates::default());
         }
@@ -332,11 +332,11 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
         idx
     }
 
-    pub fn get_template_geometry(&self, idx: usize) -> Option<&Geometry<SS>> {
+    pub fn get_template_geometry(&self, idx: usize) -> Option<&Geometry<SS, RR>> {
         self.geometry_templates.as_ref()?.templates.get(idx)
     }
 
-    pub fn get_template_geometry_mut(&mut self, idx: usize) -> Option<&mut Geometry<SS>> {
+    pub fn get_template_geometry_mut(&mut self, idx: usize) -> Option<&mut Geometry<SS, RR>> {
         self.geometry_templates.as_mut()?.templates.get_mut(idx)
     }
 
@@ -349,23 +349,23 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
 
     // ========== CityObjects Management ==========
 
-    pub fn cityobjects(&self) -> &HashMap<String, CityObject<SS>> {
+    pub fn cityobjects(&self) -> &HashMap<String, CityObject<SS, RR>> {
         &self.cityobjects
     }
 
-    pub fn cityobjects_mut(&mut self) -> &mut HashMap<String, CityObject<SS>> {
+    pub fn cityobjects_mut(&mut self) -> &mut HashMap<String, CityObject<SS, RR>> {
         &mut self.cityobjects
     }
 
-    pub fn add_cityobject(&mut self, id: String, cityobject: CityObject<SS>) {
+    pub fn add_cityobject(&mut self, id: String, cityobject: CityObject<SS, RR>) {
         self.cityobjects.insert(id, cityobject);
     }
 
-    pub fn get_cityobject(&self, id: &str) -> Option<&CityObject<SS>> {
+    pub fn get_cityobject(&self, id: &str) -> Option<&CityObject<SS, RR>> {
         self.cityobjects.get(id)
     }
 
-    pub fn get_cityobject_mut(&mut self, id: &str) -> Option<&mut CityObject<SS>> {
+    pub fn get_cityobject_mut(&mut self, id: &str) -> Option<&mut CityObject<SS, RR>> {
         self.cityobjects.get_mut(id)
     }
 
@@ -391,11 +391,11 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
         self.extensions.get_or_insert_with(Extensions::default)
     }
 
-    pub fn extra(&self) -> Option<&NestedAttributes<SS>> {
+    pub fn extra(&self) -> Option<&NestedAttributes<SS, RR>> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut NestedAttributes<SS> {
+    pub fn extra_mut(&mut self) -> &mut NestedAttributes<SS, RR> {
         self.extra.get_or_insert_with(NestedAttributes::new)
     }
 
@@ -433,11 +433,11 @@ impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
         self.appearance.get_or_insert_with(Appearance::default)
     }
 
-    pub fn geometry_templates(&self) -> Option<&GeometryTemplates<SS>> {
+    pub fn geometry_templates(&self) -> Option<&GeometryTemplates<SS, RR>> {
         self.geometry_templates.as_ref()
     }
 
-    pub fn geometry_templates_mut(&mut self) -> &mut GeometryTemplates<SS> {
+    pub fn geometry_templates_mut(&mut self) -> &mut GeometryTemplates<SS, RR> {
         self.geometry_templates
             .get_or_insert_with(GeometryTemplates::default)
     }

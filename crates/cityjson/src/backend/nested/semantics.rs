@@ -1,22 +1,22 @@
 use crate::backend::nested::attributes::Attributes;
-use crate::prelude::StringStorage;
+use crate::prelude::{ResourceRef, StringStorage};
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Semantics<SS: StringStorage> {
-    pub surfaces: Vec<Semantic<SS>>,
+pub struct Semantics<SS: StringStorage, RR: ResourceRef> {
+    pub surfaces: Vec<Semantic<SS, RR>>,
     pub values: SemanticValues,
 }
 
-impl<SS: StringStorage> Semantics<SS> {
-    pub fn new(surfaces: Vec<Semantic<SS>>, values: SemanticValues) -> Self {
+impl<SS: StringStorage, RR: ResourceRef> Semantics<SS, RR> {
+    pub fn new(surfaces: Vec<Semantic<SS, RR>>, values: SemanticValues) -> Self {
         Self { surfaces, values }
     }
 
-    pub fn surfaces(&self) -> &Vec<Semantic<SS>> {
+    pub fn surfaces(&self) -> &Vec<Semantic<SS, RR>> {
         &self.surfaces
     }
 
-    pub fn surfaces_mut(&mut self) -> &mut Vec<Semantic<SS>> {
+    pub fn surfaces_mut(&mut self) -> &mut Vec<Semantic<SS, RR>> {
         &mut self.surfaces
     }
 
@@ -26,14 +26,14 @@ impl<SS: StringStorage> Semantics<SS> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Semantic<SS: StringStorage> {
+pub struct Semantic<SS: StringStorage, RR: ResourceRef> {
     pub type_sem: SemanticType,
     pub children: Option<Vec<usize>>,
     pub parent: Option<usize>,
-    pub attributes: Option<Attributes<SS>>,
+    pub attributes: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage> Semantic<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Semantic<SS, RR> {
     pub fn new(type_semantic: SemanticType) -> Self {
         Self {
             type_sem: type_semantic,
@@ -74,11 +74,11 @@ impl<SS: StringStorage> Semantic<SS> {
         self.parent = Some(parent_idx);
     }
 
-    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+    pub fn attributes(&self) -> Option<&Attributes<SS, RR>> {
         self.attributes.as_ref()
     }
 
-    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         if self.attributes.is_none() {
             self.attributes = Some(Attributes::new());
         }

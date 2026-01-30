@@ -4,16 +4,16 @@
 use crate::backend::nested::appearance::{MaterialValues, TextureValues};
 use crate::backend::nested::boundary::Boundary;
 use crate::backend::nested::semantics::Semantics;
-use crate::prelude::{GeometryType, LoD, RealWorldCoordinate, StringStorage};
+use crate::prelude::{GeometryType, LoD, RealWorldCoordinate, ResourceRef, StringStorage};
 use std::collections::HashMap;
 use std::fmt::Display;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Geometry<SS: StringStorage> {
+pub struct Geometry<SS: StringStorage, RR: ResourceRef> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary>,
-    semantics: Option<Semantics<SS>>,
+    semantics: Option<Semantics<SS, RR>>,
     materials: Option<HashMap<String, MaterialValues>>,
     textures: Option<HashMap<String, TextureValues>>,
     instance_template: Option<usize>,
@@ -21,14 +21,14 @@ pub struct Geometry<SS: StringStorage> {
     instance_transformation_matrix: Option<[f64; 16]>,
 }
 
-impl<SS: StringStorage> Geometry<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Geometry<SS, RR> {
     // Constructor
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         type_geometry: GeometryType,
         lod: Option<LoD>,
         boundaries: Option<Boundary>,
-        semantics: Option<Semantics<SS>>,
+        semantics: Option<Semantics<SS, RR>>,
         materials: Option<HashMap<String, MaterialValues>>,
         textures: Option<HashMap<String, TextureValues>>,
         instance_template: Option<usize>,
@@ -61,7 +61,7 @@ impl<SS: StringStorage> Geometry<SS> {
         self.boundaries.as_ref()
     }
 
-    pub fn semantics(&self) -> Option<&Semantics<SS>> {
+    pub fn semantics(&self) -> Option<&Semantics<SS, RR>> {
         self.semantics.as_ref()
     }
 
@@ -86,18 +86,15 @@ impl<SS: StringStorage> Geometry<SS> {
     }
 }
 
-impl<SS> Display for Geometry<SS>
-where
-    SS: StringStorage,
-{
+impl<SS: StringStorage, RR: ResourceRef> Display for Geometry<SS, RR> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
 #[derive(Clone, Default, Debug)]
-pub struct GeometryTemplates<SS: StringStorage> {
-    pub templates: Vec<Geometry<SS>>,
+pub struct GeometryTemplates<SS: StringStorage, RR: ResourceRef> {
+    pub templates: Vec<Geometry<SS, RR>>,
     pub vertices_templates: VerticesTemplates,
 }
 

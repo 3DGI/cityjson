@@ -3,24 +3,24 @@
 
 use crate::backend::nested::attributes::Attributes;
 use crate::backend::nested::geometry::Geometry;
-use crate::prelude::{BBox, StringStorage};
+use crate::prelude::{BBox, ResourceRef, StringStorage};
 use std::collections::HashMap;
 
 // Re-export CityObjectType for convenience
 pub use crate::v2_0::CityObjectType;
 
 #[derive(Debug, Clone)]
-pub struct CityObject<SS: StringStorage> {
+pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
     type_co: CityObjectType<SS>,
-    geometry: Option<Vec<Geometry<SS>>>,
-    attributes: Option<Attributes<SS>>,
+    geometry: Option<Vec<Geometry<SS, RR>>>,
+    attributes: Option<Attributes<SS, RR>>,
     geographical_extent: Option<BBox>,
     children: Option<Vec<String>>,
     parents: Option<Vec<String>>,
-    extra: Option<Attributes<SS>>,
+    extra: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage> CityObject<SS> {
+impl<SS: StringStorage, RR: ResourceRef> CityObject<SS, RR> {
     // Constructor
     pub fn new(type_co: CityObjectType<SS>) -> Self {
         Self {
@@ -39,11 +39,11 @@ impl<SS: StringStorage> CityObject<SS> {
         &self.type_co
     }
 
-    pub fn geometry(&self) -> Option<&Vec<Geometry<SS>>> {
+    pub fn geometry(&self) -> Option<&Vec<Geometry<SS, RR>>> {
         self.geometry.as_ref()
     }
 
-    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+    pub fn attributes(&self) -> Option<&Attributes<SS, RR>> {
         self.attributes.as_ref()
     }
 
@@ -59,16 +59,16 @@ impl<SS: StringStorage> CityObject<SS> {
         self.parents.as_ref()
     }
 
-    pub fn extra(&self) -> Option<&Attributes<SS>> {
+    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
         self.extra.as_ref()
     }
 
     // Mutators (auto-initialize Options)
-    pub fn geometry_mut(&mut self) -> &mut Vec<Geometry<SS>> {
+    pub fn geometry_mut(&mut self) -> &mut Vec<Geometry<SS, RR>> {
         self.geometry.get_or_insert_with(Vec::new)
     }
 
-    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.attributes.get_or_insert_with(Attributes::new)
     }
 
@@ -80,7 +80,7 @@ impl<SS: StringStorage> CityObject<SS> {
         self.parents.get_or_insert_with(Vec::new)
     }
 
-    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.extra.get_or_insert_with(Attributes::new)
     }
 
@@ -89,4 +89,4 @@ impl<SS: StringStorage> CityObject<SS> {
     }
 }
 
-pub type CityObjects<SS> = HashMap<String, CityObject<SS>>;
+pub type CityObjects<SS, RR> = HashMap<String, CityObject<SS, RR>>;

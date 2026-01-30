@@ -117,7 +117,7 @@
 //! The flexible design allows for efficiently representing both simple and complex
 //! attribute structures.
 
-use crate::backend::nested::geometry::Geometry;
+use crate::prelude::{ResourceRef};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -126,11 +126,13 @@ use std::fmt::{self, Debug, Display, Formatter};
 ///
 /// `AttributeValue` is a generic enum that can hold various types of data,
 /// from simple scalars to complex nested structures like vectors and maps.
-/// It uses a string storage strategy specified by the type parameter `SS`.
+/// It uses a string storage strategy specified by the type parameter `SS`
+/// and a resource reference type specified by the type parameter `RR`.
 ///
-/// # Type Parameter
+/// # Type Parameters
 ///
 /// * `SS` - The string storage strategy to use (e.g., `OwnedStringStorage` or `BorrowedStringStorage`)
+/// * `RR` - The resource reference type to use (e.g., `ResourceId32`)
 ///
 /// # Examples
 ///
@@ -152,7 +154,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// ]);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeValue<SS: StringStorage> {
+pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
     /// Represents a null or undefined value.
     Null,
     /// A boolean value (true or false).
@@ -166,16 +168,17 @@ pub enum AttributeValue<SS: StringStorage> {
     /// A string value using the specified storage strategy.
     String(SS::String),
     /// A vector of attribute values.
-    Vec(Vec<Box<AttributeValue<SS>>>),
+    Vec(Vec<Box<AttributeValue<SS, RR>>>),
     /// A map of string keys to attribute values.
-    Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
-    /// A geometry. Basically, only used for "address.location", which must be a MultiPoint.
-    Geometry(Box<Geometry<SS>>),
+    Map(HashMap<SS::String, Box<AttributeValue<SS, RR>>>),
+    /// A geometry reference. Used for "address.location" which must be a MultiPoint.
+    Geometry(RR),
 }
 
-impl<SS: StringStorage> Display for AttributeValue<SS>
+impl<SS: StringStorage, RR: ResourceRef> Display for AttributeValue<SS, RR>
 where
     SS::String: Display,
+    RR: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -205,7 +208,7 @@ where
                 }
                 write!(f, "}}")
             }
-            AttributeValue::Geometry(value) => write!(f, "Geometry {}", value),
+            AttributeValue::Geometry(value) => write!(f, "Geometry({})", value),
         }
     }
 }
@@ -216,76 +219,96 @@ where
 /// strategy) and values are `AttributeValue` instances. It provides methods to add,
 /// retrieve, modify, and remove attributes.
 ///
-/// # Type Parameter
+/// # Type Parameters
 ///
 /// * `SS` - The string storage strategy to use (e.g., `OwnedStringStorage` or `BorrowedStringStorage`)
+/// * `RR` - The resource reference type to use (e.g., `ResourceId32`)
 ///
 #[derive(Clone, Debug, PartialEq)]
-pub struct Attributes<SS: StringStorage> {
-    values: HashMap<SS::String, AttributeValue<SS>>,
+pub struct Attributes<SS: StringStorage, RR: ResourceRef> {
+    values: HashMap<SS::String, AttributeValue<SS, RR>>,
 }
 
-impl<SS: StringStorage> Attributes<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
+    /// Creates a new, empty attributes container.
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS>> {
+    /// Retrieves a reference to the attribute value associated with the given key.
+    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS, RR>> {
         self.values.get(key)
     }
 
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS>> {
+    /// Retrieves a mutable reference to the attribute value associated with the given key.
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS, RR>> {
         self.values.get_mut(key)
     }
 
+    /// Inserts an attribute value with the specified key.
+    ///
+    /// If the key already existed, returns the previous value.
     pub fn insert(
         &mut self,
         key: SS::String,
-        value: AttributeValue<SS>,
-    ) -> Option<AttributeValue<SS>> {
+        value: AttributeValue<SS, RR>,
+    ) -> Option<AttributeValue<SS, RR>> {
         self.values.insert(key, value)
     }
 
-    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS>> {
+    /// Removes an attribute with the specified key.
+    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS, RR>> {
         self.values.remove(key)
     }
 
+    /// Returns the number of attributes in the container.
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    /// Checks if the attributes container is empty.
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&SS::String, &AttributeValue<SS>)> {
+    /// Returns an iterator over the attributes' keys and values.
+    pub fn iter(&self) -> impl Iterator<Item = (&SS::String, &AttributeValue<SS, RR>)> {
         self.values.iter()
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&SS::String, &mut AttributeValue<SS>)> {
+    /// Returns a mutable iterator over the attributes' keys and values.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&SS::String, &mut AttributeValue<SS, RR>)> {
         self.values.iter_mut()
     }
 
+    /// Returns an iterator over the attribute keys.
+    pub fn keys(&self) -> impl Iterator<Item = &SS::String> {
+        self.values.keys()
+    }
+
+    /// Clears the attributes container.
     pub fn clear(&mut self) {
         self.values.clear();
     }
 
+    /// Checks if the attributes container contains a key.
     pub fn contains_key(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }
 }
 
-impl<SS: StringStorage> Default for Attributes<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Default for Attributes<SS, RR> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<SS: StringStorage> Display for Attributes<SS>
+impl<SS: StringStorage, RR: ResourceRef> Display for Attributes<SS, RR>
 where
     SS::String: Display + Eq + std::hash::Hash,
+    RR: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
@@ -299,6 +322,15 @@ where
     }
 }
 
-pub type OwnedAttributes = Attributes<OwnedStringStorage>;
+/// Type alias for attribute values with owned strings and ResourceId32.
+pub use crate::prelude::ResourceId32;
+pub type OwnedAttributeValue = AttributeValue<OwnedStringStorage, ResourceId32>;
 
-pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>>;
+/// Type alias for attribute values with borrowed strings and ResourceId32.
+pub type BorrowedAttributeValue<'a> = AttributeValue<BorrowedStringStorage<'a>, ResourceId32>;
+
+/// Type alias for attributes container with owned strings and ResourceId32.
+pub type OwnedAttributes = Attributes<OwnedStringStorage, ResourceId32>;
+
+/// Type alias for attributes container with borrowed strings and ResourceId32.
+pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, ResourceId32>;

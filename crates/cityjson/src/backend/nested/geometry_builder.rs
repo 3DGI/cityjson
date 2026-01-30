@@ -70,9 +70,9 @@ pub struct GeometryBuilder<'a, SS: StringStorage, RR: ResourceRef> {
     active_solid: Option<usize>,
 
     // Semantic storage
-    point_semantics: HashMap<usize, Semantic<SS>>,
-    linestring_semantics: HashMap<usize, Semantic<SS>>,
-    surface_semantics: HashMap<usize, Semantic<SS>>,
+    point_semantics: HashMap<usize, Semantic<SS, RR>>,
+    linestring_semantics: HashMap<usize, Semantic<SS, RR>>,
+    surface_semantics: HashMap<usize, Semantic<SS, RR>>,
 
     // Material storage: theme -> [(surface_idx, material_idx)]
     surface_materials: Vec<(String, Vec<(usize, usize)>)>,
@@ -347,7 +347,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
     pub fn set_semantic_point(
         &mut self,
         point_idx: usize,
-        semantic: Semantic<SS>,
+        semantic: Semantic<SS, RR>,
     ) -> Result<&mut Self, Error> {
         self.point_semantics.insert(point_idx, semantic);
         Ok(self)
@@ -356,7 +356,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
     pub fn set_semantic_linestring(
         &mut self,
         linestring_idx: usize,
-        semantic: Semantic<SS>,
+        semantic: Semantic<SS, RR>,
     ) -> Result<&mut Self, Error> {
         self.linestring_semantics.insert(linestring_idx, semantic);
         Ok(self)
@@ -365,7 +365,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
     pub fn set_semantic_surface(
         &mut self,
         surface_idx: usize,
-        semantic: Semantic<SS>,
+        semantic: Semantic<SS, RR>,
         _is_roof: bool,
     ) -> Result<&mut Self, Error> {
         self.surface_semantics.insert(surface_idx, semantic);
@@ -474,7 +474,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
 
     // ========== Build Method ==========
 
-    pub fn build(self) -> Result<Geometry<SS>, Error> {
+    pub fn build(self) -> Result<Geometry<SS, RR>, Error> {
         // Build nested boundaries based on geometry type
         let boundaries = match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -586,7 +586,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
         ))
     }
 
-    fn build_nested_semantics(&self) -> Result<Semantics<SS>, Error> {
+    fn build_nested_semantics(&self) -> Result<Semantics<SS, RR>, Error> {
         // Collect all unique semantics
         let mut surfaces = Vec::new();
         let mut semantic_index_map: HashMap<String, usize> = HashMap::new();
