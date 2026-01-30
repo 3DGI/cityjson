@@ -1,4 +1,3 @@
-use cityjson::cityjson::core::attributes::{AttributeId32, AttributeOwnerType, OwnedAttributePool};
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
@@ -724,20 +723,16 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 ///
 /// # Returns
 ///
-/// A tuple containing the initialized CityModel, a vector of template resource references, and an attribute pool
+/// A tuple containing the initialized CityModel and a vector of template resource references
 #[allow(clippy::type_complexity)]
 fn create_batch_model(
     global: &WireGlobalProperties,
 ) -> Result<(
     CityModel<u32, ResourceId32, OwnedStringStorage>,
     Vec<ResourceId32>,
-    OwnedAttributePool,
 )> {
     let mut model =
         CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-    // Create attribute pool for this batch
-    let pool = OwnedAttributePool::new();
 
     // Set metadata from wire format
     model
@@ -760,7 +755,7 @@ fn create_batch_model(
         template_refs.push(template_ref);
     }
 
-    Ok((model, template_refs, pool))
+    Ok((model, template_refs))
 }
 
 /// Processes a completed batch and extracts metrics
@@ -837,7 +832,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     let mut cumulative_metrics = BatchMetrics::default();
 
     // Create first batch
-    let (mut current_model, template_refs, mut current_pool) = create_batch_model(&global_props)?;
+    let (mut current_model, template_refs) = create_batch_model(&global_props)?;
     let mut buildings_in_batch = 0;
     let mut surfaces_in_batch = 0;
 
@@ -862,13 +857,8 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 // Add attributes from wire format
                 let attrs = cityobject.attributes_mut();
                 for (key, wire_value) in wire_co.attributes {
-                    let attr_id = convert_wire_attribute_value(
-                        &mut current_pool,
-                        key.clone(),
-                        wire_value,
-                        AttributeOwnerType::CityObject,
-                    );
-                    attrs.insert(key, attr_id);
+                    let attr_value = convert_wire_attribute_value(wire_value);
+                    attrs.insert(key, attr_value);
                 }
 
                 // Add vertices to the model
@@ -917,12 +907,10 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                         .peak_cityobjects
                         .max(batch_metrics.peak_cityobjects);
 
-                    // Drop current model and pool, create fresh ones for next batch
+                    // Drop current model, create fresh one for next batch
                     drop(current_model);
-                    drop(current_pool);
-                    let (new_model, _, new_pool) = create_batch_model(&global_props)?;
+                    let (new_model, _) = create_batch_model(&global_props)?;
                     current_model = new_model;
-                    current_pool = new_pool;
 
                     // Reset batch counters
                     current_batch_num += 1;
@@ -1171,47 +1159,31 @@ fn convert_wire_material(wire_material: &WireMaterial) -> Material<OwnedStringSt
     material
 }
 
-/// Converts wire attribute value to cityjson-rs attribute ID by adding it to the pool
+/// Converts wire attribute value to inline AttributeValue
 fn convert_wire_attribute_value(
-    pool: &mut OwnedAttributePool,
-    key: String,
     wire_value: WireAttributeValue,
-    owner_type: AttributeOwnerType,
-) -> AttributeId32 {
+) -> AttributeValue<OwnedStringStorage, ResourceId32> {
     match wire_value {
-        WireAttributeValue::Null => pool.add_null(key, true, owner_type, None),
-        WireAttributeValue::String(s) => pool.add_string(key, true, s, owner_type, None),
-        WireAttributeValue::Float(f) => pool.add_float(key, true, f, owner_type, None),
-        WireAttributeValue::Integer(i) => pool.add_integer(key, true, i, owner_type, None),
-        WireAttributeValue::Unsigned(u) => pool.add_unsigned(key, true, u, owner_type, None),
-        WireAttributeValue::Bool(b) => pool.add_bool(key, true, b, owner_type, None),
+        WireAttributeValue::Null => AttributeValue::Null,
+        WireAttributeValue::String(s) => AttributeValue::String(s.into()),
+        WireAttributeValue::Float(f) => AttributeValue::Float(f),
+        WireAttributeValue::Integer(i) => AttributeValue::Integer(i),
+        WireAttributeValue::Unsigned(u) => AttributeValue::Unsigned(u),
+        WireAttributeValue::Bool(b) => AttributeValue::Bool(b),
         WireAttributeValue::Vec(vec) => {
-            let element_ids: Vec<AttributeId32> = vec
+            let elements: Vec<Box<AttributeValue<OwnedStringStorage, ResourceId32>>> = vec
                 .into_iter()
-                .enumerate()
-                .map(|(i, v)| {
-                    convert_wire_attribute_value(
-                        pool,
-                        format!("elem_{}", i),
-                        v,
-                        AttributeOwnerType::Element,
-                    )
-                })
+                .map(|v| Box::new(convert_wire_attribute_value(v)))
                 .collect();
-            pool.add_vector(key, true, element_ids, owner_type, None)
+            AttributeValue::Vec(elements)
         }
         WireAttributeValue::Map(map) => {
             let mut element_map = HashMap::new();
             for (map_key, value) in map {
-                let elem_id = convert_wire_attribute_value(
-                    pool,
-                    map_key.clone(),
-                    value,
-                    AttributeOwnerType::Element,
-                );
-                element_map.insert(map_key, elem_id);
+                let elem_value = Box::new(convert_wire_attribute_value(value));
+                element_map.insert(map_key.into(), elem_value);
             }
-            pool.add_map(key, true, element_map, owner_type, None)
+            AttributeValue::Map(element_map)
         }
     }
 }

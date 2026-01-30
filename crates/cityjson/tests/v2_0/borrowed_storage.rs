@@ -1,4 +1,3 @@
-use cityjson::cityjson::core::attributes::{AttributeOwnerType, BorrowedAttributePool};
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 
@@ -30,9 +29,6 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     let mut model = CityModel::<u32, ResourceId32, BorrowedStringStorage<'static>>::new(
         CityModelType::CityJSON,
     );
-
-    // Create attribute pool for managing all attributes
-    let mut pool = BorrowedAttributePool::new();
 
     // Set up metadata using borrowed strings
     let metadata = model.metadata_mut();
@@ -68,24 +64,16 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     // Create a building CityObject with borrowed string ID
     let mut building = CityObject::new(building_id, CityObjectType::Building);
 
-    // Add attributes
+    // Add inline attributes
     let building_attrs = building.attributes_mut();
-    let year_id = pool.add_integer(
+    building_attrs.insert(
         attribute_key,
-        true,
-        2020,
-        AttributeOwnerType::CityObject,
-        None,
+        AttributeValue::Integer(2020),
     );
-    let roof_type_id = pool.add_string(
+    building_attrs.insert(
         roof_type_key,
-        true,
-        roof_type_value,
-        AttributeOwnerType::CityObject,
-        None,
+        AttributeValue::String(roof_type_value),
     );
-    building_attrs.insert(attribute_key, year_id);
-    building_attrs.insert(roof_type_key, roof_type_id);
 
     // Build a simple Solid geometry
     {
@@ -197,20 +185,20 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
         .expect("Building should have attributes");
 
     // Get year attribute and verify
-    let year_attr_id = attrs
+    let year_attr = attrs
         .get(attribute_key)
         .expect("yearOfConstruction should exist");
-    let year = pool
-        .get_integer(year_attr_id)
-        .expect("yearOfConstruction should be Integer");
-    assert_eq!(year, 2020);
+    match year_attr {
+        AttributeValue::Integer(year) => assert_eq!(*year, 2020),
+        _ => panic!("yearOfConstruction should be Integer"),
+    }
 
     // Get roof type attribute and verify
-    let roof_type_attr_id = attrs.get(roof_type_key).expect("roofType should exist");
-    let rt = pool
-        .get_string(roof_type_attr_id)
-        .expect("roofType should be String");
-    assert_eq!(*rt, roof_type_value);
+    let roof_type_attr = attrs.get(roof_type_key).expect("roofType should exist");
+    match roof_type_attr {
+        AttributeValue::String(rt) => assert_eq!(*rt, roof_type_value),
+        _ => panic!("roofType should be String"),
+    }
 
     // Verify geometry
     let geometries = building_obj

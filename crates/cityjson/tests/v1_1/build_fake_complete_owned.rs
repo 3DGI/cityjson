@@ -1,4 +1,3 @@
-use cityjson::cityjson::core::attributes::AttributeOwnerType;
 use cityjson::prelude::*;
 use cityjson::v1_1::*;
 use std::collections::HashMap;
@@ -25,32 +24,20 @@ fn build_fake_complete_owned() -> Result<()> {
     metadata.set_email_address("info@3dgi.nl");
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
-    let percent_men_id = model.attributes_mut().add_float(
-        "percent_men".to_string(),
-        true,
-        49.5,
-        AttributeOwnerType::Element,
-        None,
-    );
-    let percent_women_id = model.attributes_mut().add_float(
-        "percent_women".to_string(),
-        true,
-        51.5,
-        AttributeOwnerType::Element,
-        None,
-    );
     let mut census_map = HashMap::new();
-    census_map.insert("percent_men".to_string(), percent_men_id);
-    census_map.insert("percent_women".to_string(), percent_women_id);
-    let census_id = model.attributes_mut().add_map(
-        "+census".to_string(),
-        true,
-        census_map,
-        AttributeOwnerType::CityModel,
-        None,
+    census_map.insert(
+        "percent_men".to_string(),
+        Box::new(AttributeValue::Float(49.5))
+    );
+    census_map.insert(
+        "percent_women".to_string(),
+        Box::new(AttributeValue::Float(51.5))
     );
     let extra = model.extra_mut();
-    extra.insert("+census".to_string(), census_id);
+    extra.insert(
+        "+census".to_string(),
+        AttributeValue::Map(census_map)
+    );
 
     // Set transform
     // todo: i think cityjson-rs should only have real-world coordinates, because
@@ -121,49 +108,28 @@ fn build_fake_complete_owned() -> Result<()> {
         // add it as an extra property, just as if it was a property from an Extension.
         let co_1_extra = co_1.extra_mut();
 
-        // Add address fields to global attribute pool
-        let country_id = model.attributes_mut().add_string(
-            "Country".to_string(),
-            true,
-            "Canada".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let locality_id = model.attributes_mut().add_string(
-            "Locality".to_string(),
-            true,
-            "Chibougamau".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let thoroughfare_number_id = model.attributes_mut().add_string(
-            "ThoroughfareNumber".to_string(),
-            true,
-            "1".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let thoroughfare_name_id = model.attributes_mut().add_string(
-            "ThoroughfareName".to_string(),
-            true,
-            "rue de la Patate".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let postcode_id = model.attributes_mut().add_string(
-            "Postcode".to_string(),
-            true,
-            "H0H 0H0".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-
+        // Create address map with inline attributes
         let mut address_map = HashMap::new();
-        address_map.insert("Country".to_string(), country_id);
-        address_map.insert("Locality".to_string(), locality_id);
-        address_map.insert("ThoroughfareNumber".to_string(), thoroughfare_number_id);
-        address_map.insert("ThoroughfareName".to_string(), thoroughfare_name_id);
-        address_map.insert("Postcode".to_string(), postcode_id);
+        address_map.insert(
+            "Country".to_string(),
+            Box::new(AttributeValue::String("Canada".to_string()))
+        );
+        address_map.insert(
+            "Locality".to_string(),
+            Box::new(AttributeValue::String("Chibougamau".to_string()))
+        );
+        address_map.insert(
+            "ThoroughfareNumber".to_string(),
+            Box::new(AttributeValue::String("1".to_string()))
+        );
+        address_map.insert(
+            "ThoroughfareName".to_string(),
+            Box::new(AttributeValue::String("rue de la Patate".to_string()))
+        );
+        address_map.insert(
+            "Postcode".to_string(),
+            Box::new(AttributeValue::String("H0H 0H0".to_string()))
+        );
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -174,81 +140,47 @@ fn build_fake_complete_owned() -> Result<()> {
                     .with_lod(LoD::LoD1);
             let _location_p = location_builder.add_vertex(v0);
             if let Ok(location_geometry_ref) = location_builder.build() {
-                let location_id = model.attributes_mut().add_geometry(
+                address_map.insert(
                     "location".to_string(),
-                    true,
-                    location_geometry_ref,
-                    AttributeOwnerType::Element,
-                    None,
+                    Box::new(AttributeValue::Geometry(location_geometry_ref))
                 );
-                address_map.insert("location".to_string(), location_id);
             }
         }
 
-        // Create address map attribute and add to global attribute pool
-        let address_map_id = model.attributes_mut().add_map(
-            "".to_string(),
-            false,
-            address_map,
-            AttributeOwnerType::Element,
-            None,
-        );
-
         // Per CityJSON specifications, we can have multiple addresses assigned to a single CityObject.
-        let addresses_vec_id = model.attributes_mut().add_vector(
+        let addresses_vec = vec![
+            Box::new(AttributeValue::Map(address_map))
+        ];
+        co_1_extra.insert(
             "address".to_string(),
-            true,
-            vec![address_map_id],
-            AttributeOwnerType::CityObject,
-            None,
+            AttributeValue::Vec(addresses_vec)
         );
-        co_1_extra.insert("address".to_string(), addresses_vec_id);
 
         // Set regular attributes that will be stored in the "attributes" member of the CityObject.
-        let measured_height_id = model.attributes_mut().add_float(
-            "measuredHeight".to_string(),
-            true,
-            22.3,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-        let roof_type_id = model.attributes_mut().add_string(
-            "roofType".to_string(),
-            true,
-            "gable".to_string(),
-            AttributeOwnerType::CityObject,
-            None,
-        );
-        let residential_id = model.attributes_mut().add_bool(
-            "residential".to_string(),
-            true,
-            true,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-        let nr_doors_id = model.attributes_mut().add_integer(
-            "nr_doors".to_string(),
-            true,
-            3,
-            AttributeOwnerType::CityObject,
-            None,
-        );
         let co_1_attrs = co_1.attributes_mut();
-        co_1_attrs.insert("measuredHeight".to_string(), measured_height_id);
-        co_1_attrs.insert("roofType".to_string(), roof_type_id);
-        co_1_attrs.insert("residential".to_string(), residential_id);
-        co_1_attrs.insert("nr_doors".to_string(), nr_doors_id);
-
-        // Create semantic attributes BEFORE creating GeometryBuilder (to avoid borrow conflicts)
-        let surface_attr_id = model.attributes_mut().add_bool(
-            "surfaceAttribute".to_string(),
-            true,
-            true,
-            AttributeOwnerType::Semantic,
-            None,
+        co_1_attrs.insert(
+            "measuredHeight".to_string(),
+            AttributeValue::Float(22.3)
         );
+        co_1_attrs.insert(
+            "roofType".to_string(),
+            AttributeValue::String("gable".to_string())
+        );
+        co_1_attrs.insert(
+            "residential".to_string(),
+            AttributeValue::Bool(true)
+        );
+        co_1_attrs.insert(
+            "nr_doors".to_string(),
+            AttributeValue::Integer(3)
+        );
+
+        // Create semantic with inline attributes
         let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        roof_semantic.attributes_mut().insert("surfaceAttribute".to_string(), surface_attr_id);
+        roof_semantic.attributes_mut().insert(
+            "surfaceAttribute".to_string(),
+            AttributeValue::Bool(true)
+        );
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -363,15 +295,11 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "id-3".
     {
-        let building_lden_id = model.attributes_mut().add_float(
-            "buildingLDenMin".to_string(),
-            true,
-            1.0,
-            AttributeOwnerType::CityObject,
-            None,
-        );
         let co_3_attrs = co_3.attributes_mut();
-        co_3_attrs.insert("buildingLDenMin".to_string(), building_lden_id);
+        co_3_attrs.insert(
+            "buildingLDenMin".to_string(),
+            AttributeValue::Float(1.0)
+        );
     }
 
     // Build CityObject "a-tree".
@@ -418,39 +346,21 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Build CityObject "my-neighbourhood"
     {
-        let location_id = model.attributes_mut().add_string(
-            "location".to_string(),
-            true,
-            "Magyarkanizsa".to_string(),
-            AttributeOwnerType::CityObject,
-            None,
-        );
         let co_neigh_attrs = co_neighbourhood.attributes_mut();
-        co_neigh_attrs.insert("location".to_string(), location_id);
+        co_neigh_attrs.insert(
+            "location".to_string(),
+            AttributeValue::String("Magyarkanizsa".to_string())
+        );
 
-        let role1_id = model.attributes_mut().add_string(
-            "".to_string(),
-            false,
-            "residential building".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let role2_id = model.attributes_mut().add_string(
-            "".to_string(),
-            false,
-            "voting location".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-        let children_roles_id = model.attributes_mut().add_vector(
-            "children_roles".to_string(),
-            true,
-            vec![role1_id, role2_id],
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        let children_roles = vec![
+            Box::new(AttributeValue::String("residential building".to_string())),
+            Box::new(AttributeValue::String("voting location".to_string())),
+        ];
         let co_neigh_extra = co_neighbourhood.extra_mut();
-        co_neigh_extra.insert("children_roles".to_string(), children_roles_id);
+        co_neigh_extra.insert(
+            "children_roles".to_string(),
+            AttributeValue::Vec(children_roles)
+        );
         {
             let mut geometry_builder =
                 GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular)
