@@ -8,27 +8,16 @@
 //!
 //! The attributes module contains these key components:
 //!
-//! - [`AttributePool`]: The main container for storing attribute key-value pairs in a flattened format
+//! - [`AttributeValue`]: The core enum representing different types of attribute values
+//! - [`Attributes`]: A key-value container storing attribute values directly
 //! - [`OwnedAttributes`]: Type alias for attributes with owned strings
 //! - [`BorrowedAttributes`]: Type alias for attributes with borrowed strings
 //!
-//! ## Architecture: Flattened Structure of Arrays (SoA)
+//! ## Architecture: Array of Structures (AoS)
 //!
-//! The attribute pool uses a Structure of Arrays design that maps directly to columnar
-//! storage formats like Parquet. Each attribute type is stored in a separate array,
-//! avoiding Rust enum unions which don't serialize cleanly to Parquet.
-//!
-//! ### Parquet Serialization
-//!
-//! The flattened design enables efficient Parquet serialization:
-//!
-//! - **Primitive types** (bool, integer, float, string) → Direct Parquet columns
-//! - **Vec** → Parquet LIST type
-//! - **Map** → Parquet MAP type
-//! - **Type discriminator** → Parquet INT32 enum column
-//!
-//! This design avoids Parquet union types (poorly supported) while maintaining
-//! efficient columnar storage and query performance.
+//! Each object owns its attributes directly using a key-value map. Attributes are
+//! stored inline rather than in a global pool, eliminating borrow checker conflicts
+//! and simplifying the API.
 //!
 //! ## Storage Strategies
 //!
@@ -41,81 +30,24 @@
 //!
 //! ## Usage Examples
 //!
-//! ### Creating and using the attribute pool
+//! ### Creating and using attributes
 //!
 //! ```rust
 //! use cityjson::prelude::*;
-//! use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+//! use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 //!
-//! // Create a new attributes pool
-//! let mut pool = OwnedAttributePool::new();
+//! // Create attribute values
+//! let name = OwnedAttributeValue::String("Building A".to_string());
+//! let height = OwnedAttributeValue::Float(25.5);
 //!
-//! // Add various types of values
-//! let name_id = pool.add_string(
-//!     "name".to_string(),
-//!     true,  // is_named
-//!     "Building A".to_string(),
-//!     AttributeOwnerType::CityObject,
-//!     None,
-//! );
-//!
-//! let height_id = pool.add_float(
-//!     "height".to_string(),
-//!     true,
-//!     25.5,
-//!     AttributeOwnerType::CityObject,
-//!     None,
-//! );
+//! // Store in attributes container
+//! let mut attrs = cityjson::cityjson::core::attributes::OwnedAttributes::new();
+//! attrs.insert("name".to_string(), name);
+//! attrs.insert("height".to_string(), height);
 //!
 //! // Retrieve values
-//! if let Some(height) = pool.get_float(height_id) {
-//!     println!("Building height: {} meters", height);
-//! }
-//! ```
-//!
-//! ### Working with nested attributes (Maps and Vecs)
-//!
-//! ```rust
-//! use cityjson::prelude::*;
-//! use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
-//! use std::collections::HashMap;
-//!
-//! let mut pool = OwnedAttributePool::new();
-//!
-//! // Create a map structure (e.g., address)
-//! let street_id = pool.add_string(
-//!     "street".to_string(),
-//!     true,
-//!     "Main St".to_string(),
-//!     AttributeOwnerType::Element,
-//!     None,
-//! );
-//!
-//! let number_id = pool.add_integer(
-//!     "number".to_string(),
-//!     true,
-//!     123,
-//!     AttributeOwnerType::Element,
-//!     None,
-//! );
-//!
-//! let mut address_map = HashMap::new();
-//! address_map.insert("street".to_string(), street_id);
-//! address_map.insert("number".to_string(), number_id);
-//!
-//! let address_id = pool.add_map(
-//!     "address".to_string(),
-//!     true,
-//!     address_map,
-//!     AttributeOwnerType::CityObject,
-//!     None,
-//! );
-//!
-//! // Access nested values
-//! if let Some(street_attr_id) = pool.get_map_value(address_id, "street") {
-//!     if let Some(street) = pool.get_string(street_attr_id) {
-//!         println!("Street: {}", street);
-//!     }
+//! if let Some(height_val) = attrs.get("height") {
+//!     println!("Building height: {}", height_val);
 //! }
 //! ```
 //!
@@ -123,667 +55,16 @@
 //!
 //! This module implements the attribute storage needed for CityJSON objects
 //! as specified in the [CityJSON specification](https://www.cityjson.org/specs/).
-//! The flexible design allows for efficiently representing both simple and complex
-//! attribute structures while enabling efficient serialization to Parquet.
 
 use crate::prelude::{ResourceId32, ResourceRef};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
 
-/// Type alias for attribute IDs
-pub type AttributeId32 = ResourceId32;
-
-/// Container for attributes using a specific storage strategy.
+/// Represents the different types of values that can be stored in an attribute.
 ///
-/// Uses a Structure of Arrays (SoA) design that maps directly to Parquet columnar format.
-/// Each attribute type is stored in a separate array to avoid Rust enum unions.
-#[derive(Debug, Clone)]
-pub struct AttributePool<SS: StringStorage, RR: ResourceRef> {
-    // Metadata
-    keys: Vec<SS::String>, // Attribute keys (empty for unnamed attributes)
-    types: Vec<AttributeValueType>, // Type of each attribute
-    generations: Vec<u16>, // Generation counter for safety
-    is_named: Vec<bool>,   // Whether the attribute has a name
-
-    // Null tracking - indicates whether each attribute has a value
-    null_map: Vec<bool>, // true if attribute has a value, false if null
-    value_indices: Vec<Option<usize>>, // Index into the type-specific value array
-
-    // Type-specific value arrays (only store actual values, not Options)
-    // These map directly to Parquet columns
-    bool_values: Vec<bool>,
-    unsigned_values: Vec<u64>,
-    integer_values: Vec<i64>,
-    float_values: Vec<f64>,
-    string_values: Vec<SS::String>,
-    geometry_values: Vec<RR>,
-
-    // Owner tracking fields
-    owner_types: Vec<AttributeOwnerType>,
-    owner_refs: Vec<Option<RR>>,
-
-    // Nested structures (self-referential attribute structure)
-    // These map to Parquet LIST and MAP types
-    vector_elements: HashMap<usize, Vec<AttributeId32>>, // Parquet LIST
-    map_elements: HashMap<usize, HashMap<SS::String, AttributeId32>>, // Parquet MAP
-
-    // Fast lookups
-    key_to_index: HashMap<SS::String, usize>, // For named attributes
-
-    // Memory management
-    free_list: Vec<usize>, // Indices that can be reused
-}
-
-impl<SS: StringStorage, RR: ResourceRef> AttributePool<SS, RR> {
-    /// Creates a new empty attribute pool
-    pub fn new() -> Self {
-        Self {
-            keys: Vec::new(),
-            types: Vec::new(),
-            generations: Vec::new(),
-            is_named: Vec::new(),
-            null_map: Vec::new(),
-            value_indices: Vec::new(),
-            bool_values: Vec::new(),
-            unsigned_values: Vec::new(),
-            integer_values: Vec::new(),
-            float_values: Vec::new(),
-            string_values: Vec::new(),
-            geometry_values: Vec::new(),
-            owner_types: Vec::new(),
-            owner_refs: Vec::new(),
-            vector_elements: HashMap::new(),
-            map_elements: HashMap::new(),
-            key_to_index: HashMap::new(),
-            free_list: Vec::new(),
-        }
-    }
-
-    /// Creates a new attribute pool with the specified capacity
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            keys: Vec::with_capacity(capacity),
-            types: Vec::with_capacity(capacity),
-            generations: Vec::with_capacity(capacity),
-            is_named: Vec::with_capacity(capacity),
-            null_map: Vec::with_capacity(capacity),
-            value_indices: Vec::with_capacity(capacity),
-            bool_values: Vec::new(),
-            unsigned_values: Vec::new(),
-            integer_values: Vec::new(),
-            float_values: Vec::new(),
-            string_values: Vec::new(),
-            geometry_values: Vec::new(),
-            owner_types: Vec::with_capacity(capacity),
-            owner_refs: Vec::with_capacity(capacity),
-            vector_elements: HashMap::new(),
-            map_elements: HashMap::new(),
-            key_to_index: HashMap::new(),
-            free_list: Vec::new(),
-        }
-    }
-
-    /// Returns the number of attributes in the pool
-    pub fn len(&self) -> usize {
-        self.keys.len() - self.free_list.len()
-    }
-
-    /// Returns true if the pool is empty
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Allocates a new slot or reuses a freed one
-    fn allocate_slot(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        attr_type: AttributeValueType,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> (usize, u16) {
-        if let Some(idx) = self.free_list.pop() {
-            // Reuse a freed slot
-            self.keys[idx] = key.clone();
-            self.types[idx] = attr_type;
-            self.is_named[idx] = is_named;
-            self.owner_types[idx] = owner_type;
-            self.owner_refs[idx] = owner_ref;
-            self.generations[idx] += 1;
-            self.clear_value(idx);
-
-            if is_named {
-                self.key_to_index.insert(key.clone(), idx);
-            }
-
-            (idx, self.generations[idx])
-        } else {
-            // Create a new slot
-            let idx = self.keys.len();
-            self.keys.push(key.clone());
-            self.types.push(attr_type);
-            self.is_named.push(is_named);
-            self.owner_types.push(owner_type);
-            self.owner_refs.push(owner_ref);
-            self.generations.push(0);
-
-            // Initialize null tracking (not set until value is added)
-            self.null_map.push(false);
-            self.value_indices.push(None);
-
-            if is_named {
-                self.key_to_index.insert(key, idx);
-            }
-
-            (idx, 0)
-        }
-    }
-
-    /// Clears value at the given index
-    fn clear_value(&mut self, idx: usize) {
-        self.null_map[idx] = false;
-        self.value_indices[idx] = None;
-        self.vector_elements.remove(&idx);
-        self.map_elements.remove(&idx);
-    }
-
-    /// Checks if an attribute ID is valid
-    pub fn is_valid(&self, id: AttributeId32) -> bool {
-        let idx = id.index() as usize;
-        idx < self.generations.len() && self.generations[idx] == id.generation()
-    }
-
-    /// Gets the index for a key
-    fn find_key_index(&self, key: &str) -> Option<usize> {
-        self.key_to_index.get(key).copied()
-    }
-
-    // === Attribute Creation Methods ===
-
-    /// Adds a null value
-    pub fn add_null(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Null,
-            owner_type,
-            owner_ref,
-        );
-        // null_map[idx] is already false from allocate_slot
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a boolean value
-    pub fn add_bool(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: bool,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Bool,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.bool_values.len();
-        self.bool_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds an unsigned integer value
-    pub fn add_unsigned(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: u64,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Unsigned,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.unsigned_values.len();
-        self.unsigned_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a signed integer value
-    pub fn add_integer(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: i64,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Integer,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.integer_values.len();
-        self.integer_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a floating-point value
-    pub fn add_float(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: f64,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Float,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.float_values.len();
-        self.float_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a string value
-    pub fn add_string(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: SS::String,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::String,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.string_values.len();
-        self.string_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a geometry reference
-    pub fn add_geometry(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        value: RR,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Geometry,
-            owner_type,
-            owner_ref,
-        );
-        let value_index = self.geometry_values.len();
-        self.geometry_values.push(value);
-        self.null_map[idx] = true;
-        self.value_indices[idx] = Some(value_index);
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a vector of attribute references
-    ///
-    /// Maps to Parquet LIST type during serialization.
-    pub fn add_vector(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        elements: Vec<AttributeId32>,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Vec,
-            owner_type,
-            owner_ref,
-        );
-        self.vector_elements.insert(idx, elements);
-        self.null_map[idx] = true;
-        // value_indices[idx] remains None for vectors (stored in vector_elements HashMap)
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    /// Adds a map of key-attribute pairs
-    ///
-    /// Maps to Parquet MAP type during serialization.
-    /// Map keys are strings, values are references to other attributes in the pool.
-    /// This maintains the flattened structure and supports arbitrary nesting.
-    pub fn add_map(
-        &mut self,
-        key: SS::String,
-        is_named: bool,
-        elements: HashMap<SS::String, AttributeId32>,
-        owner_type: AttributeOwnerType,
-        owner_ref: Option<RR>,
-    ) -> AttributeId32 {
-        let (idx, generation) = self.allocate_slot(
-            key,
-            is_named,
-            AttributeValueType::Map,
-            owner_type,
-            owner_ref,
-        );
-        self.map_elements.insert(idx, elements);
-        self.null_map[idx] = true;
-        // value_indices[idx] remains None for maps (stored in map_elements HashMap)
-        AttributeId32::new(idx as u32, generation)
-    }
-
-    // === Attribute Access Methods ===
-
-    /// Gets the type of an attribute
-    pub fn get_type(&self, id: AttributeId32) -> Option<AttributeValueType> {
-        if !self.is_valid(id) {
-            return None;
-        }
-        Some(self.types[id.index() as usize])
-    }
-
-    /// Gets the key of a named attribute
-    pub fn get_key(&self, id: AttributeId32) -> Option<&SS::String> {
-        if !self.is_valid(id) || !self.is_named[id.index() as usize] {
-            return None;
-        }
-        Some(&self.keys[id.index() as usize])
-    }
-
-    /// Gets a boolean value
-    pub fn get_bool(&self, id: AttributeId32) -> Option<bool> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Bool {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(self.bool_values[value_index])
-    }
-
-    /// Gets an unsigned integer value
-    pub fn get_unsigned(&self, id: AttributeId32) -> Option<u64> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Unsigned {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(self.unsigned_values[value_index])
-    }
-
-    /// Gets a signed integer value
-    pub fn get_integer(&self, id: AttributeId32) -> Option<i64> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Integer {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(self.integer_values[value_index])
-    }
-
-    /// Gets a floating-point value
-    pub fn get_float(&self, id: AttributeId32) -> Option<f64> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Float {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(self.float_values[value_index])
-    }
-
-    /// Gets a string value
-    pub fn get_string(&self, id: AttributeId32) -> Option<&SS::String> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::String {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(&self.string_values[value_index])
-    }
-
-    /// Gets a geometry reference value
-    pub fn get_geometry(&self, id: AttributeId32) -> Option<RR> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Geometry {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        let value_index = self.value_indices[idx]?;
-        Some(self.geometry_values[value_index])
-    }
-
-    /// Gets vector elements
-    pub fn get_vector_elements(&self, id: AttributeId32) -> Option<&Vec<AttributeId32>> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Vec {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        self.vector_elements.get(&idx)
-    }
-
-    /// Gets a vector element by index
-    pub fn get_vector_element(
-        &self,
-        id: AttributeId32,
-        element_idx: usize,
-    ) -> Option<AttributeId32> {
-        let elements = self.get_vector_elements(id)?;
-        elements.get(element_idx).copied()
-    }
-
-    /// Gets the number of elements in a vector
-    pub fn get_vector_length(&self, id: AttributeId32) -> Option<usize> {
-        let elements = self.get_vector_elements(id)?;
-        Some(elements.len())
-    }
-
-    /// Gets map elements as a HashMap
-    pub fn get_map_elements(
-        &self,
-        id: AttributeId32,
-    ) -> Option<&HashMap<SS::String, AttributeId32>> {
-        let idx = id.index() as usize;
-        if !self.is_valid(id) || self.types[idx] != AttributeValueType::Map {
-            return None;
-        }
-        if !self.null_map[idx] {
-            return None;
-        }
-        self.map_elements.get(&idx)
-    }
-
-    /// Gets a map value by key
-    pub fn get_map_value(&self, id: AttributeId32, key: &str) -> Option<AttributeId32> {
-        let elements = self.get_map_elements(id)?;
-        elements.get(key).copied()
-    }
-
-    /// Gets the number of entries in a map
-    pub fn get_map_size(&self, id: AttributeId32) -> Option<usize> {
-        let elements = self.get_map_elements(id)?;
-        Some(elements.len())
-    }
-
-    /// Returns an iterator over map keys
-    pub fn get_map_keys(&self, id: AttributeId32) -> Option<impl Iterator<Item = &SS::String>> {
-        let elements = self.get_map_elements(id)?;
-        Some(elements.keys())
-    }
-
-    /// Returns an iterator over map entries (key-value pairs)
-    pub fn get_map_iter(
-        &self,
-        id: AttributeId32,
-    ) -> Option<impl Iterator<Item = (&SS::String, AttributeId32)>> {
-        let elements = self.get_map_elements(id)?;
-        Some(elements.iter().map(|(k, &v)| (k, v)))
-    }
-
-    /// Removes an attribute from the pool
-    pub fn remove(&mut self, id: AttributeId32) -> bool {
-        if !self.is_valid(id) {
-            return false;
-        }
-
-        let idx = id.index() as usize;
-
-        // If this is a named attribute, remove from key index
-        if self.is_named[idx] {
-            self.key_to_index.remove(self.keys[idx].as_ref());
-            self.is_named[idx] = false;
-        }
-
-        // Clear the value
-        self.clear_value(idx);
-
-        // Remove the owners
-        self.owner_types[idx] = AttributeOwnerType::None;
-        self.owner_refs[idx] = None;
-
-        // Mark the slot as available for reuse
-        self.free_list.push(idx);
-
-        true
-    }
-
-    /// Removes a resource by key (if it exists)
-    pub fn remove_by_key(&mut self, key: &str) -> bool {
-        if let Some(idx) = self.find_key_index(key) {
-            let id = AttributeId32::new(idx as u32, self.generations[idx]);
-            self.remove(id)
-        } else {
-            false
-        }
-    }
-
-    /// Gets an attribute ID by key (if it exists and is valid)
-    pub fn get_id_by_key(&self, key: &str) -> Option<AttributeId32> {
-        let idx = self.find_key_index(key)?;
-        let id = AttributeId32::new(idx as u32, self.generations[idx]);
-        if self.is_valid(id) { Some(id) } else { None }
-    }
-
-    /// Clears all attributes from the pool
-    pub fn clear(&mut self) {
-        self.keys.clear();
-        self.types.clear();
-        self.generations.clear();
-        self.is_named.clear();
-        self.null_map.clear();
-        self.value_indices.clear();
-        self.bool_values.clear();
-        self.unsigned_values.clear();
-        self.integer_values.clear();
-        self.float_values.clear();
-        self.string_values.clear();
-        self.geometry_values.clear();
-        self.owner_types.clear();
-        self.owner_refs.clear();
-        self.vector_elements.clear();
-        self.map_elements.clear();
-        self.key_to_index.clear();
-        self.free_list.clear();
-    }
-}
-
-impl<SS: StringStorage, RR: ResourceRef> Default for AttributePool<SS, RR> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<SS: StringStorage, RR: ResourceRef> Display for AttributePool<SS, RR>
-where
-    SS::String: Display,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "AttributePool {{")?;
-        writeln!(f, "  total_slots: {}", self.keys.len())?;
-        writeln!(f, "  active_attributes: {}", self.len())?;
-        writeln!(f, "  free_slots: {}", self.free_list.len())?;
-
-        // Count by type
-        let mut type_counts = HashMap::new();
-        for (idx, attr_type) in self.types.iter().enumerate() {
-            if !self.free_list.contains(&idx) {
-                *type_counts.entry(*attr_type).or_insert(0) += 1;
-            }
-        }
-
-        writeln!(f, "  by_type: {{")?;
-        for (attr_type, count) in type_counts.iter() {
-            writeln!(f, "    {}: {}", attr_type, count)?;
-        }
-        writeln!(f, "  }}")?;
-        writeln!(f, "}}")
-    }
-}
-
-/// Type alias for attributes pool with owned strings.
-pub type OwnedAttributePool = AttributePool<OwnedStringStorage, ResourceId32>;
-
-/// Type alias for attributes pool with borrowed strings.
-pub type BorrowedAttributePool<'a> = AttributePool<BorrowedStringStorage<'a>, ResourceId32>;
-
-/// Container for dispatching attribute values.
-///
-/// This enum is primarily used for building and converting attribute trees.
-/// For storage, use `AttributePool` which provides a flattened Structure of Arrays design.
+/// `AttributeValue` is a generic enum that can hold various types of data,
+/// from simple scalars to complex nested structures like vectors and maps.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
     /// Represents a null or undefined value.
@@ -802,15 +83,15 @@ pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
     Vec(Vec<Box<AttributeValue<SS, RR>>>),
     /// A map of string keys to attribute values.
     Map(HashMap<SS::String, Box<AttributeValue<SS, RR>>>),
-    /// A geometry. Basically, only used for "address.location", which must be a MultiPoint.
+    /// A geometry reference. Used for "address.location" which must be a MultiPoint.
     Geometry(RR),
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for AttributeValue<SS, RR>
+impl<SS: StringStorage, RR: ResourceRef> std::fmt::Display for AttributeValue<SS, RR>
 where
-    SS::String: Display,
+    SS::String: std::fmt::Display,
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AttributeValue::Null => write!(f, "null"),
             AttributeValue::Bool(value) => write!(f, "{}", value),
@@ -838,19 +119,15 @@ where
                 }
                 write!(f, "}}")
             }
-            AttributeValue::Geometry(value) => write!(f, "Geometry {}", value),
+            AttributeValue::Geometry(value) => write!(f, "Geometry({})", value),
         }
     }
 }
 
-/// Type indicator for Attribute values.
-///
-/// Used in the flattened AttributePool to discriminate between different value types.
-/// Maps to a Parquet INT32 enum column during serialization.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+/// Type discriminator for attribute values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeValueType {
     /// Represents a null or undefined value.
-    #[default]
     Null,
     /// A boolean value (true or false).
     Bool,
@@ -870,484 +147,359 @@ pub enum AttributeValueType {
     Geometry,
 }
 
-impl Display for AttributeValueType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+impl<SS: StringStorage, RR: ResourceRef> AttributeValue<SS, RR> {
+    /// Returns the type of this attribute value.
+    pub fn value_type(&self) -> AttributeValueType {
+        match self {
+            AttributeValue::Null => AttributeValueType::Null,
+            AttributeValue::Bool(_) => AttributeValueType::Bool,
+            AttributeValue::Unsigned(_) => AttributeValueType::Unsigned,
+            AttributeValue::Integer(_) => AttributeValueType::Integer,
+            AttributeValue::Float(_) => AttributeValueType::Float,
+            AttributeValue::String(_) => AttributeValueType::String,
+            AttributeValue::Vec(_) => AttributeValueType::Vec,
+            AttributeValue::Map(_) => AttributeValueType::Map,
+            AttributeValue::Geometry(_) => AttributeValueType::Geometry,
+        }
     }
 }
 
-/// Container for attribute references belonging to a specific object.
+/// Container for attributes using a specific storage strategy.
 ///
-/// This is a lightweight container that holds references (IDs) to attributes
-/// stored in the global `AttributePool`. Each CityObject instance would have
-/// its own `Attributes` container.
-///
-/// Note: The RR parameter is kept for API compatibility but not used in the flattened design.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Attributes<SS: StringStorage> {
-    // References to attributes in the global pool
-    attributes: HashMap<SS::String, AttributeId32>,
+/// `Attributes` is a key-value store where keys are strings and values are
+/// `AttributeValue` instances. Each object owns its attributes directly.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Attributes<SS: StringStorage, RR: ResourceRef> {
+    values: HashMap<SS::String, AttributeValue<SS, RR>>,
 }
 
-impl<SS: StringStorage> Attributes<SS> {
-    /// Creates a new empty attributes container
+impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
+    /// Creates a new, empty attributes container.
     pub fn new() -> Self {
         Self {
-            attributes: HashMap::new(),
+            values: HashMap::new(),
         }
     }
 
-    /// Inserts an attribute reference
-    pub fn insert(&mut self, key: SS::String, id: AttributeId32) -> Option<AttributeId32> {
-        self.attributes.insert(key, id)
+    /// Retrieves a reference to the attribute value associated with the given key.
+    pub fn get(&self, key: &str) -> Option<&AttributeValue<SS, RR>> {
+        self.values.get(key)
     }
 
-    /// Gets an attribute reference
-    pub fn get(&self, key: &str) -> Option<AttributeId32> {
-        self.attributes.get(key).copied()
+    /// Retrieves a mutable reference to the attribute value associated with the given key.
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut AttributeValue<SS, RR>> {
+        self.values.get_mut(key)
     }
 
-    /// Removes an attribute reference
-    pub fn remove(&mut self, key: &str) -> Option<AttributeId32> {
-        self.attributes.remove(key)
+    /// Inserts an attribute value with the specified key.
+    ///
+    /// If the key already existed, returns the previous value.
+    pub fn insert(
+        &mut self,
+        key: SS::String,
+        value: AttributeValue<SS, RR>,
+    ) -> Option<AttributeValue<SS, RR>> {
+        self.values.insert(key, value)
     }
 
-    /// Returns the number of attributes
+    /// Removes an attribute with the specified key.
+    pub fn remove(&mut self, key: &str) -> Option<AttributeValue<SS, RR>> {
+        self.values.remove(key)
+    }
+
+    /// Returns the number of attributes in the container.
     pub fn len(&self) -> usize {
-        self.attributes.len()
+        self.values.len()
     }
 
-    /// Returns true if there are no attributes
+    /// Checks if the attributes container is empty.
     pub fn is_empty(&self) -> bool {
-        self.attributes.is_empty()
+        self.values.is_empty()
     }
 
-    /// Returns true if the attribute container has the key
-    pub fn contains_key(&self, key: &str) -> bool {
-        self.attributes.contains_key(key)
+    /// Returns an iterator over the attributes' keys and values.
+    pub fn iter(&self) -> impl Iterator<Item = (&SS::String, &AttributeValue<SS, RR>)> {
+        self.values.iter()
     }
 
-    /// Returns an iterator over all key-ID pairs
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (&'a SS::String, AttributeId32)> + 'a {
-        self.attributes.iter().map(|(k, &v)| (k, v))
+    /// Returns a mutable iterator over the attributes' keys and values.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&SS::String, &mut AttributeValue<SS, RR>)> {
+        self.values.iter_mut()
     }
 
-    /// Returns an iterator over the keys
-    pub fn keys<'a>(&'a self) -> impl Iterator<Item = &'a SS::String> + 'a {
-        self.attributes.keys()
+    /// Returns an iterator over the attribute keys.
+    pub fn keys(&self) -> impl Iterator<Item = &SS::String> {
+        self.values.keys()
     }
 
-    /// Clears all attribute references
+    /// Clears the attributes container.
     pub fn clear(&mut self) {
-        self.attributes.clear();
+        self.values.clear();
+    }
+
+    /// Checks if the attributes container contains a key.
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.values.contains_key(key)
     }
 }
 
-impl<SS: StringStorage> Default for Attributes<SS> {
+impl<SS: StringStorage, RR: ResourceRef> Default for Attributes<SS, RR> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<SS: StringStorage> Display for Attributes<SS> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "keys: {}",
-            self.attributes
-                .keys()
-                .map(|k| k.as_ref())
-                .collect::<Vec<&str>>()
-                .join(",")
-        )
+impl<SS: StringStorage, RR: ResourceRef> std::fmt::Display for Attributes<SS, RR>
+where
+    SS::String: std::fmt::Display + Eq + std::hash::Hash,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        for (i, (key, value)) in self.values.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "\"{}\": {}", key, value)?;
+        }
+        write!(f, "}}")
     }
 }
 
-/// Type alias for attributes with owned strings.
-pub type OwnedAttributes = Attributes<OwnedStringStorage>;
+/// Type alias for attribute values with owned strings.
+pub type OwnedAttributeValue = AttributeValue<OwnedStringStorage, ResourceId32>;
 
-/// Type alias for attributes with borrowed strings.
-pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>>;
+/// Type alias for attribute values with borrowed strings.
+pub type BorrowedAttributeValue<'a> = AttributeValue<BorrowedStringStorage<'a>, ResourceId32>;
 
-/// Indicates what type of entity owns an attribute
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AttributeOwnerType {
-    /// For deleted attributes
-    None,
-    /// Owned by a CityObject
-    CityObject,
-    /// Owned by a Semantic surface
-    Semantic,
-    /// Owned by Metadata
-    Metadata,
-    /// Owned by the CityModel itself
-    CityModel,
-    /// For attributes that are part of a vector/array or map
-    Element,
-}
+/// Type alias for attributes container with owned strings.
+pub type OwnedAttributes = Attributes<OwnedStringStorage, ResourceId32>;
+
+/// Type alias for attributes container with borrowed strings.
+pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, ResourceId32>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_attribute_pool_basic() {
-        let mut pool = OwnedAttributePool::new();
+    fn test_attribute_value_types() {
+        let null_val: OwnedAttributeValue = AttributeValue::Null;
+        assert_eq!(null_val.value_type(), AttributeValueType::Null);
 
-        // Add different types
-        let bool_id = pool.add_bool(
-            "active".to_string(),
-            true,
-            true,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        let bool_val: OwnedAttributeValue = AttributeValue::Bool(true);
+        assert_eq!(bool_val.value_type(), AttributeValueType::Bool);
 
-        let int_id = pool.add_integer(
-            "floors".to_string(),
-            true,
-            5,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        let int_val: OwnedAttributeValue = AttributeValue::Integer(42);
+        assert_eq!(int_val.value_type(), AttributeValueType::Integer);
 
-        let float_id = pool.add_float(
-            "height".to_string(),
-            true,
-            25.5,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        let float_val: OwnedAttributeValue = AttributeValue::Float(3.14);
+        assert_eq!(float_val.value_type(), AttributeValueType::Float);
 
-        let string_id = pool.add_string(
-            "name".to_string(),
-            true,
-            "Building A".to_string(),
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        let string_val: OwnedAttributeValue = AttributeValue::String("test".to_string());
+        assert_eq!(string_val.value_type(), AttributeValueType::String);
 
-        // Test retrieval
-        assert_eq!(pool.get_bool(bool_id), Some(true));
-        assert_eq!(pool.get_integer(int_id), Some(5));
-        assert_eq!(pool.get_float(float_id), Some(25.5));
-        assert_eq!(pool.get_string(string_id), Some(&"Building A".to_string()));
+        let vec_val: OwnedAttributeValue = AttributeValue::Vec(vec![]);
+        assert_eq!(vec_val.value_type(), AttributeValueType::Vec);
 
-        // Test type checking
-        assert_eq!(pool.get_type(bool_id), Some(AttributeValueType::Bool));
-        assert_eq!(pool.get_type(int_id), Some(AttributeValueType::Integer));
-        assert_eq!(pool.get_type(float_id), Some(AttributeValueType::Float));
-        assert_eq!(pool.get_type(string_id), Some(AttributeValueType::String));
-
-        // Test key retrieval
-        assert_eq!(pool.get_key(bool_id), Some(&"active".to_string()));
-        assert_eq!(pool.get_key(int_id), Some(&"floors".to_string()));
+        let map_val: OwnedAttributeValue = AttributeValue::Map(HashMap::new());
+        assert_eq!(map_val.value_type(), AttributeValueType::Map);
     }
 
     #[test]
-    fn test_attribute_pool_vectors() {
-        let mut pool = OwnedAttributePool::new();
-
-        // Create vector elements
-        let elem1 = pool.add_integer("".to_string(), false, 1, AttributeOwnerType::Element, None);
-        let elem2 = pool.add_integer("".to_string(), false, 2, AttributeOwnerType::Element, None);
-        let elem3 = pool.add_integer("".to_string(), false, 3, AttributeOwnerType::Element, None);
-
-        // Create vector
-        let vec_id = pool.add_vector(
-            "numbers".to_string(),
-            true,
-            vec![elem1, elem2, elem3],
-            AttributeOwnerType::CityObject,
-            None,
-        );
-
-        // Test vector access
-        assert_eq!(pool.get_type(vec_id), Some(AttributeValueType::Vec));
-        assert_eq!(pool.get_vector_length(vec_id), Some(3));
-
-        let elem = pool.get_vector_element(vec_id, 0).unwrap();
-        assert_eq!(pool.get_integer(elem), Some(1));
-
-        let elem = pool.get_vector_element(vec_id, 1).unwrap();
-        assert_eq!(pool.get_integer(elem), Some(2));
-
-        let elem = pool.get_vector_element(vec_id, 2).unwrap();
-        assert_eq!(pool.get_integer(elem), Some(3));
-    }
-
-    #[test]
-    fn test_attribute_pool_maps() {
-        let mut pool = OwnedAttributePool::new();
-
-        // Create map elements
-        let street = pool.add_string(
-            "street".to_string(),
-            true,
-            "Main St".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-
-        let number = pool.add_integer(
-            "number".to_string(),
-            true,
-            123,
-            AttributeOwnerType::Element,
-            None,
-        );
-
-        let city = pool.add_string(
-            "city".to_string(),
-            true,
-            "Springfield".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-
-        // Create map
-        let mut address_map = HashMap::new();
-        address_map.insert("street".to_string(), street);
-        address_map.insert("number".to_string(), number);
-        address_map.insert("city".to_string(), city);
-
-        let map_id = pool.add_map(
-            "address".to_string(),
-            true,
-            address_map,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-
-        // Test map access
-        assert_eq!(pool.get_type(map_id), Some(AttributeValueType::Map));
-        assert_eq!(pool.get_map_size(map_id), Some(3));
-
-        // Test individual value access
-        let street_id = pool.get_map_value(map_id, "street").unwrap();
-        assert_eq!(pool.get_string(street_id), Some(&"Main St".to_string()));
-
-        let number_id = pool.get_map_value(map_id, "number").unwrap();
-        assert_eq!(pool.get_integer(number_id), Some(123));
-
-        let city_id = pool.get_map_value(map_id, "city").unwrap();
-        assert_eq!(pool.get_string(city_id), Some(&"Springfield".to_string()));
-
-        // Test iteration
-        let keys: Vec<_> = pool.get_map_keys(map_id).unwrap().collect();
-        assert_eq!(keys.len(), 3);
-        assert!(keys.contains(&&"street".to_string()));
-        assert!(keys.contains(&&"number".to_string()));
-        assert!(keys.contains(&&"city".to_string()));
-    }
-
-    #[test]
-    fn test_nested_maps_and_vectors() {
-        let mut pool = OwnedAttributePool::new();
-
-        // Create coordinates vector
-        let lat = pool.add_float(
-            "".to_string(),
-            false,
-            40.7128,
-            AttributeOwnerType::Element,
-            None,
-        );
-        let lon = pool.add_float(
-            "".to_string(),
-            false,
-            -74.0060,
-            AttributeOwnerType::Element,
-            None,
-        );
-        let coords_vec = pool.add_vector(
-            "coordinates".to_string(),
-            true,
-            vec![lat, lon],
-            AttributeOwnerType::Element,
-            None,
-        );
-
-        // Create address map
-        let street = pool.add_string(
-            "street".to_string(),
-            true,
-            "Broadway".to_string(),
-            AttributeOwnerType::Element,
-            None,
-        );
-
-        let mut address_map = HashMap::new();
-        address_map.insert("street".to_string(), street);
-        address_map.insert("coordinates".to_string(), coords_vec);
-
-        let address_id = pool.add_map(
-            "address".to_string(),
-            true,
-            address_map,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-
-        // Test nested access: address.coordinates[0]
-        let coords_id = pool.get_map_value(address_id, "coordinates").unwrap();
-        let lat_id = pool.get_vector_element(coords_id, 0).unwrap();
-        assert_eq!(pool.get_float(lat_id), Some(40.7128));
-
-        // Test nested access: address.street
-        let street_id = pool.get_map_value(address_id, "street").unwrap();
-        assert_eq!(pool.get_string(street_id), Some(&"Broadway".to_string()));
-    }
-
-    #[test]
-    fn test_remove_and_reuse() {
-        let mut pool = OwnedAttributePool::new();
-
-        // Add an attribute
-        let id1 = pool.add_integer(
-            "test".to_string(),
-            true,
-            42,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-        assert_eq!(pool.len(), 1);
-        assert_eq!(pool.get_integer(id1), Some(42));
-
-        // Remove it
-        assert!(pool.remove(id1));
-        assert_eq!(pool.len(), 0);
-        assert_eq!(pool.get_integer(id1), None);
-
-        // Add another attribute - should reuse the slot
-        let id2 = pool.add_integer(
-            "test2".to_string(),
-            true,
-            99,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-        assert_eq!(pool.len(), 1);
-        assert_eq!(pool.get_integer(id2), Some(99));
-
-        // Old ID should still be invalid (generation changed)
-        assert_eq!(pool.get_integer(id1), None);
-    }
-
-    #[test]
-    fn test_attribute_container() {
-        let mut pool = OwnedAttributePool::new();
+    fn test_attributes_basic() {
         let mut attrs = OwnedAttributes::new();
 
-        // Add attributes to pool
-        let name_id = pool.add_string(
-            "name".to_string(),
-            true,
-            "Building A".to_string(),
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        // Add different types of values
+        attrs.insert("active".to_string(), AttributeValue::Bool(true));
+        attrs.insert("floors".to_string(), AttributeValue::Integer(5));
+        attrs.insert("height".to_string(), AttributeValue::Float(25.5));
+        attrs.insert("name".to_string(), AttributeValue::String("Building A".to_string()));
 
-        let height_id = pool.add_float(
-            "height".to_string(),
-            true,
-            25.5,
-            AttributeOwnerType::CityObject,
-            None,
-        );
-
-        // Link them to the container
-        attrs.insert("name".to_string(), name_id);
-        attrs.insert("height".to_string(), height_id);
-
-        // Test container operations
-        assert_eq!(attrs.len(), 2);
-        assert!(attrs.contains_key("name"));
-        assert!(attrs.contains_key("height"));
-
-        // Retrieve and verify via pool
-        let retrieved_name_id = attrs.get("name").unwrap();
+        // Test retrieval
+        assert_eq!(attrs.get("active"), Some(&AttributeValue::Bool(true)));
+        assert_eq!(attrs.get("floors"), Some(&AttributeValue::Integer(5)));
+        assert_eq!(attrs.get("height"), Some(&AttributeValue::Float(25.5)));
         assert_eq!(
-            pool.get_string(retrieved_name_id),
-            Some(&"Building A".to_string())
+            attrs.get("name"),
+            Some(&AttributeValue::String("Building A".to_string()))
+        );
+
+        // Test type checking
+        assert_eq!(
+            attrs.get("active").map(|v| v.value_type()),
+            Some(AttributeValueType::Bool)
+        );
+        assert_eq!(
+            attrs.get("floors").map(|v| v.value_type()),
+            Some(AttributeValueType::Integer)
         );
     }
 
     #[test]
-    fn test_display_implementations() {
-        let mut pool = OwnedAttributePool::new();
+    fn test_attributes_vectors() {
+        let mut attrs = OwnedAttributes::new();
 
-        pool.add_bool(
-            "active".to_string(),
-            true,
-            true,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        // Create a vector value
+        let vector_value = AttributeValue::Vec(vec![
+            Box::new(AttributeValue::Integer(1)),
+            Box::new(AttributeValue::Integer(2)),
+            Box::new(AttributeValue::Integer(3)),
+        ]);
 
-        pool.add_integer(
-            "count".to_string(),
-            true,
-            42,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        attrs.insert("numbers".to_string(), vector_value);
 
-        let display_str = format!("{}", pool);
-        assert!(display_str.contains("AttributePool"));
-        assert!(display_str.contains("active_attributes: 2"));
-        assert!(display_str.contains("Bool: 1"));
-        assert!(display_str.contains("Integer: 1"));
+        // Retrieve and verify
+        if let Some(AttributeValue::Vec(values)) = attrs.get("numbers") {
+            assert_eq!(values.len(), 3);
+            assert_eq!(*values[0], AttributeValue::Integer(1));
+            assert_eq!(*values[1], AttributeValue::Integer(2));
+            assert_eq!(*values[2], AttributeValue::Integer(3));
+        } else {
+            panic!("Expected Vec value");
+        }
     }
 
     #[test]
-    fn test_get_by_key() {
-        let mut pool = OwnedAttributePool::new();
+    fn test_attributes_maps() {
+        let mut attrs = OwnedAttributes::new();
 
-        let id = pool.add_string(
-            "name".to_string(),
-            true,
-            "Test".to_string(),
-            AttributeOwnerType::CityObject,
-            None,
+        // Create a map value
+        let mut map_content = HashMap::new();
+        map_content.insert(
+            "street".to_string(),
+            Box::new(AttributeValue::String("Main St".to_string())),
+        );
+        map_content.insert(
+            "number".to_string(),
+            Box::new(AttributeValue::Integer(123)),
+        );
+        map_content.insert(
+            "city".to_string(),
+            Box::new(AttributeValue::String("Springfield".to_string())),
         );
 
-        // Test get by key
-        let retrieved_id = pool.get_id_by_key("name").unwrap();
-        assert_eq!(retrieved_id, id);
-        assert_eq!(pool.get_string(retrieved_id), Some(&"Test".to_string()));
+        let map_value = AttributeValue::Map(map_content);
+        attrs.insert("address".to_string(), map_value);
 
-        // Test remove by key
-        assert!(pool.remove_by_key("name"));
-        assert!(pool.get_id_by_key("name").is_none());
+        // Retrieve and verify
+        if let Some(AttributeValue::Map(map)) = attrs.get("address") {
+            assert_eq!(map.len(), 3);
+            assert_eq!(
+                map.get("street"),
+                Some(&Box::new(AttributeValue::String("Main St".to_string())))
+            );
+            assert_eq!(
+                map.get("number"),
+                Some(&Box::new(AttributeValue::Integer(123)))
+            );
+        } else {
+            panic!("Expected Map value");
+        }
     }
 
     #[test]
-    fn test_clear() {
-        let mut pool = OwnedAttributePool::new();
+    fn test_attributes_remove() {
+        let mut attrs = OwnedAttributes::new();
 
-        pool.add_integer(
-            "a".to_string(),
-            true,
-            1,
-            AttributeOwnerType::CityObject,
-            None,
+        attrs.insert("test".to_string(), AttributeValue::Integer(42));
+        assert_eq!(attrs.len(), 1);
+
+        let removed = attrs.remove("test");
+        assert_eq!(removed, Some(AttributeValue::Integer(42)));
+        assert_eq!(attrs.len(), 0);
+    }
+
+    #[test]
+    fn test_attributes_contains_key() {
+        let mut attrs = OwnedAttributes::new();
+
+        attrs.insert("name".to_string(), AttributeValue::String("Test".to_string()));
+
+        assert!(attrs.contains_key("name"));
+        assert!(!attrs.contains_key("missing"));
+    }
+
+    #[test]
+    fn test_attributes_iter() {
+        let mut attrs = OwnedAttributes::new();
+
+        attrs.insert("a".to_string(), AttributeValue::Integer(1));
+        attrs.insert("b".to_string(), AttributeValue::Integer(2));
+        attrs.insert("c".to_string(), AttributeValue::Integer(3));
+
+        let mut keys: Vec<_> = attrs.keys().map(|k| k.as_ref()).collect();
+        keys.sort();
+
+        assert_eq!(keys, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_attributes_display() {
+        let mut attrs = OwnedAttributes::new();
+
+        attrs.insert("name".to_string(), AttributeValue::String("Building".to_string()));
+        attrs.insert("height".to_string(), AttributeValue::Float(25.5));
+
+        let display_str = format!("{}", attrs);
+        assert!(display_str.contains("\"name\""));
+        assert!(display_str.contains("\"height\""));
+    }
+
+    #[test]
+    fn test_attribute_value_display() {
+        let values = vec![
+            (AttributeValue::Null, "null"),
+            (AttributeValue::Bool(true), "true"),
+            (AttributeValue::Integer(42), "42"),
+            (AttributeValue::Float(3.14), "3.14"),
+            (AttributeValue::String("test".to_string()), "\"test\""),
+        ];
+
+        for (val, expected) in values {
+            let display_str = format!("{}", val);
+            assert_eq!(display_str, expected);
+        }
+    }
+
+    #[test]
+    fn test_nested_structures() {
+        let mut attrs = OwnedAttributes::new();
+
+        // Create nested structure: address with coordinates
+        let mut address_map = HashMap::new();
+        address_map.insert(
+            "street".to_string(),
+            Box::new(AttributeValue::String("Broadway".to_string())),
         );
 
-        pool.add_integer(
-            "b".to_string(),
-            true,
-            2,
-            AttributeOwnerType::CityObject,
-            None,
-        );
+        // Create coordinates vector
+        let coords_vec = AttributeValue::Vec(vec![
+            Box::new(AttributeValue::Float(40.7128)),
+            Box::new(AttributeValue::Float(-74.0060)),
+        ]);
 
-        assert_eq!(pool.len(), 2);
+        address_map.insert("coordinates".to_string(), Box::new(coords_vec));
 
-        pool.clear();
+        let address = AttributeValue::Map(address_map);
+        attrs.insert("address".to_string(), address);
 
-        assert_eq!(pool.len(), 0);
-        assert!(pool.is_empty());
-        assert!(pool.get_id_by_key("a").is_none());
+        // Access nested values
+        if let Some(AttributeValue::Map(address)) = attrs.get("address") {
+            assert_eq!(address.len(), 2);
+
+            // Get street
+            if let Some(street_box) = address.get("street") {
+                if let AttributeValue::String(street) = &**street_box {
+                    assert_eq!(street, "Broadway");
+                }
+            }
+
+            // Get coordinates
+            if let Some(coords_box) = address.get("coordinates") {
+                if let AttributeValue::Vec(coords) = &**coords_box {
+                    assert_eq!(coords.len(), 2);
+                }
+            }
+        }
     }
 }
