@@ -27,30 +27,21 @@
 //! ```rust
 //! use cityjson::prelude::*;
 //! use cityjson::v1_1::*;
-//! use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+//! use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 //!
 //! // Create a semantic object for a roof surface
 //! let mut roof = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
 //!
-//! // Add attributes if needed
-//! let mut pool = OwnedAttributePool::new();
-//! let material_id = pool.add_string(
+//! // Add attributes directly to the semantic
+//! let attrs = roof.attributes_mut();
+//! attrs.insert(
 //!     "material".to_string(),
-//!     true,
-//!     "slate".to_string(),
-//!     AttributeOwnerType::Semantic,
-//!     None,
+//!     OwnedAttributeValue::String("slate".to_string()),
 //! );
-//! let year_id = pool.add_integer(
+//! attrs.insert(
 //!     "year_constructed".to_string(),
-//!     true,
-//!     1985,
-//!     AttributeOwnerType::Semantic,
-//!     None,
+//!     OwnedAttributeValue::Integer(1985),
 //! );
-//! let mut attrs = roof.attributes_mut();
-//! attrs.insert("material".to_string(), material_id);
-//! attrs.insert("year_constructed".to_string(), year_id);
 //! ```
 //!
 //! ### Working with semantic hierarchies
@@ -111,30 +102,21 @@ use std::fmt::{Display, Formatter};
 /// ```rust
 /// use cityjson::prelude::*;
 /// use cityjson::v1_1::*;
-/// use cityjson::cityjson::core::attributes::{AttributeOwnerType, OwnedAttributePool};
+/// use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 ///
 /// // Create a new wall surface semantic
 /// let mut wall = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
 ///
-/// // Add attributes
-/// let mut pool = OwnedAttributePool::new();
-/// let material_id = pool.add_string(
+/// // Add attributes directly
+/// let attrs = wall.attributes_mut();
+/// attrs.insert(
 ///     "material".to_string(),
-///     true,
-///     "brick".to_string(),
-///     AttributeOwnerType::Semantic,
-///     None,
+///     OwnedAttributeValue::String("brick".to_string()),
 /// );
-/// let insulated_id = pool.add_bool(
+/// attrs.insert(
 ///     "insulated".to_string(),
-///     true,
-///     true,
-///     AttributeOwnerType::Semantic,
-///     None,
+///     OwnedAttributeValue::Bool(true),
 /// );
-/// let mut attrs = wall.attributes_mut();
-/// attrs.insert("material".to_string(), material_id);
-/// attrs.insert("insulated".to_string(), insulated_id);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Semantic<RR: ResourceRef, SS: StringStorage> {

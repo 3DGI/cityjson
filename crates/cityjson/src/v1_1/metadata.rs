@@ -28,7 +28,7 @@
 //! use cityjson::v1_1::*;
 //!
 //! // Create a new metadata object
-//! let mut metadata = Metadata::<OwnedStringStorage>::new();
+//! let mut metadata = Metadata::<OwnedStringStorage, ResourceId32>::new();
 //!
 //! // Set geographical extent using BBox
 //! let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
