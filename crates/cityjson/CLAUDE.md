@@ -14,8 +14,8 @@ cargo build
 # Run linter
 just lint
 
-# Run tests
-cargo test
+# Run tests and examples
+just test
 
 # Format code
 cargo fmt
@@ -28,6 +28,49 @@ just doc
 
 # Run benchmarks
 cargo bench
+```
+
+### Advanced Development Commands
+
+```shell
+# Memory profiling with massif (heap allocations)
+just profile-massif
+
+# Cache profiling with cachegrind (cache misses, branch prediction)
+just profile-cachegrind
+
+# Memory leak detection with memcheck
+just profile-memcheck
+
+# Run all profiling tools
+just profile-all
+
+# Run benchmarks and save baseline for comparison
+just bench-baseline my-baseline-name
+
+# Compare current performance against a baseline
+just bench-compare my-baseline-name
+
+# Track benchmark results with description
+just bench-track "description of changes"
+
+# View recent benchmark history
+just bench-history
+
+# Open Criterion HTML report in browser
+just bench-view
+
+# Show latest benchmark results summary
+just bench-summary
+
+# Record comprehensive benchmark and profiling results
+just bench-record "description"
+
+# Export all benchmark results for archival
+just bench-export
+
+# Compare performance between two git commits
+just bench-compare-commits commit1 commit2
 ```
 
 ## Architecture Overview
@@ -238,4 +281,14 @@ use cityjson::v1_1::*;  // or v1_0, v2_0
 - Use `just` for common development tasks
 - Extensions: Supports CityJSON Extensions through extensible types
 - Serialization: Serialization is implemented in a separate, dependent crate
+
+## Backend Features
+
+The crate supports two backend implementations via Cargo features:
+
+- `backend-default` (default): Flattened representation optimized for performance and memory efficiency
+- `backend-nested`: JSON-like nested structure for 1:1 JSON compatibility
+- `backend-both`: Both backends compiled together for benchmarking and comparison
+
+For detailed performance characteristics and when to use each backend, see the benchmarking results in `target/criterion/` after running `just bench`.
 
