@@ -194,8 +194,8 @@ mod nested_benches {
     use cityjson::prelude::*;
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
-    fn generate_citymodel(n: usize) -> nested::CityModel<OwnedStringStorage> {
-        let mut model = nested::CityModel::<OwnedStringStorage>::new(CityModelType::CityJSON);
+    fn generate_citymodel(n: usize) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
         let mut rng = rand::rng();
 
         let metadata = model.metadata_mut();
@@ -282,7 +282,7 @@ mod nested_benches {
 
     /// Compute the mean x,y,z coordinate for each geometry of each cityobject
     fn compute_mean_coordinates(
-        model: &nested::CityModel<OwnedStringStorage>,
+        model: &nested::CityModel<OwnedStringStorage, ResourceId32>,
     ) -> Vec<(f64, f64, f64)> {
         let mut means = Vec::new();
 

@@ -116,10 +116,10 @@ fn test_nested_map_attributes() {
         assert!(addr.contains_key("street"));
         assert!(addr.contains_key("number"));
 
-        if let Some(street_val) = addr.get("street") {
-            if let OwnedAttributeValue::String(s) = street_val.as_ref() {
-                assert_eq!(s, "Main St");
-            }
+        if let Some(street_val) = addr.get("street")
+            && let OwnedAttributeValue::String(s) = street_val.as_ref()
+        {
+            assert_eq!(s, "Main St");
         }
     }
 }

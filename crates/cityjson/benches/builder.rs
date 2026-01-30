@@ -250,10 +250,10 @@ mod nested_benches {
 
     /// Helper function to build a geometry with semantics (simplified for nested backend).
     fn build_geometry_with_semantics(
-        model: &mut nested::CityModel<OwnedStringStorage>,
+        model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
         vertices: &[VertexIndex32],
         index: usize,
-    ) -> Result<nested::Geometry<OwnedStringStorage>> {
+    ) -> Result<nested::Geometry<OwnedStringStorage, ResourceId32>> {
         let mut geometry_builder =
             nested::GeometryBuilder::new(model, GeometryType::Solid, nested::BuilderMode::Regular)
                 .with_lod(LoD::LoD2_2);
@@ -339,7 +339,7 @@ mod nested_benches {
     pub fn build_cityobjects(config: (usize, bool)) -> Result<()> {
         let num_cityobjects = config.0;
         let with_geometries = config.1;
-        let mut model = nested::CityModel::<OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
 
         let vertices = if with_geometries {
             vec![

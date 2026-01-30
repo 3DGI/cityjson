@@ -177,10 +177,10 @@ fn main() {
     println!("\n=== Summary ===");
     println!("City objects in model: {}", city_model.cityobjects().len());
 
-    if let Some(building) = city_model.cityobjects().get(building_ref) {
-        if let Some(attrs) = building.attributes() {
-            println!("Building attributes count: {}", attrs.len());
-        }
+    if let Some(building) = city_model.cityobjects().get(building_ref)
+        && let Some(attrs) = building.attributes()
+    {
+        println!("Building attributes count: {}", attrs.len());
     }
 
     println!("\nExample completed successfully!");

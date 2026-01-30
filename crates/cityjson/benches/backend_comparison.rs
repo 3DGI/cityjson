@@ -141,7 +141,7 @@ mod nested_benches {
     use cityjson::prelude::*;
 
     fn build_simple_solid(n_buildings: usize) {
-        let mut model = nested::CityModel::<OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
 
         // Pre-create vertices for a cube
         let v0 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();

@@ -176,8 +176,8 @@ mod nested_benches {
 
     /// Build a CityModel with the nested backend and the specified number of cityobjects.
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
-    fn build_model(n_cityobjects: usize) -> nested::CityModel<OwnedStringStorage> {
-        let mut model = nested::CityModel::<OwnedStringStorage>::new(CityModelType::CityJSON);
+    fn build_model(n_cityobjects: usize) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
         let mut rng = rand::rng();
 
         // Set basic metadata

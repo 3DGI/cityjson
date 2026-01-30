@@ -18,7 +18,7 @@ lint:
 test:
     -cargo test --all-features
     -cargo run --example cityjson_fake_complete_owned
-    -cargo run --example global_attribute_pool
+    -cargo run --example attributes
 
 # Build and open the crate documentation
 doc:
@@ -110,11 +110,11 @@ profile-all: profile-massif profile-cachegrind profile-memcheck
 
 
 # Run all benchmarks
-bench-all:
-    cargo bench-all
+bench:
+    cargo bench --benches
 
 # Run specific benchmark suite
-bench suite:
+bench-suite suite:
     cargo bench --bench {{suite}}
 
 # Benchmark with baseline for future comparison

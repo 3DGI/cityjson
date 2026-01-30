@@ -292,7 +292,7 @@ mod tests {
         let int_val: OwnedAttributeValue = AttributeValue::Integer(42);
         assert_eq!(int_val.value_type(), AttributeValueType::Integer);
 
-        let float_val: OwnedAttributeValue = AttributeValue::Float(3.14);
+        let float_val: OwnedAttributeValue = AttributeValue::Float(std::f64::consts::PI);
         assert_eq!(float_val.value_type(), AttributeValueType::Float);
 
         let string_val: OwnedAttributeValue = AttributeValue::String("test".to_string());
@@ -451,7 +451,7 @@ mod tests {
             (AttributeValue::Null, "null"),
             (AttributeValue::Bool(true), "true"),
             (AttributeValue::Integer(42), "42"),
-            (AttributeValue::Float(3.14), "3.14"),
+            (AttributeValue::Float(std::f64::consts::PI), "3.141592653589793"),
             (AttributeValue::String("test".to_string()), "\"test\""),
         ];
 
@@ -488,17 +488,15 @@ mod tests {
             assert_eq!(address.len(), 2);
 
             // Get street
-            if let Some(street_box) = address.get("street") {
-                if let AttributeValue::String(street) = &**street_box {
-                    assert_eq!(street, "Broadway");
-                }
+            if let Some(AttributeValue::String(street)) = address.get("street").map(|sb| &**sb) {
+                assert_eq!(street, "Broadway");
             }
 
             // Get coordinates
-            if let Some(coords_box) = address.get("coordinates") {
-                if let AttributeValue::Vec(coords) = &**coords_box {
-                    assert_eq!(coords.len(), 2);
-                }
+            if let Some(coords_box) = address.get("coordinates")
+                && let AttributeValue::Vec(coords) = &**coords_box
+            {
+                assert_eq!(coords.len(), 2);
             }
         }
     }

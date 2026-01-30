@@ -1165,7 +1165,7 @@ fn convert_wire_attribute_value(
 ) -> AttributeValue<OwnedStringStorage, ResourceId32> {
     match wire_value {
         WireAttributeValue::Null => AttributeValue::Null,
-        WireAttributeValue::String(s) => AttributeValue::String(s.into()),
+        WireAttributeValue::String(s) => AttributeValue::String(s),
         WireAttributeValue::Float(f) => AttributeValue::Float(f),
         WireAttributeValue::Integer(i) => AttributeValue::Integer(i),
         WireAttributeValue::Unsigned(u) => AttributeValue::Unsigned(u),
@@ -1181,7 +1181,7 @@ fn convert_wire_attribute_value(
             let mut element_map = HashMap::new();
             for (map_key, value) in map {
                 let elem_value = Box::new(convert_wire_attribute_value(value));
-                element_map.insert(map_key.into(), elem_value);
+                element_map.insert(map_key, elem_value);
             }
             AttributeValue::Map(element_map)
         }

@@ -618,7 +618,7 @@ fn build_fake_complete_owned() -> Result<()> {
     if let AttributeValue::Vec(addresses) = addresses_vec_attr {
         assert_eq!(addresses.len(), 1);
 
-        if let AttributeValue::Map(address_map) = &**&addresses[0] {
+        if let AttributeValue::Map(address_map) = &*addresses[0] {
             let country_attr = address_map.get("Country").expect("Country should exist in address map");
             if let AttributeValue::String(country) = &**country_attr {
                 assert_eq!(country, "Canada");
@@ -936,13 +936,13 @@ fn build_fake_complete_owned() -> Result<()> {
     if let AttributeValue::Vec(roles) = children_roles_attr {
         assert_eq!(roles.len(), 2);
 
-        if let AttributeValue::String(role1) = &**&roles[0] {
+        if let AttributeValue::String(role1) = &*roles[0] {
             assert_eq!(role1, "residential building");
         } else {
             panic!("First role should be String");
         }
 
-        if let AttributeValue::String(role2) = &**&roles[1] {
+        if let AttributeValue::String(role2) = &*roles[1] {
             assert_eq!(role2, "voting location");
         } else {
             panic!("Second role should be String");
