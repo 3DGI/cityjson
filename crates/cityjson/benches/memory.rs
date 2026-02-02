@@ -1,28 +1,12 @@
-//! Memory-focused benchmarks that compare heap allocation sizes between backends
-//!
-//! This benchmark builds CityModels with both backend implementations and measures the heap
-//! allocated memory for each. This helps understand the memory overhead of different
-//! backend architectures.
-//!
-//! ## Running Benchmarks
-//!
-//! Run with specific backend:
-//! ```bash
-//! # Default backend (flattened representation)
-//! cargo bench --bench memory --features backend-default
-//!
-//! # Nested backend (JSON-like representation)
-//! cargo bench --bench memory --features backend-nested
-//!
-//! # Both backends (for comparison)
-//! cargo bench --bench memory --features backend-both
-//! ```
-//!
-//! View the generated dhat-heap.json at https://nnethercote.github.io/dh_view/dh_view.html
+//! Memory-focused benchmarks that capture heap usage with dhat.
+
+#[allow(dead_code)]
+mod support;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::Rng;
 use std::hint::black_box;
+use support::{DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
 
 // Enable dhat heap profiling for the entire benchmark
 #[global_allocator]
@@ -41,10 +25,11 @@ mod default_benches {
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
     fn build_model<VR: VertexRef>(
         n_cityobjects: usize,
+        seed: u64,
     ) -> CityModel<VR, ResourceId32, OwnedStringStorage> {
         let mut model =
             CityModel::<VR, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        let mut rng = rand::rng();
+        let mut rng = rng_from_seed(seed);
 
         // Set basic metadata
         let metadata = model.metadata_mut();
@@ -152,12 +137,14 @@ mod default_benches {
     }
 
     pub fn bench_memory_u32(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
+        let _profiler = dhat::Profiler::new_heap();
         let mut group = c.benchmark_group("memory");
-        let n_cityobjects = 7_000;
+        let n_cityobjects = params.size;
 
-        group.bench_function(BenchmarkId::new("default/u32", n_cityobjects), |b| {
+        group.bench_function(BenchmarkId::new("build_model", n_cityobjects), |b| {
             b.iter(|| {
-                let model = build_model::<u32>(black_box(n_cityobjects));
+                let model = build_model::<u32>(black_box(n_cityobjects), params.seed);
                 black_box(model);
             });
         });
@@ -172,21 +159,21 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
-    use cityjson::backend::nested::metadata::{
-        CityModelIdentifier as NestedCityModelIdentifier, CRS as NestedCRS,
-    };
     use cityjson::prelude::*;
 
     /// Build a CityModel with the nested backend and the specified number of cityobjects.
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
-    fn build_model(n_cityobjects: usize) -> nested::OwnedCityModel {
-        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
-        let mut rng = rand::rng();
+    fn build_model(
+        n_cityobjects: usize,
+        seed: u64,
+    ) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+        let mut rng = rng_from_seed(seed);
 
         // Set basic metadata
         let metadata = model.metadata_mut();
-        metadata.set_identifier(NestedCityModelIdentifier::new("memory-benchmark".to_string()));
-        metadata.set_reference_system(NestedCRS::new(
+        metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
+        metadata.set_reference_system(CRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
         ));
 
@@ -283,12 +270,14 @@ mod nested_benches {
     }
 
     pub fn bench_memory_nested(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
+        let _profiler = dhat::Profiler::new_heap();
         let mut group = c.benchmark_group("memory");
-        let n_cityobjects = 7_000;
+        let n_cityobjects = params.size;
 
-        group.bench_function(BenchmarkId::new("nested", n_cityobjects), |b| {
+        group.bench_function(BenchmarkId::new("build_model", n_cityobjects), |b| {
             b.iter(|| {
-                let model = build_model(black_box(n_cityobjects));
+                let model = build_model(black_box(n_cityobjects), params.seed);
                 black_box(model);
             });
         });

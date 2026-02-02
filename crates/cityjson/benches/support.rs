@@ -1,0 +1,62 @@
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use std::env;
+
+pub const BENCH_VERSION: &str = "v1";
+
+pub const DEFAULT_SEED: u64 = 12345;
+
+pub const DEFAULT_SIZE_BUILDER: usize = 10_000;
+pub const FAST_SIZE_BUILDER: usize = 1_000;
+
+pub const DEFAULT_SIZE_MEMORY: usize = 7_000;
+pub const FAST_SIZE_MEMORY: usize = 1_000;
+
+pub const DEFAULT_SIZE_PROCESSOR: usize = 10_000;
+pub const FAST_SIZE_PROCESSOR: usize = 1_000;
+
+pub const DEFAULT_SIZE_BACKEND_COMPARE: usize = 5_000;
+pub const FAST_SIZE_BACKEND_COMPARE: usize = 1_000;
+
+pub const CUBE_VERTICES: [(i64, i64, i64); 8] = [
+    (0, 0, 0),
+    (1000, 0, 0),
+    (1000, 1000, 0),
+    (0, 1000, 0),
+    (0, 0, 500),
+    (1000, 0, 500),
+    (1000, 1000, 500),
+    (0, 1000, 500),
+];
+
+#[derive(Clone, Copy, Debug)]
+pub struct BenchParams {
+    pub size: usize,
+    pub seed: u64,
+}
+
+pub fn params_from_env(default_size: usize, fast_size: usize) -> BenchParams {
+    let mode = env::var("BENCH_MODE").unwrap_or_else(|_| "full".to_string());
+
+    let size = env::var("BENCH_SIZE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or_else(|| if mode == "fast" { fast_size } else { default_size });
+
+    let seed = env::var("BENCH_SEED")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(DEFAULT_SEED);
+
+    BenchParams { size, seed }
+}
+
+pub fn rng_from_seed(seed: u64) -> StdRng {
+    StdRng::seed_from_u64(seed)
+}
+
+pub fn comparison_sizes(max_size: usize) -> [usize; 3] {
+    let small = (max_size / 50).max(10);
+    let medium = (max_size / 5).max(100);
+    [small, medium, max_size]
+}

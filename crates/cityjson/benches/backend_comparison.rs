@@ -1,14 +1,13 @@
-//! Benchmark comparing default and nested backends.
-//!
-//! This benchmark provides head-to-head comparisons between the two backend implementations.
-//!
-//! Run with:
-//! - `cargo bench --bench backend_comparison --features backend-default`
-//! - `cargo bench --bench backend_comparison --features backend-nested`
-//! - `cargo bench --bench backend_comparison --features backend-both`
+//! Benchmark that builds solid geometries at multiple sizes.
+
+#[allow(dead_code)]
+mod support;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
+use support::{
+    DEFAULT_SIZE_BACKEND_COMPARE, FAST_SIZE_BACKEND_COMPARE, comparison_sizes, params_from_env,
+};
 
 // ==================== DEFAULT BACKEND BENCHMARKS ====================
 
@@ -117,11 +116,13 @@ mod default_benches {
     }
 
     pub fn bench_build_solids(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BACKEND_COMPARE, FAST_SIZE_BACKEND_COMPARE);
+        let sizes = comparison_sizes(params.size);
         let mut group = c.benchmark_group("backend_comparison");
 
-        for n in [100, 1000, 5000].iter() {
+        for n in sizes.iter() {
             group.throughput(Throughput::Elements(*n as u64));
-            group.bench_with_input(BenchmarkId::new("default/build_solids", n), n, |b, &n| {
+            group.bench_with_input(BenchmarkId::new("build_solids", n), n, |b, &n| {
                 b.iter(|| {
                     build_simple_solid(black_box(n));
                 });
@@ -246,11 +247,13 @@ mod nested_benches {
     }
 
     pub fn bench_build_solids(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BACKEND_COMPARE, FAST_SIZE_BACKEND_COMPARE);
+        let sizes = comparison_sizes(params.size);
         let mut group = c.benchmark_group("backend_comparison");
 
-        for n in [100, 1000, 5000].iter() {
+        for n in sizes.iter() {
             group.throughput(Throughput::Elements(*n as u64));
-            group.bench_with_input(BenchmarkId::new("nested/build_solids", n), n, |b, &n| {
+            group.bench_with_input(BenchmarkId::new("build_solids", n), n, |b, &n| {
                 b.iter(|| {
                     build_simple_solid(black_box(n));
                 });

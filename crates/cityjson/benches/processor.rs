@@ -1,26 +1,12 @@
-//! Benchmarks for processing and querying CityModels
-//!
-//! This benchmark tests the performance of iterating through CityModels and processing
-//! geometry data. It measures how efficiently each backend can traverse and compute
-//! properties from the model.
-//!
-//! ## Running Benchmarks
-//!
-//! Run with specific backend:
-//! ```bash
-//! # Default backend (flattened representation)
-//! cargo bench --bench processor --features backend-default
-//!
-//! # Nested backend (JSON-like representation)
-//! cargo bench --bench processor --features backend-nested
-//!
-//! # Both backends (for comparison)
-//! cargo bench --bench processor --features backend-both
-//! ```
+//! Benchmarks for processing and querying CityModels.
+
+#[allow(dead_code)]
+mod support;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::Rng;
 use std::hint::black_box;
+use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_from_seed};
 
 // ==================== DEFAULT BACKEND BENCHMARKS ====================
 
@@ -32,10 +18,10 @@ mod default_benches {
     use cityjson::v2_0::*;
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
-    fn generate_citymodel(n: usize) -> CityModel<u32, ResourceId32, OwnedStringStorage> {
+    fn generate_citymodel(n: usize, seed: u64) -> CityModel<u32, ResourceId32, OwnedStringStorage> {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-        let mut rng = rand::rng();
+        let mut rng = rng_from_seed(seed);
 
         let metadata = model.metadata_mut();
         metadata.set_identifier(CityModelIdentifier::new("benchmark-model".to_string()));
@@ -173,9 +159,10 @@ mod default_benches {
     }
 
     pub fn benchmark_mean_coordinates(c: &mut Criterion) {
-        let model = generate_citymodel(10_000);
+        let params = params_from_env(DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR);
+        let model = generate_citymodel(params.size, params.seed);
 
-        c.bench_function("default/compute_mean_coordinates_10k", |b| {
+        c.bench_function("compute_mean_coordinates", |b| {
             b.iter(|| {
                 let means = compute_mean_coordinates(black_box(&model));
                 black_box(means);
@@ -191,19 +178,19 @@ mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
     use cityjson::backend::nested::boundary::Boundary;
-    use cityjson::backend::nested::metadata::{
-        CityModelIdentifier as NestedCityModelIdentifier, CRS as NestedCRS,
-    };
     use cityjson::prelude::*;
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
-    fn generate_citymodel(n: usize) -> nested::OwnedCityModel {
-        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
-        let mut rng = rand::rng();
+    fn generate_citymodel(
+        n: usize,
+        seed: u64,
+    ) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+        let mut rng = rng_from_seed(seed);
 
         let metadata = model.metadata_mut();
-        metadata.set_identifier(NestedCityModelIdentifier::new("benchmark-model".to_string()));
-        metadata.set_reference_system(NestedCRS::new(
+        metadata.set_identifier(CityModelIdentifier::new("benchmark-model".to_string()));
+        metadata.set_reference_system(CRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
         ));
 
@@ -285,7 +272,7 @@ mod nested_benches {
 
     /// Compute the mean x,y,z coordinate for each geometry of each cityobject
     fn compute_mean_coordinates(
-        model: &nested::OwnedCityModel,
+        model: &nested::CityModel<OwnedStringStorage, ResourceId32>,
     ) -> Vec<(f64, f64, f64)> {
         let mut means = Vec::new();
 
@@ -331,9 +318,10 @@ mod nested_benches {
     }
 
     pub fn benchmark_mean_coordinates(c: &mut Criterion) {
-        let model = generate_citymodel(10_000);
+        let params = params_from_env(DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR);
+        let model = generate_citymodel(params.size, params.seed);
 
-        c.bench_function("nested/compute_mean_coordinates_10k", |b| {
+        c.bench_function("compute_mean_coordinates", |b| {
             b.iter(|| {
                 let means = compute_mean_coordinates(black_box(&model));
                 black_box(means);

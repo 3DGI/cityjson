@@ -1,24 +1,11 @@
-//! Benchmarks for building CityObjects with and without geometries
-//!
-//! This benchmark tests the performance of building CityModels with complex objects including
-//! attributes, geometries with semantics, materials, and textures.
-//!
-//! ## Running Benchmarks
-//!
-//! Run with specific backend:
-//! ```bash
-//! # Default backend (flattened representation)
-//! cargo bench --bench builder --features backend-default
-//!
-//! # Nested backend (JSON-like representation)
-//! cargo bench --bench builder --features backend-nested
-//!
-//! # Both backends (for comparison)
-//! cargo bench --bench builder --features backend-both
-//! ```
+//! Benchmarks for building CityObjects with and without geometries.
+
+#[allow(dead_code)]
+mod support;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
+use support::{CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, params_from_env};
 
 // ==================== DEFAULT BACKEND BENCHMARKS ====================
 
@@ -129,9 +116,11 @@ mod default_benches {
         Ok(geometry_ref)
     }
 
-    pub fn build_cityobjects(config: (usize, bool)) -> Result<Vec<ResourceId32>> {
-        let num_cityobjects = config.0;
-        let with_geometries = config.1;
+    pub fn build_cityobjects(
+        num_cityobjects: usize,
+        with_geometries: bool,
+        seed: u64,
+    ) -> Result<Vec<ResourceId32>> {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
@@ -149,16 +138,10 @@ mod default_benches {
         };
 
         let vertices = if with_geometries {
-            vec![
-                model.add_vertex(QuantizedCoordinate::new(0, 0, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 0, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 1000, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 1000, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 0, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 0, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 1000, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 1000, 500))?,
-            ]
+            CUBE_VERTICES
+                .iter()
+                .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+                .collect::<Result<Vec<_>>>()?
         } else {
             Vec::new()
         };
@@ -175,15 +158,15 @@ mod default_benches {
 
             let mut cityobject = CityObject::new(co_id.clone(), co_type);
 
-            // Note: CityObject attributes are handled separately in the new inline API
+            let seed_offset = (seed as f64) * 0.001;
 
             let offset = (i as f64) * 100.0;
             cityobject.set_geographical_extent(Some(BBox::new(
-                offset,
-                offset,
+                offset + seed_offset,
+                offset + seed_offset,
                 0.0,
-                offset + 50.0,
-                offset + 50.0,
+                offset + 50.0 + seed_offset,
+                offset + 50.0 + seed_offset,
                 20.0,
             )));
 
@@ -206,13 +189,14 @@ mod default_benches {
     }
 
     pub fn bench_build_without_geometry(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
-        let nr_cityobjects = 10_000_usize;
+        let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("default/build_without_geometry", |b| {
+        group.bench_function("build_without_geometry", |b| {
             b.iter(|| {
-                let refs = build_cityobjects(black_box((nr_cityobjects, false)))
+                let refs = build_cityobjects(black_box(nr_cityobjects), false, params.seed)
                     .expect("cityobjects builder failed");
                 black_box(refs);
             });
@@ -222,13 +206,14 @@ mod default_benches {
     }
 
     pub fn bench_build_with_geometry(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
-        let nr_cityobjects = 10_000_usize;
+        let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("default/build_with_geometry", |b| {
+        group.bench_function("build_with_geometry", |b| {
             b.iter(|| {
-                let refs = build_cityobjects(black_box((nr_cityobjects, true)))
+                let refs = build_cityobjects(black_box(nr_cityobjects), true, params.seed)
                     .expect("cityobjects builder failed");
                 black_box(refs);
             });
@@ -245,16 +230,15 @@ mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
     use cityjson::backend::nested::attributes::AttributeValue;
-    use cityjson::backend::nested::metadata::BBox as NestedBBox;
     use cityjson::backend::nested::semantics::Semantic;
     use cityjson::prelude::*;
 
     /// Helper function to build a geometry with semantics (simplified for nested backend).
     fn build_geometry_with_semantics(
-        model: &mut nested::OwnedCityModel,
+        model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
         vertices: &[VertexIndex32],
         index: usize,
-    ) -> Result<nested::OwnedGeometry> {
+    ) -> Result<nested::Geometry<OwnedStringStorage, ResourceId32>> {
         let mut geometry_builder =
             nested::GeometryBuilder::new(model, GeometryType::Solid, nested::BuilderMode::Regular)
                 .with_lod(LoD::LoD2_2);
@@ -337,22 +321,14 @@ mod nested_benches {
         Ok(geometry)
     }
 
-    pub fn build_cityobjects(config: (usize, bool)) -> Result<()> {
-        let num_cityobjects = config.0;
-        let with_geometries = config.1;
-        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
+    pub fn build_cityobjects(num_cityobjects: usize, with_geometries: bool, seed: u64) -> Result<()> {
+        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
 
         let vertices = if with_geometries {
-            vec![
-                model.add_vertex(QuantizedCoordinate::new(0, 0, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 0, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 1000, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 1000, 0))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 0, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 0, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(1000, 1000, 500))?,
-                model.add_vertex(QuantizedCoordinate::new(0, 1000, 500))?,
-            ]
+            CUBE_VERTICES
+                .iter()
+                .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+                .collect::<Result<Vec<_>>>()?
         } else {
             Vec::new()
         };
@@ -371,18 +347,17 @@ mod nested_benches {
 
             // Add attributes using nested backend's inline AttributeValue
             let attrs = cityobject.attributes_mut();
-            attrs.insert(
-                "measuredHeight".to_string(),
-                AttributeValue::Float(10.0 + (i as f64) * 0.5),
-            );
+            let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
+            attrs.insert("measuredHeight".to_string(), AttributeValue::Float(height));
 
+            let seed_offset = (seed as f64) * 0.001;
             let offset = (i as f64) * 100.0;
-            cityobject.set_geographical_extent(Some(NestedBBox::new(
-                offset,
-                offset,
+            cityobject.set_geographical_extent(Some(BBox::new(
+                offset + seed_offset,
+                offset + seed_offset,
                 0.0,
-                offset + 50.0,
-                offset + 50.0,
+                offset + 50.0 + seed_offset,
+                offset + 50.0 + seed_offset,
                 20.0,
             )));
 
@@ -398,13 +373,14 @@ mod nested_benches {
     }
 
     pub fn bench_build_without_geometry(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
-        let nr_cityobjects = 10_000_usize;
+        let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("nested/build_without_geometry", |b| {
+        group.bench_function("build_without_geometry", |b| {
             b.iter(|| {
-                build_cityobjects(black_box((nr_cityobjects, false)))
+                build_cityobjects(black_box(nr_cityobjects), false, params.seed)
                     .expect("cityobjects builder failed");
             });
         });
@@ -413,13 +389,14 @@ mod nested_benches {
     }
 
     pub fn bench_build_with_geometry(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
-        let nr_cityobjects = 10_000_usize;
+        let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("nested/build_with_geometry", |b| {
+        group.bench_function("build_with_geometry", |b| {
             b.iter(|| {
-                build_cityobjects(black_box((nr_cityobjects, true)))
+                build_cityobjects(black_box(nr_cityobjects), true, params.seed)
                     .expect("cityobjects builder failed");
             });
         });

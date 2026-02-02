@@ -29,7 +29,14 @@ doc-signatures:
     RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps
 
 # ============================================================================
-# Memory profiling
+# Benchmark & Profiling
+# ============================================================================
+
+perf description backend="both" mode="full" seed="" size="":
+    ./tools/perf.sh "{{description}}" "{{backend}}" "{{mode}}" "{{seed}}" "{{size}}"
+
+# ============================================================================
+# Memory profiling (internal helpers used by perf)
 # ============================================================================
 
 _create_profile_dir:
@@ -37,26 +44,35 @@ _create_profile_dir:
 
 profile-memory-time: _create_profile_dir
     #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_PKG="${PROFILE_PKG:-cityjson}"
+    PROFILE_TEST="${PROFILE_TEST:-v2_0}"
+    PROFILE_TEST_FILTER="${PROFILE_TEST_FILTER:-test_producer_consumer_stream}"
+    PROFILE_TEST_ARGS="${PROFILE_TEST_ARGS:---test-threads=1 --nocapture}"
+
     OUTFILE="{{ _profile_dir }}/time.out"
-    /usr/bin/time -v cargo test --package cityjson --test v2_0 test_producer_consumer_stream --release > $OUTFILE 2>&1
-    cat $OUTFILE
+    /usr/bin/time -v cargo test --package "$PROFILE_PKG" --test "$PROFILE_TEST" "$PROFILE_TEST_FILTER" --release -- $PROFILE_TEST_ARGS > "$OUTFILE" 2>&1
+    cat "$OUTFILE"
 
 profile-massif: _create_profile_dir
     #!/usr/bin/env bash
-    # Run with massif
-    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file={{ _profile_dir }}/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
-        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
+    set -euo pipefail
+    PROFILE_PKG="${PROFILE_PKG:-cityjson}"
+    PROFILE_TEST="${PROFILE_TEST:-v2_0}"
+    PROFILE_TEST_FILTER="${PROFILE_TEST_FILTER:-test_producer_consumer_stream}"
+    PROFILE_TEST_ARGS="${PROFILE_TEST_ARGS:---test-threads=1 --nocapture}"
 
-    # Generate readable report
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file={{ _profile_dir }}/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
+        cargo test --package "$PROFILE_PKG" --test "$PROFILE_TEST" "$PROFILE_TEST_FILTER" -- $PROFILE_TEST_ARGS
+
     ms_print {{ _profile_dir }}/massif.out | cat > {{ _profile_dir }}/massif-report.txt
 
-    # Extract key metrics
     echo "=== HEAP USAGE SUMMARY ==="
-    grep -E "peak|MB|KB|snapshot" {{ _profile_dir }}/massif-report.txt | head -n 30
+    grep -E "peak|MB|KB|snapshot" {{ _profile_dir }}/massif-report.txt | head -n 30 || true
     echo ""
 
     echo "=== TOP ALLOCATION SITES ==="
-    grep -A 5 "% (" {{ _profile_dir }}/massif-report.txt | head -n 50
+    grep -A 5 "% (" {{ _profile_dir }}/massif-report.txt | head -n 50 || true
     echo ""
 
     echo "Full report saved to {{ _profile_dir }}/massif-report.txt"
@@ -64,8 +80,14 @@ profile-massif: _create_profile_dir
 
 profile-memcheck: _create_profile_dir
     #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_PKG="${PROFILE_PKG:-cityjson}"
+    PROFILE_TEST="${PROFILE_TEST:-v2_0}"
+    PROFILE_TEST_FILTER="${PROFILE_TEST_FILTER:-test_producer_consumer_stream}"
+    PROFILE_TEST_ARGS="${PROFILE_TEST_ARGS:---test-threads=1 --nocapture}"
+
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file={{ _profile_dir }}/memcheck.log" \
-        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
+        cargo test --package "$PROFILE_PKG" --test "$PROFILE_TEST" "$PROFILE_TEST_FILTER" -- $PROFILE_TEST_ARGS
 
     echo "================================"
     echo "LEAK SUMMARY:"
@@ -78,8 +100,7 @@ profile-memcheck: _create_profile_dir
     grep -A 10 "HEAP SUMMARY" {{ _profile_dir }}/memcheck.log
     echo "Full report saved to {{ _profile_dir }}/memcheck.log"
 
-    # Check for leaks
-    LEAKED=$(grep "definitely lost" {{ _profile_dir }}/memcheck.log | grep -oP '\d+(?= bytes)' | head -1)
+    LEAKED=$(grep "definitely lost" {{ _profile_dir }}/memcheck.log | grep -oP '\\d+(?= bytes)' | head -1 || true)
     if [ "$LEAKED" != "0" ] && [ -n "$LEAKED" ]; then
         echo "Found $LEAKED bytes definitely lost!"
         exit 1
@@ -89,186 +110,26 @@ profile-memcheck: _create_profile_dir
 
 profile-cachegrind: _create_profile_dir
     #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_PKG="${PROFILE_PKG:-cityjson}"
+    PROFILE_TEST="${PROFILE_TEST:-v2_0}"
+    PROFILE_TEST_FILTER="${PROFILE_TEST_FILTER:-test_producer_consumer_stream}"
+    PROFILE_TEST_ARGS="${PROFILE_TEST_ARGS:---test-threads=1 --nocapture}"
+
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file={{ _profile_dir }}/cachegrind.out" \
-        cargo test --package cityjson --test v2_0 test_producer_consumer_stream -- --test-threads=1 --nocapture
+        cargo test --package "$PROFILE_PKG" --test "$PROFILE_TEST" "$PROFILE_TEST_FILTER" -- $PROFILE_TEST_ARGS
 
     echo "================================"
     echo "CACHE STATISTICS:"
     echo "================================"
     cg_annotate {{ _profile_dir }}/cachegrind.out | cat > {{ _profile_dir }}/cachegrind-report.txt
 
-    # Show summary
     head -n 50 {{ _profile_dir }}/cachegrind-report.txt
 
     echo "=== KEY METRICS ==="
-    grep -E "I refs|D refs|LL misses|branches" {{ _profile_dir }}/cachegrind-report.txt | head -n 20
+    grep -E "I refs|D refs|LL misses|branches" {{ _profile_dir }}/cachegrind-report.txt | head -n 20 || true
 
     echo "Full report saved to {{ _profile_dir }}/cachegrind-report.txt"
     echo "Analyze with: kcachegrind {{ _profile_dir }}/cachegrind.out"
 
 profile-all: profile-massif profile-cachegrind profile-memcheck
-
-
-# Run all benchmarks
-bench:
-    cargo bench --benches
-
-# Run specific benchmark suite
-bench-suite suite:
-    cargo bench --bench {{suite}}
-
-# Benchmark with baseline for future comparison
-bench-baseline name:
-    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --save-baseline {{name}}
-
-# Compare current performance against a baseline
-bench-compare baseline:
-    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --baseline {{baseline}}
-
-
-# ============================================================================
-# Results Tracking and Documentation
-# ============================================================================
-
-# Run benchmarks and track results to CSV (both backends)
-bench-track description backend="both":
-    #!/usr/bin/env bash
-    set -e
-    echo "Running benchmarks with backend: {{backend}}"
-
-    if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "nested" ]; then
-        echo "=== Running nested backend (baseline) ==="
-        cargo bench --bench backend_comparison --bench memory --bench builder --bench processor --features backend-nested -- --save-baseline nested
-    fi
-
-    if [ "{{backend}}" == "both" ] || [ "{{backend}}" == "default" ]; then
-        echo ""
-        echo "=== Running default backend ==="
-        cargo bench --bench backend_comparison --bench memory --bench builder --bench processor --features backend-default -- --baseline nested
-    fi
-
-    echo ""
-    echo "=== Tracking results ==="
-    ./tools/track_bench.sh "{{description}}"
-
-# View recent benchmark history from CSV
-bench-history lines="20":
-    #!/usr/bin/env bash
-    if [ -f "bench_results/history.csv" ]; then
-        echo "=== Recent Benchmark Results ==="
-        echo ""
-        # Use column if available, otherwise just cat
-        if command -v column &> /dev/null; then
-            head -1 bench_results/history.csv | column -t -s,
-            echo "----------------------------------------"
-            tail -n {{lines}} bench_results/history.csv | column -t -s,
-        else
-            cat bench_results/history.csv | head -n $(({{lines}} + 1))
-        fi
-    else
-        echo "No benchmark history found. Run 'just bench-track <description>' first."
-    fi
-
-# Capture benchmark results with timestamp and description
-bench-record description:
-    #!/usr/bin/env bash
-    DATE=$(date +%Y-%m-%d)
-    TIME=$(date +%H-%M-%S)
-    COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-    RUST_VERSION=$(rustc --version | cut -d' ' -f2)
-    DIR="bench_results/history"
-    FILE="${DIR}/${DATE}_{{description}}.md"
-
-    mkdir -p "$DIR"
-
-    echo "# Benchmark Results: ${DATE} - {{description}}" > "$FILE"
-    echo "" >> "$FILE"
-    echo "- **Date**: ${DATE} ${TIME}" >> "$FILE"
-    echo "- **Commit**: $COMMIT" >> "$FILE"
-    echo "- **Rust Version**: $RUST_VERSION" >> "$FILE"
-    echo "- **System**: $(uname -srm)" >> "$FILE"
-    echo "" >> "$FILE"
-    echo "## Criterion Benchmarks" >> "$FILE"
-    echo "" >> "$FILE"
-
-    cargo bench --workspace 2>&1 | tee -a "$FILE"
-
-    echo "" >> "$FILE"
-    echo "## Memory Profiling" >> "$FILE"
-    echo "" >> "$FILE"
-    just profile-all 2>&1 | tee -a "$FILE"
-
-    echo ""
-    echo "Results saved to $FILE"
-
-# Export all benchmark results for archival
-bench-export:
-    #!/usr/bin/env bash
-    DATE=$(date +%Y-%m-%d_%H-%M-%S)
-    EXPORT_DIR="bench_results/exports/${DATE}"
-
-    mkdir -p "$EXPORT_DIR"
-
-    # Copy Criterion HTML reports
-    if [ -d "target/criterion" ]; then
-        cp -r target/criterion "$EXPORT_DIR/"
-    fi
-
-    # Copy profiling results
-    if [ -d "profiling" ]; then
-        cp profiling/*.txt "$EXPORT_DIR/" 2>/dev/null || true
-        cp profiling/*.log "$EXPORT_DIR/" 2>/dev/null || true
-    fi
-
-    # Create metadata file
-    echo "Export Date: ${DATE}" > "$EXPORT_DIR/metadata.txt"
-    echo "Commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" >> "$EXPORT_DIR/metadata.txt"
-    echo "Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')" >> "$EXPORT_DIR/metadata.txt"
-
-    echo "✅ Results exported to $EXPORT_DIR"
-
-# Compare two git commits
-bench-compare-commits commit1 commit2:
-    #!/usr/bin/env bash
-    echo "⚠️  This will checkout different commits. Ensure working tree is clean."
-    read -p "Continue? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-
-    CURRENT=$(git branch --show-current)
-
-    echo "=== Benchmarking {{commit1}} ==="
-    git checkout {{commit1}}
-    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --save-baseline {{commit1}}
-
-    echo ""
-    echo "=== Benchmarking {{commit2}} ==="
-    git checkout {{commit2}}
-    cargo bench --bench backend_comparison --bench memory --bench builder --bench processor -- --baseline {{commit1}}
-
-    git checkout "$CURRENT"
-    echo ""
-    echo "Comparison complete. Check target/criterion/ for detailed results."
-
-
-# ============================================================================
-# Viewing Results
-# ============================================================================
-
-# Open Criterion HTML report in browser
-bench-view:
-    @echo "Opening Criterion report..."
-    @command -v xdg-open >/dev/null && xdg-open target/criterion/index.html || \
-     command -v open >/dev/null && open target/criterion/index.html || \
-     echo "Please open target/criterion/index.html manually"
-
-# Show latest benchmark results summary
-bench-summary:
-    @echo "=== Latest Benchmark Results ==="
-    @if [ -d "bench_results/history" ]; then \
-        ls -t bench_results/history/*.md | head -1 | xargs tail -n 50; \
-    else \
-        echo "No benchmark history found. Run 'just bench-record <description>' first."; \
-    fi
