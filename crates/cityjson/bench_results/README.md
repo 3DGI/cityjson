@@ -7,12 +7,13 @@ This directory stores the single source of truth for performance history.
 `bench_results/history.csv` contains one metric per row with the schema:
 
 ```
-timestamp,commit,description,backend,bench,metric,value,unit,seed,bench_version,rustc
+timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc
 ```
 
 - `timestamp`: ISO 8601 UTC timestamp of the run.
 - `commit`: short git hash of the code under test.
 - `description`: user-provided description.
+- `mode`: `fast` or `full` input sizing.
 - `backend`: `default` or `nested`.
 - `bench`: stable benchmark ID (e.g. `builder/build_with_geometry`).
 - `metric`: `time_ms`, `throughput_elem_s`, `heap_max_bytes`, `heap_total_bytes`.

@@ -55,6 +55,7 @@ def main():
     parser.add_argument("--timestamp", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--description", required=True)
+    parser.add_argument("--mode", required=True)
     parser.add_argument("--backend", required=True)
     parser.add_argument("--bench", required=True)
     parser.add_argument("--seed", required=True)
@@ -92,6 +93,7 @@ def main():
             args.timestamp,
             args.commit,
             args.description,
+            args.mode,
             args.backend,
             args.bench,
             "heap_max_bytes",
@@ -105,6 +107,7 @@ def main():
             args.timestamp,
             args.commit,
             args.description,
+            args.mode,
             args.backend,
             args.bench,
             "heap_total_bytes",

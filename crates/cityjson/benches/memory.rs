@@ -3,10 +3,10 @@
 #[allow(dead_code)]
 mod support;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::Rng;
+use std::env;
 use std::hint::black_box;
-use support::{DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
+use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
 
 // Enable dhat heap profiling for the entire benchmark
 #[global_allocator]
@@ -136,20 +136,11 @@ mod default_benches {
         model
     }
 
-    pub fn bench_memory_u32(c: &mut Criterion) {
-        let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
+    pub fn run(params: BenchParams) {
         let _profiler = dhat::Profiler::new_heap();
-        let mut group = c.benchmark_group("memory");
-        let n_cityobjects = params.size;
-
-        group.bench_function(BenchmarkId::new("build_model", n_cityobjects), |b| {
-            b.iter(|| {
-                let model = build_model::<u32>(black_box(n_cityobjects), params.seed);
-                black_box(model);
-            });
-        });
-
-        group.finish();
+        let model = build_model::<u32>(black_box(params.size), params.seed);
+        black_box(&model);
+        drop(model);
     }
 }
 
@@ -172,8 +163,10 @@ mod nested_benches {
 
         // Set basic metadata
         let metadata = model.metadata_mut();
-        metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
-        metadata.set_reference_system(CRS::new(
+        metadata.set_identifier(nested::metadata::CityModelIdentifier::new(
+            "memory-benchmark".to_string(),
+        ));
+        metadata.set_reference_system(nested::metadata::CRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
         ));
 
@@ -269,36 +262,37 @@ mod nested_benches {
         model
     }
 
-    pub fn bench_memory_nested(c: &mut Criterion) {
-        let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
+    pub fn run(params: BenchParams) {
         let _profiler = dhat::Profiler::new_heap();
-        let mut group = c.benchmark_group("memory");
-        let n_cityobjects = params.size;
-
-        group.bench_function(BenchmarkId::new("build_model", n_cityobjects), |b| {
-            b.iter(|| {
-                let model = build_model(black_box(n_cityobjects), params.seed);
-                black_box(model);
-            });
-        });
-
-        group.finish();
+        let model = build_model(black_box(params.size), params.seed);
+        black_box(&model);
+        drop(model);
     }
 }
 
-// ==================== CRITERION GROUPS ====================
+fn main() {
+    let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
+    #[allow(unused_variables)]
+    let backend = env::var("BENCH_BACKEND").unwrap_or_default();
 
-#[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
-criterion_group!(benches, default_benches::bench_memory_u32);
+    #[cfg(all(feature = "backend-default", feature = "backend-nested"))]
+    {
+        if backend == "nested" {
+            nested_benches::run(params);
+        } else {
+            default_benches::run(params);
+        }
+        return;
+    }
 
-#[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]
-criterion_group!(benches, nested_benches::bench_memory_nested);
+    #[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
+    {
+        default_benches::run(params);
+        return;
+    }
 
-#[cfg(all(feature = "backend-default", feature = "backend-nested"))]
-criterion_group!(
-    benches,
-    default_benches::bench_memory_u32,
-    nested_benches::bench_memory_nested
-);
-
-criterion_main!(benches);
+    #[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]
+    {
+        nested_benches::run(params);
+    }
+}

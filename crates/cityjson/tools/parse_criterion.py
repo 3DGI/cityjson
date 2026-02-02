@@ -26,12 +26,6 @@ def bench_id_from(benchmark_json: dict) -> str:
     raise ValueError("benchmark.json missing full_id/id/title")
 
 
-def normalize_bench_id(bench_id: str) -> str:
-    if bench_id.endswith(" #2"):
-        return bench_id[:-3]
-    return bench_id
-
-
 def throughput_from(benchmark_json: dict, mean_ns: float):
     throughput = benchmark_json.get("throughput")
     if not isinstance(throughput, dict) or not throughput:
@@ -61,6 +55,7 @@ def main():
     parser.add_argument("--timestamp", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--description", required=True)
+    parser.add_argument("--mode", required=True)
     parser.add_argument("--backend", required=True)
     parser.add_argument("--seed", required=True)
     parser.add_argument("--bench-version", required=True)
@@ -78,15 +73,35 @@ def main():
         print(f"No benchmark.json files found in {criterion_dir}", file=sys.stderr)
         sys.exit(1)
 
-    rows = []
+    bench_entries = []
     for bench_file in benchmark_files:
+        bench_json = load_json(bench_file)
+        bench_id_raw = bench_id_from(bench_json)
+        bench_entries.append((bench_file, bench_json, bench_id_raw))
+
+    has_duplicates = any(bench_id.endswith(" #2") for _, _, bench_id in bench_entries)
+
+    rows = []
+    for bench_file, bench_json, bench_id_raw in bench_entries:
+        is_duplicate = bench_id_raw.endswith(" #2")
+        if has_duplicates:
+            if args.backend == "nested":
+                if not is_duplicate:
+                    continue
+            else:
+                if is_duplicate:
+                    continue
+
+        bench_id = bench_id_raw[:-3] if is_duplicate else bench_id_raw
+        if bench_id.startswith("memory/"):
+            continue
+
         base_dir = bench_file.parent
         estimates_file = base_dir / "estimates.json"
         if not estimates_file.exists():
             print(f"Missing estimates.json for {bench_file}", file=sys.stderr)
             sys.exit(1)
 
-        bench_json = load_json(bench_file)
         estimates_json = load_json(estimates_file)
         mean = estimates_json.get("mean", {})
         point_estimate = mean.get("point_estimate")
@@ -100,15 +115,13 @@ def main():
             print(f"Invalid mean.point_estimate in {estimates_file}", file=sys.stderr)
             sys.exit(1)
 
-        bench_id = normalize_bench_id(bench_id_from(bench_json))
-        if bench_id != bench_id_from(bench_json):
-            continue
         time_ms = mean_ns / 1_000_000.0
         rows.append(
             [
                 args.timestamp,
                 args.commit,
                 args.description,
+                args.mode,
                 args.backend,
                 bench_id,
                 "time_ms",
@@ -123,12 +136,13 @@ def main():
         for metric, value, unit in throughput_from(bench_json, mean_ns):
             rows.append(
                 [
-                    args.timestamp,
-                    args.commit,
-                    args.description,
-                    args.backend,
-                    bench_id,
-                    metric,
+                args.timestamp,
+                args.commit,
+                args.description,
+                args.mode,
+                args.backend,
+                bench_id,
+                metric,
                     f"{value:.6f}",
                     unit,
                     args.seed,

@@ -21,11 +21,13 @@ just perf "desc" backend=default   # default|nested|both
 just perf "desc" mode=fast         # fast|full
 just perf "desc" seed=12345         # deterministic RNG seed
 just perf "desc" size=2000          # override workload size
+BACKEND_SPLIT=1 just perf "desc" backend=nested  # split-backend branch only
 ```
 
 Notes:
 - `mode=fast` uses smaller inputs and Criterion `--quick`.
 - `size` overrides the default workload sizes across suites.
+- `mode` is recorded in the CSV so fast/full runs can be mixed safely.
 
 ## Results
 

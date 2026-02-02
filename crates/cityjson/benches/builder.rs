@@ -15,21 +15,41 @@ mod default_benches {
 
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
+    use std::collections::HashMap;
 
     /// Helper function to build a geometry with semantics, materials, and textures.
     fn build_geometry_with_semantics_materials_textures(
         model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
-        _index: usize,
+        index: usize,
         material_data: Option<&(Material<OwnedStringStorage>, ResourceId32)>,
         texture_data: Option<&(Texture<OwnedStringStorage>, ResourceId32)>,
     ) -> Result<ResourceId32> {
         // Create semantic attributes using inline API
-        // Note: These semantics don't use attributes in the current benchmark,
-        // they're created with basic types only
-        let ground_semantic = Semantic::new(SemanticType::GroundSurface);
-        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        let wall_north = Semantic::new(SemanticType::WallSurface);
+        let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
+        let ground_attrs = ground_semantic.attributes_mut();
+        ground_attrs.insert(
+            "area".to_string(),
+            AttributeValue::Float(100.0 + (index as f64) * 0.5),
+        );
+
+        let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let roof_attrs = roof_semantic.attributes_mut();
+        roof_attrs.insert(
+            "azimuth".to_string(),
+            AttributeValue::Float((index % 360) as f64),
+        );
+        roof_attrs.insert(
+            "slope".to_string(),
+            AttributeValue::Float(15.0 + ((index % 30) as f64)),
+        );
+
+        let mut wall_north = Semantic::new(SemanticType::WallSurface);
+        let wall_attrs = wall_north.attributes_mut();
+        wall_attrs.insert(
+            "orientation".to_string(),
+            AttributeValue::String("north".to_string()),
+        );
 
         // Now create the GeometryBuilder
         let mut geometry_builder =
@@ -156,9 +176,38 @@ mod default_benches {
                 _ => CityObjectType::GenericCityObject,
             };
 
-            let mut cityobject = CityObject::new(co_id.clone(), co_type);
+        let mut cityobject = CityObject::new(co_id.clone(), co_type);
 
-            let seed_offset = (seed as f64) * 0.001;
+        let attrs = cityobject.attributes_mut();
+        let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
+        attrs.insert("attr_null".to_string(), AttributeValue::Null);
+        attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
+        attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
+        attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
+        attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
+        attrs.insert(
+            "attr_string".to_string(),
+            AttributeValue::String(format!("name-{}", i)),
+        );
+        attrs.insert(
+            "attr_vec".to_string(),
+            AttributeValue::Vec(vec![
+                Box::new(AttributeValue::Integer(i as i64)),
+                Box::new(AttributeValue::Float(height)),
+            ]),
+        );
+        let mut attr_map = HashMap::new();
+        attr_map.insert(
+            "key".to_string(),
+            Box::new(AttributeValue::String("value".to_string())),
+        );
+        attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
+        attrs.insert(
+            "attr_geometry".to_string(),
+            AttributeValue::Geometry(ResourceId32::new(0, 0)),
+        );
+
+        let seed_offset = (seed as f64) * 0.001;
 
             let offset = (i as f64) * 100.0;
             cityobject.set_geographical_extent(Some(BBox::new(
@@ -229,15 +278,19 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
+    use cityjson::backend::nested::appearance::{ImageType, Material, Texture};
     use cityjson::backend::nested::attributes::AttributeValue;
     use cityjson::backend::nested::semantics::Semantic;
     use cityjson::prelude::*;
+    use std::collections::HashMap;
 
     /// Helper function to build a geometry with semantics (simplified for nested backend).
-    fn build_geometry_with_semantics(
+    fn build_geometry_with_semantics_materials_textures(
         model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
         vertices: &[VertexIndex32],
         index: usize,
+        material_idx: Option<usize>,
+        texture_idx: Option<usize>,
     ) -> Result<nested::Geometry<OwnedStringStorage, ResourceId32>> {
         let mut geometry_builder =
             nested::GeometryBuilder::new(model, GeometryType::Solid, nested::BuilderMode::Regular)
@@ -278,6 +331,14 @@ mod nested_benches {
         geometry_builder.set_semantic_surface(1, roof_semantic, true)?;
         let surface_top = geometry_builder.end_surface()?;
 
+        if let Some(material_idx) = material_idx {
+            geometry_builder.set_material_surface(
+                "default".to_string(),
+                surface_top,
+                material_idx,
+            )?;
+        }
+
         // Front wall
         let ring_front = geometry_builder.add_ring(&[0, 1, 5, 4])?;
         geometry_builder.start_surface()?;
@@ -290,6 +351,18 @@ mod nested_benches {
         );
         geometry_builder.set_semantic_surface(2, wall_semantic, false)?;
         let surface_front = geometry_builder.end_surface()?;
+
+        if let Some(texture_idx) = texture_idx {
+            geometry_builder.add_uv_to_vertex(0, UVCoordinate::new(0.0, 0.0))?;
+            geometry_builder.add_uv_to_vertex(1, UVCoordinate::new(1.0, 0.0))?;
+            geometry_builder.add_uv_to_vertex(5, UVCoordinate::new(1.0, 1.0))?;
+            geometry_builder.add_uv_to_vertex(4, UVCoordinate::new(0.0, 1.0))?;
+            geometry_builder.set_texture_ring(
+                "default".to_string(),
+                ring_front,
+                texture_idx,
+            )?;
+        }
 
         // Back, left, right walls (simplified, no semantics)
         let ring_back = geometry_builder.add_ring(&[2, 3, 7, 6])?;
@@ -324,6 +397,20 @@ mod nested_benches {
     pub fn build_cityobjects(num_cityobjects: usize, with_geometries: bool, seed: u64) -> Result<()> {
         let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
 
+        let (material_idx, texture_idx) = if with_geometries {
+            let mut material = Material::new("benchmark_material".to_string());
+            material.set_ambient_intensity(Some(0.5));
+            material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+            let mat_idx = model.add_material(material);
+            let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
+            let tex_idx = model.add_texture(texture);
+            model.set_default_theme_material(Some("default".to_string()));
+            model.set_default_theme_texture(Some("default".to_string()));
+            (Some(mat_idx), Some(tex_idx))
+        } else {
+            (None, None)
+        };
+
         let vertices = if with_geometries {
             CUBE_VERTICES
                 .iter()
@@ -348,11 +435,46 @@ mod nested_benches {
             // Add attributes using nested backend's inline AttributeValue
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
-            attrs.insert("measuredHeight".to_string(), AttributeValue::Float(height));
+            attrs.insert("attr_null".to_string(), AttributeValue::Null);
+            attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
+            attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
+            attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
+            attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
+            attrs.insert(
+                "attr_string".to_string(),
+                AttributeValue::String(format!("name-{}", i)),
+            );
+            attrs.insert(
+                "attr_vec".to_string(),
+                AttributeValue::Vec(vec![
+                    Box::new(AttributeValue::Integer(i as i64)),
+                    Box::new(AttributeValue::Float(height)),
+                ]),
+            );
+            let mut attr_map = HashMap::new();
+            attr_map.insert(
+                "key".to_string(),
+                Box::new(AttributeValue::String("value".to_string())),
+            );
+            attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
+            attrs.insert(
+                "attr_geometry".to_string(),
+                AttributeValue::Geometry(Box::new(nested::Geometry::new(
+                    GeometryType::Solid,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ))),
+            );
 
             let seed_offset = (seed as f64) * 0.001;
             let offset = (i as f64) * 100.0;
-            cityobject.set_geographical_extent(Some(BBox::new(
+            cityobject.set_geographical_extent(Some(nested::metadata::BBox::new(
                 offset + seed_offset,
                 offset + seed_offset,
                 0.0,
@@ -364,7 +486,13 @@ mod nested_benches {
             model.add_cityobject(co_id.clone(), cityobject);
 
             if with_geometries {
-                let geometry = build_geometry_with_semantics(&mut model, &vertices, i)?;
+                let geometry = build_geometry_with_semantics_materials_textures(
+                    &mut model,
+                    &vertices,
+                    i,
+                    material_idx,
+                    texture_idx,
+                )?;
                 model.add_geometry_to_cityobject(&co_id, geometry)?;
             }
         }

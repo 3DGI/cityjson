@@ -11,6 +11,7 @@ BACKEND="$BACKEND_DEFAULT"
 MODE="$MODE_DEFAULT"
 SEED_ARG="$SEED_DEFAULT"
 SIZE_ARG="$SIZE_DEFAULT"
+BACKEND_SPLIT="${BACKEND_SPLIT:-0}"
 
 shift || true
 
@@ -53,7 +54,7 @@ COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 RUSTC_VERSION="$(rustc --version)"
 CSV_OUT="bench_results/history.csv"
 
-HEADER="timestamp,commit,description,backend,bench,metric,value,unit,seed,bench_version,rustc"
+HEADER="timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc"
 if [ ! -f "$CSV_OUT" ]; then
     mkdir -p "$(dirname "$CSV_OUT")"
     echo "$HEADER" > "$CSV_OUT"
@@ -76,6 +77,7 @@ run_backend() {
     export CARGO_TARGET_DIR="$target_dir"
     export BENCH_MODE="$MODE"
     export BENCH_SEED="$SEED"
+    export BENCH_BACKEND="$backend"
     if [ -n "$SIZE_ARG" ]; then
         export BENCH_SIZE="$SIZE_ARG"
     else
@@ -84,7 +86,10 @@ run_backend() {
 
     export DHAT_OUTPUT="$(pwd)/$dhat_file"
 
-    bench_cmd=(cargo bench --bench backend_comparison --bench memory --bench builder --bench processor --features "backend-$backend")
+    bench_cmd=(cargo bench --bench backend_comparison --bench builder --bench processor --features "backend-$backend")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
+        bench_cmd=(cargo bench --no-default-features --bench backend_comparison --bench builder --bench processor --features "backend-$backend")
+    fi
     if [ "$MODE" = "fast" ]; then
         bench_cmd+=(-- --quick)
     fi
@@ -97,6 +102,7 @@ run_backend() {
         --timestamp "$TIMESTAMP" \
         --commit "$COMMIT" \
         --description "$DESCRIPTION" \
+        --mode "$MODE" \
         --backend "$backend" \
         --seed "$SEED" \
         --bench-version "$BENCH_VERSION" \
@@ -110,6 +116,12 @@ run_backend() {
     else
         memory_size="$DEFAULT_SIZE_MEMORY"
     fi
+
+    memory_cmd=(cargo bench --bench memory --features "backend-$backend")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
+        memory_cmd=(cargo bench --no-default-features --bench memory --features "backend-$backend")
+    fi
+    "${memory_cmd[@]}"
 
     dhat_input="$dhat_file"
     if [ ! -f "$dhat_input" ]; then
@@ -129,6 +141,7 @@ run_backend() {
         --timestamp "$TIMESTAMP" \
         --commit "$COMMIT" \
         --description "$DESCRIPTION" \
+        --mode "$MODE" \
         --backend "$backend" \
         --bench "memory/build_model/$memory_size" \
         --seed "$SEED" \
@@ -156,6 +169,7 @@ unset DHAT_OUTPUT
 unset BENCH_MODE
 unset BENCH_SEED
 unset BENCH_SIZE
+unset BENCH_BACKEND
 
 echo "=== Valgrind profiling ==="
 just profile-all
