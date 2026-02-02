@@ -191,16 +191,19 @@ mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
     use cityjson::backend::nested::boundary::Boundary;
+    use cityjson::backend::nested::metadata::{
+        CityModelIdentifier as NestedCityModelIdentifier, CRS as NestedCRS,
+    };
     use cityjson::prelude::*;
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
-    fn generate_citymodel(n: usize) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
-        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+    fn generate_citymodel(n: usize) -> nested::OwnedCityModel {
+        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
         let mut rng = rand::rng();
 
         let metadata = model.metadata_mut();
-        metadata.set_identifier(CityModelIdentifier::new("benchmark-model".to_string()));
-        metadata.set_reference_system(CRS::new(
+        metadata.set_identifier(NestedCityModelIdentifier::new("benchmark-model".to_string()));
+        metadata.set_reference_system(NestedCRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
         ));
 
@@ -282,7 +285,7 @@ mod nested_benches {
 
     /// Compute the mean x,y,z coordinate for each geometry of each cityobject
     fn compute_mean_coordinates(
-        model: &nested::CityModel<OwnedStringStorage, ResourceId32>,
+        model: &nested::OwnedCityModel,
     ) -> Vec<(f64, f64, f64)> {
         let mut means = Vec::new();
 

@@ -27,7 +27,7 @@
 //! ### Creating and using owned attributes
 //!
 //! ```rust
-//! use cityjson::prelude::*;
+//! use cityjson::backend::nested::attributes::{AttributeValue, OwnedAttributes};
 //!
 //! // Create a new attributes container
 //! let mut attrs = OwnedAttributes::new();
@@ -57,7 +57,7 @@
 //! ### Working with nested attributes
 //!
 //! ```rust
-//! use cityjson::prelude::*;
+//! use cityjson::backend::nested::attributes::{AttributeValue, OwnedAttributes};
 //! use std::collections::HashMap;
 //!
 //! let mut attrs = OwnedAttributes::new();
@@ -93,7 +93,7 @@
 //! ### Using borrowed attributes
 //!
 //! ```rust
-//! use cityjson::prelude::*;
+//! use cityjson::backend::nested::attributes::{AttributeValue, BorrowedAttributes};
 //!
 //! // Static strings for demonstration
 //! let name = "Building B";
@@ -117,10 +117,11 @@
 //! The flexible design allows for efficiently representing both simple and complex
 //! attribute structures.
 
-use crate::prelude::{ResourceRef};
+use crate::backend::nested::geometry::Geometry;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::marker::PhantomData;
 
 /// Represents the different types of values that can be stored in an attribute.
 ///
@@ -132,29 +133,30 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// # Type Parameters
 ///
 /// * `SS` - The string storage strategy to use (e.g., `OwnedStringStorage` or `BorrowedStringStorage`)
-/// * `RR` - The resource reference type to use (e.g., `ResourceId32`)
+/// * `RR` - The resource reference type to use (unused in the nested backend)
 ///
 /// # Examples
 ///
 /// ```rust
-/// use cityjson::prelude::*;
+/// use cityjson::backend::nested::attributes::AttributeValue;
+/// use cityjson::resources::storage::OwnedStringStorage;
 ///
 /// // Create different types of attribute values
-/// let null_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Null;
-/// let bool_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Bool(true);
-/// let int_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Integer(-42);
-/// let float_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Float(std::f64::consts::PI);
-/// let string_value = AttributeValue::<OwnedStringStorage, ResourceId32>::String("example".to_string());
+/// let null_value = AttributeValue::<OwnedStringStorage, ()>::Null;
+/// let bool_value = AttributeValue::<OwnedStringStorage, ()>::Bool(true);
+/// let int_value = AttributeValue::<OwnedStringStorage, ()>::Integer(-42);
+/// let float_value = AttributeValue::<OwnedStringStorage, ()>::Float(std::f64::consts::PI);
+/// let string_value = AttributeValue::<OwnedStringStorage, ()>::String("example".to_string());
 ///
 /// // Create a vector of values
-/// let vec_value = AttributeValue::<OwnedStringStorage, ResourceId32>::Vec(vec![
+/// let vec_value = AttributeValue::<OwnedStringStorage, ()>::Vec(vec![
 ///     Box::new(AttributeValue::Integer(1)),
 ///     Box::new(AttributeValue::Integer(2)),
 ///     Box::new(AttributeValue::Integer(3)),
 /// ]);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
+pub enum AttributeValue<SS: StringStorage, RR> {
     /// Represents a null or undefined value.
     Null,
     /// A boolean value (true or false).
@@ -171,14 +173,16 @@ pub enum AttributeValue<SS: StringStorage, RR: ResourceRef> {
     Vec(Vec<Box<AttributeValue<SS, RR>>>),
     /// A map of string keys to attribute values.
     Map(HashMap<SS::String, Box<AttributeValue<SS, RR>>>),
-    /// A geometry reference. Used for "address.location" which must be a MultiPoint.
-    Geometry(RR),
+    /// A geometry value. Used for "address.location" which must be a MultiPoint.
+    Geometry(Box<Geometry<SS, RR>>),
+    #[doc(hidden)]
+    __Marker(PhantomData<RR>),
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for AttributeValue<SS, RR>
+impl<SS: StringStorage, RR> Display for AttributeValue<SS, RR>
 where
     SS::String: Display,
-    RR: Display,
+    Geometry<SS, RR>: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -209,6 +213,7 @@ where
                 write!(f, "}}")
             }
             AttributeValue::Geometry(value) => write!(f, "Geometry({})", value),
+            AttributeValue::__Marker(_) => write!(f, "<marker>"),
         }
     }
 }
@@ -222,18 +227,20 @@ where
 /// # Type Parameters
 ///
 /// * `SS` - The string storage strategy to use (e.g., `OwnedStringStorage` or `BorrowedStringStorage`)
-/// * `RR` - The resource reference type to use (e.g., `ResourceId32`)
+/// * `RR` - The resource reference type to use (unused in the nested backend)
 ///
 #[derive(Clone, Debug, PartialEq)]
-pub struct Attributes<SS: StringStorage, RR: ResourceRef> {
+pub struct Attributes<SS: StringStorage, RR> {
     values: HashMap<SS::String, AttributeValue<SS, RR>>,
+    _marker: PhantomData<RR>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
+impl<SS: StringStorage, RR> Attributes<SS, RR> {
     /// Creates a new, empty attributes container.
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
+            _marker: PhantomData,
         }
     }
 
@@ -299,16 +306,16 @@ impl<SS: StringStorage, RR: ResourceRef> Attributes<SS, RR> {
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Default for Attributes<SS, RR> {
+impl<SS: StringStorage, RR> Default for Attributes<SS, RR> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for Attributes<SS, RR>
+impl<SS: StringStorage, RR> Display for Attributes<SS, RR>
 where
     SS::String: Display + Eq + std::hash::Hash,
-    RR: Display,
+    Geometry<SS, RR>: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
@@ -322,15 +329,14 @@ where
     }
 }
 
-/// Type alias for attribute values with owned strings and ResourceId32.
-pub use crate::prelude::ResourceId32;
-pub type OwnedAttributeValue = AttributeValue<OwnedStringStorage, ResourceId32>;
+/// Type alias for attribute values with owned strings and inline geometry.
+pub type OwnedAttributeValue = AttributeValue<OwnedStringStorage, ()>;
 
-/// Type alias for attribute values with borrowed strings and ResourceId32.
-pub type BorrowedAttributeValue<'a> = AttributeValue<BorrowedStringStorage<'a>, ResourceId32>;
+/// Type alias for attribute values with borrowed strings and inline geometry.
+pub type BorrowedAttributeValue<'a> = AttributeValue<BorrowedStringStorage<'a>, ()>;
 
-/// Type alias for attributes container with owned strings and ResourceId32.
-pub type OwnedAttributes = Attributes<OwnedStringStorage, ResourceId32>;
+/// Type alias for attributes container with owned strings and inline geometry.
+pub type OwnedAttributes = Attributes<OwnedStringStorage, ()>;
 
-/// Type alias for attributes container with borrowed strings and ResourceId32.
-pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, ResourceId32>;
+/// Type alias for attributes container with borrowed strings and inline geometry.
+pub type BorrowedAttributes<'a> = Attributes<BorrowedStringStorage<'a>, ()>;

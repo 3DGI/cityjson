@@ -1,15 +1,21 @@
 use crate::backend::nested::attributes::Attributes;
-use crate::prelude::{ResourceRef, StringStorage};
+use crate::prelude::StringStorage;
+use std::marker::PhantomData;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Semantics<SS: StringStorage, RR: ResourceRef> {
+pub struct Semantics<SS: StringStorage, RR> {
     pub surfaces: Vec<Semantic<SS, RR>>,
     pub values: SemanticValues,
+    _marker: PhantomData<RR>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Semantics<SS, RR> {
+impl<SS: StringStorage, RR> Semantics<SS, RR> {
     pub fn new(surfaces: Vec<Semantic<SS, RR>>, values: SemanticValues) -> Self {
-        Self { surfaces, values }
+        Self {
+            surfaces,
+            values,
+            _marker: PhantomData,
+        }
     }
 
     pub fn surfaces(&self) -> &Vec<Semantic<SS, RR>> {
@@ -26,20 +32,22 @@ impl<SS: StringStorage, RR: ResourceRef> Semantics<SS, RR> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Semantic<SS: StringStorage, RR: ResourceRef> {
+pub struct Semantic<SS: StringStorage, RR> {
     pub type_sem: SemanticType,
     pub children: Option<Vec<usize>>,
     pub parent: Option<usize>,
     pub attributes: Option<Attributes<SS, RR>>,
+    _marker: PhantomData<RR>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Semantic<SS, RR> {
+impl<SS: StringStorage, RR> Semantic<SS, RR> {
     pub fn new(type_semantic: SemanticType) -> Self {
         Self {
             type_sem: type_semantic,
             children: None,
             parent: None,
             attributes: None,
+            _marker: PhantomData,
         }
     }
 

@@ -3,14 +3,15 @@
 
 use crate::backend::nested::attributes::Attributes;
 use crate::backend::nested::geometry::Geometry;
-use crate::prelude::{BBox, ResourceRef, StringStorage};
+use crate::backend::nested::metadata::BBox;
+use crate::prelude::StringStorage;
 use std::collections::HashMap;
 
 // Re-export CityObjectType for convenience
 pub use crate::v2_0::CityObjectType;
 
 #[derive(Debug, Clone)]
-pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
+pub struct CityObject<SS: StringStorage, RR> {
     type_co: CityObjectType<SS>,
     geometry: Option<Vec<Geometry<SS, RR>>>,
     attributes: Option<Attributes<SS, RR>>,
@@ -20,7 +21,7 @@ pub struct CityObject<SS: StringStorage, RR: ResourceRef> {
     extra: Option<Attributes<SS, RR>>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> CityObject<SS, RR> {
+impl<SS: StringStorage, RR> CityObject<SS, RR> {
     // Constructor
     pub fn new(type_co: CityObjectType<SS>) -> Self {
         Self {

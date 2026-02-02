@@ -7,17 +7,17 @@ use crate::backend::nested::attributes::Attributes as NestedAttributes;
 use crate::backend::nested::cityobject::{CityObject, CityObjects};
 use crate::backend::nested::coordinate::Vertices;
 use crate::backend::nested::geometry::{Geometry, GeometryTemplates};
+use crate::backend::nested::metadata::Metadata;
 use crate::prelude::{
-    CityJSONVersion, CityModelType, QuantizedCoordinate, RealWorldCoordinate, ResourceRef, StringStorage,
-    UVCoordinate, VertexIndex,
+    CityJSONVersion, CityModelType, QuantizedCoordinate, RealWorldCoordinate, StringStorage, UVCoordinate,
+    VertexIndex,
 };
 use crate::v2_0::extension::Extensions;
-use crate::v2_0::metadata::Metadata;
 use crate::v2_0::transform::Transform;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct CityModel<SS: StringStorage, RR: ResourceRef> {
+pub struct CityModel<SS: StringStorage, RR> {
     id: Option<SS::String>,
     type_cm: CityModelType,
     version: Option<CityJSONVersion>,
@@ -33,7 +33,7 @@ pub struct CityModel<SS: StringStorage, RR: ResourceRef> {
     vertices_template: Vertices<u32, RealWorldCoordinate>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> CityModel<SS, RR> {
+impl<SS: StringStorage, RR> CityModel<SS, RR> {
     // ========== Constructors ==========
 
     pub fn new(type_citymodel: CityModelType) -> Self {

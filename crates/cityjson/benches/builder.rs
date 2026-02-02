@@ -245,15 +245,16 @@ mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
     use cityjson::backend::nested::attributes::AttributeValue;
+    use cityjson::backend::nested::metadata::BBox as NestedBBox;
     use cityjson::backend::nested::semantics::Semantic;
     use cityjson::prelude::*;
 
     /// Helper function to build a geometry with semantics (simplified for nested backend).
     fn build_geometry_with_semantics(
-        model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
+        model: &mut nested::OwnedCityModel,
         vertices: &[VertexIndex32],
         index: usize,
-    ) -> Result<nested::Geometry<OwnedStringStorage, ResourceId32>> {
+    ) -> Result<nested::OwnedGeometry> {
         let mut geometry_builder =
             nested::GeometryBuilder::new(model, GeometryType::Solid, nested::BuilderMode::Regular)
                 .with_lod(LoD::LoD2_2);
@@ -339,7 +340,7 @@ mod nested_benches {
     pub fn build_cityobjects(config: (usize, bool)) -> Result<()> {
         let num_cityobjects = config.0;
         let with_geometries = config.1;
-        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
 
         let vertices = if with_geometries {
             vec![
@@ -376,7 +377,7 @@ mod nested_benches {
             );
 
             let offset = (i as f64) * 100.0;
-            cityobject.set_geographical_extent(Some(BBox::new(
+            cityobject.set_geographical_extent(Some(NestedBBox::new(
                 offset,
                 offset,
                 0.0,

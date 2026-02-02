@@ -4,12 +4,13 @@
 use crate::backend::nested::appearance::{MaterialValues, TextureValues};
 use crate::backend::nested::boundary::Boundary;
 use crate::backend::nested::semantics::Semantics;
-use crate::prelude::{GeometryType, LoD, RealWorldCoordinate, ResourceRef, StringStorage};
+use crate::prelude::{GeometryType, LoD, RealWorldCoordinate, StringStorage};
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::marker::PhantomData;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Geometry<SS: StringStorage, RR: ResourceRef> {
+pub struct Geometry<SS: StringStorage, RR> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary>,
@@ -19,9 +20,10 @@ pub struct Geometry<SS: StringStorage, RR: ResourceRef> {
     instance_template: Option<usize>,
     instance_reference_point: Option<RealWorldCoordinate>,
     instance_transformation_matrix: Option<[f64; 16]>,
+    _marker: PhantomData<RR>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Geometry<SS, RR> {
+impl<SS: StringStorage, RR> Geometry<SS, RR> {
     // Constructor
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -45,6 +47,7 @@ impl<SS: StringStorage, RR: ResourceRef> Geometry<SS, RR> {
             instance_template,
             instance_reference_point,
             instance_transformation_matrix,
+            _marker: PhantomData,
         }
     }
 
@@ -86,16 +89,25 @@ impl<SS: StringStorage, RR: ResourceRef> Geometry<SS, RR> {
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef> Display for Geometry<SS, RR> {
+impl<SS: StringStorage + std::fmt::Debug, RR: std::fmt::Debug> Display for Geometry<SS, RR> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct GeometryTemplates<SS: StringStorage, RR: ResourceRef> {
+#[derive(Clone, Debug)]
+pub struct GeometryTemplates<SS: StringStorage, RR> {
     pub templates: Vec<Geometry<SS, RR>>,
     pub vertices_templates: VerticesTemplates,
 }
 
 pub type VerticesTemplates = Vec<[f64; 3]>;
+
+impl<SS: StringStorage, RR> Default for GeometryTemplates<SS, RR> {
+    fn default() -> Self {
+        Self {
+            templates: Vec::new(),
+            vertices_templates: Vec::new(),
+        }
+    }
+}

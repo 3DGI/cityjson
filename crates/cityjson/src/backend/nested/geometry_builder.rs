@@ -9,8 +9,8 @@ use crate::backend::nested::citymodel::CityModel;
 use crate::backend::nested::geometry::Geometry;
 use crate::backend::nested::semantics::{Semantic, SemanticValues, Semantics};
 use crate::prelude::{
-    GeometryType, LoD, QuantizedCoordinate, RealWorldCoordinate, ResourceRef, StringStorage, UVCoordinate,
-    VertexIndex, VertexIndex32,
+    GeometryType, LoD, QuantizedCoordinate, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex,
+    VertexIndex32,
 };
 use std::collections::HashMap;
 
@@ -47,7 +47,7 @@ struct SolidInProgress {
     inner_shells: Vec<usize>,
 }
 
-pub struct GeometryBuilder<'a, SS: StringStorage, RR: ResourceRef> {
+pub struct GeometryBuilder<'a, SS: StringStorage, RR> {
     model: &'a mut CityModel<SS, RR>,
     type_geometry: GeometryType,
     builder_mode: BuilderMode,
@@ -85,7 +85,7 @@ pub struct GeometryBuilder<'a, SS: StringStorage, RR: ResourceRef> {
     vertex_uv_mapping: HashMap<usize, usize>,
 }
 
-impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
+impl<'a, SS: StringStorage, RR> GeometryBuilder<'a, SS, RR> {
     // ========== Constructor ==========
 
     pub fn new(
@@ -474,7 +474,10 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
 
     // ========== Build Method ==========
 
-    pub fn build(self) -> Result<Geometry<SS, RR>, Error> {
+    pub fn build(self) -> Result<Geometry<SS, RR>, Error>
+    where
+        RR: Clone,
+    {
         // Build nested boundaries based on geometry type
         let boundaries = match self.type_geometry {
             GeometryType::MultiPoint => {
@@ -586,7 +589,10 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
         ))
     }
 
-    fn build_nested_semantics(&self) -> Result<Semantics<SS, RR>, Error> {
+    fn build_nested_semantics(&self) -> Result<Semantics<SS, RR>, Error>
+    where
+        RR: Clone,
+    {
         // Collect all unique semantics
         let mut surfaces = Vec::new();
         let mut semantic_index_map: HashMap<String, usize> = HashMap::new();
@@ -595,7 +601,7 @@ impl<'a, SS: StringStorage, RR: ResourceRef> GeometryBuilder<'a, SS, RR> {
             let key = format!("{:?}", semantic.type_semantic());
             semantic_index_map.entry(key).or_insert_with(|| {
                 let idx = surfaces.len();
-                surfaces.push(semantic.clone());
+                surfaces.push((*semantic).clone());
                 idx
             });
         }

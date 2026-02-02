@@ -172,18 +172,21 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
+    use cityjson::backend::nested::metadata::{
+        CityModelIdentifier as NestedCityModelIdentifier, CRS as NestedCRS,
+    };
     use cityjson::prelude::*;
 
     /// Build a CityModel with the nested backend and the specified number of cityobjects.
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
-    fn build_model(n_cityobjects: usize) -> nested::CityModel<OwnedStringStorage, ResourceId32> {
-        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+    fn build_model(n_cityobjects: usize) -> nested::OwnedCityModel {
+        let mut model = nested::OwnedCityModel::new(CityModelType::CityJSON);
         let mut rng = rand::rng();
 
         // Set basic metadata
         let metadata = model.metadata_mut();
-        metadata.set_identifier(CityModelIdentifier::new("memory-benchmark".to_string()));
-        metadata.set_reference_system(CRS::new(
+        metadata.set_identifier(NestedCityModelIdentifier::new("memory-benchmark".to_string()));
+        metadata.set_reference_system(NestedCRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/2355".to_string(),
         ));
 
