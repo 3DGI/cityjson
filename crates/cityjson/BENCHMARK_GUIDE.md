@@ -43,14 +43,20 @@ Benchmark coverage:
 - `memory` builds a **full‑feature** model (materials, textures, semantics, cityobject attributes).
 - `processor/compute_mean_coordinates` is geometry traversal.
 - `processor/compute_full_feature_stats` walks attributes, semantics, materials, and textures.
+- Geometry-typed attributes are intentionally excluded to avoid backend-specific representation costs.
 
 ## Profiling Targets
 
-Valgrind runs via `just profile-all`. You can override the default test target:
+Valgrind runs the benchmark workload `processor/compute_full_feature_stats` per backend. You can override the defaults:
 
 ```
-PROFILE_PKG=cityjson \
-PROFILE_TEST=v2_0 \
-PROFILE_TEST_FILTER=test_producer_consumer_stream \
+PROFILE_BACKEND=nested \
+PROFILE_BENCH=processor \
+PROFILE_BENCH_ID=compute_full_feature_stats \
+PROFILE_MODE=fast \
 just perf "desc"
 ```
+
+Optional overrides:
+- `PROFILE_SEED` / `PROFILE_SIZE` to match a specific bench run.
+- `BACKEND_SPLIT=0` if you want mixed-backend builds.

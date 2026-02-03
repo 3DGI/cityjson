@@ -177,11 +177,6 @@ mod default_benches {
                 Box::new(AttributeValue::String("value".to_string())),
             );
             attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
-            attrs.insert(
-                "attr_geometry".to_string(),
-                AttributeValue::Geometry(ResourceId32::new(0, 0)),
-            );
-
             let mut geometry_builder =
                 GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular)
                     .with_lod(LoD::LoD2);
@@ -504,21 +499,6 @@ mod nested_benches {
                 Box::new(AttributeValue::String("value".to_string())),
             );
             attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
-            attrs.insert(
-                "attr_geometry".to_string(),
-                AttributeValue::Geometry(Box::new(nested::Geometry::new(
-                    GeometryType::Solid,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ))),
-            );
-
             model.add_cityobject(co_id.clone(), cityobject);
 
             let mut geometry_builder = nested::GeometryBuilder::new(

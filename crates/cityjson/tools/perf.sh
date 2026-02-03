@@ -148,6 +148,16 @@ run_backend() {
         --bench-version "$BENCH_VERSION" \
         --rustc "$RUSTC_VERSION" \
         --out "$CSV_OUT"
+
+    echo "=== Valgrind profiling: backend=$backend bench=processor/compute_full_feature_stats ==="
+    PROFILE_BACKEND="$backend" \
+        PROFILE_BENCH="processor" \
+        PROFILE_BENCH_ID="compute_full_feature_stats" \
+        PROFILE_MODE="$MODE" \
+        PROFILE_SEED="$SEED" \
+        PROFILE_SIZE="$SIZE_ARG" \
+        BACKEND_SPLIT="$BACKEND_SPLIT" \
+        just profile-bench-all
 }
 
 case "$BACKEND" in
@@ -170,6 +180,3 @@ unset BENCH_MODE
 unset BENCH_SEED
 unset BENCH_SIZE
 unset BENCH_BACKEND
-
-echo "=== Valgrind profiling ==="
-just profile-all

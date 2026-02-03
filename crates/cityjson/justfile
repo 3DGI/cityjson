@@ -138,3 +138,144 @@ profile-cachegrind: _create_profile_dir
     echo "Analyze with: kcachegrind {{ _profile_dir }}/cachegrind.out"
 
 profile-all: profile-massif profile-cachegrind profile-memcheck
+
+# ============================================================================
+# Benchmark profiling (Valgrind over a specific benchmark)
+# ============================================================================
+
+profile-bench-massif: _create_profile_dir
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
+    PROFILE_BENCH="${PROFILE_BENCH:-processor}"
+    PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
+    PROFILE_MODE="${PROFILE_MODE:-fast}"
+    PROFILE_SEED="${PROFILE_SEED:-}"
+    PROFILE_SIZE="${PROFILE_SIZE:-}"
+    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
+
+    export BENCH_MODE="$PROFILE_MODE"
+    if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
+    if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
+    export BENCH_BACKEND="$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
+        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    fi
+    bench_args=()
+    if [ "$PROFILE_MODE" = "fast" ]; then
+        bench_args+=(--quick)
+    fi
+    bench_args+=(--exact "$PROFILE_BENCH_ID")
+
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=massif --massif-out-file={{ _profile_dir }}/massif.out --time-unit=B --detailed-freq=1 --max-snapshots=200 --threshold=0.1 --log-file=/dev/null" \
+        "${bench_cmd[@]}" -- "${bench_args[@]}"
+
+    ms_print {{ _profile_dir }}/massif.out | cat > {{ _profile_dir }}/massif-report.txt
+
+    echo "=== HEAP USAGE SUMMARY ==="
+    grep -E "peak|MB|KB|snapshot" {{ _profile_dir }}/massif-report.txt | head -n 30 || true
+    echo ""
+
+    echo "=== TOP ALLOCATION SITES ==="
+    grep -A 5 "% (" {{ _profile_dir }}/massif-report.txt | head -n 50 || true
+    echo ""
+
+    echo "Full report saved to {{ _profile_dir }}/massif-report.txt"
+    echo "Visualize with: massif-visualizer {{ _profile_dir }}/massif.out"
+
+profile-bench-memcheck: _create_profile_dir
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
+    PROFILE_BENCH="${PROFILE_BENCH:-processor}"
+    PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
+    PROFILE_MODE="${PROFILE_MODE:-fast}"
+    PROFILE_SEED="${PROFILE_SEED:-}"
+    PROFILE_SIZE="${PROFILE_SIZE:-}"
+    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
+
+    export BENCH_MODE="$PROFILE_MODE"
+    if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
+    if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
+    export BENCH_BACKEND="$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
+        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    fi
+    bench_args=()
+    if [ "$PROFILE_MODE" = "fast" ]; then
+        bench_args+=(--quick)
+    fi
+    bench_args+=(--exact "$PROFILE_BENCH_ID")
+
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file={{ _profile_dir }}/memcheck.log" \
+        "${bench_cmd[@]}" -- "${bench_args[@]}"
+
+    echo "================================"
+    echo "LEAK SUMMARY:"
+    echo "================================"
+    grep -A 20 "LEAK SUMMARY" {{ _profile_dir }}/memcheck.log
+
+    echo "================================"
+    echo "HEAP SUMMARY:"
+    echo "================================"
+    grep -A 10 "HEAP SUMMARY" {{ _profile_dir }}/memcheck.log
+    echo "Full report saved to {{ _profile_dir }}/memcheck.log"
+
+    LEAKED=$(grep "definitely lost" {{ _profile_dir }}/memcheck.log | grep -oP '\\d+(?= bytes)' | head -1 || true)
+    if [ "$LEAKED" != "0" ] && [ -n "$LEAKED" ]; then
+        echo "Found $LEAKED bytes definitely lost!"
+        exit 1
+    else
+        echo "No definite memory leaks detected"
+    fi
+
+profile-bench-cachegrind: _create_profile_dir
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
+    PROFILE_BENCH="${PROFILE_BENCH:-processor}"
+    PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
+    PROFILE_MODE="${PROFILE_MODE:-fast}"
+    PROFILE_SEED="${PROFILE_SEED:-}"
+    PROFILE_SIZE="${PROFILE_SIZE:-}"
+    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
+
+    export BENCH_MODE="$PROFILE_MODE"
+    if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
+    if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
+    export BENCH_BACKEND="$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
+        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
+    fi
+    bench_args=()
+    if [ "$PROFILE_MODE" = "fast" ]; then
+        bench_args+=(--quick)
+    fi
+    bench_args+=(--exact "$PROFILE_BENCH_ID")
+
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes --cachegrind-out-file={{ _profile_dir }}/cachegrind.out" \
+        "${bench_cmd[@]}" -- "${bench_args[@]}"
+
+    echo "================================"
+    echo "CACHE STATISTICS:"
+    echo "================================"
+    cg_annotate {{ _profile_dir }}/cachegrind.out | cat > {{ _profile_dir }}/cachegrind-report.txt
+
+    head -n 50 {{ _profile_dir }}/cachegrind-report.txt
+
+    echo "=== KEY METRICS ==="
+    grep -E "I refs|D refs|LL misses|branches" {{ _profile_dir }}/cachegrind-report.txt | head -n 20 || true
+
+    echo "Full report saved to {{ _profile_dir }}/cachegrind-report.txt"
+    echo "Analyze with: kcachegrind {{ _profile_dir }}/cachegrind.out"
+
+profile-bench-all: profile-bench-massif profile-bench-cachegrind profile-bench-memcheck

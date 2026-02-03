@@ -202,11 +202,6 @@ mod default_benches {
             Box::new(AttributeValue::String("value".to_string())),
         );
         attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
-        attrs.insert(
-            "attr_geometry".to_string(),
-            AttributeValue::Geometry(ResourceId32::new(0, 0)),
-        );
-
         let seed_offset = (seed as f64) * 0.001;
 
             let offset = (i as f64) * 100.0;
@@ -458,21 +453,6 @@ mod nested_benches {
                 Box::new(AttributeValue::String("value".to_string())),
             );
             attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
-            attrs.insert(
-                "attr_geometry".to_string(),
-                AttributeValue::Geometry(Box::new(nested::Geometry::new(
-                    GeometryType::Solid,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ))),
-            );
-
             let seed_offset = (seed as f64) * 0.001;
             let offset = (i as f64) * 100.0;
             cityobject.set_geographical_extent(Some(nested::metadata::BBox::new(
