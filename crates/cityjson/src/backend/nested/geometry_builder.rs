@@ -4,7 +4,7 @@
 
 use crate::Error;
 use crate::backend::nested::appearance::{MaterialValues, TextureValues};
-use crate::backend::nested::boundary::*;
+use crate::backend::nested::nested_boundary::*;
 use crate::backend::nested::citymodel::CityModel;
 use crate::backend::nested::geometry::Geometry;
 use crate::backend::nested::semantics::{Semantic, SemanticValues, Semantics};

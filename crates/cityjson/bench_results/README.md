@@ -23,6 +23,9 @@ timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_ver
 - `bench_version`: version tag for benchmark definitions (e.g. `v1`).
 - `rustc`: full `rustc --version` output.
 
+Notes:
+- `tools/perf.sh` defaults to `BACKEND_SPLIT=1`, so nested runs use `--no-default-features` to avoid duplicate benchmarks.
+
 ## Running
 
 Use the single entrypoint:
