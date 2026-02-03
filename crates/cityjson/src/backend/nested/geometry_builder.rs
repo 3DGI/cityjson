@@ -6,11 +6,10 @@ use crate::Error;
 use crate::backend::nested::appearance::{MaterialValues, TextureValues};
 use crate::backend::nested::nested_boundary::*;
 use crate::backend::nested::citymodel::CityModel;
-use crate::backend::nested::geometry::Geometry;
+use crate::backend::nested::geometry::{Geometry, GeometryType, LoD};
 use crate::backend::nested::semantics::{Semantic, SemanticValues, Semantics};
 use crate::prelude::{
-    GeometryType, LoD, QuantizedCoordinate, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex,
-    VertexIndex32,
+    QuantizedCoordinate, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex, VertexIndex32,
 };
 use std::collections::HashMap;
 

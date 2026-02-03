@@ -731,8 +731,6 @@ where
 mod tests {
     use super::*;
     use crate::cityjson::core::coordinate::RealWorldCoordinate;
-    use crate::cityjson::core::vertex::VertexIndexVec;
-    use crate::cityjson::core::vertex::VertexIndicesSequence;
     use std::collections::HashSet;
 
     #[test]

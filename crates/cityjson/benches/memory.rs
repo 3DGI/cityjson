@@ -150,6 +150,7 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
+    use cityjson::backend::nested::geometry::{GeometryType, LoD};
     use cityjson::prelude::*;
 
     /// Build a CityModel with the nested backend and the specified number of cityobjects.
@@ -282,13 +283,11 @@ fn main() {
         } else {
             default_benches::run(params);
         }
-        return;
     }
 
     #[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
     {
         default_benches::run(params);
-        return;
     }
 
     #[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]

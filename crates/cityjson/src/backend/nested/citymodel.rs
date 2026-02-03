@@ -98,11 +98,11 @@ impl<SS: StringStorage, RR> CityModel<SS, RR> {
         self.vertices.get(index)
     }
 
-    pub fn vertices(&self) -> &Vertices<u32, QuantizedCoordinate> {
+    pub fn vertices(&self) -> &NestedVertices<u32, QuantizedCoordinate> {
         &self.vertices
     }
 
-    pub fn vertices_mut(&mut self) -> &mut Vertices<u32, QuantizedCoordinate> {
+    pub fn vertices_mut(&mut self) -> &mut NestedVertices<u32, QuantizedCoordinate> {
         &mut self.vertices
     }
 

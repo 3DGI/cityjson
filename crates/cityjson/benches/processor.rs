@@ -253,6 +253,7 @@ mod nested_benches {
     use cityjson::backend::nested;
     use cityjson::backend::nested::appearance::{ImageType, Material, Texture};
     use cityjson::backend::nested::attributes::AttributeValue;
+    use cityjson::backend::nested::geometry::{GeometryType, LoD};
     use cityjson::backend::nested::nested_boundary::Boundary;
     use cityjson::prelude::*;
     use std::collections::HashMap;
