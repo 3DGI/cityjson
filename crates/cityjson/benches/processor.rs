@@ -18,6 +18,99 @@ mod default_benches {
     use cityjson::v2_0::*;
     use std::collections::HashMap;
 
+    type AttrValue = AttributeValue<OwnedStringStorage, ResourceId32>;
+
+    fn accumulate_attribute_value(value: &AttrValue, acc: &mut u64) {
+        match value {
+            AttributeValue::Null => *acc = acc.wrapping_add(1),
+            AttributeValue::Bool(value) => *acc = acc.wrapping_add(if *value { 2 } else { 3 }),
+            AttributeValue::Unsigned(value) => *acc = acc.wrapping_add(*value),
+            AttributeValue::Integer(value) => *acc = acc.wrapping_add(*value as u64),
+            AttributeValue::Float(value) => *acc = acc.wrapping_add(value.to_bits()),
+            AttributeValue::String(value) => *acc = acc.wrapping_add(value.len() as u64),
+            AttributeValue::Vec(values) => {
+                *acc = acc.wrapping_add(values.len() as u64);
+                for value in values {
+                    accumulate_attribute_value(value, acc);
+                }
+            }
+            AttributeValue::Map(values) => {
+                *acc = acc.wrapping_add(values.len() as u64);
+                for (key, value) in values {
+                    *acc = acc.wrapping_add(key.len() as u64);
+                    accumulate_attribute_value(value, acc);
+                }
+            }
+            AttributeValue::Geometry(_) => *acc = acc.wrapping_add(7),
+        }
+    }
+
+    fn compute_full_feature_stats(
+        model: &CityModel<u32, ResourceId32, OwnedStringStorage>,
+    ) -> u64 {
+        let mut acc = 0u64;
+
+        for (_id, cityobject) in model.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes() {
+                for (key, value) in attributes.iter() {
+                    acc = acc.wrapping_add(key.len() as u64);
+                    accumulate_attribute_value(value, &mut acc);
+                }
+            }
+
+            if let Some(geometries) = cityobject.geometry() {
+                for geometry_ref in geometries {
+                    if let Some(geometry) = model.get_geometry(*geometry_ref) {
+                        if let Some(semantics) = geometry.semantics() {
+                            for semantic_ref in semantics.surfaces().iter().flatten() {
+                                if let Some(semantic) = model.get_semantic(*semantic_ref) {
+                                    acc = acc.wrapping_add(1);
+                                    match semantic.type_semantic() {
+                                        SemanticType::RoofSurface => acc = acc.wrapping_add(2),
+                                        SemanticType::GroundSurface => acc = acc.wrapping_add(3),
+                                        SemanticType::WallSurface => acc = acc.wrapping_add(5),
+                                        SemanticType::Extension(name) => {
+                                            acc = acc.wrapping_add(name.len() as u64);
+                                        }
+                                        _ => acc = acc.wrapping_add(1),
+                                    }
+
+                                    if let Some(attrs) = semantic.attributes() {
+                                        for (key, value) in attrs.iter() {
+                                            acc = acc.wrapping_add(key.len() as u64);
+                                            accumulate_attribute_value(value, &mut acc);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(materials) = geometry.materials() {
+                            for (theme, mapping) in materials {
+                                acc = acc.wrapping_add(theme.len() as u64);
+                                for material_ref in mapping.surfaces().iter().flatten() {
+                                    acc = acc.wrapping_add(material_ref.index() as u64 + 1);
+                                }
+                            }
+                        }
+
+                        if let Some(textures) = geometry.textures() {
+                            for (theme, mapping) in textures {
+                                acc = acc.wrapping_add(theme.len() as u64);
+                                acc = acc.wrapping_add(mapping.vertices().len() as u64);
+                                for texture_ref in mapping.ring_textures().iter().flatten() {
+                                    acc = acc.wrapping_add(texture_ref.index() as u64 + 1);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        acc
+    }
+
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
     fn generate_citymodel(n: usize, seed: u64) -> CityModel<u32, ResourceId32, OwnedStringStorage> {
         let mut model =
@@ -243,6 +336,18 @@ mod default_benches {
             })
         });
     }
+
+    pub fn benchmark_full_feature_stats(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR);
+        let model = generate_citymodel(params.size, params.seed);
+
+        c.bench_function("compute_full_feature_stats", |b| {
+            b.iter(|| {
+                let stats = compute_full_feature_stats(black_box(&model));
+                black_box(stats);
+            })
+        });
+    }
 }
 
 // ==================== NESTED BACKEND BENCHMARKS ====================
@@ -251,12 +356,137 @@ mod default_benches {
 mod nested_benches {
     use super::*;
     use cityjson::backend::nested;
-    use cityjson::backend::nested::appearance::{ImageType, Material, Texture};
+    use cityjson::backend::nested::appearance::{
+        ImageType, Material, MaterialValues, Texture, TextureValues,
+    };
     use cityjson::backend::nested::attributes::AttributeValue;
     use cityjson::backend::nested::geometry::{GeometryType, LoD};
     use cityjson::backend::nested::nested_boundary::Boundary;
     use cityjson::prelude::*;
     use std::collections::HashMap;
+
+    type AttrValue = AttributeValue<OwnedStringStorage, ResourceId32>;
+
+    fn accumulate_attribute_value(value: &AttrValue, acc: &mut u64) {
+        match value {
+            AttributeValue::Null => *acc = acc.wrapping_add(1),
+            AttributeValue::Bool(value) => *acc = acc.wrapping_add(if *value { 2 } else { 3 }),
+            AttributeValue::Unsigned(value) => *acc = acc.wrapping_add(*value),
+            AttributeValue::Integer(value) => *acc = acc.wrapping_add(*value as u64),
+            AttributeValue::Float(value) => *acc = acc.wrapping_add(value.to_bits()),
+            AttributeValue::String(value) => *acc = acc.wrapping_add(value.len() as u64),
+            AttributeValue::Vec(values) => {
+                *acc = acc.wrapping_add(values.len() as u64);
+                for value in values {
+                    accumulate_attribute_value(value, acc);
+                }
+            }
+            AttributeValue::Map(values) => {
+                *acc = acc.wrapping_add(values.len() as u64);
+                for (key, value) in values {
+                    *acc = acc.wrapping_add(key.len() as u64);
+                    accumulate_attribute_value(value, acc);
+                }
+            }
+            AttributeValue::Geometry(_) => *acc = acc.wrapping_add(7),
+            AttributeValue::__Marker(_) => {}
+        }
+    }
+
+    fn compute_full_feature_stats(
+        model: &nested::CityModel<OwnedStringStorage, ResourceId32>,
+    ) -> u64 {
+        let mut acc = 0u64;
+
+        for (_id, cityobject) in model.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes() {
+                for (key, value) in attributes.iter() {
+                    acc = acc.wrapping_add(key.len() as u64);
+                    accumulate_attribute_value(value, &mut acc);
+                }
+            }
+
+            if let Some(geometries) = cityobject.geometry() {
+                for geometry in geometries {
+                    if let Some(semantics) = geometry.semantics() {
+                        for semantic in semantics.surfaces() {
+                            acc = acc.wrapping_add(1);
+                            match semantic.type_semantic() {
+                                nested::semantics::SemanticType::RoofSurface => {
+                                    acc = acc.wrapping_add(2);
+                                }
+                                nested::semantics::SemanticType::GroundSurface => {
+                                    acc = acc.wrapping_add(3);
+                                }
+                                nested::semantics::SemanticType::WallSurface => {
+                                    acc = acc.wrapping_add(5);
+                                }
+                                nested::semantics::SemanticType::Extension(name) => {
+                                    acc = acc.wrapping_add(name.len() as u64);
+                                }
+                                _ => acc = acc.wrapping_add(1),
+                            }
+
+                            if let Some(attrs) = semantic.attributes() {
+                                for (key, value) in attrs.iter() {
+                                    acc = acc.wrapping_add(key.len() as u64);
+                                    accumulate_attribute_value(value, &mut acc);
+                                }
+                            }
+                        }
+
+                        match semantics.values() {
+                            nested::semantics::SemanticValues::PointOrLineStringOrSurface(values) => {
+                                acc = acc.wrapping_add(values.len() as u64);
+                            }
+                            nested::semantics::SemanticValues::Solid(shells) => {
+                                acc = acc.wrapping_add(shells.len() as u64);
+                            }
+                            nested::semantics::SemanticValues::MultiSolid(solids) => {
+                                acc = acc.wrapping_add(solids.len() as u64);
+                            }
+                        }
+                    }
+
+                    if let Some(materials) = geometry.materials() {
+                        for (theme, values) in materials {
+                            acc = acc.wrapping_add(theme.len() as u64);
+                            match values {
+                                MaterialValues::PointOrLineStringOrSurface(items) => {
+                                    acc = acc.wrapping_add(items.len() as u64);
+                                }
+                                MaterialValues::Solid(shells) => {
+                                    acc = acc.wrapping_add(shells.len() as u64);
+                                }
+                                MaterialValues::MultiSolid(solids) => {
+                                    acc = acc.wrapping_add(solids.len() as u64);
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(textures) = geometry.textures() {
+                        for (theme, values) in textures {
+                            acc = acc.wrapping_add(theme.len() as u64);
+                            match values {
+                                TextureValues::MultiOrCompositeSurface(surfaces) => {
+                                    acc = acc.wrapping_add(surfaces.len() as u64);
+                                }
+                                TextureValues::Solid(shells) => {
+                                    acc = acc.wrapping_add(shells.len() as u64);
+                                }
+                                TextureValues::MultiOrCompositeSolid(solids) => {
+                                    acc = acc.wrapping_add(solids.len() as u64);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        acc
+    }
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
     fn generate_citymodel(
@@ -508,21 +738,43 @@ mod nested_benches {
             })
         });
     }
+
+    pub fn benchmark_full_feature_stats(c: &mut Criterion) {
+        let params = params_from_env(DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR);
+        let model = generate_citymodel(params.size, params.seed);
+
+        c.bench_function("compute_full_feature_stats", |b| {
+            b.iter(|| {
+                let stats = compute_full_feature_stats(black_box(&model));
+                black_box(stats);
+            })
+        });
+    }
 }
 
 // ==================== CRITERION GROUPS ====================
 
 #[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
-criterion_group!(benches, default_benches::benchmark_mean_coordinates);
+criterion_group!(
+    benches,
+    default_benches::benchmark_mean_coordinates,
+    default_benches::benchmark_full_feature_stats
+);
 
 #[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]
-criterion_group!(benches, nested_benches::benchmark_mean_coordinates);
+criterion_group!(
+    benches,
+    nested_benches::benchmark_mean_coordinates,
+    nested_benches::benchmark_full_feature_stats
+);
 
 #[cfg(all(feature = "backend-default", feature = "backend-nested"))]
 criterion_group!(
     benches,
     default_benches::benchmark_mean_coordinates,
-    nested_benches::benchmark_mean_coordinates
+    default_benches::benchmark_full_feature_stats,
+    nested_benches::benchmark_mean_coordinates,
+    nested_benches::benchmark_full_feature_stats
 );
 
 criterion_main!(benches);

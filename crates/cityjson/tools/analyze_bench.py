@@ -59,6 +59,17 @@ def color_metric(metric, enabled):
     return f"\x1b[{color}m{metric}{COLOR_RESET}"
 
 
+def bench_base_and_size(bench_name: str):
+    match = re.match(r"^(.*)/(\d+)$", bench_name)
+    if not match:
+        return bench_name, None
+    base = match.group(1)
+    try:
+        return base, int(match.group(2))
+    except ValueError:
+        return bench_name, None
+
+
 def load_rows(csv_path: Path):
     if not csv_path.exists():
         raise SystemExit(f"csv not found: {csv_path}")
@@ -206,7 +217,15 @@ def compare_rows(rows, top, plot, color):
     if top > 0:
         comparisons.sort(key=lambda r: abs(r[5]), reverse=True)
         comparisons = comparisons[:top]
-    comparisons.sort(key=lambda r: (r[1], r[0]))
+    comparisons.sort(
+        key=lambda r: (
+            r[1],
+            bench_base_and_size(r[0])[0],
+            bench_base_and_size(r[0])[1] is None,
+            bench_base_and_size(r[0])[1] or 0,
+            r[0],
+        )
+    )
 
     output_rows = []
     for bench, metric, unit, default, nested, delta_pct in comparisons:

@@ -39,6 +39,11 @@ Key metrics:
 - `throughput_elem_s` when throughput is configured.
 - `heap_max_bytes` and `heap_total_bytes` from dhat.
 
+Benchmark coverage:
+- `memory` builds a **full‑feature** model (materials, textures, semantics, cityobject attributes).
+- `processor/compute_mean_coordinates` is geometry traversal.
+- `processor/compute_full_feature_stats` walks attributes, semantics, materials, and textures.
+
 ## Profiling Targets
 
 Valgrind runs via `just profile-all`. You can override the default test target:
