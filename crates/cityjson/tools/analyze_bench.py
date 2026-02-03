@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+import argparse
+import csv
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+
+LOWER_BETTER = {"time_ms", "heap_max_bytes", "heap_total_bytes"}
+SPARKS = "▁▂▃▄▅▆▇█"
+ABS_BAR_MIN = -200.0
+ABS_BAR_MAX = 200.0
+ABS_BAR_STEP = 5.0
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+COLOR_RESET = "\x1b[0m"
+
+
+def visible_len(text):
+    return len(ANSI_RE.sub("", text))
+
+
+def print_table(headers, rows):
+    if not rows:
+        print(" | ".join(headers))
+        return
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            widths[idx] = max(widths[idx], visible_len(cell))
+
+    def fmt_line(values):
+        parts = []
+        for idx, cell in enumerate(values):
+            pad = widths[idx] - visible_len(cell)
+            parts.append(cell + (" " * max(0, pad)))
+        return " | ".join(parts)
+
+    print(fmt_line(headers))
+    for row in rows:
+        print(fmt_line(row))
+
+
+def truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def color_metric(metric, enabled):
+    if not enabled:
+        return metric
+    if metric == "time_ms":
+        color = "33"
+    elif metric in {"heap_max_bytes", "heap_total_bytes"}:
+        color = "36"
+    elif metric.startswith("throughput_"):
+        color = "32"
+    else:
+        color = "35"
+    return f"\x1b[{color}m{metric}{COLOR_RESET}"
+
+
+def load_rows(csv_path: Path):
+    if not csv_path.exists():
+        raise SystemExit(f"csv not found: {csv_path}")
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def list_descriptions(rows):
+    by_desc = defaultdict(list)
+    for row in rows:
+        by_desc[row["description"]].append(row)
+
+    if not by_desc:
+        print("No rows found.")
+        return
+
+    output_rows = []
+    for desc, desc_rows in sorted(by_desc.items()):
+        latest = max(r["timestamp"] for r in desc_rows)
+        modes = sorted({r["mode"] for r in desc_rows})
+        output_rows.append([desc, latest, ",".join(modes), str(len(desc_rows))])
+
+    print_table(["description", "latest timestamp", "modes", "rows"], output_rows)
+
+
+def select_rows(rows, description, mode, timestamp):
+    if description:
+        rows = [r for r in rows if r["description"] == description]
+
+    if mode and mode != "all":
+        rows = [r for r in rows if r["mode"] == mode]
+
+    if not rows:
+        return [], None
+
+    if timestamp:
+        rows = [r for r in rows if r["timestamp"] == timestamp]
+        return rows, timestamp
+
+    latest = max(r["timestamp"] for r in rows)
+    rows = [r for r in rows if r["timestamp"] == latest]
+    return rows, latest
+
+
+def sparkline(values, width, missing_char="·"):
+    if not values:
+        return ""
+    if width <= 0:
+        return ""
+    if len(values) > width:
+        # downsample by bucket
+        step = len(values) / width
+        buckets = []
+        for i in range(width):
+            start = int(i * step)
+            end = max(start + 1, int((i + 1) * step))
+            chunk = values[start:end]
+            numeric = [v for v in chunk if v is not None]
+            if numeric:
+                buckets.append(sum(numeric) / len(numeric))
+            else:
+                buckets.append(None)
+        values = buckets
+
+    numeric_values = [v for v in values if v is not None]
+    if not numeric_values:
+        return missing_char * len(values)
+
+    lo = min(numeric_values)
+    hi = max(numeric_values)
+    if hi == lo:
+        return "".join(SPARKS[-1] if v is not None else missing_char for v in values)
+    out = []
+    for v in values:
+        if v is None:
+            out.append(missing_char)
+            continue
+        idx = int((v - lo) / (hi - lo) * (len(SPARKS) - 1))
+        out.append(SPARKS[idx])
+    return "".join(out)
+
+
+def delta_bar(delta_pct):
+    steps_per_side = int(ABS_BAR_MAX // ABS_BAR_STEP)
+    center = steps_per_side
+    total_len = steps_per_side * 2 + 1
+    bar = ["░"] * total_len
+
+    clamped = max(ABS_BAR_MIN, min(ABS_BAR_MAX, delta_pct))
+    steps = int(round(abs(clamped) / ABS_BAR_STEP))
+    if steps > 0:
+        if clamped > 0:
+            for i in range(1, steps + 1):
+                idx = center + i
+                if idx < total_len:
+                    bar[idx] = "█"
+        else:
+            for i in range(1, steps + 1):
+                idx = center - i
+                if idx >= 0:
+                    bar[idx] = "█"
+
+    bar[center] = "│"
+    tick_step = int(100 // ABS_BAR_STEP)
+    for offset in (-tick_step, tick_step):
+        idx = center + offset
+        if 0 <= idx < total_len:
+            bar[idx] = "┆"
+
+    prefix = ""
+    suffix = ""
+    if delta_pct < ABS_BAR_MIN:
+        prefix = f"({delta_pct:+.2f}%) "
+    elif delta_pct > ABS_BAR_MAX:
+        suffix = f" ({delta_pct:+.2f}%)"
+
+    return f"{prefix}{''.join(bar)}{suffix}"
+
+
+def compare_rows(rows, top, plot, color):
+    for row in rows:
+        try:
+            row["value"] = float(row["value"])
+        except (TypeError, ValueError):
+            row["value"] = None
+
+    grouped = defaultdict(dict)
+    for row in rows:
+        if row["value"] is None:
+            continue
+        key = (row["bench"], row["metric"], row["unit"])
+        grouped[key][row["backend"]] = row["value"]
+
+    comparisons = []
+    for (bench, metric, unit), values in grouped.items():
+        if "default" not in values or "nested" not in values:
+            continue
+        default = values["default"]
+        nested = values["nested"]
+        if default == 0:
+            continue
+        delta_pct = (nested / default - 1.0) * 100.0
+        comparisons.append((bench, metric, unit, default, nested, delta_pct))
+
+    if top > 0:
+        comparisons.sort(key=lambda r: abs(r[5]), reverse=True)
+        comparisons = comparisons[:top]
+    comparisons.sort(key=lambda r: (r[1], r[0]))
+
+    output_rows = []
+    for bench, metric, unit, default, nested, delta_pct in comparisons:
+        metric_cell = color_metric(metric, color)
+        if metric == "time_ms":
+            if delta_pct < 0:
+                meaning = "nested faster"
+            elif delta_pct > 0:
+                meaning = "nested slower"
+            else:
+                meaning = "no change"
+        elif metric in {"heap_max_bytes", "heap_total_bytes"}:
+            if delta_pct < 0:
+                meaning = "nested uses less memory"
+            elif delta_pct > 0:
+                meaning = "nested uses more memory"
+            else:
+                meaning = "no change"
+        elif metric.startswith("throughput_"):
+            if delta_pct > 0:
+                meaning = "nested higher throughput"
+            elif delta_pct < 0:
+                meaning = "nested lower throughput"
+            else:
+                meaning = "no change"
+        else:
+            if delta_pct > 0:
+                meaning = "nested higher value"
+            elif delta_pct < 0:
+                meaning = "nested lower value"
+            else:
+                meaning = "no change"
+        base_row = [
+            bench,
+            metric_cell,
+            unit,
+            f"{default:.6g}",
+            f"{nested:.6g}",
+            f"{delta_pct:+.2f}%",
+            meaning,
+        ]
+        if plot:
+            bar = delta_bar(delta_pct)
+            base_row.append(bar)
+        output_rows.append(base_row)
+
+    if plot:
+        print_table(
+            [
+                "bench",
+                "metric",
+                "unit",
+                "default",
+                "nested",
+                "nested vs default",
+                "meaning",
+                "nested change bar",
+            ],
+            output_rows,
+        )
+    else:
+        print_table(
+            [
+                "bench",
+                "metric",
+                "unit",
+                "default",
+                "nested",
+                "nested vs default",
+                "meaning",
+            ],
+            output_rows,
+        )
+
+    if not comparisons:
+        print("No comparable default/nested pairs found.")
+        return
+
+    print("")
+    print("Legend:")
+    print("- nested vs default = percent change using default as baseline")
+    print("- meaning = plain-language interpretation for that metric")
+    print("- nested change bar = fixed scale from -200% to +200% in 5% steps")
+    print("- bar markers: ┆ = ±100%, │ = 0%")
+    print("- values beyond ±200% show the exact percent before/after the bar")
+    if color:
+        print("- metric colors: time_ms=yellow, heap_*=cyan, throughput_*=green, other=magenta")
+
+
+def aggregate_series(filtered):
+    by_key = defaultdict(list)
+    meta = {}
+    for r in filtered:
+        key = (r["timestamp"], r["backend"])
+        try:
+            value = float(r["value"])
+        except (TypeError, ValueError):
+            continue
+        by_key[key].append(value)
+        meta.setdefault(key, {
+            "unit": r["unit"],
+            "description": r["description"],
+            "mode": r["mode"],
+        })
+    aggregated = []
+    for (timestamp, backend), values in by_key.items():
+        info = meta.get((timestamp, backend), {})
+        aggregated.append(
+            {
+                "timestamp": timestamp,
+                "backend": backend,
+                "value": sum(values) / len(values),
+                "samples": len(values),
+                "unit": info.get("unit", ""),
+                "description": info.get("description", ""),
+                "mode": info.get("mode", ""),
+            }
+        )
+    aggregated.sort(key=lambda r: (r["timestamp"], r["backend"]))
+    return aggregated
+
+
+def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw):
+    if not bench or not metric:
+        raise SystemExit("series mode requires --bench and --metric")
+
+    filtered = [
+        r for r in rows
+        if r["bench"] == bench and r["metric"] == metric
+    ]
+
+    if mode and mode != "all":
+        filtered = [r for r in filtered if r["mode"] == mode]
+
+    if backend != "both":
+        filtered = [r for r in filtered if r["backend"] == backend]
+
+    filtered.sort(key=lambda r: (r["timestamp"], r["backend"]))
+
+    if raw:
+        output_rows = []
+        for r in filtered:
+            output_rows.append(
+                [
+                    r["timestamp"],
+                    r["backend"],
+                    r["value"],
+                    r["unit"],
+                    r["description"],
+                    r["mode"],
+                ]
+            )
+        print_table(
+            ["timestamp", "backend", "value", "unit", "description", "mode"],
+            output_rows,
+        )
+    else:
+        aggregated = aggregate_series(filtered)
+        output_rows = []
+        for r in aggregated:
+            output_rows.append(
+                [
+                    r["timestamp"],
+                    r["backend"],
+                    f"{r['value']:.6g}",
+                    r["unit"],
+                    r["description"],
+                    r["mode"],
+                    str(r["samples"]),
+                ]
+            )
+        print_table(
+            ["timestamp", "backend", "value(avg)", "unit", "description", "mode", "samples"],
+            output_rows,
+        )
+
+    if plot:
+        if raw:
+            source = filtered
+        else:
+            source = aggregate_series(filtered)
+
+        timestamps = sorted({r["timestamp"] for r in source})
+        by_backend = defaultdict(dict)
+        unit = ""
+        for r in source:
+            try:
+                value = float(r["value"]) if raw else float(r["value"])
+            except (TypeError, ValueError):
+                continue
+            by_backend[r["backend"]][r["timestamp"]] = value
+            unit = r.get("unit", unit)
+
+        print("")
+        plot_rows = []
+        has_missing = False
+        for backend_name in sorted(by_backend.keys()):
+            values = []
+            for ts in timestamps:
+                value = by_backend[backend_name].get(ts)
+                if value is None:
+                    has_missing = True
+                values.append(value)
+            numeric_values = [v for v in values if v is not None]
+            if not numeric_values:
+                continue
+            plot_line = sparkline(values, plot_width)
+            plot_rows.append(
+                [
+                    backend_name,
+                    plot_line,
+                    f"{min(numeric_values):.6g}",
+                    f"{max(numeric_values):.6g}",
+                    f"{numeric_values[-1]:.6g}",
+                    unit,
+                ]
+            )
+
+        print_table(
+            ["backend", "sparkline", "min", "max", "latest", "unit"],
+            plot_rows,
+        )
+        print("Note: sparklines are scaled per-backend (local min/max).")
+        if has_missing:
+            print("Note: · in sparkline means missing data for that timestamp.")
+
+    if not filtered:
+        print("No rows found for the given series.")
+
+
+def main():
+    key_map = {
+        "csv": "--csv",
+        "description": "--description",
+        "mode": "--mode",
+        "timestamp": "--timestamp",
+        "bench": "--bench",
+        "metric": "--metric",
+        "backend": "--backend",
+        "list": "--list",
+        "series": "--series",
+        "series_raw": "--series-raw",
+        "series-raw": "--series-raw",
+        "plot": "--plot",
+        "plot_width": "--plot-width",
+        "plot-width": "--plot-width",
+        "color": "--color",
+        "top": "--top",
+    }
+    raw_args = sys.argv[1:]
+    mapped_args = []
+    for arg in raw_args:
+        if arg.startswith("-"):
+            mapped_args.append(arg)
+            continue
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            flag = key_map.get(key)
+            if flag:
+                mapped_args.extend([flag, value])
+                continue
+        mapped_args.append(arg)
+    sys.argv[1:] = mapped_args
+
+    parser = argparse.ArgumentParser(description="Analyze bench_results/history.csv")
+    parser.add_argument("--csv", default="bench_results/history.csv")
+    parser.add_argument("--description", default="")
+    parser.add_argument("--mode", default="full")
+    parser.add_argument("--timestamp", default="")
+    parser.add_argument("--bench", default="")
+    parser.add_argument("--metric", default="")
+    parser.add_argument("--backend", default="both")
+    parser.add_argument("--list", default="0")
+    parser.add_argument("--series", default="0")
+    parser.add_argument("--plot", default="0")
+    parser.add_argument("--plot-width", default="24")
+    parser.add_argument("--color", default="1")
+    parser.add_argument("--series-raw", default="0")
+    parser.add_argument("--top", default="0")
+    args = parser.parse_args()
+
+    rows = load_rows(Path(args.csv))
+
+    if truthy(args.list):
+        list_descriptions(rows)
+        return
+
+    if truthy(args.series):
+        series_rows(
+            rows,
+            args.bench,
+            args.metric,
+            args.mode,
+            args.backend,
+            truthy(args.plot),
+            int(args.plot_width),
+            truthy(args.series_raw),
+        )
+        return
+
+    selected, timestamp = select_rows(
+        rows,
+        args.description,
+        args.mode,
+        args.timestamp,
+    )
+    if not selected:
+        print("No rows found for the given filters.")
+        if args.description:
+            print("Try --mode all or a different description.")
+        return
+
+    print(f"timestamp: {timestamp}")
+    compare_rows(
+        selected,
+        int(args.top),
+        truthy(args.plot),
+        truthy(args.color),
+    )
+
+
+if __name__ == "__main__":
+    main()

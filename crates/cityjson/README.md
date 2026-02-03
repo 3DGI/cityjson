@@ -63,6 +63,28 @@ The library defines custom errors in the `errors` module and uses Result types t
 
 example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](https://github.com/rust-lang/regex?tab=readme-ov-file#performance)
 
+### Benchmarking
+
+Run the full benchmark + profiling suite (both backends by default):
+
+```sh
+just perf "my run description"
+```
+
+Quick/fast mode or a single backend:
+
+```sh
+just perf "quick check" mode=fast
+just perf "nested only" backend=nested
+```
+
+Analyze results from `bench_results/history.csv`:
+
+```sh
+just perf-analyze description="my run description" plot=1
+just perf-analyze series=1 plot=1 bench="builder/build_with_geometry" metric="time_ms"
+```
+
 ## API Stability
 
 This crate follows the semantic versioning system, such as `MAJOR.MINOR.PATCH`.

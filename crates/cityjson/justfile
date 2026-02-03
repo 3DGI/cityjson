@@ -32,8 +32,13 @@ doc-signatures:
 # Benchmark & Profiling
 # ============================================================================
 
+# Run benchmarks and memory profiling
 perf description backend="both" mode="full" seed="" size="":
     ./tools/perf.sh "{{description}}" "{{backend}}" "{{mode}}" "{{seed}}" "{{size}}"
+
+# Analyze benchmark and profiling results
+perf-analyze *args:
+    python3 tools/analyze_bench.py {{args}}
 
 # ============================================================================
 # Memory profiling (internal helpers used by perf)
