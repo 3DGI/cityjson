@@ -145,23 +145,6 @@ impl<SS: StringStorage + std::fmt::Debug, RR: std::fmt::Debug> Display for Geome
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct GeometryTemplates<SS: StringStorage, RR> {
-    pub templates: Vec<Geometry<SS, RR>>,
-    pub vertices_templates: VerticesTemplates,
-}
-
-pub type VerticesTemplates = Vec<[f64; 3]>;
-
-impl<SS: StringStorage, RR> Default for GeometryTemplates<SS, RR> {
-    fn default() -> Self {
-        Self {
-            templates: Vec::new(),
-            vertices_templates: Vec::new(),
-        }
-    }
-}
-
 // ==================== CORE GEOMETRY ENUMS ====================
 
 #[repr(C)]

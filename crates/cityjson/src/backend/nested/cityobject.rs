@@ -16,26 +16,18 @@ pub struct CityObject<SS: StringStorage, RR> {
     geometry: Option<Vec<Geometry<SS, RR>>>,
     attributes: Option<Attributes<SS, RR>>,
     geographical_extent: Option<BBox>,
-    children: Option<Vec<String>>,
-    parents: Option<Vec<String>>,
-    extra: Option<Attributes<SS, RR>>,
 }
 
 impl<SS: StringStorage, RR> CityObject<SS, RR> {
-    // Constructor
     pub fn new(type_co: CityObjectType<SS>) -> Self {
         Self {
             type_co,
             geometry: None,
             attributes: None,
             geographical_extent: None,
-            children: None,
-            parents: None,
-            extra: None,
         }
     }
 
-    // Getters
     pub fn type_cityobject(&self) -> &CityObjectType<SS> {
         &self.type_co
     }
@@ -44,45 +36,20 @@ impl<SS: StringStorage, RR> CityObject<SS, RR> {
         self.geometry.as_ref()
     }
 
-    pub fn attributes(&self) -> Option<&Attributes<SS, RR>> {
-        self.attributes.as_ref()
-    }
-
-    pub fn geographical_extent(&self) -> Option<&BBox> {
-        self.geographical_extent.as_ref()
-    }
-
-    pub fn children(&self) -> Option<&Vec<String>> {
-        self.children.as_ref()
-    }
-
-    pub fn parents(&self) -> Option<&Vec<String>> {
-        self.parents.as_ref()
-    }
-
-    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
-        self.extra.as_ref()
-    }
-
-    // Mutators (auto-initialize Options)
     pub fn geometry_mut(&mut self) -> &mut Vec<Geometry<SS, RR>> {
         self.geometry.get_or_insert_with(Vec::new)
+    }
+
+    pub fn attributes(&self) -> Option<&Attributes<SS, RR>> {
+        self.attributes.as_ref()
     }
 
     pub fn attributes_mut(&mut self) -> &mut Attributes<SS, RR> {
         self.attributes.get_or_insert_with(Attributes::new)
     }
 
-    pub fn children_mut(&mut self) -> &mut Vec<String> {
-        self.children.get_or_insert_with(Vec::new)
-    }
-
-    pub fn parents_mut(&mut self) -> &mut Vec<String> {
-        self.parents.get_or_insert_with(Vec::new)
-    }
-
-    pub fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
-        self.extra.get_or_insert_with(Attributes::new)
+    pub fn geographical_extent(&self) -> Option<&BBox> {
+        self.geographical_extent.as_ref()
     }
 
     pub fn set_geographical_extent(&mut self, bbox: Option<BBox>) {
