@@ -32,21 +32,33 @@ def find_key(data, keys):
 def totals_from_pps(data):
     pps = data.get("pps")
     if not isinstance(pps, list):
-        return None, None
+        return None, None, None, None
     total_bytes = 0
     max_bytes = 0
+    total_blocks = 0
+    max_blocks = 0
     for entry in pps:
         if not isinstance(entry, dict):
             continue
         tb = entry.get("tb")
         gb = entry.get("gb")
+        tbk = entry.get("tbk")
+        gbk = entry.get("gbk")
         if isinstance(tb, (int, float)):
             total_bytes += float(tb)
         if isinstance(gb, (int, float)):
             max_bytes += float(gb)
+        if isinstance(tbk, (int, float)):
+            total_blocks += float(tbk)
+        if isinstance(gbk, (int, float)):
+            max_blocks += float(gbk)
     if total_bytes == 0 or max_bytes == 0:
-        return None, None
-    return max_bytes, total_bytes
+        total_bytes = None
+        max_bytes = None
+    if total_blocks == 0 or max_blocks == 0:
+        total_blocks = None
+        max_blocks = None
+    return max_bytes, total_bytes, max_blocks, total_blocks
 
 
 def main():
@@ -74,18 +86,31 @@ def main():
     max_bytes = find_key(data, ["max_bytes", "max_bytes_live", "max_total_bytes", "peak_bytes"])
     total_bytes = find_key(data, ["total_bytes", "total_allocated_bytes", "total_bytes_allocated"])
 
-    if max_bytes is None or total_bytes is None:
-        max_from_pps, total_from_pps = totals_from_pps(data)
+    max_blocks = find_key(data, ["max_blocks", "max_blocks_live", "peak_blocks"])
+    total_blocks = find_key(data, ["total_blocks", "total_allocations", "total_blocks_allocated"])
+
+    if max_bytes is None or total_bytes is None or max_blocks is None or total_blocks is None:
+        max_from_pps, total_from_pps, max_blocks_pps, total_blocks_pps = totals_from_pps(data)
         if max_bytes is None:
             max_bytes = max_from_pps
         if total_bytes is None:
             total_bytes = total_from_pps
+        if max_blocks is None:
+            max_blocks = max_blocks_pps
+        if total_blocks is None:
+            total_blocks = total_blocks_pps
 
     if max_bytes is None:
         print("Failed to locate max bytes in dhat output", file=sys.stderr)
         sys.exit(1)
     if total_bytes is None:
         print("Failed to locate total bytes in dhat output", file=sys.stderr)
+        sys.exit(1)
+    if max_blocks is None:
+        print("Failed to locate max blocks in dhat output", file=sys.stderr)
+        sys.exit(1)
+    if total_blocks is None:
+        print("Failed to locate total blocks in dhat output", file=sys.stderr)
         sys.exit(1)
 
     rows = [
@@ -113,6 +138,34 @@ def main():
             "heap_total_bytes",
             f"{total_bytes:.0f}",
             "bytes",
+            args.seed,
+            args.bench_version,
+            args.rustc,
+        ],
+        [
+            args.timestamp,
+            args.commit,
+            args.description,
+            args.mode,
+            args.backend,
+            args.bench,
+            "heap_max_blocks",
+            f"{max_blocks:.0f}",
+            "blocks",
+            args.seed,
+            args.bench_version,
+            args.rustc,
+        ],
+        [
+            args.timestamp,
+            args.commit,
+            args.description,
+            args.mode,
+            args.backend,
+            args.bench,
+            "heap_total_blocks",
+            f"{total_blocks:.0f}",
+            "blocks",
             args.seed,
             args.bench_version,
             args.rustc,

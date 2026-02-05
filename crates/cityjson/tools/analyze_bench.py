@@ -7,7 +7,20 @@ from collections import defaultdict
 from pathlib import Path
 
 
-LOWER_BETTER = {"time_ms", "heap_max_bytes", "heap_total_bytes"}
+LOWER_BETTER = {
+    "time_ms",
+    "heap_max_bytes",
+    "heap_total_bytes",
+    "heap_max_blocks",
+    "heap_total_blocks",
+    "cache_d1_miss_rate",
+    "cache_ll_miss_rate",
+    "branch_miss_rate",
+}
+CACHE_METRICS = {"cache_d1_miss_rate", "cache_ll_miss_rate", "branch_miss_rate"}
+HEAP_BYTES_METRICS = {"heap_max_bytes", "heap_total_bytes"}
+HEAP_BLOCK_METRICS = {"heap_max_blocks", "heap_total_blocks"}
+HEAP_METRICS = HEAP_BYTES_METRICS | HEAP_BLOCK_METRICS
 SPARKS = "▁▂▃▄▅▆▇█"
 ABS_BAR_MIN = -200.0
 ABS_BAR_MAX = 200.0
@@ -50,7 +63,7 @@ def color_metric(metric, enabled):
         return metric
     if metric == "time_ms":
         color = "33"
-    elif metric in {"heap_max_bytes", "heap_total_bytes"}:
+    elif metric in HEAP_METRICS:
         color = "36"
     elif metric.startswith("throughput_"):
         color = "32"
@@ -189,7 +202,7 @@ def delta_bar(delta_pct):
     return f"{prefix}{''.join(bar)}{suffix}"
 
 
-def compare_rows(rows, top, plot, color):
+def compare_rows(rows, top, plot, color, percent):
     for row in rows:
         try:
             row["value"] = float(row["value"])
@@ -230,6 +243,8 @@ def compare_rows(rows, top, plot, color):
     output_rows = []
     for bench, metric, unit, default, nested, delta_pct in comparisons:
         metric_cell = color_metric(metric, color)
+        default_disp, unit_disp = format_value(default, unit, percent)
+        nested_disp, unit_disp = format_value(nested, unit, percent)
         if metric == "time_ms":
             if delta_pct < 0:
                 meaning = "nested faster"
@@ -237,11 +252,25 @@ def compare_rows(rows, top, plot, color):
                 meaning = "nested slower"
             else:
                 meaning = "no change"
-        elif metric in {"heap_max_bytes", "heap_total_bytes"}:
+        elif metric in HEAP_BYTES_METRICS:
             if delta_pct < 0:
                 meaning = "nested uses less memory"
             elif delta_pct > 0:
                 meaning = "nested uses more memory"
+            else:
+                meaning = "no change"
+        elif metric in HEAP_BLOCK_METRICS:
+            if delta_pct < 0:
+                meaning = "nested uses fewer allocations"
+            elif delta_pct > 0:
+                meaning = "nested uses more allocations"
+            else:
+                meaning = "no change"
+        elif metric in CACHE_METRICS:
+            if delta_pct < 0:
+                meaning = "nested lower miss rate"
+            elif delta_pct > 0:
+                meaning = "nested higher miss rate"
             else:
                 meaning = "no change"
         elif metric.startswith("throughput_"):
@@ -252,18 +281,26 @@ def compare_rows(rows, top, plot, color):
             else:
                 meaning = "no change"
         else:
-            if delta_pct > 0:
-                meaning = "nested higher value"
-            elif delta_pct < 0:
-                meaning = "nested lower value"
+            if metric in LOWER_BETTER:
+                if delta_pct < 0:
+                    meaning = "nested lower value"
+                elif delta_pct > 0:
+                    meaning = "nested higher value"
+                else:
+                    meaning = "no change"
             else:
-                meaning = "no change"
+                if delta_pct > 0:
+                    meaning = "nested higher value"
+                elif delta_pct < 0:
+                    meaning = "nested lower value"
+                else:
+                    meaning = "no change"
         base_row = [
             bench,
             metric_cell,
-            unit,
-            f"{default:.6g}",
-            f"{nested:.6g}",
+            unit_disp,
+            f"{default_disp:.6g}",
+            f"{nested_disp:.6g}",
             f"{delta_pct:+.2f}%",
             meaning,
         ]
@@ -311,6 +348,7 @@ def compare_rows(rows, top, plot, color):
     print("- nested change bar = fixed scale from -200% to +200% in 5% steps")
     print("- bar markers: ┆ = ±100%, │ = 0%")
     print("- values beyond ±200% show the exact percent before/after the bar")
+    print("- cache ratios: lower is better (use --percent=1 to show as percent)")
     if color:
         print("- metric colors: time_ms=yellow, heap_*=cyan, throughput_*=green, other=magenta")
 
@@ -348,7 +386,13 @@ def aggregate_series(filtered):
     return aggregated
 
 
-def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw):
+def format_value(value, unit, percent):
+    if percent and unit == "ratio":
+        return value * 100.0, "percent"
+    return value, unit
+
+
+def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, percent):
     if not bench or not metric:
         raise SystemExit("series mode requires --bench and --metric")
 
@@ -368,12 +412,23 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw):
     if raw:
         output_rows = []
         for r in filtered:
+            try:
+                value = float(r["value"])
+            except (TypeError, ValueError):
+                value = None
+            unit = r["unit"]
+            if value is not None:
+                display_value, display_unit = format_value(value, unit, percent)
+                value_str = f"{display_value:.6g}"
+            else:
+                display_unit = unit
+                value_str = r["value"]
             output_rows.append(
                 [
                     r["timestamp"],
                     r["backend"],
-                    r["value"],
-                    r["unit"],
+                    value_str,
+                    display_unit,
                     r["description"],
                     r["mode"],
                 ]
@@ -386,12 +441,13 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw):
         aggregated = aggregate_series(filtered)
         output_rows = []
         for r in aggregated:
+            display_value, display_unit = format_value(r["value"], r["unit"], percent)
             output_rows.append(
                 [
                     r["timestamp"],
                     r["backend"],
-                    f"{r['value']:.6g}",
-                    r["unit"],
+                    f"{display_value:.6g}",
+                    display_unit,
                     r["description"],
                     r["mode"],
                     str(r["samples"]),
@@ -416,8 +472,9 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw):
                 value = float(r["value"]) if raw else float(r["value"])
             except (TypeError, ValueError):
                 continue
+            value, unit = format_value(value, r.get("unit", ""), percent)
             by_backend[r["backend"]][r["timestamp"]] = value
-            unit = r.get("unit", unit)
+            unit = unit or r.get("unit", unit)
 
         print("")
         plot_rows = []
@@ -474,6 +531,7 @@ def main():
         "plot-width": "--plot-width",
         "color": "--color",
         "top": "--top",
+        "percent": "--percent",
     }
     raw_args = sys.argv[1:]
     mapped_args = []
@@ -505,6 +563,7 @@ def main():
     parser.add_argument("--color", default="1")
     parser.add_argument("--series-raw", default="0")
     parser.add_argument("--top", default="0")
+    parser.add_argument("--percent", default="0")
     args = parser.parse_args()
 
     rows = load_rows(Path(args.csv))
@@ -523,6 +582,7 @@ def main():
             truthy(args.plot),
             int(args.plot_width),
             truthy(args.series_raw),
+            truthy(args.percent),
         )
         return
 
@@ -544,6 +604,7 @@ def main():
         int(args.top),
         truthy(args.plot),
         truthy(args.color),
+        truthy(args.percent),
     )
 
 

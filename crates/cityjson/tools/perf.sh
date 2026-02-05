@@ -158,6 +158,24 @@ run_backend() {
         PROFILE_SIZE="$SIZE_ARG" \
         BACKEND_SPLIT="$BACKEND_SPLIT" \
         just profile-bench-all
+
+    cachegrind_out=$(find profiling -name cachegrind.out -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
+    if [ -n "$cachegrind_out" ] && [ -f "$cachegrind_out" ]; then
+        python3 tools/parse_cachegrind.py \
+            --cachegrind-out "$cachegrind_out" \
+            --timestamp "$TIMESTAMP" \
+            --commit "$COMMIT" \
+            --description "$DESCRIPTION" \
+            --mode "$MODE" \
+            --backend "$backend" \
+            --bench "processor/compute_full_feature_stats" \
+            --seed "$SEED" \
+            --bench-version "$BENCH_VERSION" \
+            --rustc "$RUSTC_VERSION" \
+            --out "$CSV_OUT"
+    else
+        echo "cachegrind.out not found; skipping cache metrics" >&2
+    fi
 }
 
 case "$BACKEND" in
