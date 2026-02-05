@@ -5,11 +5,51 @@ use std::sync::mpsc;
 use std::thread;
 
 // ============================================================================
-// Wire Format Structs - Simulate data structures from parsed CityJSON
+// Wire Types + Constants
 // ============================================================================
 
 const NR_BUILDINGS: usize = 10_000;
 const BATCH_SIZE: usize = 1_000; // Process buildings in batches to maintain stable memory
+const STREAM_VERBOSE_ENV: &str = "STREAM_VERBOSE";
+
+const BOUNDARIES_SIMPLE: &[&[&[usize]]] = &[
+    &[&[0, 1, 2, 3]], // Bottom
+    &[&[4, 5, 6, 7]], // Top
+    &[&[0, 1, 5, 4]], // Front
+    &[&[1, 2, 6, 5]], // Right
+    &[&[2, 3, 7, 6]], // Back
+    &[&[3, 0, 4, 7]], // Left
+];
+
+const BOUNDARIES_MEDIUM: &[&[&[usize]]] = &[
+    &[&[0, 1, 2, 3]],   // Bottom
+    &[&[4, 5, 6, 7]],   // Top
+    &[&[0, 1, 9, 8]],   // Front lower
+    &[&[8, 9, 5, 4]],   // Front upper
+    &[&[1, 2, 10, 9]],  // Right lower
+    &[&[9, 10, 6, 5]],  // Right upper
+    &[&[2, 3, 11, 10]], // Back lower
+    &[&[10, 11, 7, 6]], // Back upper
+    &[&[3, 0, 8, 11]],  // Left lower
+    &[&[11, 8, 4, 7]],  // Left upper
+];
+
+const BOUNDARIES_COMPLEX: &[&[&[usize]]] = &[
+    &[&[0, 1, 2, 3]],   // Bottom
+    &[&[4, 5, 6, 7]],   // Top
+    &[&[0, 12, 16, 4]], // Front left
+    &[&[12, 1, 5, 16]], // Front right
+    &[&[1, 15, 19, 5]], // Right front
+    &[&[15, 2, 6, 19]], // Right back
+    &[&[2, 13, 17, 6]], // Back right
+    &[&[13, 3, 7, 17]], // Back left
+    &[&[3, 14, 18, 7]], // Left back
+    &[&[14, 0, 4, 18]], // Left front
+    &[&[12, 15, 1]],    // Bottom detail
+    &[&[13, 14, 3]],    // Bottom detail
+    &[&[16, 19, 5]],    // Top detail
+    &[&[17, 18, 7]],    // Top detail
+];
 
 /// Represents attribute values as they would appear in parsed JSON
 #[derive(Debug, Clone)]
@@ -120,6 +160,236 @@ struct BatchMetrics {
     peak_cityobjects: usize,
 }
 
+// ============================================================================
+// Wire Data Generators
+// ============================================================================
+
+fn stream_verbose_enabled() -> bool {
+    std::env::var(STREAM_VERBOSE_ENV)
+        .ok()
+        .map(|val| {
+            matches!(
+                val.trim().to_lowercase().as_str(),
+                "1" | "true" | "yes" | "y" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
+    vec![table
+        .iter()
+        .map(|surface| surface.iter().map(|ring| ring.to_vec()).collect())
+        .collect()]
+}
+
+fn semantics_for(count: usize, pattern: &[&str]) -> Vec<Option<WireSemantic>> {
+    let mut semantics = Vec::with_capacity(count);
+    for idx in 0..count {
+        let surface_type = pattern[idx % pattern.len()].to_string();
+        semantics.push(Some(WireSemantic {
+            surface_type,
+            attributes: vec![],
+        }));
+    }
+    semantics
+}
+
+fn materials_for(
+    count: usize,
+    wall: &WireMaterial,
+    roof: &WireMaterial,
+) -> Vec<(String, WireMaterial)> {
+    (0..count)
+        .map(|idx| {
+            let material = if idx == 1 { roof } else { wall };
+            ("default".to_string(), material.clone())
+        })
+        .collect()
+}
+
+fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)> {
+    let mut attributes = vec![
+        // Float: height, area, volume
+        (
+            "height".to_string(),
+            WireAttributeValue::Float(height as f64),
+        ),
+        (
+            "floorArea".to_string(),
+            WireAttributeValue::Float(400.0 + (i % 100) as f64 * 10.0),
+        ),
+        (
+            "volume".to_string(),
+            WireAttributeValue::Float(height as f64 * 400.0),
+        ),
+        // Integer: year of construction
+        (
+            "yearOfConstruction".to_string(),
+            WireAttributeValue::Integer(1950 + ((i % 75) as i64)),
+        ),
+        (
+            "renovationYear".to_string(),
+            WireAttributeValue::Integer(2000 + ((i % 25) as i64)),
+        ),
+        // Unsigned: counts
+        (
+            "floorCount".to_string(),
+            WireAttributeValue::Unsigned(1 + (i % 20)),
+        ),
+        (
+            "roomCount".to_string(),
+            WireAttributeValue::Unsigned(3 + (i % 50)),
+        ),
+        (
+            "windowCount".to_string(),
+            WireAttributeValue::Unsigned(5 + (i % 30)),
+        ),
+        // Bool: flags
+        (
+            "isCommercial".to_string(),
+            WireAttributeValue::Bool(i.is_multiple_of(5)),
+        ),
+        (
+            "hasElevator".to_string(),
+            WireAttributeValue::Bool(i.is_multiple_of(3)),
+        ),
+        (
+            "hasParking".to_string(),
+            WireAttributeValue::Bool(i.is_multiple_of(2)),
+        ),
+        // String: textual data
+        (
+            "owner".to_string(),
+            WireAttributeValue::String(format!("Owner-{}", i % 100)),
+        ),
+        (
+            "address".to_string(),
+            WireAttributeValue::String(format!("{} Main St, City {}", i, i % 50)),
+        ),
+        (
+            "buildingClass".to_string(),
+            WireAttributeValue::String(
+                match i % 4 {
+                    0 => "residential",
+                    1 => "commercial",
+                    2 => "industrial",
+                    _ => "mixed-use",
+                }
+                .to_string(),
+            ),
+        ),
+        // Vec: arrays of values
+        (
+            "historicalDates".to_string(),
+            WireAttributeValue::Vec(vec![
+                WireAttributeValue::Integer(1950 + (i % 50) as i64),
+                WireAttributeValue::Integer(1980 + (i % 30) as i64),
+                WireAttributeValue::Integer(2010 + (i % 15) as i64),
+            ]),
+        ),
+        (
+            "measurements".to_string(),
+            WireAttributeValue::Vec(vec![
+                WireAttributeValue::Float(height as f64),
+                WireAttributeValue::Float(20.0),
+                WireAttributeValue::Float(20.0),
+            ]),
+        ),
+        // Map: nested objects
+        (
+            "energyRating".to_string(),
+            WireAttributeValue::Map(vec![
+                (
+                    "class".to_string(),
+                    WireAttributeValue::String(
+                        match i % 7 {
+                            0 => "A++",
+                            1 => "A+",
+                            2 => "A",
+                            3 => "B",
+                            4 => "C",
+                            5 => "D",
+                            _ => "E",
+                        }
+                        .to_string(),
+                    ),
+                ),
+                (
+                    "consumption".to_string(),
+                    WireAttributeValue::Float(50.0 + (i % 150) as f64),
+                ),
+                (
+                    "certified".to_string(),
+                    WireAttributeValue::Bool(i.is_multiple_of(2)),
+                ),
+            ]),
+        ),
+        (
+            "ownership".to_string(),
+            WireAttributeValue::Map(vec![
+                (
+                    "type".to_string(),
+                    WireAttributeValue::String(
+                        if i.is_multiple_of(2) {
+                            "private"
+                        } else {
+                            "public"
+                        }
+                        .to_string(),
+                    ),
+                ),
+                (
+                    "cadastralId".to_string(),
+                    WireAttributeValue::String(format!("CAD-{:06}", i)),
+                ),
+                (
+                    "registrationYear".to_string(),
+                    WireAttributeValue::Integer(1990 + (i % 35) as i64),
+                ),
+            ]),
+        ),
+    ];
+
+    if i.is_multiple_of(10) {
+        attributes.push(("futureExpansion".to_string(), WireAttributeValue::Null));
+    }
+
+    attributes
+}
+
+fn wire_geometry_solid(
+    boundaries: Vec<Vec<Vec<Vec<usize>>>>,
+    semantics: Vec<Option<WireSemantic>>,
+    materials: Vec<(String, WireMaterial)>,
+) -> WireGeometry {
+    WireGeometry {
+        geometry_type: "Solid".to_string(),
+        lod: "2".to_string(),
+        boundaries,
+        semantics,
+        materials,
+        template_ref: None,
+        transformation_matrix: None,
+    }
+}
+
+fn wire_geometry_instance(template_ref: usize, transform: [f64; 16]) -> WireGeometry {
+    WireGeometry {
+        geometry_type: "GeometryInstance".to_string(),
+        lod: "1".to_string(),
+        boundaries: vec![],
+        semantics: vec![],
+        materials: vec![],
+        template_ref: Some(template_ref),
+        transformation_matrix: Some(transform),
+    }
+}
+
+// ============================================================================
+// Producer/Consumer Runtime
+// ============================================================================
+
 /// Producer-consumer streaming test with batch-based memory management
 ///
 /// This test simulates realistic CityJSON stream processing using batch processing:
@@ -148,10 +418,12 @@ fn test_producer_consumer_stream() -> Result<()> {
             let producer_start = Instant::now();
             producer(tx);
             let producer_duration = producer_start.elapsed();
-            println!(
-                "Producer finished in {:.2}s",
-                producer_duration.as_secs_f64()
-            );
+            if stream_verbose_enabled() {
+                println!(
+                    "Producer finished in {:.2}s",
+                    producer_duration.as_secs_f64()
+                );
+            }
         });
 
         // Consumer thread - ingests and constructs CityModel
@@ -159,10 +431,12 @@ fn test_producer_consumer_stream() -> Result<()> {
             let consumer_start = Instant::now();
             let result = consumer(rx);
             let consumer_duration = consumer_start.elapsed();
-            println!(
-                "Consumer finished in {:.2}s",
-                consumer_duration.as_secs_f64()
-            );
+            if stream_verbose_enabled() {
+                println!(
+                    "Consumer finished in {:.2}s",
+                    consumer_duration.as_secs_f64()
+                );
+            }
             result
         });
 
@@ -227,8 +501,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
     let building_count = NR_BUILDINGS as u64;
 
     for i in 0..building_count {
-        // Print producer progresses every 100000 buildings
-        if i % 100_000 == 0 && i > 0 {
+        if stream_verbose_enabled() && i % 100_000 == 0 && i > 0 {
             println!("Producer: Generated {} / {} buildings", i, building_count);
         }
         // Vary complexity: simple (8 verts), medium (16 verts), complex (24 verts)
@@ -302,236 +575,81 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
         // Geometry 1: Solid with semantics and materials (complexity varies)
         let (boundaries, semantics, materials) = match complexity {
             0 => {
-                // Simple: 6 surfaces (cube)
-                let bounds = vec![vec![
-                    vec![vec![0, 1, 2, 3]], // Bottom
-                    vec![vec![4, 5, 6, 7]], // Top
-                    vec![vec![0, 1, 5, 4]], // Front
-                    vec![vec![1, 2, 6, 5]], // Right
-                    vec![vec![2, 3, 7, 6]], // Back
-                    vec![vec![3, 0, 4, 7]], // Left
-                ]];
-                let sems = vec![
-                    Some(WireSemantic {
-                        surface_type: "GroundSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "RoofSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                ];
-                let mats = vec![
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_roof.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                ];
+                let bounds = boundaries_from_table(BOUNDARIES_SIMPLE);
+                let sems = semantics_for(
+                    BOUNDARIES_SIMPLE.len(),
+                    &[
+                        "GroundSurface",
+                        "RoofSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                    ],
+                );
+                let mats = materials_for(BOUNDARIES_SIMPLE.len(), &material_wall, &material_roof);
                 (bounds, sems, mats)
             }
             1 => {
-                // Medium: 10 surfaces (with mid-level)
-                let bounds = vec![vec![
-                    vec![vec![0, 1, 2, 3]],   // Bottom
-                    vec![vec![4, 5, 6, 7]],   // Top
-                    vec![vec![0, 1, 9, 8]],   // Front lower
-                    vec![vec![8, 9, 5, 4]],   // Front upper
-                    vec![vec![1, 2, 10, 9]],  // Right lower
-                    vec![vec![9, 10, 6, 5]],  // Right upper
-                    vec![vec![2, 3, 11, 10]], // Back lower
-                    vec![vec![10, 11, 7, 6]], // Back upper
-                    vec![vec![3, 0, 8, 11]],  // Left lower
-                    vec![vec![11, 8, 4, 7]],  // Left upper
-                ]];
-                let sems = vec![
-                    Some(WireSemantic {
-                        surface_type: "GroundSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "RoofSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                ];
-                let mats = vec![
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_roof.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                ];
+                let bounds = boundaries_from_table(BOUNDARIES_MEDIUM);
+                let sems = semantics_for(
+                    BOUNDARIES_MEDIUM.len(),
+                    &[
+                        "GroundSurface",
+                        "RoofSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                    ],
+                );
+                let mats = materials_for(BOUNDARIES_MEDIUM.len(), &material_wall, &material_roof);
                 (bounds, sems, mats)
             }
             _ => {
-                // Complex: 14 surfaces (with additional details)
-                let bounds = vec![vec![
-                    vec![vec![0, 1, 2, 3]],   // Bottom
-                    vec![vec![4, 5, 6, 7]],   // Top
-                    vec![vec![0, 12, 16, 4]], // Front left
-                    vec![vec![12, 1, 5, 16]], // Front right
-                    vec![vec![1, 15, 19, 5]], // Right front
-                    vec![vec![15, 2, 6, 19]], // Right back
-                    vec![vec![2, 13, 17, 6]], // Back right
-                    vec![vec![13, 3, 7, 17]], // Back left
-                    vec![vec![3, 14, 18, 7]], // Left back
-                    vec![vec![14, 0, 4, 18]], // Left front
-                    vec![vec![12, 15, 1]],    // Bottom detail
-                    vec![vec![13, 14, 3]],    // Bottom detail
-                    vec![vec![16, 19, 5]],    // Top detail
-                    vec![vec![17, 18, 7]],    // Top detail
-                ]];
-                let sems = vec![
-                    Some(WireSemantic {
-                        surface_type: "GroundSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "RoofSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "WallSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "GroundSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "GroundSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "RoofSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                    Some(WireSemantic {
-                        surface_type: "RoofSurface".to_string(),
-                        attributes: vec![],
-                    }),
-                ];
-                let mats = vec![
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_roof.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_wall.clone()),
-                    ("default".to_string(), material_roof.clone()),
-                    ("default".to_string(), material_roof.clone()),
-                ];
+                let bounds = boundaries_from_table(BOUNDARIES_COMPLEX);
+                let sems = semantics_for(
+                    BOUNDARIES_COMPLEX.len(),
+                    &[
+                        "GroundSurface",
+                        "RoofSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "WallSurface",
+                        "GroundSurface",
+                        "GroundSurface",
+                        "RoofSurface",
+                        "RoofSurface",
+                    ],
+                );
+                let mut mats =
+                    materials_for(BOUNDARIES_COMPLEX.len(), &material_wall, &material_roof);
+                let last = mats.len().saturating_sub(1);
+                if let Some(entry) = mats.get_mut(last) {
+                    entry.1 = material_roof.clone();
+                }
+                if let Some(entry) = mats.get_mut(last.saturating_sub(1)) {
+                    entry.1 = material_roof.clone();
+                }
                 (bounds, sems, mats)
             }
         };
 
-        let geometry_solid = WireGeometry {
-            geometry_type: "Solid".to_string(),
-            lod: "2".to_string(),
-            boundaries,
-            semantics,
-            materials,
-            template_ref: None,
-            transformation_matrix: None,
-        };
+        let geometry_solid = wire_geometry_solid(boundaries, semantics, materials);
 
         // Geometry 2: GeometryInstance referencing template
-        let geometry_instance = WireGeometry {
-            geometry_type: "GeometryInstance".to_string(),
-            lod: "1".to_string(),
-            boundaries: vec![], // Not used for GeometryInstance
-            semantics: vec![],
-            materials: vec![],
-            template_ref: Some(0), // References first template
-            transformation_matrix: Some([
+        let geometry_instance = wire_geometry_instance(
+            0,
+            [
                 1.0,
                 0.0,
                 0.0,
@@ -548,151 +666,10 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
                 i as f64 * 10.0,
                 0.0,
                 1.0,
-            ]),
-        };
+            ],
+        );
 
-        // Create comprehensive attributes using all AttributeValue types
-        let mut attributes = vec![
-            // Float: height, area, volume
-            (
-                "height".to_string(),
-                WireAttributeValue::Float(height as f64),
-            ),
-            (
-                "floorArea".to_string(),
-                WireAttributeValue::Float(400.0 + (i % 100) as f64 * 10.0),
-            ),
-            (
-                "volume".to_string(),
-                WireAttributeValue::Float(height as f64 * 400.0),
-            ),
-            // Integer: year of construction
-            (
-                "yearOfConstruction".to_string(),
-                WireAttributeValue::Integer(1950 + ((i % 75) as i64)),
-            ),
-            (
-                "renovationYear".to_string(),
-                WireAttributeValue::Integer(2000 + ((i % 25) as i64)),
-            ),
-            // Unsigned: counts
-            (
-                "floorCount".to_string(),
-                WireAttributeValue::Unsigned(1 + (i % 20)),
-            ),
-            (
-                "roomCount".to_string(),
-                WireAttributeValue::Unsigned(3 + (i % 50)),
-            ),
-            (
-                "windowCount".to_string(),
-                WireAttributeValue::Unsigned(5 + (i % 30)),
-            ),
-            // Bool: flags
-            (
-                "isCommercial".to_string(),
-                WireAttributeValue::Bool(i % 5 == 0),
-            ),
-            (
-                "hasElevator".to_string(),
-                WireAttributeValue::Bool(i % 3 == 0),
-            ),
-            (
-                "hasParking".to_string(),
-                WireAttributeValue::Bool(i % 2 == 0),
-            ),
-            // String: textual data
-            (
-                "owner".to_string(),
-                WireAttributeValue::String(format!("Owner-{}", i % 100)),
-            ),
-            (
-                "address".to_string(),
-                WireAttributeValue::String(format!("{} Main St, City {}", i, i % 50)),
-            ),
-            (
-                "buildingClass".to_string(),
-                WireAttributeValue::String(
-                    match i % 4 {
-                        0 => "residential",
-                        1 => "commercial",
-                        2 => "industrial",
-                        _ => "mixed-use",
-                    }
-                    .to_string(),
-                ),
-            ),
-            // Vec: arrays of values
-            (
-                "historicalDates".to_string(),
-                WireAttributeValue::Vec(vec![
-                    WireAttributeValue::Integer(1950 + (i % 50) as i64),
-                    WireAttributeValue::Integer(1980 + (i % 30) as i64),
-                    WireAttributeValue::Integer(2010 + (i % 15) as i64),
-                ]),
-            ),
-            (
-                "measurements".to_string(),
-                WireAttributeValue::Vec(vec![
-                    WireAttributeValue::Float(height as f64),
-                    WireAttributeValue::Float(20.0),
-                    WireAttributeValue::Float(20.0),
-                ]),
-            ),
-            // Map: nested objects
-            (
-                "energyRating".to_string(),
-                WireAttributeValue::Map(vec![
-                    (
-                        "class".to_string(),
-                        WireAttributeValue::String(
-                            match i % 7 {
-                                0 => "A++",
-                                1 => "A+",
-                                2 => "A",
-                                3 => "B",
-                                4 => "C",
-                                5 => "D",
-                                _ => "E",
-                            }
-                            .to_string(),
-                        ),
-                    ),
-                    (
-                        "consumption".to_string(),
-                        WireAttributeValue::Float(50.0 + (i % 150) as f64),
-                    ),
-                    (
-                        "certified".to_string(),
-                        WireAttributeValue::Bool(i % 2 == 0),
-                    ),
-                ]),
-            ),
-            (
-                "ownership".to_string(),
-                WireAttributeValue::Map(vec![
-                    (
-                        "type".to_string(),
-                        WireAttributeValue::String(
-                            if i % 2 == 0 { "private" } else { "public" }.to_string(),
-                        ),
-                    ),
-                    (
-                        "cadastralId".to_string(),
-                        WireAttributeValue::String(format!("CAD-{:06}", i)),
-                    ),
-                    (
-                        "registrationYear".to_string(),
-                        WireAttributeValue::Integer(1990 + (i % 35) as i64),
-                    ),
-                ]),
-            ),
-        ];
-
-        // Add Null for some buildings
-        if i % 10 == 0 {
-            attributes.push(("futureExpansion".to_string(), WireAttributeValue::Null));
-        }
+        let attributes = make_wire_attributes(i, height);
 
         // Construct CityObject message
         let cityobject = WireCityObjectData {
@@ -758,6 +735,10 @@ fn create_batch_model(
     Ok((model, template_refs))
 }
 
+// ============================================================================
+// Metrics/Reporting Helpers
+// ============================================================================
+
 /// Processes a completed batch and extracts metrics
 ///
 /// # Arguments
@@ -781,7 +762,7 @@ fn process_batch(
     let geometries_in_batch = model.iter_geometries().count();
 
     // Print batch progress
-    if batch_num.is_multiple_of(100) || batch_num < 10 {
+    if stream_verbose_enabled() && (batch_num.is_multiple_of(100) || batch_num < 10) {
         println!(
             "Batch {}: {} buildings processed (total: {}), {} vertices, {} geometries, {} surfaces",
             batch_num,
@@ -813,10 +794,12 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     // PHASE 1: Receive and store GlobalProperties (needed for all batches)
     // ========================================================================
     let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
-        println!(
-            "Consumer: Received global properties with {} templates",
-            global.geometry_templates.len()
-        );
+        if stream_verbose_enabled() {
+            println!(
+                "Consumer: Received global properties with {} templates",
+                global.geometry_templates.len()
+            );
+        }
         global
     } else {
         return Err(Error::InvalidGeometry(
@@ -919,7 +902,9 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 }
             }
             StreamMessage::Done => {
-                println!("Consumer: Received end-of-stream signal");
+                if stream_verbose_enabled() {
+                    println!("Consumer: Received end-of-stream signal");
+                }
                 break;
             }
             StreamMessage::GlobalProperties(_) => {
