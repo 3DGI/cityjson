@@ -43,5 +43,9 @@ harness = false
 name = "backend_comparison"
 harness = false
 
+[[bench]]
+name = "streaming"
+harness = false
+
 [profile.bench]
 debug = true  # Enable debug symbols for better profiling

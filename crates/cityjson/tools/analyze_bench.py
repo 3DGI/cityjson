@@ -16,6 +16,9 @@ LOWER_BETTER = {
     "cache_d1_miss_rate",
     "cache_ll_miss_rate",
     "branch_miss_rate",
+    "stream_total_s",
+    "stream_producer_s",
+    "stream_consumer_s",
 }
 CACHE_METRICS = {"cache_d1_miss_rate", "cache_ll_miss_rate", "branch_miss_rate"}
 HEAP_BYTES_METRICS = {"heap_max_bytes", "heap_total_bytes"}

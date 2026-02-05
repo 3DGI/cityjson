@@ -149,6 +149,46 @@ run_backend() {
         --rustc "$RUSTC_VERSION" \
         --out "$CSV_OUT"
 
+    stream_mode="e2e"
+    stream_size="$SIZE_ARG"
+    if [ -z "$stream_size" ]; then
+        if [ "$MODE" = "fast" ]; then
+            stream_size="1000"
+        else
+            stream_size="10000"
+        fi
+    fi
+    stream_batch="${STREAM_BATCH:-1000}"
+    stream_out="$target_dir/streaming-metrics.json"
+
+    stream_cmd=(cargo bench --bench streaming --features "backend-$backend")
+    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
+        stream_cmd=(cargo bench --no-default-features --bench streaming --features "backend-$backend")
+    fi
+
+    STREAM_MODE="$stream_mode" \
+    STREAM_SIZE="$stream_size" \
+    STREAM_BATCH="$stream_batch" \
+    STREAM_OUT="$stream_out" \
+    "${stream_cmd[@]}"
+
+    if [ -f "$stream_out" ]; then
+        python3 tools/parse_streaming.py \
+            --stream-json "$stream_out" \
+            --timestamp "$TIMESTAMP" \
+            --commit "$COMMIT" \
+            --description "$DESCRIPTION" \
+            --mode "$MODE" \
+            --backend "$backend" \
+            --bench "streaming/$stream_mode" \
+            --seed "$SEED" \
+            --bench-version "$BENCH_VERSION" \
+            --rustc "$RUSTC_VERSION" \
+            --out "$CSV_OUT"
+    else
+        echo "streaming metrics not found at $stream_out" >&2
+    fi
+
     echo "=== Valgrind profiling: backend=$backend bench=processor/compute_full_feature_stats ==="
     PROFILE_BACKEND="$backend" \
         PROFILE_BENCH="processor" \
