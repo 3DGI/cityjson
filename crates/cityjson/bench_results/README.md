@@ -28,6 +28,7 @@ timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_ver
 
 Notes:
 - `tools/perf.sh` defaults to `BACKEND_SPLIT=1`, so nested runs use `--no-default-features` to avoid duplicate benchmarks.
+- `bench_version` is bumped whenever the suite shape or benchmark IDs change.
 
 ## Running
 

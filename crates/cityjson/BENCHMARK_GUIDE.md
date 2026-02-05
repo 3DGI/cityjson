@@ -9,7 +9,9 @@ just perf "short description"
 ```
 
 This runs:
-- all Criterion benches for each backend, and
+- Criterion benches for each backend (`builder`, `processor`), and
+- the memory benchmark (`memory`) with dhat heap profiling, and
+- the streaming benchmark (`streaming`) as a supporting workload, and
 - the Valgrind profiling suite (massif, cachegrind, memcheck).
 
 Results are appended to `bench_results/history.csv`.
@@ -40,9 +42,12 @@ Key metrics:
 - `heap_max_bytes` and `heap_total_bytes` from dhat.
 
 Benchmark coverage:
+- `builder/build_minimal_geometry` builds cityobjects with a minimal solid geometry.
+- `builder/build_full_feature` builds cityobjects with attributes, semantics, materials, and textures.
 - `memory` builds a **full‑feature** model (materials, textures, semantics, cityobject attributes).
 - `processor/compute_mean_coordinates` is geometry traversal.
 - `processor/compute_full_feature_stats` walks attributes, semantics, materials, and textures.
+- `streaming/e2e` measures end-to-end ingestion as a supporting workload.
 - Geometry-typed attributes are intentionally excluded to avoid backend-specific representation costs.
 
 ## Profiling Targets

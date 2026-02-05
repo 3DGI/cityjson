@@ -40,10 +40,6 @@ name = "processor"
 harness = false
 
 [[bench]]
-name = "backend_comparison"
-harness = false
-
-[[bench]]
 name = "streaming"
 harness = false
 

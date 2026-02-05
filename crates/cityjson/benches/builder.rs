@@ -1,4 +1,4 @@
-//! Benchmarks for building CityObjects with and without geometries.
+//! Benchmarks for building CityObjects with minimal and full-feature geometries.
 
 #[allow(dead_code)]
 mod support;
@@ -17,15 +17,67 @@ mod default_benches {
     use cityjson::v2_0::*;
     use std::collections::HashMap;
 
+    fn build_geometry_minimal(
+        model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+        vertices: &[VertexIndex32],
+    ) -> Result<ResourceId32> {
+        let mut geometry_builder =
+            GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
+                .with_lod(LoD::LoD2);
+
+        let bv0 = geometry_builder.add_vertex(vertices[0]);
+        let bv1 = geometry_builder.add_vertex(vertices[1]);
+        let bv2 = geometry_builder.add_vertex(vertices[2]);
+        let bv3 = geometry_builder.add_vertex(vertices[3]);
+        let bv4 = geometry_builder.add_vertex(vertices[4]);
+        let bv5 = geometry_builder.add_vertex(vertices[5]);
+        let bv6 = geometry_builder.add_vertex(vertices[6]);
+        let bv7 = geometry_builder.add_vertex(vertices[7]);
+
+        let ring_bottom = geometry_builder.add_ring(&[bv0, bv1, bv2, bv3])?;
+        let surface_bottom = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_bottom)?;
+
+        let ring_top = geometry_builder.add_ring(&[bv4, bv7, bv6, bv5])?;
+        let surface_top = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_top)?;
+
+        let ring_front = geometry_builder.add_ring(&[bv0, bv1, bv5, bv4])?;
+        let surface_front = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_front)?;
+
+        let ring_right = geometry_builder.add_ring(&[bv1, bv2, bv6, bv5])?;
+        let surface_right = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_right)?;
+
+        let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
+        let surface_back = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_back)?;
+
+        let ring_left = geometry_builder.add_ring(&[bv3, bv0, bv4, bv7])?;
+        let surface_left = geometry_builder.start_surface();
+        geometry_builder.add_surface_outer_ring(ring_left)?;
+
+        geometry_builder.add_shell(&[
+            surface_bottom,
+            surface_top,
+            surface_front,
+            surface_right,
+            surface_back,
+            surface_left,
+        ])?;
+
+        geometry_builder.build()
+    }
+
     /// Helper function to build a geometry with semantics, materials, and textures.
-    fn build_geometry_with_semantics_materials_textures(
+    fn build_geometry_full_feature(
         model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
         index: usize,
         material_data: Option<&(Material<OwnedStringStorage>, ResourceId32)>,
         texture_data: Option<&(Texture<OwnedStringStorage>, ResourceId32)>,
     ) -> Result<ResourceId32> {
-        // Create semantic attributes using inline API
         let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
         let ground_attrs = ground_semantic.attributes_mut();
         ground_attrs.insert(
@@ -51,7 +103,6 @@ mod default_benches {
             AttributeValue::String("north".to_string()),
         );
 
-        // Now create the GeometryBuilder
         let mut geometry_builder =
             GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
                 .with_lod(LoD::LoD2_2);
@@ -65,13 +116,11 @@ mod default_benches {
         let bv6 = geometry_builder.add_vertex(vertices[6]);
         let bv7 = geometry_builder.add_vertex(vertices[7]);
 
-        // Bottom surface
         let ring_bottom = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
         let surface_bottom = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_bottom)?;
         geometry_builder.set_semantic_surface(None, ground_semantic, false)?;
 
-        // Top surface (Roof)
         let ring_top = geometry_builder.add_ring(&[bv4, bv5, bv6, bv7])?;
         let surface_top = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_top)?;
@@ -86,7 +135,6 @@ mod default_benches {
             )?;
         }
 
-        // Front wall
         let ring_front = geometry_builder.add_ring(&[bv0, bv1, bv5, bv4])?;
         let surface_front = geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_front)?;
@@ -109,7 +157,6 @@ mod default_benches {
             )?;
         }
 
-        // Back, left, right walls (simplified)
         let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
         geometry_builder.start_surface();
         geometry_builder.add_surface_outer_ring(ring_back)?;
@@ -132,39 +179,18 @@ mod default_benches {
         ];
         geometry_builder.add_shell(&shell_surfaces)?;
 
-        let geometry_ref = geometry_builder.build()?;
-        Ok(geometry_ref)
+        geometry_builder.build()
     }
 
-    pub fn build_cityobjects(
-        num_cityobjects: usize,
-        with_geometries: bool,
-        seed: u64,
-    ) -> Result<Vec<ResourceId32>> {
+    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<ResourceId32>> {
         let mut model =
             CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
-        let (material_ref, texture_ref) = if with_geometries {
-            let mut material = Material::new("benchmark_material".to_string());
-            material.set_ambient_intensity(Some(0.5));
-            material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
-            let mat_ref = model.add_material(material.clone());
-            let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
-            let tex_ref = model.add_texture(texture.clone());
-            (Some((material, mat_ref)), Some((texture, tex_ref)))
-        } else {
-            (None, None)
-        };
-
-        let vertices = if with_geometries {
-            CUBE_VERTICES
-                .iter()
-                .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            Vec::new()
-        };
+        let vertices = CUBE_VERTICES
+            .iter()
+            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
             let co_id = format!("cityobject-{}", i);
@@ -176,34 +202,77 @@ mod default_benches {
                 _ => CityObjectType::GenericCityObject,
             };
 
-        let mut cityobject = CityObject::new(co_id.clone(), co_type);
+            let mut cityobject = CityObject::new(co_id.clone(), co_type);
+            let geometry_ref = build_geometry_minimal(&mut model, &vertices)?;
+            cityobject.geometry_mut().push(geometry_ref);
 
-        let attrs = cityobject.attributes_mut();
-        let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
-        attrs.insert("attr_null".to_string(), AttributeValue::Null);
-        attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
-        attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
-        attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
-        attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
-        attrs.insert(
-            "attr_string".to_string(),
-            AttributeValue::String(format!("name-{}", i)),
-        );
-        attrs.insert(
-            "attr_vec".to_string(),
-            AttributeValue::Vec(vec![
-                Box::new(AttributeValue::Integer(i as i64)),
-                Box::new(AttributeValue::Float(height)),
-            ]),
-        );
-        let mut attr_map = HashMap::new();
-        attr_map.insert(
-            "key".to_string(),
-            Box::new(AttributeValue::String("value".to_string())),
-        );
-        attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
-        let seed_offset = (seed as f64) * 0.001;
+            let co_ref = model.cityobjects_mut().add(cityobject);
+            cityobject_refs.push(co_ref);
+        }
 
+        Ok(cityobject_refs)
+    }
+
+    pub fn build_cityobjects_full(
+        num_cityobjects: usize,
+        seed: u64,
+    ) -> Result<Vec<ResourceId32>> {
+        let mut model =
+            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
+
+        let mut material = Material::new("benchmark_material".to_string());
+        material.set_ambient_intensity(Some(0.5));
+        material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        let mat_ref = model.add_material(material.clone());
+        let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
+        let tex_ref = model.add_texture(texture.clone());
+        let material_ref = Some((material, mat_ref));
+        let texture_ref = Some((texture, tex_ref));
+
+        let vertices = CUBE_VERTICES
+            .iter()
+            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .collect::<Result<Vec<_>>>()?;
+
+        for i in 0..num_cityobjects {
+            let co_id = format!("cityobject-{}", i);
+            let co_type = match i % 5 {
+                0 => CityObjectType::Building,
+                1 => CityObjectType::BuildingPart,
+                2 => CityObjectType::Road,
+                3 => CityObjectType::PlantCover,
+                _ => CityObjectType::GenericCityObject,
+            };
+
+            let mut cityobject = CityObject::new(co_id.clone(), co_type);
+
+            let attrs = cityobject.attributes_mut();
+            let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
+            attrs.insert("attr_null".to_string(), AttributeValue::Null);
+            attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
+            attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
+            attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
+            attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
+            attrs.insert(
+                "attr_string".to_string(),
+                AttributeValue::String(format!("name-{}", i)),
+            );
+            attrs.insert(
+                "attr_vec".to_string(),
+                AttributeValue::Vec(vec![
+                    Box::new(AttributeValue::Integer(i as i64)),
+                    Box::new(AttributeValue::Float(height)),
+                ]),
+            );
+            let mut attr_map = HashMap::new();
+            attr_map.insert(
+                "key".to_string(),
+                Box::new(AttributeValue::String("value".to_string())),
+            );
+            attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
+
+            let seed_offset = (seed as f64) * 0.001;
             let offset = (i as f64) * 100.0;
             cityobject.set_geographical_extent(Some(BBox::new(
                 offset + seed_offset,
@@ -214,16 +283,14 @@ mod default_benches {
                 20.0,
             )));
 
-            if with_geometries {
-                let geometry_ref = build_geometry_with_semantics_materials_textures(
-                    &mut model,
-                    &vertices,
-                    i,
-                    material_ref.as_ref(),
-                    texture_ref.as_ref(),
-                )?;
-                cityobject.geometry_mut().push(geometry_ref);
-            }
+            let geometry_ref = build_geometry_full_feature(
+                &mut model,
+                &vertices,
+                i,
+                material_ref.as_ref(),
+                texture_ref.as_ref(),
+            )?;
+            cityobject.geometry_mut().push(geometry_ref);
 
             let co_ref = model.cityobjects_mut().add(cityobject);
             cityobject_refs.push(co_ref);
@@ -232,15 +299,15 @@ mod default_benches {
         Ok(cityobject_refs)
     }
 
-    pub fn bench_build_without_geometry(c: &mut Criterion) {
+    pub fn bench_build_minimal_geometry(c: &mut Criterion) {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("build_without_geometry", |b| {
+        group.bench_function("build_minimal_geometry", |b| {
             b.iter(|| {
-                let refs = build_cityobjects(black_box(nr_cityobjects), false, params.seed)
+                let refs = build_cityobjects_minimal(black_box(nr_cityobjects))
                     .expect("cityobjects builder failed");
                 black_box(refs);
             });
@@ -249,15 +316,15 @@ mod default_benches {
         group.finish();
     }
 
-    pub fn bench_build_with_geometry(c: &mut Criterion) {
+    pub fn bench_build_full_feature(c: &mut Criterion) {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("build_with_geometry", |b| {
+        group.bench_function("build_full_feature", |b| {
             b.iter(|| {
-                let refs = build_cityobjects(black_box(nr_cityobjects), true, params.seed)
+                let refs = build_cityobjects_full(black_box(nr_cityobjects), params.seed)
                     .expect("cityobjects builder failed");
                 black_box(refs);
             });
@@ -280,8 +347,65 @@ mod nested_benches {
     use cityjson::prelude::*;
     use std::collections::HashMap;
 
-    /// Helper function to build a geometry with semantics (simplified for nested backend).
-    fn build_geometry_with_semantics_materials_textures(
+    fn build_geometry_minimal(
+        model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
+        vertices: &[VertexIndex32],
+    ) -> Result<nested::Geometry<OwnedStringStorage, ResourceId32>> {
+        let mut geometry_builder = nested::GeometryBuilder::new(
+            model,
+            GeometryType::Solid,
+            nested::BuilderMode::Regular,
+        )
+        .with_lod(LoD::LoD2);
+
+        for &v in vertices {
+            geometry_builder.add_vertex(v)?;
+        }
+
+        let ring_bottom = geometry_builder.add_ring(&[0, 1, 2, 3])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_bottom)?;
+        let surface_bottom = geometry_builder.end_surface()?;
+
+        let ring_top = geometry_builder.add_ring(&[4, 7, 6, 5])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_top)?;
+        let surface_top = geometry_builder.end_surface()?;
+
+        let ring_front = geometry_builder.add_ring(&[0, 1, 5, 4])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_front)?;
+        let surface_front = geometry_builder.end_surface()?;
+
+        let ring_right = geometry_builder.add_ring(&[1, 2, 6, 5])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_right)?;
+        let surface_right = geometry_builder.end_surface()?;
+
+        let ring_back = geometry_builder.add_ring(&[2, 3, 7, 6])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_back)?;
+        let surface_back = geometry_builder.end_surface()?;
+
+        let ring_left = geometry_builder.add_ring(&[3, 0, 4, 7])?;
+        geometry_builder.start_surface()?;
+        geometry_builder.add_surface_outer_ring(ring_left)?;
+        let surface_left = geometry_builder.end_surface()?;
+
+        geometry_builder.start_shell()?;
+        geometry_builder.add_shell_surface(surface_bottom)?;
+        geometry_builder.add_shell_surface(surface_top)?;
+        geometry_builder.add_shell_surface(surface_front)?;
+        geometry_builder.add_shell_surface(surface_right)?;
+        geometry_builder.add_shell_surface(surface_back)?;
+        geometry_builder.add_shell_surface(surface_left)?;
+        geometry_builder.end_shell()?;
+
+        geometry_builder.build()
+    }
+
+    /// Helper function to build a geometry with semantics, materials, and textures.
+    fn build_geometry_full_feature(
         model: &mut nested::CityModel<OwnedStringStorage, ResourceId32>,
         vertices: &[VertexIndex32],
         index: usize,
@@ -390,31 +514,52 @@ mod nested_benches {
         Ok(geometry)
     }
 
-    pub fn build_cityobjects(num_cityobjects: usize, with_geometries: bool, seed: u64) -> Result<()> {
-        let mut model = nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<()> {
+        let mut model =
+            nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
 
-        let (material_idx, texture_idx) = if with_geometries {
-            let mut material = Material::new("benchmark_material".to_string());
-            material.set_ambient_intensity(Some(0.5));
-            material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
-            let mat_idx = model.add_material(material);
-            let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
-            let tex_idx = model.add_texture(texture);
-            model.set_default_theme_material(Some("default".to_string()));
-            model.set_default_theme_texture(Some("default".to_string()));
-            (Some(mat_idx), Some(tex_idx))
-        } else {
-            (None, None)
-        };
+        let vertices = CUBE_VERTICES
+            .iter()
+            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .collect::<Result<Vec<_>>>()?;
 
-        let vertices = if with_geometries {
-            CUBE_VERTICES
-                .iter()
-                .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            Vec::new()
-        };
+        for i in 0..num_cityobjects {
+            let co_id = format!("cityobject-{}", i);
+            let co_type = match i % 5 {
+                0 => nested::cityobject::CityObjectType::Building,
+                1 => nested::cityobject::CityObjectType::BuildingPart,
+                2 => nested::cityobject::CityObjectType::Road,
+                3 => nested::cityobject::CityObjectType::PlantCover,
+                _ => nested::cityobject::CityObjectType::GenericCityObject,
+            };
+
+            let cityobject = nested::CityObject::new(co_type);
+            model.add_cityobject(co_id.clone(), cityobject);
+
+            let geometry = build_geometry_minimal(&mut model, &vertices)?;
+            model.add_geometry_to_cityobject(&co_id, geometry)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn build_cityobjects_full(num_cityobjects: usize, seed: u64) -> Result<()> {
+        let mut model =
+            nested::CityModel::<OwnedStringStorage, ResourceId32>::new(CityModelType::CityJSON);
+
+        let mut material = Material::new("benchmark_material".to_string());
+        material.set_ambient_intensity(Some(0.5));
+        material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        let material_idx = model.add_material(material);
+        let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
+        let texture_idx = model.add_texture(texture);
+        model.set_default_theme_material(Some("default".to_string()));
+        model.set_default_theme_texture(Some("default".to_string()));
+
+        let vertices = CUBE_VERTICES
+            .iter()
+            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
             let co_id = format!("cityobject-{}", i);
@@ -428,7 +573,6 @@ mod nested_benches {
 
             let mut cityobject = nested::CityObject::new(co_type);
 
-            // Add attributes using nested backend's inline AttributeValue
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
             attrs.insert("attr_null".to_string(), AttributeValue::Null);
@@ -466,30 +610,28 @@ mod nested_benches {
 
             model.add_cityobject(co_id.clone(), cityobject);
 
-            if with_geometries {
-                let geometry = build_geometry_with_semantics_materials_textures(
-                    &mut model,
-                    &vertices,
-                    i,
-                    material_idx,
-                    texture_idx,
-                )?;
-                model.add_geometry_to_cityobject(&co_id, geometry)?;
-            }
+            let geometry = build_geometry_full_feature(
+                &mut model,
+                &vertices,
+                i,
+                Some(material_idx),
+                Some(texture_idx),
+            )?;
+            model.add_geometry_to_cityobject(&co_id, geometry)?;
         }
 
         Ok(())
     }
 
-    pub fn bench_build_without_geometry(c: &mut Criterion) {
+    pub fn bench_build_minimal_geometry(c: &mut Criterion) {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("build_without_geometry", |b| {
+        group.bench_function("build_minimal_geometry", |b| {
             b.iter(|| {
-                build_cityobjects(black_box(nr_cityobjects), false, params.seed)
+                build_cityobjects_minimal(black_box(nr_cityobjects))
                     .expect("cityobjects builder failed");
             });
         });
@@ -497,15 +639,15 @@ mod nested_benches {
         group.finish();
     }
 
-    pub fn bench_build_with_geometry(c: &mut Criterion) {
+    pub fn bench_build_full_feature(c: &mut Criterion) {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
         group.throughput(Throughput::Elements(nr_cityobjects as u64));
 
-        group.bench_function("build_with_geometry", |b| {
+        group.bench_function("build_full_feature", |b| {
             b.iter(|| {
-                build_cityobjects(black_box(nr_cityobjects), true, params.seed)
+                build_cityobjects_full(black_box(nr_cityobjects), params.seed)
                     .expect("cityobjects builder failed");
             });
         });
@@ -519,24 +661,24 @@ mod nested_benches {
 #[cfg(all(feature = "backend-default", not(feature = "backend-nested")))]
 criterion_group!(
     benches,
-    default_benches::bench_build_without_geometry,
-    default_benches::bench_build_with_geometry
+    default_benches::bench_build_minimal_geometry,
+    default_benches::bench_build_full_feature
 );
 
 #[cfg(all(feature = "backend-nested", not(feature = "backend-default")))]
 criterion_group!(
     benches,
-    nested_benches::bench_build_without_geometry,
-    nested_benches::bench_build_with_geometry
+    nested_benches::bench_build_minimal_geometry,
+    nested_benches::bench_build_full_feature
 );
 
 #[cfg(all(feature = "backend-default", feature = "backend-nested"))]
 criterion_group!(
     benches,
-    default_benches::bench_build_without_geometry,
-    default_benches::bench_build_with_geometry,
-    nested_benches::bench_build_without_geometry,
-    nested_benches::bench_build_with_geometry
+    default_benches::bench_build_minimal_geometry,
+    default_benches::bench_build_full_feature,
+    nested_benches::bench_build_minimal_geometry,
+    nested_benches::bench_build_full_feature
 );
 
 criterion_main!(benches);

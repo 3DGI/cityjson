@@ -39,7 +39,7 @@ if [ -z "$DESCRIPTION" ]; then
     exit 1
 fi
 
-BENCH_VERSION="v1"
+BENCH_VERSION="v2"
 DEFAULT_SEED="12345"
 SEED="$SEED_ARG"
 if [ -z "$SEED" ]; then
@@ -86,9 +86,9 @@ run_backend() {
 
     export DHAT_OUTPUT="$(pwd)/$dhat_file"
 
-    bench_cmd=(cargo bench --bench backend_comparison --bench builder --bench processor --features "backend-$backend")
+    bench_cmd=(cargo bench --bench builder --bench processor --features "backend-$backend")
     if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
-        bench_cmd=(cargo bench --no-default-features --bench backend_comparison --bench builder --bench processor --features "backend-$backend")
+        bench_cmd=(cargo bench --no-default-features --bench builder --bench processor --features "backend-$backend")
     fi
     if [ "$MODE" = "fast" ]; then
         bench_cmd+=(-- --quick)
