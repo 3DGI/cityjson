@@ -11,11 +11,7 @@ platform_support = "64-bit platforms only (x86_64, aarch64, etc.)"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [features]
-default = ["backend-default"]
-backend-default = []
-backend-nested = []
-# For benchmarking both backends simultaneously
-backend-both = ["backend-default", "backend-nested"]
+default = []
 
 [dependencies]
 num = "0.4.3"
