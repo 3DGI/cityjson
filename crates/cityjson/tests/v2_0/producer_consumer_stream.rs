@@ -1,4 +1,5 @@
 use cityjson::prelude::*;
+use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -705,11 +706,11 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 fn create_batch_model(
     global: &WireGlobalProperties,
 ) -> Result<(
-    CityModel<u32, ResourceId32, OwnedStringStorage>,
+    CityModel<u32, OwnedStringStorage>,
     Vec<ResourceId32>,
 )> {
     let mut model =
-        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata from wire format
     model
@@ -752,7 +753,7 @@ fn create_batch_model(
 ///
 /// BatchMetrics for this batch
 fn process_batch(
-    model: &CityModel<u32, ResourceId32, OwnedStringStorage>,
+    model: &CityModel<u32, OwnedStringStorage>,
     batch_num: usize,
     cumulative_buildings: usize,
     total_surfaces: usize,
@@ -832,8 +833,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 }
 
                 // Construct CityObject from wire format
-                let mut cityobject = CityObject::new(
-                    wire_co.id.clone(),
+                let mut cityobject = CityObject::new(CityObjectIdentifier::new(wire_co.id.clone()),
                     parse_city_object_type(&wire_co.object_type),
                 );
 
@@ -863,7 +863,10 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                         &vertex_refs,
                         &template_refs,
                     )?;
-                    cityobject.geometry_mut().push(geom_ref);
+                    cityobject.add_geometry(GeometryRef::from_parts(
+                        geom_ref.index(),
+                        geom_ref.generation(),
+                    ));
                 }
 
                 // Add CityObject to model
@@ -971,7 +974,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
 
 /// Builds a geometry template from wire format
 fn build_template_from_wire(
-    model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+    model: &mut CityModel<u32, OwnedStringStorage>,
     wire_template: &WireTemplateGeometry,
 ) -> Result<ResourceId32> {
     let geom_type = match wire_template.geometry_type.as_str() {
@@ -1000,7 +1003,7 @@ fn build_template_from_wire(
 
 /// Builds a geometry from wire format
 fn build_geometry_from_wire(
-    model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+    model: &mut CityModel<u32, OwnedStringStorage>,
     wire_geom: &WireGeometry,
     vertex_refs: &[VertexIndex<u32>],
     template_refs: &[ResourceId32],
@@ -1094,7 +1097,7 @@ fn build_geometry_from_wire(
 /// Converts wire semantic to cityjson-rs Semantic
 fn convert_wire_semantic(
     wire_semantic: &WireSemantic,
-) -> Result<Semantic<ResourceId32, OwnedStringStorage>> {
+) -> Result<Semantic<OwnedStringStorage>> {
     let semantic_type = match wire_semantic.surface_type.as_str() {
         "RoofSurface" => SemanticType::RoofSurface,
         "GroundSurface" => SemanticType::GroundSurface,
@@ -1123,13 +1126,13 @@ fn convert_wire_material(wire_material: &WireMaterial) -> Material<OwnedStringSt
         material.set_ambient_intensity(Some(val as f32));
     }
     if let Some(val) = wire_material.diffuse_color {
-        material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+        material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
     }
     if let Some(val) = wire_material.emissive_color {
-        material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+        material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
     }
     if let Some(val) = wire_material.specular_color {
-        material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+        material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
     }
     if let Some(val) = wire_material.shininess {
         material.set_shininess(Some(val as f32));
@@ -1147,7 +1150,7 @@ fn convert_wire_material(wire_material: &WireMaterial) -> Material<OwnedStringSt
 /// Converts wire attribute value to inline AttributeValue
 fn convert_wire_attribute_value(
     wire_value: WireAttributeValue,
-) -> AttributeValue<OwnedStringStorage, ResourceId32> {
+) -> AttributeValue<OwnedStringStorage> {
     match wire_value {
         WireAttributeValue::Null => AttributeValue::Null,
         WireAttributeValue::String(s) => AttributeValue::String(s),
@@ -1156,7 +1159,7 @@ fn convert_wire_attribute_value(
         WireAttributeValue::Unsigned(u) => AttributeValue::Unsigned(u),
         WireAttributeValue::Bool(b) => AttributeValue::Bool(b),
         WireAttributeValue::Vec(vec) => {
-            let elements: Vec<Box<AttributeValue<OwnedStringStorage, ResourceId32>>> = vec
+            let elements: Vec<Box<AttributeValue<OwnedStringStorage>>> = vec
                 .into_iter()
                 .map(|v| Box::new(convert_wire_attribute_value(v)))
                 .collect();
@@ -1193,3 +1196,4 @@ fn parse_lod(lod_str: &str) -> LoD {
         _ => LoD::LoD1,
     }
 }
+use cityjson::resources::pool::ResourceId32;

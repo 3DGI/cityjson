@@ -4,12 +4,13 @@ use crate::cityjson::core::boundary::Boundary;
 use crate::cityjson::core::geometry::{GeometryType, LoD};
 use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{StringStorage, VertexIndex};
-use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
+use crate::resources::mapping::SemanticOrMaterialMap;
+use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::pool::ResourceRef;
 
 // Type aliases to simplify complex type signatures
-type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
-type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
+type ThemedMaterials<VR, RR, SS> = Vec<(SS, SemanticOrMaterialMap<VR, RR>)>;
+type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMapCore<VR, RR>)>;
 
 /// Core geometry structure that contains the data for all CityJSON versions.
 /// Version-specific types wrap this core structure and implement methods via macros.
@@ -18,7 +19,7 @@ pub struct GeometryCore<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
     type_geometry: GeometryType,
     lod: Option<LoD>,
     boundaries: Option<Boundary<VR>>,
-    semantics: Option<SemanticMap<VR, RR>>,
+    semantics: Option<SemanticOrMaterialMap<VR, RR>>,
     materials: Option<ThemedMaterials<VR, RR, SS::String>>,
     textures: Option<ThemedTextures<VR, RR, SS::String>>,
     instance_template: Option<RR>,
@@ -28,11 +29,11 @@ pub struct GeometryCore<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
 
 impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryCore<VR, RR, SS> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         type_geometry: GeometryType,
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
-        semantics: Option<SemanticMap<VR, RR>>,
+        semantics: Option<SemanticOrMaterialMap<VR, RR>>,
         materials: Option<ThemedMaterials<VR, RR, SS::String>>,
         textures: Option<ThemedTextures<VR, RR, SS::String>>,
         instance_template: Option<RR>,
@@ -64,15 +65,15 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> GeometryCore<VR, RR, SS>
         self.boundaries.as_ref()
     }
 
-    pub fn semantics(&self) -> Option<&SemanticMap<VR, RR>> {
+    pub(crate) fn semantics(&self) -> Option<&SemanticOrMaterialMap<VR, RR>> {
         self.semantics.as_ref()
     }
 
-    pub fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>> {
+    pub(crate) fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>> {
         self.materials.as_ref()
     }
 
-    pub fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>> {
+    pub(crate) fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>> {
         self.textures.as_ref()
     }
 

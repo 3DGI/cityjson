@@ -14,7 +14,7 @@ fn main() {
     println!("=== CityJSON Inline Attributes Example ===\n");
 
     // Create a new city model
-    let mut city_model: CityModel<u32, ResourceId32, OwnedStringStorage> =
+    let mut city_model: CityModel<u32, OwnedStringStorage> =
         CityModel::new(CityModelType::CityJSON);
 
     // ================================================
@@ -22,7 +22,7 @@ fn main() {
     // ================================================
     println!("1. Creating building with basic attributes...");
 
-    let mut building = CityObject::new("building-001".to_string(), CityObjectType::Building);
+    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
 
     // Add attributes directly - simple and intuitive!
     building.attributes_mut().insert(

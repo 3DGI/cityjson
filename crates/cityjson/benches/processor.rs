@@ -11,11 +11,12 @@ use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_
 mod benches {
     use super::*;
 
+    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
     use std::collections::HashMap;
 
-    type AttrValue = AttributeValue<OwnedStringStorage, ResourceId32>;
+    type AttrValue = AttributeValue<OwnedStringStorage>;
 
     fn accumulate_attribute_value(value: &AttrValue, acc: &mut u64) {
         match value {
@@ -43,7 +44,7 @@ mod benches {
     }
 
     fn compute_full_feature_stats(
-        model: &CityModel<u32, ResourceId32, OwnedStringStorage>,
+        model: &CityModel<u32, OwnedStringStorage>,
     ) -> u64 {
         let mut acc = 0u64;
 
@@ -57,7 +58,7 @@ mod benches {
 
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
-                    if let Some(geometry) = model.get_geometry(*geometry_ref) {
+                    if let Some(geometry) = model.get_geometry(geometry_ref) {
                         if let Some(semantics) = geometry.semantics() {
                             for semantic_ref in semantics.surfaces().iter().flatten() {
                                 if let Some(semantic) = model.get_semantic(*semantic_ref) {
@@ -84,19 +85,21 @@ mod benches {
 
                         if let Some(materials) = geometry.materials() {
                             for (theme, mapping) in materials {
-                                acc = acc.wrapping_add(theme.len() as u64);
+                                acc = acc.wrapping_add(theme.as_inner().len() as u64);
                                 for material_ref in mapping.surfaces().iter().flatten() {
-                                    acc = acc.wrapping_add(material_ref.index() as u64 + 1);
+                                    let _ = material_ref;
+                                    acc = acc.wrapping_add(1);
                                 }
                             }
                         }
 
                         if let Some(textures) = geometry.textures() {
                             for (theme, mapping) in textures {
-                                acc = acc.wrapping_add(theme.len() as u64);
+                                acc = acc.wrapping_add(theme.as_inner().len() as u64);
                                 acc = acc.wrapping_add(mapping.vertices().len() as u64);
                                 for texture_ref in mapping.ring_textures().iter().flatten() {
-                                    acc = acc.wrapping_add(texture_ref.index() as u64 + 1);
+                                    let _ = texture_ref;
+                                    acc = acc.wrapping_add(1);
                                 }
                             }
                         }
@@ -109,9 +112,9 @@ mod benches {
     }
 
     /// Generate a citymodel with n cityobjects, each with a solid geometry type.
-    fn generate_citymodel(n: usize, seed: u64) -> CityModel<u32, ResourceId32, OwnedStringStorage> {
+    fn generate_citymodel(n: usize, seed: u64) -> CityModel<u32, OwnedStringStorage> {
         let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut rng = rng_from_seed(seed);
 
         let metadata = model.metadata_mut();
@@ -122,7 +125,7 @@ mod benches {
 
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
-        material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
 
         for i in 0..n {
@@ -136,7 +139,7 @@ mod benches {
                 .collect();
 
             let mut cityobject =
-                CityObject::new(format!("building-{:06}", i), CityObjectType::Building);
+                CityObject::new(CityObjectIdentifier::new(format!("building-{:06}", i)), CityObjectType::Building);
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
             attrs.insert("attr_null".to_string(), AttributeValue::Null);
@@ -262,7 +265,10 @@ mod benches {
                     .unwrap();
 
                 let geometry_ref = geometry_builder.build().unwrap();
-                cityobject.geometry_mut().push(geometry_ref);
+                cityobject.add_geometry(GeometryRef::from_parts(
+                    geometry_ref.index(),
+                    geometry_ref.generation(),
+                ));
             }
 
             model.cityobjects_mut().add(cityobject);
@@ -273,14 +279,14 @@ mod benches {
 
     /// Compute the mean x,y,z coordinate for each geometry of each cityobject
     fn compute_mean_coordinates(
-        model: &CityModel<u32, ResourceId32, OwnedStringStorage>,
+        model: &CityModel<u32, OwnedStringStorage>,
     ) -> Vec<(f64, f64, f64)> {
         let mut means = Vec::new();
 
         for (_id, cityobject) in model.cityobjects().iter() {
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
-                    if let Some(geometry) = model.get_geometry(*geometry_ref)
+                    if let Some(geometry) = model.get_geometry(geometry_ref)
                         && let Some(boundary) = geometry.boundaries()
                     {
                         let vertex_indices = boundary.vertices();

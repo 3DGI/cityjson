@@ -16,7 +16,7 @@ use crate::v2_0::CityModel;
 /// Converts a CityJSON v1.1 document to v2.0.
 ///
 /// Since v1.1 is structurally similar to v2.0, most conversion is straightforward.
-pub fn convert_to_v2<SS: StringStorage>(json_str: &str) -> Result<CityModel<u32, ResourceId32, SS>>
+pub fn convert_to_v2<SS: StringStorage>(json_str: &str) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {
@@ -29,7 +29,7 @@ where
 /// Converts from a parsed JSON value.
 pub(crate) fn convert_from_value<SS: StringStorage>(
     value: &serde_json::Value,
-) -> Result<CityModel<u32, ResourceId32, SS>>
+) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {

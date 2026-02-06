@@ -1,4 +1,5 @@
 use cityjson::prelude::*;
+use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::v2_0::*;
 
 /// Test that demonstrates how CityModel works with BorrowedStringStorage.
@@ -26,7 +27,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     // - u32 indices for vertices
     // - ResourceId32 for resource references
     // - BorrowedStringStorage for string data (with 'static lifetime)
-    let mut model = CityModel::<u32, ResourceId32, BorrowedStringStorage<'static>>::new(
+    let mut model = CityModel::<u32, BorrowedStringStorage<'static>>::new(
         CityModelType::CityJSON,
     );
 
@@ -62,7 +63,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     let v7 = model.add_vertex(QuantizedCoordinate::new(0, 100, 50))?;
 
     // Create a building CityObject with borrowed string ID
-    let mut building = CityObject::new(building_id, CityObjectType::Building);
+    let mut building = CityObject::new(CityObjectIdentifier::new(building_id), CityObjectType::Building);
 
     // Add inline attributes
     let building_attrs = building.attributes_mut();
@@ -138,7 +139,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
         ])?;
 
         let geometry_ref = geometry_builder.build()?;
-        building.geometry_mut().push(geometry_ref);
+        building.add_geometry(GeometryRef::from_parts(geometry_ref.index(), geometry_ref.generation()));
     }
 
     // Add the building to the model
@@ -176,7 +177,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
         .cityobjects()
         .get(building_ref)
         .expect("Building should exist");
-    assert_eq!(*building_obj.id(), building_id);
+    assert_eq!(building_obj.id(), building_id);
     assert_eq!(building_obj.type_cityobject(), &CityObjectType::Building);
 
     // Verify attributes

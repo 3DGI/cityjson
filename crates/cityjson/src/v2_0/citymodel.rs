@@ -1,9 +1,11 @@
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
-use crate::cityjson::core::geometry::GeometryModelOps;
-use crate::cityjson::core::vertex::VertexIndex;
-use crate::cityjson::core::vertex::VertexRef;
+use crate::backend::default::geometry::GeometryModelOps;
+use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
-use crate::resources::pool::{ResourceId32, ResourceRef};
+use crate::resources::handles::{
+    GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
+};
+use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
@@ -15,40 +17,428 @@ use crate::{CityJSONVersion, format_option};
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub struct CityModel<
-    VR: VertexRef = u32,
-    RR: ResourceRef = ResourceId32,
-    SS: StringStorage = OwnedStringStorage,
-> {
+pub struct CityModel<VR: VertexRef = u32, SS: StringStorage = OwnedStringStorage> {
     #[allow(clippy::type_complexity)]
     inner: crate::cityjson::core::citymodel::CityModelCore<
         QuantizedCoordinate,
         VR,
-        RR,
+        ResourceId32,
         SS,
-        Semantic<RR, SS>,
+        Semantic<SS>,
         Material<SS>,
         Texture<SS>,
-        Geometry<VR, RR, SS>,
-        Metadata<SS, RR>,
+        Geometry<VR, SS>,
+        Metadata<SS>,
         Transform,
         Extensions<SS>,
-        CityObjects<SS, RR>,
+        CityObjects<SS>,
     >,
 }
 
-crate::macros::impl_citymodel_methods!(QuantizedCoordinate, CityJSONVersion::V2_0, Metadata<SS, RR>);
+impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
+    pub fn new(type_citymodel: crate::CityModelType) -> Self {
+        Self {
+            inner: crate::cityjson::core::citymodel::CityModelCore::new(
+                type_citymodel,
+                Some(CityJSONVersion::V2_0),
+            ),
+        }
+    }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityModel<VR, RR, SS> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_capacity(
+        type_citymodel: crate::CityModelType,
+        cityobjects_capacity: usize,
+        vertex_capacity: usize,
+        semantic_capacity: usize,
+        material_capacity: usize,
+        texture_capacity: usize,
+        geometry_capacity: usize,
+    ) -> Self {
+        Self {
+            inner: crate::cityjson::core::citymodel::CityModelCore::with_capacity(
+                type_citymodel,
+                Some(CityJSONVersion::V2_0),
+                cityobjects_capacity,
+                vertex_capacity,
+                semantic_capacity,
+                material_capacity,
+                texture_capacity,
+                geometry_capacity,
+                CityObjects::with_capacity,
+            ),
+        }
+    }
+
+    pub fn get_semantic(&self, id: SemanticRef) -> Option<&Semantic<SS>> {
+        self.inner.get_semantic(id.to_raw())
+    }
+
+    pub fn get_semantic_mut(&mut self, id: SemanticRef) -> Option<&mut Semantic<SS>> {
+        self.inner.get_semantic_mut(id.to_raw())
+    }
+
+    pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> SemanticRef {
+        SemanticRef::from_raw(self.inner.add_semantic(semantic))
+    }
+
+    pub fn semantic_count(&self) -> usize {
+        self.inner.semantic_count()
+    }
+
+    pub fn has_semantics(&self) -> bool {
+        self.inner.has_semantics()
+    }
+
+    pub fn iter_semantics(&self) -> impl Iterator<Item = (SemanticRef, &Semantic<SS>)> + '_ {
+        self.inner
+            .iter_semantics()
+            .map(|(id, v)| (SemanticRef::from_raw(id), v))
+    }
+
+    pub fn iter_semantics_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (SemanticRef, &mut Semantic<SS>)> + '_ {
+        self.inner
+            .iter_semantics_mut()
+            .map(|(id, v)| (SemanticRef::from_raw(id), v))
+    }
+
+    pub fn find_semantic(&self, semantic: &Semantic<SS>) -> Option<SemanticRef>
+    where
+        Semantic<SS>: PartialEq,
+    {
+        self.inner.find_semantic(semantic).map(SemanticRef::from_raw)
+    }
+
+    pub fn remove_semantic(&mut self, id: SemanticRef) -> Option<Semantic<SS>> {
+        self.inner.remove_semantic(id.to_raw())
+    }
+
+    pub fn clear_semantics(&mut self) {
+        self.inner.clear_semantics();
+    }
+
+    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> SemanticRef
+    where
+        Semantic<SS>: PartialEq,
+    {
+        SemanticRef::from_raw(self.inner.get_or_insert_semantic(semantic))
+    }
+
+    pub fn get_material(&self, id: MaterialRef) -> Option<&Material<SS>> {
+        self.inner.get_material(id.to_raw())
+    }
+
+    pub fn get_material_mut(&mut self, id: MaterialRef) -> Option<&mut Material<SS>> {
+        self.inner.get_material_mut(id.to_raw())
+    }
+
+    pub fn add_material(&mut self, material: Material<SS>) -> MaterialRef {
+        MaterialRef::from_raw(self.inner.add_material(material))
+    }
+
+    pub fn material_count(&self) -> usize {
+        self.inner.material_count()
+    }
+
+    pub fn iter_materials(&self) -> impl Iterator<Item = (MaterialRef, &Material<SS>)> + '_ {
+        self.inner
+            .iter_materials()
+            .map(|(id, v)| (MaterialRef::from_raw(id), v))
+    }
+
+    pub fn iter_materials_mut(&mut self) -> impl Iterator<Item = (MaterialRef, &mut Material<SS>)> + '_ {
+        self.inner
+            .iter_materials_mut()
+            .map(|(id, v)| (MaterialRef::from_raw(id), v))
+    }
+
+    pub fn find_material(&self, material: &Material<SS>) -> Option<MaterialRef>
+    where
+        Material<SS>: PartialEq,
+    {
+        self.inner.find_material(material).map(MaterialRef::from_raw)
+    }
+
+    pub fn remove_material(&mut self, id: MaterialRef) -> Option<Material<SS>> {
+        self.inner.remove_material(id.to_raw())
+    }
+
+    pub fn clear_materials(&mut self) {
+        self.inner.clear_materials();
+    }
+
+    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> MaterialRef
+    where
+        Material<SS>: PartialEq,
+    {
+        MaterialRef::from_raw(self.inner.get_or_insert_material(material))
+    }
+
+    pub fn get_texture(&self, id: TextureRef) -> Option<&Texture<SS>> {
+        self.inner.get_texture(id.to_raw())
+    }
+
+    pub fn get_texture_mut(&mut self, id: TextureRef) -> Option<&mut Texture<SS>> {
+        self.inner.get_texture_mut(id.to_raw())
+    }
+
+    pub fn add_texture(&mut self, texture: Texture<SS>) -> TextureRef {
+        TextureRef::from_raw(self.inner.add_texture(texture))
+    }
+
+    pub fn texture_count(&self) -> usize {
+        self.inner.texture_count()
+    }
+
+    pub fn iter_textures(&self) -> impl Iterator<Item = (TextureRef, &Texture<SS>)> + '_ {
+        self.inner
+            .iter_textures()
+            .map(|(id, v)| (TextureRef::from_raw(id), v))
+    }
+
+    pub fn iter_textures_mut(&mut self) -> impl Iterator<Item = (TextureRef, &mut Texture<SS>)> + '_ {
+        self.inner
+            .iter_textures_mut()
+            .map(|(id, v)| (TextureRef::from_raw(id), v))
+    }
+
+    pub fn find_texture(&self, texture: &Texture<SS>) -> Option<TextureRef>
+    where
+        Texture<SS>: PartialEq,
+    {
+        self.inner.find_texture(texture).map(TextureRef::from_raw)
+    }
+
+    pub fn remove_texture(&mut self, id: TextureRef) -> Option<Texture<SS>> {
+        self.inner.remove_texture(id.to_raw())
+    }
+
+    pub fn clear_textures(&mut self) {
+        self.inner.clear_textures();
+    }
+
+    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> TextureRef
+    where
+        Texture<SS>: PartialEq,
+    {
+        TextureRef::from_raw(self.inner.get_or_insert_texture(texture))
+    }
+
+    pub fn get_geometry(&self, id: GeometryRef) -> Option<&Geometry<VR, SS>> {
+        self.inner.get_geometry(id.to_raw())
+    }
+
+    pub fn get_geometry_mut(&mut self, id: GeometryRef) -> Option<&mut Geometry<VR, SS>> {
+        self.inner.get_geometry_mut(id.to_raw())
+    }
+
+    pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> GeometryRef {
+        GeometryRef::from_raw(self.inner.add_geometry(geometry))
+    }
+
+    pub fn geometry_count(&self) -> usize {
+        self.inner.geometry_count()
+    }
+
+    pub fn iter_geometries(&self) -> impl Iterator<Item = (GeometryRef, &Geometry<VR, SS>)> + '_ {
+        self.inner
+            .iter_geometries()
+            .map(|(id, v)| (GeometryRef::from_raw(id), v))
+    }
+
+    pub fn iter_geometries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (GeometryRef, &mut Geometry<VR, SS>)> + '_ {
+        self.inner
+            .iter_geometries_mut()
+            .map(|(id, v)| (GeometryRef::from_raw(id), v))
+    }
+
+    pub fn remove_geometry(&mut self, id: GeometryRef) -> Option<Geometry<VR, SS>> {
+        self.inner.remove_geometry(id.to_raw())
+    }
+
+    pub fn clear_geometries(&mut self) {
+        self.inner.clear_geometries();
+    }
+
+    pub fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
+        self.inner.vertices()
+    }
+
+    pub fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
+        self.inner.vertices_mut()
+    }
+
+    pub fn clear_vertices(&mut self) {
+        self.inner.clear_vertices();
+    }
+
+    pub fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+        self.inner.add_vertex(coordinate)
+    }
+
+    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&QuantizedCoordinate> {
+        self.inner.get_vertex(index)
+    }
+
+    pub fn metadata(&self) -> Option<&Metadata<SS>> {
+        self.inner.metadata()
+    }
+
+    pub fn metadata_mut(&mut self) -> &mut Metadata<SS> {
+        self.inner.metadata_mut()
+    }
+
+    pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
+        self.inner.extra()
+    }
+
+    pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
+        self.inner.extra_mut()
+    }
+
+    pub fn transform(&self) -> Option<&Transform> {
+        self.inner.transform()
+    }
+
+    pub fn transform_mut(&mut self) -> &mut Transform {
+        self.inner.transform_mut()
+    }
+
+    pub fn extensions(&self) -> Option<&Extensions<SS>> {
+        self.inner.extensions()
+    }
+
+    pub fn extensions_mut(&mut self) -> &mut Extensions<SS> {
+        self.inner.extensions_mut()
+    }
+
+    pub fn cityobjects(&self) -> &CityObjects<SS> {
+        self.inner.cityobjects()
+    }
+
+    pub fn cityobjects_mut(&mut self) -> &mut CityObjects<SS> {
+        self.inner.cityobjects_mut()
+    }
+
+    pub fn clear_cityobjects(&mut self) {
+        self.inner.cityobjects_mut().clear();
+    }
+
+    pub fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+        self.inner.add_uv_coordinate(uvcoordinate)
+    }
+
+    pub fn get_uv_coordinate(&self, index: VertexIndex<VR>) -> Option<&UVCoordinate> {
+        self.inner.get_uv_coordinate(index)
+    }
+
+    pub fn vertices_texture(&self) -> &Vertices<VR, UVCoordinate> {
+        self.inner.vertices_texture()
+    }
+
+    pub fn vertices_texture_mut(&mut self) -> &mut Vertices<VR, UVCoordinate> {
+        self.inner.vertices_texture_mut()
+    }
+
+    pub fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+        self.inner.add_template_vertex(coordinate)
+    }
+
+    pub fn get_template_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
+        self.inner.get_template_vertex(index)
+    }
+
+    pub fn template_vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
+        self.inner.template_vertices()
+    }
+
+    pub fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
+        self.inner.template_vertices_mut()
+    }
+
+    pub fn clear_template_vertices(&mut self) {
+        self.inner.clear_template_vertices();
+    }
+
+    pub fn get_template_geometry(&self, id: TemplateGeometryRef) -> Option<&Geometry<VR, SS>> {
+        self.inner.get_template_geometry(id.to_raw())
+    }
+
+    pub fn get_template_geometry_mut(&mut self, id: TemplateGeometryRef) -> Option<&mut Geometry<VR, SS>> {
+        self.inner.get_template_geometry_mut(id.to_raw())
+    }
+
+    pub fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> TemplateGeometryRef {
+        TemplateGeometryRef::from_raw(self.inner.add_template_geometry(geometry))
+    }
+
+    pub fn template_geometry_count(&self) -> usize {
+        self.inner.template_geometry_count()
+    }
+
+    pub fn iter_template_geometries(
+        &self,
+    ) -> impl Iterator<Item = (TemplateGeometryRef, &Geometry<VR, SS>)> + '_ {
+        self.inner
+            .iter_template_geometries()
+            .map(|(id, v)| (TemplateGeometryRef::from_raw(id), v))
+    }
+
+    pub fn iter_template_geometries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (TemplateGeometryRef, &mut Geometry<VR, SS>)> + '_ {
+        self.inner
+            .iter_template_geometries_mut()
+            .map(|(id, v)| (TemplateGeometryRef::from_raw(id), v))
+    }
+
+    pub fn remove_template_geometry(&mut self, id: TemplateGeometryRef) -> Option<Geometry<VR, SS>> {
+        self.inner.remove_template_geometry(id.to_raw())
+    }
+
+    pub fn clear_template_geometries(&mut self) {
+        self.inner.clear_template_geometries();
+    }
+
+    pub fn type_citymodel(&self) -> crate::CityModelType {
+        self.inner.type_citymodel()
+    }
+
+    pub fn version(&self) -> Option<crate::CityJSONVersion> {
+        self.inner.version()
+    }
+
+    pub fn default_theme_material(&self) -> Option<MaterialRef> {
+        self.inner
+            .default_theme_material()
+            .map(MaterialRef::from_raw)
+    }
+
+    pub fn set_default_theme_material(&mut self, material_ref: Option<MaterialRef>) {
+        self.inner
+            .set_default_theme_material(material_ref.map(|x| x.to_raw()));
+    }
+
+    pub fn default_theme_texture(&self) -> Option<TextureRef> {
+        self.inner.default_theme_texture().map(TextureRef::from_raw)
+    }
+
+    pub fn set_default_theme_texture(&mut self, texture_ref: Option<TextureRef>) {
+        self.inner
+            .set_default_theme_texture(texture_ref.map(|x| x.to_raw()));
+    }
+}
+
+impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "CityModel {{")?;
         writeln!(f, "\ttype: {}", self.type_citymodel())?;
         writeln!(f, "\tversion: {}", format_option(&self.version()))?;
-        writeln!(
-            f,
-            "\textensions: {{ {} }}",
-            format_option(&self.extensions())
-        )?;
+        writeln!(f, "\textensions: {{ {} }}", format_option(&self.extensions()))?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform()))?;
         writeln!(f, "\tmetadata: {}", format_option(&self.metadata()))?;
         writeln!(
@@ -77,52 +467,52 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage> fmt::Display for CityMod
     }
 }
 
-impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage>
+impl<VR: VertexRef, SS: StringStorage>
     GeometryModelOps<
         VR,
-        RR,
+        ResourceId32,
         QuantizedCoordinate,
-        Semantic<RR, SS>,
+        Semantic<SS>,
         Material<SS>,
         Texture<SS>,
-        Geometry<VR, RR, SS>,
+        Geometry<VR, SS>,
         SS,
-    > for CityModel<VR, RR, SS>
+    > for CityModel<VR, SS>
 {
-    fn add_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
-        self.add_semantic(semantic)
+    fn add_semantic(&mut self, semantic: Semantic<SS>) -> ResourceId32 {
+        self.add_semantic(semantic).to_raw()
     }
 
-    fn get_or_insert_semantic(&mut self, semantic: Semantic<RR, SS>) -> RR {
-        self.get_or_insert_semantic(semantic)
+    fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> ResourceId32 {
+        self.get_or_insert_semantic(semantic).to_raw()
     }
 
-    fn add_material(&mut self, material: Material<SS>) -> RR {
-        self.add_material(material)
+    fn add_material(&mut self, material: Material<SS>) -> ResourceId32 {
+        self.add_material(material).to_raw()
     }
 
-    fn get_or_insert_material(&mut self, material: Material<SS>) -> RR {
-        self.get_or_insert_material(material)
+    fn get_or_insert_material(&mut self, material: Material<SS>) -> ResourceId32 {
+        self.get_or_insert_material(material).to_raw()
     }
 
-    fn add_texture(&mut self, texture: Texture<SS>) -> RR {
-        self.add_texture(texture)
+    fn add_texture(&mut self, texture: Texture<SS>) -> ResourceId32 {
+        self.add_texture(texture).to_raw()
     }
 
-    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> RR {
-        self.get_or_insert_texture(texture)
+    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> ResourceId32 {
+        self.get_or_insert_texture(texture).to_raw()
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.add_uv_coordinate(uvcoordinate)
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
-        self.add_geometry(geometry)
+    fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> ResourceId32 {
+        self.add_geometry(geometry).to_raw()
     }
 
-    fn add_template_geometry(&mut self, geometry: Geometry<VR, RR, SS>) -> RR {
-        self.add_template_geometry(geometry)
+    fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> ResourceId32 {
+        self.add_template_geometry(geometry).to_raw()
     }
 
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
@@ -139,170 +529,5 @@ impl<VR: VertexRef, RR: ResourceRef, SS: StringStorage>
 
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
         self.template_vertices_mut()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::prelude::*;
-    use crate::v2_0::geometry::semantic::{Semantic, SemanticType};
-    use crate::v2_0::*;
-    #[test]
-    fn test_clear_cityobjects() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Add some cityobjects
-        let co1 = CityObject::new("obj-1".to_string(), CityObjectType::Building);
-        let co2 = CityObject::new("obj-2".to_string(), CityObjectType::Bridge);
-        model.cityobjects_mut().add(co1);
-        model.cityobjects_mut().add(co2);
-
-        assert_eq!(model.cityobjects().len(), 2);
-
-        // Clear cityobjects
-        model.clear_cityobjects();
-
-        assert_eq!(model.cityobjects().len(), 0);
-    }
-
-    #[test]
-    fn test_clear_geometries() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Add some geometries
-        let mut builder =
-            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
-        builder.add_point(QuantizedCoordinate::new(0, 0, 0));
-        builder.build().unwrap();
-        let mut builder =
-            GeometryBuilder::new(&mut model, GeometryType::MultiPoint, BuilderMode::Regular);
-        builder.add_point(QuantizedCoordinate::new(1, 0, 0));
-        builder.build().unwrap();
-        assert_eq!(model.geometry_count(), 2);
-
-        // Clear geometries
-        model.clear_geometries();
-
-        assert_eq!(model.geometry_count(), 0);
-    }
-
-    #[test]
-    fn test_clear_vertices() -> Result<()> {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Add some vertices
-        model.add_vertex(QuantizedCoordinate::new(100, 200, 300))?;
-        model.add_vertex(QuantizedCoordinate::new(400, 500, 600))?;
-        model.add_vertex(QuantizedCoordinate::new(700, 800, 900))?;
-
-        assert_eq!(model.vertices().len(), 3);
-
-        // Clear vertices
-        model.clear_vertices();
-
-        assert_eq!(model.vertices().len(), 0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_clear_template_vertices() -> Result<()> {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Add some template vertices
-        model.add_template_vertex(RealWorldCoordinate::new(1.0, 2.0, 3.0))?;
-        model.add_template_vertex(RealWorldCoordinate::new(4.0, 5.0, 6.0))?;
-
-        assert_eq!(model.template_vertices().len(), 2);
-
-        // Clear template vertices
-        model.clear_template_vertices();
-
-        assert_eq!(model.template_vertices().len(), 0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_get_or_insert_semantic() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Create semantics WITHOUT attributes - these deduplicate based on type
-        let semantic1 = Semantic::new(SemanticType::RoofSurface);
-        let semantic2 = Semantic::new(SemanticType::RoofSurface);
-
-        // Insert first semantic
-        let id1 = model.get_or_insert_semantic(semantic1);
-
-        assert_eq!(model.semantic_count(), 1);
-
-        // Insert same semantic again - should return same ID
-        let id2 = model.get_or_insert_semantic(semantic2);
-
-        assert_eq!(model.semantic_count(), 1);
-        assert_eq!(id1, id2);
-
-        // Insert different semantic
-        let semantic3 = Semantic::new(SemanticType::WallSurface);
-        let id3 = model.get_or_insert_semantic(semantic3);
-
-        assert_eq!(model.semantic_count(), 2);
-        assert_ne!(id1, id3);
-
-        // Note: Deduplication currently doesn't work when semantics have attributes with
-        // different AttributeId32 values, even if the attribute values are logically identical.
-        // This is because PartialEq compares AttributeId32 references, not the actual values.
-        // For deduplication with attributes, reuse the same Semantic instance.
-    }
-
-    #[test]
-    fn test_get_or_insert_material() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Create materials
-        let material1 = Material::new("red".to_string());
-        let material2 = Material::new("red".to_string());
-
-        // Insert first material
-        let id1 = model.get_or_insert_material(material1);
-
-        // Insert same material again - should return same ID
-        let id2 = model.get_or_insert_material(material2);
-
-        assert_eq!(id1, id2);
-
-        // Insert different material
-        let material3 = Material::new("blue".to_string());
-        let id3 = model.get_or_insert_material(material3);
-
-        assert_ne!(id1, id3);
-    }
-
-    #[test]
-    fn test_get_or_insert_texture() {
-        let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
-
-        // Create textures
-        let texture1 = Texture::new("texture1.png".to_string(), ImageType::Png);
-        let texture2 = Texture::new("texture1.png".to_string(), ImageType::Png);
-
-        // Insert first texture
-        let id1 = model.get_or_insert_texture(texture1);
-
-        // Insert same texture again - should return same ID
-        let id2 = model.get_or_insert_texture(texture2);
-
-        assert_eq!(id1, id2);
-
-        // Insert different texture
-        let texture3 = Texture::new("texture2.jpg".to_string(), ImageType::Jpg);
-        let id3 = model.get_or_insert_texture(texture3);
-
-        assert_ne!(id1, id3);
     }
 }

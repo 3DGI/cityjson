@@ -22,7 +22,7 @@ use crate::CityModelType;
 /// # Returns
 ///
 /// A v2.0 CityModel with appropriate type conversions applied
-pub fn convert_to_v2<SS: StringStorage>(json_str: &str) -> Result<CityModel<u32, ResourceId32, SS>>
+pub fn convert_to_v2<SS: StringStorage>(json_str: &str) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {
@@ -35,7 +35,7 @@ where
 /// Converts from a parsed JSON value.
 pub(crate) fn convert_from_value<SS: StringStorage>(
     value: &serde_json::Value,
-) -> Result<CityModel<u32, ResourceId32, SS>>
+) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {
@@ -69,8 +69,8 @@ where
     Ok(model)
 }
 
-fn convert_vertices<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
-    model: &mut CityModel<VR, RR, SS>,
+fn convert_vertices<VR: VertexRef, SS: StringStorage>(
+    model: &mut CityModel<VR, SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where
@@ -97,8 +97,8 @@ where
     Ok(())
 }
 
-fn convert_city_objects<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
-    model: &mut CityModel<VR, RR, SS>,
+fn convert_city_objects<VR: VertexRef, SS: StringStorage>(
+    model: &mut CityModel<VR, SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where
@@ -109,17 +109,17 @@ where
     })?;
 
     for (id, obj_value) in objects {
-        let city_object = convert_city_object::<RR, SS>(id.clone().into(), obj_value)?;
+        let city_object = convert_city_object::<SS>(id.clone().into(), obj_value)?;
         model.cityobjects_mut().add(city_object);
     }
 
     Ok(())
 }
 
-fn convert_city_object<RR: ResourceRef, SS: StringStorage>(
+fn convert_city_object<SS: StringStorage>(
     id: SS::String,
     value: &serde_json::Value,
-) -> Result<CityObject<SS, RR>>
+) -> Result<CityObject<SS>>
 where
     SS::String: From<String>,
 {
@@ -129,7 +129,7 @@ where
         .ok_or_else(|| Error::Import("CityObject missing 'type'".to_string()))?;
 
     let co_type = convert_city_object_type::<SS>(type_str);
-    let mut city_object = CityObject::new(id, co_type);
+    let mut city_object = CityObject::new(crate::v2_0::CityObjectIdentifier::new(id), co_type);
 
     // Convert attributes if present
     if let Some(attrs_value) = value.get("attributes") {
@@ -184,8 +184,8 @@ where
     }
 }
 
-fn convert_attributes<SS: StringStorage, RR: ResourceRef>(
-    city_object: &mut CityObject<SS, RR>,
+fn convert_attributes<SS: StringStorage>(
+    city_object: &mut CityObject<SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where
@@ -198,14 +198,14 @@ where
     let attributes = city_object.attributes_mut();
 
     for (key, attr_value) in attrs_obj {
-        let converted = convert_attribute_value::<SS, RR>(attr_value);
+        let converted = convert_attribute_value::<SS>(attr_value);
         attributes.insert(key.clone().into(), converted);
     }
 
     Ok(())
 }
 
-fn convert_attribute_value<SS: StringStorage, RR: ResourceRef>(value: &serde_json::Value) -> AttributeValue<SS, RR>
+fn convert_attribute_value<SS: StringStorage>(value: &serde_json::Value) -> AttributeValue<SS>
 where
     SS::String: From<String>,
 {
@@ -225,24 +225,24 @@ where
         }
         serde_json::Value::String(s) => AttributeValue::String(s.clone().into()),
         serde_json::Value::Array(arr) => {
-            let converted: Vec<AttributeValue<SS, RR>> = arr
+            let converted: Vec<AttributeValue<SS>> = arr
                 .iter()
-                .map(|v| convert_attribute_value::<SS, RR>(v))
+                .map(|v| convert_attribute_value::<SS>(v))
                 .collect();
             AttributeValue::Vec(converted.iter().map(|v| Box::new(v.clone())).collect())
         }
         serde_json::Value::Object(obj) => {
             let mut map = std::collections::HashMap::new();
             for (k, v) in obj {
-                map.insert(k.clone().into(), Box::new(convert_attribute_value::<SS, RR>(v)));
+                map.insert(k.clone().into(), Box::new(convert_attribute_value::<SS>(v)));
             }
             AttributeValue::Map(map)
         }
     }
 }
 
-fn convert_metadata<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
-    model: &mut CityModel<VR, RR, SS>,
+fn convert_metadata<VR: VertexRef, SS: StringStorage>(
+    model: &mut CityModel<VR, SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where
@@ -277,8 +277,8 @@ where
     Ok(())
 }
 
-fn convert_transform<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
-    model: &mut CityModel<VR, RR, SS>,
+fn convert_transform<VR: VertexRef, SS: StringStorage>(
+    model: &mut CityModel<VR, SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where
@@ -309,8 +309,8 @@ where
     Ok(())
 }
 
-fn convert_extensions<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
-    model: &mut CityModel<VR, RR, SS>,
+fn convert_extensions<VR: VertexRef, SS: StringStorage>(
+    model: &mut CityModel<VR, SS>,
     value: &serde_json::Value,
 ) -> Result<()>
 where

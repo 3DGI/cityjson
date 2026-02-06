@@ -36,7 +36,7 @@ fn test_cityobject_attributes() {
     let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
 
     // Create building with attributes
-    let mut building = CityObject::new("building-001".to_string(), CityObjectType::Building);
+    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
 
     // Add attributes directly - no pool needed!
     building.attributes_mut().insert(
@@ -71,7 +71,7 @@ fn test_cityobject_attributes() {
 #[test]
 fn test_semantic_attributes() {
     // Create semantic with attributes
-    let mut roof: Semantic<ResourceId32, OwnedStringStorage> = Semantic::new(SemanticType::RoofSurface);
+    let mut roof: Semantic<OwnedStringStorage> = Semantic::new(SemanticType::RoofSurface);
 
     roof.attributes_mut().insert(
         "material".to_string(),
@@ -204,7 +204,7 @@ fn test_cityobject_extra_attributes() {
     let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
 
     // Create building with extra attributes
-    let mut building = CityObject::new("building-001".to_string(), CityObjectType::Building);
+    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
 
     // Add extra attributes (custom/extension properties)
     building.extra_mut().insert(

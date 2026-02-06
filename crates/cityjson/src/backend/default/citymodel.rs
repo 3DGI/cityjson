@@ -52,7 +52,7 @@ pub struct CityModelCore<
     /// CityJSON Extension declarations
     extensions: Option<Extensions>,
     /// Extra root properties for the CityModel
-    extra: Option<Attributes<SS, RR>>,
+    extra: Option<Attributes<SS>>,
     /// CityModel metadata
     metadata: Option<Metadata>,
     /// Collection of CityObjects
@@ -440,11 +440,11 @@ where
     }
 
     // Extra methods
-    pub fn extra(&self) -> Option<&Attributes<SS, RR>> {
+    pub fn extra(&self) -> Option<&Attributes<SS>> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut Attributes<SS, RR> {
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
         if self.extra.is_none() {
             self.extra = Some(Attributes::new());
         }

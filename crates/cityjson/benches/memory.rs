@@ -14,6 +14,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 mod benches {
     use super::*;
 
+    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::v2_0::*;
     use std::collections::HashMap;
@@ -23,9 +24,9 @@ mod benches {
     fn build_model<VR: VertexRef>(
         n_cityobjects: usize,
         seed: u64,
-    ) -> CityModel<VR, ResourceId32, OwnedStringStorage> {
+    ) -> CityModel<VR, OwnedStringStorage> {
         let mut model =
-            CityModel::<VR, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+            CityModel::<VR, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut rng = rng_from_seed(seed);
 
         // Set basic metadata
@@ -37,7 +38,7 @@ mod benches {
 
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
-        material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
 
         for i in 0..n_cityobjects {
@@ -53,7 +54,7 @@ mod benches {
 
             // Create a CityObject
             let mut cityobject =
-                CityObject::new(format!("building-{:06}", i), CityObjectType::Building);
+                CityObject::new(CityObjectIdentifier::new(format!("building-{:06}", i)), CityObjectType::Building);
 
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
@@ -200,7 +201,10 @@ mod benches {
                 let geometry_ref = geometry_builder.build().unwrap();
 
                 // Add geometry to the CityObject
-                cityobject.geometry_mut().push(geometry_ref);
+                cityobject.add_geometry(GeometryRef::from_parts(
+                    geometry_ref.index(),
+                    geometry_ref.generation(),
+                ));
             }
 
             // Add the CityObject to the model

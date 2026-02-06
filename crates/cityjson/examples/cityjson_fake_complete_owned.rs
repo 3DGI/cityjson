@@ -1,5 +1,6 @@
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
+use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ use std::collections::HashMap;
 fn main() -> Result<()> {
     // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
     let mut model =
-        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata
     let metadata = model.metadata_mut();
@@ -57,24 +58,23 @@ fn main() -> Result<()> {
 
     // Initialize CityObjects
     let co_1_id = "id-1".to_string();
-    let mut co_1 = CityObject::new(co_1_id.clone(), CityObjectType::BuildingPart);
+    let mut co_1 = CityObject::new(CityObjectIdentifier::new(co_1_id.clone()), CityObjectType::BuildingPart);
     let co_3_id = "id-3".to_string();
-    let mut co_3 = CityObject::new(
-        co_3_id.clone(),
+    let mut co_3 = CityObject::new(CityObjectIdentifier::new(co_3_id.clone()),
         CityObjectType::Extension("+NoiseBuilding".to_string()),
     );
     let co_tree_id = "a-tree".to_string();
-    let co_tree = CityObject::new(co_tree_id.clone(), CityObjectType::SolitaryVegetationObject);
+    let co_tree = CityObject::new(CityObjectIdentifier::new(co_tree_id.clone()), CityObjectType::SolitaryVegetationObject);
     let co_neighbourhood_id = "my-neighbourhood".to_string();
     let mut co_neighbourhood =
-        CityObject::new(co_neighbourhood_id.clone(), CityObjectType::CityObjectGroup);
+        CityObject::new(CityObjectIdentifier::new(co_neighbourhood_id.clone()), CityObjectType::CityObjectGroup);
 
     // Create materials
     let mut material_irradiation = Material::new("irradiation".to_string());
     material_irradiation.set_ambient_intensity(Some(0.2000));
-    material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500]));
-    material_irradiation.set_emissive_color(Some([0.9000, 0.1000, 0.7500]));
-    material_irradiation.set_specular_color(Some([0.9000, 0.1000, 0.7500]));
+    material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500].into()));
+    material_irradiation.set_emissive_color(Some([0.9000, 0.1000, 0.7500].into()));
+    material_irradiation.set_specular_color(Some([0.9000, 0.1000, 0.7500].into()));
     material_irradiation.set_shininess(Some(0.2));
     material_irradiation.set_transparency(Some(0.5));
     material_irradiation.set_is_smooth(Some(false));
@@ -136,7 +136,7 @@ fn main() -> Result<()> {
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
-                    Box::new(OwnedAttributeValue::Geometry(location_geometry_ref)),
+                    Box::new(OwnedAttributeValue::Geometry(GeometryRef::from_parts(location_geometry_ref.index(), location_geometry_ref.generation()))),
                 );
             }
         }
@@ -391,33 +391,27 @@ fn main() -> Result<()> {
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_3_ref);
+        .add_parent(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_neigh_ref);
+        .add_parent(co_neigh_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
-        .children_mut()
-        .push(co_1_ref);
+        .add_child(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_neigh_ref);
+        .add_parent(co_neigh_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
-        .children_mut()
-        .push(co_1_ref);
+        .add_child(co_1_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
-        .children_mut()
-        .push(co_3_ref);
+        .add_child(co_3_ref);
 
     println!("{}", &model);
     Ok(())

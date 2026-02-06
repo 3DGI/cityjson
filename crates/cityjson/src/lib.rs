@@ -22,7 +22,6 @@
 pub mod backend;
 pub mod cityjson;
 pub mod error;
-pub(crate) mod macros;
 pub mod resources;
 pub mod import;
 pub mod v2_0;
@@ -38,7 +37,7 @@ pub mod prelude {
     pub use crate::cityjson::core::vertex::VertexRef;
     // Re-export from cityjson module
     pub use crate::cityjson::{
-        core::appearance::{ImageType, RGB, RGBA, TextureType, WrapMode},
+        core::appearance::{ImageType, TextureType, WrapMode},
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         core::boundary::{
             Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
@@ -60,7 +59,7 @@ pub mod prelude {
             UVVertices64, Vertices,
         },
         core::extension::{ExtensionCore, ExtensionItem, ExtensionsCore},
-        core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
+        core::geometry::{BuilderMode, GeometryType, LoD},
         core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::coordinate::Coordinate,
@@ -70,10 +69,11 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     // Re-export from resources module
     pub use crate::resources::{
+        handles::{AttributeRef, CityObjectRef, GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef},
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
-        pool::{DefaultResourcePool, ResourceId32, ResourcePool, ResourceRef},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
+    pub use crate::v2_0::types::{CityObjectIdentifier, RGB, RGBA, ThemeName};
     pub use std::str::FromStr;
 }
 
@@ -189,8 +189,8 @@ impl TryFrom<String> for CityJSONVersion {
 }
 
 #[derive(Debug)]
-pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
-    V2_0(v2_0::CityModel<VR, RR, SS>),
+pub enum CityJSON<VR: VertexRef, SS: StringStorage> {
+    V2_0(v2_0::CityModel<VR, SS>),
 }
 
 fn format_option<T: std::fmt::Display>(option: &Option<T>) -> String {

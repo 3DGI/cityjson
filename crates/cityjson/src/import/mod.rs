@@ -11,7 +11,7 @@
 //!
 //! # fn main() -> cityjson::error::Result<()> {
 //! let json = r#"{"type": "CityJSON", "version": "1.1", "CityObjects": {}, "vertices": []}"#;
-//! let model: cityjson::v2_0::CityModel<u32, cityjson::resources::pool::ResourceId32, OwnedStringStorage> = import_cityjson(json)?;
+//! let model: cityjson::v2_0::CityModel<u32, OwnedStringStorage> = import_cityjson(json)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -67,7 +67,7 @@ pub use version::detect_version;
 /// # Ok(())
 /// # }
 /// ```
-pub fn import_cityjson<SS: StringStorage>(json: &str) -> Result<CityModel<u32, ResourceId32, SS>>
+pub fn import_cityjson<SS: StringStorage>(json: &str) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {
@@ -84,7 +84,7 @@ where
 ///
 /// Since v2.0 is the native format, we can use the same conversion logic as v1.1
 /// (as they are structurally very similar).
-fn convert_v2_native<SS: StringStorage>(json: &str) -> Result<CityModel<u32, ResourceId32, SS>>
+fn convert_v2_native<SS: StringStorage>(json: &str) -> Result<CityModel<u32, SS>>
 where
     SS::String: From<String>,
 {

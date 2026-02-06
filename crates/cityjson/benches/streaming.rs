@@ -348,14 +348,16 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 
 mod default_backend {
     use super::*;
+    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
+    use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::*;
 
     fn create_batch_model(
         global: &WireGlobalProperties,
-    ) -> Result<CityModel<u32, ResourceId32, OwnedStringStorage>> {
+    ) -> Result<CityModel<u32, OwnedStringStorage>> {
         let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
         model
             .metadata_mut()
@@ -367,7 +369,7 @@ mod default_backend {
     }
 
     fn build_geometry_from_wire(
-        model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+        model: &mut CityModel<u32, OwnedStringStorage>,
         wire_geom: &WireGeometry,
         vertex_refs: &[VertexIndex<u32>],
     ) -> Result<ResourceId32> {
@@ -435,7 +437,7 @@ mod default_backend {
 
     fn convert_wire_semantic(
         wire_semantic: &WireSemantic,
-    ) -> Result<Semantic<ResourceId32, OwnedStringStorage>> {
+    ) -> Result<Semantic<OwnedStringStorage>> {
         let semantic_type = match wire_semantic.surface_type.as_str() {
             "RoofSurface" => SemanticType::RoofSurface,
             "GroundSurface" => SemanticType::GroundSurface,
@@ -463,13 +465,13 @@ mod default_backend {
             material.set_ambient_intensity(Some(val as f32));
         }
         if let Some(val) = wire_material.diffuse_color {
-            material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+            material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
         }
         if let Some(val) = wire_material.emissive_color {
-            material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+            material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
         }
         if let Some(val) = wire_material.specular_color {
-            material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32]));
+            material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
         }
         if let Some(val) = wire_material.shininess {
             material.set_shininess(Some(val as f32));
@@ -486,7 +488,7 @@ mod default_backend {
 
     fn convert_wire_attribute_value(
         wire_value: WireAttributeValue,
-    ) -> AttributeValue<OwnedStringStorage, ResourceId32> {
+    ) -> AttributeValue<OwnedStringStorage> {
         match wire_value {
             WireAttributeValue::String(s) => AttributeValue::String(s),
             WireAttributeValue::Float(f) => AttributeValue::Float(f),
@@ -595,7 +597,7 @@ mod default_backend {
                     }
 
                     let mut cityobject = CityObject::new(
-                        wire_co.id.clone(),
+                        CityObjectIdentifier::new(wire_co.id.clone()),
                         parse_city_object_type(&wire_co.object_type),
                     );
 
@@ -618,7 +620,10 @@ mod default_backend {
                     for wire_geom in wire_co.geometries {
                         let geom_ref =
                             build_geometry_from_wire(&mut current_model, &wire_geom, &vertex_refs)?;
-                        cityobject.geometry_mut().push(geom_ref);
+                        cityobject.add_geometry(GeometryRef::from_parts(
+                            geom_ref.index(),
+                            geom_ref.generation(),
+                        ));
                     }
 
                     current_model.cityobjects_mut().add(cityobject);

@@ -5,9 +5,10 @@ use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::error::{Error, Result};
 use crate::prelude::{
-    Boundary, MaterialMap, RealWorldCoordinate, SemanticMap, StringStorage, TextureMap,
-    UVCoordinate, VertexIndex, Vertices,
+    Boundary, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex, Vertices,
 };
+use crate::resources::mapping::SemanticOrMaterialMap;
+use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::pool::ResourceRef;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -15,8 +16,8 @@ use std::str::FromStr;
 // Type aliases to simplify complex type signatures
 type ThemedMaterialMappings<RR> = Vec<(usize, RR)>;
 type ThemedTextureMappings<RR> = Vec<(usize, RR)>;
-type ThemedMaterials<VR, RR, SS> = Vec<(SS, MaterialMap<VR, RR>)>;
-type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMap<VR, RR>)>;
+type ThemedMaterials<VR, RR, SS> = Vec<(SS, SemanticOrMaterialMap<VR, RR>)>;
+type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMapCore<VR, RR>)>;
 
 // Local trait to decouple GeometryBuilder from any global CityModel traits.
 pub trait GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>
@@ -45,15 +46,15 @@ where
 }
 
 // Trait for geometry construction
-pub trait GeometryConstructor<VR: VertexRef, RR: crate::resources::pool::ResourceRef, SS> {
+pub(crate) trait GeometryConstructor<VR: VertexRef, RR: crate::resources::pool::ResourceRef, SS> {
     #[allow(clippy::too_many_arguments)]
     fn new(
         type_geometry: GeometryType,
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
-        semantics: Option<SemanticMap<VR, RR>>,
-        materials: Option<Vec<(SS, MaterialMap<VR, RR>)>>,
-        textures: Option<Vec<(SS, TextureMap<VR, RR>)>>,
+        semantics: Option<SemanticOrMaterialMap<VR, RR>>,
+        materials: Option<Vec<(SS, SemanticOrMaterialMap<VR, RR>)>>,
+        textures: Option<Vec<(SS, TextureMapCore<VR, RR>)>>,
         instance_template: Option<RR>,
         instance_reference_point: Option<VertexIndex<VR>>,
         instance_transformation_matrix: Option<[f64; 16]>,
@@ -731,6 +732,7 @@ where
     /// # Errors
     /// * The geometry type does not match the structure (`InvalidGeometryType`)
     /// * The `model`'s vertex container has reached its maximum capacity (`VerticesContainerFull`)
+    #[allow(private_bounds)]
     pub fn build(self) -> Result<RR>
     where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
@@ -1237,17 +1239,15 @@ fn build_semantic_map<VR: VertexRef, RR: ResourceRef>(
     type_geometry: &GeometryType,
     builder_semantics: &HashMap<usize, RR>,
     nr_primitives: usize,
-) -> Option<SemanticMap<VR, RR>> {
+) -> Option<SemanticOrMaterialMap<VR, RR>> {
     match type_geometry {
         GeometryType::GeometryInstance => None,
         GeometryType::MultiPoint => {
             if !builder_semantics.is_empty() {
-                let semantic_map = SemanticMap::<VR, RR> {
-                    points: (0..nr_primitives)
-                        .map(|i| builder_semantics.get(&i).copied())
-                        .collect(),
-                    ..Default::default()
-                };
+                let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
+                for i in 0..nr_primitives {
+                    semantic_map.add_point(builder_semantics.get(&i).copied());
+                }
                 Some(semantic_map)
             } else {
                 None
@@ -1255,12 +1255,10 @@ fn build_semantic_map<VR: VertexRef, RR: ResourceRef>(
         }
         GeometryType::MultiLineString => {
             if !builder_semantics.is_empty() {
-                let semantic_map = SemanticMap::<VR, RR> {
-                    linestrings: (0..nr_primitives)
-                        .map(|i| builder_semantics.get(&i).copied())
-                        .collect(),
-                    ..Default::default()
-                };
+                let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
+                for i in 0..nr_primitives {
+                    semantic_map.add_linestring(builder_semantics.get(&i).copied());
+                }
                 Some(semantic_map)
             } else {
                 None
@@ -1269,12 +1267,10 @@ fn build_semantic_map<VR: VertexRef, RR: ResourceRef>(
         _ => {
             // Handle semantics, materials and textures for surfaces
             if !builder_semantics.is_empty() {
-                let semantic_map = SemanticMap::<VR, RR> {
-                    surfaces: (0..nr_primitives)
-                        .map(|i| builder_semantics.get(&i).copied())
-                        .collect(),
-                    ..Default::default()
-                };
+                let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
+                for i in 0..nr_primitives {
+                    semantic_map.add_surface(builder_semantics.get(&i).copied());
+                }
                 Some(semantic_map)
             } else {
                 None
@@ -1295,10 +1291,10 @@ fn build_material_map<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
         for (theme_name, surface_mappings) in surface_materials {
             // We need to ensure the materials vector has entries for all surfaces
             // by creating an array of the right size with all None values
-            let mut material_map = MaterialMap::<VR, RR> {
-                surfaces: vec![None; surfaces.len()],
-                ..Default::default()
-            };
+            let mut material_map = SemanticOrMaterialMap::<VR, RR>::new();
+            for _ in 0..surfaces.len() {
+                material_map.add_surface(None);
+            }
 
             // Now fill in the materials that are defined for this theme
             for (surface_idx, material_ref) in surface_mappings {
@@ -1329,7 +1325,7 @@ fn build_texture_map<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
     let mut themed_texture_maps = Vec::new();
 
     for (theme_name, ring_mappings) in ring_textures {
-        let mut texture_map = TextureMap::<VR, RR>::default();
+        let mut texture_map = TextureMapCore::<VR, RR>::default();
 
         // Initialize vertices with None values
         for _ in 0..boundary.vertices.len() {
@@ -1465,12 +1461,15 @@ mod tests {
     use crate::CityModelType;
     use crate::cityjson::core::geometry::GeometryType;
     use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate};
-    use crate::resources::pool::ResourceId32;
+    use crate::resources::handles::{
+        GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
+    };
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
+    use crate::v2_0::RGB;
 
     // Test helper to create a new model
-    fn create_test_model() -> CityModel<u32, ResourceId32, OwnedStringStorage> {
+    fn create_test_model() -> CityModel<u32, OwnedStringStorage> {
         CityModel::new(CityModelType::CityJSON)
     }
 
@@ -1498,7 +1497,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1536,7 +1535,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type and LoD
@@ -1580,7 +1579,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1623,7 +1622,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1647,22 +1646,22 @@ mod tests {
         assert_eq!(semantic_points.len(), 3);
 
         // Verify the semantic references are the ones we set
-        let sem_refs: Vec<ResourceId32> = semantic_points
+        let sem_refs: Vec<SemanticRef> = semantic_points
             .iter()
             .filter_map(|s| s.as_ref())
             .cloned()
             .collect();
-        assert!(sem_refs.contains(sem_ref0.as_ref().unwrap()));
-        assert!(sem_refs.contains(sem_ref1.as_ref().unwrap()));
+        assert!(sem_refs.contains(&SemanticRef::from_raw(*sem_ref0.as_ref().unwrap())));
+        assert!(sem_refs.contains(&SemanticRef::from_raw(*sem_ref1.as_ref().unwrap())));
 
         // Verify the semantics themselves
         let semantic0 = model
-            .get_semantic(sem_ref0.unwrap())
+            .get_semantic(SemanticRef::from_raw(sem_ref0.unwrap()))
             .expect("Semantic 0 not found");
         assert_eq!(semantic0.type_semantic(), &SemanticType::TransportationHole);
 
         let semantic1 = model
-            .get_semantic(sem_ref1.unwrap())
+            .get_semantic(SemanticRef::from_raw(sem_ref1.unwrap()))
             .expect("Semantic 1 not found");
         assert_eq!(
             semantic1.type_semantic(),
@@ -1718,7 +1717,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1743,12 +1742,15 @@ mod tests {
 
         // Only the second linestring should have a semantic
         assert!(linestring_semantics[0].is_none());
-        assert_eq!(linestring_semantics[1], Some(sem_ref.clone().unwrap()));
+        assert_eq!(
+            linestring_semantics[1],
+            Some(SemanticRef::from_raw(sem_ref.clone().unwrap()))
+        );
         assert!(linestring_semantics[2].is_none());
 
         // Verify the semantic itself
         let semantic = model
-            .get_semantic(sem_ref.unwrap())
+            .get_semantic(SemanticRef::from_raw(sem_ref.unwrap()))
             .expect("Semantic not found");
         assert_eq!(
             semantic.type_semantic(),
@@ -1844,7 +1846,7 @@ mod tests {
 
         // Create and assign material for the third surface
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
-        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         wall_material.set_ambient_intensity(Some(0.5));
         let mat_ref = builder.set_material_surface(
             Some(surface2),
@@ -1858,7 +1860,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -1888,12 +1890,15 @@ mod tests {
 
         // Only the second surface should have a semantic
         assert!(surface_semantics[0].is_none());
-        assert_eq!(surface_semantics[1], Some(sem_ref.clone().unwrap()));
+        assert_eq!(
+            surface_semantics[1],
+            Some(SemanticRef::from_raw(sem_ref.clone().unwrap()))
+        );
         assert!(surface_semantics[2].is_none());
 
         // Verify the semantic itself
         let semantic = model
-            .get_semantic(sem_ref.unwrap())
+            .get_semantic(SemanticRef::from_raw(sem_ref.unwrap()))
             .expect("Semantic not found");
         assert_eq!(semantic.type_semantic(), &SemanticType::RoofSurface);
 
@@ -1908,11 +1913,14 @@ mod tests {
         // Only the third surface should have a material
         assert!(surface_materials[0].is_none());
         assert!(surface_materials[1].is_none());
-        assert_eq!(surface_materials[2], Some(mat_ref.clone().unwrap()));
+        assert_eq!(
+            surface_materials[2],
+            Some(MaterialRef::from_raw(mat_ref.clone().unwrap()))
+        );
 
         // Verify the material itself
         let material = model
-            .get_material(mat_ref.unwrap())
+            .get_material(MaterialRef::from_raw(mat_ref.unwrap()))
             .expect("Material not found");
         assert_eq!(material.name(), "Wall");
         assert!(material.diffuse_color().is_some());
@@ -1934,7 +1942,7 @@ mod tests {
         );
 
         // Verify the texture references
-        let texture_refs: Vec<ResourceId32> = texture_map
+        let texture_refs: Vec<TextureRef> = texture_map
             .ring_textures()
             .iter()
             .filter_map(|t| t.as_ref())
@@ -1942,13 +1950,13 @@ mod tests {
             .collect();
 
         assert!(
-            texture_refs.contains(texture_ref.as_ref().unwrap()),
+            texture_refs.contains(&TextureRef::from_raw(*texture_ref.as_ref().unwrap())),
             "First texture reference not found"
         );
 
         // Verify the texture objects themselves
         let texture1 = model
-            .get_texture(texture_ref.unwrap())
+            .get_texture(TextureRef::from_raw(texture_ref.unwrap()))
             .expect("Texture 1 not found");
         assert_eq!(texture1.image(), "facade.jpg");
         assert_eq!(texture1.image_type(), &ImageType::Jpg);
@@ -2049,9 +2057,9 @@ mod tests {
 
         // Add materials
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
-        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         let mut roof_material = OwnedMaterial::new("Roof".to_string());
-        roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
+        roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1].into()));
 
         let wall_mat_ref = builder.set_material_surface(
             Some(surface0),
@@ -2079,7 +2087,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -2103,8 +2111,14 @@ mod tests {
         assert_eq!(surface_semantics.len(), 6); // Should have entries for all surfaces
 
         // Verify the specific semantics
-        assert_eq!(surface_semantics[4], Some(roof_sem_ref.clone().unwrap()));
-        assert_eq!(surface_semantics[5], Some(floor_sem_ref.clone().unwrap()));
+        assert_eq!(
+            surface_semantics[4],
+            Some(SemanticRef::from_raw(roof_sem_ref.clone().unwrap()))
+        );
+        assert_eq!(
+            surface_semantics[5],
+            Some(SemanticRef::from_raw(floor_sem_ref.clone().unwrap()))
+        );
 
         // Verify materials
         let materials = geometry.materials().expect("No materials found");
@@ -2113,15 +2127,21 @@ mod tests {
         assert_eq!(surface_materials.len(), 6); // Should have entries for all surfaces
 
         // Verify the material references
-        assert_eq!(surface_materials[0], Some(wall_mat_ref.clone().unwrap()));
-        assert_eq!(surface_materials[4], Some(roof_mat_ref.clone().unwrap()));
+        assert_eq!(
+            surface_materials[0],
+            Some(MaterialRef::from_raw(wall_mat_ref.clone().unwrap()))
+        );
+        assert_eq!(
+            surface_materials[4],
+            Some(MaterialRef::from_raw(roof_mat_ref.clone().unwrap()))
+        );
 
         // Verify the material objects
         let wall_material = model
-            .get_material(wall_mat_ref.unwrap())
+            .get_material(MaterialRef::from_raw(wall_mat_ref.unwrap()))
             .expect("Wall material not found");
         assert_eq!(wall_material.name(), "Wall");
-        assert_eq!(wall_material.diffuse_color().unwrap(), &[0.8, 0.8, 0.8]);
+        assert_eq!(wall_material.diffuse_color().unwrap(), RGB::from([0.8, 0.8, 0.8]));
     }
 
     #[test]
@@ -2276,9 +2296,9 @@ mod tests {
 
         // For the walls, we'll use material instead of semantics
         let mut red_material = OwnedMaterial::new("RedWall".to_string());
-        red_material.set_diffuse_color(Some([0.9, 0.1, 0.1]));
+        red_material.set_diffuse_color(Some([0.9, 0.1, 0.1].into()));
         let mut blue_material = OwnedMaterial::new("BlueWall".to_string());
-        blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9]));
+        blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9].into()));
 
         // Apply materials to some surfaces
         let red_mat_ref = builder.set_material_surface(
@@ -2322,7 +2342,7 @@ mod tests {
 
         // Get the geometry from the model
         let geometry = model
-            .get_geometry(geom_ref)
+            .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
 
         // Check geometry type
@@ -2355,12 +2375,21 @@ mod tests {
         assert_eq!(surface_semantics.len(), 12); // Should have entries for all surfaces
 
         // Verify specific semantics
-        assert_eq!(surface_semantics[4], Some(roof_sem_ref1.clone().unwrap()));
-        assert_eq!(surface_semantics[5], Some(ground_sem_ref1.clone().unwrap()));
-        assert_eq!(surface_semantics[10], Some(roof_sem_ref2.clone().unwrap()));
+        assert_eq!(
+            surface_semantics[4],
+            Some(SemanticRef::from_raw(roof_sem_ref1.clone().unwrap()))
+        );
+        assert_eq!(
+            surface_semantics[5],
+            Some(SemanticRef::from_raw(ground_sem_ref1.clone().unwrap()))
+        );
+        assert_eq!(
+            surface_semantics[10],
+            Some(SemanticRef::from_raw(roof_sem_ref2.clone().unwrap()))
+        );
         assert_eq!(
             surface_semantics[11],
-            Some(ground_sem_ref2.clone().unwrap())
+            Some(SemanticRef::from_raw(ground_sem_ref2.clone().unwrap()))
         );
 
         // Verify materials
@@ -2370,21 +2399,27 @@ mod tests {
         assert_eq!(surface_materials.len(), 12); // Should have entries for all surfaces
 
         // Verify the material references
-        assert_eq!(surface_materials[0], Some(red_mat_ref.clone().unwrap()));
-        assert_eq!(surface_materials[6], Some(blue_mat_ref.clone().unwrap()));
+        assert_eq!(
+            surface_materials[0],
+            Some(MaterialRef::from_raw(red_mat_ref.clone().unwrap()))
+        );
+        assert_eq!(
+            surface_materials[6],
+            Some(MaterialRef::from_raw(blue_mat_ref.clone().unwrap()))
+        );
 
         // Verify the material objects
         let red_material = model
-            .get_material(red_mat_ref.unwrap())
+            .get_material(MaterialRef::from_raw(red_mat_ref.unwrap()))
             .expect("Red material not found");
         assert_eq!(red_material.name(), "RedWall");
-        assert_eq!(red_material.diffuse_color().unwrap(), &[0.9, 0.1, 0.1]);
+        assert_eq!(red_material.diffuse_color().unwrap(), RGB::from([0.9, 0.1, 0.1]));
 
         let blue_material = model
-            .get_material(blue_mat_ref.unwrap())
+            .get_material(MaterialRef::from_raw(blue_mat_ref.unwrap()))
             .expect("Blue material not found");
         assert_eq!(blue_material.name(), "BlueWall");
-        assert_eq!(blue_material.diffuse_color().unwrap(), &[0.1, 0.1, 0.9]);
+        assert_eq!(blue_material.diffuse_color().unwrap(), RGB::from([0.1, 0.1, 0.9]));
     }
 
     #[test]
@@ -2443,13 +2478,13 @@ mod tests {
 
         // Verify template was created correctly and placed in the template pool
         assert!(
-            model.get_template_geometry(template_ref).is_some(),
+            model.get_template_geometry(TemplateGeometryRef::from_raw(template_ref)).is_some(),
             "Template geometry not found in template pool"
         );
 
         // Get the template from the pool for further verification
         let template = model
-            .get_template_geometry(template_ref)
+            .get_template_geometry(TemplateGeometryRef::from_raw(template_ref))
             .expect("Failed to get template geometry");
 
         // Verify template properties
@@ -2472,7 +2507,7 @@ mod tests {
         // Verify linestrings have semantics applied correctly
         assert_eq!(linestring_semantics.len(), 3);
         assert!(linestring_semantics[0].is_none());
-        assert_eq!(linestring_semantics[1], Some(sem_ref));
+        assert_eq!(linestring_semantics[1], Some(SemanticRef::from_raw(sem_ref)));
         assert!(linestring_semantics[2].is_none());
 
         // PART 2: Create a GeometryInstance that references this template
@@ -2520,14 +2555,17 @@ mod tests {
 
         // Get the geometry instance for verification
         let instance = model
-            .get_geometry(instance_ref)
+            .get_geometry(GeometryRef::from_raw(instance_ref))
             .expect("Failed to get geometry instance");
 
         // Verify the instance properties
         assert_eq!(instance.type_geometry(), &GeometryType::GeometryInstance);
 
         // Verify template reference is correct
-        assert_eq!(instance.instance_template(), Some(&template_ref));
+        assert_eq!(
+            instance.instance_template(),
+            Some(TemplateGeometryRef::from_raw(template_ref))
+        );
 
         // Verify transformation matrix is stored correctly
         let expected_matrix = [
@@ -2543,7 +2581,7 @@ mod tests {
 
         // Make sure the instance is in the regular geometries pool, not the template pool
         assert!(
-            model.get_geometry(instance_ref).is_some(),
+            model.get_geometry(GeometryRef::from_raw(instance_ref)).is_some(),
             "Geometry instance not found in regular geometry pool"
         );
     }

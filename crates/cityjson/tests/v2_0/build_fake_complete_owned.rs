@@ -1,4 +1,5 @@
 use cityjson::prelude::*;
+use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
@@ -11,7 +12,7 @@ fn build_fake_complete_owned() -> Result<()> {
     // todo test: need to break up this test into a separate function per cityjson component, that will also improve representativeness
     // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
     let mut model =
-        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Three patterns of adding Metadata to the CityModel.
     // 1) Take the CityModel with mutable reference.
@@ -54,24 +55,23 @@ fn build_fake_complete_owned() -> Result<()> {
 
     // Initialize CityObjects
     let co_1_id = "id-1".to_string();
-    let mut co_1 = CityObject::new(co_1_id.clone(), CityObjectType::BuildingPart);
+    let mut co_1 = CityObject::new(CityObjectIdentifier::new(co_1_id.clone()), CityObjectType::BuildingPart);
     let co_3_id = "id-3".to_string();
-    let mut co_3 = CityObject::new(
-        co_3_id.clone(),
+    let mut co_3 = CityObject::new(CityObjectIdentifier::new(co_3_id.clone()),
         CityObjectType::Extension("+NoiseBuilding".to_string()),
     );
     let co_tree_id = "a-tree".to_string();
-    let mut co_tree = CityObject::new(co_tree_id.clone(), CityObjectType::SolitaryVegetationObject);
+    let mut co_tree = CityObject::new(CityObjectIdentifier::new(co_tree_id.clone()), CityObjectType::SolitaryVegetationObject);
     let co_neighbourhood_id = "my-neighbourhood".to_string();
     let mut co_neighbourhood =
-        CityObject::new(co_neighbourhood_id.clone(), CityObjectType::CityObjectGroup);
+        CityObject::new(CityObjectIdentifier::new(co_neighbourhood_id.clone()), CityObjectType::CityObjectGroup);
 
     // Create materials
     let mut material_irradiation = Material::new("irradiation".to_string());
     material_irradiation.set_ambient_intensity(Some(0.2000));
-    material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500]));
-    material_irradiation.set_emissive_color(Some([0.9000, 0.1000, 0.7500]));
-    material_irradiation.set_specular_color(Some([0.9000, 0.1000, 0.7500]));
+    material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500].into()));
+    material_irradiation.set_emissive_color(Some([0.9000, 0.1000, 0.7500].into()));
+    material_irradiation.set_specular_color(Some([0.9000, 0.1000, 0.7500].into()));
     material_irradiation.set_shininess(Some(0.2));
     material_irradiation.set_transparency(Some(0.5));
     material_irradiation.set_is_smooth(Some(false));
@@ -139,7 +139,7 @@ fn build_fake_complete_owned() -> Result<()> {
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
-                    Box::new(AttributeValue::Geometry(location_geometry_ref)),
+                    Box::new(AttributeValue::Geometry(GeometryRef::from_parts(location_geometry_ref.index(), location_geometry_ref.generation()))),
                 );
             }
         }
@@ -285,11 +285,11 @@ fn build_fake_complete_owned() -> Result<()> {
             let geometry_ref = geometry_builder.build()?;
 
             // Attach geometry to CityObject
-            co_1.geometry_mut().push(geometry_ref);
+            co_1.add_geometry(GeometryRef::from_parts(geometry_ref.index(), geometry_ref.generation()));
 
             // For debug only
             let geom_nested = model
-                .get_geometry(geometry_ref)
+                .get_geometry(GeometryRef::from_parts(geometry_ref.index(), geometry_ref.generation()))
                 .unwrap()
                 .clone()
                 .boundaries()
@@ -347,7 +347,7 @@ fn build_fake_complete_owned() -> Result<()> {
         .build()?;
 
         // Attach geometry to CityObject
-        co_tree.geometry_mut().push(tree_geometry_ref);
+        co_tree.add_geometry(GeometryRef::from_parts(tree_geometry_ref.index(), tree_geometry_ref.generation()));
     }
 
     // Build CityObject "my-neighbourhood"
@@ -376,8 +376,7 @@ fn build_fake_complete_owned() -> Result<()> {
 
             // Attach geometry to CityObject
             co_neighbourhood
-                .geometry_mut()
-                .push(neighbourhood_geometry_ref);
+                .add_geometry(GeometryRef::from_parts(neighbourhood_geometry_ref.index(), neighbourhood_geometry_ref.generation()));
         }
     }
 
@@ -392,33 +391,27 @@ fn build_fake_complete_owned() -> Result<()> {
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_3_ref);
+        .add_parent(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_neigh_ref);
+        .add_parent(co_neigh_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
-        .children_mut()
-        .push(co_1_ref);
+        .add_child(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
-        .parents_mut()
-        .push(co_neigh_ref);
+        .add_parent(co_neigh_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
-        .children_mut()
-        .push(co_1_ref);
+        .add_child(co_1_ref);
     cityobjects
         .get_mut(co_neigh_ref)
         .unwrap()
-        .children_mut()
-        .push(co_3_ref);
+        .add_child(co_3_ref);
 
     println!("{}", &model);
 
@@ -536,15 +529,15 @@ fn build_fake_complete_owned() -> Result<()> {
             assert_eq!(material.ambient_intensity(), Some(0.2000));
             assert_eq!(
                 material.diffuse_color(),
-                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+                Some(RGB::from([0.9000, 0.1000, 0.7500]))
             );
             assert_eq!(
                 material.emissive_color(),
-                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+                Some(RGB::from([0.9000, 0.1000, 0.7500]))
             );
             assert_eq!(
                 material.specular_color(),
-                Some(&RGB::from([0.9000, 0.1000, 0.7500]))
+                Some(RGB::from([0.9000, 0.1000, 0.7500]))
             );
             assert_eq!(material.shininess(), Some(0.2));
             assert_eq!(material.transparency(), Some(0.5));
@@ -677,9 +670,9 @@ fn build_fake_complete_owned() -> Result<()> {
     // Test geometry of "id-1"
     let geometries1 = co1.geometry().expect("id-1 should have geometry");
     assert_eq!(geometries1.len(), 1);
-    let geom1 = &geometries1[0];
+    let geom1 = geometries1[0];
     let geom1_data = model
-        .get_geometry(*geom1)
+        .get_geometry(geom1)
         .expect("Geometry should exist in pool");
     assert_eq!(geom1_data.type_geometry(), &GeometryType::Solid);
     assert_eq!(geom1_data.lod(), Some(&LoD::LoD2_1));
@@ -865,9 +858,9 @@ fn build_fake_complete_owned() -> Result<()> {
     // Test geometry of "a-tree" (GeometryInstance)
     let geometries_tree = co_tree.1.geometry().expect("a-tree should have geometry");
     assert_eq!(geometries_tree.len(), 1);
-    let geom_tree = &geometries_tree[0];
+    let geom_tree = geometries_tree[0];
     let geom_tree_data = model
-        .get_geometry(*geom_tree)
+        .get_geometry(geom_tree)
         .expect("Geometry should exist in pool");
     assert_eq!(
         geom_tree_data.type_geometry(),
@@ -884,7 +877,7 @@ fn build_fake_complete_owned() -> Result<()> {
     // (the location geometry from the address attribute). This appears to be due to how template
     // indices are assigned. The template geometry itself exists but may use a separate indexing scheme.
     let template_geom = model
-        .get_geometry(*template_ref)
+        .get_template_geometry(template_ref)
         .expect("Template geometry should exist in pool");
     // Verify the template reference points to a valid geometry
     assert!(matches!(
@@ -975,9 +968,9 @@ fn build_fake_complete_owned() -> Result<()> {
         .geometry()
         .expect("my-neighbourhood should have geometry");
     assert_eq!(geometries_neigh.len(), 1);
-    let geom_neigh = &geometries_neigh[0];
+    let geom_neigh = geometries_neigh[0];
     let geom_neigh_data = model
-        .get_geometry(*geom_neigh)
+        .get_geometry(geom_neigh)
         .expect("Geometry should exist in pool");
     assert_eq!(geom_neigh_data.type_geometry(), &GeometryType::MultiSurface);
     assert_eq!(geom_neigh_data.lod(), Some(&LoD::LoD2));
@@ -1018,14 +1011,14 @@ fn build_metadata_with_reference(model: &mut CityModel) -> Result<()> {
 }
 
 /// Build a complete Metadata instance with all data set and return it.
-fn build_metadata_with_return() -> Result<Metadata<OwnedStringStorage, ResourceId32>> {
+fn build_metadata_with_return() -> Result<Metadata<OwnedStringStorage>> {
     let mut metadata = Metadata::new();
     build_metadata(&mut metadata);
     Ok(metadata)
 }
 
 /// Set data on a Metadata instance.
-fn build_metadata(metadata_ref: &mut Metadata<OwnedStringStorage, ResourceId32>) {
+fn build_metadata(metadata_ref: &mut Metadata<OwnedStringStorage>) {
     metadata_ref
         .set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
     metadata_ref.set_identifier(CityModelIdentifier::new(
@@ -1039,7 +1032,7 @@ fn build_metadata(metadata_ref: &mut Metadata<OwnedStringStorage, ResourceId32>)
     metadata_ref.set_role(ContactRole::Author);
     metadata_ref.set_website("https://3dgi.nl");
     metadata_ref.set_contact_type(ContactType::Organization);
-    let mut address = Attributes::<OwnedStringStorage, ResourceId32>::new();
+    let mut address = Attributes::<OwnedStringStorage>::new();
     address.insert("city".to_string(), AttributeValue::String("Den Haag".to_string()));
     address.insert("country".to_string(), AttributeValue::String("The Netherlands".to_string()));
     metadata_ref.set_address(address);

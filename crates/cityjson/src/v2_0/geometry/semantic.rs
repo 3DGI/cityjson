@@ -1,26 +1,66 @@
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::traits::semantic::SemanticTypeTrait;
 use crate::format_option;
-use crate::macros::impl_semantic_trait;
-use crate::resources::pool::ResourceRef;
+use crate::resources::handles::SemanticRef;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Semantic<RR: ResourceRef, SS: StringStorage> {
-    /// The type of the semantic surface
+pub struct Semantic<SS: StringStorage> {
     type_semantic: SemanticType<SS>,
-    /// Indices to child semantics in the global semantics pool
-    children: Option<Vec<RR>>,
-    /// Index to parent semantic in the global semantics pool
-    parent: Option<RR>,
-    /// Additional attributes of the semantic surface
-    attributes: Option<Attributes<SS, RR>>,
+    children: Option<Vec<SemanticRef>>,
+    parent: Option<SemanticRef>,
+    attributes: Option<Attributes<SS>>,
 }
 
-impl_semantic_trait!(SemanticType<SS>);
+impl<SS: StringStorage> Semantic<SS> {
+    pub fn new(type_semantic: SemanticType<SS>) -> Self {
+        Self {
+            type_semantic,
+            children: None,
+            parent: None,
+            attributes: None,
+        }
+    }
 
-impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
+    pub fn type_semantic(&self) -> &SemanticType<SS> {
+        &self.type_semantic
+    }
+
+    pub fn has_children(&self) -> bool {
+        self.children.as_ref().is_some_and(|c| !c.is_empty())
+    }
+
+    pub fn has_parent(&self) -> bool {
+        self.parent.is_some()
+    }
+
+    pub fn children(&self) -> Option<&[SemanticRef]> {
+        self.children.as_deref()
+    }
+
+    pub fn children_mut(&mut self) -> &mut Vec<SemanticRef> {
+        self.children.get_or_insert_with(Vec::new)
+    }
+
+    pub fn parent(&self) -> Option<SemanticRef> {
+        self.parent
+    }
+
+    pub fn set_parent(&mut self, parent_ref: SemanticRef) {
+        self.parent = Some(parent_ref);
+    }
+
+    pub fn attributes(&self) -> Option<&Attributes<SS>> {
+        self.attributes.as_ref()
+    }
+
+    pub fn attributes_mut(&mut self) -> &mut Attributes<SS> {
+        self.attributes.get_or_insert_with(Attributes::new)
+    }
+}
+
+impl<SS: StringStorage> Display for Semantic<SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -33,9 +73,6 @@ impl<RR: ResourceRef, SS: StringStorage> Display for Semantic<RR, SS> {
     }
 }
 
-/// Semantic surface type.
-///
-/// Specs: <https://www.cityjson.org/specs/1.1.3/#semantics-of-geometric-primitives>.
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum SemanticType<SS: StringStorage> {
     #[default]
@@ -68,212 +105,3 @@ impl<SS: StringStorage> Display for SemanticType<SS> {
 }
 
 impl<SS: StringStorage> SemanticTypeTrait for SemanticType<SS> {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cityjson::core::attributes::OwnedAttributeValue;
-    use crate::resources::pool::ResourceId32;
-    use crate::resources::storage::OwnedStringStorage;
-
-    // Tests for macro-generated methods (tested once here for v2_0)
-    #[test]
-    fn test_semantic_creation() {
-        let semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        assert!(!semantic.has_children());
-        assert!(!semantic.has_parent());
-        assert!(semantic.children().is_none());
-        assert!(semantic.parent().is_none());
-        assert!(semantic.attributes().is_none());
-    }
-
-    #[test]
-    fn test_semantic_attributes() {
-        let mut semantic =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-
-        // Initially no attributes
-        assert!(semantic.attributes().is_none());
-
-        // Get mutable reference and add attributes
-        let attrs = semantic.attributes_mut();
-        attrs.insert("material".to_string(), OwnedAttributeValue::String("brick".to_string()));
-        attrs.insert("color".to_string(), OwnedAttributeValue::String("red".to_string()));
-
-        // Now attributes should exist
-        assert!(semantic.attributes().is_some());
-        let retrieved_material = semantic.attributes().unwrap().get("material");
-        assert!(retrieved_material.is_some());
-        if let Some(OwnedAttributeValue::String(val)) = retrieved_material {
-            assert_eq!(val, "brick");
-        } else {
-            panic!("Expected String value");
-        }
-        let retrieved_color = semantic.attributes().unwrap().get("color");
-        assert!(retrieved_color.is_some());
-        if let Some(OwnedAttributeValue::String(val)) = retrieved_color {
-            assert_eq!(val, "red");
-        } else {
-            panic!("Expected String value");
-        }
-    }
-
-    #[test]
-    fn test_semantic_children() {
-        let mut semantic =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-
-        // Initially no children
-        assert!(!semantic.has_children());
-
-        // Add children
-        let children = semantic.children_mut();
-        children.push(ResourceId32::new(1, 0));
-        children.push(ResourceId32::new(2, 0));
-
-        // Now should have children
-        assert!(semantic.has_children());
-        assert_eq!(semantic.children().unwrap().len(), 2);
-        assert_eq!(semantic.children().unwrap()[0], ResourceId32::new(1, 0));
-        assert_eq!(semantic.children().unwrap()[1], ResourceId32::new(2, 0));
-    }
-
-    #[test]
-    fn test_semantic_parent() {
-        let mut semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
-
-        // Initially no parent
-        assert!(!semantic.has_parent());
-        assert!(semantic.parent().is_none());
-
-        // Set parent
-        semantic.set_parent(ResourceId32::new(5, 0));
-
-        // Now should have parent
-        assert!(semantic.has_parent());
-        assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(5, 0));
-
-        semantic.set_parent(ResourceId32::new(10, 0));
-        assert_eq!(*semantic.parent().unwrap(), ResourceId32::new(10, 0));
-    }
-
-    #[test]
-    fn test_semantic_display() {
-        let mut semantic =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        let display_str = format!("{}", semantic);
-        assert!(display_str.contains("RoofSurface"));
-
-        // Add attributes and check display again
-        let attrs = semantic.attributes_mut();
-        attrs.insert("material".to_string(), OwnedAttributeValue::String("tile".to_string()));
-
-        let display_str = format!("{}", semantic);
-        assert!(display_str.contains("RoofSurface"));
-        assert!(display_str.contains("attributes"));
-        println!("{}", semantic);
-    }
-
-    #[test]
-    fn test_semantic_type_extension() {
-        let extension_type = SemanticType::Extension("CustomType".to_string());
-        let semantic = Semantic::<ResourceId32, OwnedStringStorage>::new(extension_type);
-        let display_str = format!("{}", semantic);
-        assert!(display_str.contains("Extension"));
-    }
-
-    #[test]
-    fn test_semantic_equality() {
-        // Test 1: Two semantics with same type and no other fields are equal
-        let semantic1 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        let semantic2 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        assert_eq!(semantic1, semantic2);
-
-        // Test 2: Two semantics with different types are not equal
-        let semantic3 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-        assert_ne!(semantic1, semantic3);
-
-        // Test 3: Two semantics with same type and same children are equal
-        let mut semantic4 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-        let mut semantic5 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-
-        semantic4.children_mut().push(ResourceId32::new(1, 0));
-        semantic4.children_mut().push(ResourceId32::new(2, 0));
-        semantic5.children_mut().push(ResourceId32::new(1, 0));
-        semantic5.children_mut().push(ResourceId32::new(2, 0));
-        assert_eq!(semantic4, semantic5);
-
-        // Test 4: Two semantics with different children are not equal
-        let mut semantic6 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-        semantic6.children_mut().push(ResourceId32::new(3, 0));
-        assert_ne!(semantic4, semantic6);
-
-        // Test 5: Two semantics with same parent are equal
-        let mut semantic7 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
-        let mut semantic8 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
-        semantic7.set_parent(ResourceId32::new(10, 0));
-        semantic8.set_parent(ResourceId32::new(10, 0));
-        assert_eq!(semantic7, semantic8);
-
-        // Test 6: Two semantics with different parents are not equal
-        let mut semantic9 = Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::Window);
-        semantic9.set_parent(ResourceId32::new(20, 0));
-        assert_ne!(semantic7, semantic9);
-
-        // Test 7: Two semantics with same attributes are equal
-        let mut semantic10 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        let mut semantic11 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-
-        // Use the same attribute values for both semantics to make them equal
-        semantic10
-            .attributes_mut()
-            .insert("material".to_string(), OwnedAttributeValue::String("tile".to_string()));
-        semantic10
-            .attributes_mut()
-            .insert("year".to_string(), OwnedAttributeValue::Integer(2020));
-
-        semantic11
-            .attributes_mut()
-            .insert("material".to_string(), OwnedAttributeValue::String("tile".to_string()));
-        semantic11
-            .attributes_mut()
-            .insert("year".to_string(), OwnedAttributeValue::Integer(2020));
-        assert_eq!(semantic10, semantic11);
-
-        // Test 8: Two semantics with different attributes are not equal
-        let mut semantic12 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::RoofSurface);
-        semantic12
-            .attributes_mut()
-            .insert("material".to_string(), OwnedAttributeValue::String("slate".to_string()));
-        assert_ne!(semantic10, semantic12);
-
-        // Test 9: Two semantics with all fields equal are equal
-        let mut semantic13 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-        let mut semantic14 =
-            Semantic::<ResourceId32, OwnedStringStorage>::new(SemanticType::WallSurface);
-
-        // Use the same attribute value for both semantics to make them equal
-        semantic13.children_mut().push(ResourceId32::new(1, 0));
-        semantic13.set_parent(ResourceId32::new(5, 0));
-        semantic13
-            .attributes_mut()
-            .insert("color".to_string(), OwnedAttributeValue::String("blue".to_string()));
-
-        semantic14.children_mut().push(ResourceId32::new(1, 0));
-        semantic14.set_parent(ResourceId32::new(5, 0));
-        semantic14
-            .attributes_mut()
-            .insert("color".to_string(), OwnedAttributeValue::String("blue".to_string()));
-        assert_eq!(semantic13, semantic14);
-    }
-}

@@ -34,7 +34,7 @@
 //! ## Usage Example
 //!
 //! ```
-//! use cityjson::prelude::*;
+//! use cityjson::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
 //!
 //! // Create a pool storing i32 values with ResourceId32 references
 //! let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
@@ -525,7 +525,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
     /// # Examples
     ///
     /// ```
-    /// use cityjson::prelude::*;
+    /// use cityjson::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
     ///
     /// let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
     /// let id1 = pool.add(10);

@@ -7,6 +7,8 @@ use std::sync::mpsc;
 use std::thread;
 
 use cityjson::prelude::*;
+use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::resources::pool::ResourceId32;
 use cityjson::v2_0::*;
 
 #[derive(Debug, Clone)]
@@ -80,7 +82,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 }
 
 fn build_template_from_wire(
-    model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+    model: &mut CityModel<u32, OwnedStringStorage>,
     wire_template: &WireTemplateGeometry,
 ) -> Result<ResourceId32> {
     let mut builder = GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Template)
@@ -93,7 +95,7 @@ fn build_template_from_wire(
     builder.build()
 }
 
-fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, ResourceId32, OwnedStringStorage>> {
+fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStringStorage>> {
     let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
         global
     } else {
@@ -103,7 +105,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, Resource
     };
 
     let mut model =
-        CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
     model
         .metadata_mut()
         .set_identifier(CityModelIdentifier::new(global_props.metadata_identifier));
@@ -120,8 +122,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, Resource
     while let Ok(message) = rx.recv() {
         match message {
             StreamMessage::CityObject(wire_co) => {
-                let mut cityobject = CityObject::new(
-                    wire_co.id.clone(),
+                let mut cityobject = CityObject::new(CityObjectIdentifier::new(wire_co.id.clone()),
                     CityObjectType::Building,
                 );
 
@@ -152,7 +153,10 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, Resource
                             .with_reference_vertex(vertex_refs[0])
                             .build()?;
 
-                    cityobject.geometry_mut().push(geom_ref);
+                    cityobject.add_geometry(GeometryRef::from_parts(
+                        geom_ref.index(),
+                        geom_ref.generation(),
+                    ));
                 }
 
                 model.cityobjects_mut().add(cityobject);

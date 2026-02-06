@@ -10,12 +10,14 @@ use support::{CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, params_fro
 mod benches {
     use super::*;
 
+    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
+    use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::*;
     use std::collections::HashMap;
 
     fn build_geometry_minimal(
-        model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+        model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
     ) -> Result<ResourceId32> {
         let mut geometry_builder =
@@ -69,11 +71,11 @@ mod benches {
 
     /// Helper function to build a geometry with semantics, materials, and textures.
     fn build_geometry_full_feature(
-        model: &mut CityModel<u32, ResourceId32, OwnedStringStorage>,
+        model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
         index: usize,
-        material_data: Option<&(Material<OwnedStringStorage>, ResourceId32)>,
-        texture_data: Option<&(Texture<OwnedStringStorage>, ResourceId32)>,
+        material_data: Option<&(Material<OwnedStringStorage>, MaterialRef)>,
+        texture_data: Option<&(Texture<OwnedStringStorage>, TextureRef)>,
     ) -> Result<ResourceId32> {
         let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
         let ground_attrs = ground_semantic.attributes_mut();
@@ -179,9 +181,9 @@ mod benches {
         geometry_builder.build()
     }
 
-    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<ResourceId32>> {
+    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<CityObjectRef>> {
         let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
         let vertices = CUBE_VERTICES
@@ -199,9 +201,12 @@ mod benches {
                 _ => CityObjectType::GenericCityObject,
             };
 
-            let mut cityobject = CityObject::new(co_id.clone(), co_type);
+            let mut cityobject = CityObject::new(CityObjectIdentifier::new(co_id.clone()), co_type);
             let geometry_ref = build_geometry_minimal(&mut model, &vertices)?;
-            cityobject.geometry_mut().push(geometry_ref);
+            cityobject.add_geometry(GeometryRef::from_parts(
+                geometry_ref.index(),
+                geometry_ref.generation(),
+            ));
 
             let co_ref = model.cityobjects_mut().add(cityobject);
             cityobject_refs.push(co_ref);
@@ -213,14 +218,14 @@ mod benches {
     pub fn build_cityobjects_full(
         num_cityobjects: usize,
         seed: u64,
-    ) -> Result<Vec<ResourceId32>> {
+    ) -> Result<Vec<CityObjectRef>> {
         let mut model =
-            CityModel::<u32, ResourceId32, OwnedStringStorage>::new(CityModelType::CityJSON);
+            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
-        material.set_diffuse_color(Some([0.8, 0.8, 0.8]));
+        material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         let mat_ref = model.add_material(material.clone());
         let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
         let tex_ref = model.add_texture(texture.clone());
@@ -242,7 +247,7 @@ mod benches {
                 _ => CityObjectType::GenericCityObject,
             };
 
-            let mut cityobject = CityObject::new(co_id.clone(), co_type);
+            let mut cityobject = CityObject::new(CityObjectIdentifier::new(co_id.clone()), co_type);
 
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
@@ -287,7 +292,10 @@ mod benches {
                 material_ref.as_ref(),
                 texture_ref.as_ref(),
             )?;
-            cityobject.geometry_mut().push(geometry_ref);
+            cityobject.add_geometry(GeometryRef::from_parts(
+                geometry_ref.index(),
+                geometry_ref.generation(),
+            ));
 
             let co_ref = model.cityobjects_mut().add(cityobject);
             cityobject_refs.push(co_ref);
