@@ -3,8 +3,8 @@
 //! This mirrors the comprehensive owned-storage test and verifies that borrowed
 //! string storage can exercise the same feature surface.
 
-use cityjson::prelude::*;
 use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
@@ -16,8 +16,7 @@ use std::collections::HashMap;
 fn build_fake_complete_borrowed() -> Result<()> {
     // todo test: need to break up this test into a separate function per cityjson component, that will also improve representativeness
     // A CityModel for CityJSON v2.0 that uses u32 indices and borrowed strings.
-    let mut model =
-        CityModel::<u32, BorrowedStringStorage<'static>>::new(CityModelType::CityJSON);
+    let mut model = CityModel::<u32, BorrowedStringStorage<'static>>::new(CityModelType::CityJSON);
 
     // Three patterns of adding Metadata to the CityModel.
     // 1) Take the CityModel with mutable reference.
@@ -31,14 +30,8 @@ fn build_fake_complete_borrowed() -> Result<()> {
 
     // Set extra root properties (see https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
     let mut census_map = HashMap::new();
-    census_map.insert(
-        "percent_men",
-        Box::new(AttributeValue::Float(49.5)),
-    );
-    census_map.insert(
-        "percent_women",
-        Box::new(AttributeValue::Float(51.5)),
-    );
+    census_map.insert("percent_men", Box::new(AttributeValue::Float(49.5)));
+    census_map.insert("percent_women", Box::new(AttributeValue::Float(51.5)));
     let extra = model.extra_mut();
     extra.insert("+census", AttributeValue::Map(census_map));
 
@@ -60,10 +53,13 @@ fn build_fake_complete_borrowed() -> Result<()> {
 
     // Initialize CityObjects
     let co_1_id = "id-1";
-    let mut co_1 =
-        CityObject::new(CityObjectIdentifier::new(co_1_id), CityObjectType::BuildingPart);
+    let mut co_1 = CityObject::new(
+        CityObjectIdentifier::new(co_1_id),
+        CityObjectType::BuildingPart,
+    );
     let co_3_id = "id-3";
-    let mut co_3 = CityObject::new(CityObjectIdentifier::new(co_3_id),
+    let mut co_3 = CityObject::new(
+        CityObjectIdentifier::new(co_3_id),
         CityObjectType::Extension("+NoiseBuilding"),
     );
     let co_tree_id = "a-tree";
@@ -91,10 +87,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
     model.set_default_theme_material(Some(ref_material_irradiation));
 
     // Create textures
-    let mut texture_0 = Texture::new(
-        "http://www.someurl.org/filename.jpg",
-        ImageType::Png,
-    );
+    let mut texture_0 = Texture::new("http://www.someurl.org/filename.jpg", ImageType::Png);
     texture_0.set_wrap_mode(Some(WrapMode::Wrap));
     texture_0.set_texture_type(Some(TextureType::Specific));
     texture_0.set_border_color(Some([1.0, 1.0, 1.0, 1.0].into()));
@@ -121,26 +114,14 @@ fn build_fake_complete_borrowed() -> Result<()> {
 
         // Create address map with inline values
         let mut address_map = HashMap::new();
-        address_map.insert(
-            "Country",
-            Box::new(AttributeValue::String("Canada")),
-        );
-        address_map.insert(
-            "Locality",
-            Box::new(AttributeValue::String("Chibougamau")),
-        );
-        address_map.insert(
-            "ThoroughfareNumber",
-            Box::new(AttributeValue::String("1")),
-        );
+        address_map.insert("Country", Box::new(AttributeValue::String("Canada")));
+        address_map.insert("Locality", Box::new(AttributeValue::String("Chibougamau")));
+        address_map.insert("ThoroughfareNumber", Box::new(AttributeValue::String("1")));
         address_map.insert(
             "ThoroughfareName",
             Box::new(AttributeValue::String("rue de la Patate")),
         );
-        address_map.insert(
-            "Postcode",
-            Box::new(AttributeValue::String("H0H 0H0")),
-        );
+        address_map.insert("Postcode", Box::new(AttributeValue::String("H0H 0H0")));
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -153,7 +134,10 @@ fn build_fake_complete_borrowed() -> Result<()> {
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location",
-                    Box::new(AttributeValue::Geometry(GeometryRef::from_parts(location_geometry_ref.index(), location_geometry_ref.generation()))),
+                    Box::new(AttributeValue::Geometry(GeometryRef::from_parts(
+                        location_geometry_ref.index(),
+                        location_geometry_ref.generation(),
+                    ))),
                 );
             }
         }
@@ -200,12 +184,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
                 "irradiation",
                 true,
             )?;
-            geometry_builder.set_material_surface(
-                None,
-                material_red.clone(),
-                "red",
-                true,
-            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red", true)?;
             // Texture
             let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
             let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
@@ -215,12 +194,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_ring(
-                None,
-                texture_0.clone(),
-                "winter-textures",
-                true,
-            )?;
+            geometry_builder.set_texture_ring(None, texture_0.clone(), "winter-textures", true)?;
 
             // 1st Surface ---
             let ring1 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
@@ -234,22 +208,12 @@ fn build_fake_complete_borrowed() -> Result<()> {
                 "irradiation",
                 true,
             )?;
-            geometry_builder.set_material_surface(
-                None,
-                material_red.clone(),
-                "red",
-                true,
-            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red", true)?;
             geometry_builder.map_vertex_to_uv(bv0, uv0);
             geometry_builder.map_vertex_to_uv(bv1, uv1);
             geometry_builder.map_vertex_to_uv(bv2, uv2);
             geometry_builder.map_vertex_to_uv(bv3, uv3);
-            geometry_builder.set_texture_ring(
-                None,
-                texture_0,
-                "winter-textures",
-                true,
-            )?;
+            geometry_builder.set_texture_ring(None, texture_0, "winter-textures", true)?;
 
             // 2nd Surface ---
             // This surface does not have Semantic
@@ -262,12 +226,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
                 "irradiation",
                 true,
             )?;
-            geometry_builder.set_material_surface(
-                None,
-                material_red.clone(),
-                "red",
-                true,
-            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red", true)?;
 
             // 3rd Surface ---
             // This surface has a type from an Extension
@@ -279,12 +238,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
                 Semantic::new(SemanticType::Extension(semantic_extension_type));
             geometry_builder.set_semantic_surface(None, patio_door_semantic.clone(), false)?;
             // This surface does not have the "irradiation" material
-            geometry_builder.set_material_surface(
-                None,
-                material_red.clone(),
-                "red",
-                true,
-            )?;
+            geometry_builder.set_material_surface(None, material_red.clone(), "red", true)?;
             geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
 
             // Inner shell
@@ -299,11 +253,17 @@ fn build_fake_complete_borrowed() -> Result<()> {
             let geometry_ref = geometry_builder.build()?;
 
             // Attach geometry to CityObject
-            co_1.add_geometry(GeometryRef::from_parts(geometry_ref.index(), geometry_ref.generation()));
+            co_1.add_geometry(GeometryRef::from_parts(
+                geometry_ref.index(),
+                geometry_ref.generation(),
+            ));
 
             // For debug only
             let geom_nested = model
-                .get_geometry(GeometryRef::from_parts(geometry_ref.index(), geometry_ref.generation()))
+                .get_geometry(GeometryRef::from_parts(
+                    geometry_ref.index(),
+                    geometry_ref.generation(),
+                ))
                 .unwrap()
                 .clone()
                 .boundaries()
@@ -361,7 +321,10 @@ fn build_fake_complete_borrowed() -> Result<()> {
         .build()?;
 
         // Attach geometry to CityObject
-        co_tree.add_geometry(GeometryRef::from_parts(tree_geometry_ref.index(), tree_geometry_ref.generation()));
+        co_tree.add_geometry(GeometryRef::from_parts(
+            tree_geometry_ref.index(),
+            tree_geometry_ref.generation(),
+        ));
     }
 
     // Build CityObject "my-neighbourhood"
@@ -389,8 +352,10 @@ fn build_fake_complete_borrowed() -> Result<()> {
             let neighbourhood_geometry_ref = geometry_builder.build()?;
 
             // Attach geometry to CityObject
-            co_neighbourhood
-                .add_geometry(GeometryRef::from_parts(neighbourhood_geometry_ref.index(), neighbourhood_geometry_ref.generation()));
+            co_neighbourhood.add_geometry(GeometryRef::from_parts(
+                neighbourhood_geometry_ref.index(),
+                neighbourhood_geometry_ref.generation(),
+            ));
         }
     }
 
@@ -401,12 +366,11 @@ fn build_fake_complete_borrowed() -> Result<()> {
         if roof_semantic_ref.is_none() && semantic.type_semantic() == &SemanticType::RoofSurface {
             roof_semantic_ref = Some(semantic_ref);
         }
-        if patio_door_semantic_ref.is_none() {
-            if let SemanticType::Extension(ext) = semantic.type_semantic() {
-                if *ext == "+PatioDoor" {
-                    patio_door_semantic_ref = Some(semantic_ref);
-                }
-            }
+        if patio_door_semantic_ref.is_none()
+            && let SemanticType::Extension(ext) = semantic.type_semantic()
+            && *ext == "+PatioDoor"
+        {
+            patio_door_semantic_ref = Some(semantic_ref);
         }
     }
     if let (Some(roof), Some(patio)) = (roof_semantic_ref, patio_door_semantic_ref) {
@@ -429,18 +393,12 @@ fn build_fake_complete_borrowed() -> Result<()> {
 
     // Create CityObject hierarchy with the references that are returned by the "add"
     // method
-    cityobjects
-        .get_mut(co_1_ref)
-        .unwrap()
-        .add_parent(co_3_ref);
+    cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
         .add_parent(co_neigh_ref);
-    cityobjects
-        .get_mut(co_3_ref)
-        .unwrap()
-        .add_child(co_1_ref);
+    cityobjects.get_mut(co_3_ref).unwrap().add_child(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()
@@ -479,9 +437,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
     );
     assert_eq!(
         metadata.reference_system(),
-        Some(&CRS::new(
-            "https://www.opengis.net/def/crs/EPSG/0/2355"
-        ))
+        Some(&CRS::new("https://www.opengis.net/def/crs/EPSG/0/2355"))
     );
     let contact = metadata.point_of_contact().expect("Contact should exist");
     assert_eq!(contact.contact_name(), "3DGI");
@@ -491,14 +447,18 @@ fn build_fake_complete_borrowed() -> Result<()> {
     let extra = model.extra().expect("Extra properties should exist");
     let census_attr = extra.get("+census").expect("+census should exist");
     if let AttributeValue::Map(census_map) = census_attr {
-        let percent_men_attr = census_map.get("percent_men").expect("percent_men should exist in census map");
+        let percent_men_attr = census_map
+            .get("percent_men")
+            .expect("percent_men should exist in census map");
         if let AttributeValue::Float(percent_men) = &**percent_men_attr {
             assert_eq!(*percent_men, 49.5);
         } else {
             panic!("percent_men should be Float");
         }
 
-        let percent_women_attr = census_map.get("percent_women").expect("percent_women should exist in census map");
+        let percent_women_attr = census_map
+            .get("percent_women")
+            .expect("percent_women should exist in census map");
         if let AttributeValue::Float(percent_women) = &**percent_women_attr {
             assert_eq!(*percent_women, 51.5);
         } else {
@@ -653,35 +613,45 @@ fn build_fake_complete_borrowed() -> Result<()> {
         assert_eq!(addresses.len(), 1);
 
         if let AttributeValue::Map(address_map) = &*addresses[0] {
-            let country_attr = address_map.get("Country").expect("Country should exist in address map");
+            let country_attr = address_map
+                .get("Country")
+                .expect("Country should exist in address map");
             if let AttributeValue::String(country) = &**country_attr {
                 assert_eq!(*country, "Canada");
             } else {
                 panic!("Country should be String");
             }
 
-            let locality_attr = address_map.get("Locality").expect("Locality should exist in address map");
+            let locality_attr = address_map
+                .get("Locality")
+                .expect("Locality should exist in address map");
             if let AttributeValue::String(locality) = &**locality_attr {
                 assert_eq!(*locality, "Chibougamau");
             } else {
                 panic!("Locality should be String");
             }
 
-            let thoroughfare_number_attr = address_map.get("ThoroughfareNumber").expect("ThoroughfareNumber should exist in address map");
+            let thoroughfare_number_attr = address_map
+                .get("ThoroughfareNumber")
+                .expect("ThoroughfareNumber should exist in address map");
             if let AttributeValue::String(thoroughfare_number) = &**thoroughfare_number_attr {
                 assert_eq!(*thoroughfare_number, "1");
             } else {
                 panic!("ThoroughfareNumber should be String");
             }
 
-            let thoroughfare_name_attr = address_map.get("ThoroughfareName").expect("ThoroughfareName should exist in address map");
+            let thoroughfare_name_attr = address_map
+                .get("ThoroughfareName")
+                .expect("ThoroughfareName should exist in address map");
             if let AttributeValue::String(thoroughfare_name) = &**thoroughfare_name_attr {
                 assert_eq!(*thoroughfare_name, "rue de la Patate");
             } else {
                 panic!("ThoroughfareName should be String");
             }
 
-            let postcode_attr = address_map.get("Postcode").expect("Postcode should exist in address map");
+            let postcode_attr = address_map
+                .get("Postcode")
+                .expect("Postcode should exist in address map");
             if let AttributeValue::String(postcode) = &**postcode_attr {
                 assert_eq!(*postcode, "H0H 0H0");
             } else {
@@ -689,7 +659,9 @@ fn build_fake_complete_borrowed() -> Result<()> {
             }
 
             // Test location geometry in address
-            let location_attr = address_map.get("location").expect("location should exist in address map");
+            let location_attr = address_map
+                .get("location")
+                .expect("location should exist in address map");
             if let AttributeValue::Geometry(_ref) = &**location_attr {
                 // Geometry reference is valid
             } else {
@@ -1067,9 +1039,7 @@ fn build_metadata(metadata_ref: &mut Metadata<BorrowedStringStorage<'static>>) {
     metadata_ref.set_identifier(CityModelIdentifier::new(
         "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
     ));
-    metadata_ref.set_reference_system(CRS::new(
-        "https://www.opengis.net/def/crs/EPSG/0/2355",
-    ));
+    metadata_ref.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/2355"));
     metadata_ref.set_contact_name("3DGI");
     metadata_ref.set_email_address("info@3dgi.nl");
     metadata_ref.set_role(ContactRole::Author);
@@ -1110,7 +1080,10 @@ fn borrowed_storage_with_dynamic_lifetime() -> Result<()> {
     );
 
     assert_eq!(model.cityobjects().len(), 1);
-    let (_, co) = model.cityobjects().first().expect("CityObject should exist");
+    let (_, co) = model
+        .cityobjects()
+        .first()
+        .expect("CityObject should exist");
     assert_eq!(co.id(), "building-dynamic-1");
     let attrs = co.attributes().expect("Attributes should exist");
     let attr = attrs.get("name").expect("name should exist");

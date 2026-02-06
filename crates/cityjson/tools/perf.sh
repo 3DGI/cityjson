@@ -2,16 +2,13 @@
 set -euo pipefail
 
 DESCRIPTION="${1:-}"
-BACKEND_DEFAULT="both"
 MODE_DEFAULT="full"
 SEED_DEFAULT=""
 SIZE_DEFAULT=""
 
-BACKEND="$BACKEND_DEFAULT"
 MODE="$MODE_DEFAULT"
 SEED_ARG="$SEED_DEFAULT"
 SIZE_ARG="$SIZE_DEFAULT"
-BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
 
 shift || true
 
@@ -20,25 +17,26 @@ for arg in "$@"; do
         key="${arg%%=*}"
         value="${arg#*=}"
         case "$key" in
-            backend) BACKEND="$value" ;;
             mode) MODE="$value" ;;
             seed) SEED_ARG="$value" ;;
             size) SIZE_ARG="$value" ;;
+            backend) ;; # backward compatibility: ignored
             *) ;;
         esac
     elif [ -n "$arg" ]; then
         case "$arg" in
-            default|nested|both) BACKEND="$arg" ;;
+            full|fast) MODE="$arg" ;;
             *) ;;
         esac
     fi
 done
 
 if [ -z "$DESCRIPTION" ]; then
-    echo "Usage: ./tools/perf.sh \"description\" [backend] [mode] [seed] [size]" >&2
+    echo "Usage: ./tools/perf.sh \"description\" [mode] [seed] [size]" >&2
     exit 1
 fi
 
+BACKEND="default"
 BENCH_VERSION="v2"
 DEFAULT_SEED="12345"
 SEED="$SEED_ARG"
@@ -65,176 +63,146 @@ else
     fi
 fi
 
-run_backend() {
-    local backend="$1"
-    local target_dir="target/bench-$backend"
-    local criterion_dir="$target_dir/criterion"
-    local dhat_dir="$target_dir/dhat"
-    local dhat_file="$dhat_dir/memory.json"
+target_dir="target/bench"
+criterion_dir="$target_dir/criterion"
+dhat_dir="$target_dir/dhat"
+dhat_file="$dhat_dir/memory.json"
 
+mkdir -p "$dhat_dir"
+
+export CARGO_TARGET_DIR="$target_dir"
+export BENCH_MODE="$MODE"
+export BENCH_SEED="$SEED"
+if [ -n "$SIZE_ARG" ]; then
+    export BENCH_SIZE="$SIZE_ARG"
+else
+    unset BENCH_SIZE
+fi
+
+export DHAT_OUTPUT="$(pwd)/$dhat_file"
+
+bench_cmd=(cargo bench --bench builder --bench processor)
+if [ "$MODE" = "fast" ]; then
+    bench_cmd+=(-- --quick)
+fi
+
+echo "=== Benchmarks: backend=$BACKEND mode=$MODE seed=$SEED ==="
+"${bench_cmd[@]}"
+
+python3 tools/parse_criterion.py \
+    --criterion-dir "$criterion_dir" \
+    --timestamp "$TIMESTAMP" \
+    --commit "$COMMIT" \
+    --description "$DESCRIPTION" \
+    --mode "$MODE" \
+    --backend "$BACKEND" \
+    --seed "$SEED" \
+    --bench-version "$BENCH_VERSION" \
+    --rustc "$RUSTC_VERSION" \
+    --out "$CSV_OUT"
+
+if [ -n "$SIZE_ARG" ]; then
+    memory_size="$SIZE_ARG"
+elif [ "$MODE" = "fast" ]; then
+    memory_size="$FAST_SIZE_MEMORY"
+else
+    memory_size="$DEFAULT_SIZE_MEMORY"
+fi
+
+memory_cmd=(cargo bench --bench memory)
+"${memory_cmd[@]}"
+
+dhat_input="$dhat_file"
+if [ ! -f "$dhat_input" ]; then
+    dhat_found=$(find "$target_dir" -name dhat-heap.json -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
+    if [ -n "$dhat_found" ]; then
+        dhat_input="$dhat_found"
+    fi
+fi
+if [ ! -f "$dhat_input" ] && [ -f "dhat-heap.json" ]; then
     mkdir -p "$dhat_dir"
-
-    export CARGO_TARGET_DIR="$target_dir"
-    export BENCH_MODE="$MODE"
-    export BENCH_SEED="$SEED"
-    export BENCH_BACKEND="$backend"
-    if [ -n "$SIZE_ARG" ]; then
-        export BENCH_SIZE="$SIZE_ARG"
-    else
-        unset BENCH_SIZE
-    fi
-
-    export DHAT_OUTPUT="$(pwd)/$dhat_file"
-
-    bench_cmd=(cargo bench --bench builder --bench processor --features "backend-$backend")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
-        bench_cmd=(cargo bench --no-default-features --bench builder --bench processor --features "backend-$backend")
-    fi
-    if [ "$MODE" = "fast" ]; then
-        bench_cmd+=(-- --quick)
-    fi
-
-    echo "=== Benchmarks: backend=$backend mode=$MODE seed=$SEED ==="
-    "${bench_cmd[@]}"
-
-    python3 tools/parse_criterion.py \
-        --criterion-dir "$criterion_dir" \
-        --timestamp "$TIMESTAMP" \
-        --commit "$COMMIT" \
-        --description "$DESCRIPTION" \
-        --mode "$MODE" \
-        --backend "$backend" \
-        --seed "$SEED" \
-        --bench-version "$BENCH_VERSION" \
-        --rustc "$RUSTC_VERSION" \
-        --out "$CSV_OUT"
-
-    if [ -n "$SIZE_ARG" ]; then
-        memory_size="$SIZE_ARG"
-    elif [ "$MODE" = "fast" ]; then
-        memory_size="$FAST_SIZE_MEMORY"
-    else
-        memory_size="$DEFAULT_SIZE_MEMORY"
-    fi
-
-    memory_cmd=(cargo bench --bench memory --features "backend-$backend")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
-        memory_cmd=(cargo bench --no-default-features --bench memory --features "backend-$backend")
-    fi
-    "${memory_cmd[@]}"
-
+    cp "dhat-heap.json" "$dhat_file"
     dhat_input="$dhat_file"
-    if [ ! -f "$dhat_input" ]; then
-        dhat_found=$(find "$target_dir" -name dhat-heap.json -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
-        if [ -n "$dhat_found" ]; then
-            dhat_input="$dhat_found"
-        fi
-    fi
-    if [ ! -f "$dhat_input" ] && [ -f "dhat-heap.json" ]; then
-        mkdir -p "$dhat_dir"
-        cp "dhat-heap.json" "$dhat_file"
-        dhat_input="$dhat_file"
-    fi
+fi
 
-    python3 tools/parse_dhat.py \
-        --dhat-json "$dhat_input" \
+python3 tools/parse_dhat.py \
+    --dhat-json "$dhat_input" \
+    --timestamp "$TIMESTAMP" \
+    --commit "$COMMIT" \
+    --description "$DESCRIPTION" \
+    --mode "$MODE" \
+    --backend "$BACKEND" \
+    --bench "memory/build_model/$memory_size" \
+    --seed "$SEED" \
+    --bench-version "$BENCH_VERSION" \
+    --rustc "$RUSTC_VERSION" \
+    --out "$CSV_OUT"
+
+stream_mode="e2e"
+stream_size="$SIZE_ARG"
+if [ -z "$stream_size" ]; then
+    if [ "$MODE" = "fast" ]; then
+        stream_size="1000"
+    else
+        stream_size="10000"
+    fi
+fi
+stream_batch="${STREAM_BATCH:-1000}"
+stream_out="$target_dir/streaming-metrics.json"
+
+stream_cmd=(cargo bench --bench streaming)
+
+STREAM_MODE="$stream_mode" \
+STREAM_SIZE="$stream_size" \
+STREAM_BATCH="$stream_batch" \
+STREAM_OUT="$stream_out" \
+"${stream_cmd[@]}"
+
+if [ -f "$stream_out" ]; then
+    python3 tools/parse_streaming.py \
+        --stream-json "$stream_out" \
         --timestamp "$TIMESTAMP" \
         --commit "$COMMIT" \
         --description "$DESCRIPTION" \
         --mode "$MODE" \
-        --backend "$backend" \
-        --bench "memory/build_model/$memory_size" \
+        --backend "$BACKEND" \
+        --bench "streaming/$stream_mode" \
         --seed "$SEED" \
         --bench-version "$BENCH_VERSION" \
         --rustc "$RUSTC_VERSION" \
         --out "$CSV_OUT"
+else
+    echo "streaming metrics not found at $stream_out" >&2
+fi
 
-    stream_mode="e2e"
-    stream_size="$SIZE_ARG"
-    if [ -z "$stream_size" ]; then
-        if [ "$MODE" = "fast" ]; then
-            stream_size="1000"
-        else
-            stream_size="10000"
-        fi
-    fi
-    stream_batch="${STREAM_BATCH:-1000}"
-    stream_out="$target_dir/streaming-metrics.json"
+echo "=== Valgrind profiling: backend=$BACKEND bench=processor/compute_full_feature_stats ==="
+PROFILE_BENCH="processor" \
+    PROFILE_BENCH_ID="compute_full_feature_stats" \
+    PROFILE_MODE="$MODE" \
+    PROFILE_SEED="$SEED" \
+    PROFILE_SIZE="$SIZE_ARG" \
+    just profile-bench-all
 
-    stream_cmd=(cargo bench --bench streaming --features "backend-$backend")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$backend" = "nested" ]; then
-        stream_cmd=(cargo bench --no-default-features --bench streaming --features "backend-$backend")
-    fi
-
-    STREAM_MODE="$stream_mode" \
-    STREAM_SIZE="$stream_size" \
-    STREAM_BATCH="$stream_batch" \
-    STREAM_OUT="$stream_out" \
-    "${stream_cmd[@]}"
-
-    if [ -f "$stream_out" ]; then
-        python3 tools/parse_streaming.py \
-            --stream-json "$stream_out" \
-            --timestamp "$TIMESTAMP" \
-            --commit "$COMMIT" \
-            --description "$DESCRIPTION" \
-            --mode "$MODE" \
-            --backend "$backend" \
-            --bench "streaming/$stream_mode" \
-            --seed "$SEED" \
-            --bench-version "$BENCH_VERSION" \
-            --rustc "$RUSTC_VERSION" \
-            --out "$CSV_OUT"
-    else
-        echo "streaming metrics not found at $stream_out" >&2
-    fi
-
-    echo "=== Valgrind profiling: backend=$backend bench=processor/compute_full_feature_stats ==="
-    PROFILE_BACKEND="$backend" \
-        PROFILE_BENCH="processor" \
-        PROFILE_BENCH_ID="compute_full_feature_stats" \
-        PROFILE_MODE="$MODE" \
-        PROFILE_SEED="$SEED" \
-        PROFILE_SIZE="$SIZE_ARG" \
-        BACKEND_SPLIT="$BACKEND_SPLIT" \
-        just profile-bench-all
-
-    cachegrind_out=$(find profiling -name cachegrind.out -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
-    if [ -n "$cachegrind_out" ] && [ -f "$cachegrind_out" ]; then
-        python3 tools/parse_cachegrind.py \
-            --cachegrind-out "$cachegrind_out" \
-            --timestamp "$TIMESTAMP" \
-            --commit "$COMMIT" \
-            --description "$DESCRIPTION" \
-            --mode "$MODE" \
-            --backend "$backend" \
-            --bench "processor/compute_full_feature_stats" \
-            --seed "$SEED" \
-            --bench-version "$BENCH_VERSION" \
-            --rustc "$RUSTC_VERSION" \
-            --out "$CSV_OUT"
-    else
-        echo "cachegrind.out not found; skipping cache metrics" >&2
-    fi
-}
-
-case "$BACKEND" in
-    both)
-        run_backend "nested"
-        run_backend "default"
-        ;;
-    default|nested)
-        run_backend "$BACKEND"
-        ;;
-    *)
-        echo "Unknown backend: $BACKEND (use default|nested|both)" >&2
-        exit 1
-        ;;
- esac
+cachegrind_out=$(find profiling -name cachegrind.out -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
+if [ -n "$cachegrind_out" ] && [ -f "$cachegrind_out" ]; then
+    python3 tools/parse_cachegrind.py \
+        --cachegrind-out "$cachegrind_out" \
+        --timestamp "$TIMESTAMP" \
+        --commit "$COMMIT" \
+        --description "$DESCRIPTION" \
+        --mode "$MODE" \
+        --backend "$BACKEND" \
+        --bench "processor/compute_full_feature_stats" \
+        --seed "$SEED" \
+        --bench-version "$BENCH_VERSION" \
+        --rustc "$RUSTC_VERSION" \
+        --out "$CSV_OUT"
+else
+    echo "cachegrind.out not found; skipping cache metrics" >&2
+fi
 
 unset CARGO_TARGET_DIR
 unset DHAT_OUTPUT
 unset BENCH_MODE
 unset BENCH_SEED
 unset BENCH_SIZE
-unset BENCH_BACKEND

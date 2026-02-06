@@ -36,10 +36,7 @@ impl<SS: StringStorage> Texture<SS> {
         &self.image_type
     }
     #[inline]
-    pub fn set_image_type(
-        &mut self,
-        image_type: crate::cityjson::core::appearance::ImageType,
-    ) {
+    pub fn set_image_type(&mut self, image_type: crate::cityjson::core::appearance::ImageType) {
         self.image_type = image_type;
     }
     #[inline]
@@ -77,10 +74,7 @@ impl<SS: StringStorage> Texture<SS> {
         self.border_color
     }
     #[inline]
-    pub fn set_border_color(
-        &mut self,
-        border_color: Option<RGBA>,
-    ) {
+    pub fn set_border_color(&mut self, border_color: Option<RGBA>) {
         self.border_color = border_color;
     }
 }

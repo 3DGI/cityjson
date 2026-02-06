@@ -22,7 +22,10 @@ fn main() {
     // ================================================
     println!("1. Creating building with basic attributes...");
 
-    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
+    let mut building = CityObject::new(
+        CityObjectIdentifier::new("building-001".to_string()),
+        CityObjectType::Building,
+    );
 
     // Add attributes directly - simple and intuitive!
     building.attributes_mut().insert(
@@ -37,10 +40,9 @@ fn main() {
         "yearOfConstruction".to_string(),
         OwnedAttributeValue::Integer(1985),
     );
-    building.attributes_mut().insert(
-        "isHistoric".to_string(),
-        OwnedAttributeValue::Bool(true),
-    );
+    building
+        .attributes_mut()
+        .insert("isHistoric".to_string(), OwnedAttributeValue::Bool(true));
 
     let building_ref = city_model.cityobjects_mut().add(building);
     println!("   Added building with 4 attributes\n");
@@ -95,10 +97,9 @@ fn main() {
 
     // Get mutable reference to building and add address
     if let Some(building) = city_model.cityobjects_mut().get_mut(building_ref) {
-        building.extra_mut().insert(
-            "address".to_string(),
-            OwnedAttributeValue::Map(address_map),
-        );
+        building
+            .extra_mut()
+            .insert("address".to_string(), OwnedAttributeValue::Map(address_map));
     }
     println!("   Added nested address to building\n");
 
@@ -115,10 +116,9 @@ fn main() {
     ];
 
     if let Some(building) = city_model.cityobjects_mut().get_mut(building_ref) {
-        building.attributes_mut().insert(
-            "materials".to_string(),
-            OwnedAttributeValue::Vec(materials),
-        );
+        building
+            .attributes_mut()
+            .insert("materials".to_string(), OwnedAttributeValue::Vec(materials));
     }
     println!("   Added materials list to building\n");
 

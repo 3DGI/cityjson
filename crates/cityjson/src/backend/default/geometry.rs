@@ -1465,8 +1465,8 @@ mod tests {
         GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
     };
     use crate::resources::storage::OwnedStringStorage;
-    use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
     use crate::v2_0::RGB;
+    use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
 
     // Test helper to create a new model
     fn create_test_model() -> CityModel<u32, OwnedStringStorage> {
@@ -2141,7 +2141,10 @@ mod tests {
             .get_material(MaterialRef::from_raw(wall_mat_ref.unwrap()))
             .expect("Wall material not found");
         assert_eq!(wall_material.name(), "Wall");
-        assert_eq!(wall_material.diffuse_color().unwrap(), RGB::from([0.8, 0.8, 0.8]));
+        assert_eq!(
+            wall_material.diffuse_color().unwrap(),
+            RGB::from([0.8, 0.8, 0.8])
+        );
     }
 
     #[test]
@@ -2413,13 +2416,19 @@ mod tests {
             .get_material(MaterialRef::from_raw(red_mat_ref.unwrap()))
             .expect("Red material not found");
         assert_eq!(red_material.name(), "RedWall");
-        assert_eq!(red_material.diffuse_color().unwrap(), RGB::from([0.9, 0.1, 0.1]));
+        assert_eq!(
+            red_material.diffuse_color().unwrap(),
+            RGB::from([0.9, 0.1, 0.1])
+        );
 
         let blue_material = model
             .get_material(MaterialRef::from_raw(blue_mat_ref.unwrap()))
             .expect("Blue material not found");
         assert_eq!(blue_material.name(), "BlueWall");
-        assert_eq!(blue_material.diffuse_color().unwrap(), RGB::from([0.1, 0.1, 0.9]));
+        assert_eq!(
+            blue_material.diffuse_color().unwrap(),
+            RGB::from([0.1, 0.1, 0.9])
+        );
     }
 
     #[test]
@@ -2478,7 +2487,9 @@ mod tests {
 
         // Verify template was created correctly and placed in the template pool
         assert!(
-            model.get_template_geometry(TemplateGeometryRef::from_raw(template_ref)).is_some(),
+            model
+                .get_template_geometry(TemplateGeometryRef::from_raw(template_ref))
+                .is_some(),
             "Template geometry not found in template pool"
         );
 
@@ -2507,7 +2518,10 @@ mod tests {
         // Verify linestrings have semantics applied correctly
         assert_eq!(linestring_semantics.len(), 3);
         assert!(linestring_semantics[0].is_none());
-        assert_eq!(linestring_semantics[1], Some(SemanticRef::from_raw(sem_ref)));
+        assert_eq!(
+            linestring_semantics[1],
+            Some(SemanticRef::from_raw(sem_ref))
+        );
         assert!(linestring_semantics[2].is_none());
 
         // PART 2: Create a GeometryInstance that references this template
@@ -2581,7 +2595,9 @@ mod tests {
 
         // Make sure the instance is in the regular geometries pool, not the template pool
         assert!(
-            model.get_geometry(GeometryRef::from_raw(instance_ref)).is_some(),
+            model
+                .get_geometry(GeometryRef::from_raw(instance_ref))
+                .is_some(),
             "Geometry instance not found in regular geometry pool"
         );
     }

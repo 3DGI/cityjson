@@ -11,6 +11,7 @@ use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::cityjson::traits::coordinate::Coordinate;
 use crate::prelude::{RealWorldCoordinate, Result};
+use crate::raw::RawPoolView;
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{CityJSONVersion, CityModelType};
@@ -201,6 +202,11 @@ where
         self.semantics.iter()
     }
 
+    /// Returns a zero-copy raw view of the semantic resource pool.
+    pub fn semantics_raw(&self) -> RawPoolView<'_, Semantic> {
+        self.semantics.raw_view()
+    }
+
     /// Iterate over all semantics with mutable references
     pub fn iter_semantics_mut(&mut self) -> impl Iterator<Item = (RR, &mut Semantic)> + '_ {
         self.semantics.iter_mut()
@@ -266,6 +272,11 @@ where
         self.materials.iter()
     }
 
+    /// Returns a zero-copy raw view of the material resource pool.
+    pub fn materials_raw(&self) -> RawPoolView<'_, Material> {
+        self.materials.raw_view()
+    }
+
     /// Iterate over all materials with mutable references
     pub fn iter_materials_mut(&mut self) -> impl Iterator<Item = (RR, &mut Material)> + '_ {
         self.materials.iter_mut()
@@ -327,6 +338,11 @@ where
         self.textures.iter()
     }
 
+    /// Returns a zero-copy raw view of the texture resource pool.
+    pub fn textures_raw(&self) -> RawPoolView<'_, Texture> {
+        self.textures.raw_view()
+    }
+
     /// Iterate over all textures with mutable references
     pub fn iter_textures_mut(&mut self) -> impl Iterator<Item = (RR, &mut Texture)> + '_ {
         self.textures.iter_mut()
@@ -386,6 +402,11 @@ where
     /// Iterate over all geometries
     pub fn iter_geometries(&self) -> impl Iterator<Item = (RR, &Geometry)> + '_ {
         self.geometries.iter()
+    }
+
+    /// Returns a zero-copy raw view of the geometry resource pool.
+    pub fn geometries_raw(&self) -> RawPoolView<'_, Geometry> {
+        self.geometries.raw_view()
     }
 
     /// Iterate over all geometries with mutable references
@@ -556,6 +577,11 @@ where
     /// Iterate over all template geometries
     pub fn iter_template_geometries(&self) -> impl Iterator<Item = (RR, &Geometry)> + '_ {
         self.template_geometries.iter()
+    }
+
+    /// Returns a zero-copy raw view of the template geometry pool.
+    pub fn template_geometries_raw(&self) -> RawPoolView<'_, Geometry> {
+        self.template_geometries.raw_view()
     }
 
     /// Iterate over all template geometries with mutable references

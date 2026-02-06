@@ -1,7 +1,7 @@
 //! Version detection for CityJSON documents.
 
-use crate::error::{Error, Result};
 use crate::CityJSONVersion;
+use crate::error::{Error, Result};
 
 /// Detects the CityJSON version from a JSON object.
 ///
@@ -19,8 +19,8 @@ use crate::CityJSONVersion;
 /// - `Error::MissingVersion` if the "version" field is missing
 /// - `Error::UnsupportedCityJSONVersion` if the version is not recognized
 pub fn detect_version(json_str: &str) -> Result<CityJSONVersion> {
-    let value: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| Error::InvalidJson(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|e| Error::InvalidJson(e.to_string()))?;
 
     let version_str = value
         .get("version")
@@ -66,6 +66,9 @@ mod tests {
     #[test]
     fn test_detect_version_unsupported() {
         let json = r#"{"version": "3.0"}"#;
-        assert!(matches!(detect_version(json), Err(Error::UnsupportedCityJSONVersion(_))));
+        assert!(matches!(
+            detect_version(json),
+            Err(Error::UnsupportedCityJSONVersion(_))
+        ));
     }
 }

@@ -33,8 +33,8 @@ doc-signatures:
 # ============================================================================
 
 # Run benchmarks and memory profiling
-perf description backend="both" mode="full" seed="" size="":
-    ./tools/perf.sh "{{description}}" "{{backend}}" "{{mode}}" "{{seed}}" "{{size}}"
+perf description mode="full" seed="" size="":
+    ./tools/perf.sh "{{description}}" "{{mode}}" "{{seed}}" "{{size}}"
 
 # Analyze benchmark and profiling results
 perf-analyze *args:
@@ -146,24 +146,18 @@ profile-all: profile-massif profile-cachegrind profile-memcheck
 profile-bench-massif: _create_profile_dir
     #!/usr/bin/env bash
     set -euo pipefail
-    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
     PROFILE_BENCH="${PROFILE_BENCH:-processor}"
     PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
     PROFILE_MODE="${PROFILE_MODE:-fast}"
     PROFILE_SEED="${PROFILE_SEED:-}"
     PROFILE_SIZE="${PROFILE_SIZE:-}"
-    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
 
     export BENCH_MODE="$PROFILE_MODE"
     if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
     if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
-    export BENCH_BACKEND="$PROFILE_BACKEND"
-    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench"
 
-    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
-        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    fi
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH")
     bench_args=()
     if [ "$PROFILE_MODE" = "fast" ]; then
         bench_args+=(--quick)
@@ -189,24 +183,18 @@ profile-bench-massif: _create_profile_dir
 profile-bench-memcheck: _create_profile_dir
     #!/usr/bin/env bash
     set -euo pipefail
-    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
     PROFILE_BENCH="${PROFILE_BENCH:-processor}"
     PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
     PROFILE_MODE="${PROFILE_MODE:-fast}"
     PROFILE_SEED="${PROFILE_SEED:-}"
     PROFILE_SIZE="${PROFILE_SIZE:-}"
-    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
 
     export BENCH_MODE="$PROFILE_MODE"
     if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
     if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
-    export BENCH_BACKEND="$PROFILE_BACKEND"
-    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench"
 
-    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
-        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    fi
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH")
     bench_args=()
     if [ "$PROFILE_MODE" = "fast" ]; then
         bench_args+=(--quick)
@@ -238,24 +226,18 @@ profile-bench-memcheck: _create_profile_dir
 profile-bench-cachegrind: _create_profile_dir
     #!/usr/bin/env bash
     set -euo pipefail
-    PROFILE_BACKEND="${PROFILE_BACKEND:-nested}"
     PROFILE_BENCH="${PROFILE_BENCH:-processor}"
     PROFILE_BENCH_ID="${PROFILE_BENCH_ID:-compute_full_feature_stats}"
     PROFILE_MODE="${PROFILE_MODE:-fast}"
     PROFILE_SEED="${PROFILE_SEED:-}"
     PROFILE_SIZE="${PROFILE_SIZE:-}"
-    BACKEND_SPLIT="${BACKEND_SPLIT:-1}"
 
     export BENCH_MODE="$PROFILE_MODE"
     if [ -n "$PROFILE_SEED" ]; then export BENCH_SEED="$PROFILE_SEED"; else unset BENCH_SEED; fi
     if [ -n "$PROFILE_SIZE" ]; then export BENCH_SIZE="$PROFILE_SIZE"; else unset BENCH_SIZE; fi
-    export BENCH_BACKEND="$PROFILE_BACKEND"
-    export CARGO_TARGET_DIR="target/bench-$PROFILE_BACKEND"
+    export CARGO_TARGET_DIR="target/bench"
 
-    bench_cmd=(cargo bench --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    if [ "$BACKEND_SPLIT" = "1" ] && [ "$PROFILE_BACKEND" = "nested" ]; then
-        bench_cmd=(cargo bench --no-default-features --bench "$PROFILE_BENCH" --features "backend-$PROFILE_BACKEND")
-    fi
+    bench_cmd=(cargo bench --bench "$PROFILE_BENCH")
     bench_args=()
     if [ "$PROFILE_MODE" = "fast" ]; then
         bench_args+=(--quick)

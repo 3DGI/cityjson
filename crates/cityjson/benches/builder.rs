@@ -182,8 +182,7 @@ mod benches {
     }
 
     pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<CityObjectRef>> {
-        let mut model =
-            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
         let vertices = CUBE_VERTICES
@@ -215,12 +214,8 @@ mod benches {
         Ok(cityobject_refs)
     }
 
-    pub fn build_cityobjects_full(
-        num_cityobjects: usize,
-        seed: u64,
-    ) -> Result<Vec<CityObjectRef>> {
-        let mut model =
-            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+    pub fn build_cityobjects_full(num_cityobjects: usize, seed: u64) -> Result<Vec<CityObjectRef>> {
+        let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
         let mut material = Material::new("benchmark_material".to_string());
@@ -253,8 +248,14 @@ mod benches {
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
             attrs.insert("attr_null".to_string(), AttributeValue::Null);
             attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
-            attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
-            attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
+            attrs.insert(
+                "attr_unsigned".to_string(),
+                AttributeValue::Unsigned(i as u64),
+            );
+            attrs.insert(
+                "attr_integer".to_string(),
+                AttributeValue::Integer(i as i64),
+            );
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
                 "attr_string".to_string(),

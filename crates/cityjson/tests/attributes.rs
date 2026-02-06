@@ -11,7 +11,10 @@ fn test_basic_attribute_operations() {
 
     // Insert various types
     attrs.insert("height".to_string(), OwnedAttributeValue::Float(42.5));
-    attrs.insert("name".to_string(), OwnedAttributeValue::String("Tower".to_string()));
+    attrs.insert(
+        "name".to_string(),
+        OwnedAttributeValue::String("Tower".to_string()),
+    );
     attrs.insert("floors".to_string(), OwnedAttributeValue::Integer(10));
     attrs.insert("active".to_string(), OwnedAttributeValue::Bool(true));
 
@@ -36,20 +39,23 @@ fn test_cityobject_attributes() {
     let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
 
     // Create building with attributes
-    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
+    let mut building = CityObject::new(
+        CityObjectIdentifier::new("building-001".to_string()),
+        CityObjectType::Building,
+    );
 
     // Add attributes directly - no pool needed!
     building.attributes_mut().insert(
         "measuredHeight".to_string(),
-        OwnedAttributeValue::Float(25.5)
+        OwnedAttributeValue::Float(25.5),
     );
     building.attributes_mut().insert(
         "buildingName".to_string(),
-        OwnedAttributeValue::String("City Hall".to_string())
+        OwnedAttributeValue::String("City Hall".to_string()),
     );
     building.attributes_mut().insert(
         "yearOfConstruction".to_string(),
-        OwnedAttributeValue::Integer(1985)
+        OwnedAttributeValue::Integer(1985),
     );
 
     // Add to model
@@ -75,11 +81,11 @@ fn test_semantic_attributes() {
 
     roof.attributes_mut().insert(
         "material".to_string(),
-        OwnedAttributeValue::String("tile".to_string())
+        OwnedAttributeValue::String("tile".to_string()),
     );
     roof.attributes_mut().insert(
         "color".to_string(),
-        OwnedAttributeValue::String("red".to_string())
+        OwnedAttributeValue::String("red".to_string()),
     );
 
     // Verify
@@ -99,17 +105,14 @@ fn test_nested_map_attributes() {
     let mut address_map = HashMap::new();
     address_map.insert(
         "street".to_string(),
-        Box::new(OwnedAttributeValue::String("Main St".to_string()))
+        Box::new(OwnedAttributeValue::String("Main St".to_string())),
     );
     address_map.insert(
         "number".to_string(),
-        Box::new(OwnedAttributeValue::Integer(123))
+        Box::new(OwnedAttributeValue::Integer(123)),
     );
 
-    attrs.insert(
-        "address".to_string(),
-        OwnedAttributeValue::Map(address_map)
-    );
+    attrs.insert("address".to_string(), OwnedAttributeValue::Map(address_map));
 
     // Verify nested access
     if let Some(OwnedAttributeValue::Map(addr)) = attrs.get("address") {
@@ -135,10 +138,7 @@ fn test_nested_vector_attributes() {
         Box::new(OwnedAttributeValue::String("steel".to_string())),
     ];
 
-    attrs.insert(
-        "materials".to_string(),
-        OwnedAttributeValue::Vec(materials)
-    );
+    attrs.insert("materials".to_string(), OwnedAttributeValue::Vec(materials));
 
     // Verify vector access
     if let Some(OwnedAttributeValue::Vec(mats)) = attrs.get("materials") {
@@ -204,12 +204,15 @@ fn test_cityobject_extra_attributes() {
     let mut city_model: CityModel = CityModel::new(CityModelType::CityJSON);
 
     // Create building with extra attributes
-    let mut building = CityObject::new(CityObjectIdentifier::new("building-001".to_string()), CityObjectType::Building);
+    let mut building = CityObject::new(
+        CityObjectIdentifier::new("building-001".to_string()),
+        CityObjectType::Building,
+    );
 
     // Add extra attributes (custom/extension properties)
     building.extra_mut().insert(
         "customProperty".to_string(),
-        OwnedAttributeValue::String("customValue".to_string())
+        OwnedAttributeValue::String("customValue".to_string()),
     );
 
     let building_ref = city_model.cityobjects_mut().add(building);

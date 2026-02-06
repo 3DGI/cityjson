@@ -26,10 +26,10 @@ mod v1_0;
 mod v1_1;
 mod version;
 
+use crate::CityJSONVersion;
 use crate::error::Result;
 use crate::prelude::*;
 use crate::v2_0::CityModel;
-use crate::CityJSONVersion;
 
 pub use version::detect_version;
 

@@ -22,8 +22,9 @@
 pub mod backend;
 pub mod cityjson;
 pub mod error;
-pub mod resources;
 pub mod import;
+pub mod raw;
+pub mod resources;
 pub mod v2_0;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
@@ -69,7 +70,10 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     // Re-export from resources module
     pub use crate::resources::{
-        handles::{AttributeRef, CityObjectRef, GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef},
+        handles::{
+            AttributeRef, CityObjectRef, GeometryRef, MaterialRef, SemanticRef,
+            TemplateGeometryRef, TextureRef,
+        },
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };

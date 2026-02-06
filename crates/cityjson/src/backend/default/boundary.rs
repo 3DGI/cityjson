@@ -124,6 +124,18 @@ pub struct Boundary<VR: VertexRef> {
     pub(crate) solids: Vec<VertexIndex<VR>>,
 }
 
+/// Columnar representation of a [`Boundary`].
+///
+/// Each field is a flat buffer with offsets to the next level.
+#[derive(Debug, Clone, Copy)]
+pub struct BoundaryColumnar<'a, VR: VertexRef> {
+    pub vertices: &'a [VertexIndex<VR>],
+    pub ring_offsets: &'a [VertexIndex<VR>],
+    pub surface_offsets: &'a [VertexIndex<VR>],
+    pub shell_offsets: &'a [VertexIndex<VR>],
+    pub solid_offsets: &'a [VertexIndex<VR>],
+}
+
 impl<VR: VertexRef> Boundary<VR> {
     /// Creates a new empty boundary.
     ///
@@ -208,6 +220,18 @@ impl<VR: VertexRef> Boundary<VR> {
 
     pub fn solids_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.solids)
+    }
+
+    /// Exports this boundary into a columnar view suitable for serializers.
+    #[inline]
+    pub fn to_columnar(&self) -> BoundaryColumnar<'_, VR> {
+        BoundaryColumnar {
+            vertices: &self.vertices,
+            ring_offsets: &self.rings,
+            surface_offsets: &self.surfaces,
+            shell_offsets: &self.shells,
+            solid_offsets: &self.solids,
+        }
     }
 
     #[inline]

@@ -7,8 +7,8 @@ pub mod cityobject;
 pub mod extension;
 pub mod geometry;
 pub mod metadata;
-pub mod types;
 pub mod transform;
+pub mod types;
 
 pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
@@ -24,5 +24,5 @@ pub use geometry::{
     semantic::{Semantic, SemanticType},
 };
 pub use metadata::{Contact, ContactRole, ContactType, Metadata};
-pub use types::{CityObjectIdentifier, RGB, RGBA, ThemeName};
 pub use transform::Transform;
+pub use types::{CityObjectIdentifier, RGB, RGBA, ThemeName};

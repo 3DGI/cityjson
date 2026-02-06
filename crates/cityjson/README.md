@@ -65,17 +65,16 @@ example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](htt
 
 ### Benchmarking
 
-Run the full benchmark + profiling suite (both backends by default):
+Run the full benchmark + profiling suite:
 
 ```sh
 just perf "my run description"
 ```
 
-Quick/fast mode or a single backend:
+Quick/fast mode:
 
 ```sh
 just perf "quick check" mode=fast
-just perf "nested only" backend=nested
 ```
 
 Analyze results from `bench_results/history.csv`:

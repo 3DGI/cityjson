@@ -313,7 +313,10 @@ mod tests {
         attrs.insert("active".to_string(), AttributeValue::Bool(true));
         attrs.insert("floors".to_string(), AttributeValue::Integer(5));
         attrs.insert("height".to_string(), AttributeValue::Float(25.5));
-        attrs.insert("name".to_string(), AttributeValue::String("Building A".to_string()));
+        attrs.insert(
+            "name".to_string(),
+            AttributeValue::String("Building A".to_string()),
+        );
 
         // Test retrieval
         assert_eq!(attrs.get("active"), Some(&AttributeValue::Bool(true)));
@@ -369,10 +372,7 @@ mod tests {
             "street".to_string(),
             Box::new(AttributeValue::String("Main St".to_string())),
         );
-        map_content.insert(
-            "number".to_string(),
-            Box::new(AttributeValue::Integer(123)),
-        );
+        map_content.insert("number".to_string(), Box::new(AttributeValue::Integer(123)));
         map_content.insert(
             "city".to_string(),
             Box::new(AttributeValue::String("Springfield".to_string())),
@@ -413,7 +413,10 @@ mod tests {
     fn test_attributes_contains_key() {
         let mut attrs = OwnedAttributes::new();
 
-        attrs.insert("name".to_string(), AttributeValue::String("Test".to_string()));
+        attrs.insert(
+            "name".to_string(),
+            AttributeValue::String("Test".to_string()),
+        );
 
         assert!(attrs.contains_key("name"));
         assert!(!attrs.contains_key("missing"));
@@ -437,7 +440,10 @@ mod tests {
     fn test_attributes_display() {
         let mut attrs = OwnedAttributes::new();
 
-        attrs.insert("name".to_string(), AttributeValue::String("Building".to_string()));
+        attrs.insert(
+            "name".to_string(),
+            AttributeValue::String("Building".to_string()),
+        );
         attrs.insert("height".to_string(), AttributeValue::Float(25.5));
 
         let display_str = format!("{}", attrs);
@@ -451,7 +457,10 @@ mod tests {
             (AttributeValue::Null, "null"),
             (AttributeValue::Bool(true), "true"),
             (AttributeValue::Integer(42), "42"),
-            (AttributeValue::Float(std::f64::consts::PI), "3.141592653589793"),
+            (
+                AttributeValue::Float(std::f64::consts::PI),
+                "3.141592653589793",
+            ),
             (AttributeValue::String("test".to_string()), "\"test\""),
         ];
 

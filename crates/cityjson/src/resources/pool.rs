@@ -66,6 +66,7 @@
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::error::{Error, Result};
+use crate::raw::RawPoolView;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -350,6 +351,24 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
             free_list: Vec::new(),
             _phantom: PhantomData,
         }
+    }
+
+    /// Returns a zero-copy raw view of the pool internals.
+    #[inline]
+    pub fn raw_view(&self) -> RawPoolView<'_, T> {
+        RawPoolView::new(&self.resources, &self.generations)
+    }
+
+    /// Returns the underlying resource slots (`None` means vacant slot).
+    #[inline]
+    pub fn as_slice(&self) -> &[Option<T>] {
+        &self.resources
+    }
+
+    /// Returns generation counters for each slot.
+    #[inline]
+    pub fn generations(&self) -> &[u16] {
+        &self.generations
     }
 }
 

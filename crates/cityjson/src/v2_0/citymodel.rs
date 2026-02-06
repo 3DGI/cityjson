@@ -1,9 +1,10 @@
-use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::backend::default::geometry::GeometryModelOps;
+use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
+use crate::raw::{RawAccess, RawPoolView, RawSliceView};
 use crate::resources::handles::{
-    GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
+    CityObjectRef, GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
 };
 use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
@@ -14,6 +15,7 @@ use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObjects, Extensions, Transform};
 use crate::{CityJSONVersion, format_option};
+use std::collections::HashSet;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -108,7 +110,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     where
         Semantic<SS>: PartialEq,
     {
-        self.inner.find_semantic(semantic).map(SemanticRef::from_raw)
+        self.inner
+            .find_semantic(semantic)
+            .map(SemanticRef::from_raw)
     }
 
     pub fn remove_semantic(&mut self, id: SemanticRef) -> Option<Semantic<SS>> {
@@ -148,7 +152,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
             .map(|(id, v)| (MaterialRef::from_raw(id), v))
     }
 
-    pub fn iter_materials_mut(&mut self) -> impl Iterator<Item = (MaterialRef, &mut Material<SS>)> + '_ {
+    pub fn iter_materials_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (MaterialRef, &mut Material<SS>)> + '_ {
         self.inner
             .iter_materials_mut()
             .map(|(id, v)| (MaterialRef::from_raw(id), v))
@@ -158,7 +164,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     where
         Material<SS>: PartialEq,
     {
-        self.inner.find_material(material).map(MaterialRef::from_raw)
+        self.inner
+            .find_material(material)
+            .map(MaterialRef::from_raw)
     }
 
     pub fn remove_material(&mut self, id: MaterialRef) -> Option<Material<SS>> {
@@ -198,7 +206,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
             .map(|(id, v)| (TextureRef::from_raw(id), v))
     }
 
-    pub fn iter_textures_mut(&mut self) -> impl Iterator<Item = (TextureRef, &mut Texture<SS>)> + '_ {
+    pub fn iter_textures_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (TextureRef, &mut Texture<SS>)> + '_ {
         self.inner
             .iter_textures_mut()
             .map(|(id, v)| (TextureRef::from_raw(id), v))
@@ -276,7 +286,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_vertices();
     }
 
-    pub fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+    pub fn add_vertex(
+        &mut self,
+        coordinate: QuantizedCoordinate,
+    ) -> crate::error::Result<VertexIndex<VR>> {
         self.inner.add_vertex(coordinate)
     }
 
@@ -320,6 +333,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.cityobjects()
     }
 
+    /// Returns a raw accessor for zero-copy reads of internal model pools.
+    #[inline]
+    pub fn raw(&self) -> CityModelRawAccessor<'_, VR, SS> {
+        CityModelRawAccessor { model: self }
+    }
+
     pub fn cityobjects_mut(&mut self) -> &mut CityObjects<SS> {
         self.inner.cityobjects_mut()
     }
@@ -328,7 +347,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.cityobjects_mut().clear();
     }
 
-    pub fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+    pub fn add_uv_coordinate(
+        &mut self,
+        uvcoordinate: UVCoordinate,
+    ) -> crate::error::Result<VertexIndex<VR>> {
         self.inner.add_uv_coordinate(uvcoordinate)
     }
 
@@ -344,7 +366,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.vertices_texture_mut()
     }
 
-    pub fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> crate::error::Result<VertexIndex<VR>> {
+    pub fn add_template_vertex(
+        &mut self,
+        coordinate: RealWorldCoordinate,
+    ) -> crate::error::Result<VertexIndex<VR>> {
         self.inner.add_template_vertex(coordinate)
     }
 
@@ -368,7 +393,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_template_geometry(id.to_raw())
     }
 
-    pub fn get_template_geometry_mut(&mut self, id: TemplateGeometryRef) -> Option<&mut Geometry<VR, SS>> {
+    pub fn get_template_geometry_mut(
+        &mut self,
+        id: TemplateGeometryRef,
+    ) -> Option<&mut Geometry<VR, SS>> {
         self.inner.get_template_geometry_mut(id.to_raw())
     }
 
@@ -396,7 +424,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
             .map(|(id, v)| (TemplateGeometryRef::from_raw(id), v))
     }
 
-    pub fn remove_template_geometry(&mut self, id: TemplateGeometryRef) -> Option<Geometry<VR, SS>> {
+    pub fn remove_template_geometry(
+        &mut self,
+        id: TemplateGeometryRef,
+    ) -> Option<Geometry<VR, SS>> {
         self.inner.remove_template_geometry(id.to_raw())
     }
 
@@ -431,6 +462,159 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner
             .set_default_theme_texture(texture_ref.map(|x| x.to_raw()));
     }
+
+    /// Extracts a float attribute column from all CityObjects.
+    ///
+    /// Returns `(object_refs, values)` where each index in both vectors corresponds.
+    pub fn extract_float_column(&self, key: &str) -> (Vec<CityObjectRef>, Vec<f64>) {
+        let mut object_refs = Vec::new();
+        let mut values = Vec::new();
+
+        for (id, cityobject) in self.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes()
+                && let Some(crate::cityjson::core::attributes::AttributeValue::Float(value)) =
+                    attributes.get(key)
+            {
+                object_refs.push(id);
+                values.push(*value);
+            }
+        }
+
+        (object_refs, values)
+    }
+
+    /// Extracts an integer attribute column from all CityObjects.
+    ///
+    /// Returns `(object_refs, values)` where each index in both vectors corresponds.
+    pub fn extract_integer_column(&self, key: &str) -> (Vec<CityObjectRef>, Vec<i64>) {
+        let mut object_refs = Vec::new();
+        let mut values = Vec::new();
+
+        for (id, cityobject) in self.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes()
+                && let Some(crate::cityjson::core::attributes::AttributeValue::Integer(value)) =
+                    attributes.get(key)
+            {
+                object_refs.push(id);
+                values.push(*value);
+            }
+        }
+
+        (object_refs, values)
+    }
+
+    /// Extracts a string attribute column from all CityObjects.
+    ///
+    /// Returns `(object_refs, values)` where each index in both vectors corresponds.
+    pub fn extract_string_column<'a>(
+        &'a self,
+        key: &str,
+    ) -> (Vec<CityObjectRef>, Vec<&'a SS::String>) {
+        let mut object_refs = Vec::new();
+        let mut values = Vec::new();
+
+        for (id, cityobject) in self.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes()
+                && let Some(crate::cityjson::core::attributes::AttributeValue::String(value)) =
+                    attributes.get(key)
+            {
+                object_refs.push(id);
+                values.push(value);
+            }
+        }
+
+        (object_refs, values)
+    }
+
+    /// Returns all unique attribute keys from all CityObjects.
+    pub fn attribute_keys(&self) -> HashSet<&str> {
+        let mut keys = HashSet::new();
+
+        for (_, cityobject) in self.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes() {
+                for key in attributes.keys() {
+                    keys.insert(key.as_ref());
+                }
+            }
+        }
+
+        keys
+    }
+}
+
+/// Raw accessor for zero-copy access to internal CityModel storage.
+pub struct CityModelRawAccessor<'a, VR: VertexRef, SS: StringStorage> {
+    model: &'a CityModel<VR, SS>,
+}
+
+impl<'a, VR: VertexRef, SS: StringStorage> CityModelRawAccessor<'a, VR, SS> {
+    #[inline]
+    pub fn vertices(&self) -> &'a [QuantizedCoordinate] {
+        self.model.inner.vertices().as_slice()
+    }
+
+    #[inline]
+    pub fn geometries(&self) -> RawPoolView<'a, Geometry<VR, SS>> {
+        self.model.inner.geometries_raw()
+    }
+
+    #[inline]
+    pub fn semantics(&self) -> RawPoolView<'a, Semantic<SS>> {
+        self.model.inner.semantics_raw()
+    }
+
+    #[inline]
+    pub fn materials(&self) -> RawPoolView<'a, Material<SS>> {
+        self.model.inner.materials_raw()
+    }
+
+    #[inline]
+    pub fn textures(&self) -> RawPoolView<'a, Texture<SS>> {
+        self.model.inner.textures_raw()
+    }
+
+    #[inline]
+    pub fn cityobjects(&self) -> &'a CityObjects<SS> {
+        self.model.cityobjects()
+    }
+
+    #[inline]
+    pub fn template_vertices(&self) -> &'a [RealWorldCoordinate] {
+        self.model.inner.template_vertices().as_slice()
+    }
+
+    #[inline]
+    pub fn uv_coordinates(&self) -> &'a [UVCoordinate] {
+        self.model.inner.vertices_texture().as_slice()
+    }
+}
+
+impl<VR: VertexRef, SS: StringStorage> RawAccess for CityModel<VR, SS> {
+    type Vertex = QuantizedCoordinate;
+    type Geometry = Geometry<VR, SS>;
+    type Semantic = Semantic<SS>;
+    type Material = Material<SS>;
+    type Texture = Texture<SS>;
+
+    fn vertices_raw(&self) -> RawSliceView<'_, Self::Vertex> {
+        RawSliceView::new(self.vertices().as_slice())
+    }
+
+    fn geometries_raw(&self) -> RawPoolView<'_, Self::Geometry> {
+        self.inner.geometries_raw()
+    }
+
+    fn semantics_raw(&self) -> RawPoolView<'_, Self::Semantic> {
+        self.inner.semantics_raw()
+    }
+
+    fn materials_raw(&self) -> RawPoolView<'_, Self::Material> {
+        self.inner.materials_raw()
+    }
+
+    fn textures_raw(&self) -> RawPoolView<'_, Self::Texture> {
+        self.inner.textures_raw()
+    }
 }
 
 impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
@@ -438,7 +622,11 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
         writeln!(f, "CityModel {{")?;
         writeln!(f, "\ttype: {}", self.type_citymodel())?;
         writeln!(f, "\tversion: {}", format_option(&self.version()))?;
-        writeln!(f, "\textensions: {{ {} }}", format_option(&self.extensions()))?;
+        writeln!(
+            f,
+            "\textensions: {{ {} }}",
+            format_option(&self.extensions())
+        )?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform()))?;
         writeln!(f, "\tmetadata: {}", format_option(&self.metadata()))?;
         writeln!(

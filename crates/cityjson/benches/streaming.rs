@@ -101,10 +101,12 @@ fn stream_verbose_enabled() -> bool {
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
-    vec![table
-        .iter()
-        .map(|surface| surface.iter().map(|ring| ring.to_vec()).collect())
-        .collect()]
+    vec![
+        table
+            .iter()
+            .map(|surface| surface.iter().map(|ring| ring.to_vec()).collect())
+            .collect(),
+    ]
 }
 
 fn semantics_for(count: usize, pattern: &[&str]) -> Vec<Option<WireSemantic>> {
@@ -164,12 +166,7 @@ fn wire_geometry_solid(
     }
 }
 
-fn producer(
-    tx: mpsc::SyncSender<StreamMessage>,
-    size: usize,
-    batch_size: usize,
-    seed: u64,
-) {
+fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize, seed: u64) {
     let global_props = WireGlobalProperties {
         metadata_identifier: "streaming-benchmark".to_string(),
         crs: "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
@@ -356,8 +353,7 @@ mod default_backend {
     fn create_batch_model(
         global: &WireGlobalProperties,
     ) -> Result<CityModel<u32, OwnedStringStorage>> {
-        let mut model =
-            CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
         model
             .metadata_mut()
@@ -386,7 +382,8 @@ mod default_backend {
             }
         };
 
-        let mut builder = GeometryBuilder::new(model, geom_type, BuilderMode::Regular).with_lod(lod);
+        let mut builder =
+            GeometryBuilder::new(model, geom_type, BuilderMode::Regular).with_lod(lod);
 
         let bv: Vec<_> = vertex_refs
             .iter()
@@ -435,9 +432,7 @@ mod default_backend {
         builder.build()
     }
 
-    fn convert_wire_semantic(
-        wire_semantic: &WireSemantic,
-    ) -> Result<Semantic<OwnedStringStorage>> {
+    fn convert_wire_semantic(wire_semantic: &WireSemantic) -> Result<Semantic<OwnedStringStorage>> {
         let semantic_type = match wire_semantic.surface_type.as_str() {
             "RoofSurface" => SemanticType::RoofSurface,
             "GroundSurface" => SemanticType::GroundSurface,
@@ -549,7 +544,10 @@ mod default_backend {
 
         let (total_s, producer_s) = match mode {
             "consumer" => (consumer_duration.as_secs_f64(), None),
-            _ => (total_duration.as_secs_f64(), Some(producer_duration.as_secs_f64())),
+            _ => (
+                total_duration.as_secs_f64(),
+                Some(producer_duration.as_secs_f64()),
+            ),
         };
 
         let throughput = size as f64 / total_s;
@@ -704,8 +702,5 @@ fn main() {
         println!("time_producer_ms: {:.4}", producer_ms);
     }
     println!("time_consumer_ms: {:.4}", metrics.consumer_ms);
-    println!(
-        "throughput_elem_s: {:.2}",
-        metrics.throughput_elem_s
-    );
+    println!("throughput_elem_s: {:.2}", metrics.throughput_elem_s);
 }

@@ -8,10 +8,10 @@
 //! - Metadata structure may differ
 //! - Some semantic types have been renamed or extended
 
+use crate::CityModelType;
 use crate::error::{Error, Result};
 use crate::prelude::*;
 use crate::v2_0::{CityModel, CityObject, CityObjectType};
-use crate::CityModelType;
 
 /// Converts a CityJSON v1.0 document to v2.0.
 ///
@@ -26,8 +26,8 @@ pub fn convert_to_v2<SS: StringStorage>(json_str: &str) -> Result<CityModel<u32,
 where
     SS::String: From<String>,
 {
-    let value: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| Error::InvalidJson(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|e| Error::InvalidJson(e.to_string()))?;
 
     convert_from_value::<SS>(&value)
 }
@@ -76,14 +76,14 @@ fn convert_vertices<VR: VertexRef, SS: StringStorage>(
 where
     SS::String: From<String>,
 {
-    let vertices = value.as_array().ok_or_else(|| {
-        Error::Import("'vertices' must be an array".to_string())
-    })?;
+    let vertices = value
+        .as_array()
+        .ok_or_else(|| Error::Import("'vertices' must be an array".to_string()))?;
 
     for vertex in vertices {
-        let coords = vertex.as_array().ok_or_else(|| {
-            Error::Import("Each vertex must be an array".to_string())
-        })?;
+        let coords = vertex
+            .as_array()
+            .ok_or_else(|| Error::Import("Each vertex must be an array".to_string()))?;
 
         if coords.len() >= 3 {
             let x = coords[0].as_i64().unwrap_or(0);
@@ -104,9 +104,9 @@ fn convert_city_objects<VR: VertexRef, SS: StringStorage>(
 where
     SS::String: From<String>,
 {
-    let objects = value.as_object().ok_or_else(|| {
-        Error::Import("'CityObjects' must be an object".to_string())
-    })?;
+    let objects = value
+        .as_object()
+        .ok_or_else(|| Error::Import("'CityObjects' must be an object".to_string()))?;
 
     for (id, obj_value) in objects {
         let city_object = convert_city_object::<SS>(id.clone().into(), obj_value)?;
@@ -191,9 +191,9 @@ fn convert_attributes<SS: StringStorage>(
 where
     SS::String: From<String>,
 {
-    let attrs_obj = value.as_object().ok_or_else(|| {
-        Error::Import("'attributes' must be an object".to_string())
-    })?;
+    let attrs_obj = value
+        .as_object()
+        .ok_or_else(|| Error::Import("'attributes' must be an object".to_string()))?;
 
     let attributes = city_object.attributes_mut();
 
@@ -316,15 +316,12 @@ fn convert_extensions<VR: VertexRef, SS: StringStorage>(
 where
     SS::String: From<String>,
 {
-    let extensions = value.as_object().ok_or_else(|| {
-        Error::Import("'extensions' must be an object".to_string())
-    })?;
+    let extensions = value
+        .as_object()
+        .ok_or_else(|| Error::Import("'extensions' must be an object".to_string()))?;
 
     for (name, ext_value) in extensions {
-        let url = ext_value
-            .get("url")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let url = ext_value.get("url").and_then(|v| v.as_str()).unwrap_or("");
         let version = ext_value
             .get("version")
             .and_then(|v| v.as_str())
@@ -353,7 +350,8 @@ mod tests {
 
     #[test]
     fn test_convert_city_object_type_generic() {
-        let result: CityObjectType<OwnedStringStorage> = convert_city_object_type("GenericCityObject");
+        let result: CityObjectType<OwnedStringStorage> =
+            convert_city_object_type("GenericCityObject");
         assert!(matches!(result, CityObjectType::Extension(_)));
     }
 

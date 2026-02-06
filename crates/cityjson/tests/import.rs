@@ -1,6 +1,6 @@
+use cityjson::CityJSONVersion;
 use cityjson::import::{detect_version, import_cityjson};
 use cityjson::prelude::*;
-use cityjson::CityJSONVersion;
 
 const V1_0_MINIMAL: &str = r#"{
   "type": "CityJSON",

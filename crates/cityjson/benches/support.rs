@@ -1,5 +1,5 @@
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::env;
 
 pub const BENCH_VERSION: &str = "v2";
@@ -38,7 +38,13 @@ pub fn params_from_env(default_size: usize, fast_size: usize) -> BenchParams {
     let size = env::var("BENCH_SIZE")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or_else(|| if mode == "fast" { fast_size } else { default_size });
+        .unwrap_or_else(|| {
+            if mode == "fast" {
+                fast_size
+            } else {
+                default_size
+            }
+        });
 
     let seed = env::var("BENCH_SEED")
         .ok()

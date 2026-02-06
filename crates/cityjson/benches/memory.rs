@@ -25,8 +25,7 @@ mod benches {
         n_cityobjects: usize,
         seed: u64,
     ) -> CityModel<VR, OwnedStringStorage> {
-        let mut model =
-            CityModel::<VR, OwnedStringStorage>::new(CityModelType::CityJSON);
+        let mut model = CityModel::<VR, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut rng = rng_from_seed(seed);
 
         // Set basic metadata
@@ -53,15 +52,23 @@ mod benches {
                 .collect();
 
             // Create a CityObject
-            let mut cityobject =
-                CityObject::new(CityObjectIdentifier::new(format!("building-{:06}", i)), CityObjectType::Building);
+            let mut cityobject = CityObject::new(
+                CityObjectIdentifier::new(format!("building-{:06}", i)),
+                CityObjectType::Building,
+            );
 
             let attrs = cityobject.attributes_mut();
             let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
             attrs.insert("attr_null".to_string(), AttributeValue::Null);
             attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
-            attrs.insert("attr_unsigned".to_string(), AttributeValue::Unsigned(i as u64));
-            attrs.insert("attr_integer".to_string(), AttributeValue::Integer(i as i64));
+            attrs.insert(
+                "attr_unsigned".to_string(),
+                AttributeValue::Unsigned(i as u64),
+            );
+            attrs.insert(
+                "attr_integer".to_string(),
+                AttributeValue::Integer(i as i64),
+            );
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
                 "attr_string".to_string(),

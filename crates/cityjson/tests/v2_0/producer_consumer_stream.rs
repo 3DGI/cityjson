@@ -1,5 +1,5 @@
-use cityjson::prelude::*;
 use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -178,10 +178,12 @@ fn stream_verbose_enabled() -> bool {
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
-    vec![table
-        .iter()
-        .map(|surface| surface.iter().map(|ring| ring.to_vec()).collect())
-        .collect()]
+    vec![
+        table
+            .iter()
+            .map(|surface| surface.iter().map(|ring| ring.to_vec()).collect())
+            .collect(),
+    ]
 }
 
 fn semantics_for(count: usize, pattern: &[&str]) -> Vec<Option<WireSemantic>> {
@@ -705,12 +707,8 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 #[allow(clippy::type_complexity)]
 fn create_batch_model(
     global: &WireGlobalProperties,
-) -> Result<(
-    CityModel<u32, OwnedStringStorage>,
-    Vec<ResourceId32>,
-)> {
-    let mut model =
-        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+) -> Result<(CityModel<u32, OwnedStringStorage>, Vec<ResourceId32>)> {
+    let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata from wire format
     model
@@ -833,7 +831,8 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
                 }
 
                 // Construct CityObject from wire format
-                let mut cityobject = CityObject::new(CityObjectIdentifier::new(wire_co.id.clone()),
+                let mut cityobject = CityObject::new(
+                    CityObjectIdentifier::new(wire_co.id.clone()),
                     parse_city_object_type(&wire_co.object_type),
                 );
 
@@ -1095,9 +1094,7 @@ fn build_geometry_from_wire(
 }
 
 /// Converts wire semantic to cityjson-rs Semantic
-fn convert_wire_semantic(
-    wire_semantic: &WireSemantic,
-) -> Result<Semantic<OwnedStringStorage>> {
+fn convert_wire_semantic(wire_semantic: &WireSemantic) -> Result<Semantic<OwnedStringStorage>> {
     let semantic_type = match wire_semantic.surface_type.as_str() {
         "RoofSurface" => SemanticType::RoofSurface,
         "GroundSurface" => SemanticType::GroundSurface,

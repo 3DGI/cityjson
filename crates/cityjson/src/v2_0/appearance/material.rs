@@ -50,14 +50,10 @@ impl<SS: StringStorage> Material<SS> {
     }
     #[inline]
     pub fn diffuse_color(&self) -> Option<RGB> {
-        self.diffuse_color.as_ref()
-            .copied()
+        self.diffuse_color.as_ref().copied()
     }
     #[inline]
-    pub fn set_diffuse_color(
-        &mut self,
-        diffuse_color: Option<RGB>,
-    ) {
+    pub fn set_diffuse_color(&mut self, diffuse_color: Option<RGB>) {
         self.diffuse_color = diffuse_color;
     }
     #[inline]
@@ -65,10 +61,7 @@ impl<SS: StringStorage> Material<SS> {
         self.emissive_color
     }
     #[inline]
-    pub fn set_emissive_color(
-        &mut self,
-        emissive_color: Option<RGB>,
-    ) {
+    pub fn set_emissive_color(&mut self, emissive_color: Option<RGB>) {
         self.emissive_color = emissive_color;
     }
     #[inline]
@@ -76,10 +69,7 @@ impl<SS: StringStorage> Material<SS> {
         self.specular_color
     }
     #[inline]
-    pub fn set_specular_color(
-        &mut self,
-        specular_color: Option<RGB>,
-    ) {
+    pub fn set_specular_color(&mut self, specular_color: Option<RGB>) {
         self.specular_color = specular_color;
     }
     #[inline]

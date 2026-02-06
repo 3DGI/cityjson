@@ -1,6 +1,6 @@
+use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
-use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
@@ -10,8 +10,7 @@ use std::collections::HashMap;
 /// `tests/data/v2_0/cityjson_fake_complete.city.json`, with owned values.
 fn main() -> Result<()> {
     // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.
-    let mut model =
-        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+    let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
     // Set metadata
     let metadata = model.metadata_mut();
@@ -35,10 +34,7 @@ fn main() -> Result<()> {
         "percent_women".to_string(),
         Box::new(OwnedAttributeValue::Float(51.5)),
     );
-    extra.insert(
-        "+census".to_string(),
-        OwnedAttributeValue::Map(census_map),
-    );
+    extra.insert("+census".to_string(), OwnedAttributeValue::Map(census_map));
 
     // Set transform
     // todo: i think cityjson-rs should only have real-world coordinates, because
@@ -58,16 +54,25 @@ fn main() -> Result<()> {
 
     // Initialize CityObjects
     let co_1_id = "id-1".to_string();
-    let mut co_1 = CityObject::new(CityObjectIdentifier::new(co_1_id.clone()), CityObjectType::BuildingPart);
+    let mut co_1 = CityObject::new(
+        CityObjectIdentifier::new(co_1_id.clone()),
+        CityObjectType::BuildingPart,
+    );
     let co_3_id = "id-3".to_string();
-    let mut co_3 = CityObject::new(CityObjectIdentifier::new(co_3_id.clone()),
+    let mut co_3 = CityObject::new(
+        CityObjectIdentifier::new(co_3_id.clone()),
         CityObjectType::Extension("+NoiseBuilding".to_string()),
     );
     let co_tree_id = "a-tree".to_string();
-    let co_tree = CityObject::new(CityObjectIdentifier::new(co_tree_id.clone()), CityObjectType::SolitaryVegetationObject);
+    let co_tree = CityObject::new(
+        CityObjectIdentifier::new(co_tree_id.clone()),
+        CityObjectType::SolitaryVegetationObject,
+    );
     let co_neighbourhood_id = "my-neighbourhood".to_string();
-    let mut co_neighbourhood =
-        CityObject::new(CityObjectIdentifier::new(co_neighbourhood_id.clone()), CityObjectType::CityObjectGroup);
+    let mut co_neighbourhood = CityObject::new(
+        CityObjectIdentifier::new(co_neighbourhood_id.clone()),
+        CityObjectType::CityObjectGroup,
+    );
 
     // Create materials
     let mut material_irradiation = Material::new("irradiation".to_string());
@@ -139,7 +144,10 @@ fn main() -> Result<()> {
             if let Ok(location_geometry_ref) = location_builder.build() {
                 address_map.insert(
                     "location".to_string(),
-                    Box::new(OwnedAttributeValue::Geometry(GeometryRef::from_parts(location_geometry_ref.index(), location_geometry_ref.generation()))),
+                    Box::new(OwnedAttributeValue::Geometry(GeometryRef::from_parts(
+                        location_geometry_ref.index(),
+                        location_geometry_ref.generation(),
+                    ))),
                 );
             }
         }
@@ -161,14 +169,8 @@ fn main() -> Result<()> {
             "roofType".to_string(),
             OwnedAttributeValue::String("gable".to_string()),
         );
-        co_1_attrs.insert(
-            "residential".to_string(),
-            OwnedAttributeValue::Bool(true),
-        );
-        co_1_attrs.insert(
-            "nr_doors".to_string(),
-            OwnedAttributeValue::Integer(3),
-        );
+        co_1_attrs.insert("residential".to_string(), OwnedAttributeValue::Bool(true));
+        co_1_attrs.insert("nr_doors".to_string(), OwnedAttributeValue::Integer(3));
 
         // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
         // a mutable borrow to the CityModel.
@@ -361,7 +363,9 @@ fn main() -> Result<()> {
         );
         let co_neigh_extra = co_neighbourhood.extra_mut();
         let children_roles_vec = vec![
-            Box::new(OwnedAttributeValue::String("residential building".to_string())),
+            Box::new(OwnedAttributeValue::String(
+                "residential building".to_string(),
+            )),
             Box::new(OwnedAttributeValue::String("voting location".to_string())),
         ];
         co_neigh_extra.insert(
@@ -390,12 +394,11 @@ fn main() -> Result<()> {
         if roof_semantic_ref.is_none() && semantic.type_semantic() == &SemanticType::RoofSurface {
             roof_semantic_ref = Some(semantic_ref);
         }
-        if patio_door_semantic_ref.is_none() {
-            if let SemanticType::Extension(ext) = semantic.type_semantic() {
-                if ext == "+PatioDoor" {
-                    patio_door_semantic_ref = Some(semantic_ref);
-                }
-            }
+        if patio_door_semantic_ref.is_none()
+            && let SemanticType::Extension(ext) = semantic.type_semantic()
+            && ext == "+PatioDoor"
+        {
+            patio_door_semantic_ref = Some(semantic_ref);
         }
     }
     if let (Some(roof), Some(patio)) = (roof_semantic_ref, patio_door_semantic_ref) {
@@ -418,18 +421,12 @@ fn main() -> Result<()> {
 
     // Create CityObject hierarchy with the references that are returned by the "add"
     // method
-    cityobjects
-        .get_mut(co_1_ref)
-        .unwrap()
-        .add_parent(co_3_ref);
+    cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_3_ref);
     cityobjects
         .get_mut(co_1_ref)
         .unwrap()
         .add_parent(co_neigh_ref);
-    cityobjects
-        .get_mut(co_3_ref)
-        .unwrap()
-        .add_child(co_1_ref);
+    cityobjects.get_mut(co_3_ref).unwrap().add_child(co_1_ref);
     cityobjects
         .get_mut(co_3_ref)
         .unwrap()

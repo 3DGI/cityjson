@@ -6,8 +6,8 @@
 use std::sync::mpsc;
 use std::thread;
 
-use cityjson::prelude::*;
 use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::prelude::*;
 use cityjson::resources::pool::ResourceId32;
 use cityjson::v2_0::*;
 
@@ -104,8 +104,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStr
         ));
     };
 
-    let mut model =
-        CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+    let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
     model
         .metadata_mut()
         .set_identifier(CityModelIdentifier::new(global_props.metadata_identifier));
@@ -122,7 +121,8 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStr
     while let Ok(message) = rx.recv() {
         match message {
             StreamMessage::CityObject(wire_co) => {
-                let mut cityobject = CityObject::new(CityObjectIdentifier::new(wire_co.id.clone()),
+                let mut cityobject = CityObject::new(
+                    CityObjectIdentifier::new(wire_co.id.clone()),
                     CityObjectType::Building,
                 );
 
@@ -137,21 +137,23 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStr
                     .collect();
 
                 for wire_geom in wire_co.geometries {
-                    let template_ref = template_refs
-                        .get(wire_geom.template_ref)
-                        .ok_or_else(|| {
+                    let template_ref =
+                        template_refs.get(wire_geom.template_ref).ok_or_else(|| {
                             Error::InvalidGeometry(format!(
                                 "Invalid template reference: {}",
                                 wire_geom.template_ref
                             ))
                         })?;
 
-                    let geom_ref =
-                        GeometryBuilder::new(&mut model, GeometryType::GeometryInstance, BuilderMode::Regular)
-                            .with_template(*template_ref)?
-                            .with_transformation_matrix(wire_geom.transformation_matrix)?
-                            .with_reference_vertex(vertex_refs[0])
-                            .build()?;
+                    let geom_ref = GeometryBuilder::new(
+                        &mut model,
+                        GeometryType::GeometryInstance,
+                        BuilderMode::Regular,
+                    )
+                    .with_template(*template_ref)?
+                    .with_transformation_matrix(wire_geom.transformation_matrix)?
+                    .with_reference_vertex(vertex_refs[0])
+                    .build()?;
 
                     cityobject.add_geometry(GeometryRef::from_parts(
                         geom_ref.index(),
