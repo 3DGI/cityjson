@@ -11,7 +11,8 @@ The three criteria are implemented in the following features:
 - Getter and setter methods are implemented for each CityJSON object and their members to provide a stable API and hide implementation details.
 - The API is thoroughly documented, including usage examples.
 - Supports CityJSON Extensions.
-- Supports multiple CityJSON versions, such as v1.0, v1.1, v2.0, and it is extensible for future versions.
+- Native API targets CityJSON v2.0.
+- JSON de/serialization and legacy version upgrades are handled by specialized companion crates.
 
 ## Documentation
 
@@ -34,10 +35,10 @@ cargo add cityjson-rs
   - Defines interfaces like CityModelTrait, CityObjectTrait, GeometryTrait
   - Contains version-independent types and functionality like coordinate representations, boundary models and attributes
 
-- Version-specific modules (**`v1_0`**, **`v1_1`**, **`v2_0`**)
+- Version module (**`v2_0`**)
 
-    - Implement the traits defined in the `cityjson` module
-    - Provide concrete types for each CityJSON version
+    - Implements the traits defined in the `cityjson` module
+    - Provides concrete types for CityJSON v2.0
 
 - **`resources`** module: Utilities for resource management
 

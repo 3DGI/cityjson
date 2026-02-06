@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 //! ## Examples
 //!
-//! Below is an integration test that builds a CityModel with all possible features from the CityJSON v1.1 specification.
+//! Below is an integration test that builds a CityModel with all possible features from the CityJSON v2.0 specification.
 //!
 //! <details>
 //!
@@ -15,14 +15,13 @@
 //! <details>
 //!
 //! ```json
-#![doc = include_str!("../tests/data/v1_1/cityjson_fake_complete.city.json")]
+#![doc = include_str!("../tests/data/v2_0/cityjson_fake_complete.city.json")]
 //! ```
 //! </details>
 
 pub mod backend;
 pub mod cityjson;
 pub mod error;
-pub mod import;
 pub mod raw;
 pub mod resources;
 pub mod v2_0;
@@ -140,8 +139,6 @@ impl TryFrom<String> for CityModelType {
 #[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
 pub enum CityJSONVersion {
-    V1_0,
-    V1_1,
     #[default]
     V2_0,
 }
@@ -149,12 +146,10 @@ pub enum CityJSONVersion {
 impl CityJSONVersion {
     fn _from_str(value: &str) -> error::Result<CityJSONVersion> {
         match value {
-            "1.0" | "1.0.0" | "1.0.1" | "1.0.2" | "1.0.3" => Ok(CityJSONVersion::V1_0),
-            "1.1" | "1.1.0" | "1.1.1" | "1.1.2" | "1.1.3" => Ok(CityJSONVersion::V1_1),
             "2.0" | "2.0.0" | "2.0.1" => Ok(CityJSONVersion::V2_0),
             _ => Err(Error::UnsupportedVersion(
                 value.to_string(),
-                "1.0, 1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.1, 1.1.0, 1.1.1, 1.1.2, 1.1.3, 2.0, 2.0.0, 2.0.1".to_string(),
+                "2.0, 2.0.0, 2.0.1".to_string(),
             )),
         }
     }
@@ -163,12 +158,6 @@ impl CityJSONVersion {
 impl fmt::Display for CityJSONVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
-            CityJSONVersion::V1_0 => {
-                write!(f, "1.0")
-            }
-            CityJSONVersion::V1_1 => {
-                write!(f, "1.1")
-            }
             CityJSONVersion::V2_0 => {
                 write!(f, "2.0")
             }
