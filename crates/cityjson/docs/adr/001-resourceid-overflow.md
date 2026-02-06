@@ -35,7 +35,7 @@ Modified `DefaultResourcePool::add()` to prevent generation overflow:
 
 
 **Trade-offs:**
-- ✅ Prevents generation overflow and invalid references
-- ✅ No impact for typical use cases (< 65K reuses per slot)
-- ⚠️ Memory grows with extreme reuse patterns
-- ⚠️ Retired slots are never reclaimed (bounded memory leak)
+- Prevents generation overflow and invalid references
+- No impact for typical use cases (< 65K reuses per slot)
+- Memory grows with extreme reuse patterns
+- Retired slots are never reclaimed (bounded memory leak)
