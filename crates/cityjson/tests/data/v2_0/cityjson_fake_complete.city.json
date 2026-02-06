@@ -30,7 +30,7 @@
   "referenceDate": "2026-01-26",
   "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/2355",
   "title": "Complete and fake CityJSON",
-  "nospec_description": "A CityJSON object with all existing properties set to a fake value",
+  "nospec_description": "A CityJSON object with all existing properties set to a fake value"
  },
  "CityObjects": {
   "id-1": {
@@ -64,11 +64,13 @@
      "boundaries": [ [ [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ] ], [ [ [ 1, 2, 3, 0 ], [ 1, 2, 3, 0 ] ] ] ],
      "semantics": {
       "surfaces": [
-       {
+      {
         "type": "RoofSurface",
-        "surfaceAttribute": true
+        "surfaceAttribute": true,
+        "children": [ 1 ]
        }, {
-        "type": "+PatioDoor"
+        "type": "+PatioDoor",
+        "parent": 0
        }
       ],
       "values": [ [ 0, 0, null, 1 ], [ null ] ]
@@ -143,7 +145,10 @@
   "textures": [
    {
     "type": "PNG",
-    "image": "http://www.someurl.org/filename.jpg"
+    "image": "http://www.someurl.org/filename.jpg",
+    "wrapMode": "wrap",
+    "textureType": "specific",
+    "borderColor": [ 1, 1, 1, 1 ]
    }
   ],
   "vertices-texture": [ [ 0, 0.5 ], [ 1, 0 ], [ 1, 1 ], [ 0, 1 ] ],

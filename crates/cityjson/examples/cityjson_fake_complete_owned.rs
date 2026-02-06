@@ -81,10 +81,13 @@ fn main() -> Result<()> {
     let material_red = Material::new("red".to_string());
 
     // Create textures
-    let texture_0 = Texture::new(
+    let mut texture_0 = Texture::new(
         "http://www.someurl.org/filename.jpg".to_string(),
         ImageType::Png,
     );
+    texture_0.set_wrap_mode(Some(WrapMode::Wrap));
+    texture_0.set_texture_type(Some(TextureType::Specific));
+    texture_0.set_border_color(Some([1.0, 1.0, 1.0, 1.0].into()));
 
     // Because we want to reuse vertices, we need to create them first
     let v0 = model.add_vertex(QuantizedCoordinate::new(102, 103, 1))?;
@@ -378,6 +381,33 @@ fn main() -> Result<()> {
             geometry_builder.add_surface_outer_ring(ring0)?;
             let _geometry_ref = geometry_builder.build()?;
         }
+    }
+
+    // Add a parent/children relation between semantic surfaces for schema coverage.
+    let mut roof_semantic_ref = None;
+    let mut patio_door_semantic_ref = None;
+    for (semantic_ref, semantic) in model.iter_semantics() {
+        if roof_semantic_ref.is_none() && semantic.type_semantic() == &SemanticType::RoofSurface {
+            roof_semantic_ref = Some(semantic_ref);
+        }
+        if patio_door_semantic_ref.is_none() {
+            if let SemanticType::Extension(ext) = semantic.type_semantic() {
+                if ext == "+PatioDoor" {
+                    patio_door_semantic_ref = Some(semantic_ref);
+                }
+            }
+        }
+    }
+    if let (Some(roof), Some(patio)) = (roof_semantic_ref, patio_door_semantic_ref) {
+        model
+            .get_semantic_mut(roof)
+            .expect("roof semantic should exist")
+            .children_mut()
+            .push(patio);
+        model
+            .get_semantic_mut(patio)
+            .expect("patio door semantic should exist")
+            .set_parent(roof);
     }
 
     let cityobjects = model.cityobjects_mut();

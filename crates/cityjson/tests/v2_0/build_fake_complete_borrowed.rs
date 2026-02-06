@@ -91,10 +91,13 @@ fn build_fake_complete_borrowed() -> Result<()> {
     model.set_default_theme_material(Some(ref_material_irradiation));
 
     // Create textures
-    let texture_0 = Texture::new(
+    let mut texture_0 = Texture::new(
         "http://www.someurl.org/filename.jpg",
         ImageType::Png,
     );
+    texture_0.set_wrap_mode(Some(WrapMode::Wrap));
+    texture_0.set_texture_type(Some(TextureType::Specific));
+    texture_0.set_border_color(Some([1.0, 1.0, 1.0, 1.0].into()));
     let ref_texture_winter = model.add_texture(texture_0.clone());
     model.set_default_theme_texture(Some(ref_texture_winter));
 
@@ -389,6 +392,33 @@ fn build_fake_complete_borrowed() -> Result<()> {
             co_neighbourhood
                 .add_geometry(GeometryRef::from_parts(neighbourhood_geometry_ref.index(), neighbourhood_geometry_ref.generation()));
         }
+    }
+
+    // Add a parent/children relation between semantic surfaces for schema coverage.
+    let mut roof_semantic_ref = None;
+    let mut patio_door_semantic_ref = None;
+    for (semantic_ref, semantic) in model.iter_semantics() {
+        if roof_semantic_ref.is_none() && semantic.type_semantic() == &SemanticType::RoofSurface {
+            roof_semantic_ref = Some(semantic_ref);
+        }
+        if patio_door_semantic_ref.is_none() {
+            if let SemanticType::Extension(ext) = semantic.type_semantic() {
+                if *ext == "+PatioDoor" {
+                    patio_door_semantic_ref = Some(semantic_ref);
+                }
+            }
+        }
+    }
+    if let (Some(roof), Some(patio)) = (roof_semantic_ref, patio_door_semantic_ref) {
+        model
+            .get_semantic_mut(roof)
+            .expect("roof semantic should exist")
+            .children_mut()
+            .push(patio);
+        model
+            .get_semantic_mut(patio)
+            .expect("patio door semantic should exist")
+            .set_parent(roof);
     }
 
     let cityobjects = model.cityobjects_mut();
