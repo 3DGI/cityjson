@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter};
 /// # Examples
 /// ```
 /// # use cityjson::prelude::*;
-/// # use cityjson::v1_1::*;
+/// # use cityjson::v2_0::*;
 /// let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
 /// let bbox_height = bbox.height();
 /// ```

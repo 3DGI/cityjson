@@ -50,6 +50,10 @@ pub enum Error {
     IncompleteGeometry(String),
     UnsupportedVersion(String, String),
     InvalidCityObjectType(String),
+    InvalidJson(String),
+    MissingVersion,
+    UnsupportedCityJSONVersion(String),
+    Import(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -154,6 +158,18 @@ impl Display for Error {
             }
             Error::InvalidCityObjectType(v) => {
                 write!(f, "invalid CityObject type: {}", v)
+            }
+            Error::InvalidJson(msg) => {
+                write!(f, "Invalid JSON: {}", msg)
+            }
+            Error::MissingVersion => {
+                write!(f, "Missing 'version' field in CityJSON document")
+            }
+            Error::UnsupportedCityJSONVersion(version) => {
+                write!(f, "Unsupported CityJSON version: {}", version)
+            }
+            Error::Import(msg) => {
+                write!(f, "Import error: {}", msg)
             }
         }
     }

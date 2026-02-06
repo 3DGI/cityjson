@@ -2,7 +2,7 @@
 
 use cityjson::backend::default::attributes::{OwnedAttributeValue, OwnedAttributes};
 use cityjson::prelude::*;
-use cityjson::v1_1::*;
+use cityjson::v2_0::*;
 use std::collections::HashMap;
 
 #[test]

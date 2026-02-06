@@ -24,8 +24,7 @@ pub mod cityjson;
 pub mod error;
 pub(crate) mod macros;
 pub mod resources;
-pub mod v1_0;
-pub mod v1_1;
+pub mod import;
 pub mod v2_0;
 
 /// The prelude module provides a convenient way to import commonly used types and traits.
@@ -191,8 +190,6 @@ impl TryFrom<String> for CityJSONVersion {
 
 #[derive(Debug)]
 pub enum CityJSON<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {
-    V1_0(v1_0::CityModel<VR, RR, SS>),
-    V1_1(v1_1::CityModel<VR, RR, SS>),
     V2_0(v2_0::CityModel<VR, RR, SS>),
 }
 

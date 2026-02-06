@@ -48,11 +48,11 @@ cargo add cityjson-rs
 ### Prelude
 
 The prelude re-exports the types and traits from the `cityjson` and `resources` modules.
-The recommended way to use `cityjson-rs` is to use its prelude and one of the implemented CityJSON versions, for example v1.1.
+The recommended way to use `cityjson-rs` is to use its prelude and one of the implemented CityJSON versions, for example v2.0.
 
 ```rust
 use cityjson::prelude::*;
-use cityjson::v1_1::*;
+use cityjson::v2_0::*;
 ```
 
 ### Errors
