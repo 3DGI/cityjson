@@ -336,7 +336,7 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
         .map(|v| format!("{:.6}", v))
         .unwrap_or_else(|| "null".to_string());
     let payload = format!(
-        "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"stream_total_s\": {:.6},\n    \"stream_producer_s\": {},\n    \"stream_consumer_s\": {:.6},\n    \"stream_throughput_buildings_s\": {:.6}\n  }}\n}}\n",
+        "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"stream_total_s\": {:.6},\n    \"stream_producer_s\": {},\n    \"stream_consumer_s\": {:.6},\n    \"throughput_buildings_s\": {:.6}\n  }}\n}}\n",
         metrics.mode,
         metrics.total_s,
         producer_value,
@@ -1107,7 +1107,7 @@ fn main() {
     }
     println!("stream_consumer_s: {:.4}", metrics.consumer_s);
     println!(
-        "stream_throughput_buildings_s: {:.2}",
+        "throughput_buildings_s: {:.2}",
         metrics.throughput_buildings_s
     );
 }
