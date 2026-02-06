@@ -25,6 +25,7 @@ time-output.txt
 massif-run.log
 analysis-summary.txt
 vgcore.*
+dhat-heap.json
 
 # Misc
 .claude
