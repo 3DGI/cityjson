@@ -13,12 +13,17 @@ build:
     cargo build --all-targets --all-features
 
 lint:
+    just check-no-ignored-tests
     cargo clippy --all-targets --all-features -- -D warnings
 
 test:
+    just check-no-ignored-tests
     -cargo test --all-features
     -cargo run --example cityjson_fake_complete_owned
     -cargo run --example attributes
+
+check-no-ignored-tests:
+    ./tools/check_no_ignored_tests.sh
 
 # Build and open the crate documentation
 doc:
