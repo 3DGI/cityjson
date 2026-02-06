@@ -46,7 +46,7 @@ def main():
         except (TypeError, ValueError):
             print(f"invalid metric value for {metric}: {value}", file=sys.stderr)
             continue
-        unit = "buildings_s" if "throughput" in metric else "s"
+        unit = "elem_s" if "throughput" in metric else "ms"
         rows.append(
             [
                 args.timestamp,

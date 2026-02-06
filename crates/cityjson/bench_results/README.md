@@ -16,12 +16,12 @@ timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_ver
 - `mode`: `fast` or `full` input sizing.
 - `backend`: `default` or `nested`.
 - `bench`: stable benchmark ID (e.g. `builder/build_with_geometry`).
-- `metric`: `time_ms`, `throughput_elem_s`, `heap_max_bytes`, `heap_total_bytes`,
-  `heap_max_blocks`, `heap_total_blocks`, `cache_d1_miss_rate`,
-  `cache_ll_miss_rate`, `branch_miss_rate`, `stream_total_s`,
-  `stream_producer_s`, `stream_consumer_s`, `stream_throughput_buildings_s`.
+- `metric`: `time_ms`, `time_producer_ms`, `time_consumer_ms`,
+  `throughput_elem_s`, `heap_max_bytes`, `heap_total_bytes`, `heap_max_blocks`,
+  `heap_total_blocks`, `cache_d1_miss_rate`, `cache_ll_miss_rate`,
+  `branch_miss_rate`.
 - `value`: numeric metric value.
-- `unit`: unit for `value` (e.g. `ms`, `elem_s`, `bytes`, `blocks`, `ratio`, `s`, `buildings_s`).
+- `unit`: unit for `value` (e.g. `ms`, `elem_s`, `bytes`, `blocks`, `ratio`).
 - `seed`: RNG seed used for deterministic data.
 - `bench_version`: version tag for benchmark definitions (e.g. `v1`).
 - `rustc`: full `rustc --version` output.

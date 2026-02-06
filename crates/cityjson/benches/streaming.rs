@@ -81,10 +81,10 @@ enum StreamMessage {
 
 #[derive(Debug)]
 struct StreamMetrics {
-    total_s: f64,
-    producer_s: Option<f64>,
-    consumer_s: f64,
-    throughput_buildings_s: f64,
+    total_ms: f64,
+    producer_ms: Option<f64>,
+    consumer_ms: f64,
+    throughput_elem_s: f64,
     mode: String,
 }
 
@@ -332,16 +332,16 @@ fn stream_out_path() -> PathBuf {
 
 fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()> {
     let producer_value = metrics
-        .producer_s
+        .producer_ms
         .map(|v| format!("{:.6}", v))
         .unwrap_or_else(|| "null".to_string());
     let payload = format!(
-        "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"stream_total_s\": {:.6},\n    \"stream_producer_s\": {},\n    \"stream_consumer_s\": {:.6},\n    \"throughput_buildings_s\": {:.6}\n  }}\n}}\n",
+        "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"time_ms\": {:.6},\n    \"time_producer_ms\": {},\n    \"time_consumer_ms\": {:.6},\n    \"throughput_elem_s\": {:.6}\n  }}\n}}\n",
         metrics.mode,
-        metrics.total_s,
+        metrics.total_ms,
         producer_value,
-        metrics.consumer_s,
-        metrics.throughput_buildings_s
+        metrics.consumer_ms,
+        metrics.throughput_elem_s
     );
     std::fs::write(path, payload)
 }
@@ -552,12 +552,15 @@ mod default_backend {
         };
 
         let throughput = size as f64 / total_s;
+        let total_ms = total_s * 1000.0;
+        let producer_ms = producer_s.map(|v| v * 1000.0);
+        let consumer_ms = consumer_duration.as_secs_f64() * 1000.0;
 
         Ok(StreamMetrics {
-            total_s,
-            producer_s,
-            consumer_s: consumer_duration.as_secs_f64(),
-            throughput_buildings_s: throughput,
+            total_ms,
+            producer_ms,
+            consumer_ms,
+            throughput_elem_s: throughput,
             mode: mode.to_string(),
         })
     }
@@ -928,12 +931,15 @@ mod nested_backend {
         };
 
         let throughput = size as f64 / total_s;
+        let total_ms = total_s * 1000.0;
+        let producer_ms = producer_s.map(|v| v * 1000.0);
+        let consumer_ms = consumer_duration.as_secs_f64() * 1000.0;
 
         Ok(StreamMetrics {
-            total_s,
-            producer_s,
-            consumer_s: consumer_duration.as_secs_f64(),
-            throughput_buildings_s: throughput,
+            total_ms,
+            producer_ms,
+            consumer_ms,
+            throughput_elem_s: throughput,
             mode: mode.to_string(),
         })
     }
@@ -1101,13 +1107,13 @@ fn main() {
     }
 
     println!("streaming mode: {}", metrics.mode);
-    println!("stream_total_s: {:.4}", metrics.total_s);
-    if let Some(producer_s) = metrics.producer_s {
-        println!("stream_producer_s: {:.4}", producer_s);
+    println!("time_ms: {:.4}", metrics.total_ms);
+    if let Some(producer_ms) = metrics.producer_ms {
+        println!("time_producer_ms: {:.4}", producer_ms);
     }
-    println!("stream_consumer_s: {:.4}", metrics.consumer_s);
+    println!("time_consumer_ms: {:.4}", metrics.consumer_ms);
     println!(
-        "throughput_buildings_s: {:.2}",
-        metrics.throughput_buildings_s
+        "throughput_elem_s: {:.2}",
+        metrics.throughput_elem_s
     );
 }

@@ -9,6 +9,8 @@ from pathlib import Path
 
 LOWER_BETTER = {
     "time_ms",
+    "time_producer_ms",
+    "time_consumer_ms",
     "heap_max_bytes",
     "heap_total_bytes",
     "heap_max_blocks",
@@ -243,7 +245,8 @@ def compare_rows(rows, top, plot, color, percent):
         )
     )
 
-    output_rows = []
+    lower_rows = []
+    higher_rows = []
     for bench, metric, unit, default, nested, delta_pct in comparisons:
         metric_cell = color_metric(metric, color)
         default_disp, unit_disp = format_value(default, unit, percent)
@@ -310,35 +313,31 @@ def compare_rows(rows, top, plot, color, percent):
         if plot:
             bar = delta_bar(delta_pct)
             base_row.append(bar)
-        output_rows.append(base_row)
+        if metric in LOWER_BETTER:
+            lower_rows.append(base_row)
+        else:
+            higher_rows.append(base_row)
 
+    headers = [
+        "bench",
+        "metric",
+        "unit",
+        "default",
+        "nested",
+        "nested vs default",
+        "meaning",
+    ]
     if plot:
-        print_table(
-            [
-                "bench",
-                "metric",
-                "unit",
-                "default",
-                "nested",
-                "nested vs default",
-                "meaning",
-                "nested change bar",
-            ],
-            output_rows,
-        )
-    else:
-        print_table(
-            [
-                "bench",
-                "metric",
-                "unit",
-                "default",
-                "nested",
-                "nested vs default",
-                "meaning",
-            ],
-            output_rows,
-        )
+        headers.append("nested change bar")
+
+    if lower_rows:
+        print("Lower is better:")
+        print_table(headers, lower_rows)
+        print("")
+    if higher_rows:
+        print("Higher is better:")
+        print_table(headers, higher_rows)
+        print("")
 
     if not comparisons:
         print("No comparable default/nested pairs found.")
