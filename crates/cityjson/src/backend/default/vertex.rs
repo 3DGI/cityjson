@@ -225,9 +225,14 @@ pub type VertexIndex64 = VertexIndex<u64>;
 /// idx += VertexIndex16::new(5);
 /// assert_eq!(idx.value(), 15);
 ///
-/// // Addition checks for overflow
+/// // Addition is non-panicking and saturates on overflow
 /// let mut max_idx = VertexIndex16::new(u16::MAX);
-/// // This would panic: max_idx += VertexIndex16::new(1);
+/// max_idx += VertexIndex16::new(1);
+/// assert_eq!(max_idx.value(), u16::MAX);
+///
+/// // Use checked addition when overflow must be reported
+/// let mut checked = VertexIndex16::new(u16::MAX);
+/// assert!(checked.try_add_assign(VertexIndex16::new(1)).is_err());
 /// ```
 #[derive(Copy, Clone, Default, Debug, Eq, Ord, PartialOrd, PartialEq, Hash)]
 #[repr(transparent)]
@@ -417,6 +422,31 @@ impl<T: VertexRef> VertexIndex<T> {
     pub fn next(&self) -> Option<Self> {
         self.0.checked_add(&T::from_u8(1)?).map(Self::new)
     }
+
+    /// Returns the sum of two indices if it does not overflow.
+    ///
+    /// # Returns
+    ///
+    /// `Some(VertexIndex<T>)` containing the exact sum, or `None` on overflow.
+    #[inline]
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        self.0.checked_add(&other.0).map(Self::new)
+    }
+
+    /// Adds `other` to this index and reports overflow as a typed error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::IndexOverflow`] if the addition would overflow.
+    #[inline]
+    pub fn try_add_assign(&mut self, other: Self) -> Result<()> {
+        let sum = self.checked_add(other).ok_or_else(|| Error::IndexOverflow {
+            index_type: std::any::type_name::<T>().to_string(),
+            value: self.value().to_string(),
+        })?;
+        *self = sum;
+        Ok(())
+    }
 }
 
 impl<T: VertexRef> Display for VertexIndex<T> {
@@ -427,10 +457,9 @@ impl<T: VertexRef> Display for VertexIndex<T> {
 
 impl<T: VertexRef> AddAssign for VertexIndex<T> {
     fn add_assign(&mut self, other: Self) {
-        self.0 = self
-            .0
-            .checked_add(&other.0)
-            .expect("index addition overflow");
+        *self = self
+            .checked_add(other)
+            .unwrap_or_else(|| VertexIndex::new(T::MAX));
     }
 }
 
@@ -782,10 +811,25 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "index addition overflow")]
-    fn test_vertex_index_overflow() {
+    fn test_vertex_index_overflow_saturates() {
         let mut idx = VertexIndex16::new(u16::MAX);
         idx += VertexIndex16::new(1);
+        assert_eq!(idx.value(), u16::MAX);
+    }
+
+    #[test]
+    fn test_vertex_index_try_add_assign_overflow_returns_err() {
+        let mut idx = VertexIndex16::new(u16::MAX);
+        let result = idx.try_add_assign(VertexIndex16::new(1));
+        assert!(result.is_err());
+
+        if let Err(Error::IndexOverflow { index_type, value }) = result {
+            assert_eq!(index_type, "u16");
+            assert_eq!(value, "65535");
+        }
+
+        // The index should be unchanged on failure.
+        assert_eq!(idx.value(), u16::MAX);
     }
 
     #[test]
