@@ -21,9 +21,9 @@
 //!
 //! ## Conversion
 //!
-//! The module provides implementations of `From<NestedType> for Boundary<T>` for converting
-//! from nested to flattened representations. The parent module provides methods like
-//! `to_nested_multi_point()` for converting from flattened to nested representations.
+//! The module provides `From` for `BoundaryNestedMultiPoint<T>` and `TryFrom` for the deeper
+//! nested forms when converting to flattened representations. The parent module provides methods
+//! like `to_nested_multi_point()` for converting from flattened to nested representations.
 //!
 //! ## Examples
 //!
@@ -40,7 +40,7 @@
 //! ];
 //!
 //! // Convert to flattened representation
-//! let boundary: Boundary<u32> = multi_surface.clone().into();
+//! let boundary: Boundary<u32> = multi_surface.clone().try_into().unwrap();
 //!
 //! // Convert back to nested representation
 //! let multi_surface_again = boundary.to_nested_multi_or_composite_surface().unwrap();
@@ -50,6 +50,7 @@
 use crate::cityjson::core::boundary::Boundary;
 use crate::cityjson::core::vertex::VertexIndex;
 use crate::cityjson::core::vertex::VertexRef;
+use crate::error;
 
 // Type aliases for u16
 /// A collection of points (vertex indices) for a model with 16-bit indices
@@ -99,6 +100,14 @@ pub type BoundaryNestedSolid<T> = Vec<BoundaryNestedMultiOrCompositeSurface<T>>;
 /// A collection of solids (or composite solid) with generic index type
 pub type BoundaryNestedMultiOrCompositeSolid<T> = Vec<BoundaryNestedSolid<T>>;
 
+#[inline]
+fn next_index<T: VertexRef>(index: VertexIndex<T>) -> error::Result<VertexIndex<T>> {
+    index.next().ok_or_else(|| error::Error::IndexOverflow {
+        index_type: std::any::type_name::<T>().to_string(),
+        value: index.value().to_string(),
+    })
+}
+
 impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     /// Converts a nested MultiPoint representation to a flattened Boundary.
     ///
@@ -131,7 +140,9 @@ impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     }
 }
 
-impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
+impl<T: VertexRef> TryFrom<BoundaryNestedMultiLineString<T>> for Boundary<T> {
+    type Error = error::Error;
+
     /// Converts a nested MultiLineString representation to a flattened Boundary.
     ///
     /// # Parameters
@@ -140,7 +151,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     ///
     /// # Returns
     ///
-    /// A flattened `Boundary<T>` representation of the MultiLineString
+    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiLineString,
+    /// or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -152,11 +164,11 @@ impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     ///     vec![0, 1, 2],
     ///     vec![3, 4, 5]
     /// ];
-    /// let boundary: Boundary<u32> = multi_linestring.into();
+    /// let boundary: Boundary<u32> = multi_linestring.try_into().unwrap();
     /// ```
-    fn from(value: BoundaryNestedMultiLineString<T>) -> Self {
+    fn try_from(value: BoundaryNestedMultiLineString<T>) -> error::Result<Self> {
         if value.is_empty() {
-            Self::default()
+            Ok(Self::default())
         } else {
             let mut vertices = Vec::new();
             let mut rings = Vec::with_capacity(value.len());
@@ -165,19 +177,21 @@ impl<T: VertexRef> From<BoundaryNestedMultiLineString<T>> for Boundary<T> {
                 rings.push(ring_start);
                 for vertex in ring {
                     vertices.push(VertexIndex::new(*vertex));
-                    ring_start += VertexIndex::new(T::one());
+                    ring_start = next_index(ring_start)?;
                 }
             }
-            Self {
+            Ok(Self {
                 vertices,
                 rings,
                 ..Self::default()
-            }
+            })
         }
     }
 }
 
-impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
+impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
+    type Error = error::Error;
+
     /// Converts a nested MultiSurface or CompositeSurface representation to a flattened Boundary.
     ///
     /// # Parameters
@@ -186,7 +200,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
     ///
     /// # Returns
     ///
-    /// A flattened `Boundary<T>` representation of the MultiSurface or CompositeSurface
+    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiSurface or
+    /// CompositeSurface, or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -198,11 +213,11 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
     ///     vec![vec![0, 1, 2, 0]], // First surface with one ring
     ///     vec![vec![3, 4, 5, 3], vec![6, 7, 8, 6]] // Second surface with two rings
     /// ];
-    /// let boundary: Boundary<u32> = multi_surface.into();
+    /// let boundary: Boundary<u32> = multi_surface.try_into().unwrap();
     /// ```
-    fn from(value: BoundaryNestedMultiOrCompositeSurface<T>) -> Self {
+    fn try_from(value: BoundaryNestedMultiOrCompositeSurface<T>) -> error::Result<Self> {
         if value.is_empty() {
-            return Self::default();
+            return Ok(Self::default());
         }
 
         let mut boundary = Self::with_capacity(
@@ -221,22 +236,24 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T
         for surface in value {
             boundary
                 .surfaces
-                .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
+                .push(VertexIndex::<T>::try_from(boundary.rings.len())?);
 
             for ring in surface {
                 boundary.rings.push(vertex_idx);
                 for vertex in ring {
                     boundary.vertices.push(VertexIndex::new(vertex));
-                    vertex_idx += VertexIndex::new(T::one());
+                    vertex_idx = next_index(vertex_idx)?;
                 }
             }
         }
 
-        boundary
+        Ok(boundary)
     }
 }
 
-impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
+impl<T: VertexRef> TryFrom<BoundaryNestedSolid<T>> for Boundary<T> {
+    type Error = error::Error;
+
     /// Converts a nested Solid representation to a flattened Boundary.
     ///
     /// # Parameters
@@ -246,7 +263,8 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
     ///
     /// # Returns
     ///
-    /// A flattened `Boundary<T>` representation of the Solid
+    /// A `Result` containing the flattened `Boundary<T>` representation of the Solid,
+    /// or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -258,11 +276,11 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
     /// let solid: BoundaryNestedSolid32 = vec![
     ///     vec![vec![vec![0, 1, 2, 0]]]
     /// ];
-    /// let boundary: Boundary<u32> = solid.into();
+    /// let boundary: Boundary<u32> = solid.try_into().unwrap();
     /// ```
-    fn from(value: BoundaryNestedSolid<T>) -> Self {
+    fn try_from(value: BoundaryNestedSolid<T>) -> error::Result<Self> {
         if value.is_empty() {
-            return Self::default();
+            return Ok(Self::default());
         }
 
         // Pre-calculate capacities
@@ -291,28 +309,30 @@ impl<T: VertexRef> From<BoundaryNestedSolid<T>> for Boundary<T> {
         for shell in value {
             boundary
                 .shells
-                .push(VertexIndex::<T>::try_from(boundary.surfaces.len()).unwrap());
+                .push(VertexIndex::<T>::try_from(boundary.surfaces.len())?);
 
             for surface in shell {
                 boundary
                     .surfaces
-                    .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
+                    .push(VertexIndex::<T>::try_from(boundary.rings.len())?);
 
                 for ring in surface {
                     boundary.rings.push(vertex_idx);
                     for vertex in ring {
                         boundary.vertices.push(VertexIndex::new(vertex));
-                        vertex_idx += VertexIndex::new(T::one());
+                        vertex_idx = next_index(vertex_idx)?;
                     }
                 }
             }
         }
 
-        boundary
+        Ok(boundary)
     }
 }
 
-impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
+impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
+    type Error = error::Error;
+
     /// Converts a nested MultiSolid or CompositeSolid representation to a flattened Boundary.
     ///
     /// # Parameters
@@ -322,7 +342,8 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
     ///
     /// # Returns
     ///
-    /// A flattened `Boundary<T>` representation of the MultiSolid or CompositeSolid
+    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiSolid or
+    /// CompositeSolid, or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -335,11 +356,11 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
     ///     vec![vec![vec![vec![0, 1, 2, 0]]]],  // First solid
     ///     vec![vec![vec![vec![3, 4, 5, 3]]]]   // Second solid
     /// ];
-    /// let boundary: Boundary<u32> = multi_solid.into();
+    /// let boundary: Boundary<u32> = multi_solid.try_into().unwrap();
     /// ```
-    fn from(value: BoundaryNestedMultiOrCompositeSolid<T>) -> Self {
+    fn try_from(value: BoundaryNestedMultiOrCompositeSolid<T>) -> error::Result<Self> {
         if value.is_empty() {
-            return Self::default();
+            return Ok(Self::default());
         }
 
         // Pre-calculate capacities
@@ -388,29 +409,29 @@ impl<T: VertexRef> From<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> 
         for solid in value {
             boundary
                 .solids
-                .push(VertexIndex::<T>::try_from(boundary.shells.len()).unwrap());
+                .push(VertexIndex::<T>::try_from(boundary.shells.len())?);
 
             for shell in solid {
                 boundary
                     .shells
-                    .push(VertexIndex::<T>::try_from(boundary.surfaces.len()).unwrap());
+                    .push(VertexIndex::<T>::try_from(boundary.surfaces.len())?);
 
                 for surface in shell {
                     boundary
                         .surfaces
-                        .push(VertexIndex::<T>::try_from(boundary.rings.len()).unwrap());
+                        .push(VertexIndex::<T>::try_from(boundary.rings.len())?);
 
                     for ring in surface {
                         boundary.rings.push(vertex_idx);
                         for vertex in ring {
                             boundary.vertices.push(VertexIndex::new(vertex));
-                            vertex_idx += VertexIndex::new(T::one());
+                            vertex_idx = next_index(vertex_idx)?;
                         }
                     }
                 }
             }
         }
 
-        boundary
+        Ok(boundary)
     }
 }

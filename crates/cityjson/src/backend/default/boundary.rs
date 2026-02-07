@@ -99,7 +99,7 @@ use crate::error;
 /// ];
 ///
 /// // Convert to flattened representation
-/// let boundary: Boundary<u32> = multi_linestring.into();
+/// let boundary: Boundary<u32> = multi_linestring.try_into().unwrap();
 ///
 /// // Check the boundary type
 /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
@@ -357,7 +357,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///     vec![0, 1, 2],
     ///     vec![3, 4, 5]
     /// ];
-    /// let boundary: Boundary<u32> = multi_linestring.into();
+    /// let boundary: Boundary<u32> = multi_linestring.try_into().unwrap();
     ///
     /// // Convert back to MultiLineString
     /// let nested = boundary.to_nested_multi_linestring().unwrap();
@@ -368,7 +368,7 @@ impl<VR: VertexRef> Boundary<VR> {
         if boundary_type == BoundaryType::MultiLineString {
             let mut counter = BoundaryCounter::<VR>::default();
             let mut ml = BoundaryNestedMultiLineString::with_capacity(self.rings.len());
-            self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter);
+            self.push_rings_to_surface(self.rings.as_slice(), &mut ml, &mut counter)?;
             Ok(ml)
         } else {
             Err(error::Error::IncompatibleBoundary(
@@ -399,7 +399,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///     vec![vec![0, 1, 2, 0]], // First surface (triangle)
     ///     vec![vec![3, 4, 5, 3]]  // Second surface (triangle)
     /// ];
-    /// let boundary: Boundary<u32> = multi_surface.clone().into();
+    /// let boundary: Boundary<u32> = multi_surface.clone().try_into().unwrap();
     ///
     /// // Convert back to MultiSurface
     /// let nested = boundary.to_nested_multi_or_composite_surface().unwrap();
@@ -417,7 +417,7 @@ impl<VR: VertexRef> Boundary<VR> {
                 self.surfaces.as_slice(),
                 &mut mc_surface,
                 &mut counter,
-            );
+            )?;
             Ok(mc_surface)
         } else {
             Err(error::Error::IncompatibleBoundary(
@@ -446,7 +446,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// let solid: BoundaryNestedSolid32 = vec![
     ///     vec![vec![vec![0, 1, 2, 0]]] // One shell with one surface with one ring
     /// ];
-    /// let boundary: Boundary<u32> = solid.clone().into();
+    /// let boundary: Boundary<u32> = solid.clone().try_into().unwrap();
     ///
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::Solid);
@@ -460,7 +460,7 @@ impl<VR: VertexRef> Boundary<VR> {
         if boundary_type == BoundaryType::Solid {
             let mut counter = BoundaryCounter::<VR>::default();
             let mut solid = BoundaryNestedSolid::with_capacity(self.shells.len());
-            self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter);
+            self.push_shells_to_solid(self.shells.as_slice(), &mut solid, &mut counter)?;
             Ok(solid)
         } else {
             Err(error::Error::IncompatibleBoundary(
@@ -490,7 +490,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///     vec![vec![vec![vec![0, 1, 2, 0]]]],  // First solid
     ///     vec![vec![vec![vec![3, 4, 5, 3]]]]   // Second solid
     /// ];
-    /// let boundary: Boundary<u32> = multi_solid.clone().into();
+    /// let boundary: Boundary<u32> = multi_solid.clone().try_into().unwrap();
     ///
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
@@ -511,7 +511,7 @@ impl<VR: VertexRef> Boundary<VR> {
                 let shells_len = VertexIndex::<VR>::try_from(self.shells.len())?;
                 let shells_end_i = self
                     .solids
-                    .get(counter.increment_solid_idx().to_usize())
+                    .get(counter.try_increment_solid_idx()?.to_usize())
                     .copied()
                     .unwrap_or(shells_len);
 
@@ -520,7 +520,7 @@ impl<VR: VertexRef> Boundary<VR> {
                     .get(shells_start_i.to_usize()..shells_end_i.to_usize())
                 {
                     let mut solid = BoundaryNestedSolid::with_capacity(shells.len());
-                    self.push_shells_to_solid(shells, &mut solid, &mut counter);
+                    self.push_shells_to_solid(shells, &mut solid, &mut counter)?;
                     mc_solid.push(solid);
                 }
             }
@@ -539,12 +539,12 @@ impl<VR: VertexRef> Boundary<VR> {
         shells: &[VertexIndex<VR>],
         solid: &mut Vec<BoundaryNestedMultiOrCompositeSurface<VR>>,
         counter: &mut BoundaryCounter<VR>,
-    ) {
+    ) -> error::Result<()> {
         for &surfaces_start_i in shells {
-            let surfaces_len = VertexIndex::<VR>::try_from(self.surfaces.len()).unwrap();
+            let surfaces_len = VertexIndex::<VR>::try_from(self.surfaces.len())?;
             let surfaces_end_i = self
                 .shells
-                .get(counter.increment_shell_idx().to_usize())
+                .get(counter.try_increment_shell_idx()?.to_usize())
                 .copied()
                 .unwrap_or(surfaces_len);
 
@@ -554,10 +554,11 @@ impl<VR: VertexRef> Boundary<VR> {
             {
                 let mut mc_surface =
                     BoundaryNestedMultiOrCompositeSurface::with_capacity(surfaces.len());
-                self.push_surfaces_to_multi_surface(surfaces, &mut mc_surface, counter);
+                self.push_surfaces_to_multi_surface(surfaces, &mut mc_surface, counter)?;
                 solid.push(mc_surface);
             }
         }
+        Ok(())
     }
 
     // Helper method to process surfaces for a shell
@@ -566,12 +567,12 @@ impl<VR: VertexRef> Boundary<VR> {
         surfaces: &[VertexIndex<VR>],
         mc_surface: &mut BoundaryNestedMultiOrCompositeSurface<VR>,
         counter: &mut BoundaryCounter<VR>,
-    ) {
+    ) -> error::Result<()> {
         for &ring_start_i in surfaces {
-            let rings_len = VertexIndex::<VR>::try_from(self.rings.len()).unwrap();
+            let rings_len = VertexIndex::<VR>::try_from(self.rings.len())?;
             let ring_end_i = self
                 .surfaces
-                .get(counter.increment_surface_idx().to_usize())
+                .get(counter.try_increment_surface_idx()?.to_usize())
                 .copied()
                 .unwrap_or(rings_len);
 
@@ -580,10 +581,11 @@ impl<VR: VertexRef> Boundary<VR> {
                 .get(ring_start_i.to_usize()..ring_end_i.to_usize())
             {
                 let mut surface = BoundaryNestedMultiLineString::with_capacity(rings.len());
-                self.push_rings_to_surface(rings, &mut surface, counter);
+                self.push_rings_to_surface(rings, &mut surface, counter)?;
                 mc_surface.push(surface);
             }
         }
+        Ok(())
     }
 
     // Helper method to process rings for a surface
@@ -592,12 +594,12 @@ impl<VR: VertexRef> Boundary<VR> {
         rings: &[VertexIndex<VR>],
         surface: &mut BoundaryNestedMultiLineString<VR>,
         counter: &mut BoundaryCounter<VR>,
-    ) {
+    ) -> error::Result<()> {
         for &vertices_start_i in rings {
-            let vertices_len = VertexIndex::<VR>::try_from(self.vertices.len()).unwrap();
+            let vertices_len = VertexIndex::<VR>::try_from(self.vertices.len())?;
             let vertices_end_i = self
                 .rings
-                .get(counter.increment_ring_idx().to_usize())
+                .get(counter.try_increment_ring_idx()?.to_usize())
                 .copied()
                 .unwrap_or(vertices_len);
             if let Some(vertices) = self
@@ -607,6 +609,7 @@ impl<VR: VertexRef> Boundary<VR> {
                 surface.push(vertices.iter().map(|v| v.value()).collect());
             }
         }
+        Ok(())
     }
 
     /// Determines the type of boundary stored in this instance.
@@ -626,7 +629,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// // Create a boundary from a MultiLineString
     /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![vec![0, 1, 2]];
-    /// let boundary: Boundary<u32> = multi_linestring.into();
+    /// let boundary: Boundary<u32> = multi_linestring.try_into().unwrap();
     ///
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
@@ -782,6 +785,15 @@ pub(crate) struct BoundaryCounter<VR: VertexRef> {
 }
 
 impl<VR: VertexRef> BoundaryCounter<VR> {
+    #[inline]
+    fn increment_checked(offset: &mut VertexIndex<VR>) -> error::Result<VertexIndex<VR>> {
+        *offset = offset.next().ok_or_else(|| error::Error::IndexOverflow {
+            index_type: std::any::type_name::<VR>().to_string(),
+            value: offset.value().to_string(),
+        })?;
+        Ok(*offset)
+    }
+
     // Increment methods - return new position after incrementing
     pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<VR> {
         self.vertex_offset += VertexIndex::new(VR::one());
@@ -806,6 +818,22 @@ impl<VR: VertexRef> BoundaryCounter<VR> {
     pub(crate) fn increment_solid_idx(&mut self) -> VertexIndex<VR> {
         self.solid_offset += VertexIndex::new(VR::one());
         self.solid_offset
+    }
+
+    pub(crate) fn try_increment_ring_idx(&mut self) -> error::Result<VertexIndex<VR>> {
+        Self::increment_checked(&mut self.ring_offset)
+    }
+
+    pub(crate) fn try_increment_surface_idx(&mut self) -> error::Result<VertexIndex<VR>> {
+        Self::increment_checked(&mut self.surface_offset)
+    }
+
+    pub(crate) fn try_increment_shell_idx(&mut self) -> error::Result<VertexIndex<VR>> {
+        Self::increment_checked(&mut self.shell_offset)
+    }
+
+    pub(crate) fn try_increment_solid_idx(&mut self) -> error::Result<VertexIndex<VR>> {
+        Self::increment_checked(&mut self.solid_offset)
     }
 
     // Get current offsets without incrementing
@@ -964,7 +992,7 @@ mod tests {
         let nested: BoundaryNestedMultiLineString32 = vec![vec![0, 1, 2], vec![3, 4, 5, 6]];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(flattened.check_type(), BoundaryType::MultiLineString);
 
         // Convert back to nested
@@ -988,7 +1016,7 @@ mod tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(
             flattened.check_type(),
             BoundaryType::MultiOrCompositeSurface
@@ -1020,7 +1048,7 @@ mod tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(flattened.check_type(), BoundaryType::Solid);
 
         // Convert back to nested
@@ -1044,7 +1072,7 @@ mod tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(flattened.check_type(), BoundaryType::MultiOrCompositeSolid);
 
         // Convert back to nested
@@ -1105,6 +1133,9 @@ mod tests {
 #[cfg(test)]
 mod nested_tests {
     use super::*;
+    use crate::cityjson::core::vertex::VertexIndex;
+
+    const U16_MAX_PLUS_ONE: usize = (u16::MAX as usize) + 1;
 
     #[test]
     fn test_empty_nested_conversions() {
@@ -1115,22 +1146,22 @@ mod nested_tests {
 
         // Test empty MultiLineString
         let empty_ml: BoundaryNestedMultiLineString32 = vec![];
-        let boundary: Boundary<u32> = empty_ml.into();
+        let boundary: Boundary<u32> = empty_ml.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty MultiSurface
         let empty_ms: BoundaryNestedMultiOrCompositeSurface32 = vec![];
-        let boundary: Boundary<u32> = empty_ms.into();
+        let boundary: Boundary<u32> = empty_ms.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty Solid
         let empty_solid: BoundaryNestedSolid32 = vec![];
-        let boundary: Boundary<u32> = empty_solid.into();
+        let boundary: Boundary<u32> = empty_solid.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty MultiSolid
         let empty_multisolid: BoundaryNestedMultiOrCompositeSolid32 = vec![];
-        let boundary: Boundary<u32> = empty_multisolid.into();
+        let boundary: Boundary<u32> = empty_multisolid.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
     }
 
@@ -1144,7 +1175,7 @@ mod nested_tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(flattened.check_type(), BoundaryType::MultiLineString);
 
         // Convert back to nested
@@ -1167,7 +1198,7 @@ mod nested_tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(
             flattened.check_type(),
             BoundaryType::MultiOrCompositeSurface
@@ -1225,7 +1256,7 @@ mod nested_tests {
         ];
 
         // Convert to flattened
-        let flattened: Boundary<u32> = nested.clone().into();
+        let flattened: Boundary<u32> = nested.clone().try_into().unwrap();
         assert_eq!(flattened.check_type(), BoundaryType::MultiOrCompositeSolid);
 
         // Convert back to nested
@@ -1233,5 +1264,79 @@ mod nested_tests {
 
         // The complex structure should be preserved
         assert_eq!(round_trip, nested);
+    }
+
+    #[test]
+    fn test_nested_multilinestring_overflow_returns_err() {
+        let nested: BoundaryNestedMultiLineString16 = vec![vec![0; U16_MAX_PLUS_ONE]];
+        let result = Boundary::<u16>::try_from(nested);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_multisurface_overflow_returns_err() {
+        let nested: BoundaryNestedMultiOrCompositeSurface16 =
+            vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
+        let result = Boundary::<u16>::try_from(nested);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_solid_overflow_returns_err() {
+        let nested: BoundaryNestedSolid16 = vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
+        let result = Boundary::<u16>::try_from(nested);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_multisolid_overflow_returns_err() {
+        let nested: BoundaryNestedMultiOrCompositeSolid16 =
+            vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
+        let result = Boundary::<u16>::try_from(nested);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_to_nested_multilinestring_overflow_returns_err_without_panic() {
+        let mut boundary = Boundary::<u16>::new();
+        boundary.vertices = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
+        boundary.rings = vec![VertexIndex::new(0)];
+
+        let result = std::panic::catch_unwind(|| boundary.to_nested_multi_linestring());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
+    }
+
+    #[test]
+    fn test_to_nested_multisurface_overflow_returns_err_without_panic() {
+        let mut boundary = Boundary::<u16>::new();
+        boundary.rings = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
+        boundary.surfaces = vec![VertexIndex::new(0)];
+
+        let result = std::panic::catch_unwind(|| boundary.to_nested_multi_or_composite_surface());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
+    }
+
+    #[test]
+    fn test_to_nested_solid_overflow_returns_err_without_panic() {
+        let mut boundary = Boundary::<u16>::new();
+        boundary.surfaces = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
+        boundary.shells = vec![VertexIndex::new(0)];
+
+        let result = std::panic::catch_unwind(|| boundary.to_nested_solid());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
+    }
+
+    #[test]
+    fn test_to_nested_multisolid_overflow_returns_err_without_panic() {
+        let mut boundary = Boundary::<u16>::new();
+        boundary.shells = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
+        boundary.solids = vec![VertexIndex::new(0)];
+
+        let result = std::panic::catch_unwind(|| boundary.to_nested_multi_or_composite_solid());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
     }
 }
