@@ -22,14 +22,14 @@ fn raw_access_and_attribute_column_helpers_work() -> Result<()> {
     cityobject
         .attributes_mut()
         .insert("name".to_string(), AttributeValue::String("A".to_string()));
-    model.cityobjects_mut().add(cityobject);
+    model.cityobjects_mut().add(cityobject)?;
 
-    model.add_semantic(Semantic::new(SemanticType::RoofSurface));
-    model.add_material(Material::new("default".to_string()));
+    model.add_semantic(Semantic::new(SemanticType::RoofSurface))?;
+    model.add_material(Material::new("default".to_string()))?;
     model.add_texture(Texture::new(
         "https://example.com/tex.png".to_string(),
         ImageType::Png,
-    ));
+    ))?;
     model.add_vertex(QuantizedCoordinate::new(1, 2, 3))?;
 
     let raw = model.raw();

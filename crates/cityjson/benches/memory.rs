@@ -215,7 +215,10 @@ mod benches {
             }
 
             // Add the CityObject to the model
-            model.cityobjects_mut().add(cityobject);
+            model
+                .cityobjects_mut()
+                .add(cityobject)
+                .expect("failed to add cityobject to model");
         }
 
         model

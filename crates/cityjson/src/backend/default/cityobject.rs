@@ -2,6 +2,7 @@
 
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::metadata::BBox;
+use crate::error::Result;
 use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 
@@ -34,7 +35,7 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         }
     }
 
-    pub fn add(&mut self, city_object: CO) -> RR {
+    pub fn add(&mut self, city_object: CO) -> Result<RR> {
         self.inner.add(city_object)
     }
 
@@ -78,7 +79,7 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.iter().map(|(id, _)| id).collect()
     }
 
-    pub fn add_many<I: IntoIterator<Item = CO>>(&mut self, objects: I) -> Vec<RR> {
+    pub fn add_many<I: IntoIterator<Item = CO>>(&mut self, objects: I) -> Result<Vec<RR>> {
         objects.into_iter().map(|obj| self.add(obj)).collect()
     }
 

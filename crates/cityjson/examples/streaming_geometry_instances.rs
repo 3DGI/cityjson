@@ -161,7 +161,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStr
                     ));
                 }
 
-                model.cityobjects_mut().add(cityobject);
+                model.cityobjects_mut().add(cityobject)?;
             }
             StreamMessage::Done => break,
             StreamMessage::GlobalProperties(_) => {

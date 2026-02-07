@@ -19,6 +19,10 @@ pub enum Error {
         attempted: usize,
         maximum: usize,
     },
+    ResourcePoolFull {
+        attempted: usize,
+        maximum: usize,
+    },
     InvalidGeometry(String),
     InvalidShell {
         reason: String,
@@ -86,6 +90,13 @@ impl Display for Error {
                 write!(
                     f,
                     "attempted to store {} vertices in a container with capacity {}",
+                    attempted, maximum
+                )
+            }
+            Error::ResourcePoolFull { attempted, maximum } => {
+                write!(
+                    f,
+                    "attempted to store {} resources in a pool with maximum {} slots",
                     attempted, maximum
                 )
             }

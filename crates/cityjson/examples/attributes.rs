@@ -10,7 +10,7 @@ use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
-fn main() {
+fn main() -> Result<()> {
     println!("=== CityJSON Inline Attributes Example ===\n");
 
     // Create a new city model
@@ -44,7 +44,7 @@ fn main() {
         .attributes_mut()
         .insert("isHistoric".to_string(), OwnedAttributeValue::Bool(true));
 
-    let building_ref = city_model.cityobjects_mut().add(building);
+    let building_ref = city_model.cityobjects_mut().add(building)?;
     println!("   Added building with 4 attributes\n");
 
     // ================================================
@@ -68,8 +68,8 @@ fn main() {
         OwnedAttributeValue::String("brick".to_string()),
     );
 
-    let _roof_ref = city_model.add_semantic(roof_semantic);
-    let _wall_ref = city_model.add_semantic(wall_semantic);
+    let _roof_ref = city_model.add_semantic(roof_semantic)?;
+    let _wall_ref = city_model.add_semantic(wall_semantic)?;
     println!("   Created roof and wall semantics with attributes\n");
 
     // ================================================
@@ -184,4 +184,5 @@ fn main() {
     }
 
     println!("\nExample completed successfully!");
+    Ok(())
 }

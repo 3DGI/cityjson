@@ -414,10 +414,10 @@ fn main() -> Result<()> {
     }
 
     let cityobjects = model.cityobjects_mut();
-    let co_1_ref = cityobjects.add(co_1);
-    let co_3_ref = cityobjects.add(co_3);
-    let _co_tree_ref = cityobjects.add(co_tree);
-    let co_neigh_ref = cityobjects.add(co_neighbourhood);
+    let co_1_ref = cityobjects.add(co_1)?;
+    let co_3_ref = cityobjects.add(co_3)?;
+    let _co_tree_ref = cityobjects.add(co_tree)?;
+    let co_neigh_ref = cityobjects.add(co_neighbourhood)?;
 
     // Create CityObject hierarchy with the references that are returned by the "add"
     // method

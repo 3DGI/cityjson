@@ -624,7 +624,7 @@ mod default_backend {
                         ));
                     }
 
-                    current_model.cityobjects_mut().add(cityobject);
+                    current_model.cityobjects_mut().add(cityobject)?;
                     buildings_in_batch += 1;
                     total_buildings_processed += 1;
 

@@ -80,8 +80,8 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_semantic_mut(id.to_raw())
     }
 
-    pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> SemanticRef {
-        SemanticRef::from_raw(self.inner.add_semantic(semantic))
+    pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef> {
+        self.inner.add_semantic(semantic).map(SemanticRef::from_raw)
     }
 
     pub fn semantic_count(&self) -> usize {
@@ -123,11 +123,13 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_semantics();
     }
 
-    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> SemanticRef
+    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef>
     where
         Semantic<SS>: PartialEq,
     {
-        SemanticRef::from_raw(self.inner.get_or_insert_semantic(semantic))
+        self.inner
+            .get_or_insert_semantic(semantic)
+            .map(SemanticRef::from_raw)
     }
 
     pub fn get_material(&self, id: MaterialRef) -> Option<&Material<SS>> {
@@ -138,8 +140,8 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_material_mut(id.to_raw())
     }
 
-    pub fn add_material(&mut self, material: Material<SS>) -> MaterialRef {
-        MaterialRef::from_raw(self.inner.add_material(material))
+    pub fn add_material(&mut self, material: Material<SS>) -> Result<MaterialRef> {
+        self.inner.add_material(material).map(MaterialRef::from_raw)
     }
 
     pub fn material_count(&self) -> usize {
@@ -177,11 +179,13 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_materials();
     }
 
-    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> MaterialRef
+    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<MaterialRef>
     where
         Material<SS>: PartialEq,
     {
-        MaterialRef::from_raw(self.inner.get_or_insert_material(material))
+        self.inner
+            .get_or_insert_material(material)
+            .map(MaterialRef::from_raw)
     }
 
     pub fn get_texture(&self, id: TextureRef) -> Option<&Texture<SS>> {
@@ -192,8 +196,8 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_texture_mut(id.to_raw())
     }
 
-    pub fn add_texture(&mut self, texture: Texture<SS>) -> TextureRef {
-        TextureRef::from_raw(self.inner.add_texture(texture))
+    pub fn add_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef> {
+        self.inner.add_texture(texture).map(TextureRef::from_raw)
     }
 
     pub fn texture_count(&self) -> usize {
@@ -229,11 +233,13 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_textures();
     }
 
-    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> TextureRef
+    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef>
     where
         Texture<SS>: PartialEq,
     {
-        TextureRef::from_raw(self.inner.get_or_insert_texture(texture))
+        self.inner
+            .get_or_insert_texture(texture)
+            .map(TextureRef::from_raw)
     }
 
     pub fn get_geometry(&self, id: GeometryRef) -> Option<&Geometry<VR, SS>> {
@@ -244,8 +250,8 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_geometry_mut(id.to_raw())
     }
 
-    pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> GeometryRef {
-        GeometryRef::from_raw(self.inner.add_geometry(geometry))
+    pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryRef> {
+        self.inner.add_geometry(geometry).map(GeometryRef::from_raw)
     }
 
     pub fn geometry_count(&self) -> usize {
@@ -400,8 +406,13 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_template_geometry_mut(id.to_raw())
     }
 
-    pub fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> TemplateGeometryRef {
-        TemplateGeometryRef::from_raw(self.inner.add_template_geometry(geometry))
+    pub fn add_template_geometry(
+        &mut self,
+        geometry: Geometry<VR, SS>,
+    ) -> Result<TemplateGeometryRef> {
+        self.inner
+            .add_template_geometry(geometry)
+            .map(TemplateGeometryRef::from_raw)
     }
 
     pub fn template_geometry_count(&self) -> usize {
@@ -667,40 +678,40 @@ impl<VR: VertexRef, SS: StringStorage>
         SS,
     > for CityModel<VR, SS>
 {
-    fn add_semantic(&mut self, semantic: Semantic<SS>) -> ResourceId32 {
-        self.add_semantic(semantic).to_raw()
+    fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
+        self.add_semantic(semantic).map(|id| id.to_raw())
     }
 
-    fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> ResourceId32 {
-        self.get_or_insert_semantic(semantic).to_raw()
+    fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
+        self.get_or_insert_semantic(semantic).map(|id| id.to_raw())
     }
 
-    fn add_material(&mut self, material: Material<SS>) -> ResourceId32 {
-        self.add_material(material).to_raw()
+    fn add_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
+        self.add_material(material).map(|id| id.to_raw())
     }
 
-    fn get_or_insert_material(&mut self, material: Material<SS>) -> ResourceId32 {
-        self.get_or_insert_material(material).to_raw()
+    fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
+        self.get_or_insert_material(material).map(|id| id.to_raw())
     }
 
-    fn add_texture(&mut self, texture: Texture<SS>) -> ResourceId32 {
-        self.add_texture(texture).to_raw()
+    fn add_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
+        self.add_texture(texture).map(|id| id.to_raw())
     }
 
-    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> ResourceId32 {
-        self.get_or_insert_texture(texture).to_raw()
+    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
+        self.get_or_insert_texture(texture).map(|id| id.to_raw())
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.add_uv_coordinate(uvcoordinate)
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> ResourceId32 {
-        self.add_geometry(geometry).to_raw()
+    fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
+        self.add_geometry(geometry).map(|id| id.to_raw())
     }
 
-    fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> ResourceId32 {
-        self.add_template_geometry(geometry).to_raw()
+    fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
+        self.add_template_geometry(geometry).map(|id| id.to_raw())
     }
 
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {

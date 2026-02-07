@@ -27,16 +27,16 @@ where
     C: Coordinate,
     SS: StringStorage,
 {
-    fn add_semantic(&mut self, semantic: Semantic) -> RR;
-    fn get_or_insert_semantic(&mut self, semantic: Semantic) -> RR;
-    fn add_material(&mut self, material: Material) -> RR;
-    fn get_or_insert_material(&mut self, material: Material) -> RR;
-    fn add_texture(&mut self, texture: Texture) -> RR;
-    fn get_or_insert_texture(&mut self, texture: Texture) -> RR;
+    fn add_semantic(&mut self, semantic: Semantic) -> Result<RR>;
+    fn get_or_insert_semantic(&mut self, semantic: Semantic) -> Result<RR>;
+    fn add_material(&mut self, material: Material) -> Result<RR>;
+    fn get_or_insert_material(&mut self, material: Material) -> Result<RR>;
+    fn add_texture(&mut self, texture: Texture) -> Result<RR>;
+    fn get_or_insert_texture(&mut self, texture: Texture) -> Result<RR>;
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>>;
 
-    fn add_geometry(&mut self, geometry: Geometry) -> RR;
-    fn add_template_geometry(&mut self, geometry: Geometry) -> RR;
+    fn add_geometry(&mut self, geometry: Geometry) -> Result<RR>;
+    fn add_template_geometry(&mut self, geometry: Geometry) -> Result<RR>;
 
     fn add_vertex(&mut self, coordinate: C) -> Result<VertexIndex<VR>>;
     fn vertices_mut(&mut self) -> &mut Vertices<VR, C>;
@@ -499,7 +499,7 @@ where
             self.model.get_or_insert_semantic(semantic)
         } else {
             self.model.add_semantic(semantic)
-        };
+        }?;
         let vertex_i = if let Some(i) = index {
             if i >= self.vertices.len() {
                 return Err(Error::InvalidReference {
@@ -545,7 +545,7 @@ where
             self.model.get_or_insert_semantic(semantic)
         } else {
             self.model.add_semantic(semantic)
-        };
+        }?;
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
@@ -590,7 +590,7 @@ where
             self.model.get_or_insert_semantic(semantic)
         } else {
             self.model.add_semantic(semantic)
-        };
+        }?;
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -636,7 +636,7 @@ where
             self.model.get_or_insert_material(material)
         } else {
             self.model.add_material(material)
-        };
+        }?;
         let surface_i = if let Some(i) = index {
             if i >= self.surfaces.len() {
                 return Err(Error::InvalidReference {
@@ -698,7 +698,7 @@ where
             self.model.get_or_insert_texture(texture)
         } else {
             self.model.add_texture(texture)
-        };
+        }?;
         let ring_i = if let Some(i) = index {
             if i >= self.rings.len() {
                 return Err(Error::InvalidReference {
@@ -1060,8 +1060,8 @@ where
         );
 
         match self.builder_mode {
-            BuilderMode::Regular => Ok(self.model.add_geometry(geometry)),
-            BuilderMode::Template => Ok(self.model.add_template_geometry(geometry)),
+            BuilderMode::Regular => self.model.add_geometry(geometry),
+            BuilderMode::Template => self.model.add_template_geometry(geometry),
         }
     }
 

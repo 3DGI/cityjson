@@ -141,7 +141,7 @@ fn test_citymodel_with_borrowed_storage() -> Result<()> {
     }
 
     // Add the building to the model
-    let building_ref = model.cityobjects_mut().add(building);
+    let building_ref = model.cityobjects_mut().add(building)?;
 
     // === Verify the model works correctly with borrowed storage ===
 

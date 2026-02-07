@@ -59,7 +59,7 @@ fn test_cityobject_attributes() {
     );
 
     // Add to model
-    let building_ref = city_model.cityobjects_mut().add(building);
+    let building_ref = city_model.cityobjects_mut().add(building).unwrap();
 
     // Retrieve and verify
     let retrieved = city_model.cityobjects().get(building_ref).unwrap();
@@ -215,7 +215,7 @@ fn test_cityobject_extra_attributes() {
         OwnedAttributeValue::String("customValue".to_string()),
     );
 
-    let building_ref = city_model.cityobjects_mut().add(building);
+    let building_ref = city_model.cityobjects_mut().add(building).unwrap();
 
     // Retrieve and verify
     let retrieved = city_model.cityobjects().get(building_ref).unwrap();

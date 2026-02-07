@@ -207,7 +207,7 @@ mod benches {
                 geometry_ref.generation(),
             ));
 
-            let co_ref = model.cityobjects_mut().add(cityobject);
+            let co_ref = model.cityobjects_mut().add(cityobject)?;
             cityobject_refs.push(co_ref);
         }
 
@@ -221,9 +221,9 @@ mod benches {
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
         material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
-        let mat_ref = model.add_material(material.clone());
+        let mat_ref = model.add_material(material.clone())?;
         let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
-        let tex_ref = model.add_texture(texture.clone());
+        let tex_ref = model.add_texture(texture.clone())?;
         let material_ref = Some((material, mat_ref));
         let texture_ref = Some((texture, tex_ref));
 
@@ -298,7 +298,7 @@ mod benches {
                 geometry_ref.generation(),
             ));
 
-            let co_ref = model.cityobjects_mut().add(cityobject);
+            let co_ref = model.cityobjects_mut().add(cityobject)?;
             cityobject_refs.push(co_ref);
         }
 

@@ -276,7 +276,10 @@ mod benches {
                 ));
             }
 
-            model.cityobjects_mut().add(cityobject);
+            model
+                .cityobjects_mut()
+                .add(cityobject)
+                .expect("failed to add cityobject to model");
         }
 
         model

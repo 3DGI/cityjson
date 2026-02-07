@@ -1,5 +1,5 @@
 use crate::cityjson::core::cityobject::{CityObjectCore, CityObjectsCore};
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::resources::handles::{CityObjectRef, GeometryRef};
 use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
@@ -25,8 +25,8 @@ impl<SS: StringStorage> CityObjects<SS> {
         }
     }
 
-    pub fn add(&mut self, city_object: CityObject<SS>) -> CityObjectRef {
-        CityObjectRef::from_raw(self.inner.add(city_object))
+    pub fn add(&mut self, city_object: CityObject<SS>) -> Result<CityObjectRef> {
+        self.inner.add(city_object).map(CityObjectRef::from_raw)
     }
 
     pub fn get(&self, id: CityObjectRef) -> Option<&CityObject<SS>> {
@@ -92,12 +92,10 @@ impl<SS: StringStorage> CityObjects<SS> {
     pub fn add_many<I: IntoIterator<Item = CityObject<SS>>>(
         &mut self,
         objects: I,
-    ) -> Vec<CityObjectRef> {
+    ) -> Result<Vec<CityObjectRef>> {
         self.inner
             .add_many(objects)
-            .into_iter()
-            .map(CityObjectRef::from_raw)
-            .collect()
+            .map(|ids| ids.into_iter().map(CityObjectRef::from_raw).collect())
     }
 
     pub fn clear(&mut self) {
@@ -119,22 +117,6 @@ impl<SS: StringStorage> CityObjects<SS> {
 impl<SS: StringStorage> Default for CityObjects<SS> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<SS: StringStorage> Extend<CityObject<SS>> for CityObjects<SS> {
-    fn extend<T: IntoIterator<Item = CityObject<SS>>>(&mut self, iter: T) {
-        for obj in iter {
-            self.add(obj);
-        }
-    }
-}
-
-impl<SS: StringStorage> FromIterator<CityObject<SS>> for CityObjects<SS> {
-    fn from_iter<T: IntoIterator<Item = CityObject<SS>>>(iter: T) -> Self {
-        let mut objects = Self::new();
-        objects.extend(iter);
-        objects
     }
 }
 

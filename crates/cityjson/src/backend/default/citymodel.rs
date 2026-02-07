@@ -183,7 +183,7 @@ where
     }
 
     /// Add a semantic and return its resource reference
-    pub fn add_semantic(&mut self, semantic: Semantic) -> RR {
+    pub fn add_semantic(&mut self, semantic: Semantic) -> Result<RR> {
         self.semantics.add(semantic)
     }
 
@@ -235,12 +235,12 @@ where
     /// Note: Deduplication works when semantics are reused (same instance cloned).
     /// Creating new semantics with different AttributeId32 values won't deduplicate
     /// even if attribute values are logically identical.
-    pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> RR
+    pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> Result<RR>
     where
         Semantic: PartialEq,
     {
         if let Some(existing_id) = self.semantics.find(&semantic) {
-            return existing_id;
+            return Ok(existing_id);
         }
         self.semantics.add(semantic)
     }
@@ -258,7 +258,7 @@ where
     }
 
     /// Add a material and return its resource reference
-    pub fn add_material(&mut self, material: Material) -> RR {
+    pub fn add_material(&mut self, material: Material) -> Result<RR> {
         self.materials.add(material)
     }
 
@@ -301,12 +301,12 @@ where
     }
 
     /// Get or insert a material, returning the resource reference
-    pub fn get_or_insert_material(&mut self, material: Material) -> RR
+    pub fn get_or_insert_material(&mut self, material: Material) -> Result<RR>
     where
         Material: PartialEq,
     {
         if let Some(existing_id) = self.materials.find(&material) {
-            return existing_id;
+            return Ok(existing_id);
         }
         self.materials.add(material)
     }
@@ -324,7 +324,7 @@ where
     }
 
     /// Add a texture and return its resource reference
-    pub fn add_texture(&mut self, texture: Texture) -> RR {
+    pub fn add_texture(&mut self, texture: Texture) -> Result<RR> {
         self.textures.add(texture)
     }
 
@@ -367,12 +367,12 @@ where
     }
 
     /// Get or insert a texture, returning the resource reference
-    pub fn get_or_insert_texture(&mut self, texture: Texture) -> RR
+    pub fn get_or_insert_texture(&mut self, texture: Texture) -> Result<RR>
     where
         Texture: PartialEq,
     {
         if let Some(existing_id) = self.textures.find(&texture) {
-            return existing_id;
+            return Ok(existing_id);
         }
         self.textures.add(texture)
     }
@@ -390,7 +390,7 @@ where
     }
 
     /// Add a geometry and return its resource reference
-    pub fn add_geometry(&mut self, geometry: Geometry) -> RR {
+    pub fn add_geometry(&mut self, geometry: Geometry) -> Result<RR> {
         self.geometries.add(geometry)
     }
 
@@ -565,7 +565,7 @@ where
     }
 
     /// Add a template geometry and return its resource reference
-    pub fn add_template_geometry(&mut self, geometry: Geometry) -> RR {
+    pub fn add_template_geometry(&mut self, geometry: Geometry) -> Result<RR> {
         self.template_geometries.add(geometry)
     }
 

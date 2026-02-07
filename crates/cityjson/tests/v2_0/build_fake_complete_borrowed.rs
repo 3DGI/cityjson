@@ -53,7 +53,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
     build_root_components(&mut model);
 
     let mut cityobjects = init_cityobjects();
-    let appearance = build_appearance(&mut model);
+    let appearance = build_appearance(&mut model)?;
     let shared_vertices = build_shared_vertices(&mut model)?;
 
     build_cityobject_id_1(
@@ -75,7 +75,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
         co_1_ref,
         co_3_ref,
         co_neigh_ref,
-    } = add_cityobjects_with_hierarchy(&mut model, cityobjects);
+    } = add_cityobjects_with_hierarchy(&mut model, cityobjects)?;
     let SharedVertices { v0, v1, v2, v3 } = shared_vertices;
 
     println!("{}", &model);
@@ -743,7 +743,7 @@ fn init_cityobjects() -> PendingCityObjects {
 }
 
 /// Create reusable appearance assets and register defaults in the model.
-fn build_appearance(model: &mut BorrowedModel) -> Appearance {
+fn build_appearance(model: &mut BorrowedModel) -> Result<Appearance> {
     let mut material_irradiation = BorrowedMaterial::new("irradiation");
     material_irradiation.set_ambient_intensity(Some(0.2000));
     material_irradiation.set_diffuse_color(Some([0.9000, 0.1000, 0.7500].into()));
@@ -753,7 +753,7 @@ fn build_appearance(model: &mut BorrowedModel) -> Appearance {
     material_irradiation.set_transparency(Some(0.5));
     material_irradiation.set_is_smooth(Some(false));
     let material_red = BorrowedMaterial::new("red");
-    let ref_material_irradiation = model.add_material(material_irradiation.clone());
+    let ref_material_irradiation = model.add_material(material_irradiation.clone())?;
     model.set_default_theme_material(Some(ref_material_irradiation));
 
     let mut texture_winter =
@@ -761,14 +761,14 @@ fn build_appearance(model: &mut BorrowedModel) -> Appearance {
     texture_winter.set_wrap_mode(Some(WrapMode::Wrap));
     texture_winter.set_texture_type(Some(TextureType::Specific));
     texture_winter.set_border_color(Some([1.0, 1.0, 1.0, 1.0].into()));
-    let ref_texture_winter = model.add_texture(texture_winter.clone());
+    let ref_texture_winter = model.add_texture(texture_winter.clone())?;
     model.set_default_theme_texture(Some(ref_texture_winter));
 
-    Appearance {
+    Ok(Appearance {
         material_irradiation,
         material_red,
         texture_winter,
-    }
+    })
 }
 
 /// Create all shared vertices once so geometries can reuse references.
@@ -1117,7 +1117,7 @@ fn link_semantics_for_schema_coverage(model: &mut BorrowedModel) {
 fn add_cityobjects_with_hierarchy(
     model: &mut BorrowedModel,
     cityobjects_to_add: PendingCityObjects,
-) -> CityObjectRefs {
+) -> Result<CityObjectRefs> {
     let PendingCityObjects {
         co_1,
         co_3,
@@ -1126,10 +1126,10 @@ fn add_cityobjects_with_hierarchy(
     } = cityobjects_to_add;
 
     let cityobjects = model.cityobjects_mut();
-    let co_1_ref = cityobjects.add(co_1);
-    let co_3_ref = cityobjects.add(co_3);
-    let _co_tree_ref = cityobjects.add(co_tree);
-    let co_neigh_ref = cityobjects.add(co_neighbourhood);
+    let co_1_ref = cityobjects.add(co_1)?;
+    let co_3_ref = cityobjects.add(co_3)?;
+    let _co_tree_ref = cityobjects.add(co_tree)?;
+    let co_neigh_ref = cityobjects.add(co_neighbourhood)?;
 
     cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_3_ref);
     cityobjects
@@ -1150,11 +1150,11 @@ fn add_cityobjects_with_hierarchy(
         .unwrap()
         .add_child(co_3_ref);
 
-    CityObjectRefs {
+    Ok(CityObjectRefs {
         co_1_ref,
         co_3_ref,
         co_neigh_ref,
-    }
+    })
 }
 
 /// Build a complete Metadata instance with all data set and add it to a CityModel.
@@ -1199,15 +1199,15 @@ fn borrowed_storage_with_dynamic_lifetime() -> Result<()> {
         id: &'a str,
         name_key: &'a str,
         name_value: &'a str,
-    ) -> CityModel<u32, BorrowedStringStorage<'a>> {
+    ) -> Result<CityModel<u32, BorrowedStringStorage<'a>>> {
         let mut model = CityModel::new(CityModelType::CityJSON);
         let mut city_object =
             CityObject::new(CityObjectIdentifier::new(id), CityObjectType::Building);
         city_object
             .attributes_mut()
             .insert(name_key, AttributeValue::String(name_value));
-        model.cityobjects_mut().add(city_object);
-        model
+        model.cityobjects_mut().add(city_object)?;
+        Ok(model)
     }
 
     let id_storage = String::from("building-dynamic-1");
@@ -1217,7 +1217,7 @@ fn borrowed_storage_with_dynamic_lifetime() -> Result<()> {
         id_storage.as_str(),
         attr_key_storage.as_str(),
         attr_value_storage.as_str(),
-    );
+    )?;
 
     assert_eq!(model.cityobjects().len(), 1);
     let (_, co) = model
