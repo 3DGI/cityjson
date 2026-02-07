@@ -2,6 +2,13 @@
 name = "cityjson"
 version = "0.3.0"
 edition = "2024"
+description = "Types and methods for representing the complete CityJSON data model in Rust."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/cityjson-rs"
+documentation = ""
+rust-version = "1.92"
+
+
 
 [package.metadata]
 # Document platform requirements
