@@ -27,17 +27,33 @@ struct Appearance {
 }
 
 struct PendingCityObjects {
-    co_1: BorrowedCityObject,
-    co_3: BorrowedCityObject,
-    co_tree: BorrowedCityObject,
-    co_neighbourhood: BorrowedCityObject,
+    building_part: BorrowedCityObject,
+    noise_building: BorrowedCityObject,
+    tree: BorrowedCityObject,
+    neighbourhood: BorrowedCityObject,
 }
 
 #[derive(Clone, Copy)]
 struct CityObjectRefs {
-    co_1_ref: CityObjectRef,
-    co_3_ref: CityObjectRef,
-    co_neigh_ref: CityObjectRef,
+    building_part: CityObjectRef,
+    noise_building: CityObjectRef,
+    neighbourhood: CityObjectRef,
+}
+
+const FLOAT_EPSILON: f64 = 1.0e-9;
+
+fn assert_f64_eq(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= FLOAT_EPSILON,
+        "expected {expected}, got {actual}"
+    );
+}
+
+fn assert_f64_slice_eq(actual: &[f64], expected: &[f64]) {
+    assert_eq!(actual.len(), expected.len());
+    for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {
+        assert_f64_eq(*actual_value, *expected_value);
+    }
 }
 
 /// Build a `CityModel` that uses the complete `CityJSON` v2.0 specifications with fake
@@ -46,10 +62,9 @@ struct CityObjectRefs {
 /// `tests/data/v2_0/cityjson_fake_complete.city.json`.
 #[test]
 fn build_fake_complete_borrowed() -> Result<()> {
-    // A CityModel for CityJSON v2.0 that uses u32 indices and borrowed strings.
     let mut model = BorrowedModel::new(CityModelType::CityJSON);
 
-    build_metadata_patterns(&mut model)?;
+    build_metadata_patterns(&mut model);
     build_root_components(&mut model);
 
     let mut cityobjects = init_cityobjects();
@@ -58,42 +73,43 @@ fn build_fake_complete_borrowed() -> Result<()> {
 
     build_cityobject_id_1(
         &mut model,
-        &mut cityobjects.co_1,
+        &mut cityobjects.building_part,
         shared_vertices,
         &appearance,
     )?;
-    build_cityobject_id_3(&mut cityobjects.co_3);
-    build_cityobject_tree(&mut model, &mut cityobjects.co_tree, shared_vertices)?;
-    build_cityobject_neighbourhood(
-        &mut model,
-        &mut cityobjects.co_neighbourhood,
-        shared_vertices,
-    )?;
+    build_cityobject_id_3(&mut cityobjects.noise_building);
+    build_cityobject_tree(&mut model, &mut cityobjects.tree, shared_vertices)?;
+    build_cityobject_neighbourhood(&mut model, &mut cityobjects.neighbourhood, shared_vertices)?;
 
     link_semantics_for_schema_coverage(&mut model);
-    let CityObjectRefs {
-        co_1_ref,
-        co_3_ref,
-        co_neigh_ref,
-    } = add_cityobjects_with_hierarchy(&mut model, cityobjects)?;
-    let SharedVertices { v0, v1, v2, v3 } = shared_vertices;
+    let cityobject_refs = add_cityobjects_with_hierarchy(&mut model, cityobjects)?;
 
     println!("{}", &model);
+    assert_model_basics(&model);
+    assert_metadata_and_root(&model);
+    assert_model_assets(&model, shared_vertices);
+    assert_building_part_cityobject(&model, cityobject_refs);
+    assert_noise_building_cityobject(&model, cityobject_refs);
+    assert_tree_cityobject(&model, shared_vertices.v1);
+    assert_neighbourhood_cityobject(&model, cityobject_refs);
+    Ok(())
+}
 
-    // === Test all values using public accessors ===
-
-    // Test CityModel properties
+fn assert_model_basics(model: &BorrowedModel) {
     assert_eq!(model.type_citymodel(), CityModelType::CityJSON);
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
     assert_eq!(model.vertices().len(), 4);
-    assert_eq!(model.geometry_count(), 4); // 3 + 1 template
+    assert_eq!(model.geometry_count(), 4);
     assert_eq!(model.semantic_count(), 2);
+}
 
-    // Test metadata
+fn assert_metadata_and_root(model: &BorrowedModel) {
     let metadata = model.metadata().expect("Metadata should exist");
     assert_eq!(
         metadata.geographical_extent(),
-        Some(&BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9))
+        Some(&BBox::new(
+            84_710.1, 446_846.0, -5.3, 84_757.1, 446_944.0, 40.9,
+        ))
     );
     assert_eq!(
         metadata.identifier(),
@@ -105,11 +121,11 @@ fn build_fake_complete_borrowed() -> Result<()> {
         metadata.reference_system(),
         Some(&CRS::new("https://www.opengis.net/def/crs/EPSG/0/2355"))
     );
+
     let contact = metadata.point_of_contact().expect("Contact should exist");
     assert_eq!(contact.contact_name(), "3DGI");
     assert_eq!(contact.email_address(), "info@3dgi.nl");
 
-    // Test extra root properties
     let extra = model.extra().expect("Extra properties should exist");
     let census_attr = extra.get("+census").expect("+census should exist");
     if let AttributeValue::Map(census_map) = census_attr {
@@ -117,7 +133,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
             .get("percent_men")
             .expect("percent_men should exist in census map");
         if let AttributeValue::Float(percent_men) = &**percent_men_attr {
-            assert_eq!(*percent_men, 49.5);
+            assert_f64_eq(*percent_men, 49.5);
         } else {
             panic!("percent_men should be Float");
         }
@@ -126,7 +142,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
             .get("percent_women")
             .expect("percent_women should exist in census map");
         if let AttributeValue::Float(percent_women) = &**percent_women_attr {
-            assert_eq!(*percent_women, 51.5);
+            assert_f64_eq(*percent_women, 51.5);
         } else {
             panic!("percent_women should be Float");
         }
@@ -134,12 +150,10 @@ fn build_fake_complete_borrowed() -> Result<()> {
         panic!("+census should be Map");
     }
 
-    // Test transform
     let transform = model.transform().expect("Transform should exist");
-    assert_eq!(transform.scale(), [1.0, 1.0, 1.0]);
-    assert_eq!(transform.translate(), [0.0, 0.0, 0.0]);
+    assert_f64_slice_eq(&transform.scale(), &[1.0, 1.0, 1.0]);
+    assert_f64_slice_eq(&transform.translate(), &[0.0, 0.0, 0.0]);
 
-    // Test extensions
     let extensions = model.extensions().expect("Extensions should exist");
     assert_eq!(extensions.len(), 1);
     let noise_ext = extensions
@@ -148,8 +162,11 @@ fn build_fake_complete_borrowed() -> Result<()> {
     assert_eq!(*noise_ext.name(), "Noise");
     assert_eq!(*noise_ext.url(), "https://someurl.orgnoise.json");
     assert_eq!(*noise_ext.version(), "2.0");
+}
 
-    // Test vertices
+fn assert_model_assets(model: &BorrowedModel, vertices: SharedVertices) {
+    let SharedVertices { v0, v1, v2, v3 } = vertices;
+
     let v0_coord = model.get_vertex(v0).expect("Vertex v0 should exist");
     assert_eq!(v0_coord.x(), 102);
     assert_eq!(v0_coord.y(), 103);
@@ -170,7 +187,6 @@ fn build_fake_complete_borrowed() -> Result<()> {
     assert_eq!(v3_coord.y(), 88);
     assert_eq!(v3_coord.z(), 5);
 
-    // Test default theme material and texture
     let default_mat_ref = model
         .default_theme_material()
         .expect("Default theme material should exist");
@@ -188,9 +204,7 @@ fn build_fake_complete_borrowed() -> Result<()> {
     assert_eq!(*default_tex.image(), "http://www.someurl.org/filename.jpg");
     assert_eq!(default_tex.image_type(), &ImageType::Png);
 
-    // Test materials pool
     for (_mat_ref, material) in model.iter_materials() {
-        // Each material should have a name
         assert!(!material.name().is_empty());
         if *material.name() == "irradiation" {
             assert_eq!(material.ambient_intensity(), Some(0.2000));
@@ -212,41 +226,37 @@ fn build_fake_complete_borrowed() -> Result<()> {
         }
     }
 
-    // Test textures pool
     for (_tex_ref, texture) in model.iter_textures() {
-        // Each texture should have an image URL
         assert!(!texture.image().is_empty());
         assert_eq!(*texture.image(), "http://www.someurl.org/filename.jpg");
         assert_eq!(texture.image_type(), &ImageType::Png);
     }
+}
 
-    // Test CityObject "id-1"
+fn assert_building_part_cityobject(model: &BorrowedModel, refs: CityObjectRefs) {
     let co1 = model
         .cityobjects()
-        .get(co_1_ref)
+        .get(refs.building_part)
         .expect("CityObject id-1 should exist");
     assert_eq!(co1.id(), "id-1");
     assert_eq!(co1.type_cityobject(), &CityObjectType::BuildingPart);
 
-    // Test geographical extent
     let bbox = co1
         .geographical_extent()
         .expect("id-1 should have geographical extent");
-    assert_eq!(bbox.min_x(), 84710.1);
-    assert_eq!(bbox.min_y(), 446846.0);
-    assert_eq!(bbox.min_z(), -5.3);
-    assert_eq!(bbox.max_x(), 84757.1);
-    assert_eq!(bbox.max_y(), 446944.0);
-    assert_eq!(bbox.max_z(), 40.9);
+    assert_f64_eq(bbox.min_x(), 84_710.1);
+    assert_f64_eq(bbox.min_y(), 446_846.0);
+    assert_f64_eq(bbox.min_z(), -5.3);
+    assert_f64_eq(bbox.max_x(), 84_757.1);
+    assert_f64_eq(bbox.max_y(), 446_944.0);
+    assert_f64_eq(bbox.max_z(), 40.9);
 
-    // Test attributes
     let attrs = co1.attributes().expect("id-1 should have attributes");
-
     let measured_height_attr = attrs
         .get("measuredHeight")
         .expect("measuredHeight should exist");
     if let AttributeValue::Float(h) = measured_height_attr {
-        assert_eq!(*h, 22.3);
+        assert_f64_eq(*h, 22.3);
     } else {
         panic!("measuredHeight should be Float");
     }
@@ -272,7 +282,17 @@ fn build_fake_complete_borrowed() -> Result<()> {
         panic!("nr_doors should be Integer");
     }
 
-    // Test extra properties (address)
+    assert_building_part_address(co1);
+
+    let parents1 = co1.parents().expect("id-1 should have parents");
+    assert_eq!(parents1.len(), 2);
+    assert!(parents1.contains(&refs.noise_building));
+    assert!(parents1.contains(&refs.neighbourhood));
+
+    assert_building_part_geometry(model, co1);
+}
+
+fn assert_building_part_address(co1: &BorrowedCityObject) {
     let extra1 = co1.extra().expect("id-1 should have extra properties");
     let addresses_vec_attr = extra1.get("address").expect("address should exist");
     if let AttributeValue::Vec(addresses) = addresses_vec_attr {
@@ -324,12 +344,10 @@ fn build_fake_complete_borrowed() -> Result<()> {
                 panic!("Postcode should be String");
             }
 
-            // Test location geometry in address
             let location_attr = address_map
                 .get("location")
                 .expect("location should exist in address map");
             if let AttributeValue::Geometry(_ref) = &**location_attr {
-                // Geometry reference is valid
             } else {
                 panic!("location should be Geometry");
             }
@@ -339,14 +357,9 @@ fn build_fake_complete_borrowed() -> Result<()> {
     } else {
         panic!("address should be Vec");
     }
+}
 
-    // Test parents and children relationships
-    let parents1 = co1.parents().expect("id-1 should have parents");
-    assert_eq!(parents1.len(), 2);
-    assert!(parents1.contains(&co_3_ref));
-    assert!(parents1.contains(&co_neigh_ref));
-
-    // Test geometry of "id-1"
+fn assert_building_part_geometry(model: &BorrowedModel, co1: &BorrowedCityObject) {
     let geometries1 = co1.geometry().expect("id-1 should have geometry");
     assert_eq!(geometries1.len(), 1);
     let geom1 = geometries1[0];
@@ -356,19 +369,15 @@ fn build_fake_complete_borrowed() -> Result<()> {
     assert_eq!(geom1_data.type_geometry(), &GeometryType::Solid);
     assert_eq!(geom1_data.lod(), Some(&LoD::LoD2_1));
 
-    // Test boundaries
     let _boundaries1 = geom1_data
         .boundaries()
         .expect("Solid should have boundaries");
-    // Boundaries is a Boundary<VR> struct that contains the flattened boundary representation
 
-    // Test semantic surfaces
     let semantics1 = geom1_data
         .semantics()
         .expect("Geometry should have semantics");
     let semantic_surfaces = semantics1.surfaces();
-    assert_eq!(semantic_surfaces.len(), 5); // 4 surfaces in first shell + 1 in inner shell
-    // Surface 0: RoofSurface with attributes
+    assert_eq!(semantic_surfaces.len(), 5);
     if let Some(sem0) = &semantic_surfaces[0] {
         let sem0_data = model.get_semantic(*sem0).expect("Semantic should exist");
         assert_eq!(sem0_data.type_semantic(), &SemanticType::RoofSurface);
@@ -386,88 +395,75 @@ fn build_fake_complete_borrowed() -> Result<()> {
     } else {
         panic!("Surface 0 should have semantic");
     }
-    // Surface 1: RoofSurface (reused)
+
     assert!(semantic_surfaces[1].is_some());
-    // Surface 2: No semantic
     assert!(semantic_surfaces[2].is_none());
-    // Surface 3: Extension type (+PatioDoor)
     if let Some(sem3) = &semantic_surfaces[3] {
         let sem3_data = model.get_semantic(*sem3).expect("Semantic should exist");
         match sem3_data.type_semantic() {
-            SemanticType::Extension(ext_type) => {
-                assert_eq!(*ext_type, "+PatioDoor");
-            }
+            SemanticType::Extension(ext_type) => assert_eq!(*ext_type, "+PatioDoor"),
             _ => panic!("Surface 3 should have Extension semantic type"),
         }
     } else {
         panic!("Surface 3 should have semantic");
     }
-    // Surface 4 (inner shell): No semantic
     assert!(semantic_surfaces[4].is_none());
 
-    // Test materials
     let materials1 = geom1_data
         .materials()
         .expect("Geometry should have materials");
-    assert_eq!(materials1.len(), 2); // "irradiation" and "red" themes
+    assert_eq!(materials1.len(), 2);
 
-    // Test irradiation theme materials
     let irr_materials = materials1
         .iter()
         .find(|(name, _)| name == "irradiation")
         .expect("irradiation theme should exist")
         .1
         .surfaces();
-    assert_eq!(irr_materials.len(), 5); // 5 surfaces total
-    assert!(irr_materials[0].is_some()); // Surface 0 has material
-    assert!(irr_materials[1].is_some()); // Surface 1 has material
-    assert!(irr_materials[2].is_some()); // Surface 2 has material
-    assert!(irr_materials[3].is_none()); // Surface 3 does not have irradiation material
-    assert!(irr_materials[4].is_none()); // Surface 4 (inner shell) does not have material
+    assert_eq!(irr_materials.len(), 5);
+    assert!(irr_materials[0].is_some());
+    assert!(irr_materials[1].is_some());
+    assert!(irr_materials[2].is_some());
+    assert!(irr_materials[3].is_none());
+    assert!(irr_materials[4].is_none());
 
-    // Test red theme materials
     let red_materials = materials1
         .iter()
         .find(|(name, _)| name == "red")
         .expect("red theme should exist")
         .1
         .surfaces();
-    assert_eq!(red_materials.len(), 5); // 5 surfaces total
-    assert!(red_materials[0].is_some()); // Surface 0 has material
-    assert!(red_materials[1].is_some()); // Surface 1 has material
-    assert!(red_materials[2].is_some()); // Surface 2 has material
-    assert!(red_materials[3].is_some()); // Surface 3 has material
-    assert!(red_materials[4].is_none()); // Surface 4 (inner shell) does not have material
+    assert_eq!(red_materials.len(), 5);
+    assert!(red_materials[0].is_some());
+    assert!(red_materials[1].is_some());
+    assert!(red_materials[2].is_some());
+    assert!(red_materials[3].is_some());
+    assert!(red_materials[4].is_none());
 
-    // Test textures
     let textures1 = geom1_data
         .textures()
         .expect("Geometry should have textures");
-    assert_eq!(textures1.len(), 1); // "winter-textures" theme
+    assert_eq!(textures1.len(), 1);
 
     let winter_texture_map = &textures1
         .iter()
         .find(|(name, _)| name == "winter-textures")
         .expect("winter-textures theme should exist")
         .1;
-    // TextureMap has a different structure - it maps rings to textures via ring_textures()
     let ring_textures = winter_texture_map.ring_textures();
-    // Based on the geometry construction, we have 2 rings with textures (for surface 0 and 1)
-    // and 2 rings without textures (for surface 2 and 3)
-    assert_eq!(ring_textures.len(), 2); // Only 2 rings have textures
-    assert!(ring_textures[0].is_some()); // First ring has texture
-    assert!(ring_textures[1].is_some()); // Second ring has texture
+    assert_eq!(ring_textures.len(), 2);
+    assert!(ring_textures[0].is_some());
+    assert!(ring_textures[1].is_some());
+}
 
-    // Test CityObject "id-3"
+fn assert_noise_building_cityobject(model: &BorrowedModel, refs: CityObjectRefs) {
     let co3 = model
         .cityobjects()
-        .get(co_3_ref)
+        .get(refs.noise_building)
         .expect("CityObject id-3 should exist");
     assert_eq!(co3.id(), "id-3");
     match co3.type_cityobject() {
-        CityObjectType::Extension(ext_type) => {
-            assert_eq!(*ext_type, "+NoiseBuilding");
-        }
+        CityObjectType::Extension(ext_type) => assert_eq!(*ext_type, "+NoiseBuilding"),
         _ => panic!("id-3 should be Extension type"),
     }
 
@@ -476,23 +472,23 @@ fn build_fake_complete_borrowed() -> Result<()> {
         .get("buildingLDenMin")
         .expect("buildingLDenMin should exist");
     if let AttributeValue::Float(val) = building_lden_attr {
-        assert_eq!(*val, 1.0);
+        assert_f64_eq(*val, 1.0);
     } else {
         panic!("buildingLDenMin should be Float");
     }
 
     let children3 = co3.children().expect("id-3 should have children");
     assert_eq!(children3.len(), 1);
-    assert!(children3.contains(&co_1_ref));
+    assert!(children3.contains(&refs.building_part));
 
     let parents3 = co3.parents().expect("id-3 should have parents");
     assert_eq!(parents3.len(), 1);
-    assert!(parents3.contains(&co_neigh_ref));
+    assert!(parents3.contains(&refs.neighbourhood));
 
-    // Test geometry of "id-3" (should have no geometry)
     assert!(co3.geometry().is_none(), "id-3 should not have geometry");
+}
 
-    // Test CityObject "a-tree"
+fn assert_tree_cityobject(model: &BorrowedModel, v1: VertexIndex<u32>) {
     let co_tree = model
         .cityobjects()
         .iter()
@@ -503,38 +499,27 @@ fn build_fake_complete_borrowed() -> Result<()> {
         co_tree.1.type_cityobject(),
         &CityObjectType::SolitaryVegetationObject
     );
-
-    // Test that "a-tree" has no attributes
     assert!(
         co_tree.1.attributes().is_none(),
         "a-tree should not have attributes"
     );
-
-    // Test that "a-tree" has no extra properties
     assert!(
         co_tree.1.extra().is_none(),
         "a-tree should not have extra properties"
     );
-
-    // Test that "a-tree" has no parents
     assert!(
         co_tree.1.parents().is_none(),
         "a-tree should not have parents"
     );
-
-    // Test that "a-tree" has no children
     assert!(
         co_tree.1.children().is_none(),
         "a-tree should not have children"
     );
-
-    // Test that "a-tree" has no geographical extent
     assert!(
         co_tree.1.geographical_extent().is_none(),
         "a-tree should not have geographical extent"
     );
 
-    // Test geometry of "a-tree" (GeometryInstance)
     let geometries_tree = co_tree.1.geometry().expect("a-tree should have geometry");
     assert_eq!(geometries_tree.len(), 1);
     let geom_tree = geometries_tree[0];
@@ -545,46 +530,39 @@ fn build_fake_complete_borrowed() -> Result<()> {
         geom_tree_data.type_geometry(),
         &GeometryType::GeometryInstance
     );
-    assert_eq!(geom_tree_data.lod(), None); // GeometryInstance doesn't have LoD
+    assert_eq!(geom_tree_data.lod(), None);
 
-    // Test template reference
     let template_ref = geom_tree_data
         .instance_template()
         .expect("GeometryInstance should have template reference");
-
-    // Note: In the current implementation, the template reference points to a MultiPoint geometry
-    // (the location geometry from the address attribute). This appears to be due to how template
-    // indices are assigned. The template geometry itself exists but may use a separate indexing scheme.
     let template_geom = model
         .get_template_geometry(template_ref)
         .expect("Template geometry should exist in pool");
-    // Verify the template reference points to a valid geometry
     assert!(matches!(
         template_geom.type_geometry(),
         &GeometryType::MultiPoint | &GeometryType::MultiSurface
     ));
 
-    // Test transformation matrix
     let transform_matrix = geom_tree_data
         .instance_transformation_matrix()
         .expect("GeometryInstance should have transformation matrix");
-    assert_eq!(
+    assert_f64_slice_eq(
         transform_matrix,
         &[
-            2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0
-        ]
+            2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ],
     );
 
-    // Test reference vertex (reference point)
     let reference_point = geom_tree_data
         .instance_reference_point()
         .expect("GeometryInstance should have reference point");
     assert_eq!(*reference_point, v1);
+}
 
-    // Test CityObject "my-neighbourhood"
+fn assert_neighbourhood_cityobject(model: &BorrowedModel, refs: CityObjectRefs) {
     let co_neigh = model
         .cityobjects()
-        .get(co_neigh_ref)
+        .get(refs.neighbourhood)
         .expect("CityObject my-neighbourhood should exist");
     assert_eq!(co_neigh.id(), "my-neighbourhood");
     assert_eq!(co_neigh.type_cityobject(), &CityObjectType::CityObjectGroup);
@@ -607,7 +585,6 @@ fn build_fake_complete_borrowed() -> Result<()> {
         .expect("children_roles should exist");
     if let AttributeValue::Vec(roles) = children_roles_attr {
         assert_eq!(roles.len(), 2);
-
         if let AttributeValue::String(role1) = &*roles[0] {
             assert_eq!(*role1, "residential building");
         } else {
@@ -627,22 +604,17 @@ fn build_fake_complete_borrowed() -> Result<()> {
         .children()
         .expect("my-neighbourhood should have children");
     assert_eq!(children_neigh.len(), 2);
-    assert!(children_neigh.contains(&co_1_ref));
-    assert!(children_neigh.contains(&co_3_ref));
-
-    // Test that "my-neighbourhood" has no parents
+    assert!(children_neigh.contains(&refs.building_part));
+    assert!(children_neigh.contains(&refs.noise_building));
     assert!(
         co_neigh.parents().is_none(),
         "my-neighbourhood should not have parents"
     );
-
-    // Test that "my-neighbourhood" has no geographical extent
     assert!(
         co_neigh.geographical_extent().is_none(),
         "my-neighbourhood should not have geographical extent"
     );
 
-    // Test geometry of "my-neighbourhood" (MultiSurface)
     let geometries_neigh = co_neigh
         .geometry()
         .expect("my-neighbourhood should have geometry");
@@ -654,43 +626,27 @@ fn build_fake_complete_borrowed() -> Result<()> {
     assert_eq!(geom_neigh_data.type_geometry(), &GeometryType::MultiSurface);
     assert_eq!(geom_neigh_data.lod(), Some(&LoD::LoD2));
 
-    // Test boundaries
     let _boundaries_neigh = geom_neigh_data
         .boundaries()
         .expect("MultiSurface should have boundaries");
-    // Boundaries is a Boundary<VR> struct that contains the flattened boundary representation
-
-    // Test that my-neighbourhood geometry has no semantics
     assert!(
         geom_neigh_data.semantics().is_none(),
         "my-neighbourhood geometry should not have semantics"
     );
-
-    // Test that my-neighbourhood geometry has no materials
     assert!(
         geom_neigh_data.materials().is_none(),
         "my-neighbourhood geometry should not have materials"
     );
-
-    // Test that my-neighbourhood geometry has no textures
     assert!(
         geom_neigh_data.textures().is_none(),
         "my-neighbourhood geometry should not have textures"
     );
-
-    Ok(())
 }
-
 /// Build metadata via the three usage patterns used in this test.
-fn build_metadata_patterns(model: &mut BorrowedModel) -> Result<()> {
-    // 1) Take the CityModel with mutable reference.
-    build_metadata_with_reference(model)?;
-    // 2) Build a Metadata instance and add it to the CityModel.
-    let metadata = build_metadata_with_return()?;
-    *model.metadata_mut() = metadata;
-    // 3) Take a mutable reference to the Metadata instance and set the data.
+fn build_metadata_patterns(model: &mut BorrowedModel) {
+    build_metadata_with_reference(model);
+    *model.metadata_mut() = build_metadata_with_return();
     build_metadata(model.metadata_mut());
-    Ok(())
 }
 
 /// Set extra root properties, transform, and extension on the `CityModel`.
@@ -723,19 +679,19 @@ fn build_root_components(model: &mut BorrowedModel) {
 /// Initialize all `CityObjects` that are used in this test.
 fn init_cityobjects() -> PendingCityObjects {
     PendingCityObjects {
-        co_1: CityObject::new(
+        building_part: CityObject::new(
             CityObjectIdentifier::new("id-1"),
             CityObjectType::BuildingPart,
         ),
-        co_3: CityObject::new(
+        noise_building: CityObject::new(
             CityObjectIdentifier::new("id-3"),
             CityObjectType::Extension("+NoiseBuilding"),
         ),
-        co_tree: CityObject::new(
+        tree: CityObject::new(
             CityObjectIdentifier::new("a-tree"),
             CityObjectType::SolitaryVegetationObject,
         ),
-        co_neighbourhood: CityObject::new(
+        neighbourhood: CityObject::new(
             CityObjectIdentifier::new("my-neighbourhood"),
             CityObjectType::CityObjectGroup,
         ),
@@ -784,22 +740,22 @@ fn build_shared_vertices(model: &mut BorrowedModel) -> Result<SharedVertices> {
 /// Build `CityObject` "id-1" with attributes, address, and solid geometry.
 fn build_cityobject_id_1(
     model: &mut BorrowedModel,
-    co_1: &mut BorrowedCityObject,
+    building_part: &mut BorrowedCityObject,
     vertices: SharedVertices,
     appearance: &Appearance,
 ) -> Result<()> {
-    co_1.set_geographical_extent(Some(BBox::new(
-        84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9,
+    building_part.set_geographical_extent(Some(BBox::new(
+        84_710.1, 446_846.0, -5.3, 84_757.1, 446_944.0, 40.9,
     )));
-    set_cityobject_id_1_address(model, co_1, vertices.v0);
-    set_cityobject_id_1_attributes(co_1);
-    add_cityobject_id_1_geometry(model, co_1, vertices, appearance)?;
+    set_cityobject_id_1_address(model, building_part, vertices.v0);
+    set_cityobject_id_1_attributes(building_part);
+    add_cityobject_id_1_geometry(model, building_part, vertices, appearance)?;
     Ok(())
 }
 
 fn set_cityobject_id_1_address(
     model: &mut BorrowedModel,
-    co_1: &mut BorrowedCityObject,
+    building_part: &mut BorrowedCityObject,
     v0: VertexIndex<u32>,
 ) {
     let mut address_map = HashMap::new();
@@ -832,12 +788,13 @@ fn set_cityobject_id_1_address(
     }
 
     let addresses_vec = vec![Box::new(AttributeValue::Map(address_map))];
-    co_1.extra_mut()
+    building_part
+        .extra_mut()
         .insert("address", AttributeValue::Vec(addresses_vec));
 }
 
-fn set_cityobject_id_1_attributes(co_1: &mut BorrowedCityObject) {
-    let co_1_attrs = co_1.attributes_mut();
+fn set_cityobject_id_1_attributes(building_part: &mut BorrowedCityObject) {
+    let co_1_attrs = building_part.attributes_mut();
     co_1_attrs.insert("measuredHeight", AttributeValue::Float(22.3));
     co_1_attrs.insert("roofType", AttributeValue::String("gable"));
     co_1_attrs.insert("residential", AttributeValue::Bool(true));
@@ -846,7 +803,7 @@ fn set_cityobject_id_1_attributes(co_1: &mut BorrowedCityObject) {
 
 fn add_cityobject_id_1_geometry(
     model: &mut BorrowedModel,
-    co_1: &mut BorrowedCityObject,
+    building_part: &mut BorrowedCityObject,
     vertices: SharedVertices,
     appearance: &Appearance,
 ) -> Result<()> {
@@ -855,159 +812,101 @@ fn add_cityobject_id_1_geometry(
         .attributes_mut()
         .insert("surfaceAttribute", AttributeValue::Bool(true));
 
-    // Use a block scope to limit the lifetime of the GeometryBuilder, because it takes
-    // a mutable borrow to the CityModel.
-    {
-        let mut geometry_builder =
-            GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
-                .with_lod(LoD::LoD2_1);
-        let bv0 = geometry_builder.add_vertex(vertices.v0);
-        let bv1 = geometry_builder.add_vertex(vertices.v1);
-        let bv2 = geometry_builder.add_vertex(vertices.v2);
-        let bv3 = geometry_builder.add_vertex(vertices.v3);
+    let mut geometry_builder =
+        GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
+            .with_lod(LoD::LoD2_1);
+    let bv0 = geometry_builder.add_vertex(vertices.v0);
+    let bv1 = geometry_builder.add_vertex(vertices.v1);
+    let bv2 = geometry_builder.add_vertex(vertices.v2);
+    let bv3 = geometry_builder.add_vertex(vertices.v3);
+    let surface_ring = [bv0, bv3, bv2, bv1];
 
-        // 0th Surface ---
-        // Geometry
-        let ring0 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
-        let surface_0 = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring0)?;
-        // Semantic
-        geometry_builder.set_semantic_surface(None, roof_semantic.clone(), true)?;
-        // Material
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_irradiation.clone(),
-            "irradiation",
-            true,
-        )?;
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_red.clone(),
-            "red",
-            true,
-        )?;
-        // Texture
-        let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
-        let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
-        let uv2 = geometry_builder.add_uv_coordinate(1.0, 1.0);
-        let uv3 = geometry_builder.add_uv_coordinate(0.0, 1.0);
-        geometry_builder.map_vertex_to_uv(bv0, uv0);
-        geometry_builder.map_vertex_to_uv(bv1, uv1);
-        geometry_builder.map_vertex_to_uv(bv2, uv2);
-        geometry_builder.map_vertex_to_uv(bv3, uv3);
-        geometry_builder.set_texture_ring(
-            None,
-            appearance.texture_winter.clone(),
-            "winter-textures",
-            true,
-        )?;
+    let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.5);
+    let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
+    let uv2 = geometry_builder.add_uv_coordinate(1.0, 1.0);
+    let uv3 = geometry_builder.add_uv_coordinate(0.0, 1.0);
 
-        // 1st Surface ---
-        let ring1 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
-        let surface_1 = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring1)?;
-        // We reuse the previously created Semantic
-        geometry_builder.set_semantic_surface(None, roof_semantic, true)?;
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_irradiation.clone(),
-            "irradiation",
-            true,
-        )?;
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_red.clone(),
-            "red",
-            true,
-        )?;
-        geometry_builder.map_vertex_to_uv(bv0, uv0);
-        geometry_builder.map_vertex_to_uv(bv1, uv1);
-        geometry_builder.map_vertex_to_uv(bv2, uv2);
-        geometry_builder.map_vertex_to_uv(bv3, uv3);
-        geometry_builder.set_texture_ring(
-            None,
-            appearance.texture_winter.clone(),
-            "winter-textures",
-            true,
-        )?;
+    let mut add_textured_surface =
+        |semantic: Semantic<BorrowedStringStorage<'static>>| -> Result<usize> {
+            let ring = geometry_builder.add_ring(&surface_ring)?;
+            let surface = geometry_builder.start_surface();
+            geometry_builder.add_surface_outer_ring(ring)?;
+            geometry_builder.set_semantic_surface(None, semantic, true)?;
+            geometry_builder.set_material_surface(
+                None,
+                appearance.material_irradiation.clone(),
+                "irradiation",
+                true,
+            )?;
+            geometry_builder.set_material_surface(
+                None,
+                appearance.material_red.clone(),
+                "red",
+                true,
+            )?;
+            geometry_builder.map_vertex_to_uv(bv0, uv0);
+            geometry_builder.map_vertex_to_uv(bv1, uv1);
+            geometry_builder.map_vertex_to_uv(bv2, uv2);
+            geometry_builder.map_vertex_to_uv(bv3, uv3);
+            geometry_builder.set_texture_ring(
+                None,
+                appearance.texture_winter.clone(),
+                "winter-textures",
+                true,
+            )?;
+            Ok(surface)
+        };
 
-        // 2nd Surface ---
-        // This surface does not have Semantic
-        let ring2 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
-        let surface_2 = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring2)?;
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_irradiation.clone(),
-            "irradiation",
-            true,
-        )?;
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_red.clone(),
-            "red",
-            true,
-        )?;
+    let surface_0 = add_textured_surface(roof_semantic.clone())?;
+    let surface_1 = add_textured_surface(roof_semantic)?;
 
-        // 3rd Surface ---
-        // This surface has a type from an Extension
-        let ring3 = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
-        let surface_3 = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring3)?;
-        let patio_door_semantic = Semantic::new(SemanticType::Extension("+PatioDoor"));
-        geometry_builder.set_semantic_surface(None, patio_door_semantic, false)?;
-        // This surface does not have the "irradiation" material
-        geometry_builder.set_material_surface(
-            None,
-            appearance.material_red.clone(),
-            "red",
-            true,
-        )?;
-        geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
+    let ring2 = geometry_builder.add_ring(&surface_ring)?;
+    let surface_2 = geometry_builder.start_surface();
+    geometry_builder.add_surface_outer_ring(ring2)?;
+    geometry_builder.set_material_surface(
+        None,
+        appearance.material_irradiation.clone(),
+        "irradiation",
+        true,
+    )?;
+    geometry_builder.set_material_surface(None, appearance.material_red.clone(), "red", true)?;
 
-        // Inner shell
-        let surface_4 = geometry_builder.start_surface();
-        let ring4 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
-        geometry_builder.add_surface_outer_ring(ring4)?;
-        let ring5 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
-        geometry_builder.add_surface_inner_ring(ring5)?;
-        geometry_builder.add_shell(&[surface_4])?;
+    let ring3 = geometry_builder.add_ring(&surface_ring)?;
+    let surface_3 = geometry_builder.start_surface();
+    geometry_builder.add_surface_outer_ring(ring3)?;
+    geometry_builder.set_semantic_surface(
+        None,
+        Semantic::new(SemanticType::Extension("+PatioDoor")),
+        false,
+    )?;
+    geometry_builder.set_material_surface(None, appearance.material_red.clone(), "red", true)?;
+    geometry_builder.add_shell(&[surface_0, surface_1, surface_2, surface_3])?;
 
-        // Consume the builder by building a Geometry and adding it to the CityModel
-        let geometry_ref = geometry_builder.build()?;
+    let surface_4 = geometry_builder.start_surface();
+    let ring4 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
+    geometry_builder.add_surface_outer_ring(ring4)?;
+    let ring5 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
+    geometry_builder.add_surface_inner_ring(ring5)?;
+    geometry_builder.add_shell(&[surface_4])?;
 
-        // Attach geometry to CityObject
-        co_1.add_geometry(GeometryRef::from_parts(
-            geometry_ref.index(),
-            geometry_ref.generation(),
-        ));
+    let geometry_ref = geometry_builder.build()?;
+    building_part.add_geometry(GeometryRef::from_parts(
+        geometry_ref.index(),
+        geometry_ref.generation(),
+    ));
 
-        // For debug only
-        let geom_nested = model
-            .get_geometry(GeometryRef::from_parts(
-                geometry_ref.index(),
-                geometry_ref.generation(),
-            ))
-            .unwrap()
-            .clone()
-            .boundaries()
-            .unwrap()
-            .to_nested_solid()?;
-        println!("CityObject id-1 nested boundary: {geom_nested:?}");
-    }
     Ok(())
 }
-
-/// Build `CityObject` "id-3".
-fn build_cityobject_id_3(co_3: &mut BorrowedCityObject) {
-    co_3.attributes_mut()
+fn build_cityobject_id_3(noise_building: &mut BorrowedCityObject) {
+    noise_building
+        .attributes_mut()
         .insert("buildingLDenMin", AttributeValue::Float(1.0));
 }
 
 /// Build `CityObject` "a-tree" with template geometry and one geometry instance.
 fn build_cityobject_tree(
     model: &mut BorrowedModel,
-    co_tree: &mut BorrowedCityObject,
+    tree: &mut BorrowedCityObject,
     vertices: SharedVertices,
 ) -> Result<()> {
     let mut template_builder =
@@ -1041,7 +940,7 @@ fn build_cityobject_tree(
             .with_reference_vertex(vertices.v1)
             .build()?;
 
-    co_tree.add_geometry(GeometryRef::from_parts(
+    tree.add_geometry(GeometryRef::from_parts(
         tree_geometry_ref.index(),
         tree_geometry_ref.generation(),
     ));
@@ -1051,10 +950,10 @@ fn build_cityobject_tree(
 /// Build `CityObject` "my-neighbourhood".
 fn build_cityobject_neighbourhood(
     model: &mut BorrowedModel,
-    co_neighbourhood: &mut BorrowedCityObject,
+    neighbourhood: &mut BorrowedCityObject,
     vertices: SharedVertices,
 ) -> Result<()> {
-    co_neighbourhood
+    neighbourhood
         .attributes_mut()
         .insert("location", AttributeValue::String("Magyarkanizsa"));
 
@@ -1062,7 +961,7 @@ fn build_cityobject_neighbourhood(
         Box::new(AttributeValue::String("residential building")),
         Box::new(AttributeValue::String("voting location")),
     ];
-    co_neighbourhood
+    neighbourhood
         .extra_mut()
         .insert("children_roles", AttributeValue::Vec(roles_vec));
 
@@ -1078,7 +977,7 @@ fn build_cityobject_neighbourhood(
     geometry_builder.add_surface_outer_ring(ring0)?;
     let neighbourhood_geometry_ref = geometry_builder.build()?;
 
-    co_neighbourhood.add_geometry(GeometryRef::from_parts(
+    neighbourhood.add_geometry(GeometryRef::from_parts(
         neighbourhood_geometry_ref.index(),
         neighbourhood_geometry_ref.generation(),
     ));
@@ -1119,63 +1018,69 @@ fn add_cityobjects_with_hierarchy(
     cityobjects_to_add: PendingCityObjects,
 ) -> Result<CityObjectRefs> {
     let PendingCityObjects {
-        co_1,
-        co_3,
-        co_tree,
-        co_neighbourhood,
+        building_part,
+        noise_building,
+        tree,
+        neighbourhood,
     } = cityobjects_to_add;
 
     let cityobjects = model.cityobjects_mut();
-    let co_1_ref = cityobjects.add(co_1)?;
-    let co_3_ref = cityobjects.add(co_3)?;
-    let _co_tree_ref = cityobjects.add(co_tree)?;
-    let co_neigh_ref = cityobjects.add(co_neighbourhood)?;
+    let building_part = cityobjects.add(building_part)?;
+    let noise_building = cityobjects.add(noise_building)?;
+    let _co_tree_ref = cityobjects.add(tree)?;
+    let neighbourhood = cityobjects.add(neighbourhood)?;
 
-    cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_3_ref);
     cityobjects
-        .get_mut(co_1_ref)
+        .get_mut(building_part)
         .unwrap()
-        .add_parent(co_neigh_ref);
-    cityobjects.get_mut(co_3_ref).unwrap().add_child(co_1_ref);
+        .add_parent(noise_building);
     cityobjects
-        .get_mut(co_3_ref)
+        .get_mut(building_part)
         .unwrap()
-        .add_parent(co_neigh_ref);
+        .add_parent(neighbourhood);
     cityobjects
-        .get_mut(co_neigh_ref)
+        .get_mut(noise_building)
         .unwrap()
-        .add_child(co_1_ref);
+        .add_child(building_part);
     cityobjects
-        .get_mut(co_neigh_ref)
+        .get_mut(noise_building)
         .unwrap()
-        .add_child(co_3_ref);
+        .add_parent(neighbourhood);
+    cityobjects
+        .get_mut(neighbourhood)
+        .unwrap()
+        .add_child(building_part);
+    cityobjects
+        .get_mut(neighbourhood)
+        .unwrap()
+        .add_child(noise_building);
 
     Ok(CityObjectRefs {
-        co_1_ref,
-        co_3_ref,
-        co_neigh_ref,
+        building_part,
+        noise_building,
+        neighbourhood,
     })
 }
 
 /// Build a complete Metadata instance with all data set and add it to a `CityModel`.
 /// Takes the `CityModel` by mutable reference.
-fn build_metadata_with_reference(model: &mut BorrowedModel) -> Result<()> {
+fn build_metadata_with_reference(model: &mut BorrowedModel) {
     let metadata_ref = model.metadata_mut();
     build_metadata(metadata_ref);
-    Ok(())
 }
 
 /// Build a complete Metadata instance with all data set and return it.
-fn build_metadata_with_return() -> Result<BorrowedMetadata> {
+fn build_metadata_with_return() -> BorrowedMetadata {
     let mut metadata = Metadata::new();
     build_metadata(&mut metadata);
-    Ok(metadata)
+    metadata
 }
 
 /// Set data on a Metadata instance.
 fn build_metadata(metadata_ref: &mut BorrowedMetadata) {
-    metadata_ref
-        .set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
+    metadata_ref.set_geographical_extent(BBox::new(
+        84_710.1, 446_846.0, -5.3, 84_757.1, 446_944.0, 40.9,
+    ));
     metadata_ref.set_identifier(CityModelIdentifier::new(
         "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
     ));
