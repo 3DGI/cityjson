@@ -7,8 +7,8 @@ use crate::error::{Error, Result};
 use crate::prelude::{
     Boundary, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex, Vertices,
 };
-use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::mapping::SemanticOrMaterialMap;
+use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::pool::ResourceRef;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -82,6 +82,12 @@ enum VertexOrPoint<V: VertexRef, C: Coordinate> {
 enum TemplateVertexOrPoint<V: VertexRef> {
     Vertex(VertexIndex<V>),
     Point(RealWorldCoordinate),
+}
+
+struct GeometryBuildState<VR: VertexRef, RR: ResourceRef, S> {
+    semantic_map_option: Option<SemanticOrMaterialMap<VR, RR>>,
+    material_map_option: Option<ThemedMaterials<VR, RR, S>>,
+    instance_reference_point: Option<VertexIndex<VR>>,
 }
 
 /// Controls the [`GeometryBuilder`] to build a regular geometry or a geometry template.
@@ -161,18 +167,18 @@ where
             template_vertices: Vec::new(),
             vertices: Vec::new(),
             uv_coordinates: Vec::new(),
-            vertex_uv_mapping: Default::default(),
+            vertex_uv_mapping: HashMap::default(),
             rings: Vec::new(),
             surfaces: Vec::new(),
             shells: Vec::new(),
             solids: Vec::new(),
             active_surface: None,
             active_solid: None,
-            point_semantics: Default::default(),
-            linestring_semantics: Default::default(),
-            surface_semantics: Default::default(),
-            surface_materials: Default::default(),
-            ring_textures: Default::default(),
+            point_semantics: HashMap::default(),
+            linestring_semantics: HashMap::default(),
+            surface_semantics: HashMap::default(),
+            surface_materials: Vec::default(),
+            ring_textures: Vec::default(),
             _phantom_semantic: std::marker::PhantomData,
             _phantom_material: std::marker::PhantomData,
             _phantom_texture: std::marker::PhantomData,
@@ -181,6 +187,7 @@ where
     }
 
     /// Set the Level of Detail on the Geometry.
+    #[must_use]
     pub fn with_lod(mut self, lod: LoD) -> Self {
         self.lod = Some(lod);
         self
@@ -228,11 +235,13 @@ where
         Ok(self)
     }
 
+    #[must_use]
     pub fn with_reference_point(mut self, point: C) -> Self {
         self.add_point(point);
         self
     }
 
+    #[must_use]
     pub fn with_reference_vertex(mut self, vertex: VertexIndex<VR>) -> Self {
         self.add_vertex(vertex);
         self
@@ -738,55 +747,85 @@ where
         M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
         Geometry: GeometryConstructor<VR, RR, SS::String>,
     {
-        // Validate structure before building
-        self.validate_structure()?;
+        let mut builder = self;
+        builder.validate_structure()?;
 
-        // Pre-allocate the Boundary
-        let mut vertices_capacity = 0;
-        let mut rings_capacity = 0;
-        let mut surfaces_capacity = 0;
-        if self.type_geometry == GeometryType::MultiPoint {
-            vertices_capacity = self.vertices.len();
-        } else if self.type_geometry == GeometryType::MultiLineString {
-            vertices_capacity = self.rings.iter().map(std::vec::Vec::len).sum();
-            rings_capacity = self.rings.len();
-        } else if self.type_geometry == GeometryType::MultiSurface
-            || self.type_geometry == GeometryType::CompositeSurface
-        {
-            // For MultiSurface, calculate total vertices from all rings in all surfaces
-            rings_capacity = self
-                .surfaces
-                .iter()
-                .map(|s| {
-                    let outer = s.outer_ring.map_or(0, |_| 1);
-                    outer + s.inner_rings.len()
-                })
-                .sum();
-
-            vertices_capacity = self.rings.iter().map(std::vec::Vec::len).sum();
-            surfaces_capacity = self.surfaces.len();
-        } else if self.type_geometry == GeometryType::GeometryInstance {
-            vertices_capacity = 1;
-        }
+        let (vertices_capacity, rings_capacity, surfaces_capacity) = builder.boundary_capacities();
         let mut boundary = Boundary::with_capacity(
             vertices_capacity,
             rings_capacity,
             surfaces_capacity,
-            self.shells.len(),
-            self.solids.len(),
+            builder.shells.len(),
+            builder.solids.len(),
         );
+
+        builder.reserve_new_vertices()?;
+        let nr_builder_vertices = builder.vertices.len();
+        let vertex_indices = builder.resolve_vertex_indices()?;
+
+        let build_state =
+            builder.populate_boundary_and_maps(&mut boundary, &vertex_indices, nr_builder_vertices);
+        let texture_map_option = builder.build_texture_maps(&boundary)?;
+        let boundary_option =
+            (builder.type_geometry != GeometryType::GeometryInstance).then_some(boundary);
+
+        let geometry = Geometry::new(
+            builder.type_geometry,
+            builder.lod,
+            boundary_option,
+            build_state.semantic_map_option,
+            build_state.material_map_option,
+            texture_map_option,
+            builder.template_geometry,
+            build_state.instance_reference_point,
+            builder.transformation_matrix,
+        );
+
+        match builder.builder_mode {
+            BuilderMode::Regular => builder.model.add_geometry(geometry),
+            BuilderMode::Template => builder.model.add_template_geometry(geometry),
+        }
+    }
+
+    fn boundary_capacities(&self) -> (usize, usize, usize) {
+        match self.type_geometry {
+            GeometryType::MultiPoint => (self.vertices.len(), 0, 0),
+            GeometryType::MultiLineString => (
+                self.rings.iter().map(std::vec::Vec::len).sum(),
+                self.rings.len(),
+                0,
+            ),
+            GeometryType::MultiSurface | GeometryType::CompositeSurface => {
+                let rings_capacity = self
+                    .surfaces
+                    .iter()
+                    .map(|surface| surface.outer_ring.map_or(0, |_| 1) + surface.inner_rings.len())
+                    .sum();
+                let vertices_capacity = self.rings.iter().map(std::vec::Vec::len).sum();
+                (vertices_capacity, rings_capacity, self.surfaces.len())
+            }
+            GeometryType::GeometryInstance => (1, 0, 0),
+            _ => (0, 0, 0),
+        }
+    }
+
+    fn reserve_new_vertices(&mut self) -> Result<()>
+    where
+        M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
+    {
         let cnt_new_vertices = self
             .vertices
             .iter()
-            .filter(|v| matches!(v, VertexOrPoint::Point(_)))
+            .filter(|vertex| matches!(vertex, VertexOrPoint::Point(_)))
             .count();
         if cnt_new_vertices > 0 {
             self.model.vertices_mut().reserve(cnt_new_vertices)?;
         }
+
         let cnt_new_template_vertices = self
             .template_vertices
             .iter()
-            .filter(|v| matches!(v, TemplateVertexOrPoint::Point(_)))
+            .filter(|vertex| matches!(vertex, TemplateVertexOrPoint::Point(_)))
             .count();
         if cnt_new_template_vertices > 0 {
             self.model
@@ -794,40 +833,112 @@ where
                 .reserve(cnt_new_template_vertices)?;
         }
 
-        let mut counter = BoundaryCounter::<VR>::default();
+        Ok(())
+    }
 
+    fn resolve_vertex_indices(&mut self) -> Result<Vec<VertexIndex<VR>>>
+    where
+        M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
+    {
+        match self.builder_mode {
+            BuilderMode::Regular => std::mem::take(&mut self.vertices)
+                .into_iter()
+                .map(|vertex| match vertex {
+                    VertexOrPoint::Vertex(idx) => Ok(idx),
+                    VertexOrPoint::Point(point) => self.model.add_vertex(point),
+                })
+                .collect(),
+            BuilderMode::Template => std::mem::take(&mut self.template_vertices)
+                .into_iter()
+                .map(|vertex| match vertex {
+                    TemplateVertexOrPoint::Vertex(idx) => Ok(idx),
+                    TemplateVertexOrPoint::Point(point) => self.model.add_template_vertex(point),
+                })
+                .collect(),
+        }
+    }
+
+    fn append_ring_vertices(
+        &self,
+        ring_idx: usize,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        counter: &mut BoundaryCounter<VR>,
+    ) {
+        boundary.rings.push(counter.vertex_offset());
+        for &vertex_idx in &self.rings[ring_idx] {
+            boundary.vertices.push(vertex_indices[vertex_idx]);
+            counter.increment_vertex_idx();
+        }
+        counter.increment_ring_idx();
+    }
+
+    fn append_multisurface_surface(
+        &self,
+        surface: &SurfaceInProgress,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        counter: &mut BoundaryCounter<VR>,
+    ) {
+        if let Some(outer_ring_idx) = surface.outer_ring {
+            boundary.surfaces.push(counter.ring_offset());
+            self.append_ring_vertices(outer_ring_idx, boundary, vertex_indices, counter);
+            for &inner_ring_idx in &surface.inner_rings {
+                self.append_ring_vertices(inner_ring_idx, boundary, vertex_indices, counter);
+            }
+        }
+    }
+
+    fn append_surface_from_shell(
+        &self,
+        surface_idx: usize,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        counter: &mut BoundaryCounter<VR>,
+    ) {
+        if surface_idx < self.surfaces.len() {
+            boundary.surfaces.push(counter.ring_offset());
+            if let Some(outer_ring_idx) = self.surfaces[surface_idx].outer_ring {
+                self.append_ring_vertices(outer_ring_idx, boundary, vertex_indices, counter);
+                for &inner_ring_idx in &self.surfaces[surface_idx].inner_rings {
+                    self.append_ring_vertices(inner_ring_idx, boundary, vertex_indices, counter);
+                }
+            }
+            counter.increment_surface_idx();
+        }
+    }
+
+    fn append_shell_surfaces(
+        &self,
+        shell_idx: usize,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        counter: &mut BoundaryCounter<VR>,
+    ) {
+        if shell_idx < self.shells.len() {
+            for &surface_idx in &self.shells[shell_idx] {
+                self.append_surface_from_shell(surface_idx, boundary, vertex_indices, counter);
+            }
+        }
+    }
+
+    fn populate_boundary_and_maps(
+        &self,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        nr_builder_vertices: usize,
+    ) -> GeometryBuildState<VR, RR, SS::String> {
+        let mut counter = BoundaryCounter::<VR>::default();
         let mut semantic_map_option = None;
         let mut material_map_option = None;
         let mut instance_reference_point = None;
-
-        let nr_builder_vertices = self.vertices.len();
-        // Each Boundary type has vertices
-        let vertex_indices: Vec<VertexIndex<VR>> = match self.builder_mode {
-            BuilderMode::Regular => self
-                .vertices
-                .into_iter()
-                .map(|v| match v {
-                    VertexOrPoint::Vertex(idx) => Ok(idx),
-                    VertexOrPoint::Point(p) => self.model.add_vertex(p),
-                })
-                .collect::<Result<Vec<_>>>()?,
-            BuilderMode::Template => self
-                .template_vertices
-                .into_iter()
-                .map(|v| match v {
-                    TemplateVertexOrPoint::Vertex(idx) => Ok(idx),
-                    TemplateVertexOrPoint::Point(p) => self.model.add_template_vertex(p),
-                })
-                .collect::<Result<Vec<_>>>()?,
-        };
 
         match self.type_geometry {
             GeometryType::GeometryInstance => {
                 instance_reference_point = Some(vertex_indices[0]);
             }
             GeometryType::MultiPoint => {
-                boundary.vertices = vertex_indices;
-
+                boundary.vertices = vertex_indices.to_vec();
                 semantic_map_option = build_semantic_map::<VR, RR>(
                     &self.type_geometry,
                     &self.point_semantics,
@@ -841,8 +952,8 @@ where
                         boundary.vertices.push(vertex_indices[vert_idx]);
                         counter.increment_vertex_idx();
                     }
+                    counter.increment_ring_idx();
                 }
-
                 semantic_map_option = build_semantic_map::<VR, RR>(
                     &self.type_geometry,
                     &self.linestring_semantics,
@@ -851,162 +962,56 @@ where
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
                 for surface in &self.surfaces {
-                    if let Some(outer_ring_idx) = surface.outer_ring {
-                        boundary.surfaces.push(counter.ring_offset());
-
-                        // Add the outer ring first
-                        boundary.rings.push(counter.vertex_offset());
-                        for &vertex_idx in &self.rings[outer_ring_idx] {
-                            boundary.vertices.push(vertex_indices[vertex_idx]);
-                            counter.increment_vertex_idx();
-                        }
-                        counter.increment_ring_idx();
-
-                        // Add all inner rings for this surface
-                        for &inner_ring_idx in &surface.inner_rings {
-                            boundary.rings.push(counter.vertex_offset());
-                            for &vertex_idx in &self.rings[inner_ring_idx] {
-                                boundary.vertices.push(vertex_indices[vertex_idx]);
-                                counter.increment_vertex_idx();
-                            }
-                            counter.increment_ring_idx();
-                        }
-                    }
+                    self.append_multisurface_surface(
+                        surface,
+                        boundary,
+                        vertex_indices,
+                        &mut counter,
+                    );
                 }
-
                 semantic_map_option = build_semantic_map::<VR, RR>(
                     &self.type_geometry,
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
-
                 material_map_option =
                     build_material_map::<VR, RR, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::Solid => {
-                // Add shell index
                 boundary.shells.push(counter.surface_offset());
-
-                // Process surfaces for this shell
-                for &surface_idx in &self.shells[0] {
-                    if surface_idx < self.surfaces.len() {
-                        boundary.surfaces.push(counter.ring_offset());
-
-                        // Add outer ring for this surface
-                        if let Some(outer_ring_idx) = self.surfaces[surface_idx].outer_ring {
-                            boundary.rings.push(counter.vertex_offset());
-                            for &vertex_idx in &self.rings[outer_ring_idx] {
-                                boundary.vertices.push(vertex_indices[vertex_idx]);
-                                counter.increment_vertex_idx();
-                            }
-                            counter.increment_ring_idx();
-
-                            // Add inner rings if any
-                            for &inner_ring_idx in &self.surfaces[surface_idx].inner_rings {
-                                boundary.rings.push(counter.vertex_offset());
-                                for &vertex_idx in &self.rings[inner_ring_idx] {
-                                    boundary.vertices.push(vertex_indices[vertex_idx]);
-                                    counter.increment_vertex_idx();
-                                }
-                                counter.increment_ring_idx();
-                            }
-                        }
-                        counter.increment_surface_idx();
-                    }
-                }
-
+                self.append_shell_surfaces(0, boundary, vertex_indices, &mut counter);
                 semantic_map_option = build_semantic_map::<VR, RR>(
                     &self.type_geometry,
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
-
                 material_map_option =
                     build_material_map::<VR, RR, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
-                // Process each solid
                 for solid in &self.solids {
                     if let Some(outer_shell_idx) = solid.outer_shell {
-                        // Add this solid to the boundary
                         boundary.solids.push(counter.shell_offset());
-
-                        // Process the outer shell first
                         if outer_shell_idx < self.shells.len() {
                             boundary.shells.push(counter.surface_offset());
-
-                            // Process surfaces for the outer shell
-                            for &surface_idx in &self.shells[outer_shell_idx] {
-                                if surface_idx < self.surfaces.len() {
-                                    boundary.surfaces.push(counter.ring_offset());
-
-                                    // Add outer ring for this surface
-                                    if let Some(outer_ring_idx) =
-                                        self.surfaces[surface_idx].outer_ring
-                                    {
-                                        boundary.rings.push(counter.vertex_offset());
-                                        for &vertex_idx in &self.rings[outer_ring_idx] {
-                                            boundary.vertices.push(vertex_indices[vertex_idx]);
-                                            counter.increment_vertex_idx();
-                                        }
-                                        counter.increment_ring_idx();
-
-                                        // Add inner rings if any
-                                        for &inner_ring_idx in
-                                            &self.surfaces[surface_idx].inner_rings
-                                        {
-                                            boundary.rings.push(counter.vertex_offset());
-                                            for &vertex_idx in &self.rings[inner_ring_idx] {
-                                                boundary.vertices.push(vertex_indices[vertex_idx]);
-                                                counter.increment_vertex_idx();
-                                            }
-                                            counter.increment_ring_idx();
-                                        }
-                                    }
-                                    counter.increment_surface_idx();
-                                }
-                            }
+                            self.append_shell_surfaces(
+                                outer_shell_idx,
+                                boundary,
+                                vertex_indices,
+                                &mut counter,
+                            );
                             counter.increment_shell_idx();
                         }
 
-                        // Now process any inner shells (voids) for this solid
                         for &inner_shell_idx in &solid.inner_shells {
                             if inner_shell_idx < self.shells.len() {
                                 boundary.shells.push(counter.surface_offset());
-
-                                // Process surfaces for this inner shell
-                                for &surface_idx in &self.shells[inner_shell_idx] {
-                                    if surface_idx < self.surfaces.len() {
-                                        boundary.surfaces.push(counter.ring_offset());
-
-                                        // Add outer ring for this surface
-                                        if let Some(outer_ring_idx) =
-                                            self.surfaces[surface_idx].outer_ring
-                                        {
-                                            boundary.rings.push(counter.vertex_offset());
-                                            for &vertex_idx in &self.rings[outer_ring_idx] {
-                                                boundary.vertices.push(vertex_indices[vertex_idx]);
-                                                counter.increment_vertex_idx();
-                                            }
-                                            counter.increment_ring_idx();
-
-                                            // Add inner rings if any
-                                            for &inner_ring_idx in
-                                                &self.surfaces[surface_idx].inner_rings
-                                            {
-                                                boundary.rings.push(counter.vertex_offset());
-                                                for &vertex_idx in &self.rings[inner_ring_idx] {
-                                                    boundary
-                                                        .vertices
-                                                        .push(vertex_indices[vertex_idx]);
-                                                    counter.increment_vertex_idx();
-                                                }
-                                                counter.increment_ring_idx();
-                                            }
-                                        }
-                                        counter.increment_surface_idx();
-                                    }
-                                }
+                                self.append_shell_surfaces(
+                                    inner_shell_idx,
+                                    boundary,
+                                    vertex_indices,
+                                    &mut counter,
+                                );
                                 counter.increment_shell_idx();
                             }
                         }
@@ -1019,187 +1024,160 @@ where
                     &self.surface_semantics,
                     self.surfaces.len(),
                 );
-
                 material_map_option =
                     build_material_map::<VR, RR, SS>(&self.surface_materials, &self.surfaces);
             }
         }
 
-        let texture_map_option =
-            if self.ring_textures.is_empty() && self.vertex_uv_mapping.is_empty() {
-                None
-            } else {
-                Some(build_texture_map::<VR, RR, SS>(
-                    &boundary,
-                    &self.ring_textures,
-                    &self.vertex_uv_mapping,
-                ))
-            };
-        if texture_map_option.is_some() {
-            for uv in self.uv_coordinates {
-                self.model.add_uv_coordinate(uv)?;
-            }
-        }
-
-        let boundary_option = if self.type_geometry == GeometryType::GeometryInstance {
-            None
-        } else {
-            Some(boundary)
-        };
-        // Create the geometry
-        let geometry = Geometry::new(
-            self.type_geometry,
-            self.lod,
-            boundary_option,
+        GeometryBuildState {
             semantic_map_option,
             material_map_option,
-            texture_map_option,
-            self.template_geometry,
             instance_reference_point,
-            self.transformation_matrix,
-        );
-
-        match self.builder_mode {
-            BuilderMode::Regular => self.model.add_geometry(geometry),
-            BuilderMode::Template => self.model.add_template_geometry(geometry),
         }
     }
 
+    fn build_texture_maps(
+        &mut self,
+        boundary: &Boundary<VR>,
+    ) -> Result<Option<ThemedTextures<VR, RR, SS::String>>>
+    where
+        M: GeometryModelOps<VR, RR, C, Semantic, Material, Texture, Geometry, SS>,
+    {
+        if self.ring_textures.is_empty() && self.vertex_uv_mapping.is_empty() {
+            return Ok(None);
+        }
+
+        let texture_map_option = Some(build_texture_map::<VR, RR, SS>(
+            boundary,
+            &self.ring_textures,
+            &self.vertex_uv_mapping,
+        ));
+
+        for uv in std::mem::take(&mut self.uv_coordinates) {
+            self.model.add_uv_coordinate(uv)?;
+        }
+
+        Ok(texture_map_option)
+    }
+
     fn validate_structure(&self) -> Result<()> {
+        self.validate_geometry_shape()?;
+        self.validate_outer_elements()
+    }
+
+    fn validate_geometry_shape(&self) -> Result<()> {
+        let (vertices_empty, template_str) = self.builder_vertices_state();
+
         match self.type_geometry {
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
-                let mut template_str = "";
-                let vertices_empty = match self.builder_mode {
-                    BuilderMode::Regular => self.vertices.is_empty(),
-                    BuilderMode::Template => {
-                        template_str = "template";
-                        self.template_vertices.is_empty()
-                    }
-                };
                 if self.solids.is_empty()
                     || self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
                     || vertices_empty
                 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: format!("multi- or composite solid geometry {template_str}"),
-                        found: self.format_counts(),
-                    });
+                    return Err(self.invalid_geometry_type_error(format!(
+                        "multi- or composite solid geometry {template_str}"
+                    )));
                 }
             }
             GeometryType::Solid => {
-                let mut template_str = "";
-                let vertices_empty = match self.builder_mode {
-                    BuilderMode::Regular => self.vertices.is_empty(),
-                    BuilderMode::Template => {
-                        template_str = "template";
-                        self.template_vertices.is_empty()
-                    }
-                };
                 if !self.solids.is_empty()
                     || self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
                     || vertices_empty
                 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: format!("single solid geometry {template_str}"),
-                        found: self.format_counts(),
-                    });
+                    return Err(self.invalid_geometry_type_error(format!(
+                        "single solid geometry {template_str}"
+                    )));
                 }
             }
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
-                let mut template_str = "";
-                let vertices_empty = match self.builder_mode {
-                    BuilderMode::Regular => self.vertices.is_empty(),
-                    BuilderMode::Template => {
-                        template_str = "template";
-                        self.template_vertices.is_empty()
-                    }
-                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || self.surfaces.is_empty()
                     || self.rings.is_empty()
                     || vertices_empty
                 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: format!("multi- or composite surface geometry {template_str}"),
-                        found: self.format_counts(),
-                    });
+                    return Err(self.invalid_geometry_type_error(format!(
+                        "multi- or composite surface geometry {template_str}"
+                    )));
                 }
             }
             GeometryType::MultiLineString => {
-                let mut template_str = "";
-                let vertices_empty = match self.builder_mode {
-                    BuilderMode::Regular => self.vertices.is_empty(),
-                    BuilderMode::Template => {
-                        template_str = "template";
-                        self.template_vertices.is_empty()
-                    }
-                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || !self.surfaces.is_empty()
                     || self.rings.is_empty()
                     || vertices_empty
                 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: format!("multi linestring geometry {template_str}"),
-                        found: self.format_counts(),
-                    });
+                    return Err(self.invalid_geometry_type_error(format!(
+                        "multi linestring geometry {template_str}"
+                    )));
                 }
-                return Ok(());
             }
             GeometryType::MultiPoint => {
-                let mut template_str = "";
-                let vertices_empty = match self.builder_mode {
-                    BuilderMode::Regular => self.vertices.is_empty(),
-                    BuilderMode::Template => {
-                        template_str = "template";
-                        self.template_vertices.is_empty()
-                    }
-                };
                 if !self.solids.is_empty()
                     || !self.shells.is_empty()
                     || !self.surfaces.is_empty()
                     || !self.rings.is_empty()
                     || vertices_empty
                 {
-                    return Err(Error::InvalidGeometryType {
-                        expected: format!("multi point geometry {template_str}"),
-                        found: self.format_counts(),
-                    });
+                    return Err(self.invalid_geometry_type_error(format!(
+                        "multi point geometry {template_str}"
+                    )));
                 }
-                return Ok(());
             }
             GeometryType::GeometryInstance => {
-                if self.template_geometry.is_none() {
-                    return Err(Error::IncompleteGeometry(
-                        "GeometryInstance requires a geometry template".to_string(),
-                    ));
-                }
-                if self.transformation_matrix.is_none() {
-                    return Err(Error::IncompleteGeometry(
-                        "GeometryInstance requires a transformation matrix".to_string(),
-                    ));
-                }
-                if !self.solids.is_empty()
-                    || !self.shells.is_empty()
-                    || !self.surfaces.is_empty()
-                    || !self.rings.is_empty()
-                    || self.vertices.len() != 1
-                {
-                    return Err(Error::IncompleteGeometry (
-                        "GeometryInstance must have a boundary with only a single vertex, which is the reference point for the template transformations".to_string()
-                    ));
-                }
-                return Ok(());
+                self.validate_geometry_instance_shape()?;
             }
         }
 
-        // Verify surfaces
+        Ok(())
+    }
+
+    fn builder_vertices_state(&self) -> (bool, &'static str) {
+        match self.builder_mode {
+            BuilderMode::Regular => (self.vertices.is_empty(), ""),
+            BuilderMode::Template => (self.template_vertices.is_empty(), "template"),
+        }
+    }
+
+    fn invalid_geometry_type_error(&self, expected: String) -> Error {
+        Error::InvalidGeometryType {
+            expected,
+            found: self.format_counts(),
+        }
+    }
+
+    fn validate_geometry_instance_shape(&self) -> Result<()> {
+        if self.template_geometry.is_none() {
+            return Err(Error::IncompleteGeometry(
+                "GeometryInstance requires a geometry template".to_string(),
+            ));
+        }
+        if self.transformation_matrix.is_none() {
+            return Err(Error::IncompleteGeometry(
+                "GeometryInstance requires a transformation matrix".to_string(),
+            ));
+        }
+        if !self.solids.is_empty()
+            || !self.shells.is_empty()
+            || !self.surfaces.is_empty()
+            || !self.rings.is_empty()
+            || self.vertices.len() != 1
+        {
+            return Err(Error::IncompleteGeometry(
+                "GeometryInstance must have a boundary with only a single vertex, which is the reference point for the template transformations"
+                    .to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn validate_outer_elements(&self) -> Result<()> {
         for (i, surface) in self.surfaces.iter().enumerate() {
             if surface.outer_ring.is_none() {
                 return Err(Error::IncompleteGeometry(format!(
@@ -1208,7 +1186,6 @@ where
             }
         }
 
-        // Verify solids
         for (i, solid) in self.solids.iter().enumerate() {
             if solid.outer_shell.is_none() {
                 return Err(Error::IncompleteGeometry(format!(
@@ -1456,6 +1433,7 @@ impl std::fmt::Display for LoD {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CityModelType;
     use crate::cityjson::core::geometry::GeometryType;
     use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate};
     use crate::resources::handles::{
@@ -1464,7 +1442,6 @@ mod tests {
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::RGB;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
-    use crate::CityModelType;
 
     // Test helper to create a new model
     fn create_test_model() -> CityModel<u32, OwnedStringStorage> {
@@ -1647,22 +1624,23 @@ mod tests {
         let referenced_semantics: Vec<SemanticRef> = point_semantics
             .iter()
             .filter_map(|s| s.as_ref())
-            .cloned()
+            .copied()
             .collect();
-        assert!(
-            referenced_semantics
-                .contains(&SemanticRef::from_raw(*first_semantic_ref.as_ref().unwrap()))
-        );
-        assert!(
-            referenced_semantics
-                .contains(&SemanticRef::from_raw(*second_semantic_ref.as_ref().unwrap()))
-        );
+        assert!(referenced_semantics.contains(&SemanticRef::from_raw(
+            *first_semantic_ref.as_ref().unwrap()
+        )));
+        assert!(referenced_semantics.contains(&SemanticRef::from_raw(
+            *second_semantic_ref.as_ref().unwrap()
+        )));
 
         // Verify the semantics themselves
         let first_semantic = model
             .get_semantic(SemanticRef::from_raw(first_semantic_ref.unwrap()))
             .expect("Semantic 0 not found");
-        assert_eq!(first_semantic.type_semantic(), &SemanticType::TransportationHole);
+        assert_eq!(
+            first_semantic.type_semantic(),
+            &SemanticType::TransportationHole
+        );
 
         let second_semantic = model
             .get_semantic(SemanticRef::from_raw(second_semantic_ref.unwrap()))
@@ -1950,7 +1928,7 @@ mod tests {
             .ring_textures()
             .iter()
             .filter_map(|t| t.as_ref())
-            .cloned()
+            .copied()
             .collect();
 
         assert!(

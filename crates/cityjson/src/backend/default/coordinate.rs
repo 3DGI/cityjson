@@ -588,7 +588,7 @@ impl<VR: VertexRef, V: Coordinate> From<Vec<V>> for Vertices<VR, V> {
     fn from(value: Vec<V>) -> Self {
         Self {
             coordinates: value,
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }
@@ -597,7 +597,7 @@ impl<VR: VertexRef, V: Coordinate> From<&[V]> for Vertices<VR, V> {
     fn from(value: &[V]) -> Self {
         Self {
             coordinates: Vec::from(value),
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         }
     }
 }
@@ -629,7 +629,7 @@ mod tests {
         for i in 0..5 {
             let _ = vertices
                 .push(RealWorldCoordinate {
-                    x: i as f64,
+                    x: f64::from(i),
                     y: 0.0,
                     z: 0.0,
                 })
@@ -637,7 +637,7 @@ mod tests {
         }
 
         // Fill up to u16::MAX
-        for _ in 5..u16::MAX as usize {
+        for _ in 5..usize::from(u16::MAX) {
             vertices
                 .push(RealWorldCoordinate {
                     x: 0.0,
@@ -789,9 +789,9 @@ mod tests {
         // but we can add a reasonable number to verify the basic behavior
         for i in 0..1000 {
             let idx = vertices
-                .push(RealWorldCoordinate::new(i as f64, 0.0, 0.0))
+                .push(RealWorldCoordinate::new(f64::from(i), 0.0, 0.0))
                 .unwrap();
-            assert_eq!(vertices.get(idx).unwrap().x(), i as f64);
+            assert_eq!(vertices.get(idx).unwrap().x(), f64::from(i));
         }
 
         assert_eq!(vertices.len(), 1000);
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_vertices_default() {
-        let vertices: GeometryVertices32 = Default::default();
+        let vertices: GeometryVertices32 = Vertices::default();
         assert!(vertices.is_empty());
         assert_eq!(vertices.len(), 0);
     }

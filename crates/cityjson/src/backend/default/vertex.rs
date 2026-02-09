@@ -100,7 +100,6 @@ use crate::error::{Error, Result};
 use num::{CheckedAdd, FromPrimitive, Unsigned};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::mem::size_of;
 use std::num::TryFromIntError;
 use std::ops::AddAssign;
 
@@ -301,27 +300,11 @@ impl<T: VertexRef> VertexIndex<T> {
     /// let usize_value = idx.to_usize();
     /// assert_eq!(usize_value, 42usize);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn to_usize(&self) -> usize {
-        unsafe {
-            match size_of::<T>() {
-                2 => {
-                    // T = u16
-                    let x: u16 = std::mem::transmute_copy(&self.0);
-                    x as usize
-                }
-                4 => {
-                    // T = u32
-                    let x: u32 = std::mem::transmute_copy(&self.0);
-                    x as usize
-                }
-                8 => {
-                    // T = u64
-                    let x: u64 = std::mem::transmute_copy(&self.0);
-                    x as usize
-                }
-                _ => unreachable!("Only u16, u32, or u64 are allowed"),
-            }
+        match self.0.try_into() {
+            Ok(value) => value,
+            Err(_) => unreachable!("vertex index conversion to usize must fit on 64-bit targets"),
         }
     }
 
@@ -352,7 +335,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// assert!(VertexIndex32::from_u32(70000).is_some());
     /// assert!(VertexIndex64::from_u32(70000).is_some());
     /// ```
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn from_u32(value: u32) -> Option<Self> {
         T::from_u32(value).map(|v| Self::new(v))
@@ -793,7 +776,7 @@ mod tests {
         assert_eq!(idx64.value(), 50000u64);
 
         // Large to small conversions (should fail for large values)
-        let large_idx = VertexIndex32::new((u16::MAX as u32) + 1);
+        let large_idx = VertexIndex32::new(u32::from(u16::MAX) + 1);
         let result: Result<VertexIndex16> = large_idx.try_into();
         assert!(result.is_err());
         if let Err(Error::IndexConversion {
@@ -808,7 +791,7 @@ mod tests {
         }
 
         // Test u64 to smaller types
-        let huge_idx = VertexIndex64::new((u32::MAX as u64) + 1); // Too big for u32
+        let huge_idx = VertexIndex64::new(u64::from(u32::MAX) + 1); // Too big for u32
         assert!(VertexIndex32::try_from(huge_idx).is_err());
         assert!(VertexIndex16::try_from(huge_idx).is_err());
     }
@@ -870,7 +853,7 @@ mod tests {
         let idx64: VertexIndex<u64> = 42u64.into();
         assert_eq!(idx64.value(), 42);
 
-        let idx32: Result<VertexIndex<u32>> = 0x100000000u64.try_into();
+        let idx32: Result<VertexIndex<u32>> = 0x0001_0000_0000_u64.try_into();
         assert!(idx32.is_err());
 
         // Test usize conversions
@@ -895,7 +878,10 @@ mod tests {
 
         assert_eq!(vertex_indices.len(), 5);
         for (i, idx) in vertex_indices.iter().enumerate().take(5) {
-            assert_eq!(idx.value(), i as u16);
+            assert_eq!(
+                idx.value(),
+                u16::try_from(i).expect("index must fit in u16")
+            );
         }
 
         // Test conversion of Vec<u32> to Vec<VertexIndex<u32>>
@@ -918,7 +904,7 @@ mod tests {
         assert_eq!(idx32.value(), 70000);
 
         let idx64 = VertexIndex64::from_u32(u32::MAX).unwrap();
-        assert_eq!(idx64.value(), u32::MAX as u64);
+        assert_eq!(idx64.value(), u64::from(u32::MAX));
 
         // Invalid conversion (too large for u16)
         let result = VertexIndex16::from_u32(70000);
@@ -1001,7 +987,7 @@ mod tests {
         assert_eq!(idx64.to_usize(), 42usize);
 
         // Test with larger values
-        let large_idx = VertexIndex32::new(100000);
-        assert_eq!(large_idx.to_usize(), 100000usize);
+        let large_idx = VertexIndex32::new(100_000);
+        assert_eq!(large_idx.to_usize(), 100_000_usize);
     }
 }
