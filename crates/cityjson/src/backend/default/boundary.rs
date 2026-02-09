@@ -897,6 +897,10 @@ pub type Boundary64 = Boundary<u64>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cityjson::core::boundary::nested::{
+        BoundaryNestedMultiLineString32, BoundaryNestedMultiOrCompositeSolid32,
+        BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiPoint32, BoundaryNestedSolid32,
+    };
     use crate::cityjson::core::vertex::VertexIndex;
 
     // Helper function to create vertex indices
@@ -1160,6 +1164,13 @@ mod tests {
 #[cfg(test)]
 mod nested_tests {
     use super::*;
+    use crate::cityjson::core::boundary::nested::{
+        BoundaryNestedMultiLineString16, BoundaryNestedMultiLineString32,
+        BoundaryNestedMultiOrCompositeSolid16, BoundaryNestedMultiOrCompositeSolid32,
+        BoundaryNestedMultiOrCompositeSurface16, BoundaryNestedMultiOrCompositeSurface32,
+        BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32, BoundaryNestedSolid16,
+        BoundaryNestedSolid32,
+    };
     use crate::cityjson::core::vertex::VertexIndex;
 
     const U16_MAX_PLUS_ONE: usize = (u16::MAX as usize) + 1;

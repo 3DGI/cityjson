@@ -119,6 +119,11 @@ pub trait ResourcePool<T, RR> {
     /// # Returns
     ///
     /// A unique reference to the added resource
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the next slot index
+    /// would exceed [`ResourceRef::max_index`].
     fn add(&mut self, resource: T) -> Result<RR>;
 
     /// Retrieves a reference to the resource identified by `id`
@@ -300,6 +305,11 @@ impl ResourceId32 {
     /// # Returns
     ///
     /// A Result containing the converted `VertexIndex` or an error if conversion fails
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::IndexConversion`] when `self.index` cannot be represented by
+    /// the target vertex reference type `T`.
     pub fn to_vertex_index<T: VertexRef>(&self) -> Result<VertexIndex<T>> {
         T::from_u32(self.index)
             .map(|v| VertexIndex::new(v))
@@ -570,10 +580,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
                 });
             };
 
-            if current_gen == u16::MAX {
-                // Retired slot: do not reuse, continue searching for another free slot.
-                continue;
-            } else {
+            if current_gen != u16::MAX {
                 let generation = current_gen + 1;
                 if let Some(slot_generation) = self.generations.get_mut(slot_index) {
                     *slot_generation = generation;
