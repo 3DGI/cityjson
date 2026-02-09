@@ -1,14 +1,14 @@
 [package]
 name = "cityjson"
 version = "0.3.0"
+authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+categories = ["data-structures", "science:geo"]
+keywords = ["cityjson", "geospatial", "3d", "gis"]
 edition = "2024"
-description = "Types and methods for representing the complete CityJSON data model in Rust."
+description = "Types and accessor methods for representing semantic 3D city models in Rust, implementing the CityJSON specifications."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-rs"
-documentation = ""
-rust-version = "1.92"
-
-
+rust-version = "1.93"
 
 [package.metadata]
 # Document platform requirements

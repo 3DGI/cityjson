@@ -97,7 +97,7 @@ Migration documentation is provided between major versions.
 
 ### Minimum Rust version policy
 
-This crate's minimum supported rustc version is `1.65.0`.
+This crate's minimum supported rustc version is `1.93.0`.
 
 The policy is that the minimum Rust version required to use this crate can be increased in minor version updates. For example, if cityjson-rs `1.0` requires Rust `1.20.0`, then cityjson-rs `1.0.z` for all values of `z` will also require Rust `1.20.0` or newer. However, regex `1.y` for `y > 0` may require a newer minimum version of Rust.
 
