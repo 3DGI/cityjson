@@ -1,0 +1,82 @@
+# Adapted from https://github.com/serde-rs/json/blob/master/.github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  test:
+    name: Rust nightly ${{matrix.os == 'windows' && '(windows)' || ''}}
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, windows]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features
+      - run: cargo run --example cityjson_fake_complete_owned
+      - run: cargo run --example attributes
+      - run: cargo run --example streaming_geometry_instances
+      - uses: actions/upload-artifact@v6
+        if: matrix.os == 'ubuntu' && always()
+        with:
+          name: Cargo.lock
+          path: Cargo.lock
+        continue-on-error: true
+
+  build:
+    name: Rust ${{matrix.rust}} ${{matrix.os == 'windows' && '(windows)' || ''}}
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, windows]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --all-targets --all-features
+
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    env:
+      MIRIFLAGS: -Zmiri-strict-provenance
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@miri
+      - run: cargo miri setup
+      - run: cargo check --all-targets --all-features
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@clippy
+      - run: cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUSTDOCFLAGS: --cfg docsrs -Dwarnings
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
