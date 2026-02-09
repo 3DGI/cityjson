@@ -112,10 +112,7 @@ impl Display for Error {
                 reason,
                 vertex_count,
             } => {
-                write!(
-                    f,
-                    "Invalid ring: {reason} (vertex count: {vertex_count})"
-                )
+                write!(f, "Invalid ring: {reason} (vertex count: {vertex_count})")
             }
             Error::InvalidLineString {
                 reason,

@@ -7,8 +7,8 @@ use crate::error::{Error, Result};
 use crate::prelude::{
     Boundary, RealWorldCoordinate, StringStorage, UVCoordinate, VertexIndex, Vertices,
 };
-use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::mapping::textures::TextureMapCore;
+use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::pool::ResourceRef;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -1456,7 +1456,6 @@ impl std::fmt::Display for LoD {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CityModelType;
     use crate::cityjson::core::geometry::GeometryType;
     use crate::prelude::{BoundaryType, ImageType, QuantizedCoordinate};
     use crate::resources::handles::{
@@ -1465,6 +1464,7 @@ mod tests {
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::RGB;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
+    use crate::CityModelType;
 
     // Test helper to create a new model
     fn create_test_model() -> CityModel<u32, OwnedStringStorage> {

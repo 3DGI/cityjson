@@ -3,17 +3,22 @@
 #[allow(dead_code)]
 mod support;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use rand::Rng;
 use std::hint::black_box;
-use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_from_seed};
+use support::{params_from_env, rng_from_seed, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR};
 
 mod benches {
-    use super::{rng_from_seed, Rng, Criterion, params_from_env, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, black_box};
+    use super::{
+        black_box, params_from_env, rng_from_seed, Criterion, Rng, DEFAULT_SIZE_PROCESSOR,
+        FAST_SIZE_PROCESSOR,
+    };
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::v2_0::{CityModel, SemanticType, Material, Texture, CityObject, CityObjectType, Semantic};
+    use cityjson::v2_0::{
+        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+    };
     use std::collections::HashMap;
 
     type AttrValue = AttributeValue<OwnedStringStorage>;

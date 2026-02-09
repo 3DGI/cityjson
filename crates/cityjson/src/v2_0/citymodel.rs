@@ -10,11 +10,11 @@ use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::Geometry;
 use crate::v2_0::geometry::semantic::Semantic;
+use crate::v2_0::geometry::Geometry;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObjects, Extensions, Transform};
-use crate::{CityJSONVersion, format_option};
+use crate::{format_option, CityJSONVersion};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -38,7 +38,7 @@ pub struct CityModel<VR: VertexRef = u32, SS: StringStorage = OwnedStringStorage
 }
 
 impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
-    #[must_use] 
+    #[must_use]
     pub fn new(type_citymodel: crate::CityModelType) -> Self {
         Self {
             inner: crate::cityjson::core::citymodel::CityModelCore::new(
@@ -462,8 +462,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     }
 
     pub fn set_default_theme_material(&mut self, material_ref: Option<MaterialRef>) {
-        self.inner
-            .set_default_theme_material(material_ref.map(super::super::resources::handles::MaterialRef::to_raw));
+        self.inner.set_default_theme_material(
+            material_ref.map(super::super::resources::handles::MaterialRef::to_raw),
+        );
     }
 
     pub fn default_theme_texture(&self) -> Option<TextureRef> {
@@ -471,8 +472,9 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     }
 
     pub fn set_default_theme_texture(&mut self, texture_ref: Option<TextureRef>) {
-        self.inner
-            .set_default_theme_texture(texture_ref.map(super::super::resources::handles::TextureRef::to_raw));
+        self.inner.set_default_theme_texture(
+            texture_ref.map(super::super::resources::handles::TextureRef::to_raw),
+        );
     }
 
     /// Extracts a float attribute column from all `CityObjects`.
@@ -561,49 +563,49 @@ pub struct CityModelRawAccessor<'a, VR: VertexRef, SS: StringStorage> {
 
 impl<'a, VR: VertexRef, SS: StringStorage> CityModelRawAccessor<'a, VR, SS> {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn vertices(&self) -> &'a [QuantizedCoordinate] {
         self.model.inner.vertices().as_slice()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn geometries(&self) -> RawPoolView<'a, Geometry<VR, SS>> {
         self.model.inner.geometries_raw()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn semantics(&self) -> RawPoolView<'a, Semantic<SS>> {
         self.model.inner.semantics_raw()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn materials(&self) -> RawPoolView<'a, Material<SS>> {
         self.model.inner.materials_raw()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn textures(&self) -> RawPoolView<'a, Texture<SS>> {
         self.model.inner.textures_raw()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn cityobjects(&self) -> &'a CityObjects<SS> {
         self.model.cityobjects()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn template_vertices(&self) -> &'a [RealWorldCoordinate] {
         self.model.inner.template_vertices().as_slice()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn uv_coordinates(&self) -> &'a [UVCoordinate] {
         self.model.inner.vertices_texture().as_slice()
     }
@@ -688,27 +690,33 @@ impl<VR: VertexRef, SS: StringStorage>
     > for CityModel<VR, SS>
 {
     fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
-        self.add_semantic(semantic).map(super::super::resources::handles::SemanticRef::to_raw)
+        self.add_semantic(semantic)
+            .map(super::super::resources::handles::SemanticRef::to_raw)
     }
 
     fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_semantic(semantic).map(super::super::resources::handles::SemanticRef::to_raw)
+        self.get_or_insert_semantic(semantic)
+            .map(super::super::resources::handles::SemanticRef::to_raw)
     }
 
     fn add_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
-        self.add_material(material).map(super::super::resources::handles::MaterialRef::to_raw)
+        self.add_material(material)
+            .map(super::super::resources::handles::MaterialRef::to_raw)
     }
 
     fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_material(material).map(super::super::resources::handles::MaterialRef::to_raw)
+        self.get_or_insert_material(material)
+            .map(super::super::resources::handles::MaterialRef::to_raw)
     }
 
     fn add_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
-        self.add_texture(texture).map(super::super::resources::handles::TextureRef::to_raw)
+        self.add_texture(texture)
+            .map(super::super::resources::handles::TextureRef::to_raw)
     }
 
     fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_texture(texture).map(super::super::resources::handles::TextureRef::to_raw)
+        self.get_or_insert_texture(texture)
+            .map(super::super::resources::handles::TextureRef::to_raw)
     }
 
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
@@ -716,11 +724,13 @@ impl<VR: VertexRef, SS: StringStorage>
     }
 
     fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
-        self.add_geometry(geometry).map(super::super::resources::handles::GeometryRef::to_raw)
+        self.add_geometry(geometry)
+            .map(super::super::resources::handles::GeometryRef::to_raw)
     }
 
     fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
-        self.add_template_geometry(geometry).map(super::super::resources::handles::TemplateGeometryRef::to_raw)
+        self.add_template_geometry(geometry)
+            .map(super::super::resources::handles::TemplateGeometryRef::to_raw)
     }
 
     fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {

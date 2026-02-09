@@ -66,7 +66,10 @@
 
 pub mod nested;
 
-use crate::cityjson::core::boundary::nested::{BoundaryNestedMultiPoint, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSurface, BoundaryNestedSolid, BoundaryNestedMultiOrCompositeSolid};
+use crate::cityjson::core::boundary::nested::{
+    BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
+    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
+};
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::core::vertex::{RawVertexView, VertexIndex};
 use crate::error;
@@ -152,7 +155,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// assert!(boundary.is_consistent());
     /// ```
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -187,7 +190,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// assert!(boundary.is_consistent());
     /// ```
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn with_capacity(
         vertices: usize,
         rings: usize,
@@ -204,34 +207,34 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn vertices_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.vertices)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn rings_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.rings)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn surfaces_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.surfaces)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn shells_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.shells)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn solids_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.solids)
     }
 
     /// Exports this boundary into a columnar view suitable for serializers.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn to_columnar(&self) -> BoundaryColumnar<'_, VR> {
         BoundaryColumnar {
             vertices: &self.vertices,
@@ -243,7 +246,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn vertices(&self) -> &[VertexIndex<VR>] {
         &self.vertices
     }
@@ -257,7 +260,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn rings(&self) -> &[VertexIndex<VR>] {
         &self.rings
     }
@@ -271,7 +274,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn surfaces(&self) -> &[VertexIndex<VR>] {
         &self.surfaces
     }
@@ -285,7 +288,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn shells(&self) -> &[VertexIndex<VR>] {
         &self.shells
     }
@@ -299,7 +302,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn solids(&self) -> &[VertexIndex<VR>] {
         &self.solids
     }
@@ -341,7 +344,11 @@ impl<VR: VertexRef> Boundary<VR> {
     pub fn to_nested_multi_point(&self) -> error::Result<BoundaryNestedMultiPoint<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
-            Ok(self.vertices.iter().map(super::vertex::VertexIndex::value).collect())
+            Ok(self
+                .vertices
+                .iter()
+                .map(super::vertex::VertexIndex::value)
+                .collect())
         } else {
             Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
@@ -619,7 +626,12 @@ impl<VR: VertexRef> Boundary<VR> {
                 .vertices
                 .get(vertices_start_i.to_usize()..vertices_end_i.to_usize())
             {
-                surface.push(vertices.iter().map(super::vertex::VertexIndex::value).collect());
+                surface.push(
+                    vertices
+                        .iter()
+                        .map(super::vertex::VertexIndex::value)
+                        .collect(),
+                );
             }
         }
         Ok(())
@@ -647,7 +659,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {
             BoundaryType::MultiOrCompositeSolid
@@ -685,7 +697,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// let boundary: Boundary<u32> = Boundary::new();
     /// assert!(boundary.is_consistent());
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn is_consistent(&self) -> bool {
         // Check that all indices are within bounds
         let vertices_len = self.vertices.len();

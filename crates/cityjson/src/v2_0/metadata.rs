@@ -1,5 +1,5 @@
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
+use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
 use crate::format_option;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};
@@ -16,7 +16,7 @@ pub struct Metadata<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> Metadata<SS> {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -198,42 +198,42 @@ pub struct Contact<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> Contact<SS> {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn contact_name(&self) -> &str {
         &self.contact_name
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn email_address(&self) -> &str {
         &self.email_address
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn role(&self) -> Option<ContactRole> {
         self.role
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn website(&self) -> &Option<String> {
         &self.website
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn contact_type(&self) -> Option<ContactType> {
         self.contact_type
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn phone(&self) -> &Option<String> {
         &self.phone
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn organization(&self) -> &Option<String> {
         &self.organization
     }
@@ -266,7 +266,7 @@ impl<SS: StringStorage> Contact<SS> {
         self.organization = organization;
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn address(&self) -> Option<&Attributes<SS>> {
         self.address.as_ref()
     }

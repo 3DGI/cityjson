@@ -353,7 +353,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// assert!(VertexIndex64::from_u32(70000).is_some());
     /// ```
     #[inline(always)]
-    #[must_use] 
+    #[must_use]
     pub fn from_u32(value: u32) -> Option<Self> {
         T::from_u32(value).map(|v| Self::new(v))
     }
@@ -441,10 +441,12 @@ impl<T: VertexRef> VertexIndex<T> {
     /// Returns [`Error::IndexOverflow`] if the addition would overflow.
     #[inline]
     pub fn try_add_assign(&mut self, other: Self) -> Result<()> {
-        let sum = self.checked_add(other).ok_or_else(|| Error::IndexOverflow {
-            index_type: std::any::type_name::<T>().to_string(),
-            value: self.value().to_string(),
-        })?;
+        let sum = self
+            .checked_add(other)
+            .ok_or_else(|| Error::IndexOverflow {
+                index_type: std::any::type_name::<T>().to_string(),
+                value: self.value().to_string(),
+            })?;
         *self = sum;
         Ok(())
     }

@@ -247,7 +247,7 @@ pub trait ResourceRef:
     fn generation(&self) -> u16;
 
     /// Maximum index representable by this reference type.
-    #[must_use] 
+    #[must_use]
     fn max_index() -> u32 {
         u32::MAX
     }
@@ -273,19 +273,19 @@ impl ResourceId32 {
     ///
     /// * `index` - The index of the resource in the storage
     /// * `generation` - The generation counter for the resource slot
-    #[must_use] 
+    #[must_use]
     pub fn new(index: u32, generation: u16) -> Self {
         Self { index, generation }
     }
 
     /// Returns the index part of the identifier.
-    #[must_use] 
+    #[must_use]
     pub fn index(&self) -> u32 {
         self.index
     }
 
     /// Returns the generation part of the identifier.
-    #[must_use] 
+    #[must_use]
     pub fn generation(&self) -> u16 {
         self.generation
     }
@@ -404,7 +404,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
     }
 
     /// Internal helper to create a new (empty) resource pool.
-    #[must_use] 
+    #[must_use]
     pub fn new_pool() -> Self {
         Self {
             resources: Vec::new(),
@@ -416,21 +416,21 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
 
     /// Returns a zero-copy raw view of the pool internals.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn raw_view(&self) -> RawPoolView<'_, T> {
         RawPoolView::new(&self.resources, &self.generations)
     }
 
     /// Returns the underlying resource slots (`None` means vacant slot).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn as_slice(&self) -> &[Option<T>] {
         &self.resources
     }
 
     /// Returns generation counters for each slot.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn generations(&self) -> &[u16] {
         &self.generations
     }

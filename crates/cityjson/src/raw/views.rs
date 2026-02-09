@@ -13,25 +13,25 @@ impl<'a, T> RawSliceView<'a, T> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn as_slice(&self) -> &'a [T] {
         self.data
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, index: usize) -> Option<&'a T> {
         self.data.get(index)
     }
@@ -70,30 +70,30 @@ impl<'a, T> RawPoolView<'a, T> {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn resources(&self) -> &'a [Option<T>] {
         self.resources
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn generations(&self) -> &'a [u16] {
         self.generations
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.resources.len()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.resources.iter().filter(|r| r.is_some()).count()
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

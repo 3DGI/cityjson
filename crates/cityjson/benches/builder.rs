@@ -3,17 +3,22 @@
 #[allow(dead_code)]
 mod support;
 
-use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use std::hint::black_box;
-use support::{CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, params_from_env};
+use support::{params_from_env, CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER};
 
 mod benches {
-    use super::{CUBE_VERTICES, Criterion, params_from_env, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, Throughput, black_box};
+    use super::{
+        black_box, params_from_env, Criterion, Throughput, CUBE_VERTICES, DEFAULT_SIZE_BUILDER,
+        FAST_SIZE_BUILDER,
+    };
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::resources::pool::ResourceId32;
-    use cityjson::v2_0::{CityModel, Material, Texture, Semantic, SemanticType, CityObjectType, CityObject};
+    use cityjson::v2_0::{
+        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+    };
     use std::collections::HashMap;
 
     fn build_geometry_minimal(

@@ -15,7 +15,7 @@ pub struct Geometry<VR: VertexRef, SS: StringStorage> {
 
 impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
     #[allow(clippy::too_many_arguments)]
-    #[must_use] 
+    #[must_use]
     pub fn new(
         type_geometry: crate::cityjson::core::geometry::GeometryType,
         lod: Option<crate::cityjson::core::geometry::LoD>,
@@ -45,7 +45,8 @@ impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
                         .map(|(theme, map)| (theme.into_inner(), map.to_raw().clone()))
                         .collect()
                 }),
-                instance_template.map(super::super::resources::handles::TemplateGeometryRef::to_raw),
+                instance_template
+                    .map(super::super::resources::handles::TemplateGeometryRef::to_raw),
                 instance_reference_point,
                 instance_transformation_matrix,
             ),

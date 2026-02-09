@@ -1,4 +1,4 @@
-use crate::cityjson::core::appearance::{ImageType, WrapMode, TextureType};
+use crate::cityjson::core::appearance::{ImageType, TextureType, WrapMode};
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use crate::v2_0::types::RGBA;
 

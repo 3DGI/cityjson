@@ -146,13 +146,13 @@ pub struct AttributeRef(ResourceId32);
 #[allow(dead_code)]
 impl AttributeRef {
     /// Create a typed handle from index and generation.
-    #[must_use] 
+    #[must_use]
     pub fn from_parts(index: u32, generation: u16) -> Self {
         Self(ResourceId32::new(index, generation))
     }
 
     /// Check if this handle is null.
-    #[must_use] 
+    #[must_use]
     pub fn is_null(self) -> bool {
         self.0.index() == 0 && self.0.generation() == 0
     }

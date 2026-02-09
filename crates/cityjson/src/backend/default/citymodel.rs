@@ -114,7 +114,7 @@ where
     CityObjects: Default,
 {
     /// Create a new `CityModelCore` with the given type and version
-    #[must_use] 
+    #[must_use]
     pub fn new(type_citymodel: CityModelType, version: Option<CityJSONVersion>) -> Self {
         Self {
             type_citymodel,

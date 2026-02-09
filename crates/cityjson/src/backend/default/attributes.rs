@@ -175,7 +175,7 @@ pub struct Attributes<SS: StringStorage> {
 
 impl<SS: StringStorage> Attributes<SS> {
     /// Creates a new, empty attributes container.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
@@ -183,7 +183,7 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Retrieves a reference to the attribute value associated with the given key.
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, key: &str) -> Option<&AttributeValue<SS>> {
         self.values.get(key)
     }
@@ -210,13 +210,13 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Returns the number of attributes in the container.
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
     /// Checks if the attributes container is empty.
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -242,7 +242,7 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Checks if the attributes container contains a key.
-    #[must_use] 
+    #[must_use]
     pub fn contains_key(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }

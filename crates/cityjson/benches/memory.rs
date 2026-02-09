@@ -5,18 +5,20 @@ mod support;
 
 use rand::Rng;
 use std::hint::black_box;
-use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
+use support::{params_from_env, rng_from_seed, BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY};
 
 // Enable dhat heap profiling for the entire benchmark
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 mod benches {
-    use super::{rng_from_seed, Rng, BenchParams, black_box};
+    use super::{black_box, rng_from_seed, BenchParams, Rng};
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::v2_0::{CityModel, Material, Texture, CityObject, CityObjectType, Semantic, SemanticType};
+    use cityjson::v2_0::{
+        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+    };
     use std::collections::HashMap;
 
     /// Build a `CityModel` with the specified vertex index type and number of cityobjects.

@@ -21,7 +21,7 @@ impl<SS: StringStorage, RR: ResourceRef, CO> Default for CityObjectsCore<SS, RR,
 }
 
 impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: DefaultResourcePool::new(),
@@ -29,7 +29,7 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: DefaultResourcePool::with_capacity(capacity),
@@ -53,12 +53,12 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.remove(id)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -71,17 +71,17 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.iter_mut()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn first(&self) -> Option<(RR, &CO)> {
         self.inner.first()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn last(&self) -> Option<(RR, &CO)> {
         self.inner.last()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn ids(&self) -> Vec<RR> {
         self.inner.iter().map(|(id, _)| id).collect()
     }

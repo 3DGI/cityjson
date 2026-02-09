@@ -1,7 +1,9 @@
 use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
-use cityjson::v2_0::{CityModel, Extension, CityObject, CityObjectType, Material, Texture, Semantic, SemanticType};
+use cityjson::v2_0::{
+    CityModel, CityObject, CityObjectType, Extension, Material, Semantic, SemanticType, Texture,
+};
 use std::collections::HashMap;
 
 /// Build a `CityModel` that uses the complete `CityJSON` v2.0 specifications with fake

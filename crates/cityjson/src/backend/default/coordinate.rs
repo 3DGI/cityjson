@@ -184,7 +184,7 @@ impl QuantizedCoordinate {
     ///
     /// A new `QuantizedCoordinate` instance
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new(x: i64, y: i64, z: i64) -> Self {
         Self { x, y, z }
     }
@@ -195,7 +195,7 @@ impl QuantizedCoordinate {
     ///
     /// The x-coordinate as an i64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn x(&self) -> i64 {
         self.x
     }
@@ -206,7 +206,7 @@ impl QuantizedCoordinate {
     ///
     /// The y-coordinate as an i64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn y(&self) -> i64 {
         self.y
     }
@@ -217,7 +217,7 @@ impl QuantizedCoordinate {
     ///
     /// The z-coordinate as an i64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn z(&self) -> i64 {
         self.z
     }
@@ -264,7 +264,7 @@ impl RealWorldCoordinate {
     ///
     /// A new `RealWorldCoordinate` instance
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
@@ -275,7 +275,7 @@ impl RealWorldCoordinate {
     ///
     /// The x-coordinate as an f64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn x(&self) -> f64 {
         self.x
     }
@@ -286,7 +286,7 @@ impl RealWorldCoordinate {
     ///
     /// The y-coordinate as an f64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn y(&self) -> f64 {
         self.y
     }
@@ -297,7 +297,7 @@ impl RealWorldCoordinate {
     ///
     /// The z-coordinate as an f64
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn z(&self) -> f64 {
         self.z
     }
@@ -341,7 +341,7 @@ impl UVCoordinate {
     ///
     /// A new `UVCoordinate` instance
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new(u: f32, v: f32) -> Self {
         Self { u, v }
     }
@@ -352,7 +352,7 @@ impl UVCoordinate {
     ///
     /// The u-coordinate as an f32
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn u(&self) -> f32 {
         self.u
     }
@@ -363,7 +363,7 @@ impl UVCoordinate {
     ///
     /// The v-coordinate as an f32
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn v(&self) -> f32 {
         self.v
     }
@@ -431,7 +431,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     ///
     /// A new empty `Vertices` collection
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             coordinates: Vec::new(),
@@ -445,7 +445,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     ///
     /// A new empty `Vertices` collection
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             coordinates: Vec::with_capacity(capacity),
@@ -483,7 +483,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     /// # Returns
     ///
     /// The number of vertices
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.coordinates.len()
     }
@@ -531,7 +531,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     ///
     /// `true` if the collection contains no vertices, `false` otherwise
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.coordinates.is_empty()
     }
@@ -542,7 +542,7 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     ///
     /// A slice containing all coordinates in the collection
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn as_slice(&self) -> &[V] {
         &self.coordinates
     }

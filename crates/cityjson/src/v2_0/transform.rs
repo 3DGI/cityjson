@@ -12,15 +12,15 @@ impl Display for Transform {
 }
 
 impl Transform {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self(transform::TransformCore::new())
     }
-    #[must_use] 
+    #[must_use]
     pub fn scale(&self) -> [f64; 3] {
         self.0.scale()
     }
-    #[must_use] 
+    #[must_use]
     pub fn translate(&self) -> [f64; 3] {
         self.0.translate()
     }

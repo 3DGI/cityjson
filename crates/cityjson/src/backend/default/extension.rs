@@ -40,7 +40,7 @@ pub trait ExtensionItem<SS: StringStorage> {
 }
 
 impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: Vec::new(),
@@ -66,17 +66,17 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&E> {
         self.inner.iter().find(|e| e.name().as_ref() == name)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }

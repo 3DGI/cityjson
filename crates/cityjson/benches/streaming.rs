@@ -89,14 +89,12 @@ struct StreamMetrics {
 }
 
 fn stream_verbose_enabled() -> bool {
-    env::var(STREAM_VERBOSE_ENV)
-        .ok()
-        .is_some_and(|val| {
-            matches!(
-                val.trim().to_lowercase().as_str(),
-                "1" | "true" | "yes" | "y" | "on"
-            )
-        })
+    env::var(STREAM_VERBOSE_ENV).ok().is_some_and(|val| {
+        matches!(
+            val.trim().to_lowercase().as_str(),
+            "1" | "true" | "yes" | "y" | "on"
+        )
+    })
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
@@ -315,12 +313,16 @@ fn stream_seed_from_env() -> u64 {
 }
 
 fn stream_out_path() -> PathBuf {
-    env::var("STREAM_OUT").map_or_else(|_| PathBuf::from("target/streaming-metrics.json"), PathBuf::from)
+    env::var("STREAM_OUT").map_or_else(
+        |_| PathBuf::from("target/streaming-metrics.json"),
+        PathBuf::from,
+    )
 }
 
 fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()> {
     let producer_value = metrics
-        .producer_ms.map_or_else(|| "null".to_string(), |v| format!("{v:.6}"));
+        .producer_ms
+        .map_or_else(|| "null".to_string(), |v| format!("{v:.6}"));
     let payload = format!(
         "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"time_ms\": {:.6},\n    \"time_producer_ms\": {},\n    \"time_consumer_ms\": {:.6},\n    \"throughput_elem_s\": {:.6}\n  }}\n}}\n",
         metrics.mode,
@@ -333,11 +335,15 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 }
 
 mod default_backend {
-    use super::{WireGlobalProperties, WireGeometry, WireSemantic, WireMaterial, WireAttributeValue, StreamMetrics, mpsc, StreamMessage, Instant, thread, producer, stream_verbose_enabled, process_batch};
+    use super::{
+        mpsc, process_batch, producer, stream_verbose_enabled, thread,
+        Instant, StreamMessage, StreamMetrics, WireAttributeValue, WireGeometry, WireGlobalProperties,
+        WireMaterial, WireSemantic,
+    };
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::resources::pool::ResourceId32;
-    use cityjson::v2_0::{CityModel, Semantic, SemanticType, Material, CityObjectType, CityObject};
+    use cityjson::v2_0::{CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType};
 
     fn create_batch_model(
         global: &WireGlobalProperties,

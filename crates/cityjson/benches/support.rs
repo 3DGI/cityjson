@@ -1,5 +1,5 @@
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::env;
 
 pub const BENCH_VERSION: &str = "v2";
@@ -32,7 +32,7 @@ pub struct BenchParams {
     pub seed: u64,
 }
 
-#[must_use] 
+#[must_use]
 pub fn params_from_env(default_size: usize, fast_size: usize) -> BenchParams {
     let mode = env::var("BENCH_MODE").unwrap_or_else(|_| "full".to_string());
 
@@ -55,7 +55,7 @@ pub fn params_from_env(default_size: usize, fast_size: usize) -> BenchParams {
     BenchParams { size, seed }
 }
 
-#[must_use] 
+#[must_use]
 pub fn rng_from_seed(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)
 }

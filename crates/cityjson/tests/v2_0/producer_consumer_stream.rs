@@ -166,14 +166,12 @@ struct BatchMetrics {
 // ============================================================================
 
 fn stream_verbose_enabled() -> bool {
-    std::env::var(STREAM_VERBOSE_ENV)
-        .ok()
-        .is_some_and(|val| {
-            matches!(
-                val.trim().to_lowercase().as_str(),
-                "1" | "true" | "yes" | "y" | "on"
-            )
-        })
+    std::env::var(STREAM_VERBOSE_ENV).ok().is_some_and(|val| {
+        matches!(
+            val.trim().to_lowercase().as_str(),
+            "1" | "true" | "yes" | "y" | "on"
+        )
+    })
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {

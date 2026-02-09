@@ -95,15 +95,15 @@ pub struct TransformCore {
 }
 
 impl TransformCore {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
-    #[must_use] 
+    #[must_use]
     pub fn scale(&self) -> [f64; 3] {
         self.scale
     }
-    #[must_use] 
+    #[must_use]
     pub fn translate(&self) -> [f64; 3] {
         self.translate
     }
