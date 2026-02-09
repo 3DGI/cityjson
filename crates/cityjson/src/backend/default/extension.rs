@@ -44,7 +44,7 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
     pub fn new() -> Self {
         Self {
             inner: Vec::new(),
-            _marker: Default::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -57,8 +57,8 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
         self
     }
 
-    pub fn remove(&mut self, name: SS::String) -> bool {
-        if let Some(pos) = self.inner.iter().position(|e| e.name() == &name) {
+    pub fn remove(&mut self, name: &SS::String) -> bool {
+        if let Some(pos) = self.inner.iter().position(|e| e.name() == name) {
             self.inner.remove(pos);
             true
         } else {
@@ -80,6 +80,14 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, E> {
+        self.inner.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, E> {
+        self.inner.iter_mut()
+    }
 }
 
 // Allow consuming iteration
@@ -98,7 +106,7 @@ impl<'a, SS: StringStorage, E: ExtensionItem<SS>> IntoIterator for &'a Extension
     type IntoIter = std::slice::Iter<'a, E>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.inner.iter()
+        self.iter()
     }
 }
 
@@ -108,7 +116,7 @@ impl<'a, SS: StringStorage, E: ExtensionItem<SS>> IntoIterator for &'a mut Exten
     type IntoIter = std::slice::IterMut<'a, E>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.inner.iter_mut()
+        self.iter_mut()
     }
 }
 
@@ -219,7 +227,7 @@ mod tests {
 
         // Test Display
         assert_eq!(
-            format!("{}", ext),
+            format!("{ext}"),
             "name: noise, url: https://example.com/noise/1.0, version: 1.0"
         );
     }
@@ -267,12 +275,12 @@ mod tests {
         exts.add(ext);
 
         // Remove non-existent extension
-        assert!(!exts.remove("other".to_string()));
+        assert!(!exts.remove(&"other".to_string()));
         assert_eq!(exts.len(), 1);
         assert!(!exts.is_empty());
 
         // Remove existing extension
-        assert!(exts.remove("noise".to_string()));
+        assert!(exts.remove(&"noise".to_string()));
         assert_eq!(exts.len(), 0);
         assert!(exts.is_empty());
     }

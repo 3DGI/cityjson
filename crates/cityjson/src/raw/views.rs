@@ -38,11 +38,20 @@ impl<'a, T> RawSliceView<'a, T> {
 
     #[inline]
     pub fn iter(&self) -> std::slice::Iter<'a, T> {
-        self.data.iter()
+        self.into_iter()
     }
 }
 
 impl<'a, T> IntoIterator for RawSliceView<'a, T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'_ RawSliceView<'a, T> {
     type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
 

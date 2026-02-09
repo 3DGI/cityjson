@@ -19,7 +19,7 @@ impl<SS: StringStorage> Extensions<SS> {
         self
     }
 
-    pub fn remove(&mut self, name: SS::String) -> bool {
+    pub fn remove(&mut self, name: &SS::String) -> bool {
         self.inner.remove(name)
     }
 
@@ -37,6 +37,14 @@ impl<SS: StringStorage> Extensions<SS> {
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, Extension<SS>> {
+        self.inner.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Extension<SS>> {
+        self.inner.iter_mut()
+    }
 }
 
 impl<SS: StringStorage> IntoIterator for Extensions<SS> {
@@ -53,7 +61,7 @@ impl<'a, SS: StringStorage> IntoIterator for &'a Extensions<SS> {
     type IntoIter = std::slice::Iter<'a, Extension<SS>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.inner).into_iter()
+        self.iter()
     }
 }
 
@@ -62,7 +70,7 @@ impl<'a, SS: StringStorage> IntoIterator for &'a mut Extensions<SS> {
     type IntoIter = std::slice::IterMut<'a, Extension<SS>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&mut self.inner).into_iter()
+        self.iter_mut()
     }
 }
 

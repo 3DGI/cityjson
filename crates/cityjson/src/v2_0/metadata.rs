@@ -101,7 +101,7 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn set_contact_name<S: AsRef<str>>(&mut self, name: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.name = name.as_ref().to_owned();
+            name.as_ref().clone_into(&mut poc.name);
         } else {
             self.point_of_contact = Some(Contact {
                 name: name.as_ref().to_owned(),
@@ -112,7 +112,7 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn set_email_address<S: AsRef<str>>(&mut self, email: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.email_address = email.as_ref().to_owned();
+            email.as_ref().clone_into(&mut poc.email_address);
         } else {
             self.point_of_contact = Some(Contact {
                 email_address: email.as_ref().to_owned(),
@@ -175,12 +175,12 @@ impl<SS: StringStorage> std::fmt::Display for Metadata<SS> {
         write!(
             f,
             "geographical_extent: {}, identifier: {}, point_of_contact: {}, reference_date: {}, reference_system: {}, title: {}",
-            format_option(&self.geographical_extent),
-            format_option(&self.identifier),
-            format_option(&self.point_of_contact),
-            format_option(&self.reference_date),
-            format_option(&self.reference_system),
-            format_option(&self.title)
+            format_option(self.geographical_extent.as_ref()),
+            format_option(self.identifier.as_ref()),
+            format_option(self.point_of_contact.as_ref()),
+            format_option(self.reference_date.as_ref()),
+            format_option(self.reference_system.as_ref()),
+            format_option(self.title.as_ref())
         )
     }
 }
@@ -287,12 +287,12 @@ impl<SS: StringStorage> Display for Contact<SS> {
             "contact_name: {}, email_address: {}, role: {}, website: {}, contact_type: {}, address: {}, phone: {}, organization: {}",
             self.name,
             self.email_address,
-            format_option(&self.role),
-            format_option(&self.website),
-            format_option(&self.kind),
-            format_option(&self.address),
-            format_option(&self.phone),
-            format_option(&self.organization)
+            format_option(self.role.as_ref()),
+            format_option(self.website.as_ref()),
+            format_option(self.kind.as_ref()),
+            format_option(self.address.as_ref()),
+            format_option(self.phone.as_ref()),
+            format_option(self.organization.as_ref())
         )
     }
 }

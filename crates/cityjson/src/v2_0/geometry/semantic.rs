@@ -68,7 +68,7 @@ impl<SS: StringStorage> Display for Semantic<SS> {
             self.kind,
             self.children,
             self.parent,
-            format_option(&self.attributes)
+            format_option(self.attributes.as_ref())
         )
     }
 }

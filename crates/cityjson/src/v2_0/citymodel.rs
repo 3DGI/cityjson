@@ -643,14 +643,14 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "CityModel {{")?;
         writeln!(f, "\ttype: {}", self.type_citymodel())?;
-        writeln!(f, "\tversion: {}", format_option(&self.version()))?;
+        writeln!(f, "\tversion: {}", format_option(self.version().as_ref()))?;
         writeln!(
             f,
             "\textensions: {{ {} }}",
-            format_option(&self.extensions())
+            format_option(self.extensions())
         )?;
-        writeln!(f, "\ttransform: {{ {} }}", format_option(&self.transform()))?;
-        writeln!(f, "\tmetadata: {}", format_option(&self.metadata()))?;
+        writeln!(f, "\ttransform: {{ {} }}", format_option(self.transform()))?;
+        writeln!(f, "\tmetadata: {}", format_option(self.metadata()))?;
         writeln!(
             f,
             "\tCityObjects: {{ nr. cityobjects: {}, nr. geometries: {} }}",
@@ -663,8 +663,8 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
             self.material_count(),
             self.texture_count(),
             self.vertices_texture().len(),
-            format_option(&self.default_theme_texture()),
-            format_option(&self.default_theme_material())
+            format_option(self.default_theme_texture().as_ref()),
+            format_option(self.default_theme_material().as_ref())
         )?;
         writeln!(f, "\tgeometry-templates: not implemented")?;
         writeln!(
@@ -672,7 +672,7 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
             "\tvertices: {{ nr. vertices: {}, quantized coordinates: not implemented }}",
             self.vertices().len()
         )?;
-        writeln!(f, "\textra: {}", format_option(&self.extra()))?;
+        writeln!(f, "\textra: {}", format_option(self.extra()))?;
         writeln!(f, "}}")
     }
 }

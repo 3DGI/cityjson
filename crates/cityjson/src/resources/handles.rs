@@ -53,12 +53,12 @@ macro_rules! define_handle {
             }
 
             /// Get the underlying index.
-            pub(crate) fn index(&self) -> u32 {
+            pub(crate) fn index(self) -> u32 {
                 self.0.index()
             }
 
             /// Get the underlying generation.
-            pub(crate) fn generation(&self) -> u16 {
+            pub(crate) fn generation(self) -> u16 {
                 self.0.generation()
             }
 
@@ -72,12 +72,12 @@ macro_rules! define_handle {
                 (self.0.index(), self.0.generation())
             }
 
-            /// Convert to raw ResourceId32 (internal use only).
+            /// Convert to raw `ResourceId32` (internal use only).
             pub(crate) fn to_raw(self) -> ResourceId32 {
                 self.0
             }
 
-            /// Convert from raw ResourceId32 (internal use only).
+            /// Convert from raw `ResourceId32` (internal use only).
             pub(crate) fn from_raw(raw: ResourceId32) -> Self {
                 Self(raw)
             }
@@ -133,7 +133,7 @@ define_handle! {
 }
 
 define_handle! {
-    /// Handle to a CityObject resource.
+    /// Handle to a `CityObject` resource.
     CityObjectRef
 }
 
@@ -158,12 +158,12 @@ impl AttributeRef {
     }
 
     /// Get the underlying index.
-    pub(crate) fn index(&self) -> u32 {
+    pub(crate) fn index(self) -> u32 {
         self.0.index()
     }
 
     /// Get the underlying generation.
-    pub(crate) fn generation(&self) -> u16 {
+    pub(crate) fn generation(self) -> u16 {
         self.0.generation()
     }
 
