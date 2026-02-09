@@ -6,6 +6,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
+use num::ToPrimitive;
+
 const DEFAULT_SEED: u64 = 12345;
 
 const DEFAULT_STREAM_SIZE: usize = 10_000;
@@ -128,15 +130,44 @@ fn materials_for(
         .collect()
 }
 
+fn narrow_i64_from_u64(value: u64) -> i64 {
+    i64::try_from(value).expect("value must fit in i64 for benchmark data generation")
+}
+
+fn narrow_f64_from_i64(value: i64) -> f64 {
+    let narrow = i32::try_from(value).expect("value must fit in i32 for benchmark metrics");
+    f64::from(narrow)
+}
+
+fn narrow_f64_from_usize(value: usize) -> f64 {
+    let narrow = u32::try_from(value).expect("value must fit in u32 for benchmark metrics");
+    f64::from(narrow)
+}
+
+fn narrow_f32_from_f64(value: f64) -> f32 {
+    value
+        .to_f32()
+        .expect("value must fit in f32 for benchmark material properties")
+}
+
+fn narrow_vec3_f32_from_f64(value: [f64; 3]) -> [f32; 3] {
+    [
+        narrow_f32_from_f64(value[0]),
+        narrow_f32_from_f64(value[1]),
+        narrow_f32_from_f64(value[2]),
+    ]
+}
+
 fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)> {
+    let year_offset = i64::try_from(i % 75).expect("modulo result must fit in i64");
     vec![
         (
             "height".to_string(),
-            WireAttributeValue::Float(height as f64),
+            WireAttributeValue::Float(narrow_f64_from_i64(height)),
         ),
         (
             "yearOfConstruction".to_string(),
-            WireAttributeValue::Integer(1950 + ((i % 75) as i64)),
+            WireAttributeValue::Integer(1950 + year_offset),
         ),
         (
             "isCommercial".to_string(),
@@ -163,7 +194,7 @@ fn wire_geometry_solid(
     }
 }
 
-fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize, seed: u64) {
+fn producer(tx: &mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize, seed: u64) {
     let global_props = WireGlobalProperties {
         metadata_identifier: "streaming-benchmark".to_string(),
         crs: "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
@@ -172,17 +203,20 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize,
     tx.send(StreamMessage::GlobalProperties(global_props))
         .expect("Failed to send global properties");
 
-    let building_count = size as u64;
-    let seed_offset = seed as i64;
+    let building_count = u64::try_from(size).expect("stream size must fit in u64");
+    let batch_size_u64 = u64::try_from(batch_size).expect("stream batch size must fit in u64");
+    let seed_offset = narrow_i64_from_u64(seed);
 
     for i in 0..building_count {
         if stream_verbose_enabled() && i > 0 && i.is_multiple_of(100_000) {
             println!("Producer: Generated {i} / {building_count} buildings");
         }
 
-        let base_x = 100 + (((i as i64 + seed_offset) * 50) % 10_000);
-        let base_y = 200 + (((i as i64 + seed_offset) * 37) % 10_000);
-        let height = 30 + ((i + (seed % 20)) % 20) as i64 * 3;
+        let i_signed = narrow_i64_from_u64(i);
+        let base_x = 100 + (((i_signed + seed_offset) * 50) % 10_000);
+        let base_y = 200 + (((i_signed + seed_offset) * 37) % 10_000);
+        let height_cycle = narrow_i64_from_u64((i + (seed % 20)) % 20);
+        let height = 30 + height_cycle * 3;
 
         let vertices = vec![
             (base_x, base_y, 0),
@@ -246,7 +280,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize,
         tx.send(StreamMessage::CityObject(cityobject))
             .expect("Failed to send CityObject");
 
-        if stream_verbose_enabled() && i > 0 && i.is_multiple_of(batch_size as u64) {
+        if stream_verbose_enabled() && i > 0 && i.is_multiple_of(batch_size_u64) {
             println!("Producer: checkpoint {i}");
         }
     }
@@ -337,7 +371,8 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 mod default_backend {
     use super::{
         Instant, StreamMessage, StreamMetrics, WireAttributeValue, WireGeometry,
-        WireGlobalProperties, WireMaterial, WireSemantic, mpsc, process_batch, producer,
+        WireGlobalProperties, WireMaterial, WireSemantic, mpsc, narrow_f32_from_f64,
+        narrow_f64_from_usize, narrow_vec3_f32_from_f64, process_batch, producer,
         stream_verbose_enabled, thread,
     };
     use cityjson::backend::default::geometry::GeometryBuilder;
@@ -345,9 +380,7 @@ mod default_backend {
     use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::{CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType};
 
-    fn create_batch_model(
-        global: &WireGlobalProperties,
-    ) -> Result<CityModel<u32, OwnedStringStorage>> {
+    fn create_batch_model(global: &WireGlobalProperties) -> CityModel<u32, OwnedStringStorage> {
         let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
 
         model
@@ -356,7 +389,7 @@ mod default_backend {
         model
             .metadata_mut()
             .set_reference_system(CRS::new(global.crs.clone()));
-        Ok(model)
+        model
     }
 
     fn build_geometry_from_wire(
@@ -452,22 +485,22 @@ mod default_backend {
         let mut material = Material::new(wire_material.name.clone());
 
         if let Some(val) = wire_material.ambient_intensity {
-            material.set_ambient_intensity(Some(val as f32));
+            material.set_ambient_intensity(Some(narrow_f32_from_f64(val)));
         }
         if let Some(val) = wire_material.diffuse_color {
-            material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+            material.set_diffuse_color(Some(narrow_vec3_f32_from_f64(val).into()));
         }
         if let Some(val) = wire_material.emissive_color {
-            material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+            material.set_emissive_color(Some(narrow_vec3_f32_from_f64(val).into()));
         }
         if let Some(val) = wire_material.specular_color {
-            material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+            material.set_specular_color(Some(narrow_vec3_f32_from_f64(val).into()));
         }
         if let Some(val) = wire_material.shininess {
-            material.set_shininess(Some(val as f32));
+            material.set_shininess(Some(narrow_f32_from_f64(val)));
         }
         if let Some(val) = wire_material.transparency {
-            material.set_transparency(Some(val as f32));
+            material.set_transparency(Some(narrow_f32_from_f64(val)));
         }
         if let Some(val) = wire_material.is_smooth {
             material.set_is_smooth(Some(val));
@@ -499,7 +532,6 @@ mod default_backend {
     fn parse_lod(lod_str: &str) -> LoD {
         match lod_str {
             "0" => LoD::LoD0,
-            "1" => LoD::LoD1,
             "2" => LoD::LoD2,
             "3" => LoD::LoD3,
             _ => LoD::LoD1,
@@ -514,13 +546,13 @@ mod default_backend {
         let result = thread::scope(|s| {
             let producer_handle = s.spawn(move || {
                 let producer_start = Instant::now();
-                producer(tx, size, batch, seed);
+                producer(&tx, size, batch, seed);
                 producer_start.elapsed()
             });
 
             let consumer_handle = s.spawn(move || {
                 let consumer_start = Instant::now();
-                let result = consumer(rx, size, batch);
+                let result = consumer(&rx, size, batch);
                 let consumer_duration = consumer_start.elapsed();
                 (result, consumer_duration)
             });
@@ -537,7 +569,7 @@ mod default_backend {
 
         consumer_result?;
 
-        let (total_s, producer_s) = match mode {
+        let (elapsed_total_seconds, elapsed_producer_seconds) = match mode {
             "consumer" => (consumer_duration.as_secs_f64(), None),
             _ => (
                 total_duration.as_secs_f64(),
@@ -545,21 +577,21 @@ mod default_backend {
             ),
         };
 
-        let throughput = size as f64 / total_s;
-        let total_ms = total_s * 1000.0;
-        let producer_ms = producer_s.map(|v| v * 1000.0);
-        let consumer_ms = consumer_duration.as_secs_f64() * 1000.0;
+        let throughput = narrow_f64_from_usize(size) / elapsed_total_seconds;
+        let elapsed_total_millis = elapsed_total_seconds * 1000.0;
+        let elapsed_producer_millis = elapsed_producer_seconds.map(|v| v * 1000.0);
+        let elapsed_consumer_millis = consumer_duration.as_secs_f64() * 1000.0;
 
         Ok(StreamMetrics {
-            total_ms,
-            producer_ms,
-            consumer_ms,
+            total_ms: elapsed_total_millis,
+            producer_ms: elapsed_producer_millis,
+            consumer_ms: elapsed_consumer_millis,
             throughput_elem_s: throughput,
             mode: mode.to_string(),
         })
     }
 
-    fn consumer(rx: mpsc::Receiver<StreamMessage>, size: usize, batch_size: usize) -> Result<()> {
+    fn consumer(rx: &mpsc::Receiver<StreamMessage>, size: usize, batch_size: usize) -> Result<()> {
         let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
             if stream_verbose_enabled() {
                 println!("Consumer: Received global properties");
@@ -574,7 +606,7 @@ mod default_backend {
         let mut current_batch_num = 0;
         let mut total_buildings_processed = 0;
 
-        let mut current_model = create_batch_model(&global_props)?;
+        let mut current_model = create_batch_model(&global_props);
         let mut buildings_in_batch = 0;
         let mut surfaces_in_batch = 0;
 
@@ -634,8 +666,7 @@ mod default_backend {
                         );
 
                         drop(current_model);
-                        let new_model = create_batch_model(&global_props)?;
-                        current_model = new_model;
+                        current_model = create_batch_model(&global_props);
 
                         current_batch_num += 1;
                         buildings_in_batch = 0;
