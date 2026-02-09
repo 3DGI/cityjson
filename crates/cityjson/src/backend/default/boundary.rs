@@ -325,6 +325,11 @@ impl<VR: VertexRef> Boundary<VR> {
     /// A `Result` containing either the nested `MultiPoint` representation or an error
     /// if the boundary cannot be interpreted as a `MultiPoint`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::IncompatibleBoundary`] when this boundary is not a
+    /// `MultiPoint`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -367,6 +372,12 @@ impl<VR: VertexRef> Boundary<VR> {
     /// A `Result` containing either the nested `MultiLineString` representation or an error
     /// if the boundary cannot be interpreted as a `MultiLineString`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::IncompatibleBoundary`] when this boundary is not a
+    /// `MultiLineString`.
+    /// Returns index-conversion errors when nested index offsets cannot be represented by `VR`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -407,6 +418,12 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// A `Result` containing either the nested Multi- or `CompositeSurface` representation or an error
     /// if the boundary cannot be interpreted as a Multi- or `CompositeSurface`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::IncompatibleBoundary`] when this boundary is not a
+    /// Multi- or `CompositeSurface`.
+    /// Returns index-conversion errors when nested index offsets cannot be represented by `VR`.
     ///
     /// # Examples
     ///
@@ -457,6 +474,11 @@ impl<VR: VertexRef> Boundary<VR> {
     /// A `Result` containing either the nested Solid representation or an error
     /// if the boundary cannot be interpreted as a Solid.
     ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::IncompatibleBoundary`] when this boundary is not a `Solid`.
+    /// Returns index-conversion errors when nested index offsets cannot be represented by `VR`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -499,6 +521,12 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// A `Result` containing either the nested Multi- or `CompositeSolid` representation or an error
     /// if the boundary cannot be interpreted as a Multi- or `CompositeSolid`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::IncompatibleBoundary`] when this boundary is not a
+    /// Multi- or `CompositeSolid`.
+    /// Returns index-conversion errors when nested index offsets cannot be represented by `VR`.
     ///
     /// # Examples
     ///
@@ -1120,7 +1148,11 @@ mod tests {
         // Test incompatible conversion
         let mut multi_point_boundary: Boundary<u32> = Boundary::new();
         multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert!(multi_point_boundary.to_nested_multi_or_composite_solid().is_err());
+        assert!(
+            multi_point_boundary
+                .to_nested_multi_or_composite_solid()
+                .is_err()
+        );
     }
 
     #[test]

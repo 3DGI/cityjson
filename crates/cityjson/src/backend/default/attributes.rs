@@ -334,11 +334,11 @@ mod tests {
 
         // Test type checking
         assert_eq!(
-            attrs.get("active").map(|v| v.value_type()),
+            attrs.get("active").map(AttributeValue::value_type),
             Some(AttributeValueType::Bool)
         );
         assert_eq!(
-            attrs.get("floors").map(|v| v.value_type()),
+            attrs.get("floors").map(AttributeValue::value_type),
             Some(AttributeValueType::Integer)
         );
     }
@@ -435,8 +435,8 @@ mod tests {
         attrs.insert("b".to_string(), AttributeValue::Integer(2));
         attrs.insert("c".to_string(), AttributeValue::Integer(3));
 
-        let mut keys: Vec<&str> = attrs.keys().map(|k| k.as_ref()).collect();
-        keys.sort();
+        let mut keys: Vec<&str> = attrs.keys().map(AsRef::as_ref).collect();
+        keys.sort_unstable();
 
         assert_eq!(keys, vec!["a", "b", "c"]);
     }
@@ -451,7 +451,7 @@ mod tests {
         );
         attrs.insert("height".to_string(), AttributeValue::Float(25.5));
 
-        let display_str = format!("{}", attrs);
+        let display_str = format!("{attrs}");
         assert!(display_str.contains("\"name\""));
         assert!(display_str.contains("\"height\""));
     }
@@ -470,7 +470,7 @@ mod tests {
         ];
 
         for (val, expected) in values {
-            let display_str = format!("{}", val);
+            let display_str = format!("{val}");
             assert_eq!(display_str, expected);
         }
     }

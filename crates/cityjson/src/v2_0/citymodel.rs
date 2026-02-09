@@ -10,11 +10,11 @@ use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::geometry::Geometry;
+use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObjects, Extensions, Transform};
-use crate::{format_option, CityJSONVersion};
+use crate::{CityJSONVersion, format_option};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -81,6 +81,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_semantic_mut(id.to_raw())
     }
 
+    /// Add a semantic and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the semantic pool cannot store
+    /// additional entries for `ResourceId32`.
     pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef> {
         self.inner.add_semantic(semantic).map(SemanticRef::from_raw)
     }
@@ -124,6 +130,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_semantics();
     }
 
+    /// Return an existing semantic handle or insert a new semantic.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new semantic exceeds
+    /// the semantic pool capacity.
     pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef>
     where
         Semantic<SS>: PartialEq,
@@ -141,6 +153,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_material_mut(id.to_raw())
     }
 
+    /// Add a material and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the material pool cannot store
+    /// additional entries for `ResourceId32`.
     pub fn add_material(&mut self, material: Material<SS>) -> Result<MaterialRef> {
         self.inner.add_material(material).map(MaterialRef::from_raw)
     }
@@ -180,6 +198,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_materials();
     }
 
+    /// Return an existing material handle or insert a new material.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new material exceeds
+    /// the material pool capacity.
     pub fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<MaterialRef>
     where
         Material<SS>: PartialEq,
@@ -197,6 +221,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_texture_mut(id.to_raw())
     }
 
+    /// Add a texture and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the texture pool cannot store
+    /// additional entries for `ResourceId32`.
     pub fn add_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef> {
         self.inner.add_texture(texture).map(TextureRef::from_raw)
     }
@@ -234,6 +264,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_textures();
     }
 
+    /// Return an existing texture handle or insert a new texture.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new texture exceeds
+    /// the texture pool capacity.
     pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef>
     where
         Texture<SS>: PartialEq,
@@ -251,6 +287,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_geometry_mut(id.to_raw())
     }
 
+    /// Add a geometry and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the geometry pool cannot store
+    /// additional entries for `ResourceId32`.
     pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryRef> {
         self.inner.add_geometry(geometry).map(GeometryRef::from_raw)
     }
@@ -293,6 +335,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.clear_vertices();
     }
 
+    /// Add a quantized vertex and return its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the quantized vertex
+    /// container cannot represent more vertices for `VR`.
     pub fn add_vertex(
         &mut self,
         coordinate: QuantizedCoordinate,
@@ -354,6 +402,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.cityobjects_mut().clear();
     }
 
+    /// Add a UV coordinate and return its vertex index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the UV-coordinate container
+    /// cannot represent more vertices for `VR`.
     pub fn add_uv_coordinate(
         &mut self,
         uvcoordinate: UVCoordinate,
@@ -373,6 +427,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.vertices_texture_mut()
     }
 
+    /// Add a template vertex and return its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the template-vertex
+    /// container cannot represent more vertices for `VR`.
     pub fn add_template_vertex(
         &mut self,
         coordinate: RealWorldCoordinate,
@@ -407,6 +467,12 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.get_template_geometry_mut(id.to_raw())
     }
 
+    /// Add a template geometry and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the template-geometry pool cannot
+    /// store additional entries for `ResourceId32`.
     pub fn add_template_geometry(
         &mut self,
         geometry: Geometry<VR, SS>,

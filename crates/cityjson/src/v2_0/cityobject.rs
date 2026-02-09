@@ -27,6 +27,12 @@ impl<SS: StringStorage> CityObjects<SS> {
         }
     }
 
+    /// Add a city object and return its handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the city-object pool cannot store
+    /// additional entries for `ResourceId32`.
     pub fn add(&mut self, city_object: CityObject<SS>) -> Result<CityObjectRef> {
         self.inner.add(city_object).map(CityObjectRef::from_raw)
     }
@@ -96,6 +102,12 @@ impl<SS: StringStorage> CityObjects<SS> {
             .collect()
     }
 
+    /// Add many city objects and return their handles.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting one of the objects
+    /// exceeds city-object pool capacity.
     pub fn add_many<I: IntoIterator<Item = CityObject<SS>>>(
         &mut self,
         objects: I,

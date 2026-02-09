@@ -637,6 +637,10 @@ where
     /// A Result containing a vector of sequential `VertexIndex<T>` values,
     /// or an error if the sequence would exceed the maximum value for type T.
     ///
+    /// # Errors
+    ///
+    /// Returns an index-conversion error when incrementing the sequence would overflow `T`.
+    ///
     /// # Examples
     ///
     /// ```

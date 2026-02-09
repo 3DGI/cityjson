@@ -498,6 +498,12 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
     ///
     /// A `Result` containing the index of the newly added coordinate or an error
     /// if the collection has reached its maximum capacity
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::VerticesContainerFull`] when adding the coordinate would exceed the
+    /// maximum number of vertices representable by `VR`.
+    /// Returns index-conversion errors when converting the coordinate position to `VertexIndex<VR>`.
     pub fn push(&mut self, coordinate: V) -> Result<VertexIndex<VR>> {
         if self.coordinates.len() >= VR::MAX.try_into().unwrap_or(usize::MAX) {
             return Err(Error::VerticesContainerFull {

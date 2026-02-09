@@ -37,6 +37,12 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         }
     }
 
+    /// Add a city object and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the city-object pool cannot store
+    /// additional entries for the configured `RR` reference type.
     pub fn add(&mut self, city_object: CO) -> Result<RR> {
         self.inner.add(city_object)
     }
@@ -86,6 +92,12 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.iter().map(|(id, _)| id).collect()
     }
 
+    /// Add multiple city objects and return their resource references.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting one of the objects
+    /// would exceed the city-object pool capacity for `RR`.
     pub fn add_many<I: IntoIterator<Item = CO>>(&mut self, objects: I) -> Result<Vec<RR>> {
         objects.into_iter().map(|obj| self.add(obj)).collect()
     }

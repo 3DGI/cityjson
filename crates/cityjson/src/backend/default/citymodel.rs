@@ -183,7 +183,12 @@ where
         self.semantics.get_mut(id)
     }
 
-    /// Add a semantic and return its resource reference
+    /// Add a semantic and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the semantic pool cannot store
+    /// additional entries for the configured `RR` reference type.
     pub fn add_semantic(&mut self, semantic: Semantic) -> Result<RR> {
         self.semantics.add(semantic)
     }
@@ -236,6 +241,11 @@ where
     /// Note: Deduplication works when semantics are reused (same instance cloned).
     /// Creating new semantics with different `AttributeId32` values won't deduplicate
     /// even if attribute values are logically identical.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new semantic would
+    /// exceed the semantic pool capacity for `RR`.
     pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> Result<RR>
     where
         Semantic: PartialEq,
@@ -258,7 +268,12 @@ where
         self.materials.get_mut(id)
     }
 
-    /// Add a material and return its resource reference
+    /// Add a material and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the material pool cannot store
+    /// additional entries for the configured `RR` reference type.
     pub fn add_material(&mut self, material: Material) -> Result<RR> {
         self.materials.add(material)
     }
@@ -301,7 +316,12 @@ where
         self.materials.clear();
     }
 
-    /// Get or insert a material, returning the resource reference
+    /// Get or insert a material, returning the resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new material would
+    /// exceed the material pool capacity for `RR`.
     pub fn get_or_insert_material(&mut self, material: Material) -> Result<RR>
     where
         Material: PartialEq,
@@ -324,7 +344,12 @@ where
         self.textures.get_mut(id)
     }
 
-    /// Add a texture and return its resource reference
+    /// Add a texture and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the texture pool cannot store
+    /// additional entries for the configured `RR` reference type.
     pub fn add_texture(&mut self, texture: Texture) -> Result<RR> {
         self.textures.add(texture)
     }
@@ -367,7 +392,12 @@ where
         self.textures.clear();
     }
 
-    /// Get or insert a texture, returning the resource reference
+    /// Get or insert a texture, returning the resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new texture would
+    /// exceed the texture pool capacity for `RR`.
     pub fn get_or_insert_texture(&mut self, texture: Texture) -> Result<RR>
     where
         Texture: PartialEq,
@@ -390,7 +420,12 @@ where
         self.geometries.get_mut(id)
     }
 
-    /// Add a geometry and return its resource reference
+    /// Add a geometry and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the geometry pool cannot store
+    /// additional entries for the configured `RR` reference type.
     pub fn add_geometry(&mut self, geometry: Geometry) -> Result<RR> {
         self.geometries.add(geometry)
     }
@@ -438,6 +473,12 @@ where
         self.vertices.clear();
     }
 
+    /// Add a vertex and return its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex container cannot
+    /// represent more vertices for `VR`.
     pub fn add_vertex(&mut self, coordinate: C) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
@@ -455,10 +496,7 @@ where
     where
         Metadata: Default,
     {
-        if self.metadata.is_none() {
-            self.metadata = Some(Metadata::default());
-        }
-        self.metadata.as_mut().unwrap()
+        self.metadata.get_or_insert_with(Metadata::default)
     }
 
     // Extra methods
@@ -467,10 +505,7 @@ where
     }
 
     pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
-        if self.extra.is_none() {
-            self.extra = Some(Attributes::new());
-        }
-        self.extra.as_mut().unwrap()
+        self.extra.get_or_insert_with(Attributes::new)
     }
 
     // Transform methods
@@ -482,10 +517,7 @@ where
     where
         Transform: Default,
     {
-        if self.transform.is_none() {
-            self.transform = Some(Transform::default());
-        }
-        self.transform.as_mut().unwrap()
+        self.transform.get_or_insert_with(Transform::default)
     }
 
     // Extensions methods
@@ -497,10 +529,7 @@ where
     where
         Extensions: Default,
     {
-        if self.extensions.is_none() {
-            self.extensions = Some(Extensions::default());
-        }
-        self.extensions.as_mut().unwrap()
+        self.extensions.get_or_insert_with(Extensions::default)
     }
 
     // CityObjects methods
@@ -513,6 +542,12 @@ where
     }
 
     // UV coordinate methods
+    /// Add a UV coordinate and return its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the UV-coordinate container
+    /// cannot represent more vertices for `VR`.
     pub fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices_texture.push(uvcoordinate)
     }
@@ -530,6 +565,12 @@ where
     }
 
     // Template vertex methods
+    /// Add a template vertex and return its index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the template-vertex container
+    /// cannot represent more vertices for `VR`.
     pub fn add_template_vertex(
         &mut self,
         coordinate: RealWorldCoordinate,
@@ -565,7 +606,12 @@ where
         self.template_geometries.get_mut(id)
     }
 
-    /// Add a template geometry and return its resource reference
+    /// Add a template geometry and return its resource reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the template-geometry pool cannot
+    /// store additional entries for the configured `RR` reference type.
     pub fn add_template_geometry(&mut self, geometry: Geometry) -> Result<RR> {
         self.template_geometries.add(geometry)
     }

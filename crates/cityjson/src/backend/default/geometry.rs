@@ -27,20 +27,86 @@ where
     C: Coordinate,
     SS: StringStorage,
 {
+    /// Add a semantic resource.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the semantic pool cannot accept
+    /// additional entries.
     fn add_semantic(&mut self, semantic: Semantic) -> Result<RR>;
+    /// Return an existing semantic resource reference or insert a new one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new semantic would
+    /// exceed pool capacity.
     fn get_or_insert_semantic(&mut self, semantic: Semantic) -> Result<RR>;
+    /// Add a material resource.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the material pool cannot accept
+    /// additional entries.
     fn add_material(&mut self, material: Material) -> Result<RR>;
+    /// Return an existing material resource reference or insert a new one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new material would
+    /// exceed pool capacity.
     fn get_or_insert_material(&mut self, material: Material) -> Result<RR>;
+    /// Add a texture resource.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the texture pool cannot accept
+    /// additional entries.
     fn add_texture(&mut self, texture: Texture) -> Result<RR>;
+    /// Return an existing texture resource reference or insert a new one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new texture would
+    /// exceed pool capacity.
     fn get_or_insert_texture(&mut self, texture: Texture) -> Result<RR>;
+    /// Add a UV coordinate vertex.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the UV vertex container is
+    /// at capacity for `VR`.
     fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>>;
 
+    /// Add a regular geometry resource.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the geometry pool cannot accept
+    /// additional entries.
     fn add_geometry(&mut self, geometry: Geometry) -> Result<RR>;
+    /// Add a template geometry resource.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the template geometry pool cannot
+    /// accept additional entries.
     fn add_template_geometry(&mut self, geometry: Geometry) -> Result<RR>;
 
+    /// Add a regular coordinate vertex.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex container is at
+    /// capacity for `VR`.
     fn add_vertex(&mut self, coordinate: C) -> Result<VertexIndex<VR>>;
     fn vertices_mut(&mut self) -> &mut Vertices<VR, C>;
 
+    /// Add a template coordinate vertex.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the template-vertex
+    /// container is at capacity for `VR`.
     fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>>;
     fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate>;
 }
@@ -495,6 +561,11 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ResourcePoolFull`] when inserting a new semantic exceeds pool capacity.
+    /// Returns [`Error::InvalidReference`] when `index` is out of range.
     pub fn set_semantic_point(
         &mut self,
         index: Option<usize>,
@@ -541,6 +612,11 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ResourcePoolFull`] when inserting a new semantic exceeds pool capacity.
+    /// Returns [`Error::InvalidReference`] when `index` is out of range.
     pub fn set_semantic_linestring(
         &mut self,
         index: Option<usize>,
@@ -586,6 +662,11 @@ where
     /// # Returns
     ///
     /// The reference to the Semantic in the resource pool of the `model`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ResourcePoolFull`] when inserting a new semantic exceeds pool capacity.
+    /// Returns [`Error::InvalidReference`] when `index` is out of range.
     pub fn set_semantic_surface(
         &mut self,
         index: Option<usize>,
@@ -631,6 +712,11 @@ where
     /// # Returns
     ///
     /// The reference to the Material in the resource pool of the `model`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ResourcePoolFull`] when inserting a new material exceeds pool capacity.
+    /// Returns [`Error::InvalidReference`] when `index` is out of range.
     pub fn set_material_surface(
         &mut self,
         index: Option<usize>,
@@ -693,6 +779,11 @@ where
     /// # Returns
     ///
     /// The reference to the Texture in the resource pool of the `model`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ResourcePoolFull`] when inserting a new texture exceeds pool capacity.
+    /// Returns [`Error::InvalidReference`] when `index` is out of range.
     pub fn set_texture_ring(
         &mut self,
         index: Option<usize>,
@@ -922,6 +1013,38 @@ where
         }
     }
 
+    fn append_multisolid_shells(
+        &self,
+        boundary: &mut Boundary<VR>,
+        vertex_indices: &[VertexIndex<VR>],
+        counter: &mut BoundaryCounter<VR>,
+    ) {
+        for solid in &self.solids {
+            if let Some(outer_shell_idx) = solid.outer_shell {
+                boundary.solids.push(counter.shell_offset());
+                if outer_shell_idx < self.shells.len() {
+                    boundary.shells.push(counter.surface_offset());
+                    self.append_shell_surfaces(outer_shell_idx, boundary, vertex_indices, counter);
+                    counter.increment_shell_idx();
+                }
+
+                for &inner_shell_idx in &solid.inner_shells {
+                    if inner_shell_idx < self.shells.len() {
+                        boundary.shells.push(counter.surface_offset());
+                        self.append_shell_surfaces(
+                            inner_shell_idx,
+                            boundary,
+                            vertex_indices,
+                            counter,
+                        );
+                        counter.increment_shell_idx();
+                    }
+                }
+                counter.increment_solid_idx();
+            }
+        }
+    }
+
     fn populate_boundary_and_maps(
         &self,
         boundary: &mut Boundary<VR>,
@@ -989,36 +1112,7 @@ where
                     build_material_map::<VR, RR, SS>(&self.surface_materials, &self.surfaces);
             }
             GeometryType::MultiSolid | GeometryType::CompositeSolid => {
-                for solid in &self.solids {
-                    if let Some(outer_shell_idx) = solid.outer_shell {
-                        boundary.solids.push(counter.shell_offset());
-                        if outer_shell_idx < self.shells.len() {
-                            boundary.shells.push(counter.surface_offset());
-                            self.append_shell_surfaces(
-                                outer_shell_idx,
-                                boundary,
-                                vertex_indices,
-                                &mut counter,
-                            );
-                            counter.increment_shell_idx();
-                        }
-
-                        for &inner_shell_idx in &solid.inner_shells {
-                            if inner_shell_idx < self.shells.len() {
-                                boundary.shells.push(counter.surface_offset());
-                                self.append_shell_surfaces(
-                                    inner_shell_idx,
-                                    boundary,
-                                    vertex_indices,
-                                    &mut counter,
-                                );
-                                counter.increment_shell_idx();
-                            }
-                        }
-                        counter.increment_solid_idx();
-                    }
-                }
-
+                self.append_multisolid_shells(boundary, vertex_indices, &mut counter);
                 semantic_map_option = build_semantic_map::<VR, RR>(
                     &self.type_geometry,
                     &self.surface_semantics,

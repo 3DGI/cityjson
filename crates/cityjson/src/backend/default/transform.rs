@@ -148,6 +148,6 @@ mod test {
         let mut transform = TransformCore::new();
         transform.set_scale([1.5, 2.0, 2.5]);
         transform.set_translate([10.0, 20.0, 30.0]);
-        println!("Transform: {}", transform);
+        println!("Transform: {transform}");
     }
 }

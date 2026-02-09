@@ -765,7 +765,7 @@ mod tests {
         #[test]
         fn test_conversion() {
             let vi: VertexIndex<u16> = ResourceId32::new(1, 0).to_vertex_index().unwrap();
-            assert_eq!(vi.value(), 1u16)
+            assert_eq!(vi.value(), 1u16);
         }
     }
 
@@ -1119,7 +1119,13 @@ mod tests {
             for handle in handles {
                 handle.join().unwrap();
             }
-            assert!(pool.lock().unwrap().resources.iter().all(|r| r.is_none()));
+            assert!(
+                pool.lock()
+                    .unwrap()
+                    .resources
+                    .iter()
+                    .all(std::option::Option::is_none)
+            );
         }
 
         #[test]
@@ -1142,9 +1148,9 @@ mod tests {
             let remove_time = start.elapsed();
 
             println!("Performance metrics for 100K operations:");
-            println!("Add: {:?}", add_time);
-            println!("Lookup: {:?}", get_time);
-            println!("Remove: {:?}", remove_time);
+            println!("Add: {add_time:?}");
+            println!("Lookup: {get_time:?}");
+            println!("Remove: {remove_time:?}");
 
             // Reduced the test size and made assertions less strict
             assert!(add_time.as_secs() < 1);
