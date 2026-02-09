@@ -10,11 +10,11 @@ use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::Geometry;
 use crate::v2_0::geometry::semantic::Semantic;
+use crate::v2_0::geometry::Geometry;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObjects, Extensions, Transform};
-use crate::{CityJSONVersion, format_option};
+use crate::{format_option, CityJSONVersion};
 use std::collections::HashSet;
 use std::fmt;
 

@@ -370,10 +370,10 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 
 mod default_backend {
     use super::{
-        Instant, StreamMessage, StreamMetrics, WireAttributeValue, WireGeometry,
-        WireGlobalProperties, WireMaterial, WireSemantic, mpsc, narrow_f32_from_f64,
-        narrow_f64_from_usize, narrow_vec3_f32_from_f64, process_batch, producer,
-        stream_verbose_enabled, thread,
+        mpsc, narrow_f32_from_f64, narrow_f64_from_usize, narrow_vec3_f32_from_f64, process_batch,
+        producer, stream_verbose_enabled, thread, Instant, StreamMessage,
+        StreamMetrics, WireAttributeValue, WireGeometry, WireGlobalProperties,
+        WireMaterial, WireSemantic,
     };
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;

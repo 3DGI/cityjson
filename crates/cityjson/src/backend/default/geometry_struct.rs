@@ -4,8 +4,8 @@ use crate::cityjson::core::boundary::Boundary;
 use crate::cityjson::core::geometry::{GeometryType, LoD};
 use crate::cityjson::core::vertex::VertexRef;
 use crate::prelude::{StringStorage, VertexIndex};
-use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::mapping::textures::TextureMapCore;
+use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::pool::ResourceRef;
 
 // Type aliases to simplify complex type signatures

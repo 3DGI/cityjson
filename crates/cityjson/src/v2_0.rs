@@ -20,9 +20,9 @@ pub use cityobject::{
 };
 pub use extension::{Extension, Extensions};
 pub use geometry::{
-    Geometry,
     semantic::{Semantic, SemanticType},
+    Geometry,
 };
 pub use metadata::{Contact, ContactRole, ContactType, Metadata};
 pub use transform::Transform;
-pub use types::{CityObjectIdentifier, RGB, RGBA, ThemeName};
+pub use types::{CityObjectIdentifier, ThemeName, RGB, RGBA};

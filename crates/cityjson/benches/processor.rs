@@ -3,15 +3,15 @@
 #[allow(dead_code)]
 mod support;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use rand::Rng;
 use std::hint::black_box;
-use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_from_seed};
+use support::{params_from_env, rng_from_seed, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR};
 
 mod benches {
     use super::{
-        Criterion, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, Rng, black_box, params_from_env,
-        rng_from_seed,
+        black_box, params_from_env, rng_from_seed, Criterion, Rng, DEFAULT_SIZE_PROCESSOR,
+        FAST_SIZE_PROCESSOR,
     };
 
     use cityjson::backend::default::geometry::GeometryBuilder;
