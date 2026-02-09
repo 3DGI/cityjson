@@ -1612,8 +1612,8 @@ mod tests {
         let sem1 = Semantic::new(SemanticType::TransportationMarking);
 
         // Set semantics for two of the points
-        let sem_ref0 = builder.set_semantic_point(Some(p0), sem0, false);
-        let sem_ref1 = builder.set_semantic_point(Some(p2), sem1, false);
+        let first_semantic_ref = builder.set_semantic_point(Some(p0), sem0, false);
+        let second_semantic_ref = builder.set_semantic_point(Some(p2), sem1, false);
 
         // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
@@ -1637,32 +1637,38 @@ mod tests {
         assert_eq!(nested, vec![0, 1, 2]);
 
         // Check semantics
-        let semantics = geometry.semantics().expect("No semantics found");
-        let semantic_points = semantics.points();
+        let semantic_map = geometry.semantics().expect("No semantics found");
+        let point_semantics = semantic_map.points();
 
         // Verify points have semantics applied correctly
-        assert_eq!(semantic_points.len(), 3);
+        assert_eq!(point_semantics.len(), 3);
 
         // Verify the semantic references are the ones we set
-        let sem_refs: Vec<SemanticRef> = semantic_points
+        let referenced_semantics: Vec<SemanticRef> = point_semantics
             .iter()
             .filter_map(|s| s.as_ref())
             .cloned()
             .collect();
-        assert!(sem_refs.contains(&SemanticRef::from_raw(*sem_ref0.as_ref().unwrap())));
-        assert!(sem_refs.contains(&SemanticRef::from_raw(*sem_ref1.as_ref().unwrap())));
+        assert!(
+            referenced_semantics
+                .contains(&SemanticRef::from_raw(*first_semantic_ref.as_ref().unwrap()))
+        );
+        assert!(
+            referenced_semantics
+                .contains(&SemanticRef::from_raw(*second_semantic_ref.as_ref().unwrap()))
+        );
 
         // Verify the semantics themselves
-        let semantic0 = model
-            .get_semantic(SemanticRef::from_raw(sem_ref0.unwrap()))
+        let first_semantic = model
+            .get_semantic(SemanticRef::from_raw(first_semantic_ref.unwrap()))
             .expect("Semantic 0 not found");
-        assert_eq!(semantic0.type_semantic(), &SemanticType::TransportationHole);
+        assert_eq!(first_semantic.type_semantic(), &SemanticType::TransportationHole);
 
-        let semantic1 = model
-            .get_semantic(SemanticRef::from_raw(sem_ref1.unwrap()))
+        let second_semantic = model
+            .get_semantic(SemanticRef::from_raw(second_semantic_ref.unwrap()))
             .expect("Semantic 1 not found");
         assert_eq!(
-            semantic1.type_semantic(),
+            second_semantic.type_semantic(),
             &SemanticType::TransportationMarking
         );
     }
@@ -1925,8 +1931,8 @@ mod tests {
         assert_eq!(material.ambient_intensity().unwrap(), 0.5);
 
         // Check textures
-        let textures = geometry.textures().expect("No textures found");
-        let (_theme_texture, texture_map) = textures.first().unwrap();
+        let texture_sets = geometry.textures().expect("No textures found");
+        let (_theme_texture, texture_map) = texture_sets.first().unwrap();
 
         // Verify we have texture mappings
         assert!(
@@ -1953,11 +1959,11 @@ mod tests {
         );
 
         // Verify the texture objects themselves
-        let texture1 = model
+        let facade_texture = model
             .get_texture(TextureRef::from_raw(texture_ref.unwrap()))
             .expect("Texture 1 not found");
-        assert_eq!(texture1.image(), "facade.jpg");
-        assert_eq!(texture1.image_type(), &ImageType::Jpg);
+        assert_eq!(facade_texture.image(), "facade.jpg");
+        assert_eq!(facade_texture.image_type(), &ImageType::Jpg);
     }
 
     #[test]
@@ -2266,12 +2272,12 @@ mod tests {
             .expect("Failed to add left face of second cube");
 
         // Top face (cube 2)
-        let ring10 = builder
+        let top_face_ring_cube2 = builder
             .add_ring(&[p12, p13, p14, p15, p12])
             .expect("Failed to create ring");
-        let surface10 = builder.start_surface();
+        let top_face_surface_cube2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(ring10)
+            .add_surface_outer_ring(top_face_ring_cube2)
             .expect("Failed to add top face of second cube");
 
         // Bottom face (cube 2)
@@ -2292,7 +2298,8 @@ mod tests {
             builder.set_semantic_surface(Some(surface4), roof_semantic.clone(), false);
         let ground_sem_ref1 =
             builder.set_semantic_surface(Some(surface5), ground_semantic.clone(), false);
-        let roof_sem_ref2 = builder.set_semantic_surface(Some(surface10), roof_semantic, false);
+        let roof_sem_ref2 =
+            builder.set_semantic_surface(Some(top_face_surface_cube2), roof_semantic, false);
         let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic, false);
 
         // For the walls, we'll use material instead of semantics
@@ -2321,7 +2328,14 @@ mod tests {
             .expect("Failed to add shell for first cube");
 
         builder
-            .add_shell(&[surface6, surface7, surface8, surface9, surface10, surface11])
+            .add_shell(&[
+                surface6,
+                surface7,
+                surface8,
+                surface9,
+                top_face_surface_cube2,
+                surface11,
+            ])
             .expect("Failed to add shell for second cube");
 
         // Create solids from shells

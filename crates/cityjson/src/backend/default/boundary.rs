@@ -804,11 +804,11 @@ impl std::fmt::Display for BoundaryType {
 /// representations to keep track of the current position in each level of the hierarchy.
 #[derive(Default)]
 pub(crate) struct BoundaryCounter<VR: VertexRef> {
-    pub(crate) vertex_offset: VertexIndex<VR>, // Current position in vertex list
-    pub(crate) ring_offset: VertexIndex<VR>,   // Current position in ring list
-    pub(crate) surface_offset: VertexIndex<VR>, // Current position in surface list
-    pub(crate) shell_offset: VertexIndex<VR>,  // Current position in shell list
-    pub(crate) solid_offset: VertexIndex<VR>,  // Current position in solid list
+    pub(crate) vertex: VertexIndex<VR>, // Current position in vertex list
+    pub(crate) ring: VertexIndex<VR>,   // Current position in ring list
+    pub(crate) surface: VertexIndex<VR>, // Current position in surface list
+    pub(crate) shell: VertexIndex<VR>,  // Current position in shell list
+    pub(crate) solid: VertexIndex<VR>,  // Current position in solid list
 }
 
 impl<VR: VertexRef> BoundaryCounter<VR> {
@@ -823,66 +823,66 @@ impl<VR: VertexRef> BoundaryCounter<VR> {
 
     // Increment methods - return new position after incrementing
     pub(crate) fn increment_vertex_idx(&mut self) -> VertexIndex<VR> {
-        self.vertex_offset += VertexIndex::new(VR::one());
-        self.vertex_offset
+        self.vertex += VertexIndex::new(VR::one());
+        self.vertex
     }
 
     pub(crate) fn increment_ring_idx(&mut self) -> VertexIndex<VR> {
-        self.ring_offset += VertexIndex::new(VR::one());
-        self.ring_offset
+        self.ring += VertexIndex::new(VR::one());
+        self.ring
     }
 
     pub(crate) fn increment_surface_idx(&mut self) -> VertexIndex<VR> {
-        self.surface_offset += VertexIndex::new(VR::one());
-        self.surface_offset
+        self.surface += VertexIndex::new(VR::one());
+        self.surface
     }
 
     pub(crate) fn increment_shell_idx(&mut self) -> VertexIndex<VR> {
-        self.shell_offset += VertexIndex::new(VR::one());
-        self.shell_offset
+        self.shell += VertexIndex::new(VR::one());
+        self.shell
     }
 
     pub(crate) fn increment_solid_idx(&mut self) -> VertexIndex<VR> {
-        self.solid_offset += VertexIndex::new(VR::one());
-        self.solid_offset
+        self.solid += VertexIndex::new(VR::one());
+        self.solid
     }
 
     pub(crate) fn try_increment_ring_idx(&mut self) -> error::Result<VertexIndex<VR>> {
-        Self::increment_checked(&mut self.ring_offset)
+        Self::increment_checked(&mut self.ring)
     }
 
     pub(crate) fn try_increment_surface_idx(&mut self) -> error::Result<VertexIndex<VR>> {
-        Self::increment_checked(&mut self.surface_offset)
+        Self::increment_checked(&mut self.surface)
     }
 
     pub(crate) fn try_increment_shell_idx(&mut self) -> error::Result<VertexIndex<VR>> {
-        Self::increment_checked(&mut self.shell_offset)
+        Self::increment_checked(&mut self.shell)
     }
 
     pub(crate) fn try_increment_solid_idx(&mut self) -> error::Result<VertexIndex<VR>> {
-        Self::increment_checked(&mut self.solid_offset)
+        Self::increment_checked(&mut self.solid)
     }
 
     // Get current offsets without incrementing
     pub(crate) fn vertex_offset(&self) -> VertexIndex<VR> {
-        self.vertex_offset
+        self.vertex
     }
 
     pub(crate) fn ring_offset(&self) -> VertexIndex<VR> {
-        self.ring_offset
+        self.ring
     }
 
     pub(crate) fn surface_offset(&self) -> VertexIndex<VR> {
-        self.surface_offset
+        self.surface
     }
 
     pub(crate) fn shell_offset(&self) -> VertexIndex<VR> {
-        self.shell_offset
+        self.shell
     }
 
     #[allow(unused)]
     pub(crate) fn solid_offset(&self) -> VertexIndex<VR> {
-        self.solid_offset
+        self.solid
     }
 }
 
@@ -931,21 +931,24 @@ mod tests {
     #[test]
     fn test_boundary_type_detection() {
         // Create various boundary types
-        let mut mp_boundary: Boundary<u32> = Boundary::new();
-        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert_eq!(mp_boundary.check_type(), BoundaryType::MultiPoint);
+        let mut multi_point_boundary: Boundary<u32> = Boundary::new();
+        multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert_eq!(multi_point_boundary.check_type(), BoundaryType::MultiPoint);
 
-        let mut ml_boundary: Boundary<u32> = Boundary::new();
-        ml_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        ml_boundary.rings = vec![vi(0)];
-        assert_eq!(ml_boundary.check_type(), BoundaryType::MultiLineString);
-
-        let mut ms_boundary: Boundary<u32> = Boundary::new();
-        ms_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        ms_boundary.rings = vec![vi(0)];
-        ms_boundary.surfaces = vec![vi(0)];
+        let mut multi_line_boundary: Boundary<u32> = Boundary::new();
+        multi_line_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        multi_line_boundary.rings = vec![vi(0)];
         assert_eq!(
-            ms_boundary.check_type(),
+            multi_line_boundary.check_type(),
+            BoundaryType::MultiLineString
+        );
+
+        let mut multi_surface_boundary: Boundary<u32> = Boundary::new();
+        multi_surface_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        multi_surface_boundary.rings = vec![vi(0)];
+        multi_surface_boundary.surfaces = vec![vi(0)];
+        assert_eq!(
+            multi_surface_boundary.check_type(),
             BoundaryType::MultiOrCompositeSurface
         );
 
@@ -1011,10 +1014,10 @@ mod tests {
         assert_eq!(round_trip, nested);
 
         // Test incompatible conversion
-        let mut ml_boundary: Boundary<u32> = Boundary::new();
-        ml_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        ml_boundary.rings = vec![vi(0)];
-        assert!(ml_boundary.to_nested_multi_point().is_err());
+        let mut multi_line_boundary: Boundary<u32> = Boundary::new();
+        multi_line_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        multi_line_boundary.rings = vec![vi(0)];
+        assert!(multi_line_boundary.to_nested_multi_point().is_err());
     }
 
     #[test]
@@ -1031,9 +1034,9 @@ mod tests {
         assert_eq!(round_trip, nested);
 
         // Test incompatible conversion
-        let mut mp_boundary: Boundary<u32> = Boundary::new();
-        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert!(mp_boundary.to_nested_multi_linestring().is_err());
+        let mut multi_point_boundary: Boundary<u32> = Boundary::new();
+        multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(multi_point_boundary.to_nested_multi_linestring().is_err());
     }
 
     #[test]
@@ -1058,9 +1061,13 @@ mod tests {
         assert_eq!(round_trip, nested);
 
         // Test incompatible conversion
-        let mut mp_boundary: Boundary<u32> = Boundary::new();
-        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert!(mp_boundary.to_nested_multi_or_composite_surface().is_err());
+        let mut multi_point_boundary: Boundary<u32> = Boundary::new();
+        multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(
+            multi_point_boundary
+                .to_nested_multi_or_composite_surface()
+                .is_err()
+        );
     }
 
     #[test]
@@ -1087,9 +1094,9 @@ mod tests {
         assert_eq!(round_trip, nested);
 
         // Test incompatible conversion
-        let mut mp_boundary: Boundary<u32> = Boundary::new();
-        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert!(mp_boundary.to_nested_solid().is_err());
+        let mut multi_point_boundary: Boundary<u32> = Boundary::new();
+        multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(multi_point_boundary.to_nested_solid().is_err());
     }
 
     #[test]
@@ -1111,9 +1118,9 @@ mod tests {
         assert_eq!(round_trip, nested);
 
         // Test incompatible conversion
-        let mut mp_boundary: Boundary<u32> = Boundary::new();
-        mp_boundary.vertices = vec![vi(0), vi(1), vi(2)];
-        assert!(mp_boundary.to_nested_multi_or_composite_solid().is_err());
+        let mut multi_point_boundary: Boundary<u32> = Boundary::new();
+        multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
+        assert!(multi_point_boundary.to_nested_multi_or_composite_solid().is_err());
     }
 
     #[test]
@@ -1178,18 +1185,18 @@ mod nested_tests {
     #[test]
     fn test_empty_nested_conversions() {
         // Test empty MultiPoint
-        let empty_mp: BoundaryNestedMultiPoint32 = vec![];
-        let boundary: Boundary<u32> = empty_mp.into();
+        let empty_multi_point: BoundaryNestedMultiPoint32 = vec![];
+        let boundary: Boundary<u32> = empty_multi_point.into();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty MultiLineString
-        let empty_ml: BoundaryNestedMultiLineString32 = vec![];
-        let boundary: Boundary<u32> = empty_ml.try_into().unwrap();
+        let empty_multi_linestring: BoundaryNestedMultiLineString32 = vec![];
+        let boundary: Boundary<u32> = empty_multi_linestring.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty MultiSurface
-        let empty_ms: BoundaryNestedMultiOrCompositeSurface32 = vec![];
-        let boundary: Boundary<u32> = empty_ms.try_into().unwrap();
+        let empty_multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![];
+        let boundary: Boundary<u32> = empty_multi_surface.try_into().unwrap();
         assert_eq!(boundary.check_type(), BoundaryType::None);
 
         // Test empty Solid

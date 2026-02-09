@@ -101,10 +101,10 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn set_contact_name<S: AsRef<str>>(&mut self, name: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.contact_name = name.as_ref().to_owned();
+            poc.name = name.as_ref().to_owned();
         } else {
             self.point_of_contact = Some(Contact {
-                contact_name: name.as_ref().to_owned(),
+                name: name.as_ref().to_owned(),
                 ..Default::default()
             });
         }
@@ -145,10 +145,10 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn set_contact_type(&mut self, contact_type: ContactType) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.contact_type = Some(contact_type);
+            poc.kind = Some(contact_type);
         } else {
             self.point_of_contact = Some(Contact {
-                contact_type: Some(contact_type),
+                kind: Some(contact_type),
                 ..Default::default()
             });
         }
@@ -187,11 +187,11 @@ impl<SS: StringStorage> std::fmt::Display for Metadata<SS> {
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Contact<SS: StringStorage> {
-    contact_name: String,
+    name: String,
     email_address: String,
     role: Option<ContactRole>,
     website: Option<String>,
-    contact_type: Option<ContactType>,
+    kind: Option<ContactType>,
     address: Option<Attributes<SS>>,
     phone: Option<String>,
     organization: Option<String>,
@@ -205,7 +205,7 @@ impl<SS: StringStorage> Contact<SS> {
 
     #[must_use]
     pub fn contact_name(&self) -> &str {
-        &self.contact_name
+        &self.name
     }
 
     #[must_use]
@@ -225,7 +225,7 @@ impl<SS: StringStorage> Contact<SS> {
 
     #[must_use]
     pub fn contact_type(&self) -> Option<ContactType> {
-        self.contact_type
+        self.kind
     }
 
     #[must_use]
@@ -239,7 +239,7 @@ impl<SS: StringStorage> Contact<SS> {
     }
 
     pub fn set_contact_name(&mut self, contact_name: String) {
-        self.contact_name = contact_name;
+        self.name = contact_name;
     }
 
     pub fn set_email_address(&mut self, email_address: String) {
@@ -255,7 +255,7 @@ impl<SS: StringStorage> Contact<SS> {
     }
 
     pub fn set_contact_type(&mut self, contact_type: Option<ContactType>) {
-        self.contact_type = contact_type;
+        self.kind = contact_type;
     }
 
     pub fn set_phone(&mut self, phone: Option<String>) {
@@ -285,11 +285,11 @@ impl<SS: StringStorage> Display for Contact<SS> {
         write!(
             f,
             "contact_name: {}, email_address: {}, role: {}, website: {}, contact_type: {}, address: {}, phone: {}, organization: {}",
-            self.contact_name,
+            self.name,
             self.email_address,
             format_option(&self.role),
             format_option(&self.website),
-            format_option(&self.contact_type),
+            format_option(&self.kind),
             format_option(&self.address),
             format_option(&self.phone),
             format_option(&self.organization)

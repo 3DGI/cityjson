@@ -226,31 +226,31 @@ mod tests {
 
     #[test]
     fn test_extensions_add_get() {
-        let mut exts =
+        let mut extensions =
             ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extension
-        let ext1 = ExtensionCore::new(
+        let noise_extension_v1 = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
         );
-        exts.add(ext1.clone());
+        extensions.add(noise_extension_v1.clone());
 
         // Test get
-        let found = exts.get("noise").unwrap();
-        assert_eq!(found, &ext1);
+        let found = extensions.get("noise").unwrap();
+        assert_eq!(found, &noise_extension_v1);
 
         // Test replace
-        let ext2 = ExtensionCore::new(
+        let noise_extension_v2 = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/2.0".to_string(),
             "2.0".to_string(),
         );
-        exts.add(ext2.clone());
+        extensions.add(noise_extension_v2.clone());
 
-        assert_eq!(exts.len(), 1);
-        assert_eq!(exts.get("noise").unwrap(), &ext2);
+        assert_eq!(extensions.len(), 1);
+        assert_eq!(extensions.get("noise").unwrap(), &noise_extension_v2);
     }
 
     #[test]
@@ -279,40 +279,40 @@ mod tests {
 
     #[test]
     fn test_extensions_iteration() {
-        let mut exts =
+        let mut extensions =
             ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
 
         // Add extensions
-        let ext1 = ExtensionCore::new(
+        let noise_extension = ExtensionCore::new(
             "noise".to_string(),
             "https://example.com/noise/1.0".to_string(),
             "1.0".to_string(),
         );
-        let ext2 = ExtensionCore::new(
+        let solar_extension = ExtensionCore::new(
             "solar".to_string(),
             "https://example.com/solar/1.0".to_string(),
             "1.0".to_string(),
         );
 
-        exts.add(ext1.clone());
-        exts.add(ext2.clone());
+        extensions.add(noise_extension.clone());
+        extensions.add(solar_extension.clone());
 
         // Test reference iteration
         let mut count = 0;
-        for ext in &exts {
-            assert!(ext == &ext1 || ext == &ext2);
+        for ext in &extensions {
+            assert!(ext == &noise_extension || ext == &solar_extension);
             count += 1;
         }
         assert_eq!(count, 2);
 
         // Test mutable iteration
-        for _ in &mut exts {
+        for _ in &mut extensions {
             // Just testing we can get mutable references
         }
 
         // Test consuming iteration
         let mut names = Vec::new();
-        for ext in exts {
+        for ext in extensions {
             names.push(ext.name().clone());
         }
         assert_eq!(names.len(), 2);

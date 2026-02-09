@@ -7,16 +7,16 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Semantic<SS: StringStorage> {
-    type_semantic: SemanticType<SS>,
+    kind: SemanticType<SS>,
     children: Option<Vec<SemanticRef>>,
     parent: Option<SemanticRef>,
     attributes: Option<Attributes<SS>>,
 }
 
 impl<SS: StringStorage> Semantic<SS> {
-    pub fn new(type_semantic: SemanticType<SS>) -> Self {
+    pub fn new(semantic_type: SemanticType<SS>) -> Self {
         Self {
-            type_semantic,
+            kind: semantic_type,
             children: None,
             parent: None,
             attributes: None,
@@ -24,7 +24,7 @@ impl<SS: StringStorage> Semantic<SS> {
     }
 
     pub fn type_semantic(&self) -> &SemanticType<SS> {
-        &self.type_semantic
+        &self.kind
     }
 
     pub fn has_children(&self) -> bool {
@@ -65,7 +65,7 @@ impl<SS: StringStorage> Display for Semantic<SS> {
         write!(
             f,
             "type: {}, children: {:?}, parent: {:?}, attributes: {}",
-            self.type_semantic,
+            self.kind,
             self.children,
             self.parent,
             format_option(&self.attributes)

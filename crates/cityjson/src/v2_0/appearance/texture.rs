@@ -13,7 +13,7 @@ pub struct Texture<SS: StringStorage> {
     image_type: ImageType,
     image: SS::String,
     wrap_mode: Option<WrapMode>,
-    texture_type: Option<TextureType>,
+    mapping_type: Option<TextureType>,
     border_color: Option<RGBA>,
 }
 
@@ -27,7 +27,7 @@ impl<SS: StringStorage> Texture<SS> {
             image_type,
             image,
             wrap_mode: None,
-            texture_type: None,
+            mapping_type: None,
             border_color: None,
         }
     }
@@ -60,14 +60,14 @@ impl<SS: StringStorage> Texture<SS> {
     }
     #[inline]
     pub fn texture_type(&self) -> Option<crate::cityjson::core::appearance::TextureType> {
-        self.texture_type
+        self.mapping_type
     }
     #[inline]
     pub fn set_texture_type(
         &mut self,
         texture_type: Option<crate::cityjson::core::appearance::TextureType>,
     ) {
-        self.texture_type = texture_type;
+        self.mapping_type = texture_type;
     }
     #[inline]
     pub fn border_color(&self) -> Option<RGBA> {
