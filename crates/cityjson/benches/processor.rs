@@ -1,4 +1,4 @@
-//! Benchmarks for processing and querying CityModels.
+//! Benchmarks for processing and querying `CityModels`.
 
 #[allow(dead_code)]
 mod support;
@@ -9,11 +9,11 @@ use std::hint::black_box;
 use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_from_seed};
 
 mod benches {
-    use super::*;
+    use super::{rng_from_seed, Rng, Criterion, params_from_env, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, black_box};
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::v2_0::*;
+    use cityjson::v2_0::{CityModel, SemanticType, Material, Texture, CityObject, CityObjectType, Semantic};
     use std::collections::HashMap;
 
     type AttrValue = AttributeValue<OwnedStringStorage>;
@@ -136,7 +136,7 @@ mod benches {
                 .collect();
 
             let mut cityobject = CityObject::new(
-                CityObjectIdentifier::new(format!("building-{:06}", i)),
+                CityObjectIdentifier::new(format!("building-{i:06}")),
                 CityObjectType::Building,
             );
             let attrs = cityobject.attributes_mut();
@@ -154,7 +154,7 @@ mod benches {
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
                 "attr_string".to_string(),
-                AttributeValue::String(format!("name-{}", i)),
+                AttributeValue::String(format!("name-{i}")),
             );
             attrs.insert(
                 "attr_vec".to_string(),
@@ -308,7 +308,7 @@ mod benches {
                         let mut sum_z = 0i64;
                         let mut count = 0usize;
 
-                        for vertex_idx in vertex_indices.iter() {
+                        for vertex_idx in vertex_indices {
                             if let Some(vertex) = model.get_vertex(*vertex_idx) {
                                 sum_x += vertex.x();
                                 sum_y += vertex.y();
@@ -339,7 +339,7 @@ mod benches {
             b.iter(|| {
                 let means = compute_mean_coordinates(black_box(&model));
                 black_box(means);
-            })
+            });
         });
     }
 
@@ -351,7 +351,7 @@ mod benches {
             b.iter(|| {
                 let stats = compute_full_feature_stats(black_box(&model));
                 black_box(stats);
-            })
+            });
         });
     }
 }

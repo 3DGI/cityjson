@@ -1,13 +1,13 @@
 //! # Nested Boundary Representations
 //!
-//! This module provides nested representations of CityJSON boundaries that directly map to the
-//! JSON structure defined in the CityJSON specification. These are primarily used for serialization
+//! This module provides nested representations of `CityJSON` boundaries that directly map to the
+//! JSON structure defined in the `CityJSON` specification. These are primarily used for serialization
 //! and deserialization, while the flattened representation is used for internal processing.
 //!
-//! ## CityJSON Compliance
+//! ## `CityJSON` Compliance
 //!
-//! The nested representations in this module align directly with the CityJSON specification for
-//! geometry boundaries. For example, a MultiSurface in CityJSON is an array of surfaces, where
+//! The nested representations in this module align directly with the `CityJSON` specification for
+//! geometry boundaries. For example, a `MultiSurface` in `CityJSON` is an array of surfaces, where
 //! each surface is an array of rings, and each ring is an array of vertex indices.
 //!
 //! ## Type Aliases
@@ -109,15 +109,15 @@ fn next_index<T: VertexRef>(index: VertexIndex<T>) -> error::Result<VertexIndex<
 }
 
 impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
-    /// Converts a nested MultiPoint representation to a flattened Boundary.
+    /// Converts a nested `MultiPoint` representation to a flattened Boundary.
     ///
     /// # Parameters
     ///
-    /// * `value` - A vector of vertex indices representing a MultiPoint
+    /// * `value` - A vector of vertex indices representing a `MultiPoint`
     ///
     /// # Returns
     ///
-    /// A flattened `Boundary<T>` representation of the MultiPoint
+    /// A flattened `Boundary<T>` representation of the `MultiPoint`
     ///
     /// # Examples
     ///
@@ -143,7 +143,7 @@ impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
 impl<T: VertexRef> TryFrom<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     type Error = error::Error;
 
-    /// Converts a nested MultiLineString representation to a flattened Boundary.
+    /// Converts a nested `MultiLineString` representation to a flattened Boundary.
     ///
     /// # Parameters
     ///
@@ -151,7 +151,7 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiLineString<T>> for Boundary<T> {
     ///
     /// # Returns
     ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiLineString,
+    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiLineString`,
     /// or an error if index offsets overflow.
     ///
     /// # Examples
@@ -192,7 +192,7 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiLineString<T>> for Boundary<T> {
 impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSurface<T>> for Boundary<T> {
     type Error = error::Error;
 
-    /// Converts a nested MultiSurface or CompositeSurface representation to a flattened Boundary.
+    /// Converts a nested `MultiSurface` or `CompositeSurface` representation to a flattened Boundary.
     ///
     /// # Parameters
     ///
@@ -200,8 +200,8 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSurface<T>> for Boundar
     ///
     /// # Returns
     ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiSurface or
-    /// CompositeSurface, or an error if index offsets overflow.
+    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiSurface` or
+    /// `CompositeSurface`, or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -223,9 +223,9 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSurface<T>> for Boundar
         let mut boundary = Self::with_capacity(
             value
                 .iter()
-                .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
+                .map(|surface| surface.iter().map(std::vec::Vec::len).sum::<usize>())
                 .sum::<usize>(),
-            value.iter().map(|surface| surface.len()).sum::<usize>(),
+            value.iter().map(std::vec::Vec::len).sum::<usize>(),
             value.len(),
             0,
             0,
@@ -289,17 +289,17 @@ impl<T: VertexRef> TryFrom<BoundaryNestedSolid<T>> for Boundary<T> {
             .map(|shell| {
                 shell
                     .iter()
-                    .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
+                    .map(|surface| surface.iter().map(std::vec::Vec::len).sum::<usize>())
                     .sum::<usize>()
             })
             .sum::<usize>();
 
         let rings_cap = value
             .iter()
-            .map(|shell| shell.iter().map(|surface| surface.len()).sum::<usize>())
+            .map(|shell| shell.iter().map(std::vec::Vec::len).sum::<usize>())
             .sum::<usize>();
 
-        let surfaces_cap = value.iter().map(|shell| shell.len()).sum::<usize>();
+        let surfaces_cap = value.iter().map(std::vec::Vec::len).sum::<usize>();
 
         let mut boundary =
             Self::with_capacity(vertices_cap, rings_cap, surfaces_cap, value.len(), 0);
@@ -333,7 +333,7 @@ impl<T: VertexRef> TryFrom<BoundaryNestedSolid<T>> for Boundary<T> {
 impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<T> {
     type Error = error::Error;
 
-    /// Converts a nested MultiSolid or CompositeSolid representation to a flattened Boundary.
+    /// Converts a nested `MultiSolid` or `CompositeSolid` representation to a flattened Boundary.
     ///
     /// # Parameters
     ///
@@ -342,8 +342,8 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<
     ///
     /// # Returns
     ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the MultiSolid or
-    /// CompositeSolid, or an error if index offsets overflow.
+    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiSolid` or
+    /// `CompositeSolid`, or an error if index offsets overflow.
     ///
     /// # Examples
     ///
@@ -372,7 +372,7 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<
                     .map(|shell| {
                         shell
                             .iter()
-                            .map(|surface| surface.iter().map(|ring| ring.len()).sum::<usize>())
+                            .map(|surface| surface.iter().map(std::vec::Vec::len).sum::<usize>())
                             .sum::<usize>()
                     })
                     .sum::<usize>()
@@ -384,17 +384,17 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<
             .map(|solid| {
                 solid
                     .iter()
-                    .map(|shell| shell.iter().map(|surface| surface.len()).sum::<usize>())
+                    .map(|shell| shell.iter().map(std::vec::Vec::len).sum::<usize>())
                     .sum::<usize>()
             })
             .sum::<usize>();
 
         let surfaces_cap = value
             .iter()
-            .map(|solid| solid.iter().map(|shell| shell.len()).sum::<usize>())
+            .map(|solid| solid.iter().map(std::vec::Vec::len).sum::<usize>())
             .sum::<usize>();
 
-        let shells_cap = value.iter().map(|solid| solid.len()).sum::<usize>();
+        let shells_cap = value.iter().map(std::vec::Vec::len).sum::<usize>();
 
         let mut boundary = Self::with_capacity(
             vertices_cap,

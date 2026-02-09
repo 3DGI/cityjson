@@ -1,9 +1,9 @@
-//! # CityModel Core
+//! # `CityModel` Core
 //!
-//! Core implementation of CityModel that is shared across different CityJSON versions.
+//! Core implementation of `CityModel` that is shared across different `CityJSON` versions.
 //!
 //! This module provides the `CityModelCore` type which contains the common data structures
-//! used by all CityJSON versions. Version-specific implementations wrap this core type
+//! used by all `CityJSON` versions. Version-specific implementations wrap this core type
 //! and provide version-specific behavior through macros.
 
 use crate::cityjson::core::attributes::Attributes;
@@ -16,10 +16,10 @@ use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
 use crate::resources::storage::StringStorage;
 use crate::{CityJSONVersion, CityModelType};
 
-/// Core CityModel structure that is shared across all CityJSON versions.
+/// Core `CityModel` structure that is shared across all `CityJSON` versions.
 ///
 /// This type is generic over:
-/// - `C`: The coordinate type (FlexibleCoordinate or QuantizedCoordinate)
+/// - `C`: The coordinate type (`FlexibleCoordinate` or `QuantizedCoordinate`)
 /// - `VR`: The vertex reference type
 /// - `RR`: The resource reference type
 /// - `SS`: The string storage type
@@ -46,17 +46,17 @@ pub struct CityModelCore<
     Extensions,
     CityObjects,
 > {
-    /// CityModel type
+    /// `CityModel` type
     type_citymodel: CityModelType,
-    /// CityJSON version
+    /// `CityJSON` version
     version: Option<CityJSONVersion>,
-    /// CityJSON Extension declarations
+    /// `CityJSON` Extension declarations
     extensions: Option<Extensions>,
-    /// Extra root properties for the CityModel
+    /// Extra root properties for the `CityModel`
     extra: Option<Attributes<SS>>,
-    /// CityModel metadata
+    /// `CityModel` metadata
     metadata: Option<Metadata>,
-    /// Collection of CityObjects
+    /// Collection of `CityObjects`
     cityobjects: CityObjects,
     /// The transform object
     transform: Option<Transform>,
@@ -64,7 +64,7 @@ pub struct CityModelCore<
     vertices: Vertices<VR, C>,
     /// Pool of geometries
     geometries: DefaultResourcePool<Geometry, RR>,
-    /// Pool of vertex coordinates used by the geometry templates in template_geometries
+    /// Pool of vertex coordinates used by the geometry templates in `template_geometries`
     template_vertices: Vertices<VR, RealWorldCoordinate>,
     /// Pool of geometry templates
     template_geometries: DefaultResourcePool<Geometry, RR>,
@@ -113,7 +113,8 @@ impl<
 where
     CityObjects: Default,
 {
-    /// Create a new CityModelCore with the given type and version
+    /// Create a new `CityModelCore` with the given type and version
+    #[must_use] 
     pub fn new(type_citymodel: CityModelType, version: Option<CityJSONVersion>) -> Self {
         Self {
             type_citymodel,
@@ -136,7 +137,7 @@ where
         }
     }
 
-    /// Create a new CityModelCore with specified capacities
+    /// Create a new `CityModelCore` with specified capacities
     #[allow(clippy::too_many_arguments)]
     pub fn with_capacity(
         type_citymodel: CityModelType,
@@ -212,7 +213,7 @@ where
         self.semantics.iter_mut()
     }
 
-    /// Find a semantic by value (if it implements PartialEq)
+    /// Find a semantic by value (if it implements `PartialEq`)
     pub fn find_semantic(&self, semantic: &Semantic) -> Option<RR>
     where
         Semantic: PartialEq,
@@ -233,7 +234,7 @@ where
     /// Get or insert a semantic, returning the resource reference
     ///
     /// Note: Deduplication works when semantics are reused (same instance cloned).
-    /// Creating new semantics with different AttributeId32 values won't deduplicate
+    /// Creating new semantics with different `AttributeId32` values won't deduplicate
     /// even if attribute values are logically identical.
     pub fn get_or_insert_semantic(&mut self, semantic: Semantic) -> Result<RR>
     where
@@ -282,7 +283,7 @@ where
         self.materials.iter_mut()
     }
 
-    /// Find a material by value (if it implements PartialEq)
+    /// Find a material by value (if it implements `PartialEq`)
     pub fn find_material(&self, material: &Material) -> Option<RR>
     where
         Material: PartialEq,
@@ -348,7 +349,7 @@ where
         self.textures.iter_mut()
     }
 
-    /// Find a texture by value (if it implements PartialEq)
+    /// Find a texture by value (if it implements `PartialEq`)
     pub fn find_texture(&self, texture: &Texture) -> Option<RR>
     where
         Texture: PartialEq,

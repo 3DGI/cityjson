@@ -1,6 +1,6 @@
 //! # Vertex types
 //!
-//! This module provides efficient vertex indexing functionality for CityJSON geometries.
+//! This module provides efficient vertex indexing functionality for `CityJSON` geometries.
 //! It supports different integer sizes (u16, u32, u64) for memory efficiency while
 //! maintaining zero-cost abstractions on 64-bit platforms.
 //!
@@ -10,8 +10,8 @@
 //!
 //! ## Platform Support
 //!
-//! This crate only supports 64-bit platforms (x86_64, aarch64, etc.) as it is designed
-//! for processing large CityJSON datasets on modern desktop and server machines.
+//! This crate only supports 64-bit platforms (`x86_64`, aarch64, etc.) as it is designed
+//! for processing large `CityJSON` datasets on modern desktop and server machines.
 //!
 //! ## Design Notes
 //!
@@ -325,7 +325,7 @@ impl<T: VertexRef> VertexIndex<T> {
         }
     }
 
-    /// Create a VertexIndex from a u32 value, if it fits in the target type.
+    /// Create a `VertexIndex` from a u32 value, if it fits in the target type.
     ///
     /// # Parameters
     ///
@@ -353,6 +353,7 @@ impl<T: VertexRef> VertexIndex<T> {
     /// assert!(VertexIndex64::from_u32(70000).is_some());
     /// ```
     #[inline(always)]
+    #[must_use] 
     pub fn from_u32(value: u32) -> Option<Self> {
         T::from_u32(value).map(|v| Self::new(v))
     }
@@ -682,7 +683,7 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
                 current = next;
             } else {
                 return Err(Error::IndexConversion {
-                    source_type: format!("{} + 1", current),
+                    source_type: format!("{current} + 1"),
                     target_type: std::any::type_name::<T>().to_string(),
                     value: "overflow".to_string(),
                 });
@@ -695,14 +696,14 @@ impl<T: VertexRef> VertexIndicesSequence<T> for VertexIndex<T> {
 
 pub struct RawVertexView<'a, VR: VertexRef>(pub(crate) &'a [VertexIndex<VR>]);
 
-impl<'a, VR: VertexRef> std::ops::Deref for RawVertexView<'a, VR> {
+impl<VR: VertexRef> std::ops::Deref for RawVertexView<'_, VR> {
     type Target = [VR];
 
     fn deref(&self) -> &Self::Target {
         debug_assert_eq!(size_of::<VertexIndex<VR>>(), size_of::<VR>());
         debug_assert_eq!(align_of::<VertexIndex<VR>>(), align_of::<VR>());
 
-        unsafe { std::slice::from_raw_parts(self.0.as_ptr() as *const VR, self.0.len()) }
+        unsafe { std::slice::from_raw_parts(self.0.as_ptr().cast::<VR>(), self.0.len()) }
     }
 }
 

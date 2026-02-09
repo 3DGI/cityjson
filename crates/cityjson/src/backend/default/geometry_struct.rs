@@ -1,4 +1,4 @@
-//! Core Geometry structure shared across CityJSON versions
+//! Core Geometry structure shared across `CityJSON` versions
 
 use crate::cityjson::core::boundary::Boundary;
 use crate::cityjson::core::geometry::{GeometryType, LoD};
@@ -12,7 +12,7 @@ use crate::resources::pool::ResourceRef;
 type ThemedMaterials<VR, RR, SS> = Vec<(SS, SemanticOrMaterialMap<VR, RR>)>;
 type ThemedTextures<VR, RR, SS> = Vec<(SS, TextureMapCore<VR, RR>)>;
 
-/// Core geometry structure that contains the data for all CityJSON versions.
+/// Core geometry structure that contains the data for all `CityJSON` versions.
 /// Version-specific types wrap this core structure and implement methods via macros.
 #[derive(Clone, Debug)]
 pub struct GeometryCore<VR: VertexRef, RR: ResourceRef, SS: StringStorage> {

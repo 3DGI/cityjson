@@ -84,7 +84,7 @@ enum TemplateVertexOrPoint<V: VertexRef> {
     Point(RealWorldCoordinate),
 }
 
-/// Controls the [GeometryBuilder] to build a regular geometry or a geometry template.
+/// Controls the [`GeometryBuilder`] to build a regular geometry or a geometry template.
 pub enum BuilderMode {
     /// Build a regular geometry
     Regular,
@@ -94,9 +94,9 @@ pub enum BuilderMode {
 
 /// Geometry builder.
 ///
-/// The GeometryBuilder is generic over the CityModel and Coordinate type, thus it can
-/// build a CityModel with either real-world coordinates or quantized coordinates,
-/// for all supported CityJSON versions.
+/// The `GeometryBuilder` is generic over the `CityModel` and Coordinate type, thus it can
+/// build a `CityModel` with either real-world coordinates or quantized coordinates,
+/// for all supported `CityJSON` versions.
 pub struct GeometryBuilder<'a, VR, RR, C, Semantic, Material, Texture, Geometry, M, SS>
 where
     VR: VertexRef,
@@ -145,10 +145,10 @@ where
     C: Coordinate,
     SS: StringStorage,
 {
-    /// Instantiates a new GeometryBuilder.
+    /// Instantiates a new `GeometryBuilder`.
     ///
     /// # Parameters
-    /// * `model` - A CityModel instance.
+    /// * `model` - A `CityModel` instance.
     /// * `type_geometry` - The geometry type to build.
     pub fn new(model: &'a mut M, type_geometry: GeometryType, builder_mode: BuilderMode) -> Self {
         Self {
@@ -197,7 +197,7 @@ where
     /// Self for method chaining
     ///
     /// # Errors
-    /// * [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
+    /// * [`Error::InvalidGeometryType`] if geometry is not a `GeometryInstance`.
     pub fn with_template(mut self, template_ref: RR) -> Result<Self> {
         if self.type_geometry != GeometryType::GeometryInstance {
             return Err(Error::InvalidGeometryType {
@@ -216,7 +216,7 @@ where
     /// Self-for method chaining
     ///
     /// # Errors
-    /// * [Error::InvalidGeometryType] if geometry is not a `GeometryInstance`.
+    /// * [`Error::InvalidGeometryType`] if geometry is not a `GeometryInstance`.
     pub fn with_transformation_matrix(mut self, transformation_matrix: [f64; 16]) -> Result<Self> {
         if self.type_geometry != GeometryType::GeometryInstance {
             return Err(Error::InvalidGeometryType {
@@ -240,8 +240,8 @@ where
 
     /// Add a new point to the boundary by providing its coordinates. The point will be
     /// added as a new vertex to the vertex pool. Use this method when adding completely
-    /// new vertices to the CityModel and the Boundary. Can be used interchangeably
-    /// with [GeometryBuilder::add_vertex] for building a Boundary.
+    /// new vertices to the `CityModel` and the Boundary. Can be used interchangeably
+    /// with [`GeometryBuilder::add_vertex`] for building a Boundary.
     ///
     /// # Returns
     ///
@@ -259,7 +259,7 @@ where
 
     /// Add an existing vertex to the boundary by providing its reference in the vertex
     /// pool. Use this method when reusing existing vertices for the boundary. Can be
-    /// used interchangeably with [GeometryBuilder::add_point] for building a Boundary.
+    /// used interchangeably with [`GeometryBuilder::add_point`] for building a Boundary.
     ///
     /// # Returns
     ///
@@ -288,23 +288,23 @@ where
     /// Map a boundary vertex to a UV coordinate.
     ///
     /// # Parameters
-    /// - `vertex_idx`: Index of the target vertex, as returned from [GeometryBuilder::add_point] or
-    ///   [GeometryBuilder::add_vertex].
+    /// - `vertex_idx`: Index of the target vertex, as returned from [`GeometryBuilder::add_point`] or
+    ///   [`GeometryBuilder::add_vertex`].
     /// - `uv_idx`: Index of the corresponding UV coordinate, as returned by
-    ///   [GeometryBuilder::add_uv_coordinate].
+    ///   [`GeometryBuilder::add_uv_coordinate`].
     pub fn map_vertex_to_uv(&mut self, vertex_idx: usize, uv_idx: usize) {
         self.vertex_uv_mapping.insert(vertex_idx, uv_idx);
     }
 
-    /// Add a LineString to the boundary by providing its vertex indices in the boundary.
-    /// The indices are returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods.
+    /// Add a `LineString` to the boundary by providing its vertex indices in the boundary.
+    /// The indices are returned by the [`GeometryBuilder::add_point`] or [`GeometryBuilder::add_vertex`] methods.
     ///
     /// # Errors
     /// * `InvalidLineString` - If less than two vertices have been provided
     ///
     /// # Returns
     ///
-    /// The index of the added LineString in the boundary.
+    /// The index of the added `LineString` in the boundary.
     pub fn add_linestring(&mut self, vertices: &[usize]) -> Result<usize> {
         // if vertices.len() < 2 {
         //     return Err(Error::InvalidLineString {
@@ -317,7 +317,7 @@ where
     }
 
     /// Add a ring to the boundary by providing its vertex indices in the boundary.
-    /// The indices are returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods.
+    /// The indices are returned by the [`GeometryBuilder::add_point`] or [`GeometryBuilder::add_vertex`] methods.
     ///
     /// # Errors
     /// * `InvalidRing` - If less than three vertices have been provided
@@ -479,8 +479,8 @@ where
     /// # Parameters
     ///
     /// * `index` - The index of the point that will get the semantic. The index is the
-    ///   value returned by the [GeometryBuilder::add_point] or [GeometryBuilder::add_vertex] methods. If
-    ///   `None`, the Semantic is added to the last vertex in the GeometryBuilder.
+    ///   value returned by the [`GeometryBuilder::add_point`] or [`GeometryBuilder::add_vertex`] methods. If
+    ///   `None`, the Semantic is added to the last vertex in the `GeometryBuilder`.
     /// * `semantic` - The semantic instance to add to the Point.
     ///
     /// # Returns
@@ -518,16 +518,16 @@ where
         Ok(semantic_ref)
     }
 
-    /// Set the Semantic on a LineString.
-    /// A LineString can only have one semantic value. The Semantic is directly added to the
+    /// Set the Semantic on a `LineString`.
+    /// A `LineString` can only have one semantic value. The Semantic is directly added to the
     /// `model`.
     ///
     /// # Parameters
     ///
-    /// * `index` - The index of the LineString that will get the semantic. The index is the
-    ///   value returned by the [GeometryBuilder::add_linestring] or [GeometryBuilder::add_ring] methods. If
-    ///   `None`, the Semantic is added to the last LineString in the GeometryBuilder.
-    /// * `semantic` - The semantic instance to add to the LineString.
+    /// * `index` - The index of the `LineString` that will get the semantic. The index is the
+    ///   value returned by the [`GeometryBuilder::add_linestring`] or [`GeometryBuilder::add_ring`] methods. If
+    ///   `None`, the Semantic is added to the last `LineString` in the `GeometryBuilder`.
+    /// * `semantic` - The semantic instance to add to the `LineString`.
     ///
     /// # Returns
     ///
@@ -571,7 +571,7 @@ where
     /// # Parameters
     ///
     /// * `index` - The index of the surface that will get the semantic. If
-    ///   `None`, the Semantic is added to the last surface in the GeometryBuilder.
+    ///   `None`, the Semantic is added to the last surface in the `GeometryBuilder`.
     /// * `semantic` - The Semantic instance to add to the surface.
     ///
     /// # Returns
@@ -615,7 +615,7 @@ where
     /// # Parameters
     ///
     /// * `index` - The index of the surface that will get the material. If
-    ///   `None`, the Material is added to the last surface in the GeometryBuilder.
+    ///   `None`, the Material is added to the last surface in the `GeometryBuilder`.
     /// * `material` - The Material instance to add to the surface.
     /// * `theme` - The theme of the material.
     ///
@@ -676,8 +676,8 @@ where
     /// # Parameters
     ///
     /// * `index` - The index of the ring that will get the texture. The index is the
-    ///   value returned by the [GeometryBuilder::add_ring] method. If
-    ///   `None`, the Texture is added to the last ring in the GeometryBuilder.
+    ///   value returned by the [`GeometryBuilder::add_ring`] method. If
+    ///   `None`, the Texture is added to the last ring in the `GeometryBuilder`.
     /// * `texture` - The Texture instance to add to the ring.
     /// * `theme` - The theme of the texture.
     ///
@@ -748,7 +748,7 @@ where
         if self.type_geometry == GeometryType::MultiPoint {
             vertices_capacity = self.vertices.len();
         } else if self.type_geometry == GeometryType::MultiLineString {
-            vertices_capacity = self.rings.iter().map(|ring| ring.len()).sum();
+            vertices_capacity = self.rings.iter().map(std::vec::Vec::len).sum();
             rings_capacity = self.rings.len();
         } else if self.type_geometry == GeometryType::MultiSurface
             || self.type_geometry == GeometryType::CompositeSurface
@@ -763,7 +763,7 @@ where
                 })
                 .sum();
 
-            vertices_capacity = self.rings.iter().map(|ring| ring.len()).sum();
+            vertices_capacity = self.rings.iter().map(std::vec::Vec::len).sum();
             surfaces_capacity = self.surfaces.len();
         } else if self.type_geometry == GeometryType::GeometryInstance {
             vertices_capacity = 1;
@@ -1083,7 +1083,7 @@ where
                     || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: format!("multi- or composite solid geometry {}", template_str),
+                        expected: format!("multi- or composite solid geometry {template_str}"),
                         found: self.format_counts(),
                     });
                 }
@@ -1104,7 +1104,7 @@ where
                     || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: format!("single solid geometry {}", template_str),
+                        expected: format!("single solid geometry {template_str}"),
                         found: self.format_counts(),
                     });
                 }
@@ -1125,7 +1125,7 @@ where
                     || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: format!("multi- or composite surface geometry {}", template_str),
+                        expected: format!("multi- or composite surface geometry {template_str}"),
                         found: self.format_counts(),
                     });
                 }
@@ -1146,7 +1146,7 @@ where
                     || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: format!("multi linestring geometry {}", template_str),
+                        expected: format!("multi linestring geometry {template_str}"),
                         found: self.format_counts(),
                     });
                 }
@@ -1168,7 +1168,7 @@ where
                     || vertices_empty
                 {
                     return Err(Error::InvalidGeometryType {
-                        expected: format!("multi point geometry {}", template_str),
+                        expected: format!("multi point geometry {template_str}"),
                         found: self.format_counts(),
                     });
                 }
@@ -1203,8 +1203,7 @@ where
         for (i, surface) in self.surfaces.iter().enumerate() {
             if surface.outer_ring.is_none() {
                 return Err(Error::IncompleteGeometry(format!(
-                    "Surface {} missing outer ring",
-                    i
+                    "Surface {i} missing outer ring"
                 )));
             }
         }
@@ -1213,8 +1212,7 @@ where
         for (i, solid) in self.solids.iter().enumerate() {
             if solid.outer_shell.is_none() {
                 return Err(Error::IncompleteGeometry(format!(
-                    "Solid {} missing outer shell",
-                    i
+                    "Solid {i} missing outer shell"
                 )));
             }
         }
@@ -1243,37 +1241,37 @@ fn build_semantic_map<VR: VertexRef, RR: ResourceRef>(
     match type_geometry {
         GeometryType::GeometryInstance => None,
         GeometryType::MultiPoint => {
-            if !builder_semantics.is_empty() {
+            if builder_semantics.is_empty() {
+                None
+            } else {
                 let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
                 for i in 0..nr_primitives {
                     semantic_map.add_point(builder_semantics.get(&i).copied());
                 }
                 Some(semantic_map)
-            } else {
-                None
             }
         }
         GeometryType::MultiLineString => {
-            if !builder_semantics.is_empty() {
+            if builder_semantics.is_empty() {
+                None
+            } else {
                 let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
                 for i in 0..nr_primitives {
                     semantic_map.add_linestring(builder_semantics.get(&i).copied());
                 }
                 Some(semantic_map)
-            } else {
-                None
             }
         }
         _ => {
             // Handle semantics, materials and textures for surfaces
-            if !builder_semantics.is_empty() {
+            if builder_semantics.is_empty() {
+                None
+            } else {
                 let mut semantic_map = SemanticOrMaterialMap::<VR, RR>::new();
                 for i in 0..nr_primitives {
                     semantic_map.add_surface(builder_semantics.get(&i).copied());
                 }
                 Some(semantic_map)
-            } else {
-                None
             }
         }
     }
@@ -1283,7 +1281,9 @@ fn build_material_map<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
     surface_materials: &[(SS::String, ThemedMaterialMappings<RR>)],
     surfaces: &[SurfaceInProgress],
 ) -> Option<ThemedMaterials<VR, RR, SS::String>> {
-    if !surface_materials.is_empty() {
+    if surface_materials.is_empty() {
+        None
+    } else {
         // Create a vector to hold all theme/materialmap pairs
         let mut themed_materials = Vec::with_capacity(surface_materials.len());
 
@@ -1307,13 +1307,11 @@ fn build_material_map<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
             themed_materials.push((theme_name.clone(), material_map));
         }
 
-        if !themed_materials.is_empty() {
-            Some(themed_materials)
-        } else {
+        if themed_materials.is_empty() {
             None
+        } else {
+            Some(themed_materials)
         }
-    } else {
-        None
     }
 }
 
@@ -1376,7 +1374,7 @@ pub enum GeometryType {
 
 impl std::fmt::Display for GeometryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -1402,7 +1400,7 @@ impl FromStr for GeometryType {
     }
 }
 
-/// Level of Detail (LoD) for the geometry
+/// Level of Detail (`LoD`) for the geometry
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LoD {

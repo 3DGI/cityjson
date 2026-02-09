@@ -1,7 +1,7 @@
 //! # Opaque resource handle types
 //!
 //! This module defines type-safe opaque handles for different resource types.
-//! Each handle wraps a [ResourceId32] internally but provides compile-time type safety,
+//! Each handle wraps a [`ResourceId32`] internally but provides compile-time type safety,
 //! preventing accidental mixing of different resource references.
 //!
 //! Handles use the newtype pattern with `#[repr(transparent)]` for zero runtime overhead
@@ -11,15 +11,15 @@ use crate::resources::pool::ResourceId32;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
-/// Trait for converting between typed handles and raw ResourceId32 values.
+/// Trait for converting between typed handles and raw `ResourceId32` values.
 /// This is an internal trait used at API boundaries to convert between
 /// opaque handles and the underlying storage type.
 #[allow(dead_code)]
 pub(crate) trait HandleType: Copy + Clone + PartialEq + Eq + Hash + Default {
-    /// Convert from a raw ResourceId32 to this handle type.
+    /// Convert from a raw `ResourceId32` to this handle type.
     fn from_raw(raw: ResourceId32) -> Self;
 
-    /// Convert this handle to a raw ResourceId32.
+    /// Convert this handle to a raw `ResourceId32`.
     fn to_raw(self) -> ResourceId32;
 
     /// Check if this handle is null (has index 0 and generation 0).
@@ -29,7 +29,7 @@ pub(crate) trait HandleType: Copy + Clone + PartialEq + Eq + Hash + Default {
     }
 }
 
-/// Macro to define a newtype handle around ResourceId32.
+/// Macro to define a newtype handle around `ResourceId32`.
 macro_rules! define_handle {
     (
         $(#[$meta:meta])*
@@ -138,7 +138,7 @@ define_handle! {
 }
 
 /// Handle to an Attribute resource.
-/// Attributes are stored in the global AttributePool.
+/// Attributes are stored in the global `AttributePool`.
 #[repr(transparent)]
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AttributeRef(ResourceId32);
@@ -146,11 +146,13 @@ pub struct AttributeRef(ResourceId32);
 #[allow(dead_code)]
 impl AttributeRef {
     /// Create a typed handle from index and generation.
+    #[must_use] 
     pub fn from_parts(index: u32, generation: u16) -> Self {
         Self(ResourceId32::new(index, generation))
     }
 
     /// Check if this handle is null.
+    #[must_use] 
     pub fn is_null(self) -> bool {
         self.0.index() == 0 && self.0.generation() == 0
     }
@@ -175,12 +177,12 @@ impl AttributeRef {
         (self.0.index(), self.0.generation())
     }
 
-    /// Convert to raw ResourceId32 (internal use only).
+    /// Convert to raw `ResourceId32` (internal use only).
     pub(crate) fn to_raw(self) -> ResourceId32 {
         self.0
     }
 
-    /// Convert from raw ResourceId32 (internal use only).
+    /// Convert from raw `ResourceId32` (internal use only).
     pub(crate) fn from_raw(raw: ResourceId32) -> Self {
         Self(raw)
     }

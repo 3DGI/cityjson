@@ -2,8 +2,8 @@ use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 
-/// Test that demonstrates how CityModel works with BorrowedStringStorage.
-/// This test shows that we can create a CityModel that borrows string data
+/// Test that demonstrates how `CityModel` works with `BorrowedStringStorage`.
+/// This test shows that we can create a `CityModel` that borrows string data
 /// instead of owning it, which can be more memory-efficient when processing
 /// data from external sources that remain in memory.
 #[test]

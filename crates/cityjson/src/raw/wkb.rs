@@ -1,4 +1,4 @@
-//! WKB export hooks for GeoParquet interoperability.
+//! WKB export hooks for `GeoParquet` interoperability.
 //!
 //! Full WKB geometry conversion is intentionally left to higher-level crates.
 

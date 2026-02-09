@@ -68,8 +68,7 @@ impl Display for Error {
             Error::IncompatibleBoundary(source_boundarytype, target_boundarytype) => {
                 write!(
                     f,
-                    "cannot convert a {} to a {}",
-                    source_boundarytype, target_boundarytype
+                    "cannot convert a {source_boundarytype} to a {target_boundarytype}"
                 )
             }
             Error::IndexConversion {
@@ -79,29 +78,26 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "failed to convert index from {} to {}: value {}",
-                    source_type, target_type, value
+                    "failed to convert index from {source_type} to {target_type}: value {value}"
                 )
             }
             Error::IndexOverflow { index_type, value } => {
-                write!(f, "index overflow for {}: value {}", index_type, value)
+                write!(f, "index overflow for {index_type}: value {value}")
             }
             Error::VerticesContainerFull { attempted, maximum } => {
                 write!(
                     f,
-                    "attempted to store {} vertices in a container with capacity {}",
-                    attempted, maximum
+                    "attempted to store {attempted} vertices in a container with capacity {maximum}"
                 )
             }
             Error::ResourcePoolFull { attempted, maximum } => {
                 write!(
                     f,
-                    "attempted to store {} resources in a pool with maximum {} slots",
-                    attempted, maximum
+                    "attempted to store {attempted} resources in a pool with maximum {maximum} slots"
                 )
             }
             Error::InvalidGeometry(msg) => {
-                write!(f, "{}", msg)
+                write!(f, "{msg}")
             }
             Error::InvalidShell {
                 reason,
@@ -109,8 +105,7 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "Invalid shell: {} (surface count: {})",
-                    reason, surface_count
+                    "Invalid shell: {reason} (surface count: {surface_count})"
                 )
             }
             Error::InvalidRing {
@@ -119,8 +114,7 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "Invalid ring: {} (vertex count: {})",
-                    reason, vertex_count
+                    "Invalid ring: {reason} (vertex count: {vertex_count})"
                 )
             }
             Error::InvalidLineString {
@@ -129,12 +123,11 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "Invalid linestring: {} (vertex count: {})",
-                    reason, vertex_count
+                    "Invalid linestring: {reason} (vertex count: {vertex_count})"
                 )
             }
             Error::NoActiveElement { element_type } => {
-                write!(f, "No {} in progress", element_type)
+                write!(f, "No {element_type} in progress")
             }
             Error::InvalidReference {
                 element_type,
@@ -143,44 +136,41 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "Invalid {} index: {} (max: {})",
-                    element_type, index, max_index
+                    "Invalid {element_type} index: {index} (max: {max_index})"
                 )
             }
             Error::MissingOuterElement { context } => {
-                write!(f, "{}", context)
+                write!(f, "{context}")
             }
             Error::InvalidGeometryType { expected, found } => {
                 write!(
                     f,
-                    "Invalid geometry type: expected {}, found {}",
-                    expected, found
+                    "Invalid geometry type: expected {expected}, found {found}"
                 )
             }
             Error::IncompleteGeometry(msg) => {
-                write!(f, "Incomplete geometry: {}", msg)
+                write!(f, "Incomplete geometry: {msg}")
             }
             Error::UnsupportedVersion(v, supported) => {
                 write!(
                     f,
-                    "the CityJSON version should be one of {}, but got {}",
-                    supported, v
+                    "the CityJSON version should be one of {supported}, but got {v}"
                 )
             }
             Error::InvalidCityObjectType(v) => {
-                write!(f, "invalid CityObject type: {}", v)
+                write!(f, "invalid CityObject type: {v}")
             }
             Error::InvalidJson(msg) => {
-                write!(f, "Invalid JSON: {}", msg)
+                write!(f, "Invalid JSON: {msg}")
             }
             Error::MissingVersion => {
                 write!(f, "Missing 'version' field in CityJSON document")
             }
             Error::UnsupportedCityJSONVersion(version) => {
-                write!(f, "Unsupported CityJSON version: {}", version)
+                write!(f, "Unsupported CityJSON version: {version}")
             }
             Error::Import(msg) => {
-                write!(f, "Import error: {}", msg)
+                write!(f, "Import error: {msg}")
             }
         }
     }
@@ -188,7 +178,7 @@ impl Display for Error {
 
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 

@@ -1,12 +1,12 @@
 use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
-use cityjson::v2_0::*;
+use cityjson::v2_0::{CityModel, Extension, CityObject, CityObjectType, Material, Texture, Semantic, SemanticType};
 use std::collections::HashMap;
 
-/// Build a CityModel that uses the complete CityJSON v2.0 specifications with fake
+/// Build a `CityModel` that uses the complete `CityJSON` v2.0 specifications with fake
 /// values.
-/// Builds the same CityModel that is stored in
+/// Builds the same `CityModel` that is stored in
 /// `tests/data/v2_0/cityjson_fake_complete.city.json`, with owned values.
 fn main() -> Result<()> {
     // A CityModel for CityJSON v2.0 that uses u32 indices and owned strings.

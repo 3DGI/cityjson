@@ -19,64 +19,75 @@ pub struct BBox {
 }
 
 impl BBox {
+    #[must_use] 
     pub fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
         Self {
             values: [min_x, min_y, min_z, max_x, max_y, max_z],
         }
     }
 
+    #[must_use] 
     pub fn as_slice(&self) -> &[f64] {
         &self.values
     }
 
     /// Returns the minimum x coordinate.
+    #[must_use] 
     pub fn min_x(&self) -> f64 {
         self.values[0]
     }
 
     /// Returns the minimum y coordinate.
+    #[must_use] 
     pub fn min_y(&self) -> f64 {
         self.values[1]
     }
 
     /// Returns the minimum z coordinate.
+    #[must_use] 
     pub fn min_z(&self) -> f64 {
         self.values[2]
     }
 
     /// Returns the maximum x coordinate.
+    #[must_use] 
     pub fn max_x(&self) -> f64 {
         self.values[3]
     }
 
     /// Returns the maximum y coordinate.
+    #[must_use] 
     pub fn max_y(&self) -> f64 {
         self.values[4]
     }
 
     /// Returns the maximum z coordinate.
+    #[must_use] 
     pub fn max_z(&self) -> f64 {
         self.values[5]
     }
 
     /// Calculates the width (x-axis length) of the bounding box.
+    #[must_use] 
     pub fn width(&self) -> f64 {
         self.max_x() - self.min_x()
     }
 
     /// Calculates the length (y-axis length) of the bounding box.
+    #[must_use] 
     pub fn length(&self) -> f64 {
         self.max_y() - self.min_y()
     }
 
     /// Calculates the height (z-axis length) of the bounding box.
+    #[must_use] 
     pub fn height(&self) -> f64 {
         self.max_z() - self.min_z()
     }
 }
 
 impl Default for BBox {
-    /// Creates a default BBox with all coordinates set to 0.0.
+    /// Creates a default `BBox` with all coordinates set to 0.0.
     fn default() -> Self {
         Self {
             values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -85,14 +96,14 @@ impl Default for BBox {
 }
 
 impl From<[f64; 6]> for BBox {
-    /// Creates a BBox from an array of 6 values.
+    /// Creates a `BBox` from an array of 6 values.
     fn from(values: [f64; 6]) -> Self {
         Self { values }
     }
 }
 
 impl From<BBox> for [f64; 6] {
-    /// Converts a BBox into an array of 6 values.
+    /// Converts a `BBox` into an array of 6 values.
     fn from(bbox: BBox) -> Self {
         bbox.values
     }

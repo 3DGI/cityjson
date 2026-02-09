@@ -66,10 +66,12 @@ define_string_wrapper!(ThemeName);
 pub struct RGB([f32; 3]);
 
 impl RGB {
+    #[must_use] 
     pub fn new(red: f32, green: f32, blue: f32) -> Self {
         Self([red, green, blue])
     }
 
+    #[must_use] 
     pub fn as_array(self) -> [f32; 3] {
         self.0
     }
@@ -86,10 +88,12 @@ impl From<[f32; 3]> for RGB {
 pub struct RGBA([f32; 4]);
 
 impl RGBA {
+    #[must_use] 
     pub fn new(red: f32, green: f32, blue: f32, alpha: f32) -> Self {
         Self([red, green, blue, alpha])
     }
 
+    #[must_use] 
     pub fn as_array(self) -> [f32; 4] {
         self.0
     }

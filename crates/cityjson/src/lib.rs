@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 //! ## Examples
 //!
-//! Below is an integration test that builds a CityModel with all possible features from the CityJSON v2.0 specification.
+//! Below is an integration test that builds a `CityModel` with all possible features from the `CityJSON` v2.0 specification.
 //!
 //! <details>
 //!
@@ -83,9 +83,9 @@ pub mod prelude {
 use prelude::*;
 use std::fmt;
 
-/// CityModel type.
+/// `CityModel` type.
 ///
-/// Marks if the `CityModel` represents a CityJSON object or a CityJSONFeature object.
+/// Marks if the `CityModel` represents a `CityJSON` object or a `CityJSONFeature` object.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum CityModelType {
@@ -188,7 +188,5 @@ pub enum CityJSON<VR: VertexRef, SS: StringStorage> {
 
 fn format_option<T: std::fmt::Display>(option: &Option<T>) -> String {
     option
-        .as_ref()
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "None".to_string())
+        .as_ref().map_or_else(|| "None".to_string(), std::string::ToString::to_string)
 }

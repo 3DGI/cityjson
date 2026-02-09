@@ -40,9 +40,9 @@ struct CityObjectRefs {
     co_neigh_ref: CityObjectRef,
 }
 
-/// Build a CityModel that uses the complete CityJSON v2.0 specifications with fake
+/// Build a `CityModel` that uses the complete `CityJSON` v2.0 specifications with fake
 /// values.
-/// Builds the same CityModel that is stored in
+/// Builds the same `CityModel` that is stored in
 /// `tests/data/v2_0/cityjson_fake_complete.city.json`.
 #[test]
 fn build_fake_complete_borrowed() -> Result<()> {
@@ -693,7 +693,7 @@ fn build_metadata_patterns(model: &mut BorrowedModel) -> Result<()> {
     Ok(())
 }
 
-/// Set extra root properties, transform, and extension on the CityModel.
+/// Set extra root properties, transform, and extension on the `CityModel`.
 fn build_root_components(model: &mut BorrowedModel) {
     // Set extra root properties (see
     // https://www.cityjson.org/specs/1.1.3/#case-1-adding-new-properties-at-the-root-of-a-document)
@@ -720,7 +720,7 @@ fn build_root_components(model: &mut BorrowedModel) {
     ));
 }
 
-/// Initialize all CityObjects that are used in this test.
+/// Initialize all `CityObjects` that are used in this test.
 fn init_cityobjects() -> PendingCityObjects {
     PendingCityObjects {
         co_1: CityObject::new(
@@ -781,7 +781,7 @@ fn build_shared_vertices(model: &mut BorrowedModel) -> Result<SharedVertices> {
     })
 }
 
-/// Build CityObject "id-1" with attributes, address, and solid geometry.
+/// Build `CityObject` "id-1" with attributes, address, and solid geometry.
 fn build_cityobject_id_1(
     model: &mut BorrowedModel,
     co_1: &mut BorrowedCityObject,
@@ -993,18 +993,18 @@ fn add_cityobject_id_1_geometry(
             .boundaries()
             .unwrap()
             .to_nested_solid()?;
-        println!("CityObject id-1 nested boundary: {:?}", geom_nested);
+        println!("CityObject id-1 nested boundary: {geom_nested:?}");
     }
     Ok(())
 }
 
-/// Build CityObject "id-3".
+/// Build `CityObject` "id-3".
 fn build_cityobject_id_3(co_3: &mut BorrowedCityObject) {
     co_3.attributes_mut()
         .insert("buildingLDenMin", AttributeValue::Float(1.0));
 }
 
-/// Build CityObject "a-tree" with template geometry and one geometry instance.
+/// Build `CityObject` "a-tree" with template geometry and one geometry instance.
 fn build_cityobject_tree(
     model: &mut BorrowedModel,
     co_tree: &mut BorrowedCityObject,
@@ -1048,7 +1048,7 @@ fn build_cityobject_tree(
     Ok(())
 }
 
-/// Build CityObject "my-neighbourhood".
+/// Build `CityObject` "my-neighbourhood".
 fn build_cityobject_neighbourhood(
     model: &mut BorrowedModel,
     co_neighbourhood: &mut BorrowedCityObject,
@@ -1113,7 +1113,7 @@ fn link_semantics_for_schema_coverage(model: &mut BorrowedModel) {
     }
 }
 
-/// Add CityObjects to the model and connect parent/children hierarchy.
+/// Add `CityObjects` to the model and connect parent/children hierarchy.
 fn add_cityobjects_with_hierarchy(
     model: &mut BorrowedModel,
     cityobjects_to_add: PendingCityObjects,
@@ -1157,8 +1157,8 @@ fn add_cityobjects_with_hierarchy(
     })
 }
 
-/// Build a complete Metadata instance with all data set and add it to a CityModel.
-/// Takes the CityModel by mutable reference.
+/// Build a complete Metadata instance with all data set and add it to a `CityModel`.
+/// Takes the `CityModel` by mutable reference.
 fn build_metadata_with_reference(model: &mut BorrowedModel) -> Result<()> {
     let metadata_ref = model.metadata_mut();
     build_metadata(metadata_ref);

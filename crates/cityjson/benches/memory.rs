@@ -12,14 +12,14 @@ use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_en
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 mod benches {
-    use super::*;
+    use super::{rng_from_seed, Rng, BenchParams, black_box};
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::v2_0::*;
+    use cityjson::v2_0::{CityModel, Material, Texture, CityObject, CityObjectType, Semantic, SemanticType};
     use std::collections::HashMap;
 
-    /// Build a CityModel with the specified vertex index type and number of cityobjects.
+    /// Build a `CityModel` with the specified vertex index type and number of cityobjects.
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
     fn build_model<VR: VertexRef>(
         n_cityobjects: usize,
@@ -53,7 +53,7 @@ mod benches {
 
             // Create a CityObject
             let mut cityobject = CityObject::new(
-                CityObjectIdentifier::new(format!("building-{:06}", i)),
+                CityObjectIdentifier::new(format!("building-{i:06}")),
                 CityObjectType::Building,
             );
 
@@ -72,7 +72,7 @@ mod benches {
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
                 "attr_string".to_string(),
-                AttributeValue::String(format!("name-{}", i)),
+                AttributeValue::String(format!("name-{i}")),
             );
             attrs.insert(
                 "attr_vec".to_string(),

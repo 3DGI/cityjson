@@ -2,9 +2,9 @@ use crate::prelude::StringStorage;
 use std::fmt;
 use std::marker::PhantomData;
 
-/// A collection of CityJSON Extensions.
+/// A collection of `CityJSON` Extensions.
 ///
-/// This type provides functionality to manage multiple extensions in a CityJSON model.
+/// This type provides functionality to manage multiple extensions in a `CityJSON` model.
 /// It ensures that extension names are unique (replacing duplicates), and offers methods
 /// to add, remove, and query extensions by name.
 ///
@@ -40,6 +40,7 @@ pub trait ExtensionItem<SS: StringStorage> {
 }
 
 impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             inner: Vec::new(),
@@ -65,14 +66,17 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> ExtensionsCore<SS, E> {
         }
     }
 
+    #[must_use] 
     pub fn get(&self, name: &str) -> Option<&E> {
         self.inner.iter().find(|e| e.name().as_ref() == name)
     }
 
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -122,10 +126,10 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> fmt::Display for ExtensionsCore<SS
     }
 }
 
-/// Represents a CityJSON extension with a name, URL, and version.
+/// Represents a `CityJSON` extension with a name, URL, and version.
 ///
-/// Extensions in CityJSON allow for adding custom objects, attributes, and properties
-/// to the standard CityJSON data model. Each extension must be defined with a unique name,
+/// Extensions in `CityJSON` allow for adding custom objects, attributes, and properties
+/// to the standard `CityJSON` data model. Each extension must be defined with a unique name,
 /// a URL where the extension schema is located, and a version identifier.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#using-an-extension-in-a-cityjson-file>

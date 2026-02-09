@@ -121,10 +121,12 @@ pub struct TextureMap<VR: VertexRef> {
 }
 
 impl<VR: VertexRef> TextureMap<VR> {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn with_capacity(
         vertex_capacity: usize,
         ring_capacity: usize,
@@ -145,6 +147,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         }
     }
 
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -158,7 +161,7 @@ impl<VR: VertexRef> TextureMap<VR> {
     }
 
     pub fn add_ring_texture(&mut self, texture: Option<TextureRef>) {
-        self.inner.add_ring_texture(texture.map(|t| t.to_raw()));
+        self.inner.add_ring_texture(texture.map(super::super::handles::TextureRef::to_raw));
     }
 
     pub fn add_surface(&mut self, surface_start: VertexIndex<VR>) {
@@ -173,6 +176,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.add_solid(solid_start);
     }
 
+    #[must_use] 
     pub fn vertices(&self) -> &[Option<VertexIndex<VR>>] {
         self.inner.vertices()
     }
@@ -181,6 +185,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.vertices_mut()
     }
 
+    #[must_use] 
     pub fn rings(&self) -> &[VertexIndex<VR>] {
         self.inner.rings()
     }
@@ -189,6 +194,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.rings_mut()
     }
 
+    #[must_use] 
     pub fn ring_textures(&self) -> Vec<Option<TextureRef>> {
         self.inner
             .ring_textures()
@@ -202,10 +208,11 @@ impl<VR: VertexRef> TextureMap<VR> {
         let Some(slot) = self.inner.ring_textures_mut().get_mut(ring_index) else {
             return false;
         };
-        *slot = texture.map(|t| t.to_raw());
+        *slot = texture.map(super::super::handles::TextureRef::to_raw);
         true
     }
 
+    #[must_use] 
     pub fn surfaces(&self) -> &[VertexIndex<VR>] {
         self.inner.surfaces()
     }
@@ -214,6 +221,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.surfaces_mut()
     }
 
+    #[must_use] 
     pub fn shells(&self) -> &[VertexIndex<VR>] {
         self.inner.shells()
     }
@@ -222,6 +230,7 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.shells_mut()
     }
 
+    #[must_use] 
     pub fn solids(&self) -> &[VertexIndex<VR>] {
         self.inner.solids()
     }

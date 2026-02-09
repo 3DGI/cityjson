@@ -13,12 +13,14 @@ pub struct CityObjects<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> CityObjects<SS> {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             inner: CityObjectsCore::new(),
         }
     }
 
+    #[must_use] 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: CityObjectsCore::with_capacity(capacity),
@@ -29,6 +31,7 @@ impl<SS: StringStorage> CityObjects<SS> {
         self.inner.add(city_object).map(CityObjectRef::from_raw)
     }
 
+    #[must_use] 
     pub fn get(&self, id: CityObjectRef) -> Option<&CityObject<SS>> {
         self.inner.get(id.to_raw())
     }
@@ -41,10 +44,12 @@ impl<SS: StringStorage> CityObjects<SS> {
         self.inner.remove(id.to_raw())
     }
 
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -69,12 +74,14 @@ impl<SS: StringStorage> CityObjects<SS> {
             .map(|(id, value)| (CityObjectRef::from_raw(id), value))
     }
 
+    #[must_use] 
     pub fn first(&self) -> Option<(CityObjectRef, &CityObject<SS>)> {
         self.inner
             .first()
             .map(|(id, value)| (CityObjectRef::from_raw(id), value))
     }
 
+    #[must_use] 
     pub fn last(&self) -> Option<(CityObjectRef, &CityObject<SS>)> {
         self.inner
             .last()
@@ -227,7 +234,7 @@ impl<SS: StringStorage> CityObject<SS> {
 
 impl<SS: StringStorage> Display for CityObject<SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        write!(f, "{self:#?}")
     }
 }
 
@@ -274,9 +281,9 @@ pub enum CityObjectType<SS: StringStorage> {
 impl<SS: StringStorage> Display for CityObjectType<SS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let CityObjectType::Extension(ext) = self {
-            write!(f, "{}", ext)
+            write!(f, "{ext}")
         } else {
-            write!(f, "{:#?}", self)
+            write!(f, "{self:#?}")
         }
     }
 }

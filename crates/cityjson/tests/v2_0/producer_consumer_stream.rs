@@ -91,17 +91,17 @@ struct WireSemantic {
 struct WireGeometry {
     geometry_type: String, // "Solid", "MultiSurface", "GeometryInstance"
     lod: String,
-    /// Boundaries in nested Vec format (as in CityJSON spec)
+    /// Boundaries in nested Vec format (as in `CityJSON` spec)
     /// For Solid:
-    /// Vec<shells> where shell = Vec<surfaces> where surface = Vec<rings> where ring = Vec<vertex_indices>
+    /// Vec<shells> where shell = Vec<surfaces> where surface = Vec<rings> where ring = Vec<`vertex_indices`>
     boundaries: Vec<Vec<Vec<Vec<usize>>>>,
     /// Semantic surface info, one per surface
     semantics: Vec<Option<WireSemantic>>,
     /// Materials per surface, keyed by theme name
     materials: Vec<(String, WireMaterial)>, // (theme, material)
-    /// For GeometryInstance: reference to template index
+    /// For `GeometryInstance`: reference to template index
     template_ref: Option<usize>,
-    /// For GeometryInstance: transformation matrix
+    /// For `GeometryInstance`: transformation matrix
     transformation_matrix: Option<[f64; 16]>,
 }
 
@@ -112,7 +112,7 @@ struct WireTemplateGeometry {
     lod: String,
     /// Template vertices as real-world coordinates
     template_vertices: Vec<(f64, f64, f64)>,
-    /// Boundaries referencing template_vertices
+    /// Boundaries referencing `template_vertices`
     #[allow(dead_code)]
     boundaries: Vec<Vec<Vec<usize>>>, // For MultiPoint: just Vec of point indices
 }
@@ -127,14 +127,14 @@ struct WireGlobalProperties {
     geometry_templates: Vec<WireTemplateGeometry>,
 }
 
-/// CityObject data as it would appear in parsed CityJSON stream
+/// `CityObject` data as it would appear in parsed `CityJSON` stream
 #[derive(Debug, Clone)]
 struct WireCityObjectData {
     id: String,
     object_type: String,
     /// Quantized vertex coordinates
     vertices: Vec<(i64, i64, i64)>,
-    /// Geometries for this CityObject
+    /// Geometries for this `CityObject`
     geometries: Vec<WireGeometry>,
     /// Attributes
     attributes: Vec<(String, WireAttributeValue)>,
@@ -145,7 +145,7 @@ struct WireCityObjectData {
 enum StreamMessage {
     /// First message: global model properties
     GlobalProperties(WireGlobalProperties),
-    /// Subsequent messages: individual CityObjects
+    /// Subsequent messages: individual `CityObjects`
     CityObject(WireCityObjectData),
     /// Final message: end of stream
     Done,
@@ -168,13 +168,12 @@ struct BatchMetrics {
 fn stream_verbose_enabled() -> bool {
     std::env::var(STREAM_VERBOSE_ENV)
         .ok()
-        .map(|val| {
+        .is_some_and(|val| {
             matches!(
                 val.trim().to_lowercase().as_str(),
                 "1" | "true" | "yes" | "y" | "on"
             )
         })
-        .unwrap_or(false)
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
@@ -344,7 +343,7 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
                 ),
                 (
                     "cadastralId".to_string(),
-                    WireAttributeValue::String(format!("CAD-{:06}", i)),
+                    WireAttributeValue::String(format!("CAD-{i:06}")),
                 ),
                 (
                     "registrationYear".to_string(),
@@ -395,11 +394,11 @@ fn wire_geometry_instance(template_ref: usize, transform: [f64; 16]) -> WireGeom
 
 /// Producer-consumer streaming test with batch-based memory management
 ///
-/// This test simulates realistic CityJSON stream processing using batch processing:
+/// This test simulates realistic `CityJSON` stream processing using batch processing:
 /// 1. Producer sends global properties (metadata, transform, geometry templates)
-/// 2. Producer sends individual CityObjects with boundary/semantic/material data
-/// 3. Consumer processes CityObjects in batches of BATCH_SIZE buildings
-/// 4. Each batch uses a fresh CityModel that is dropped after processing
+/// 2. Producer sends individual `CityObjects` with boundary/semantic/material data
+/// 3. Consumer processes `CityObjects` in batches of `BATCH_SIZE` buildings
+/// 4. Each batch uses a fresh `CityModel` that is dropped after processing
 /// 5. Memory stays bounded per batch instead of accumulating across all buildings
 ///
 /// This approach mirrors real-world streaming parsers that process data in chunks
@@ -453,8 +452,8 @@ fn test_producer_consumer_stream() -> Result<()> {
     let throughput = NR_BUILDINGS as f64 / total_duration_secs;
 
     println!("\n========== Overall Test Summary ==========");
-    println!("Total test duration: {:.2}s", total_duration_secs);
-    println!("Throughput: {:.0} buildings/sec", throughput);
+    println!("Total test duration: {total_duration_secs:.2}s");
+    println!("Throughput: {throughput:.0} buildings/sec");
     println!(
         "Average processing time per building: {:.3}ms",
         (total_duration_secs / NR_BUILDINGS as f64) * 1000.0
@@ -464,11 +463,11 @@ fn test_producer_consumer_stream() -> Result<()> {
     result
 }
 
-/// Producer function that generates CityJSON stream data
+/// Producer function that generates `CityJSON` stream data
 ///
-/// Simulates a newline-delimited CityJSON stream:
+/// Simulates a newline-delimited `CityJSON` stream:
 /// 1. First line: global properties (metadata, CRS, transform, templates)
-/// 2. Subsequent lines: individual CityObjects
+/// 2. Subsequent lines: individual `CityObjects`
 /// 3. End of stream
 fn producer(tx: mpsc::SyncSender<StreamMessage>) {
     // ========================================================================
@@ -505,7 +504,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 
     for i in 0..building_count {
         if stream_verbose_enabled() && i % 100_000 == 0 && i > 0 {
-            println!("Producer: Generated {} / {} buildings", i, building_count);
+            println!("Producer: Generated {i} / {building_count} buildings");
         }
         // Vary complexity: simple (8 verts), medium (16 verts), complex (24 verts)
         let complexity = i % 3;
@@ -676,7 +675,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 
         // Construct CityObject message
         let cityobject = WireCityObjectData {
-            id: format!("building-{}", i),
+            id: format!("building-{i}"),
             object_type: "Building".to_string(),
             vertices,
             geometries: vec![geometry_solid, geometry_instance],
@@ -695,7 +694,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
         .expect("Failed to send completion signal");
 }
 
-/// Creates a new CityModel for a batch with templates and metadata from global properties
+/// Creates a new `CityModel` for a batch with templates and metadata from global properties
 ///
 /// # Arguments
 ///
@@ -703,7 +702,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 ///
 /// # Returns
 ///
-/// A tuple containing the initialized CityModel and a vector of template resource references
+/// A tuple containing the initialized `CityModel` and a vector of template resource references
 #[allow(clippy::type_complexity)]
 fn create_batch_model(
     global: &WireGlobalProperties,
@@ -742,14 +741,14 @@ fn create_batch_model(
 ///
 /// # Arguments
 ///
-/// * `model` - The CityModel containing the batch
+/// * `model` - The `CityModel` containing the batch
 /// * `batch_num` - The batch number (for logging)
 /// * `cumulative_buildings` - Total buildings processed so far across all batches
 /// * `total_surfaces` - Total surfaces processed in this batch
 ///
 /// # Returns
 ///
-/// BatchMetrics for this batch
+/// `BatchMetrics` for this batch
 fn process_batch(
     model: &CityModel<u32, OwnedStringStorage>,
     batch_num: usize,
@@ -763,13 +762,7 @@ fn process_batch(
     // Print batch progress
     if stream_verbose_enabled() && (batch_num.is_multiple_of(100) || batch_num < 10) {
         println!(
-            "Batch {}: {} buildings processed (total: {}), {} vertices, {} geometries, {} surfaces",
-            batch_num,
-            buildings_in_batch,
-            cumulative_buildings,
-            vertices_in_batch,
-            geometries_in_batch,
-            total_surfaces
+            "Batch {batch_num}: {buildings_in_batch} buildings processed (total: {cumulative_buildings}), {vertices_in_batch} vertices, {geometries_in_batch} geometries, {total_surfaces} surfaces"
         );
     }
 
@@ -782,11 +775,11 @@ fn process_batch(
     }
 }
 
-/// Consumer function that constructs CityModel from wire format and manages memory
+/// Consumer function that constructs `CityModel` from wire format and manages memory
 ///
-/// Simulates realistic CityJSON stream processing with batch processing:
-/// 1. Receives GlobalProperties, extracts metadata and templates
-/// 2. Processes CityObjects in batches, creating a fresh CityModel for each batch
+/// Simulates realistic `CityJSON` stream processing with batch processing:
+/// 1. Receives `GlobalProperties`, extracts metadata and templates
+/// 2. Processes `CityObjects` in batches, creating a fresh `CityModel` for each batch
 /// 3. Each batch is processed independently and then dropped to free memory
 fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     // ========================================================================
@@ -939,12 +932,11 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
     // Final assertions and summary
     assert_eq!(
         total_buildings_processed, NR_BUILDINGS,
-        "Should have processed {} buildings",
-        NR_BUILDINGS
+        "Should have processed {NR_BUILDINGS} buildings"
     );
 
     println!("\n========== Performance Summary ==========");
-    println!("Total buildings processed: {}", total_buildings_processed);
+    println!("Total buildings processed: {total_buildings_processed}");
     println!("Total batches: {}", current_batch_num + 1);
     println!(
         "Total geometries processed: {}",
@@ -1015,7 +1007,7 @@ fn build_geometry_from_wire(
             Error::InvalidGeometry("GeometryInstance missing template_ref".to_string())
         })?;
         let template_ref = template_refs.get(template_idx).ok_or_else(|| {
-            Error::InvalidGeometry(format!("Invalid template reference: {}", template_idx))
+            Error::InvalidGeometry(format!("Invalid template reference: {template_idx}"))
         })?;
 
         return GeometryBuilder::new(model, GeometryType::GeometryInstance, BuilderMode::Regular)
@@ -1046,7 +1038,7 @@ fn build_geometry_from_wire(
         .collect();
 
     // Build geometry from boundaries
-    for shell in wire_geom.boundaries.iter() {
+    for shell in &wire_geom.boundaries {
         let mut surface_ids = Vec::new();
 
         for (surface_idx, surface_rings) in shell.iter().enumerate() {
@@ -1144,7 +1136,7 @@ fn convert_wire_material(wire_material: &WireMaterial) -> Material<OwnedStringSt
     material
 }
 
-/// Converts wire attribute value to inline AttributeValue
+/// Converts wire attribute value to inline `AttributeValue`
 fn convert_wire_attribute_value(
     wire_value: WireAttributeValue,
 ) -> AttributeValue<OwnedStringStorage> {
@@ -1173,7 +1165,7 @@ fn convert_wire_attribute_value(
     }
 }
 
-/// Parses CityObject type string
+/// Parses `CityObject` type string
 fn parse_city_object_type(type_str: &str) -> CityObjectType<OwnedStringStorage> {
     match type_str {
         "Building" => CityObjectType::Building,
@@ -1183,7 +1175,7 @@ fn parse_city_object_type(type_str: &str) -> CityObjectType<OwnedStringStorage> 
     }
 }
 
-/// Parses LoD string
+/// Parses `LoD` string
 fn parse_lod(lod_str: &str) -> LoD {
     match lod_str {
         "0" => LoD::LoD0,

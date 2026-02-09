@@ -1,6 +1,6 @@
 //! # String storage
 //!
-//! This module provides string storage strategies for the CityJSON data model.
+//! This module provides string storage strategies for the `CityJSON` data model.
 //! It defines traits and implementations for both owned and borrowed string types,
 //! allowing for flexible memory management based on application needs.
 //!
@@ -44,7 +44,7 @@ pub trait StringStorage: Clone + Debug + Default + PartialEq + Eq + Hash {
     /// - `&str` for borrowed storage
     ///
     /// The constraints ensure that regardless of the storage strategy,
-    /// the string type supports all necessary operations for the CityJSON model.
+    /// the string type supports all necessary operations for the `CityJSON` model.
     type String: AsRef<str>
         + Eq
         + PartialEq

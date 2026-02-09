@@ -1,4 +1,4 @@
-//! Curated core CityJSON modules.
+//! Curated core `CityJSON` modules.
 
 pub mod appearance {
     pub use crate::backend::default::appearance::{ImageType, TextureType, WrapMode};

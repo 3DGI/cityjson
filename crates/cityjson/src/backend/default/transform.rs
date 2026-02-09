@@ -1,13 +1,13 @@
 //! # Transform
 //!
-//! This module provides types and functionality for handling CityJSON coordinate transformations.
+//! This module provides types and functionality for handling `CityJSON` coordinate transformations.
 //! It implements the [Transform object](https://www.cityjson.org/specs/1.1.3/#transform-object)
-//! as specified in the CityJSON 1.1.3 standard.
+//! as specified in the `CityJSON` 1.1.3 standard.
 //!
 //! ## Overview
 //!
 //! The transform module contains the primary `Transform` struct that handles coordinate
-//! transformations in CityJSON. CityJSON uses a mechanism to reduce the file size whereby vertices
+//! transformations in `CityJSON`. `CityJSON` uses a mechanism to reduce the file size whereby vertices
 //! are represented with integers, and these vertices need to be transformed to obtain their real
 //! coordinates.
 //!
@@ -40,7 +40,7 @@
 //!
 //! ### Applying a transform
 //!
-//! When working with CityJSON files, the transform is typically applied to integer coordinates to
+//! When working with `CityJSON` files, the transform is typically applied to integer coordinates to
 //! get the real-world coordinates:
 //!
 //! ```rust
@@ -67,7 +67,7 @@
 //! [CityJSON 1.1.3 specification](https://www.cityjson.org/specs/1.1.3/#transform-object).
 //! It implements the required scale and translate properties as defined in the standard.
 //!
-//! The transformation mechanism is an important feature of CityJSON that helps reduce file sizes
+//! The transformation mechanism is an important feature of `CityJSON` that helps reduce file sizes
 //! while maintaining precision in coordinate values.
 
 use std::fmt::{Display, Formatter};
@@ -95,12 +95,15 @@ pub struct TransformCore {
 }
 
 impl TransformCore {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
+    #[must_use] 
     pub fn scale(&self) -> [f64; 3] {
         self.scale
     }
+    #[must_use] 
     pub fn translate(&self) -> [f64; 3] {
         self.translate
     }

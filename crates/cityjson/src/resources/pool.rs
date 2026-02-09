@@ -247,6 +247,7 @@ pub trait ResourceRef:
     fn generation(&self) -> u16;
 
     /// Maximum index representable by this reference type.
+    #[must_use] 
     fn max_index() -> u32 {
         u32::MAX
     }
@@ -266,27 +267,30 @@ pub struct ResourceId32 {
 }
 
 impl ResourceId32 {
-    /// Creates a new ResourceId32 with the given index and generation.
+    /// Creates a new `ResourceId32` with the given index and generation.
     ///
     /// # Arguments
     ///
     /// * `index` - The index of the resource in the storage
     /// * `generation` - The generation counter for the resource slot
+    #[must_use] 
     pub fn new(index: u32, generation: u16) -> Self {
         Self { index, generation }
     }
 
     /// Returns the index part of the identifier.
+    #[must_use] 
     pub fn index(&self) -> u32 {
         self.index
     }
 
     /// Returns the generation part of the identifier.
+    #[must_use] 
     pub fn generation(&self) -> u16 {
         self.generation
     }
 
-    /// Convert the resource index to a [VertexIndex].
+    /// Convert the resource index to a [`VertexIndex`].
     ///
     /// This is useful when the resource pool is storing vertices or related entities
     /// that can be referenced by vertex indices.
@@ -295,7 +299,7 @@ impl ResourceId32 {
     ///
     /// # Returns
     ///
-    /// A Result containing the converted VertexIndex or an error if conversion fails
+    /// A Result containing the converted `VertexIndex` or an error if conversion fails
     pub fn to_vertex_index<T: VertexRef>(&self) -> Result<VertexIndex<T>> {
         T::from_u32(self.index)
             .map(|v| VertexIndex::new(v))
@@ -325,7 +329,7 @@ impl ResourceRef for ResourceId32 {
     }
 }
 
-/// A default implementation of ResourcePool that uses a Vec to store resources.
+/// A default implementation of `ResourcePool` that uses a Vec to store resources.
 ///
 /// This implementation provides efficient O(1) lookups, additions, and removals of resources.
 /// When resources are removed, their slots are tracked in a free list and reused for future additions.
@@ -339,7 +343,7 @@ impl ResourceRef for ResourceId32 {
 /// # Type Parameters
 ///
 /// - `T`: The type of resources stored in the pool
-/// - `RR`: The reference type used to identify resources, must implement ResourceRef
+/// - `RR`: The reference type used to identify resources, must implement `ResourceRef`
 #[derive(Debug, Clone)]
 pub struct DefaultResourcePool<T, RR: ResourceRef> {
     /// Storage for resources, with Some(T) for occupied slots and None for vacant slots
@@ -400,6 +404,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
     }
 
     /// Internal helper to create a new (empty) resource pool.
+    #[must_use] 
     pub fn new_pool() -> Self {
         Self {
             resources: Vec::new(),
@@ -411,18 +416,21 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
 
     /// Returns a zero-copy raw view of the pool internals.
     #[inline]
+    #[must_use] 
     pub fn raw_view(&self) -> RawPoolView<'_, T> {
         RawPoolView::new(&self.resources, &self.generations)
     }
 
     /// Returns the underlying resource slots (`None` means vacant slot).
     #[inline]
+    #[must_use] 
     pub fn as_slice(&self) -> &[Option<T>] {
         &self.resources
     }
 
     /// Returns generation counters for each slot.
     #[inline]
+    #[must_use] 
     pub fn generations(&self) -> &[u16] {
         &self.generations
     }
@@ -438,7 +446,7 @@ fn usize_to_resource_index<RR: ResourceRef>(index: usize) -> Option<u32> {
     }
 }
 
-/// Iterator over resources in a DefaultResourcePool.
+/// Iterator over resources in a `DefaultResourcePool`.
 ///
 /// This iterator yields pairs of resource identifiers and references to resources,
 /// skipping over vacant slots.
@@ -478,7 +486,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
     }
 }
 
-/// An iterator over mutable references to resources in a DefaultResourcePool.
+/// An iterator over mutable references to resources in a `DefaultResourcePool`.
 ///
 /// This iterator yields pairs of resource identifiers and mutable references to resources,
 /// skipping over vacant slots.

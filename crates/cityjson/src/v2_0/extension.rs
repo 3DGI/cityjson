@@ -7,6 +7,7 @@ pub struct Extensions<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> Extensions<SS> {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             inner: core::extension::ExtensionsCore::new(),
@@ -22,14 +23,17 @@ impl<SS: StringStorage> Extensions<SS> {
         self.inner.remove(name)
     }
 
+    #[must_use] 
     pub fn get(&self, name: &str) -> Option<&Extension<SS>> {
         self.inner.get(name)
     }
 
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }

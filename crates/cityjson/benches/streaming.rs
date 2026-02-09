@@ -91,13 +91,12 @@ struct StreamMetrics {
 fn stream_verbose_enabled() -> bool {
     env::var(STREAM_VERBOSE_ENV)
         .ok()
-        .map(|val| {
+        .is_some_and(|val| {
             matches!(
                 val.trim().to_lowercase().as_str(),
                 "1" | "true" | "yes" | "y" | "on"
             )
         })
-        .unwrap_or(false)
 }
 
 fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
@@ -180,7 +179,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize,
 
     for i in 0..building_count {
         if stream_verbose_enabled() && i > 0 && i.is_multiple_of(100_000) {
-            println!("Producer: Generated {} / {} buildings", i, building_count);
+            println!("Producer: Generated {i} / {building_count} buildings");
         }
 
         let base_x = 100 + (((i as i64 + seed_offset) * 50) % 10_000);
@@ -239,7 +238,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize,
         let attributes = make_wire_attributes(i, height);
 
         let cityobject = WireCityObjectData {
-            id: format!("building-{}", i),
+            id: format!("building-{i}"),
             object_type: "Building".to_string(),
             vertices,
             geometries: vec![geometry_solid],
@@ -250,7 +249,7 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>, size: usize, batch_size: usize,
             .expect("Failed to send CityObject");
 
         if stream_verbose_enabled() && i > 0 && i.is_multiple_of(batch_size as u64) {
-            println!("Producer: checkpoint {}", i);
+            println!("Producer: checkpoint {i}");
         }
     }
 
@@ -268,13 +267,7 @@ fn process_batch(
 ) {
     if stream_verbose_enabled() && (batch_num.is_multiple_of(100) || batch_num < 10) {
         println!(
-            "Batch {}: {} buildings processed (total: {}), {} vertices, {} geometries, {} surfaces",
-            batch_num,
-            buildings_in_batch,
-            cumulative_buildings,
-            vertices_in_batch,
-            geometries_in_batch,
-            surfaces_in_batch
+            "Batch {batch_num}: {buildings_in_batch} buildings processed (total: {cumulative_buildings}), {vertices_in_batch} vertices, {geometries_in_batch} geometries, {surfaces_in_batch} surfaces"
         );
     }
 
@@ -322,16 +315,12 @@ fn stream_seed_from_env() -> u64 {
 }
 
 fn stream_out_path() -> PathBuf {
-    env::var("STREAM_OUT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("target/streaming-metrics.json"))
+    env::var("STREAM_OUT").map_or_else(|_| PathBuf::from("target/streaming-metrics.json"), PathBuf::from)
 }
 
 fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()> {
     let producer_value = metrics
-        .producer_ms
-        .map(|v| format!("{:.6}", v))
-        .unwrap_or_else(|| "null".to_string());
+        .producer_ms.map_or_else(|| "null".to_string(), |v| format!("{v:.6}"));
     let payload = format!(
         "{{\n  \"mode\": \"{}\",\n  \"metrics\": {{\n    \"time_ms\": {:.6},\n    \"time_producer_ms\": {},\n    \"time_consumer_ms\": {:.6},\n    \"throughput_elem_s\": {:.6}\n  }}\n}}\n",
         metrics.mode,
@@ -344,11 +333,11 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 }
 
 mod default_backend {
-    use super::*;
+    use super::{WireGlobalProperties, WireGeometry, WireSemantic, WireMaterial, WireAttributeValue, StreamMetrics, mpsc, StreamMessage, Instant, thread, producer, stream_verbose_enabled, process_batch};
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::resources::pool::ResourceId32;
-    use cityjson::v2_0::*;
+    use cityjson::v2_0::{CityModel, Semantic, SemanticType, Material, CityObjectType, CityObject};
 
     fn create_batch_model(
         global: &WireGlobalProperties,
@@ -390,7 +379,7 @@ mod default_backend {
             .map(|vref| builder.add_vertex(*vref))
             .collect();
 
-        for shell in wire_geom.boundaries.iter() {
+        for shell in &wire_geom.boundaries {
             let mut surface_ids = Vec::new();
 
             for (surface_idx, surface_rings) in shell.iter().enumerate() {
@@ -674,8 +663,7 @@ mod default_backend {
 
         if total_buildings_processed != size {
             return Err(Error::InvalidGeometry(format!(
-                "Expected {} buildings, processed {}",
-                size, total_buildings_processed
+                "Expected {size} buildings, processed {total_buildings_processed}"
             )));
         }
 
@@ -693,13 +681,13 @@ fn main() {
     let metrics = default_backend::run(&mode, size, batch, seed).expect("default stream failed");
 
     if let Err(err) = write_metrics(&out_path, &metrics) {
-        eprintln!("Failed to write streaming metrics: {}", err);
+        eprintln!("Failed to write streaming metrics: {err}");
     }
 
     println!("streaming mode: {}", metrics.mode);
     println!("time_ms: {:.4}", metrics.total_ms);
     if let Some(producer_ms) = metrics.producer_ms {
-        println!("time_producer_ms: {:.4}", producer_ms);
+        println!("time_producer_ms: {producer_ms:.4}");
     }
     println!("time_consumer_ms: {:.4}", metrics.consumer_ms);
     println!("throughput_elem_s: {:.2}", metrics.throughput_elem_s);

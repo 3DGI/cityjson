@@ -1,6 +1,6 @@
 //! # Attributes
 //!
-//! This module provides types and functionality for handling CityJSON object attributes.
+//! This module provides types and functionality for handling `CityJSON` object attributes.
 //! It implements a flexible attribute system that can store various types of values,
 //! supporting both owned and borrowed string storage strategies.
 //!
@@ -13,7 +13,7 @@
 //! - [`OwnedAttributes`]: Type alias for attributes with owned strings
 //! - [`BorrowedAttributes`]: Type alias for attributes with borrowed strings
 //!
-//! ## Architecture: Array of Structures (AoS)
+//! ## Architecture: Array of Structures (`AoS`)
 //!
 //! Each object owns its attributes directly using a key-value map. Attributes are
 //! stored inline rather than in a global pool, eliminating borrow checker conflicts
@@ -53,7 +53,7 @@
 //!
 //! ## Compliance
 //!
-//! This module implements the attribute storage needed for CityJSON objects
+//! This module implements the attribute storage needed for `CityJSON` objects
 //! as specified in the [CityJSON specification](https://www.cityjson.org/specs/).
 
 use crate::resources::handles::GeometryRef;
@@ -83,7 +83,7 @@ pub enum AttributeValue<SS: StringStorage> {
     Vec(Vec<Box<AttributeValue<SS>>>),
     /// A map of string keys to attribute values.
     Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
-    /// A geometry reference. Used for "address.location" which must be a MultiPoint.
+    /// A geometry reference. Used for "address.location" which must be a `MultiPoint`.
     Geometry(GeometryRef),
 }
 
@@ -94,18 +94,18 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AttributeValue::Null => write!(f, "null"),
-            AttributeValue::Bool(value) => write!(f, "{}", value),
-            AttributeValue::Unsigned(value) => write!(f, "{}", value),
-            AttributeValue::Integer(value) => write!(f, "{}", value),
-            AttributeValue::Float(value) => write!(f, "{}", value),
-            AttributeValue::String(value) => write!(f, "\"{}\"", value),
+            AttributeValue::Bool(value) => write!(f, "{value}"),
+            AttributeValue::Unsigned(value) => write!(f, "{value}"),
+            AttributeValue::Integer(value) => write!(f, "{value}"),
+            AttributeValue::Float(value) => write!(f, "{value}"),
+            AttributeValue::String(value) => write!(f, "\"{value}\""),
             AttributeValue::Vec(values) => {
                 write!(f, "[")?;
                 for (i, value) in values.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", value)?;
+                    write!(f, "{value}")?;
                 }
                 write!(f, "]")
             }
@@ -115,11 +115,11 @@ where
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "\"{}\": {}", key, value)?;
+                    write!(f, "\"{key}\": {value}")?;
                 }
                 write!(f, "}}")
             }
-            AttributeValue::Geometry(value) => write!(f, "Geometry({})", value),
+            AttributeValue::Geometry(value) => write!(f, "Geometry({value})"),
         }
     }
 }
@@ -143,7 +143,7 @@ pub enum AttributeValueType {
     Vec,
     /// A map of string keys to attribute values.
     Map,
-    /// A geometry. Basically, only used for "address.location", which must be a MultiPoint.
+    /// A geometry. Basically, only used for "address.location", which must be a `MultiPoint`.
     Geometry,
 }
 
@@ -175,6 +175,7 @@ pub struct Attributes<SS: StringStorage> {
 
 impl<SS: StringStorage> Attributes<SS> {
     /// Creates a new, empty attributes container.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
@@ -182,6 +183,7 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Retrieves a reference to the attribute value associated with the given key.
+    #[must_use] 
     pub fn get(&self, key: &str) -> Option<&AttributeValue<SS>> {
         self.values.get(key)
     }
@@ -208,11 +210,13 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Returns the number of attributes in the container.
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
     /// Checks if the attributes container is empty.
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -238,6 +242,7 @@ impl<SS: StringStorage> Attributes<SS> {
     }
 
     /// Checks if the attributes container contains a key.
+    #[must_use] 
     pub fn contains_key(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }
@@ -259,7 +264,7 @@ where
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "\"{}\": {}", key, value)?;
+            write!(f, "\"{key}\": {value}")?;
         }
         write!(f, "}}")
     }

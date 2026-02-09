@@ -1,10 +1,10 @@
-//! # Boundary Representation for CityJSON Geometries
+//! # Boundary Representation for `CityJSON` Geometries
 //!
-//! This module provides representations and utilities for working with CityJSON geometry boundaries,
+//! This module provides representations and utilities for working with `CityJSON` geometry boundaries,
 //! supporting both a memory-efficient flattened representation and a nested representation that
-//! aligns with the CityJSON specification.
+//! aligns with the `CityJSON` specification.
 //!
-//! ## CityJSON Compliance
+//! ## `CityJSON` Compliance
 //!
 //! The boundary representations in this module comply with the
 //! [CityJSON specification](https://www.cityjson.org/specs/) for geometry boundaries. The
@@ -15,7 +15,7 @@
 //!
 //! ### Nested Representation
 //!
-//! CityJSON defines geometry boundaries using nested arrays in JSON. For example, a MultiSurface
+//! `CityJSON` defines geometry boundaries using nested arrays in JSON. For example, a `MultiSurface`
 //! is represented as an array of surfaces, where each surface is an array of rings, and each ring
 //! is an array of vertex indices. This nested structure is intuitive and directly maps to the
 //! JSON representation, but can be inefficient for processing and memory usage due to the overhead
@@ -36,14 +36,14 @@
 //! - Improves cache locality for better performance
 //! - Simplifies operations on the geometry
 //!
-//! For example, a MultiSurface is represented using:
+//! For example, a `MultiSurface` is represented using:
 //! - A single vector of vertex indices
 //! - A vector of ring indices (pointing into the vertex vector)
 //! - A vector of surface indices (pointing into the ring vector)
 //!
 //! ## Usage
 //!
-//! The nested representation is primarily used for serialization/deserialization to/from CityJSON,
+//! The nested representation is primarily used for serialization/deserialization to/from `CityJSON`,
 //! while the flattened representation is used for internal processing within cityjson-rs. The module
 //! provides methods to convert between the two representations.
 //!
@@ -66,16 +66,16 @@
 
 pub mod nested;
 
-use crate::cityjson::core::boundary::nested::*;
+use crate::cityjson::core::boundary::nested::{BoundaryNestedMultiPoint, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSurface, BoundaryNestedSolid, BoundaryNestedMultiOrCompositeSolid};
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::core::vertex::{RawVertexView, VertexIndex};
 use crate::error;
 
-/// A generic Boundary type that can represent any CityJSON boundary.
+/// A generic Boundary type that can represent any `CityJSON` boundary.
 ///
 /// This structure provides an efficient, flattened representation of geometry boundaries,
-/// optimized for memory usage and processing. It can represent any CityJSON geometry type,
-/// from MultiPoint to MultiSolid.
+/// optimized for memory usage and processing. It can represent any `CityJSON` geometry type,
+/// from `MultiPoint` to `MultiSolid`.
 ///
 /// The `Boundary` uses a series of indices and offsets to navigate through a structure that
 /// would traditionally be represented using nested arrays. Instead of nesting, each level
@@ -152,6 +152,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// assert!(boundary.is_consistent());
     /// ```
     #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -186,6 +187,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// assert!(boundary.is_consistent());
     /// ```
     #[inline]
+    #[must_use] 
     pub fn with_capacity(
         vertices: usize,
         rings: usize,
@@ -202,28 +204,34 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
+    #[must_use] 
     pub fn vertices_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.vertices)
     }
 
+    #[must_use] 
     pub fn rings_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.rings)
     }
 
+    #[must_use] 
     pub fn surfaces_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.surfaces)
     }
 
+    #[must_use] 
     pub fn shells_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.shells)
     }
 
+    #[must_use] 
     pub fn solids_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.solids)
     }
 
     /// Exports this boundary into a columnar view suitable for serializers.
     #[inline]
+    #[must_use] 
     pub fn to_columnar(&self) -> BoundaryColumnar<'_, VR> {
         BoundaryColumnar {
             vertices: &self.vertices,
@@ -235,6 +243,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
+    #[must_use] 
     pub fn vertices(&self) -> &[VertexIndex<VR>] {
         &self.vertices
     }
@@ -248,6 +257,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
+    #[must_use] 
     pub fn rings(&self) -> &[VertexIndex<VR>] {
         &self.rings
     }
@@ -261,6 +271,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
+    #[must_use] 
     pub fn surfaces(&self) -> &[VertexIndex<VR>] {
         &self.surfaces
     }
@@ -274,6 +285,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
+    #[must_use] 
     pub fn shells(&self) -> &[VertexIndex<VR>] {
         &self.shells
     }
@@ -287,6 +299,7 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 
     #[inline]
+    #[must_use] 
     pub fn solids(&self) -> &[VertexIndex<VR>] {
         &self.solids
     }
@@ -299,15 +312,15 @@ impl<VR: VertexRef> Boundary<VR> {
         self.solids = iter.into_iter().collect();
     }
 
-    /// Converts to a nested MultiPoint boundary representation.
+    /// Converts to a nested `MultiPoint` boundary representation.
     ///
-    /// This method converts the flattened boundary to a nested MultiPoint representation
-    /// if the boundary can be interpreted as a MultiPoint.
+    /// This method converts the flattened boundary to a nested `MultiPoint` representation
+    /// if the boundary can be interpreted as a `MultiPoint`.
     ///
     /// # Returns
     ///
-    /// A `Result` containing either the nested MultiPoint representation or an error
-    /// if the boundary cannot be interpreted as a MultiPoint.
+    /// A `Result` containing either the nested `MultiPoint` representation or an error
+    /// if the boundary cannot be interpreted as a `MultiPoint`.
     ///
     /// # Examples
     ///
@@ -328,7 +341,7 @@ impl<VR: VertexRef> Boundary<VR> {
     pub fn to_nested_multi_point(&self) -> error::Result<BoundaryNestedMultiPoint<VR>> {
         let boundary_type = self.check_type();
         if boundary_type == BoundaryType::MultiPoint {
-            Ok(self.vertices.iter().map(|v| v.value()).collect())
+            Ok(self.vertices.iter().map(super::vertex::VertexIndex::value).collect())
         } else {
             Err(error::Error::IncompatibleBoundary(
                 boundary_type.to_string(),
@@ -337,15 +350,15 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Converts to a nested MultiLineString boundary representation.
+    /// Converts to a nested `MultiLineString` boundary representation.
     ///
-    /// This method converts the flattened boundary to a nested MultiLineString representation
-    /// if the boundary can be interpreted as a MultiLineString.
+    /// This method converts the flattened boundary to a nested `MultiLineString` representation
+    /// if the boundary can be interpreted as a `MultiLineString`.
     ///
     /// # Returns
     ///
-    /// A `Result` containing either the nested MultiLineString representation or an error
-    /// if the boundary cannot be interpreted as a MultiLineString.
+    /// A `Result` containing either the nested `MultiLineString` representation or an error
+    /// if the boundary cannot be interpreted as a `MultiLineString`.
     ///
     /// # Examples
     ///
@@ -378,15 +391,15 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Converts to a nested Multi- or CompositeSurface boundary representation.
+    /// Converts to a nested Multi- or `CompositeSurface` boundary representation.
     ///
-    /// This method converts the flattened boundary to a nested Multi- or CompositeSurface
-    /// representation if the boundary can be interpreted as a Multi- or CompositeSurface.
+    /// This method converts the flattened boundary to a nested Multi- or `CompositeSurface`
+    /// representation if the boundary can be interpreted as a Multi- or `CompositeSurface`.
     ///
     /// # Returns
     ///
-    /// A `Result` containing either the nested Multi- or CompositeSurface representation or an error
-    /// if the boundary cannot be interpreted as a Multi- or CompositeSurface.
+    /// A `Result` containing either the nested Multi- or `CompositeSurface` representation or an error
+    /// if the boundary cannot be interpreted as a Multi- or `CompositeSurface`.
     ///
     /// # Examples
     ///
@@ -470,15 +483,15 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
-    /// Converts to a nested Multi- or CompositeSolid boundary representation.
+    /// Converts to a nested Multi- or `CompositeSolid` boundary representation.
     ///
-    /// This method converts the flattened boundary to a nested Multi- or CompositeSolid
-    /// representation if the boundary can be interpreted as a Multi- or CompositeSolid.
+    /// This method converts the flattened boundary to a nested Multi- or `CompositeSolid`
+    /// representation if the boundary can be interpreted as a Multi- or `CompositeSolid`.
     ///
     /// # Returns
     ///
-    /// A `Result` containing either the nested Multi- or CompositeSolid representation or an error
-    /// if the boundary cannot be interpreted as a Multi- or CompositeSolid.
+    /// A `Result` containing either the nested Multi- or `CompositeSolid` representation or an error
+    /// if the boundary cannot be interpreted as a Multi- or `CompositeSolid`.
     ///
     /// # Examples
     ///
@@ -606,7 +619,7 @@ impl<VR: VertexRef> Boundary<VR> {
                 .vertices
                 .get(vertices_start_i.to_usize()..vertices_end_i.to_usize())
             {
-                surface.push(vertices.iter().map(|v| v.value()).collect());
+                surface.push(vertices.iter().map(super::vertex::VertexIndex::value).collect());
             }
         }
         Ok(())
@@ -634,6 +647,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// // Check type
     /// assert_eq!(boundary.check_type(), BoundaryType::MultiLineString);
     /// ```
+    #[must_use] 
     pub fn check_type(&self) -> BoundaryType {
         if !self.solids.is_empty() {
             BoundaryType::MultiOrCompositeSolid
@@ -671,6 +685,7 @@ impl<VR: VertexRef> Boundary<VR> {
     /// let boundary: Boundary<u32> = Boundary::new();
     /// assert!(boundary.is_consistent());
     /// ```
+    #[must_use] 
     pub fn is_consistent(&self) -> bool {
         // Check that all indices are within bounds
         let vertices_len = self.vertices.len();
@@ -722,11 +737,11 @@ impl<VR: VertexRef> Boundary<VR> {
     }
 }
 
-/// The type of a CityJSON boundary.
+/// The type of a `CityJSON` boundary.
 ///
 /// This enum represents the different types of boundaries that can be represented
-/// in CityJSON. The types follow a hierarchy of complexity, from the simplest
-/// (MultiPoint) to the most complex (MultiOrCompositeSolid).
+/// in `CityJSON`. The types follow a hierarchy of complexity, from the simplest
+/// (`MultiPoint`) to the most complex (`MultiOrCompositeSolid`).
 ///
 /// # Examples
 ///
@@ -767,7 +782,7 @@ impl std::fmt::Display for BoundaryType {
             BoundaryType::MultiPoint => "MultiPoint",
             BoundaryType::None => "None",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

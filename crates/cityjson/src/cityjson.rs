@@ -1,4 +1,4 @@
-//! # CityJSON types and traits
+//! # `CityJSON` types and traits
 //!
 //! These types are version-agnostic, as they are not expected to change across versions.
 

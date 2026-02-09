@@ -1,13 +1,13 @@
 //! Example demonstrating inline attribute usage in cityjson-rs
 //!
-//! This example shows how to work with attributes using the new AoS (Array of Structures)
+//! This example shows how to work with attributes using the new `AoS` (Array of Structures)
 //! inline API. Attributes are now stored directly on objects rather than in a global pool.
 //!
 //! Run with: cargo run --example attributes
 
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
-use cityjson::v2_0::*;
+use cityjson::v2_0::{CityModel, CityObject, CityObjectType, Semantic, SemanticType};
 use std::collections::HashMap;
 
 fn main() -> Result<()> {
@@ -133,7 +133,7 @@ fn main() -> Result<()> {
         if let Some(attrs) = building.attributes() {
             println!("   Attributes:");
             for (key, value) in attrs.iter() {
-                println!("     - {}: {}", key, value);
+                println!("     - {key}: {value}");
             }
         }
 
@@ -141,8 +141,8 @@ fn main() -> Result<()> {
             println!("   Extra properties:");
             for (key, value) in extra.iter() {
                 match value {
-                    OwnedAttributeValue::Map(_) => println!("     - {}: <nested map>", key),
-                    _ => println!("     - {}: {}", key, value),
+                    OwnedAttributeValue::Map(_) => println!("     - {key}: <nested map>"),
+                    _ => println!("     - {key}: {value}"),
                 }
             }
         }
@@ -158,9 +158,9 @@ fn main() -> Result<()> {
         if let Some(OwnedAttributeValue::Integer(year)) =
             building.attributes_mut().get_mut("yearOfConstruction")
         {
-            println!("   Original year: {}", year);
+            println!("   Original year: {year}");
             *year = 1986; // Correcting the year
-            println!("   Updated year: {}", year);
+            println!("   Updated year: {year}");
         }
 
         // Add a new attribute

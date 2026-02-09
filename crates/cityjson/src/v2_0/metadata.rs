@@ -16,6 +16,7 @@ pub struct Metadata<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> Metadata<SS> {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -79,7 +80,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 phone: Some(phone.as_ref().to_owned()),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -90,7 +91,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 organization: Some(organization.as_ref().to_owned()),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -100,23 +101,23 @@ impl<SS: StringStorage> Metadata<SS> {
 
     pub fn set_contact_name<S: AsRef<str>>(&mut self, name: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.contact_name = name.as_ref().to_owned()
+            poc.contact_name = name.as_ref().to_owned();
         } else {
             self.point_of_contact = Some(Contact {
                 contact_name: name.as_ref().to_owned(),
                 ..Default::default()
-            })
+            });
         }
     }
 
     pub fn set_email_address<S: AsRef<str>>(&mut self, email: S) {
         if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.email_address = email.as_ref().to_owned()
+            poc.email_address = email.as_ref().to_owned();
         } else {
             self.point_of_contact = Some(Contact {
                 email_address: email.as_ref().to_owned(),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -127,7 +128,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 role: Some(role),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -138,7 +139,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 website: Some(website.as_ref().to_owned()),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -149,7 +150,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 contact_type: Some(contact_type),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -160,7 +161,7 @@ impl<SS: StringStorage> Metadata<SS> {
             self.point_of_contact = Some(Contact {
                 address: Some(address),
                 ..Default::default()
-            })
+            });
         }
     }
 
@@ -197,34 +198,42 @@ pub struct Contact<SS: StringStorage> {
 }
 
 impl<SS: StringStorage> Contact<SS> {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn contact_name(&self) -> &str {
         &self.contact_name
     }
 
+    #[must_use] 
     pub fn email_address(&self) -> &str {
         &self.email_address
     }
 
+    #[must_use] 
     pub fn role(&self) -> Option<ContactRole> {
         self.role
     }
 
+    #[must_use] 
     pub fn website(&self) -> &Option<String> {
         &self.website
     }
 
+    #[must_use] 
     pub fn contact_type(&self) -> Option<ContactType> {
         self.contact_type
     }
 
+    #[must_use] 
     pub fn phone(&self) -> &Option<String> {
         &self.phone
     }
 
+    #[must_use] 
     pub fn organization(&self) -> &Option<String> {
         &self.organization
     }
@@ -257,6 +266,7 @@ impl<SS: StringStorage> Contact<SS> {
         self.organization = organization;
     }
 
+    #[must_use] 
     pub fn address(&self) -> Option<&Attributes<SS>> {
         self.address.as_ref()
     }
@@ -308,7 +318,7 @@ pub enum ContactRole {
 
 impl Display for ContactRole {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -321,6 +331,6 @@ pub enum ContactType {
 
 impl Display for ContactType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }

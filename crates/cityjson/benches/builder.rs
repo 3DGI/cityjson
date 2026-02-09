@@ -1,4 +1,4 @@
-//! Benchmarks for building CityObjects with minimal and full-feature geometries.
+//! Benchmarks for building `CityObjects` with minimal and full-feature geometries.
 
 #[allow(dead_code)]
 mod support;
@@ -8,12 +8,12 @@ use std::hint::black_box;
 use support::{CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, params_from_env};
 
 mod benches {
-    use super::*;
+    use super::{CUBE_VERTICES, Criterion, params_from_env, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, Throughput, black_box};
 
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
     use cityjson::resources::pool::ResourceId32;
-    use cityjson::v2_0::*;
+    use cityjson::v2_0::{CityModel, Material, Texture, Semantic, SemanticType, CityObjectType, CityObject};
     use std::collections::HashMap;
 
     fn build_geometry_minimal(
@@ -191,7 +191,7 @@ mod benches {
             .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
-            let co_id = format!("cityobject-{}", i);
+            let co_id = format!("cityobject-{i}");
             let co_type = match i % 5 {
                 0 => CityObjectType::Building,
                 1 => CityObjectType::BuildingPart,
@@ -233,7 +233,7 @@ mod benches {
             .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
-            let co_id = format!("cityobject-{}", i);
+            let co_id = format!("cityobject-{i}");
             let co_type = match i % 5 {
                 0 => CityObjectType::Building,
                 1 => CityObjectType::BuildingPart,
@@ -259,7 +259,7 @@ mod benches {
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
                 "attr_string".to_string(),
-                AttributeValue::String(format!("name-{}", i)),
+                AttributeValue::String(format!("name-{i}")),
             );
             attrs.insert(
                 "attr_vec".to_string(),

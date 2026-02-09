@@ -1,4 +1,4 @@
-//! Streaming example with GeometryInstance templates (default backend).
+//! Streaming example with `GeometryInstance` templates (default backend).
 //!
 //! This is not a benchmark. It demonstrates how to stream template geometries
 //! and instance them on the consumer side using the default backend.
@@ -9,7 +9,7 @@ use std::thread;
 use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::prelude::*;
 use cityjson::resources::pool::ResourceId32;
-use cityjson::v2_0::*;
+use cityjson::v2_0::{CityModel, CityObject, CityObjectType};
 
 #[derive(Debug, Clone)]
 struct WireTemplateGeometry {
