@@ -628,6 +628,7 @@ mod tests {
     use super::*;
 
     const FLOAT_EPSILON: f64 = 1.0e-12;
+    const FLOAT32_EPSILON: f32 = 1.0e-6;
 
     fn assert_f64_eq(actual: f64, expected: f64) {
         assert!(
@@ -641,6 +642,13 @@ mod tests {
         for (actual_item, expected_item) in actual.iter().zip(expected.iter()) {
             assert_f64_eq(*actual_item, *expected_item);
         }
+    }
+
+    fn assert_f32_eq(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() <= FLOAT32_EPSILON,
+            "expected {expected}, got {actual} (epsilon {FLOAT32_EPSILON})"
+        );
     }
 
     #[test]
@@ -721,10 +729,12 @@ mod tests {
     #[test]
     fn test_uv_coordinate() {
         let uv = UVCoordinate { u: 0.5, v: 0.75 };
-        assert_f64_slice_eq(&[f64::from(uv.u()), f64::from(uv.v())], &[0.5, 0.75]);
+        assert_f32_eq(uv.u(), 0.5);
+        assert_f32_eq(uv.v(), 0.75);
 
         let uv = UVCoordinate::new(0.25, 0.35);
-        assert_f64_slice_eq(&[f64::from(uv.u()), f64::from(uv.v())], &[0.25, 0.35]);
+        assert_f32_eq(uv.u(), 0.25);
+        assert_f32_eq(uv.v(), 0.35);
     }
 
     #[test]

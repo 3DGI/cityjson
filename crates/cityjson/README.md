@@ -13,7 +13,7 @@ The three criteria are implemented in the following features:
 - The API is thoroughly documented, including usage examples.
 - Supports `CityJSON` Extensions.
 - Native API targets `CityJSON` v2.0.
-- JSON de/serialization and legacy version upgrades are handled by *serde_cityjson*.
+- JSON de/serialization and legacy version upgrades are handled by *`serde_cityjson`*.
 
 ## Documentation
 
