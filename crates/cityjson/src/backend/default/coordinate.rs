@@ -627,6 +627,22 @@ pub type UVVertices64 = Vertices<u64, UVCoordinate>;
 mod tests {
     use super::*;
 
+    const FLOAT_EPSILON: f64 = 1.0e-12;
+
+    fn assert_f64_eq(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() <= FLOAT_EPSILON,
+            "expected {expected}, got {actual} (epsilon {FLOAT_EPSILON})"
+        );
+    }
+
+    fn assert_f64_slice_eq(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (actual_item, expected_item) in actual.iter().zip(expected.iter()) {
+            assert_f64_eq(*actual_item, *expected_item);
+        }
+    }
+
     #[test]
     fn test_vertices16_limit() {
         let mut vertices = GeometryVertices16::new();
@@ -674,9 +690,7 @@ mod tests {
             .unwrap();
 
         let coord = vertices.get(idx).unwrap();
-        assert_eq!(coord.x(), 1.0);
-        assert_eq!(coord.y(), 2.0);
-        assert_eq!(coord.z(), 3.0);
+        assert_f64_slice_eq(&[coord.x(), coord.y(), coord.z()], &[1.0, 2.0, 3.0]);
     }
 
     #[test]
@@ -695,25 +709,25 @@ mod tests {
     #[test]
     fn test_real_world_coordinate() {
         let coord = RealWorldCoordinate::new(10.5, 20.5, 30.5);
-        assert_eq!(coord.x(), 10.5);
-        assert_eq!(coord.y(), 20.5);
-        assert_eq!(coord.z(), 30.5);
+        assert_f64_slice_eq(&[coord.x(), coord.y(), coord.z()], &[10.5, 20.5, 30.5]);
 
         let default_coord = RealWorldCoordinate::default();
-        assert_eq!(default_coord.x(), 0.0);
-        assert_eq!(default_coord.y(), 0.0);
-        assert_eq!(default_coord.z(), 0.0);
+        assert_f64_slice_eq(
+            &[default_coord.x(), default_coord.y(), default_coord.z()],
+            &[0.0, 0.0, 0.0],
+        );
     }
 
     #[test]
     fn test_uv_coordinate() {
         let uv = UVCoordinate { u: 0.5, v: 0.75 };
-        assert_eq!(uv.u(), 0.5);
-        assert_eq!(uv.v(), 0.75);
+        assert_f64_slice_eq(&[f64::from(uv.u()), f64::from(uv.v())], &[0.5, 0.75]);
 
         let uv = UVCoordinate::new(0.25, 0.35);
-        assert_eq!(uv.u(), 0.25);
-        assert_eq!(uv.v(), 0.35);
+        assert_f64_slice_eq(
+            &[f64::from(uv.u()), f64::from(uv.v())],
+            &[0.25, 0.35],
+        );
     }
 
     #[test]
@@ -730,9 +744,7 @@ mod tests {
         }
 
         if let FlexibleCoordinate::RealWorld(coord) = real_world {
-            assert_eq!(coord.x(), 10.5);
-            assert_eq!(coord.y(), 20.5);
-            assert_eq!(coord.z(), 30.5);
+            assert_f64_slice_eq(&[coord.x(), coord.y(), coord.z()], &[10.5, 20.5, 30.5]);
         } else {
             panic!("Expected RealWorld variant");
         }
@@ -771,20 +783,15 @@ mod tests {
 
         // Test get
         let coord1 = vertices.get(idx1).unwrap();
-        assert_eq!(coord1.x(), 1.0);
-        assert_eq!(coord1.y(), 2.0);
-        assert_eq!(coord1.z(), 3.0);
+        assert_f64_slice_eq(&[coord1.x(), coord1.y(), coord1.z()], &[1.0, 2.0, 3.0]);
 
         let coord2 = vertices.get(idx2).unwrap();
-        assert_eq!(coord2.x(), 4.0);
-        assert_eq!(coord2.y(), 5.0);
-        assert_eq!(coord2.z(), 6.0);
+        assert_f64_slice_eq(&[coord2.x(), coord2.y(), coord2.z()], &[4.0, 5.0, 6.0]);
 
         // Test as_slice
         let slice = vertices.as_slice();
         assert_eq!(slice.len(), 2);
-        assert_eq!(slice[0].x(), 1.0);
-        assert_eq!(slice[1].x(), 4.0);
+        assert_f64_slice_eq(&[slice[0].x(), slice[1].x()], &[1.0, 4.0]);
     }
 
     #[test]
@@ -797,7 +804,7 @@ mod tests {
             let idx = vertices
                 .push(RealWorldCoordinate::new(f64::from(i), 0.0, 0.0))
                 .unwrap();
-            assert_eq!(vertices.get(idx).unwrap().x(), f64::from(i));
+            assert_f64_eq(vertices.get(idx).unwrap().x(), f64::from(i));
         }
 
         assert_eq!(vertices.len(), 1000);

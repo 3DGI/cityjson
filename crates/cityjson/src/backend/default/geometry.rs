@@ -1542,6 +1542,15 @@ mod tests {
         CityModel::new(CityModelType::CityJSON)
     }
 
+    const FLOAT_EPSILON: f64 = 1.0e-12;
+
+    fn assert_f64_eq(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() <= FLOAT_EPSILON,
+            "expected {expected}, got {actual} (epsilon {FLOAT_EPSILON})"
+        );
+    }
+
     #[test]
     fn test_multipoint_with_add_vertex() {
         let mut model = create_test_model();
@@ -2000,7 +2009,7 @@ mod tests {
             .expect("Material not found");
         assert_eq!(material.name(), "Wall");
         assert!(material.diffuse_color().is_some());
-        assert_eq!(material.ambient_intensity().unwrap(), 0.5);
+        assert_f64_eq(f64::from(material.ambient_intensity().unwrap()), 0.5);
 
         // Check textures
         let texture_sets = geometry.textures().expect("No textures found");

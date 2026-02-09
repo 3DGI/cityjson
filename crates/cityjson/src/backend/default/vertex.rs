@@ -754,6 +754,22 @@ mod tests {
     use crate::cityjson::core::vertex::VertexIndicesSequence;
     use std::collections::HashSet;
 
+    const FLOAT_EPSILON: f64 = 1.0e-12;
+
+    fn assert_f64_eq(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() <= FLOAT_EPSILON,
+            "expected {expected}, got {actual} (epsilon {FLOAT_EPSILON})"
+        );
+    }
+
+    fn assert_f64_slice_eq(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (actual_item, expected_item) in actual.iter().zip(expected.iter()) {
+            assert_f64_eq(*actual_item, *expected_item);
+        }
+    }
+
     #[test]
     fn test_vertex_index_creation() {
         let idx16 = VertexIndex16::new(42u16);
@@ -826,9 +842,7 @@ mod tests {
     fn test_vertex_coordinate() {
         let coord = RealWorldCoordinate::new(1.0, 2.0, 3.0);
 
-        assert_eq!(coord.x(), 1.0);
-        assert_eq!(coord.y(), 2.0);
-        assert_eq!(coord.z(), 3.0);
+        assert_f64_slice_eq(&[coord.x(), coord.y(), coord.z()], &[1.0, 2.0, 3.0]);
     }
 
     #[test]

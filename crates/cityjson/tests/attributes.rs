@@ -5,6 +5,15 @@ use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 
+const FLOAT_EPSILON: f64 = 1.0e-12;
+
+fn assert_f64_eq(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= FLOAT_EPSILON,
+        "expected {expected}, got {actual} (epsilon {FLOAT_EPSILON})"
+    );
+}
+
 #[test]
 fn test_basic_attribute_operations() {
     let mut attrs = OwnedAttributes::new();
@@ -22,7 +31,7 @@ fn test_basic_attribute_operations() {
     assert_eq!(attrs.len(), 4);
 
     if let Some(OwnedAttributeValue::Float(h)) = attrs.get("height") {
-        assert_eq!(*h, 42.5);
+        assert_f64_eq(*h, 42.5);
     } else {
         panic!("Expected float value");
     }
@@ -70,7 +79,7 @@ fn test_cityobject_attributes() {
     assert!(attrs.contains_key("yearOfConstruction"));
 
     if let Some(OwnedAttributeValue::Float(h)) = attrs.get("measuredHeight") {
-        assert_eq!(*h, 25.5);
+        assert_f64_eq(*h, 25.5);
     }
 }
 
