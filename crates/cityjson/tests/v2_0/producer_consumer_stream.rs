@@ -1,5 +1,6 @@
 use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::prelude::*;
+use cityjson::resources::pool::ResourceId32;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -165,6 +166,13 @@ struct BatchMetrics {
 // Wire Data Generators
 // ============================================================================
 
+type WireAttribute = (String, WireAttributeValue);
+type OwnedModel = CityModel<u32, OwnedStringStorage>;
+type WireBoundaries = Vec<Vec<Vec<Vec<usize>>>>;
+type WireSemantics = Vec<Option<WireSemantic>>;
+type WireMaterials = Vec<(String, WireMaterial)>;
+type SolidGeometryComponents = (WireBoundaries, WireSemantics, WireMaterials);
+
 fn stream_verbose_enabled() -> bool {
     std::env::var(STREAM_VERBOSE_ENV).ok().is_some_and(|val| {
         matches!(
@@ -174,7 +182,27 @@ fn stream_verbose_enabled() -> bool {
     })
 }
 
-fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
+fn u64_to_u32_checked(value: u64, context: &str) -> u32 {
+    u32::try_from(value).unwrap_or_else(|_| panic!("{context} out of u32 range: {value}"))
+}
+
+fn u64_to_i64_checked(value: u64, context: &str) -> i64 {
+    i64::try_from(value).unwrap_or_else(|_| panic!("{context} out of i64 range: {value}"))
+}
+
+fn i64_to_i32_checked(value: i64, context: &str) -> i32 {
+    i32::try_from(value).unwrap_or_else(|_| panic!("{context} out of i32 range: {value}"))
+}
+
+fn u64_to_f64_checked(value: u64, context: &str) -> f64 {
+    f64::from(u64_to_u32_checked(value, context))
+}
+
+fn i64_to_f64_checked(value: i64, context: &str) -> f64 {
+    f64::from(i64_to_i32_checked(value, context))
+}
+
+fn boundaries_from_table(table: &[&[&[usize]]]) -> WireBoundaries {
     vec![
         table
             .iter()
@@ -183,7 +211,7 @@ fn boundaries_from_table(table: &[&[&[usize]]]) -> Vec<Vec<Vec<Vec<usize>>>> {
     ]
 }
 
-fn semantics_for(count: usize, pattern: &[&str]) -> Vec<Option<WireSemantic>> {
+fn semantics_for(count: usize, pattern: &[&str]) -> WireSemantics {
     let mut semantics = Vec::with_capacity(count);
     for idx in 0..count {
         let surface_type = pattern[idx % pattern.len()].to_string();
@@ -195,11 +223,7 @@ fn semantics_for(count: usize, pattern: &[&str]) -> Vec<Option<WireSemantic>> {
     semantics
 }
 
-fn materials_for(
-    count: usize,
-    wall: &WireMaterial,
-    roof: &WireMaterial,
-) -> Vec<(String, WireMaterial)> {
+fn materials_for(count: usize, wall: &WireMaterial, roof: &WireMaterial) -> WireMaterials {
     (0..count)
         .map(|idx| {
             let material = if idx == 1 { roof } else { wall };
@@ -208,31 +232,30 @@ fn materials_for(
         .collect()
 }
 
-fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)> {
-    let mut attributes = vec![
-        // Float: height, area, volume
-        (
-            "height".to_string(),
-            WireAttributeValue::Float(height as f64),
-        ),
+fn push_numeric_attributes(attributes: &mut Vec<WireAttribute>, i: u64, height: i64) {
+    let height_f64 = i64_to_f64_checked(height, "height");
+    attributes.extend([
+        ("height".to_string(), WireAttributeValue::Float(height_f64)),
         (
             "floorArea".to_string(),
-            WireAttributeValue::Float(400.0 + (i % 100) as f64 * 10.0),
+            WireAttributeValue::Float(
+                400.0 + u64_to_f64_checked(i % 100, "floorArea offset") * 10.0,
+            ),
         ),
         (
             "volume".to_string(),
-            WireAttributeValue::Float(height as f64 * 400.0),
+            WireAttributeValue::Float(height_f64 * 400.0),
         ),
-        // Integer: year of construction
         (
             "yearOfConstruction".to_string(),
-            WireAttributeValue::Integer(1950 + ((i % 75) as i64)),
+            WireAttributeValue::Integer(
+                1950 + u64_to_i64_checked(i % 75, "yearOfConstruction offset"),
+            ),
         ),
         (
             "renovationYear".to_string(),
-            WireAttributeValue::Integer(2000 + ((i % 25) as i64)),
+            WireAttributeValue::Integer(2000 + u64_to_i64_checked(i % 25, "renovationYear offset")),
         ),
-        // Unsigned: counts
         (
             "floorCount".to_string(),
             WireAttributeValue::Unsigned(1 + (i % 20)),
@@ -245,7 +268,11 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
             "windowCount".to_string(),
             WireAttributeValue::Unsigned(5 + (i % 30)),
         ),
-        // Bool: flags
+    ]);
+}
+
+fn push_flag_attributes(attributes: &mut Vec<WireAttribute>, i: u64) {
+    attributes.extend([
         (
             "isCommercial".to_string(),
             WireAttributeValue::Bool(i.is_multiple_of(5)),
@@ -258,7 +285,18 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
             "hasParking".to_string(),
             WireAttributeValue::Bool(i.is_multiple_of(2)),
         ),
-        // String: textual data
+    ]);
+}
+
+fn push_text_attributes(attributes: &mut Vec<WireAttribute>, i: u64) {
+    let building_class = match i % 4 {
+        0 => "residential",
+        1 => "commercial",
+        2 => "industrial",
+        _ => "mixed-use",
+    };
+
+    attributes.extend([
         (
             "owner".to_string(),
             WireAttributeValue::String(format!("Owner-{}", i % 100)),
@@ -269,55 +307,65 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
         ),
         (
             "buildingClass".to_string(),
-            WireAttributeValue::String(
-                match i % 4 {
-                    0 => "residential",
-                    1 => "commercial",
-                    2 => "industrial",
-                    _ => "mixed-use",
-                }
-                .to_string(),
-            ),
+            WireAttributeValue::String(building_class.to_string()),
         ),
-        // Vec: arrays of values
+    ]);
+}
+
+fn push_vector_attributes(attributes: &mut Vec<WireAttribute>, i: u64, height: i64) {
+    attributes.extend([
         (
             "historicalDates".to_string(),
             WireAttributeValue::Vec(vec![
-                WireAttributeValue::Integer(1950 + (i % 50) as i64),
-                WireAttributeValue::Integer(1980 + (i % 30) as i64),
-                WireAttributeValue::Integer(2010 + (i % 15) as i64),
+                WireAttributeValue::Integer(
+                    1950 + u64_to_i64_checked(i % 50, "historicalDates[0]"),
+                ),
+                WireAttributeValue::Integer(
+                    1980 + u64_to_i64_checked(i % 30, "historicalDates[1]"),
+                ),
+                WireAttributeValue::Integer(
+                    2010 + u64_to_i64_checked(i % 15, "historicalDates[2]"),
+                ),
             ]),
         ),
         (
             "measurements".to_string(),
             WireAttributeValue::Vec(vec![
-                WireAttributeValue::Float(height as f64),
+                WireAttributeValue::Float(i64_to_f64_checked(height, "measurements[0]")),
                 WireAttributeValue::Float(20.0),
                 WireAttributeValue::Float(20.0),
             ]),
         ),
-        // Map: nested objects
+    ]);
+}
+
+fn push_map_attributes(attributes: &mut Vec<WireAttribute>, i: u64) {
+    let rating_class = match i % 7 {
+        0 => "A++",
+        1 => "A+",
+        2 => "A",
+        3 => "B",
+        4 => "C",
+        5 => "D",
+        _ => "E",
+    };
+    let ownership_type = if i.is_multiple_of(2) {
+        "private"
+    } else {
+        "public"
+    };
+
+    attributes.extend([
         (
             "energyRating".to_string(),
             WireAttributeValue::Map(vec![
                 (
                     "class".to_string(),
-                    WireAttributeValue::String(
-                        match i % 7 {
-                            0 => "A++",
-                            1 => "A+",
-                            2 => "A",
-                            3 => "B",
-                            4 => "C",
-                            5 => "D",
-                            _ => "E",
-                        }
-                        .to_string(),
-                    ),
+                    WireAttributeValue::String(rating_class.to_string()),
                 ),
                 (
                     "consumption".to_string(),
-                    WireAttributeValue::Float(50.0 + (i % 150) as f64),
+                    WireAttributeValue::Float(50.0 + u64_to_f64_checked(i % 150, "consumption")),
                 ),
                 (
                     "certified".to_string(),
@@ -330,14 +378,7 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
             WireAttributeValue::Map(vec![
                 (
                     "type".to_string(),
-                    WireAttributeValue::String(
-                        if i.is_multiple_of(2) {
-                            "private"
-                        } else {
-                            "public"
-                        }
-                        .to_string(),
-                    ),
+                    WireAttributeValue::String(ownership_type.to_string()),
                 ),
                 (
                     "cadastralId".to_string(),
@@ -345,11 +386,22 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
                 ),
                 (
                     "registrationYear".to_string(),
-                    WireAttributeValue::Integer(1990 + (i % 35) as i64),
+                    WireAttributeValue::Integer(
+                        1990 + u64_to_i64_checked(i % 35, "registrationYear"),
+                    ),
                 ),
             ]),
         ),
-    ];
+    ]);
+}
+
+fn make_wire_attributes(i: u64, height: i64) -> Vec<WireAttribute> {
+    let mut attributes = Vec::with_capacity(19);
+    push_numeric_attributes(&mut attributes, i, height);
+    push_flag_attributes(&mut attributes, i);
+    push_text_attributes(&mut attributes, i);
+    push_vector_attributes(&mut attributes, i, height);
+    push_map_attributes(&mut attributes, i);
 
     if i.is_multiple_of(10) {
         attributes.push(("futureExpansion".to_string(), WireAttributeValue::Null));
@@ -359,9 +411,9 @@ fn make_wire_attributes(i: u64, height: i64) -> Vec<(String, WireAttributeValue)
 }
 
 fn wire_geometry_solid(
-    boundaries: Vec<Vec<Vec<Vec<usize>>>>,
-    semantics: Vec<Option<WireSemantic>>,
-    materials: Vec<(String, WireMaterial)>,
+    boundaries: WireBoundaries,
+    semantics: WireSemantics,
+    materials: WireMaterials,
 ) -> WireGeometry {
     WireGeometry {
         geometry_type: "Solid".to_string(),
@@ -416,7 +468,7 @@ fn test_producer_consumer_stream() -> Result<()> {
         // Producer thread - generates CityJSON stream data
         let producer_handle = s.spawn(move || {
             let producer_start = Instant::now();
-            producer(tx);
+            producer(&tx);
             let producer_duration = producer_start.elapsed();
             if stream_verbose_enabled() {
                 println!(
@@ -429,7 +481,7 @@ fn test_producer_consumer_stream() -> Result<()> {
         // Consumer thread - ingests and constructs CityModel
         let consumer_handle = s.spawn(move || {
             let consumer_start = Instant::now();
-            let result = consumer(rx);
+            let result = consumer(&rx);
             let consumer_duration = consumer_start.elapsed();
             if stream_verbose_enabled() {
                 println!(
@@ -447,172 +499,175 @@ fn test_producer_consumer_stream() -> Result<()> {
 
     let total_duration = start_time.elapsed();
     let total_duration_secs = total_duration.as_secs_f64();
-    let throughput = NR_BUILDINGS as f64 / total_duration_secs;
+    let building_count = f64::from(u64_to_u32_checked(nr_buildings(), "NR_BUILDINGS"));
+    let throughput = building_count / total_duration_secs;
 
     println!("\n========== Overall Test Summary ==========");
     println!("Total test duration: {total_duration_secs:.2}s");
     println!("Throughput: {throughput:.0} buildings/sec");
     println!(
         "Average processing time per building: {:.3}ms",
-        (total_duration_secs / NR_BUILDINGS as f64) * 1000.0
+        (total_duration_secs / building_count) * 1000.0
     );
     println!("==========================================\n");
 
     result
 }
 
-/// Producer function that generates `CityJSON` stream data
-///
-/// Simulates a newline-delimited `CityJSON` stream:
-/// 1. First line: global properties (metadata, CRS, transform, templates)
-/// 2. Subsequent lines: individual `CityObjects`
-/// 3. End of stream
-fn producer(tx: mpsc::SyncSender<StreamMessage>) {
-    // ========================================================================
-    // STEP 1: Send global properties (first message in stream)
-    // ========================================================================
-    let global_props = WireGlobalProperties {
+fn nr_buildings() -> u64 {
+    u64::try_from(NR_BUILDINGS).expect("NR_BUILDINGS must fit in u64")
+}
+
+fn build_global_properties() -> WireGlobalProperties {
+    WireGlobalProperties {
         metadata_identifier: "streaming-test-model".to_string(),
         crs: "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
         transform_scale: [1.0, 1.0, 1.0],
         transform_translate: [0.0, 0.0, 0.0],
-        geometry_templates: vec![
-            // Template for GeometryInstance (shared across all buildings)
-            WireTemplateGeometry {
-                geometry_type: "MultiPoint".to_string(),
-                lod: "1".to_string(),
-                template_vertices: vec![
-                    (0.0, 0.0, 0.0),
-                    (5.0, 0.0, 0.0),
-                    (5.0, 5.0, 0.0),
-                    (0.0, 5.0, 0.0),
+        geometry_templates: vec![WireTemplateGeometry {
+            geometry_type: "MultiPoint".to_string(),
+            lod: "1".to_string(),
+            template_vertices: vec![
+                (0.0, 0.0, 0.0),
+                (5.0, 0.0, 0.0),
+                (5.0, 5.0, 0.0),
+                (0.0, 5.0, 0.0),
+            ],
+            boundaries: vec![vec![vec![0, 1, 2, 3]]],
+        }],
+    }
+}
+
+fn building_position(i: u64) -> (i64, i64, i64, u64) {
+    let complexity = i % 3;
+    let base_x = u64_to_i64_checked(100 + (i * 50) % 10_000, "base_x");
+    let base_y = u64_to_i64_checked(200 + (i * 37) % 10_000, "base_y");
+    let height = u64_to_i64_checked(30 + (i % 20) * 3, "height");
+    (base_x, base_y, height, complexity)
+}
+
+fn building_vertices(
+    base_x: i64,
+    base_y: i64,
+    height: i64,
+    complexity: u64,
+) -> Vec<(i64, i64, i64)> {
+    let mut vertices = vec![
+        (base_x, base_y, 0),
+        (base_x + 20, base_y, 0),
+        (base_x + 20, base_y + 20, 0),
+        (base_x, base_y + 20, 0),
+        (base_x, base_y, height),
+        (base_x + 20, base_y, height),
+        (base_x + 20, base_y + 20, height),
+        (base_x, base_y + 20, height),
+    ];
+
+    if complexity >= 1 {
+        let mid_height = height / 2;
+        vertices.extend_from_slice(&[
+            (base_x, base_y, mid_height),
+            (base_x + 20, base_y, mid_height),
+            (base_x + 20, base_y + 20, mid_height),
+            (base_x, base_y + 20, mid_height),
+        ]);
+    }
+
+    if complexity == 2 {
+        vertices.extend_from_slice(&[
+            (base_x + 10, base_y, 0),
+            (base_x + 10, base_y + 20, 0),
+            (base_x, base_y + 10, 0),
+            (base_x + 20, base_y + 10, 0),
+            (base_x + 10, base_y, height),
+            (base_x + 10, base_y + 20, height),
+            (base_x, base_y + 10, height),
+            (base_x + 20, base_y + 10, height),
+        ]);
+    }
+
+    vertices
+}
+
+fn wall_material() -> WireMaterial {
+    WireMaterial {
+        name: "wall-material".to_string(),
+        ambient_intensity: None,
+        diffuse_color: Some([0.7, 0.7, 0.7]),
+        emissive_color: None,
+        specular_color: None,
+        shininess: None,
+        transparency: None,
+        is_smooth: None,
+    }
+}
+
+fn roof_material() -> WireMaterial {
+    WireMaterial {
+        name: "roof-material".to_string(),
+        ambient_intensity: None,
+        diffuse_color: Some([0.8, 0.2, 0.2]),
+        emissive_color: None,
+        specular_color: None,
+        shininess: Some(0.5),
+        transparency: None,
+        is_smooth: None,
+    }
+}
+
+fn solid_geometry_components(
+    complexity: u64,
+    material_wall: &WireMaterial,
+    material_roof: &WireMaterial,
+) -> SolidGeometryComponents {
+    match complexity {
+        0 => (
+            boundaries_from_table(BOUNDARIES_SIMPLE),
+            semantics_for(
+                BOUNDARIES_SIMPLE.len(),
+                &[
+                    "GroundSurface",
+                    "RoofSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
                 ],
-                boundaries: vec![vec![vec![0, 1, 2, 3]]],
-            },
-        ],
-    };
-
-    tx.send(StreamMessage::GlobalProperties(global_props))
-        .expect("Failed to send global properties");
-
-    // ========================================================================
-    // STEP 2: Send CityObject messages (one per building)
-    // ========================================================================
-    let building_count = NR_BUILDINGS as u64;
-
-    for i in 0..building_count {
-        if stream_verbose_enabled() && i % 100_000 == 0 && i > 0 {
-            println!("Producer: Generated {i} / {building_count} buildings");
-        }
-        // Vary complexity: simple (8 verts), medium (16 verts), complex (24 verts)
-        let complexity = i % 3;
-
-        // Base coordinates with offset to create spatial variation
-        let base_x = (100 + (i * 50) % 10000) as i64;
-        let base_y = (200 + (i * 37) % 10000) as i64; // Use prime to vary the pattern
-        let height = (30 + (i % 20) * 3) as i64; // Height varies 30-87
-
-        // Define vertices for this building
-        let mut vertices = vec![
-            (base_x, base_y, 0),                // 0: bottom-front-left
-            (base_x + 20, base_y, 0),           // 1: bottom-front-right
-            (base_x + 20, base_y + 20, 0),      // 2: bottom-back-right
-            (base_x, base_y + 20, 0),           // 3: bottom-back-left
-            (base_x, base_y, height),           // 4: top-front-left
-            (base_x + 20, base_y, height),      // 5: top-front-right
-            (base_x + 20, base_y + 20, height), // 6: top-back-right
-            (base_x, base_y + 20, height),      // 7: top-back-left
-        ];
-
-        // Add more vertices for medium complexity (add mid-level)
-        if complexity >= 1 {
-            let mid_height = height / 2;
-            vertices.extend_from_slice(&[
-                (base_x, base_y, mid_height),           // 8
-                (base_x + 20, base_y, mid_height),      // 9
-                (base_x + 20, base_y + 20, mid_height), // 10
-                (base_x, base_y + 20, mid_height),      // 11
-            ]);
-        }
-
-        // Add even more vertices for complex buildings (add details)
-        if complexity == 2 {
-            vertices.extend_from_slice(&[
-                (base_x + 10, base_y, 0),           // 12
-                (base_x + 10, base_y + 20, 0),      // 13
-                (base_x, base_y + 10, 0),           // 14
-                (base_x + 20, base_y + 10, 0),      // 15
-                (base_x + 10, base_y, height),      // 16
-                (base_x + 10, base_y + 20, height), // 17
-                (base_x, base_y + 10, height),      // 18
-                (base_x + 20, base_y + 10, height), // 19
-            ]);
-        }
-
-        // Define materials for this building
-        let material_wall = WireMaterial {
-            name: "wall-material".to_string(),
-            ambient_intensity: None,
-            diffuse_color: Some([0.7, 0.7, 0.7]),
-            emissive_color: None,
-            specular_color: None,
-            shininess: None,
-            transparency: None,
-            is_smooth: None,
-        };
-
-        let material_roof = WireMaterial {
-            name: "roof-material".to_string(),
-            ambient_intensity: None,
-            diffuse_color: Some([0.8, 0.2, 0.2]),
-            emissive_color: None,
-            specular_color: None,
-            shininess: Some(0.5),
-            transparency: None,
-            is_smooth: None,
-        };
-
-        // Geometry 1: Solid with semantics and materials (complexity varies)
-        let (boundaries, semantics, materials) = match complexity {
-            0 => {
-                let bounds = boundaries_from_table(BOUNDARIES_SIMPLE);
-                let sems = semantics_for(
-                    BOUNDARIES_SIMPLE.len(),
-                    &[
-                        "GroundSurface",
-                        "RoofSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                    ],
-                );
-                let mats = materials_for(BOUNDARIES_SIMPLE.len(), &material_wall, &material_roof);
-                (bounds, sems, mats)
+            ),
+            materials_for(BOUNDARIES_SIMPLE.len(), material_wall, material_roof),
+        ),
+        1 => (
+            boundaries_from_table(BOUNDARIES_MEDIUM),
+            semantics_for(
+                BOUNDARIES_MEDIUM.len(),
+                &[
+                    "GroundSurface",
+                    "RoofSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                    "WallSurface",
+                ],
+            ),
+            materials_for(BOUNDARIES_MEDIUM.len(), material_wall, material_roof),
+        ),
+        _ => {
+            let mut materials =
+                materials_for(BOUNDARIES_COMPLEX.len(), material_wall, material_roof);
+            let last = materials.len().saturating_sub(1);
+            if let Some(entry) = materials.get_mut(last) {
+                entry.1 = material_roof.clone();
             }
-            1 => {
-                let bounds = boundaries_from_table(BOUNDARIES_MEDIUM);
-                let sems = semantics_for(
-                    BOUNDARIES_MEDIUM.len(),
-                    &[
-                        "GroundSurface",
-                        "RoofSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                        "WallSurface",
-                    ],
-                );
-                let mats = materials_for(BOUNDARIES_MEDIUM.len(), &material_wall, &material_roof);
-                (bounds, sems, mats)
+            if let Some(entry) = materials.get_mut(last.saturating_sub(1)) {
+                entry.1 = material_roof.clone();
             }
-            _ => {
-                let bounds = boundaries_from_table(BOUNDARIES_COMPLEX);
-                let sems = semantics_for(
+            (
+                boundaries_from_table(BOUNDARIES_COMPLEX),
+                semantics_for(
                     BOUNDARIES_COMPLEX.len(),
                     &[
                         "GroundSurface",
@@ -630,64 +685,60 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
                         "RoofSurface",
                         "RoofSurface",
                     ],
-                );
-                let mut mats =
-                    materials_for(BOUNDARIES_COMPLEX.len(), &material_wall, &material_roof);
-                let last = mats.len().saturating_sub(1);
-                if let Some(entry) = mats.get_mut(last) {
-                    entry.1 = material_roof.clone();
-                }
-                if let Some(entry) = mats.get_mut(last.saturating_sub(1)) {
-                    entry.1 = material_roof.clone();
-                }
-                (bounds, sems, mats)
-            }
-        };
+                ),
+                materials,
+            )
+        }
+    }
+}
 
-        let geometry_solid = wire_geometry_solid(boundaries, semantics, materials);
+fn geometry_instance_transform(i: u64) -> [f64; 16] {
+    let offset = u64_to_f64_checked(i, "geometry-instance offset") * 10.0;
+    [
+        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, offset, offset, 0.0, 1.0,
+    ]
+}
 
-        // Geometry 2: GeometryInstance referencing template
-        let geometry_instance = wire_geometry_instance(
-            0,
-            [
-                1.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-                0.0,
-                i as f64 * 10.0,
-                i as f64 * 10.0,
-                0.0,
-                1.0,
-            ],
-        );
+fn build_wire_cityobject(i: u64) -> WireCityObjectData {
+    let (base_x, base_y, height, complexity) = building_position(i);
+    let vertices = building_vertices(base_x, base_y, height, complexity);
+    let material_wall = wall_material();
+    let material_roof = roof_material();
+    let (boundaries, semantics, materials) =
+        solid_geometry_components(complexity, &material_wall, &material_roof);
+    let geometry_solid = wire_geometry_solid(boundaries, semantics, materials);
+    let geometry_instance = wire_geometry_instance(0, geometry_instance_transform(i));
+    let attributes = make_wire_attributes(i, height);
 
-        let attributes = make_wire_attributes(i, height);
+    WireCityObjectData {
+        id: format!("building-{i}"),
+        object_type: "Building".to_string(),
+        vertices,
+        geometries: vec![geometry_solid, geometry_instance],
+        attributes,
+    }
+}
 
-        // Construct CityObject message
-        let cityobject = WireCityObjectData {
-            id: format!("building-{i}"),
-            object_type: "Building".to_string(),
-            vertices,
-            geometries: vec![geometry_solid, geometry_instance],
-            attributes,
-        };
+/// Producer function that generates `CityJSON` stream data
+///
+/// Simulates a newline-delimited `CityJSON` stream:
+/// 1. First line: global properties (metadata, CRS, transform, templates)
+/// 2. Subsequent lines: individual `CityObjects`
+/// 3. End of stream
+fn producer(tx: &mpsc::SyncSender<StreamMessage>) {
+    tx.send(StreamMessage::GlobalProperties(build_global_properties()))
+        .expect("Failed to send global properties");
 
-        // Send CityObject to consumer
-        tx.send(StreamMessage::CityObject(cityobject))
+    let building_count = nr_buildings();
+
+    for i in 0..building_count {
+        if stream_verbose_enabled() && i % 100_000 == 0 && i > 0 {
+            println!("Producer: Generated {i} / {building_count} buildings");
+        }
+        tx.send(StreamMessage::CityObject(build_wire_cityobject(i)))
             .expect("Failed to send CityObject");
     }
 
-    // ========================================================================
-    // STEP 3: Signal end of stream
-    // ========================================================================
     tx.send(StreamMessage::Done)
         .expect("Failed to send completion signal");
 }
@@ -702,10 +753,8 @@ fn producer(tx: mpsc::SyncSender<StreamMessage>) {
 ///
 /// A tuple containing the initialized `CityModel` and a vector of template resource references
 #[allow(clippy::type_complexity)]
-fn create_batch_model(
-    global: &WireGlobalProperties,
-) -> Result<(CityModel<u32, OwnedStringStorage>, Vec<ResourceId32>)> {
-    let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+fn create_batch_model(global: &WireGlobalProperties) -> Result<(OwnedModel, Vec<ResourceId32>)> {
+    let mut model = OwnedModel::new(CityModelType::CityJSON);
 
     // Set metadata from wire format
     model
@@ -748,7 +797,7 @@ fn create_batch_model(
 ///
 /// `BatchMetrics` for this batch
 fn process_batch(
-    model: &CityModel<u32, OwnedStringStorage>,
+    model: &OwnedModel,
     batch_num: usize,
     cumulative_buildings: usize,
     total_surfaces: usize,
@@ -773,126 +822,199 @@ fn process_batch(
     }
 }
 
+fn accumulate_metrics(cumulative_metrics: &mut BatchMetrics, batch_metrics: &BatchMetrics) {
+    cumulative_metrics.total_geometries += batch_metrics.total_geometries;
+    cumulative_metrics.total_surfaces += batch_metrics.total_surfaces;
+    cumulative_metrics.peak_vertices = cumulative_metrics
+        .peak_vertices
+        .max(batch_metrics.peak_vertices);
+    cumulative_metrics.peak_cityobjects = cumulative_metrics
+        .peak_cityobjects
+        .max(batch_metrics.peak_cityobjects);
+}
+
+fn count_surfaces(geometries: &[WireGeometry]) -> usize {
+    geometries
+        .iter()
+        .flat_map(|wire_geom| wire_geom.boundaries.iter())
+        .map(std::vec::Vec::len)
+        .sum()
+}
+
+fn receive_global_properties(rx: &mpsc::Receiver<StreamMessage>) -> Result<WireGlobalProperties> {
+    match rx.recv() {
+        Ok(StreamMessage::GlobalProperties(global)) => {
+            if stream_verbose_enabled() {
+                println!(
+                    "Consumer: Received global properties with {} templates",
+                    global.geometry_templates.len()
+                );
+            }
+            Ok(global)
+        }
+        _ => Err(Error::InvalidGeometry(
+            "Expected GlobalProperties as first message".to_string(),
+        )),
+    }
+}
+
+fn ingest_wire_cityobject(
+    model: &mut OwnedModel,
+    template_refs: &[ResourceId32],
+    wire_co: WireCityObjectData,
+) -> Result<usize> {
+    let WireCityObjectData {
+        id,
+        object_type,
+        vertices,
+        geometries,
+        attributes,
+    } = wire_co;
+    let surfaces_in_cityobject = count_surfaces(&geometries);
+
+    let mut cityobject = CityObject::new(
+        CityObjectIdentifier::new(id),
+        parse_city_object_type(&object_type),
+    );
+
+    let attrs = cityobject.attributes_mut();
+    for (key, wire_value) in attributes {
+        attrs.insert(key, convert_wire_attribute_value(wire_value));
+    }
+
+    let vertex_refs: Vec<VertexIndex<u32>> = vertices
+        .into_iter()
+        .map(|(x, y, z)| {
+            model
+                .add_vertex(QuantizedCoordinate::new(x, y, z))
+                .expect("Failed to add vertex")
+        })
+        .collect();
+
+    for wire_geom in geometries {
+        let geom_ref = build_geometry_from_wire(model, &wire_geom, &vertex_refs, template_refs)?;
+        cityobject.add_geometry(GeometryRef::from_parts(
+            geom_ref.index(),
+            geom_ref.generation(),
+        ));
+    }
+
+    model.cityobjects_mut().add(cityobject)?;
+    Ok(surfaces_in_cityobject)
+}
+
+struct ConsumerState {
+    current_batch_num: usize,
+    total_buildings_processed: usize,
+    cumulative_metrics: BatchMetrics,
+    current_model: OwnedModel,
+    template_refs: Vec<ResourceId32>,
+    buildings_in_batch: usize,
+    surfaces_in_batch: usize,
+}
+
+impl ConsumerState {
+    fn new(global_props: &WireGlobalProperties) -> Result<Self> {
+        let (current_model, template_refs) = create_batch_model(global_props)?;
+        Ok(Self {
+            current_batch_num: 0,
+            total_buildings_processed: 0,
+            cumulative_metrics: BatchMetrics::default(),
+            current_model,
+            template_refs,
+            buildings_in_batch: 0,
+            surfaces_in_batch: 0,
+        })
+    }
+
+    fn process_cityobject(&mut self, wire_co: WireCityObjectData) -> Result<()> {
+        let surfaces =
+            ingest_wire_cityobject(&mut self.current_model, &self.template_refs, wire_co)?;
+        self.surfaces_in_batch += surfaces;
+        self.buildings_in_batch += 1;
+        self.total_buildings_processed += 1;
+        Ok(())
+    }
+
+    fn finalize_batch(&mut self) {
+        let batch_metrics = process_batch(
+            &self.current_model,
+            self.current_batch_num,
+            self.total_buildings_processed,
+            self.surfaces_in_batch,
+        );
+        accumulate_metrics(&mut self.cumulative_metrics, &batch_metrics);
+    }
+
+    fn rollover_batch(&mut self, global_props: &WireGlobalProperties) -> Result<()> {
+        let (new_model, new_template_refs) = create_batch_model(global_props)?;
+        self.current_model = new_model;
+        self.template_refs = new_template_refs;
+        self.current_batch_num += 1;
+        self.buildings_in_batch = 0;
+        self.surfaces_in_batch = 0;
+        Ok(())
+    }
+
+    fn flush_if_full(&mut self, global_props: &WireGlobalProperties) -> Result<()> {
+        if self.buildings_in_batch >= BATCH_SIZE {
+            self.finalize_batch();
+            self.rollover_batch(global_props)?;
+        }
+        Ok(())
+    }
+
+    fn finish(mut self) {
+        if self.buildings_in_batch > 0 {
+            self.finalize_batch();
+        }
+
+        assert_eq!(
+            self.total_buildings_processed, NR_BUILDINGS,
+            "Should have processed {NR_BUILDINGS} buildings"
+        );
+
+        println!("\n========== Performance Summary ==========");
+        println!(
+            "Total buildings processed: {}",
+            self.total_buildings_processed
+        );
+        println!("Total batches: {}", self.current_batch_num + 1);
+        println!(
+            "Total geometries processed: {}",
+            self.cumulative_metrics.total_geometries
+        );
+        println!(
+            "Total surfaces processed: {}",
+            self.cumulative_metrics.total_surfaces
+        );
+        println!(
+            "Peak vertices per batch: {}",
+            self.cumulative_metrics.peak_vertices
+        );
+        println!(
+            "Peak CityObjects per batch: {}",
+            self.cumulative_metrics.peak_cityobjects
+        );
+        println!("=========================================\n");
+    }
+}
+
 /// Consumer function that constructs `CityModel` from wire format and manages memory
 ///
 /// Simulates realistic `CityJSON` stream processing with batch processing:
 /// 1. Receives `GlobalProperties`, extracts metadata and templates
 /// 2. Processes `CityObjects` in batches, creating a fresh `CityModel` for each batch
 /// 3. Each batch is processed independently and then dropped to free memory
-fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
-    // ========================================================================
-    // PHASE 1: Receive and store GlobalProperties (needed for all batches)
-    // ========================================================================
-    let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
-        if stream_verbose_enabled() {
-            println!(
-                "Consumer: Received global properties with {} templates",
-                global.geometry_templates.len()
-            );
-        }
-        global
-    } else {
-        return Err(Error::InvalidGeometry(
-            "Expected GlobalProperties as first message".to_string(),
-        ));
-    };
-
-    // ========================================================================
-    // PHASE 2: Process CityObjects in batches
-    // ========================================================================
-    let mut current_batch_num = 0;
-    let mut total_buildings_processed = 0;
-    let mut cumulative_metrics = BatchMetrics::default();
-
-    // Create first batch
-    let (mut current_model, template_refs) = create_batch_model(&global_props)?;
-    let mut buildings_in_batch = 0;
-    let mut surfaces_in_batch = 0;
+fn consumer(rx: &mpsc::Receiver<StreamMessage>) -> Result<()> {
+    let global_props = receive_global_properties(rx)?;
+    let mut state = ConsumerState::new(&global_props)?;
 
     while let Ok(message) = rx.recv() {
         match message {
             StreamMessage::CityObject(wire_co) => {
-                // Count surfaces from wire format before processing
-                for wire_geom in &wire_co.geometries {
-                    if !wire_geom.boundaries.is_empty() {
-                        for shell in &wire_geom.boundaries {
-                            surfaces_in_batch += shell.len();
-                        }
-                    }
-                }
-
-                // Construct CityObject from wire format
-                let mut cityobject = CityObject::new(
-                    CityObjectIdentifier::new(wire_co.id.clone()),
-                    parse_city_object_type(&wire_co.object_type),
-                );
-
-                // Add attributes from wire format
-                let attrs = cityobject.attributes_mut();
-                for (key, wire_value) in wire_co.attributes {
-                    let attr_value = convert_wire_attribute_value(wire_value);
-                    attrs.insert(key, attr_value);
-                }
-
-                // Add vertices to the model
-                let vertex_refs: Vec<VertexIndex<u32>> = wire_co
-                    .vertices
-                    .iter()
-                    .map(|(x, y, z)| {
-                        current_model
-                            .add_vertex(QuantizedCoordinate::new(*x, *y, *z))
-                            .expect("Failed to add vertex")
-                    })
-                    .collect();
-
-                // Build geometries from wire format
-                for wire_geom in wire_co.geometries {
-                    let geom_ref = build_geometry_from_wire(
-                        &mut current_model,
-                        &wire_geom,
-                        &vertex_refs,
-                        &template_refs,
-                    )?;
-                    cityobject.add_geometry(GeometryRef::from_parts(
-                        geom_ref.index(),
-                        geom_ref.generation(),
-                    ));
-                }
-
-                // Add CityObject to model
-                current_model.cityobjects_mut().add(cityobject)?;
-                buildings_in_batch += 1;
-                total_buildings_processed += 1;
-
-                // When batch is full, process it and create a new batch
-                if buildings_in_batch >= BATCH_SIZE {
-                    let batch_metrics = process_batch(
-                        &current_model,
-                        current_batch_num,
-                        total_buildings_processed,
-                        surfaces_in_batch,
-                    );
-
-                    // Accumulate metrics
-                    cumulative_metrics.total_geometries += batch_metrics.total_geometries;
-                    cumulative_metrics.total_surfaces += batch_metrics.total_surfaces;
-                    cumulative_metrics.peak_vertices = cumulative_metrics
-                        .peak_vertices
-                        .max(batch_metrics.peak_vertices);
-                    cumulative_metrics.peak_cityobjects = cumulative_metrics
-                        .peak_cityobjects
-                        .max(batch_metrics.peak_cityobjects);
-
-                    // Drop current model, create fresh one for next batch
-                    drop(current_model);
-                    let (new_model, _) = create_batch_model(&global_props)?;
-                    current_model = new_model;
-
-                    // Reset batch counters
-                    current_batch_num += 1;
-                    buildings_in_batch = 0;
-                    surfaces_in_batch = 0;
-                }
+                state.process_cityobject(wire_co)?;
+                state.flush_if_full(&global_props)?;
             }
             StreamMessage::Done => {
                 if stream_verbose_enabled() {
@@ -908,52 +1030,7 @@ fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<()> {
         }
     }
 
-    // Process final partial batch if any buildings remain
-    if buildings_in_batch > 0 {
-        let batch_metrics = process_batch(
-            &current_model,
-            current_batch_num,
-            total_buildings_processed,
-            surfaces_in_batch,
-        );
-
-        cumulative_metrics.total_geometries += batch_metrics.total_geometries;
-        cumulative_metrics.total_surfaces += batch_metrics.total_surfaces;
-        cumulative_metrics.peak_vertices = cumulative_metrics
-            .peak_vertices
-            .max(batch_metrics.peak_vertices);
-        cumulative_metrics.peak_cityobjects = cumulative_metrics
-            .peak_cityobjects
-            .max(batch_metrics.peak_cityobjects);
-    }
-
-    // Final assertions and summary
-    assert_eq!(
-        total_buildings_processed, NR_BUILDINGS,
-        "Should have processed {NR_BUILDINGS} buildings"
-    );
-
-    println!("\n========== Performance Summary ==========");
-    println!("Total buildings processed: {total_buildings_processed}");
-    println!("Total batches: {}", current_batch_num + 1);
-    println!(
-        "Total geometries processed: {}",
-        cumulative_metrics.total_geometries
-    );
-    println!(
-        "Total surfaces processed: {}",
-        cumulative_metrics.total_surfaces
-    );
-    println!(
-        "Peak vertices per batch: {}",
-        cumulative_metrics.peak_vertices
-    );
-    println!(
-        "Peak CityObjects per batch: {}",
-        cumulative_metrics.peak_cityobjects
-    );
-    println!("=========================================\n");
-
+    state.finish();
     Ok(())
 }
 
@@ -1105,27 +1182,48 @@ fn convert_wire_semantic(wire_semantic: &WireSemantic) -> Result<Semantic<OwnedS
     Ok(Semantic::new(semantic_type))
 }
 
+fn f64_to_f32_checked(value: f64, field: &str) -> f32 {
+    assert!(value.is_finite(), "{field} must be finite, got {value}");
+    assert!(
+        (f64::from(f32::MIN)..=f64::from(f32::MAX)).contains(&value),
+        "{field} out of f32 range: {value}"
+    );
+
+    value
+        .to_string()
+        .parse::<f32>()
+        .unwrap_or_else(|error| panic!("Failed to convert {field} ({value}) to f32: {error}"))
+}
+
+fn f64_color_to_f32(color: [f64; 3], field: &str) -> [f32; 3] {
+    [
+        f64_to_f32_checked(color[0], field),
+        f64_to_f32_checked(color[1], field),
+        f64_to_f32_checked(color[2], field),
+    ]
+}
+
 /// Converts wire material to cityjson-rs Material
 fn convert_wire_material(wire_material: &WireMaterial) -> Material<OwnedStringStorage> {
     let mut material = Material::new(wire_material.name.clone());
 
     if let Some(val) = wire_material.ambient_intensity {
-        material.set_ambient_intensity(Some(val as f32));
+        material.set_ambient_intensity(Some(f64_to_f32_checked(val, "ambient_intensity")));
     }
     if let Some(val) = wire_material.diffuse_color {
-        material.set_diffuse_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+        material.set_diffuse_color(Some(f64_color_to_f32(val, "diffuse_color").into()));
     }
     if let Some(val) = wire_material.emissive_color {
-        material.set_emissive_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+        material.set_emissive_color(Some(f64_color_to_f32(val, "emissive_color").into()));
     }
     if let Some(val) = wire_material.specular_color {
-        material.set_specular_color(Some([val[0] as f32, val[1] as f32, val[2] as f32].into()));
+        material.set_specular_color(Some(f64_color_to_f32(val, "specular_color").into()));
     }
     if let Some(val) = wire_material.shininess {
-        material.set_shininess(Some(val as f32));
+        material.set_shininess(Some(f64_to_f32_checked(val, "shininess")));
     }
     if let Some(val) = wire_material.transparency {
-        material.set_transparency(Some(val as f32));
+        material.set_transparency(Some(f64_to_f32_checked(val, "transparency")));
     }
     if let Some(val) = wire_material.is_smooth {
         material.set_is_smooth(Some(val));
@@ -1177,10 +1275,8 @@ fn parse_city_object_type(type_str: &str) -> CityObjectType<OwnedStringStorage> 
 fn parse_lod(lod_str: &str) -> LoD {
     match lod_str {
         "0" => LoD::LoD0,
-        "1" => LoD::LoD1,
         "2" => LoD::LoD2,
         "3" => LoD::LoD3,
         _ => LoD::LoD1,
     }
 }
-use cityjson::resources::pool::ResourceId32;
