@@ -78,7 +78,7 @@ mod benches {
     fn build_geometry_full_feature(
         model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
-        index: usize,
+        index: u32,
         material_data: Option<&(Material<OwnedStringStorage>, MaterialRef)>,
         texture_data: Option<&(Texture<OwnedStringStorage>, TextureRef)>,
     ) -> Result<ResourceId32> {
@@ -86,18 +86,18 @@ mod benches {
         let ground_attrs = ground_semantic.attributes_mut();
         ground_attrs.insert(
             "area".to_string(),
-            AttributeValue::Float(100.0 + (index as f64) * 0.5),
+            AttributeValue::Float(100.0 + f64::from(index) * 0.5),
         );
 
         let mut roof_semantic = Semantic::new(SemanticType::RoofSurface);
         let roof_attrs = roof_semantic.attributes_mut();
         roof_attrs.insert(
             "azimuth".to_string(),
-            AttributeValue::Float((index % 360) as f64),
+            AttributeValue::Float(f64::from(index % 360)),
         );
         roof_attrs.insert(
             "slope".to_string(),
-            AttributeValue::Float(15.0 + ((index % 30) as f64)),
+            AttributeValue::Float(15.0 + f64::from(index % 30)),
         );
 
         let mut wall_north = Semantic::new(SemanticType::WallSurface);
@@ -222,6 +222,7 @@ mod benches {
     pub fn build_cityobjects_full(num_cityobjects: usize, seed: u64) -> Result<Vec<CityObjectRef>> {
         let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
+        let seed_u32 = u32::try_from(seed).expect("seed exceeds u32 range");
 
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
@@ -238,6 +239,8 @@ mod benches {
             .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
+            let index_u32 = u32::try_from(i).expect("cityobject index exceeds u32 range");
+            let index_signed = i64::from(index_u32);
             let co_id = format!("cityobject-{i}");
             let co_type = match i % 5 {
                 0 => CityObjectType::Building,
@@ -250,16 +253,16 @@ mod benches {
             let mut cityobject = CityObject::new(CityObjectIdentifier::new(co_id.clone()), co_type);
 
             let attrs = cityobject.attributes_mut();
-            let height = 10.0 + (i as f64) * 0.5 + (seed as f64) * 0.001;
+            let height = 10.0 + f64::from(index_u32) * 0.5 + f64::from(seed_u32) * 0.001;
             attrs.insert("attr_null".to_string(), AttributeValue::Null);
             attrs.insert("attr_bool".to_string(), AttributeValue::Bool(i % 2 == 0));
             attrs.insert(
                 "attr_unsigned".to_string(),
-                AttributeValue::Unsigned(i as u64),
+                AttributeValue::Unsigned(u64::from(index_u32)),
             );
             attrs.insert(
                 "attr_integer".to_string(),
-                AttributeValue::Integer(i as i64),
+                AttributeValue::Integer(index_signed),
             );
             attrs.insert("attr_float".to_string(), AttributeValue::Float(height));
             attrs.insert(
@@ -269,7 +272,7 @@ mod benches {
             attrs.insert(
                 "attr_vec".to_string(),
                 AttributeValue::Vec(vec![
-                    Box::new(AttributeValue::Integer(i as i64)),
+                    Box::new(AttributeValue::Integer(index_signed)),
                     Box::new(AttributeValue::Float(height)),
                 ]),
             );
@@ -280,8 +283,8 @@ mod benches {
             );
             attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
 
-            let seed_offset = (seed as f64) * 0.001;
-            let offset = (i as f64) * 100.0;
+            let seed_offset = f64::from(seed_u32) * 0.001;
+            let offset = f64::from(index_u32) * 100.0;
             cityobject.set_geographical_extent(Some(BBox::new(
                 offset + seed_offset,
                 offset + seed_offset,
@@ -294,7 +297,7 @@ mod benches {
             let geometry_ref = build_geometry_full_feature(
                 &mut model,
                 &vertices,
-                i,
+                index_u32,
                 material_ref.as_ref(),
                 texture_ref.as_ref(),
             )?;
@@ -314,7 +317,9 @@ mod benches {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
-        group.throughput(Throughput::Elements(nr_cityobjects as u64));
+        group.throughput(Throughput::Elements(
+            u64::try_from(nr_cityobjects).expect("cityobject count exceeds u64 range"),
+        ));
 
         group.bench_function("build_minimal_geometry", |b| {
             b.iter(|| {
@@ -331,7 +336,9 @@ mod benches {
         let params = params_from_env(DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER);
         let mut group = c.benchmark_group("builder");
         let nr_cityobjects = params.size;
-        group.throughput(Throughput::Elements(nr_cityobjects as u64));
+        group.throughput(Throughput::Elements(
+            u64::try_from(nr_cityobjects).expect("cityobject count exceeds u64 range"),
+        ));
 
         group.bench_function("build_full_feature", |b| {
             b.iter(|| {

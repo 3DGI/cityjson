@@ -34,9 +34,10 @@ fn add_building(model: &mut CityModel<u32, OwnedStringStorage>) -> Result<CityOb
         CityObjectIdentifier::new("building-001".to_string()),
         CityObjectType::Building,
     );
-    building
-        .attributes_mut()
-        .insert("measuredHeight".to_string(), OwnedAttributeValue::Float(25.5));
+    building.attributes_mut().insert(
+        "measuredHeight".to_string(),
+        OwnedAttributeValue::Float(25.5),
+    );
     building.attributes_mut().insert(
         "buildingName".to_string(),
         OwnedAttributeValue::String("City Hall".to_string()),

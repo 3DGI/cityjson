@@ -33,6 +33,8 @@ cargo add cityjson-rs
 
 [//]: #todo (remove references to traits, because i don't have them anymore)
 
+[//]: #todo (update core structure)
+
 - **`cityjson`** module: Contains version-agnostic types forming the stable API
 
   - Contains version-independent types and functionality like coordinate representations, boundary models and attributes
@@ -61,7 +63,7 @@ use cityjson::v2_0::*;
 ### Errors
 
 The library defines custom errors in the `errors` module and uses Result types throughout for fallible operations.
-:
+
 ## Performance
 
 example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](https://github.com/rust-lang/regex?tab=readme-ov-file#performance)
@@ -117,3 +119,5 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in Serde by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 </sub>
+
+[//]: #todo (remove examples that are parsed and appended automatically)

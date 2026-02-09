@@ -64,7 +64,12 @@ fn configure_model(model: &mut OwnedModel) {
     ));
 }
 
-fn create_city_objects() -> (OwnedCityObject, OwnedCityObject, OwnedCityObject, OwnedCityObject) {
+fn create_city_objects() -> (
+    OwnedCityObject,
+    OwnedCityObject,
+    OwnedCityObject,
+    OwnedCityObject,
+) {
     let co_1 = CityObject::new(
         CityObjectIdentifier::new("id-1".to_string()),
         CityObjectType::BuildingPart,
@@ -93,7 +98,11 @@ fn add_shared_vertices(model: &mut OwnedModel) -> Result<VertexRefs> {
     ])
 }
 
-fn configure_co_1(model: &mut OwnedModel, co_1: &mut OwnedCityObject, vertices: VertexRefs) -> Result<()> {
+fn configure_co_1(
+    model: &mut OwnedModel,
+    co_1: &mut OwnedCityObject,
+    vertices: VertexRefs,
+) -> Result<()> {
     co_1.set_geographical_extent(Some(BBox::new(
         84_710.1, 446_846.0, -5.3, 84_757.1, 446_944.0, 40.9,
     )));
@@ -146,7 +155,8 @@ fn add_address_location(
     v0: VertexIndex<u32>,
 ) {
     let mut location_builder =
-        GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Regular).with_lod(LoD::LoD1);
+        GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Regular)
+            .with_lod(LoD::LoD1);
     let _location_p = location_builder.add_vertex(v0);
     if let Ok(location_geometry_ref) = location_builder.build() {
         address_map.insert(
@@ -179,7 +189,8 @@ fn build_co_1_geometry(model: &mut OwnedModel, [v0, v1, v2, v3]: VertexRefs) -> 
     texture_0.set_border_color(Some([1.0, 1.0, 1.0, 1.0].into()));
 
     let mut geometry_builder =
-        GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular).with_lod(LoD::LoD2_1);
+        GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
+            .with_lod(LoD::LoD2_1);
     let [bv0, bv1, bv2, bv3] = [
         geometry_builder.add_vertex(v0),
         geometry_builder.add_vertex(v1),
@@ -217,7 +228,12 @@ fn build_co_1_geometry(model: &mut OwnedModel, [v0, v1, v2, v3]: VertexRefs) -> 
                 true,
             )?;
         }
-        geometry_builder.set_material_surface(None, material_red.clone(), "red".to_string(), true)?;
+        geometry_builder.set_material_surface(
+            None,
+            material_red.clone(),
+            "red".to_string(),
+            true,
+        )?;
         if let Some(theme) = texture_theme {
             geometry_builder.map_vertex_to_uv(bv0, uv0);
             geometry_builder.map_vertex_to_uv(bv1, uv1);
@@ -232,7 +248,9 @@ fn build_co_1_geometry(model: &mut OwnedModel, [v0, v1, v2, v3]: VertexRefs) -> 
     let surface_1 = add_surface(Some(roof_semantic), true, Some("theme-texture"))?;
     let surface_2 = add_surface(None, true, None)?;
     let surface_3 = add_surface(
-        Some(Semantic::new(SemanticType::Extension("+PatioDoor".to_string()))),
+        Some(Semantic::new(SemanticType::Extension(
+            "+PatioDoor".to_string(),
+        ))),
         false,
         None,
     )?;
@@ -257,7 +275,8 @@ fn configure_co_3(co_3: &mut OwnedCityObject) {
 
 fn configure_tree(model: &mut OwnedModel, reference_vertex: VertexIndex<u32>) -> Result<()> {
     let mut template_builder =
-        GeometryBuilder::new(model, GeometryType::MultiSurface, BuilderMode::Template).with_lod(LoD::LoD2_1);
+        GeometryBuilder::new(model, GeometryType::MultiSurface, BuilderMode::Template)
+            .with_lod(LoD::LoD2_1);
     let tp0 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.5, 0.0));
     let tp1 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0));
     let tp2 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0));
@@ -298,13 +317,16 @@ fn configure_neighbourhood(
     co_neighbourhood.extra_mut().insert(
         "children_roles".to_string(),
         OwnedAttributeValue::Vec(vec![
-            Box::new(OwnedAttributeValue::String("residential building".to_string())),
+            Box::new(OwnedAttributeValue::String(
+                "residential building".to_string(),
+            )),
             Box::new(OwnedAttributeValue::String("voting location".to_string())),
         ]),
     );
 
     let mut geometry_builder =
-        GeometryBuilder::new(model, GeometryType::MultiSurface, BuilderMode::Regular).with_lod(LoD::LoD2);
+        GeometryBuilder::new(model, GeometryType::MultiSurface, BuilderMode::Regular)
+            .with_lod(LoD::LoD2);
     let _surface_i = geometry_builder.start_surface();
     let [p1, p2, p3, p4] = [
         geometry_builder.add_vertex(v0),
@@ -359,10 +381,22 @@ fn add_cityobjects_and_hierarchy(
     let co_neigh_ref = cityobjects.add(co_neighbourhood)?;
 
     cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_3_ref);
-    cityobjects.get_mut(co_1_ref).unwrap().add_parent(co_neigh_ref);
+    cityobjects
+        .get_mut(co_1_ref)
+        .unwrap()
+        .add_parent(co_neigh_ref);
     cityobjects.get_mut(co_3_ref).unwrap().add_child(co_1_ref);
-    cityobjects.get_mut(co_3_ref).unwrap().add_parent(co_neigh_ref);
-    cityobjects.get_mut(co_neigh_ref).unwrap().add_child(co_1_ref);
-    cityobjects.get_mut(co_neigh_ref).unwrap().add_child(co_3_ref);
+    cityobjects
+        .get_mut(co_3_ref)
+        .unwrap()
+        .add_parent(co_neigh_ref);
+    cityobjects
+        .get_mut(co_neigh_ref)
+        .unwrap()
+        .add_child(co_1_ref);
+    cityobjects
+        .get_mut(co_neigh_ref)
+        .unwrap()
+        .add_child(co_3_ref);
     Ok(())
 }
