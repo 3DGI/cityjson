@@ -1,5 +1,8 @@
 # Cargo configuration for cityjson-rs
 
+[package]
+exclude = ["tools", "bench_results", "profiling", "docker", "tests/data"]
+
 # Custom cargo aliases for benchmarking and profiling
 [alias]
 # Benchmark aliases

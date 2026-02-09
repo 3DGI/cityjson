@@ -1533,6 +1533,7 @@ mod tests {
     use crate::resources::handles::{
         GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
     };
+    use crate::resources::pool::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::RGB;
     use crate::v2_0::{CityModel, OwnedMaterial, OwnedTexture, Semantic, SemanticType};
@@ -1843,11 +1844,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_multisurface() {
-        let mut model = create_test_model();
-
-        // First add some vertices to the model using QuantizedCoordinate
+    fn build_multisurface_test_geometry(
+        model: &mut CityModel<u32, OwnedStringStorage>,
+    ) -> (ResourceId32, ResourceId32, ResourceId32, ResourceId32) {
         let v0 = model.add_vertex(QuantizedCoordinate::new(0, 0, 0)).unwrap();
         let v1 = model
             .add_vertex(QuantizedCoordinate::new(10, 0, 0))
@@ -1859,11 +1858,8 @@ mod tests {
             .add_vertex(QuantizedCoordinate::new(0, 10, 0))
             .unwrap();
 
-        // Create a builder for MultiSurface geometry
         let mut builder =
-            GeometryBuilder::new(&mut model, GeometryType::MultiSurface, BuilderMode::Regular);
-
-        // Add a mix of existing vertices and new points
+            GeometryBuilder::new(model, GeometryType::MultiSurface, BuilderMode::Regular);
         let p0 = builder.add_vertex(v0);
         let p1 = builder.add_vertex(v1);
         let p2 = builder.add_vertex(v2);
@@ -1874,16 +1870,12 @@ mod tests {
         let p7 = builder.add_point(QuantizedCoordinate::new(20, 10, 0));
         let p8 = builder.add_point(QuantizedCoordinate::new(15, 15, 0));
 
-        // Create three surfaces
-
-        // Surface 1: Triangle (no semantic or material)
         let ring0 = builder.add_ring(&[p0, p1, p4]).expect("Failed to add ring");
         let surface0 = builder.start_surface();
         builder
             .add_surface_outer_ring(ring0)
             .expect("Failed to add outer ring");
 
-        // Surface 2: Square with semantic and texture
         let ring1 = builder
             .add_ring(&[p1, p2, p5, p6])
             .expect("Failed to add ring");
@@ -1896,68 +1888,69 @@ mod tests {
             .add_surface_inner_ring(ring2)
             .expect("Failed to add inner ring");
 
-        // Add UV coordinates for each vertex
         let uv0 = builder.add_uv_coordinate(0.0, 0.0);
         let uv1 = builder.add_uv_coordinate(1.0, 0.0);
         let uv2 = builder.add_uv_coordinate(1.0, 1.0);
         let uv3 = builder.add_uv_coordinate(0.0, 1.0);
-        // Map vertices to UV coordinates
         builder.map_vertex_to_uv(p1, uv0);
         builder.map_vertex_to_uv(p2, uv1);
         builder.map_vertex_to_uv(p5, uv2);
         builder.map_vertex_to_uv(p6, uv3);
-        // Create a texture
+
         let wall_texture = OwnedTexture::new("facade.jpg".to_string(), ImageType::Jpg);
-        // Set the texture for the surface
-        let texture_ref = builder.set_texture_ring(
-            Some(surface0),
-            wall_texture,
-            "theme-texture".to_string(),
-            true,
-        );
-
-        // Create and assign semantic for the second surface
+        let texture_ref = builder
+            .set_texture_ring(
+                Some(surface0),
+                wall_texture,
+                "theme-texture".to_string(),
+                true,
+            )
+            .expect("Failed to set texture on ring");
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        let sem_ref = builder.set_semantic_surface(Some(surface1), roof_semantic, false);
+        let sem_ref = builder
+            .set_semantic_surface(Some(surface1), roof_semantic, false)
+            .expect("Failed to set semantic on surface");
 
-        // Surface 3: Polygon with material
-        let ring2 = builder
+        let ring3 = builder
             .add_ring(&[p2, p3, p4, p8, p7])
             .expect("Failed to add ring");
         let surface2 = builder.start_surface();
         builder
-            .add_surface_outer_ring(ring2)
+            .add_surface_outer_ring(ring3)
             .expect("Failed to add outer ring");
 
-        // Create and assign material for the third surface
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
         wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         wall_material.set_ambient_intensity(Some(0.5));
-        let mat_ref = builder.set_material_surface(
-            Some(surface2),
-            wall_material,
-            "material-theme".to_string(),
-            true,
-        );
-
-        // Build the geometry
+        let mat_ref = builder
+            .set_material_surface(
+                Some(surface2),
+                wall_material,
+                "material-theme".to_string(),
+                true,
+            )
+            .expect("Failed to set material on surface");
         let geom_ref = builder.build().expect("Failed to build geometry");
 
-        // Get the geometry from the model
+        (geom_ref, sem_ref, mat_ref, texture_ref)
+    }
+
+    fn assert_multisurface_test_geometry(
+        model: &CityModel<u32, OwnedStringStorage>,
+        geom_ref: ResourceId32,
+        sem_ref: ResourceId32,
+        mat_ref: ResourceId32,
+        texture_ref: ResourceId32,
+    ) {
         let geometry = model
             .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
-
-        // Check geometry type
         assert_eq!(geometry.type_geometry(), &GeometryType::MultiSurface);
 
-        // Get the boundary and convert to nested representation
         let boundary = geometry.boundaries().expect("No boundary found");
         let nested = boundary
             .to_nested_multi_or_composite_surface()
             .expect("Failed to convert to nested");
-
-        // Verify the nested representation
         let nested_expected = vec![
             vec![vec![0, 1, 4]],
             vec![vec![1, 2, 5, 6], vec![0, 1, 2]],
@@ -1966,56 +1959,35 @@ mod tests {
         assert_eq!(model.vertices().len(), 9);
         assert_eq!(nested, nested_expected);
 
-        // Check semantics
         let semantics = geometry.semantics().expect("No semantics found");
         let surface_semantics = semantics.surfaces();
-
-        // Verify surface semantics
-        assert_eq!(surface_semantics.len(), 3); // Should have entries for all surfaces
-
-        // Only the second surface should have a semantic
+        assert_eq!(surface_semantics.len(), 3);
         assert!(surface_semantics[0].is_none());
-        assert_eq!(
-            surface_semantics[1],
-            Some(SemanticRef::from_raw(sem_ref.clone().unwrap()))
-        );
+        assert_eq!(surface_semantics[1], Some(SemanticRef::from_raw(sem_ref)));
         assert!(surface_semantics[2].is_none());
 
-        // Verify the semantic itself
         let semantic = model
-            .get_semantic(SemanticRef::from_raw(sem_ref.unwrap()))
+            .get_semantic(SemanticRef::from_raw(sem_ref))
             .expect("Semantic not found");
         assert_eq!(semantic.type_semantic(), &SemanticType::RoofSurface);
 
-        // Check materials
         let materials = geometry.materials().expect("No materials found");
-        let (_theme_material, material_map) = materials.first().unwrap();
+        let (_theme_material, material_map) = materials.first().expect("Missing material map");
         let surface_materials = material_map.surfaces();
-
-        // Verify surface materials
-        assert_eq!(surface_materials.len(), 3); // Should have entries for all surfaces
-
-        // Only the third surface should have a material
+        assert_eq!(surface_materials.len(), 3);
         assert!(surface_materials[0].is_none());
         assert!(surface_materials[1].is_none());
-        assert_eq!(
-            surface_materials[2],
-            Some(MaterialRef::from_raw(mat_ref.clone().unwrap()))
-        );
+        assert_eq!(surface_materials[2], Some(MaterialRef::from_raw(mat_ref)));
 
-        // Verify the material itself
         let material = model
-            .get_material(MaterialRef::from_raw(mat_ref.unwrap()))
+            .get_material(MaterialRef::from_raw(mat_ref))
             .expect("Material not found");
         assert_eq!(material.name(), "Wall");
         assert!(material.diffuse_color().is_some());
         assert_f64_eq(f64::from(material.ambient_intensity().unwrap()), 0.5);
 
-        // Check textures
         let texture_sets = geometry.textures().expect("No textures found");
-        let (_theme_texture, texture_map) = texture_sets.first().unwrap();
-
-        // Verify we have texture mappings
+        let (_theme_texture, texture_map) = texture_sets.first().expect("Missing texture map");
         assert!(
             !texture_map.vertices().is_empty(),
             "No texture vertices found"
@@ -2026,559 +1998,490 @@ mod tests {
             "No ring textures found"
         );
 
-        // Verify the texture references
         let texture_refs: Vec<TextureRef> = texture_map
             .ring_textures()
             .iter()
-            .filter_map(|t| t.as_ref())
+            .filter_map(|texture| texture.as_ref())
             .copied()
             .collect();
-
         assert!(
-            texture_refs.contains(&TextureRef::from_raw(*texture_ref.as_ref().unwrap())),
-            "First texture reference not found"
+            texture_refs.contains(&TextureRef::from_raw(texture_ref)),
+            "Texture reference not found"
         );
 
-        // Verify the texture objects themselves
         let facade_texture = model
-            .get_texture(TextureRef::from_raw(texture_ref.unwrap()))
-            .expect("Texture 1 not found");
+            .get_texture(TextureRef::from_raw(texture_ref))
+            .expect("Texture not found");
         assert_eq!(facade_texture.image(), "facade.jpg");
         assert_eq!(facade_texture.image_type(), &ImageType::Jpg);
     }
 
     #[test]
-    fn test_solid() {
+    fn test_multisurface() {
         let mut model = create_test_model();
+        let (geom_ref, sem_ref, mat_ref, texture_ref) =
+            build_multisurface_test_geometry(&mut model);
+        assert_multisurface_test_geometry(&model, geom_ref, sem_ref, mat_ref, texture_ref);
+    }
 
-        // Create a builder for Solid geometry
-        let mut builder =
-            GeometryBuilder::new(&mut model, GeometryType::Solid, BuilderMode::Regular);
+    fn build_solid_test_geometry(
+        model: &mut CityModel<u32, OwnedStringStorage>,
+    ) -> (
+        ResourceId32,
+        ResourceId32,
+        ResourceId32,
+        ResourceId32,
+        ResourceId32,
+    ) {
+        let mut builder = GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular);
+        let cube_points = [
+            builder.add_point(QuantizedCoordinate::new(0, 0, 0)),
+            builder.add_point(QuantizedCoordinate::new(10, 0, 0)),
+            builder.add_point(QuantizedCoordinate::new(10, 10, 0)),
+            builder.add_point(QuantizedCoordinate::new(0, 10, 0)),
+            builder.add_point(QuantizedCoordinate::new(0, 0, 10)),
+            builder.add_point(QuantizedCoordinate::new(10, 0, 10)),
+            builder.add_point(QuantizedCoordinate::new(10, 10, 10)),
+            builder.add_point(QuantizedCoordinate::new(0, 10, 10)),
+        ];
+        let cube_rings = [
+            [0, 1, 5, 4, 0],
+            [1, 2, 6, 5, 1],
+            [2, 3, 7, 6, 2],
+            [3, 0, 4, 7, 3],
+            [4, 5, 6, 7, 4],
+            [0, 3, 2, 1, 0],
+        ];
 
-        // Add vertices for a simple cube
-        let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // bottom-front-left
-        let p1 = builder.add_point(QuantizedCoordinate::new(10, 0, 0)); // bottom-front-right
-        let p2 = builder.add_point(QuantizedCoordinate::new(10, 10, 0)); // bottom-back-right
-        let p3 = builder.add_point(QuantizedCoordinate::new(0, 10, 0)); // bottom-back-left
-        let p4 = builder.add_point(QuantizedCoordinate::new(0, 0, 10)); // top-front-left
-        let p5 = builder.add_point(QuantizedCoordinate::new(10, 0, 10)); // top-front-right
-        let p6 = builder.add_point(QuantizedCoordinate::new(10, 10, 10)); // top-back-right
-        let p7 = builder.add_point(QuantizedCoordinate::new(0, 10, 10)); // top-back-left
+        let mut surfaces = [0_usize; 6];
+        for (surface_idx, ring_definition) in cube_rings.iter().enumerate() {
+            let ring_vertices = ring_definition.map(|point_idx| cube_points[point_idx]);
+            let ring = builder
+                .add_ring(&ring_vertices)
+                .expect("Failed to create ring");
+            let surface = builder.start_surface();
+            builder
+                .add_surface_outer_ring(ring)
+                .expect("Failed to add surface");
+            surfaces[surface_idx] = surface;
+        }
 
-        // Define each surface (face) of the cube
-        // Front face
-        let ring0 = builder
-            .add_ring(&[p0, p1, p5, p4, p0])
-            .expect("Failed to create ring");
-        let surface0 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring0)
-            .expect("Failed to add front face");
-
-        // Right face
-        let ring1 = builder
-            .add_ring(&[p1, p2, p6, p5, p1])
-            .expect("Failed to create ring");
-        let surface1 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring1)
-            .expect("Failed to add right face");
-
-        // Back face
-        let ring2 = builder
-            .add_ring(&[p2, p3, p7, p6, p2])
-            .expect("Failed to create ring");
-        let surface2 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring2)
-            .expect("Failed to add back face");
-
-        // Left face
-        let ring3 = builder
-            .add_ring(&[p3, p0, p4, p7, p3])
-            .expect("Failed to create ring");
-        let surface3 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring3)
-            .expect("Failed to add left face");
-
-        // Top face
-        let ring4 = builder
-            .add_ring(&[p4, p5, p6, p7, p4])
-            .expect("Failed to create ring");
-        let surface4 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring4)
-            .expect("Failed to add top face");
-
-        // Bottom face
-        let ring5 = builder
-            .add_ring(&[p0, p3, p2, p1, p0])
-            .expect("Failed to create ring");
-        let surface5 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring5)
-            .expect("Failed to add bottom face");
-
-        // Add semantics to faces
         let wall_semantic = Semantic::new(SemanticType::WallSurface);
         let roof_semantic = Semantic::new(SemanticType::RoofSurface);
         let floor_semantic = Semantic::new(SemanticType::FloorSurface);
+        for &surface in &surfaces[..4] {
+            builder
+                .set_semantic_surface(Some(surface), wall_semantic.clone(), false)
+                .expect("Failed to set wall semantic");
+        }
+        let roof_sem_ref = builder
+            .set_semantic_surface(Some(surfaces[4]), roof_semantic, false)
+            .expect("Failed to set roof semantic");
+        let floor_sem_ref = builder
+            .set_semantic_surface(Some(surfaces[5]), floor_semantic, false)
+            .expect("Failed to set floor semantic");
 
-        builder
-            .set_semantic_surface(Some(surface0), wall_semantic.clone(), false)
-            .unwrap();
-        builder
-            .set_semantic_surface(Some(surface1), wall_semantic.clone(), false)
-            .unwrap();
-        builder
-            .set_semantic_surface(Some(surface2), wall_semantic.clone(), false)
-            .unwrap();
-        builder
-            .set_semantic_surface(Some(surface3), wall_semantic, false)
-            .unwrap();
-        let roof_sem_ref = builder.set_semantic_surface(Some(surface4), roof_semantic, false);
-        let floor_sem_ref = builder.set_semantic_surface(Some(surface5), floor_semantic, false);
-
-        // Add materials
         let mut wall_material = OwnedMaterial::new("Wall".to_string());
         wall_material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
         let mut roof_material = OwnedMaterial::new("Roof".to_string());
         roof_material.set_diffuse_color(Some([0.9, 0.1, 0.1].into()));
+        let wall_mat_ref = builder
+            .set_material_surface(
+                Some(surfaces[0]),
+                wall_material,
+                "material-theme".to_string(),
+                true,
+            )
+            .expect("Failed to set wall material");
+        let roof_mat_ref = builder
+            .set_material_surface(
+                Some(surfaces[4]),
+                roof_material,
+                "material-theme".to_string(),
+                true,
+            )
+            .expect("Failed to set roof material");
 
-        let wall_mat_ref = builder.set_material_surface(
-            Some(surface0),
-            wall_material,
-            "material-theme".to_string(),
-            true,
-        );
-        let roof_mat_ref = builder.set_material_surface(
-            Some(surface4),
-            roof_material,
-            "material-theme".to_string(),
-            true,
-        );
-
-        // Create a shell from the surfaces
-        builder
-            .add_shell(&[surface0, surface1, surface2, surface3, surface4, surface5])
-            .expect("Failed to add shell");
-
-        // Set LoD
+        builder.add_shell(&surfaces).expect("Failed to add shell");
         builder = builder.with_lod(LoD::LoD1);
-
-        // Build the geometry
         let geom_ref = builder.build().expect("Failed to build geometry");
 
-        // Get the geometry from the model
+        (
+            geom_ref,
+            roof_sem_ref,
+            floor_sem_ref,
+            wall_mat_ref,
+            roof_mat_ref,
+        )
+    }
+
+    fn assert_solid_test_geometry(
+        model: &CityModel<u32, OwnedStringStorage>,
+        geom_ref: ResourceId32,
+        roof_sem_ref: ResourceId32,
+        floor_sem_ref: ResourceId32,
+        wall_mat_ref: ResourceId32,
+        roof_mat_ref: ResourceId32,
+    ) {
         let geometry = model
             .get_geometry(GeometryRef::from_raw(geom_ref))
             .expect("Failed to get geometry");
-
-        // Check geometry type
         assert_eq!(geometry.type_geometry(), &GeometryType::Solid);
         assert_eq!(geometry.lod(), Some(&LoD::LoD1));
 
-        // Get the boundary and check its type
         let boundary = geometry.boundaries().expect("No boundary found");
         assert_eq!(boundary.check_type(), BoundaryType::Solid);
-
-        // Verify the nested representation matches what we created
         let nested = boundary
             .to_nested_solid()
             .expect("Failed to convert to nested representation");
-        assert_eq!(nested.len(), 1); // One shell
-        assert_eq!(nested[0].len(), 6); // Six surfaces in the shell
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].len(), 6);
 
-        // Verify semantics
         let semantics = geometry.semantics().expect("No semantics found");
         let surface_semantics = semantics.surfaces();
-        assert_eq!(surface_semantics.len(), 6); // Should have entries for all surfaces
-
-        // Verify the specific semantics
+        assert_eq!(surface_semantics.len(), 6);
         assert_eq!(
             surface_semantics[4],
-            Some(SemanticRef::from_raw(roof_sem_ref.clone().unwrap()))
+            Some(SemanticRef::from_raw(roof_sem_ref))
         );
         assert_eq!(
             surface_semantics[5],
-            Some(SemanticRef::from_raw(floor_sem_ref.clone().unwrap()))
+            Some(SemanticRef::from_raw(floor_sem_ref))
         );
 
-        // Verify materials
         let materials = geometry.materials().expect("No materials found");
-        let (_theme_material, material_map) = materials.first().unwrap();
+        let (_theme_material, material_map) = materials.first().expect("Missing material map");
         let surface_materials = material_map.surfaces();
-        assert_eq!(surface_materials.len(), 6); // Should have entries for all surfaces
-
-        // Verify the material references
+        assert_eq!(surface_materials.len(), 6);
         assert_eq!(
             surface_materials[0],
-            Some(MaterialRef::from_raw(wall_mat_ref.clone().unwrap()))
+            Some(MaterialRef::from_raw(wall_mat_ref))
         );
         assert_eq!(
             surface_materials[4],
-            Some(MaterialRef::from_raw(roof_mat_ref.clone().unwrap()))
+            Some(MaterialRef::from_raw(roof_mat_ref))
         );
 
-        // Verify the material objects
         let wall_material = model
-            .get_material(MaterialRef::from_raw(wall_mat_ref.unwrap()))
+            .get_material(MaterialRef::from_raw(wall_mat_ref))
             .expect("Wall material not found");
         assert_eq!(wall_material.name(), "Wall");
         assert_eq!(
-            wall_material.diffuse_color().unwrap(),
+            wall_material
+                .diffuse_color()
+                .expect("Missing diffuse color"),
             RGB::from([0.8, 0.8, 0.8])
+        );
+    }
+
+    #[test]
+    fn test_solid() {
+        let mut model = create_test_model();
+        let (geom_ref, roof_sem_ref, floor_sem_ref, wall_mat_ref, roof_mat_ref) =
+            build_solid_test_geometry(&mut model);
+        assert_solid_test_geometry(
+            &model,
+            geom_ref,
+            roof_sem_ref,
+            floor_sem_ref,
+            wall_mat_ref,
+            roof_mat_ref,
+        );
+    }
+
+    const MULTISOLID_CUBE1_COORDS: [(i64, i64, i64); 8] = [
+        (0, 0, 0),
+        (5, 0, 0),
+        (5, 5, 0),
+        (0, 5, 0),
+        (0, 0, 5),
+        (5, 0, 5),
+        (5, 5, 5),
+        (0, 5, 5),
+    ];
+    const MULTISOLID_CUBE2_COORDS: [(i64, i64, i64); 8] = [
+        (10, 10, 0),
+        (20, 10, 0),
+        (20, 20, 0),
+        (10, 20, 0),
+        (10, 10, 10),
+        (20, 10, 10),
+        (20, 20, 10),
+        (10, 20, 10),
+    ];
+    const MULTISOLID_CUBE1_RING_DEFINITIONS: [[usize; 5]; 6] = [
+        [0, 1, 5, 4, 0],
+        [1, 2, 6, 5, 1],
+        [2, 3, 7, 6, 2],
+        [3, 0, 4, 7, 3],
+        [4, 5, 6, 7, 3],
+        [0, 3, 2, 1, 0],
+    ];
+    const MULTISOLID_CUBE2_RING_DEFINITIONS: [[usize; 5]; 6] = [
+        [0, 1, 5, 4, 0],
+        [1, 2, 6, 5, 1],
+        [2, 3, 7, 6, 2],
+        [3, 0, 4, 7, 3],
+        [4, 5, 6, 7, 4],
+        [0, 3, 2, 1, 0],
+    ];
+    const MULTISOLID_CUBE1_SURFACE_TO_RING: [usize; 6] = [0, 1, 2, 2, 4, 5];
+    const MULTISOLID_CUBE2_SURFACE_TO_RING: [usize; 6] = [0, 1, 2, 3, 4, 5];
+    type MultiSolidRefs = [ResourceId32; 6];
+
+    fn build_multisolid_test_geometry(
+        model: &mut CityModel<u32, OwnedStringStorage>,
+    ) -> (ResourceId32, MultiSolidRefs) {
+        let mut builder =
+            GeometryBuilder::new(model, GeometryType::MultiSolid, BuilderMode::Regular);
+
+        let cube1_points = MULTISOLID_CUBE1_COORDS
+            .map(|(x, y, z)| builder.add_point(QuantizedCoordinate::new(x, y, z)));
+        let cube2_points = MULTISOLID_CUBE2_COORDS
+            .map(|(x, y, z)| builder.add_point(QuantizedCoordinate::new(x, y, z)));
+
+        let mut add_cube_surfaces = |points: [usize; 8],
+                                     ring_definitions: [[usize; 5]; 6],
+                                     surface_to_ring: [usize; 6]|
+         -> [usize; 6] {
+            let mut rings = [0_usize; 6];
+            for (ring_idx, ring_definition) in ring_definitions.iter().enumerate() {
+                let ring_points = ring_definition.map(|point_idx| points[point_idx]);
+                rings[ring_idx] = builder
+                    .add_ring(&ring_points)
+                    .expect("Failed to create ring");
+            }
+
+            let mut surfaces = [0_usize; 6];
+            for (surface_idx, ring_idx) in surface_to_ring.iter().copied().enumerate() {
+                let surface = builder.start_surface();
+                builder
+                    .add_surface_outer_ring(rings[ring_idx])
+                    .expect("Failed to add surface");
+                surfaces[surface_idx] = surface;
+            }
+
+            surfaces
+        };
+
+        let cube1_surfaces = add_cube_surfaces(
+            cube1_points,
+            MULTISOLID_CUBE1_RING_DEFINITIONS,
+            MULTISOLID_CUBE1_SURFACE_TO_RING,
+        );
+        let cube2_surfaces = add_cube_surfaces(
+            cube2_points,
+            MULTISOLID_CUBE2_RING_DEFINITIONS,
+            MULTISOLID_CUBE2_SURFACE_TO_RING,
+        );
+
+        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
+        let ground_semantic = Semantic::new(SemanticType::GroundSurface);
+        let roof_sem_ref1 = builder
+            .set_semantic_surface(Some(cube1_surfaces[4]), roof_semantic.clone(), false)
+            .expect("Failed to set semantic");
+        let ground_sem_ref1 = builder
+            .set_semantic_surface(Some(cube1_surfaces[5]), ground_semantic.clone(), false)
+            .expect("Failed to set semantic");
+        let roof_sem_ref2 = builder
+            .set_semantic_surface(Some(cube2_surfaces[4]), roof_semantic, false)
+            .expect("Failed to set semantic");
+        let ground_sem_ref2 = builder
+            .set_semantic_surface(Some(cube2_surfaces[5]), ground_semantic, false)
+            .expect("Failed to set semantic");
+
+        let mut red_material = OwnedMaterial::new("RedWall".to_string());
+        red_material.set_diffuse_color(Some([0.9, 0.1, 0.1].into()));
+        let mut blue_material = OwnedMaterial::new("BlueWall".to_string());
+        blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9].into()));
+        let red_mat_ref = builder
+            .set_material_surface(
+                Some(cube1_surfaces[0]),
+                red_material,
+                "material-theme".to_string(),
+                true,
+            )
+            .expect("Failed to set material");
+        let blue_mat_ref = builder
+            .set_material_surface(
+                Some(cube2_surfaces[0]),
+                blue_material,
+                "material-theme".to_string(),
+                true,
+            )
+            .expect("Failed to set material");
+
+        builder
+            .add_shell(&cube1_surfaces)
+            .expect("Failed to add first shell");
+        builder
+            .add_shell(&cube2_surfaces)
+            .expect("Failed to add second shell");
+        builder.start_solid();
+        builder
+            .add_solid_outer_shell(0)
+            .expect("Failed to add shell to solid");
+        builder.start_solid();
+        builder
+            .add_solid_outer_shell(1)
+            .expect("Failed to add shell to solid");
+        builder = builder.with_lod(LoD::LoD1);
+        let geom_ref = builder.build().expect("Failed to build geometry");
+
+        (
+            geom_ref,
+            [
+                roof_sem_ref1,
+                ground_sem_ref1,
+                roof_sem_ref2,
+                ground_sem_ref2,
+                red_mat_ref,
+                blue_mat_ref,
+            ],
+        )
+    }
+
+    fn assert_multisolid_test_geometry(
+        model: &CityModel<u32, OwnedStringStorage>,
+        geom_ref: ResourceId32,
+        refs: MultiSolidRefs,
+    ) {
+        let [
+            roof_sem_ref1,
+            ground_sem_ref1,
+            roof_sem_ref2,
+            ground_sem_ref2,
+            red_mat_ref,
+            blue_mat_ref,
+        ] = refs;
+        let geometry = model
+            .get_geometry(GeometryRef::from_raw(geom_ref))
+            .expect("Failed to get geometry");
+        assert_eq!(geometry.type_geometry(), &GeometryType::MultiSolid);
+        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
+
+        let boundary = geometry.boundaries().expect("No boundary found");
+        assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
+        let nested = boundary
+            .to_nested_multi_or_composite_solid()
+            .expect("Failed to convert to nested");
+        assert_eq!(nested.len(), 2);
+        assert_eq!(nested[0].len(), 1);
+        assert_eq!(nested[1].len(), 1);
+        assert_eq!(nested[0][0].len(), 6);
+        assert_eq!(nested[1][0].len(), 6);
+
+        let semantics = geometry.semantics().expect("No semantics found");
+        let surface_semantics = semantics.surfaces();
+        assert_eq!(surface_semantics.len(), 12);
+        assert_eq!(
+            surface_semantics[4],
+            Some(SemanticRef::from_raw(roof_sem_ref1))
+        );
+        assert_eq!(
+            surface_semantics[5],
+            Some(SemanticRef::from_raw(ground_sem_ref1))
+        );
+        assert_eq!(
+            surface_semantics[10],
+            Some(SemanticRef::from_raw(roof_sem_ref2))
+        );
+        assert_eq!(
+            surface_semantics[11],
+            Some(SemanticRef::from_raw(ground_sem_ref2))
+        );
+
+        let materials = geometry.materials().expect("No materials found");
+        let (_theme_material, material_map) = materials.first().expect("Missing material map");
+        let surface_materials = material_map.surfaces();
+        assert_eq!(surface_materials.len(), 12);
+        assert_eq!(
+            surface_materials[0],
+            Some(MaterialRef::from_raw(red_mat_ref))
+        );
+        assert_eq!(
+            surface_materials[6],
+            Some(MaterialRef::from_raw(blue_mat_ref))
+        );
+
+        let red_material = model
+            .get_material(MaterialRef::from_raw(red_mat_ref))
+            .expect("Red material not found");
+        assert_eq!(red_material.name(), "RedWall");
+        assert_eq!(
+            red_material.diffuse_color().expect("Missing diffuse color"),
+            RGB::from([0.9, 0.1, 0.1])
+        );
+
+        let blue_material = model
+            .get_material(MaterialRef::from_raw(blue_mat_ref))
+            .expect("Blue material not found");
+        assert_eq!(blue_material.name(), "BlueWall");
+        assert_eq!(
+            blue_material
+                .diffuse_color()
+                .expect("Missing diffuse color"),
+            RGB::from([0.1, 0.1, 0.9])
         );
     }
 
     #[test]
     fn test_multisolid() {
         let mut model = create_test_model();
-
-        // Create a builder for MultiSolid geometry
-        let mut builder =
-            GeometryBuilder::new(&mut model, GeometryType::MultiSolid, BuilderMode::Regular);
-
-        // Add vertices for first cube (small cube at origin)
-        let p0 = builder.add_point(QuantizedCoordinate::new(0, 0, 0)); // small cube - bottom-front-left
-        let p1 = builder.add_point(QuantizedCoordinate::new(5, 0, 0)); // small cube - bottom-front-right
-        let p2 = builder.add_point(QuantizedCoordinate::new(5, 5, 0)); // small cube - bottom-back-right
-        let p3 = builder.add_point(QuantizedCoordinate::new(0, 5, 0)); // small cube - bottom-back-left
-        let p4 = builder.add_point(QuantizedCoordinate::new(0, 0, 5)); // small cube - top-front-left
-        let p5 = builder.add_point(QuantizedCoordinate::new(5, 0, 5)); // small cube - top-front-right
-        let p6 = builder.add_point(QuantizedCoordinate::new(5, 5, 5)); // small cube - top-back-right
-        let p7 = builder.add_point(QuantizedCoordinate::new(0, 5, 5)); // small cube - top-back-left
-
-        // Add vertices for second cube (larger cube offset from first)
-        let p8 = builder.add_point(QuantizedCoordinate::new(10, 10, 0)); // large cube - bottom-front-left
-        let p9 = builder.add_point(QuantizedCoordinate::new(20, 10, 0)); // large cube - bottom-front-right
-        let p10 = builder.add_point(QuantizedCoordinate::new(20, 20, 0)); // large cube - bottom-back-right
-        let p11 = builder.add_point(QuantizedCoordinate::new(10, 20, 0)); // large cube - bottom-back-left
-        let p12 = builder.add_point(QuantizedCoordinate::new(10, 10, 10)); // large cube - top-front-left
-        let p13 = builder.add_point(QuantizedCoordinate::new(20, 10, 10)); // large cube - top-front-right
-        let p14 = builder.add_point(QuantizedCoordinate::new(20, 20, 10)); // large cube - top-back-right
-        let p15 = builder.add_point(QuantizedCoordinate::new(10, 20, 10)); // large cube - top-back-left
-
-        // Define surfaces for the first cube
-        // Front face (cube 1)
-        let ring0 = builder
-            .add_ring(&[p0, p1, p5, p4, p0])
-            .expect("Failed to create ring");
-        let surface0 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring0)
-            .expect("Failed to add front face of first cube");
-
-        // Right face (cube 1)
-        let ring1 = builder
-            .add_ring(&[p1, p2, p6, p5, p1])
-            .expect("Failed to create ring");
-        let surface1 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring1)
-            .expect("Failed to add right face of first cube");
-
-        // Back face (cube 1)
-        let ring2 = builder
-            .add_ring(&[p2, p3, p7, p6, p2])
-            .expect("Failed to create ring");
-        let surface2 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring2)
-            .expect("Failed to add back face of first cube");
-
-        // Left face (cube 1)
-        let _ring3 = builder
-            .add_ring(&[p3, p0, p4, p7, p3])
-            .expect("Failed to create ring");
-        let surface3 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring2)
-            .expect("Failed to add left face of first cube");
-
-        // Top face (cube 1)
-        let ring4 = builder
-            .add_ring(&[p4, p5, p6, p7, p3])
-            .expect("Failed to create ring");
-        let surface4 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring4)
-            .expect("Failed to add top face of first cube");
-
-        // Bottom face (cube 1)
-        let ring5 = builder
-            .add_ring(&[p0, p3, p2, p1, p0])
-            .expect("Failed to create ring");
-        let surface5 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring5)
-            .expect("Failed to add bottom face of first cube");
-
-        // Define surfaces for the second cube
-        // Front face (cube 2)
-        let ring6 = builder
-            .add_ring(&[p8, p9, p13, p12, p8])
-            .expect("Failed to create ring");
-        let surface6 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring6)
-            .expect("Failed to add front face of second cube");
-
-        // Right face (cube 2)
-        let ring7 = builder
-            .add_ring(&[p9, p10, p14, p13, p9])
-            .expect("Failed to create ring");
-        let surface7 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring7)
-            .expect("Failed to add right face of second cube");
-
-        // Back face (cube 2)
-        let ring8 = builder
-            .add_ring(&[p10, p11, p15, p14, p10])
-            .expect("Failed to create ring");
-        let surface8 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring8)
-            .expect("Failed to add back face of second cube");
-
-        // Left face (cube 2)
-        let ring9 = builder
-            .add_ring(&[p11, p8, p12, p15, p11])
-            .expect("Failed to create ring");
-        let surface9 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring9)
-            .expect("Failed to add left face of second cube");
-
-        // Top face (cube 2)
-        let top_face_ring_cube2 = builder
-            .add_ring(&[p12, p13, p14, p15, p12])
-            .expect("Failed to create ring");
-        let top_face_surface_cube2 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(top_face_ring_cube2)
-            .expect("Failed to add top face of second cube");
-
-        // Bottom face (cube 2)
-        let ring11 = builder
-            .add_ring(&[p8, p11, p10, p9, p8])
-            .expect("Failed to create ring");
-        let surface11 = builder.start_surface();
-        builder
-            .add_surface_outer_ring(ring11)
-            .expect("Failed to add bottom face of second cube");
-
-        // Create semantics for different types of surfaces
-        let roof_semantic = Semantic::new(SemanticType::RoofSurface);
-        let ground_semantic = Semantic::new(SemanticType::GroundSurface);
-
-        // Add semantics to faces
-        let roof_sem_ref1 =
-            builder.set_semantic_surface(Some(surface4), roof_semantic.clone(), false);
-        let ground_sem_ref1 =
-            builder.set_semantic_surface(Some(surface5), ground_semantic.clone(), false);
-        let roof_sem_ref2 =
-            builder.set_semantic_surface(Some(top_face_surface_cube2), roof_semantic, false);
-        let ground_sem_ref2 = builder.set_semantic_surface(Some(surface11), ground_semantic, false);
-
-        // For the walls, we'll use material instead of semantics
-        let mut red_material = OwnedMaterial::new("RedWall".to_string());
-        red_material.set_diffuse_color(Some([0.9, 0.1, 0.1].into()));
-        let mut blue_material = OwnedMaterial::new("BlueWall".to_string());
-        blue_material.set_diffuse_color(Some([0.1, 0.1, 0.9].into()));
-
-        // Apply materials to some surfaces
-        let red_mat_ref = builder.set_material_surface(
-            Some(surface0),
-            red_material,
-            "material-theme".to_string(),
-            true,
-        );
-        let blue_mat_ref = builder.set_material_surface(
-            Some(surface6),
-            blue_material,
-            "material-theme".to_string(),
-            true,
-        );
-
-        // Create shells for each cube
-        builder
-            .add_shell(&[surface0, surface1, surface2, surface3, surface4, surface5])
-            .expect("Failed to add shell for first cube");
-
-        builder
-            .add_shell(&[
-                surface6,
-                surface7,
-                surface8,
-                surface9,
-                top_face_surface_cube2,
-                surface11,
-            ])
-            .expect("Failed to add shell for second cube");
-
-        // Create solids from shells
-        let _solid0 = builder.start_solid();
-        builder
-            .add_solid_outer_shell(0)
-            .expect("Failed to add outer shell to solid 0");
-
-        let _solid1 = builder.start_solid();
-        builder
-            .add_solid_outer_shell(1)
-            .expect("Failed to add outer shell to solid 1");
-
-        // Set LoD
-        builder = builder.with_lod(LoD::LoD1);
-
-        // Build the geometry
-        let geom_ref = builder.build().expect("Failed to build geometry");
-
-        // Get the geometry from the model
-        let geometry = model
-            .get_geometry(GeometryRef::from_raw(geom_ref))
-            .expect("Failed to get geometry");
-
-        // Check geometry type
-        assert_eq!(geometry.type_geometry(), &GeometryType::MultiSolid);
-        assert_eq!(geometry.lod(), Some(&LoD::LoD1));
-
-        // Get the boundary and check its type
-        let boundary = geometry.boundaries().expect("No boundary found");
-        assert_eq!(boundary.check_type(), BoundaryType::MultiOrCompositeSolid);
-
-        // Verify the nested representation matches what we created
-        let nested = boundary
-            .to_nested_multi_or_composite_solid()
-            .expect("Failed to convert to nested");
-
-        // We should have 2 solids
-        assert_eq!(nested.len(), 2);
-
-        // Each solid should have 1 shell
-        assert_eq!(nested[0].len(), 1);
-        assert_eq!(nested[1].len(), 1);
-
-        // Each shell should have 6 surfaces
-        assert_eq!(nested[0][0].len(), 6);
-        assert_eq!(nested[1][0].len(), 6);
-
-        // Verify semantics
-        let semantics = geometry.semantics().expect("No semantics found");
-        let surface_semantics = semantics.surfaces();
-        assert_eq!(surface_semantics.len(), 12); // Should have entries for all surfaces
-
-        // Verify specific semantics
-        assert_eq!(
-            surface_semantics[4],
-            Some(SemanticRef::from_raw(roof_sem_ref1.clone().unwrap()))
-        );
-        assert_eq!(
-            surface_semantics[5],
-            Some(SemanticRef::from_raw(ground_sem_ref1.clone().unwrap()))
-        );
-        assert_eq!(
-            surface_semantics[10],
-            Some(SemanticRef::from_raw(roof_sem_ref2.clone().unwrap()))
-        );
-        assert_eq!(
-            surface_semantics[11],
-            Some(SemanticRef::from_raw(ground_sem_ref2.clone().unwrap()))
-        );
-
-        // Verify materials
-        let materials = geometry.materials().expect("No materials found");
-        let (_theme_material, material_map) = materials.first().unwrap();
-        let surface_materials = material_map.surfaces();
-        assert_eq!(surface_materials.len(), 12); // Should have entries for all surfaces
-
-        // Verify the material references
-        assert_eq!(
-            surface_materials[0],
-            Some(MaterialRef::from_raw(red_mat_ref.clone().unwrap()))
-        );
-        assert_eq!(
-            surface_materials[6],
-            Some(MaterialRef::from_raw(blue_mat_ref.clone().unwrap()))
-        );
-
-        // Verify the material objects
-        let red_material = model
-            .get_material(MaterialRef::from_raw(red_mat_ref.unwrap()))
-            .expect("Red material not found");
-        assert_eq!(red_material.name(), "RedWall");
-        assert_eq!(
-            red_material.diffuse_color().unwrap(),
-            RGB::from([0.9, 0.1, 0.1])
-        );
-
-        let blue_material = model
-            .get_material(MaterialRef::from_raw(blue_mat_ref.unwrap()))
-            .expect("Blue material not found");
-        assert_eq!(blue_material.name(), "BlueWall");
-        assert_eq!(
-            blue_material.diffuse_color().unwrap(),
-            RGB::from([0.1, 0.1, 0.9])
-        );
+        let (geom_ref, refs) = build_multisolid_test_geometry(&mut model);
+        assert_multisolid_test_geometry(&model, geom_ref, refs);
     }
 
-    #[test]
-    fn test_geometry_template_and_instance() {
-        let mut model = create_test_model();
+    fn build_template_geometry_for_instance(
+        model: &mut CityModel<u32, OwnedStringStorage>,
+    ) -> (ResourceId32, ResourceId32) {
+        let mut template_builder =
+            GeometryBuilder::new(model, GeometryType::MultiLineString, BuilderMode::Template);
+        let template_points = [
+            template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.0, 0.0)),
+            template_builder.add_template_point(RealWorldCoordinate::new(1.0, 0.0, 0.0)),
+            template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0)),
+            template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0)),
+            template_builder.add_template_point(RealWorldCoordinate::new(2.0, 0.0, 0.0)),
+            template_builder.add_template_point(RealWorldCoordinate::new(2.0, 2.0, 0.0)),
+        ];
 
-        // PART 1: Create a template geometry (MultiLineString with semantics)
-        // ------------------------------------------------------------------
-
-        // Create a builder in Template mode for template creation
-        let mut template_builder = GeometryBuilder::new(
-            &mut model,
-            GeometryType::MultiLineString,
-            BuilderMode::Template,
-        );
-
-        // Add template vertices using RealWorldCoordinate (in local coordinate system)
-        let tp0 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 0.0, 0.0));
-        let tp1 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 0.0, 0.0));
-        let tp2 = template_builder.add_template_point(RealWorldCoordinate::new(1.0, 1.0, 0.0));
-        let tp3 = template_builder.add_template_point(RealWorldCoordinate::new(0.0, 1.0, 0.0));
-        let tp4 = template_builder.add_template_point(RealWorldCoordinate::new(2.0, 0.0, 0.0));
-        let tp5 = template_builder.add_template_point(RealWorldCoordinate::new(2.0, 2.0, 0.0));
-
-        // Create three linestrings in our template
-        // First linestring: square/rectangle
         template_builder
-            .add_linestring(&[tp0, tp1, tp2, tp3, tp0])
+            .add_linestring(&[
+                template_points[0],
+                template_points[1],
+                template_points[2],
+                template_points[3],
+                template_points[0],
+            ])
             .expect("Failed to add first linestring to template");
-
-        // Second linestring: diagonal
-        let ls2 = template_builder
-            .add_linestring(&[tp0, tp2])
+        let diagonal_linestring = template_builder
+            .add_linestring(&[template_points[0], template_points[2]])
             .expect("Failed to add second linestring to template");
-
-        // Third linestring: another line
         template_builder
-            .add_linestring(&[tp1, tp4, tp5])
+            .add_linestring(&[template_points[1], template_points[4], template_points[5]])
             .expect("Failed to add third linestring to template");
 
-        // Create semantic for the second linestring
-        let sem = Semantic::new(SemanticType::TransportationMarking);
-
-        // Set semantic for the second linestring (the diagonal)
         let sem_ref = template_builder
-            .set_semantic_linestring(Some(ls2), sem, false)
+            .set_semantic_linestring(
+                Some(diagonal_linestring),
+                Semantic::new(SemanticType::TransportationMarking),
+                false,
+            )
             .expect("Failed to set semantic for template linestring");
-
-        // Set LoD for the template
         template_builder = template_builder.with_lod(LoD::LoD2);
-
-        // Build the template geometry - this adds it to the template_geometries pool
         let template_ref = template_builder
             .build()
             .expect("Failed to build template geometry");
 
-        // Verify template was created correctly and placed in the template pool
+        (template_ref, sem_ref)
+    }
+
+    fn assert_template_geometry_for_instance(
+        model: &CityModel<u32, OwnedStringStorage>,
+        template_ref: ResourceId32,
+        sem_ref: ResourceId32,
+    ) {
         assert!(
             model
                 .get_template_geometry(TemplateGeometryRef::from_raw(template_ref))
@@ -2586,29 +2489,21 @@ mod tests {
             "Template geometry not found in template pool"
         );
 
-        // Get the template from the pool for further verification
         let template = model
             .get_template_geometry(TemplateGeometryRef::from_raw(template_ref))
             .expect("Failed to get template geometry");
-
-        // Verify template properties
         assert_eq!(template.type_geometry(), &GeometryType::MultiLineString);
         assert_eq!(template.lod(), Some(&LoD::LoD2));
-
-        // Check that template vertices were added to template_vertices pool
         assert_eq!(
             model.template_vertices().len(),
             6,
             "Expected 6 vertices in template_vertices pool"
         );
 
-        // Verify template semantics
         let semantics = template
             .semantics()
             .expect("No semantics found in template");
         let linestring_semantics = semantics.linestrings();
-
-        // Verify linestrings have semantics applied correctly
         assert_eq!(linestring_semantics.len(), 3);
         assert!(linestring_semantics[0].is_none());
         assert_eq!(
@@ -2616,65 +2511,48 @@ mod tests {
             Some(SemanticRef::from_raw(sem_ref))
         );
         assert!(linestring_semantics[2].is_none());
+    }
 
-        // PART 2: Create a GeometryInstance that references this template
-        // --------------------------------------------------------------
-
-        // Add a reference point in the main vertex pool (not template vertices)
-        // This is where the template will be positioned in the city model
+    fn build_geometry_instance_from_template(
+        model: &mut CityModel<u32, OwnedStringStorage>,
+        template_ref: ResourceId32,
+    ) -> (ResourceId32, VertexIndex<u32>) {
         let ref_point_idx = model
             .add_vertex(QuantizedCoordinate::new(100, 200, 50))
             .expect("Failed to add reference point");
-
-        // Create a GeometryInstance builder in Regular mode
-        let mut instance_builder = GeometryBuilder::new(
-            &mut model,
-            GeometryType::GeometryInstance,
-            BuilderMode::Regular,
-        );
-
-        // Add the reference point vertex (anchor point for template placement)
-        let _instance_point = instance_builder.add_vertex(ref_point_idx);
-
-        // Set the template reference - this tells the instance which template to use
+        let mut instance_builder =
+            GeometryBuilder::new(model, GeometryType::GeometryInstance, BuilderMode::Regular);
+        instance_builder.add_vertex(ref_point_idx);
         instance_builder = instance_builder
             .with_template(template_ref)
             .expect("Failed to set template boundaries");
-
-        // Set the transformation matrix
-        // This defines how the template is transformed at the reference point:
-        // - Scale by 2 in all dimensions (first three diagonal elements)
-        // - No rotation (zeros in off-diagonal elements)
-        // - No additional translation beyond reference point (last row)
         instance_builder = instance_builder
             .with_transformation_matrix([
-                2.0, 0.0, 0.0, 0.0, // Scale x by 2
-                0.0, 2.0, 0.0, 0.0, // Scale y by 2
-                0.0, 0.0, 2.0, 0.0, // Scale z by 2
-                0.0, 0.0, 0.0, 1.0, // No additional translation (uses reference point)
+                2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
             ])
             .expect("Failed to set transformation matrix");
-
-        // Build the geometry instance - this adds it to the regular geometries pool
         let instance_ref = instance_builder
             .build()
             .expect("Failed to build geometry instance");
 
-        // Get the geometry instance for verification
+        (instance_ref, ref_point_idx)
+    }
+
+    fn assert_geometry_instance_from_template(
+        model: &CityModel<u32, OwnedStringStorage>,
+        instance_ref: ResourceId32,
+        template_ref: ResourceId32,
+        ref_point_idx: VertexIndex<u32>,
+    ) {
         let instance = model
             .get_geometry(GeometryRef::from_raw(instance_ref))
             .expect("Failed to get geometry instance");
-
-        // Verify the instance properties
         assert_eq!(instance.type_geometry(), &GeometryType::GeometryInstance);
-
-        // Verify template reference is correct
         assert_eq!(
             instance.instance_template(),
             Some(TemplateGeometryRef::from_raw(template_ref))
         );
 
-        // Verify transformation matrix is stored correctly
         let expected_matrix = [
             2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ];
@@ -2682,16 +2560,22 @@ mod tests {
             instance.instance_transformation_matrix(),
             Some(&expected_matrix)
         );
-
-        // Verify that the instance has a boundary with just the reference point
         assert_eq!(instance.instance_reference_point(), Some(&ref_point_idx));
-
-        // Make sure the instance is in the regular geometries pool, not the template pool
         assert!(
             model
                 .get_geometry(GeometryRef::from_raw(instance_ref))
                 .is_some(),
             "Geometry instance not found in regular geometry pool"
         );
+    }
+
+    #[test]
+    fn test_geometry_template_and_instance() {
+        let mut model = create_test_model();
+        let (template_ref, sem_ref) = build_template_geometry_for_instance(&mut model);
+        assert_template_geometry_for_instance(&model, template_ref, sem_ref);
+        let (instance_ref, ref_point_idx) =
+            build_geometry_instance_from_template(&mut model, template_ref);
+        assert_geometry_instance_from_template(&model, instance_ref, template_ref, ref_point_idx);
     }
 }

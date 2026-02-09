@@ -724,10 +724,7 @@ mod tests {
         assert_f64_slice_eq(&[f64::from(uv.u()), f64::from(uv.v())], &[0.5, 0.75]);
 
         let uv = UVCoordinate::new(0.25, 0.35);
-        assert_f64_slice_eq(
-            &[f64::from(uv.u()), f64::from(uv.v())],
-            &[0.25, 0.35],
-        );
+        assert_f64_slice_eq(&[f64::from(uv.u()), f64::from(uv.v())], &[0.25, 0.35]);
     }
 
     #[test]

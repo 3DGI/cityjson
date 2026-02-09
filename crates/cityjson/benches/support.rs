@@ -1,5 +1,5 @@
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::env;
 
 pub const BENCH_VERSION: &str = "v2";

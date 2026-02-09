@@ -336,9 +336,9 @@ fn write_metrics(path: &PathBuf, metrics: &StreamMetrics) -> std::io::Result<()>
 
 mod default_backend {
     use super::{
-        mpsc, process_batch, producer, stream_verbose_enabled, thread,
-        Instant, StreamMessage, StreamMetrics, WireAttributeValue, WireGeometry, WireGlobalProperties,
-        WireMaterial, WireSemantic,
+        Instant, StreamMessage, StreamMetrics, WireAttributeValue, WireGeometry,
+        WireGlobalProperties, WireMaterial, WireSemantic, mpsc, process_batch, producer,
+        stream_verbose_enabled, thread,
     };
     use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;

@@ -1,5 +1,5 @@
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::metadata::{BBox, CityModelIdentifier, Date, CRS};
+use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
 use crate::format_option;
 use crate::resources::storage::StringStorage;
 use std::fmt::{Display, Formatter};

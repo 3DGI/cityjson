@@ -3,14 +3,14 @@
 #[allow(dead_code)]
 mod support;
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
-use support::{params_from_env, CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER};
+use support::{CUBE_VERTICES, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, params_from_env};
 
 mod benches {
     use super::{
-        black_box, params_from_env, Criterion, Throughput, CUBE_VERTICES, DEFAULT_SIZE_BUILDER,
-        FAST_SIZE_BUILDER,
+        CUBE_VERTICES, Criterion, DEFAULT_SIZE_BUILDER, FAST_SIZE_BUILDER, Throughput, black_box,
+        params_from_env,
     };
 
     use cityjson::backend::default::geometry::GeometryBuilder;
