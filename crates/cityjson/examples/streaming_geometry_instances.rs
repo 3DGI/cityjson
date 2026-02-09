@@ -43,7 +43,7 @@ enum StreamMessage {
     Done,
 }
 
-fn producer(tx: mpsc::SyncSender<StreamMessage>) {
+fn producer(tx: &mpsc::SyncSender<StreamMessage>) {
     let global_props = WireGlobalProperties {
         metadata_identifier: "streaming-instance-example".to_string(),
         crs: "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
@@ -95,10 +95,8 @@ fn build_template_from_wire(
     builder.build()
 }
 
-fn consumer(rx: mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStringStorage>> {
-    let global_props = if let Ok(StreamMessage::GlobalProperties(global)) = rx.recv() {
-        global
-    } else {
+fn consumer(rx: &mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStringStorage>> {
+    let Ok(StreamMessage::GlobalProperties(global_props)) = rx.recv() else {
         return Err(Error::InvalidGeometry(
             "Expected GlobalProperties as first message".to_string(),
         ));
@@ -179,8 +177,8 @@ fn main() -> Result<()> {
     let (tx, rx) = mpsc::sync_channel::<StreamMessage>(4);
 
     let result = thread::scope(|s| {
-        let producer_handle = s.spawn(move || producer(tx));
-        let consumer_handle = s.spawn(move || consumer(rx));
+        let producer_handle = s.spawn(move || producer(&tx));
+        let consumer_handle = s.spawn(move || consumer(&rx));
 
         producer_handle.join().expect("Producer thread panicked");
         consumer_handle.join().expect("Consumer thread panicked")

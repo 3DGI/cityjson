@@ -1,18 +1,19 @@
 # cityjson-rs
 
+[//]: #todo (less pretentious intro: remove "meant to be a core dependency")
 The crate defines the types and methods for representing the complete `CityJSON` data model in Rust.
 *cityjson-rs* is meant to be a core dependency in Rust-based `CityJSON` software, so that the dependent applications can extend the types with their specific functionality.
 Therefore, *citjson-rs* is designed with performance, flexibility, and ease-of-use in mind.
 The three criteria are implemented in the following features:
 
-- The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality. This is very different to the nested arrays defined by the `CityJSON` schema. However, the implementation details are hidden from the API.
+- The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality. This is very different to the nested arrays defined by the `CityJSON` schema.
 - Vertex indices, and consequently boundaries, semantics, and appearances can be specialized with either `u16`, `u32` or `u64` types to enable various use cases and memory optimizations.
 - Supports both borrowed and owned values.
 - Getter and setter methods are implemented for each `CityJSON` object and their members to provide a stable API and hide implementation details.
 - The API is thoroughly documented, including usage examples.
 - Supports `CityJSON` Extensions.
 - Native API targets `CityJSON` v2.0.
-- JSON de/serialization and legacy version upgrades are handled by specialized companion crates.
+- JSON de/serialization and legacy version upgrades are handled by *serde_cityjson*.
 
 ## Documentation
 
@@ -30,9 +31,10 @@ cargo add cityjson-rs
 
 ### Core Structure
 
-- **`cityjson`** module: Contains version-agnostic traits and types forming the stable API
+[//]: #todo (remove references to traits, because i don't have them anymore)
 
-  - Defines interfaces like `CityModelTrait`, `CityObjectTrait`, `GeometryTrait`
+- **`cityjson`** module: Contains version-agnostic types forming the stable API
+
   - Contains version-independent types and functionality like coordinate representations, boundary models and attributes
 
 - Version module (**`v2_0`**)
