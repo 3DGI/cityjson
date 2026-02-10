@@ -50,6 +50,11 @@ Benchmark coverage:
 - `streaming/e2e` measures end-to-end ingestion as a supporting workload.
 - Geometry-typed attributes are intentionally excluded to avoid backend-specific representation costs.
 
+Analysis examples:
+- `just perf-analyze description="my change" --plot`
+- `just perf-analyze --series --plot bench="builder/build_full_feature" metric="time_ms"`
+- `just perf-analyze --backend-overview --backend default --mode all`
+
 ## Profiling Targets
 
 Valgrind runs the benchmark workload `processor/compute_full_feature_stats` per backend. You can override the defaults:

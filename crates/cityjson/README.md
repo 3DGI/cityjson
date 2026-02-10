@@ -85,8 +85,9 @@ just perf "quick check" mode=fast
 Analyze results from `bench_results/history.csv`:
 
 ```sh
-just perf-analyze description="my run description" plot=1
-just perf-analyze series=1 plot=1 bench="builder/build_with_geometry" metric="time_ms"
+just perf-analyze description="my run description" --plot
+just perf-analyze --backend-overview --backend default --mode all
+just perf-analyze --series --plot bench="builder/build_with_geometry" metric="time_ms"
 ```
 
 ## API Stability

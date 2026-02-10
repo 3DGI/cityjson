@@ -7,31 +7,13 @@ from collections import defaultdict
 from pathlib import Path
 
 
-LOWER_BETTER = {
-    "time_ms",
-    "time_producer_ms",
-    "time_consumer_ms",
-    "heap_max_bytes",
-    "heap_total_bytes",
-    "heap_max_blocks",
-    "heap_total_blocks",
-    "cache_d1_miss_rate",
-    "cache_ll_miss_rate",
-    "branch_miss_rate",
-    "stream_total_s",
-    "stream_producer_s",
-    "stream_consumer_s",
-}
-CACHE_METRICS = {"cache_d1_miss_rate", "cache_ll_miss_rate", "branch_miss_rate"}
-HEAP_BYTES_METRICS = {"heap_max_bytes", "heap_total_bytes"}
-HEAP_BLOCK_METRICS = {"heap_max_blocks", "heap_total_blocks"}
-HEAP_METRICS = HEAP_BYTES_METRICS | HEAP_BLOCK_METRICS
 SPARKS = "▁▂▃▄▅▆▇█"
 ABS_BAR_MIN = -200.0
 ABS_BAR_MAX = 200.0
 ABS_BAR_STEP = 5.0
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 COLOR_RESET = "\x1b[0m"
+DELTA_EPSILON_PCT = 1e-9
 
 
 def visible_len(text):
@@ -61,20 +43,6 @@ def print_table(headers, rows):
 
 def truthy(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def color_metric(metric, enabled):
-    if not enabled:
-        return metric
-    if metric == "time_ms":
-        color = "33"
-    elif metric in HEAP_METRICS:
-        color = "36"
-    elif metric.startswith("throughput_"):
-        color = "32"
-    else:
-        color = "35"
-    return f"\x1b[{color}m{metric}{COLOR_RESET}"
 
 
 def bench_base_and_size(bench_name: str):
@@ -110,7 +78,41 @@ def list_descriptions(rows):
         modes = sorted({r["mode"] for r in desc_rows})
         output_rows.append([desc, latest, ",".join(modes), str(len(desc_rows))])
 
+    print("Descriptions:")
     print_table(["description", "latest timestamp", "modes", "rows"], output_rows)
+    print("")
+
+    by_bench = defaultdict(list)
+    for row in rows:
+        by_bench[row["bench"]].append(row)
+
+    bench_rows = []
+    for bench, bench_data in sorted(
+        by_bench.items(),
+        key=lambda item: (
+            bench_base_and_size(item[0])[0],
+            bench_base_and_size(item[0])[1] is None,
+            bench_base_and_size(item[0])[1] or 0,
+            item[0],
+        ),
+    ):
+        metric_count = len({r["metric"] for r in bench_data})
+        bench_rows.append([bench, str(metric_count), str(len(bench_data))])
+    print("Benches:")
+    print_table(["bench", "metrics", "rows"], bench_rows)
+    print("")
+
+    by_metric = defaultdict(list)
+    for row in rows:
+        by_metric[row["metric"]].append(row)
+
+    metric_rows = []
+    for metric, metric_data in sorted(by_metric.items()):
+        units = sorted({r["unit"] for r in metric_data})
+        metric_rows.append([metric, ",".join(units), str(len(metric_data))])
+    print("Metrics:")
+    print_table(["metric", "units", "rows"], metric_rows)
+    print("")
 
 
 def select_rows(rows, description, mode, timestamp):
@@ -130,6 +132,51 @@ def select_rows(rows, description, mode, timestamp):
     latest = max(r["timestamp"] for r in rows)
     rows = [r for r in rows if r["timestamp"] == latest]
     return rows, latest
+
+
+def has_comparable_backend_pairs(rows):
+    grouped = defaultdict(dict)
+    for row in rows:
+        try:
+            value = float(row["value"])
+        except (TypeError, ValueError):
+            continue
+        key = (row["bench"], row["metric"], row["unit"])
+        grouped[key][row["backend"]] = value
+
+    for values in grouped.values():
+        if "default" not in values or "nested" not in values:
+            continue
+        if values["default"] == 0:
+            continue
+        return True
+    return False
+
+
+def select_rows_for_backend_compare(rows, description, mode, timestamp):
+    if description:
+        rows = [r for r in rows if r["description"] == description]
+
+    if mode and mode != "all":
+        rows = [r for r in rows if r["mode"] == mode]
+
+    if not rows:
+        return [], None
+
+    if timestamp:
+        exact_rows = [r for r in rows if r["timestamp"] == timestamp]
+        return exact_rows, timestamp
+
+    timestamps = sorted({r["timestamp"] for r in rows}, reverse=True)
+    for ts in timestamps:
+        ts_rows = [r for r in rows if r["timestamp"] == ts]
+        if has_comparable_backend_pairs(ts_rows):
+            return ts_rows, ts
+
+    # Fallback to the latest timestamp if no comparable pairs exist at all.
+    latest = timestamps[0]
+    latest_rows = [r for r in rows if r["timestamp"] == latest]
+    return latest_rows, latest
 
 
 def sparkline(values, width, missing_char="·"):
@@ -207,6 +254,37 @@ def delta_bar(delta_pct):
     return f"{prefix}{''.join(bar)}{suffix}"
 
 
+def format_pct(value):
+    return f"{value:+.2f}%"
+
+
+def metric_is_lower_better(metric, unit=""):
+    metric_lc = (metric or "").lower()
+    unit_lc = (unit or "").lower()
+
+    if metric_lc.startswith("throughput_"):
+        return False
+    if "miss_rate" in metric_lc:
+        return True
+    if metric_lc.startswith("time_") or metric_lc.endswith("_ms"):
+        return True
+    if metric_lc.startswith("heap_") or metric_lc.startswith("memory_"):
+        return True
+    if unit_lc in {"bytes", "blocks"}:
+        return True
+    return False
+
+
+def metric_effect(metric, delta_pct, unit=""):
+    return -delta_pct if metric_is_lower_better(metric, unit) else delta_pct
+
+
+def status_symbol(effect):
+    if abs(effect) <= DELTA_EPSILON_PCT:
+        return "="
+    return "+" if effect > 0 else "-"
+
+
 def compare_rows(rows, top, plot, color, percent):
     for row in rows:
         try:
@@ -245,78 +323,33 @@ def compare_rows(rows, top, plot, color, percent):
         )
     )
 
-    lower_rows = []
-    higher_rows = []
+    if not comparisons:
+        print("Backend comparison: nested vs default")
+        print("No comparable default/nested pairs found.")
+        return
+
+    table_rows = []
     for bench, metric, unit, default, nested, delta_pct in comparisons:
-        metric_cell = color_metric(metric, color)
+        effect = metric_effect(metric, delta_pct, unit)
+        status = status_symbol(effect)
         default_disp, unit_disp = format_value(default, unit, percent)
         nested_disp, unit_disp = format_value(nested, unit, percent)
-        if metric == "time_ms":
-            if delta_pct < 0:
-                meaning = "nested faster"
-            elif delta_pct > 0:
-                meaning = "nested slower"
-            else:
-                meaning = "no change"
-        elif metric in HEAP_BYTES_METRICS:
-            if delta_pct < 0:
-                meaning = "nested uses less memory"
-            elif delta_pct > 0:
-                meaning = "nested uses more memory"
-            else:
-                meaning = "no change"
-        elif metric in HEAP_BLOCK_METRICS:
-            if delta_pct < 0:
-                meaning = "nested uses fewer allocations"
-            elif delta_pct > 0:
-                meaning = "nested uses more allocations"
-            else:
-                meaning = "no change"
-        elif metric in CACHE_METRICS:
-            if delta_pct < 0:
-                meaning = "nested lower miss rate"
-            elif delta_pct > 0:
-                meaning = "nested higher miss rate"
-            else:
-                meaning = "no change"
-        elif metric.startswith("throughput_"):
-            if delta_pct > 0:
-                meaning = "nested higher throughput"
-            elif delta_pct < 0:
-                meaning = "nested lower throughput"
-            else:
-                meaning = "no change"
-        else:
-            if metric in LOWER_BETTER:
-                if delta_pct < 0:
-                    meaning = "nested lower value"
-                elif delta_pct > 0:
-                    meaning = "nested higher value"
-                else:
-                    meaning = "no change"
-            else:
-                if delta_pct > 0:
-                    meaning = "nested higher value"
-                elif delta_pct < 0:
-                    meaning = "nested lower value"
-                else:
-                    meaning = "no change"
-        base_row = [
+        row = [
             bench,
-            metric_cell,
+            metric,
             unit_disp,
             f"{default_disp:.6g}",
             f"{nested_disp:.6g}",
-            f"{delta_pct:+.2f}%",
-            meaning,
+            format_pct(delta_pct),
+            format_pct(effect),
+            status,
         ]
         if plot:
             bar = delta_bar(delta_pct)
-            base_row.append(bar)
-        if metric in LOWER_BETTER:
-            lower_rows.append(base_row)
-        else:
-            higher_rows.append(base_row)
+            row.append(bar)
+        if color and status != "=":
+            row = colorize_row(row, "32" if effect > 0 else "31")
+        table_rows.append(row)
 
     headers = [
         "bench",
@@ -324,35 +357,423 @@ def compare_rows(rows, top, plot, color, percent):
         "unit",
         "default",
         "nested",
-        "nested vs default",
-        "meaning",
+        "Δ",
+        "impact",
+        "status",
     ]
     if plot:
-        headers.append("nested change bar")
+        headers.append("Δ bar")
 
-    if lower_rows:
-        print("Lower is better:")
-        print_table(headers, lower_rows)
-        print("")
-    if higher_rows:
-        print("Higher is better:")
-        print_table(headers, higher_rows)
-        print("")
-
-    if not comparisons:
-        print("No comparable default/nested pairs found.")
-        return
+    print("Backend comparison: nested vs default")
+    print_table(headers, table_rows)
 
     print("")
     print("Legend:")
-    print("- nested vs default = percent change using default as baseline")
-    print("- meaning = plain-language interpretation for that metric")
-    print("- nested change bar = fixed scale from -200% to +200% in 5% steps")
-    print("- bar markers: ┆ = ±100%, │ = 0%")
-    print("- values beyond ±200% show the exact percent before/after the bar")
-    print("- cache ratios: lower is better (use --percent=1 to show as percent)")
+    print("- Δ = nested vs default percent change using default as baseline")
+    print("- impact = direction-aware change (positive means improvement)")
+    print("- metric direction: miss rates/time/memory lower is better; throughput higher is better")
+    print("- status: + improved, - regressed, = unchanged")
+    if plot:
+        print("- Δ bar = fixed scale from -200% to +200% in 5% steps")
+        print("- bar markers: ┆ = ±100%, │ = 0%")
+        print("- values beyond ±200% show the exact percent before/after the bar")
     if color:
-        print("- metric colors: time_ms=yellow, heap_*=cyan, throughput_*=green, other=magenta")
+        print("- row colors: green improved, red regressed")
+
+
+def compact_timestamp(timestamp):
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", timestamp)
+    if not match:
+        return timestamp
+    return f"{match.group(1)} {match.group(2)}"
+
+
+def summarize_run(run_rows):
+    by_key = defaultdict(list)
+    for row in run_rows:
+        try:
+            value = float(row["value"])
+        except (TypeError, ValueError):
+            continue
+        key = (row["bench"], row["metric"], row["unit"])
+        by_key[key].append(value)
+
+    snapshot = {}
+    for key, values in by_key.items():
+        snapshot[key] = sum(values) / len(values)
+
+    commits = sorted({r["commit"] for r in run_rows if r["commit"]})
+    return {
+        "snapshot": snapshot,
+        "commit": ",".join(commits) if commits else "",
+    }
+
+
+def format_change_key(change_item):
+    if change_item is None:
+        return "-"
+    key, delta_pct = change_item
+    bench, metric, _unit = key
+    effect = metric_effect(metric, delta_pct, _unit)
+    return f"{bench}/{metric} ({format_pct(delta_pct)}, impact {format_pct(effect)})"
+
+
+def colorize_row(row, color_code):
+    return [f"\x1b[{color_code}m{cell}{COLOR_RESET}" for cell in row]
+
+
+def summarize_snapshot_delta(prev_snapshot, curr_snapshot):
+    prev_keys = set(prev_snapshot.keys())
+    curr_keys = set(curr_snapshot.keys())
+    shared_keys = sorted(prev_keys & curr_keys)
+    added_count = len(curr_keys - prev_keys)
+    removed_count = len(prev_keys - curr_keys)
+
+    improved = 0
+    regressed = 0
+    unchanged = 0
+    delta_values = []
+    best_improvement = None
+    worst_regression = None
+
+    for key in shared_keys:
+        prev_value = prev_snapshot[key]
+        curr_value = curr_snapshot[key]
+        if prev_value == 0:
+            continue
+        delta_pct = (curr_value / prev_value - 1.0) * 100.0
+        delta_values.append(delta_pct)
+
+        if abs(delta_pct) <= DELTA_EPSILON_PCT:
+            unchanged += 1
+            continue
+
+        effect = metric_effect(key[1], delta_pct, key[2])
+        if effect > 0:
+            improved += 1
+            if best_improvement is None or effect > best_improvement[0]:
+                best_improvement = (effect, key, delta_pct)
+        else:
+            regressed += 1
+            if worst_regression is None or effect < worst_regression[0]:
+                worst_regression = (effect, key, delta_pct)
+
+    comparable = len(delta_values)
+    net = improved - regressed
+    if comparable > 0:
+        mean_abs = sum(abs(v) for v in delta_values) / comparable
+        mean_signed = sum(delta_values) / comparable
+        mean_abs_str = f"{mean_abs:.2f}%"
+        mean_signed_str = f"{mean_signed:+.2f}%"
+    else:
+        mean_abs_str = "-"
+        mean_signed_str = "-"
+
+    return {
+        "comparable": comparable,
+        "improved": improved,
+        "regressed": regressed,
+        "unchanged": unchanged,
+        "added": added_count,
+        "removed": removed_count,
+        "net": net,
+        "mean_abs": mean_abs_str,
+        "mean_signed": mean_signed_str,
+        "best": format_change_key((best_improvement[1], best_improvement[2]) if best_improvement else None),
+        "worst": format_change_key((worst_regression[1], worst_regression[2]) if worst_regression else None),
+    }
+
+
+def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
+    shared_keys = sorted(
+        set(prev_snapshot.keys()) & set(curr_snapshot.keys()),
+        key=lambda key: (
+            bench_base_and_size(key[0])[0],
+            bench_base_and_size(key[0])[1] is None,
+            bench_base_and_size(key[0])[1] or 0,
+            key[0],
+            key[1],
+            key[2],
+        ),
+    )
+
+    improvements = []
+    regressions = []
+    unchanged = 0
+    skipped_zero = 0
+
+    for key in shared_keys:
+        bench, metric, unit = key
+        prev_value = prev_snapshot[key]
+        curr_value = curr_snapshot[key]
+        if prev_value == 0:
+            skipped_zero += 1
+            continue
+
+        delta_pct = (curr_value / prev_value - 1.0) * 100.0
+        effect = metric_effect(metric, delta_pct, unit)
+        if abs(effect) <= DELTA_EPSILON_PCT:
+            unchanged += 1
+            continue
+
+        status = status_symbol(effect)
+        row = [
+            bench,
+            metric,
+            display_unit(unit, percent),
+            format_pct(delta_pct),
+            format_pct(effect),
+            status,
+        ]
+        if effect > 0:
+            improvements.append((effect, row))
+        else:
+            regressions.append((effect, row))
+
+    improvements.sort(key=lambda item: (-item[0], item[1][0], item[1][1]))
+    regressions.sort(key=lambda item: (item[0], item[1][0], item[1][1]))
+
+    rows = []
+    for _effect, row in improvements:
+        rows.append(colorize_row(row, "32") if color else row)
+    for _effect, row in regressions:
+        rows.append(colorize_row(row, "31") if color else row)
+
+    return rows, len(improvements), len(regressions), unchanged, skipped_zero
+
+
+def print_metric_delta_table(prev_snapshot, curr_snapshot, color, label, percent):
+    print("")
+    print(f"Benchmark/metric changes ({label}):")
+    rows, improved_count, regressed_count, unchanged_count, skipped_zero = metric_delta_rows(
+        prev_snapshot,
+        curr_snapshot,
+        color,
+        percent,
+    )
+    if not rows:
+        print("No changed comparable benchmark/metric pairs.")
+        return
+
+    print_table(["bench", "metric", "unit", "Δ", "impact", "status"], rows)
+    print("")
+    print(
+        "Summary: "
+        f"improved={improved_count}, regressed={regressed_count}, unchanged={unchanged_count}, "
+        f"zero-baseline-skipped={skipped_zero}"
+    )
+    print("Note: metric direction is miss rates/time/memory lower-better, throughput higher-better.")
+    print("Note: status symbols use metric direction (+ improved, - regressed, = unchanged).")
+
+
+def resolve_compare_run(run_summaries, selector):
+    selector = selector.strip()
+    if not selector:
+        raise SystemExit("--compare requires two non-empty commit selectors")
+
+    matches = sorted({r["commit"] for r in run_summaries if r["commit"] and r["commit"].startswith(selector)})
+    if not matches:
+        raise SystemExit(f'No commit matched selector "{selector}" with current filters')
+    if len(matches) > 1:
+        raise SystemExit(
+            f'Ambiguous commit selector "{selector}" matched: {", ".join(matches)}. '
+            "Use a longer prefix."
+        )
+
+    commit = matches[0]
+    candidates = [r for r in run_summaries if r["commit"] == commit]
+    return max(candidates, key=lambda r: r["timestamp"])
+
+
+def parse_compare_arg(compare):
+    parts = [part.strip() for part in compare.split(",")]
+    parts = [part for part in parts if part]
+    if len(parts) != 2:
+        raise SystemExit("--compare expects exactly two commits: --compare commit1,commit2")
+    return parts[0], parts[1]
+
+
+def print_overview_legend(show_extremes):
+    print("")
+    print("Legend:")
+    print("- pairs: comparable bench+metric pairs shared with the previous run")
+    print("- + / - / = : improved / regressed / unchanged")
+    print("- metric direction: miss rates/time/memory lower is better; throughput higher is better")
+    print("- +new / -old: pairs only present in current/previous run")
+    print("- net: improved - regressed")
+    if show_extremes:
+        print("- best/worst: largest single-pair movement relative to previous run")
+
+
+def backend_overview(rows, backend, mode, description, show_extremes, compare, color, percent):
+    if backend == "both":
+        raise SystemExit("backend overview requires --backend default or --backend nested")
+
+    filtered = [r for r in rows if r["backend"] == backend]
+    if description:
+        filtered = [r for r in filtered if r["description"] == description]
+    if mode and mode != "all":
+        filtered = [r for r in filtered if r["mode"] == mode]
+
+    if not filtered:
+        print("No rows found for backend overview with the given filters.")
+        return
+
+    by_timestamp = defaultdict(list)
+    for row in filtered:
+        by_timestamp[row["timestamp"]].append(row)
+
+    run_summaries = []
+    for timestamp in sorted(by_timestamp.keys()):
+        summary = summarize_run(by_timestamp[timestamp])
+        run_summaries.append(
+            {
+                "timestamp": timestamp,
+                "ts": compact_timestamp(timestamp),
+                "commit": summary["commit"],
+                "snapshot": summary["snapshot"],
+            }
+        )
+
+    if compare:
+        left_selector, right_selector = parse_compare_arg(compare)
+        left_run = resolve_compare_run(run_summaries, left_selector)
+        right_run = resolve_compare_run(run_summaries, right_selector)
+
+        delta = summarize_snapshot_delta(left_run["snapshot"], right_run["snapshot"])
+        row = [
+            f"{left_run['commit']} -> {right_run['commit']}",
+            f"{left_run['ts']} -> {right_run['ts']}",
+            str(delta["comparable"]),
+            str(delta["improved"]),
+            str(delta["regressed"]),
+            str(delta["unchanged"]),
+            str(delta["added"]),
+            str(delta["removed"]),
+            str(delta["net"]),
+            delta["mean_abs"],
+            delta["mean_signed"],
+        ]
+        if color and delta["net"] != 0:
+            row = colorize_row(row, "32" if delta["net"] > 0 else "31")
+
+        print(f"Backend compare: {backend}")
+        print_table(
+            [
+                "commits",
+                "runs",
+                "pairs",
+                "+",
+                "-",
+                "=",
+                "+new",
+                "-old",
+                "net",
+                "|Δ|",
+                "Δ",
+            ],
+            [row],
+        )
+        if show_extremes:
+            print("")
+            print("Largest moves:")
+            print_table(["best", "worst"], [[delta["best"], delta["worst"]]])
+        print_metric_delta_table(
+            left_run["snapshot"],
+            right_run["snapshot"],
+            color,
+            f"{left_run['commit']} @ {left_run['ts']} -> {right_run['commit']} @ {right_run['ts']}",
+            percent,
+        )
+        print_overview_legend(show_extremes)
+        return
+
+    run_rows = []
+    extreme_rows = []
+    prev_snapshot = None
+    for summary in run_summaries:
+        snapshot = summary["snapshot"]
+        compact_ts = summary["ts"]
+        commit = summary["commit"]
+
+        if prev_snapshot is None:
+            run_rows.append(
+                [
+                    compact_ts,
+                    commit,
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    str(len(snapshot)),
+                    "0",
+                    "0",
+                    "-",
+                    "-",
+                ]
+            )
+            extreme_rows.append([compact_ts, commit, "-", "-"])
+            prev_snapshot = snapshot
+            continue
+
+        delta = summarize_snapshot_delta(prev_snapshot, snapshot)
+        run_rows.append(
+            [
+                compact_ts,
+                commit,
+                str(delta["comparable"]),
+                str(delta["improved"]),
+                str(delta["regressed"]),
+                str(delta["unchanged"]),
+                str(delta["added"]),
+                str(delta["removed"]),
+                str(delta["net"]),
+                delta["mean_abs"],
+                delta["mean_signed"],
+            ]
+        )
+        extreme_rows.append(
+            [
+                compact_ts,
+                commit,
+                delta["best"],
+                delta["worst"],
+            ]
+        )
+        prev_snapshot = snapshot
+
+    print(f"Backend overview: {backend}")
+    print_table(
+        [
+            "ts",
+            "commit",
+            "pairs",
+            "+",
+            "-",
+            "=",
+            "+new",
+            "-old",
+            "net",
+            "|Δ|",
+            "Δ",
+        ],
+        run_rows,
+    )
+    if show_extremes:
+        print("")
+        print("Largest moves per run:")
+        print_table(["ts", "commit", "best", "worst"], extreme_rows)
+    if len(run_summaries) >= 2:
+        first_run = run_summaries[0]
+        last_run = run_summaries[-1]
+        print_metric_delta_table(
+            first_run["snapshot"],
+            last_run["snapshot"],
+            color,
+            f"{first_run['commit']} @ {first_run['ts']} -> {last_run['commit']} @ {last_run['ts']}",
+            percent,
+        )
+    print_overview_legend(show_extremes)
 
 
 def aggregate_series(filtered):
@@ -388,13 +809,21 @@ def aggregate_series(filtered):
     return aggregated
 
 
+def display_unit(unit, percent):
+    if percent and unit == "ratio":
+        return "%"
+    if unit == "percent":
+        return "%"
+    return unit or "-"
+
+
 def format_value(value, unit, percent):
     if percent and unit == "ratio":
-        return value * 100.0, "percent"
-    return value, unit
+        return value * 100.0, display_unit(unit, percent)
+    return value, display_unit(unit, percent)
 
 
-def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, percent):
+def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, percent, color):
     if not bench or not metric:
         raise SystemExit("series mode requires --bench and --metric")
 
@@ -420,17 +849,17 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
                 value = None
             unit = r["unit"]
             if value is not None:
-                display_value, display_unit = format_value(value, unit, percent)
-                value_str = f"{display_value:.6g}"
+                value_display, unit_label = format_value(value, unit, percent)
+                value_str = f"{value_display:.6g}"
             else:
-                display_unit = unit
+                unit_label = display_unit(unit, percent)
                 value_str = r["value"]
             output_rows.append(
                 [
                     r["timestamp"],
                     r["backend"],
                     value_str,
-                    display_unit,
+                    unit_label,
                     r["description"],
                     r["mode"],
                 ]
@@ -443,13 +872,13 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
         aggregated = aggregate_series(filtered)
         output_rows = []
         for r in aggregated:
-            display_value, display_unit = format_value(r["value"], r["unit"], percent)
+            value_display, unit_label = format_value(r["value"], r["unit"], percent)
             output_rows.append(
                 [
                     r["timestamp"],
                     r["backend"],
-                    f"{display_value:.6g}",
-                    display_unit,
+                    f"{value_display:.6g}",
+                    unit_label,
                     r["description"],
                     r["mode"],
                     str(r["samples"]),
@@ -476,7 +905,6 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
                 continue
             value, unit = format_value(value, r.get("unit", ""), percent)
             by_backend[r["backend"]][r["timestamp"]] = value
-            unit = unit or r.get("unit", unit)
 
         print("")
         plot_rows = []
@@ -492,22 +920,44 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
             if not numeric_values:
                 continue
             plot_line = sparkline(values, plot_width)
-            plot_rows.append(
-                [
-                    backend_name,
-                    plot_line,
-                    f"{min(numeric_values):.6g}",
-                    f"{max(numeric_values):.6g}",
-                    f"{numeric_values[-1]:.6g}",
-                    unit,
-                ]
-            )
+            first_value = next((v for v in values if v is not None), None)
+            latest_value = next((v for v in reversed(values) if v is not None), None)
+            if first_value is None or latest_value is None:
+                continue
+
+            if first_value == 0:
+                delta_str = "-"
+                impact_str = "-"
+                status = "n/a"
+                effect = 0.0
+            else:
+                delta_pct = (latest_value / first_value - 1.0) * 100.0
+                effect = metric_effect(metric, delta_pct, unit)
+                delta_str = format_pct(delta_pct)
+                impact_str = format_pct(effect)
+                status = status_symbol(effect)
+
+            row = [
+                backend_name,
+                plot_line,
+                f"{first_value:.6g}",
+                f"{latest_value:.6g}",
+                delta_str,
+                impact_str,
+                status,
+                unit,
+            ]
+            if color and status in {"+", "-"}:
+                row = colorize_row(row, "32" if effect > 0 else "31")
+            plot_rows.append(row)
 
         print_table(
-            ["backend", "sparkline", "min", "max", "latest", "unit"],
+            ["backend", "sparkline", "first", "latest", "Δ", "impact", "status", "unit"],
             plot_rows,
         )
         print("Note: sparklines are scaled per-backend (local min/max).")
+        print("Note: metric direction is miss rates/time/memory lower-better, throughput higher-better.")
+        print("Note: status symbols use metric direction (+ improved, - regressed, = unchanged).")
         if has_missing:
             print("Note: · in sparkline means missing data for that timestamp.")
 
@@ -516,6 +966,12 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
 
 
 def main():
+    class HelpFormatter(
+        argparse.ArgumentDefaultsHelpFormatter,
+        argparse.RawDescriptionHelpFormatter,
+    ):
+        pass
+
     key_map = {
         "csv": "--csv",
         "description": "--description",
@@ -525,15 +981,33 @@ def main():
         "metric": "--metric",
         "backend": "--backend",
         "list": "--list",
+        "backend_overview": "--backend-overview",
+        "backend-overview": "--backend-overview",
+        "backend_overview_extremes": "--backend-overview-extremes",
+        "backend-overview-extremes": "--backend-overview-extremes",
         "series": "--series",
         "series_raw": "--series-raw",
         "series-raw": "--series-raw",
+        "compare": "--compare",
         "plot": "--plot",
         "plot_width": "--plot-width",
         "plot-width": "--plot-width",
         "color": "--color",
         "top": "--top",
         "percent": "--percent",
+    }
+    bool_keys = {
+        "list",
+        "backend_overview",
+        "backend-overview",
+        "backend_overview_extremes",
+        "backend-overview-extremes",
+        "series",
+        "series_raw",
+        "series-raw",
+        "plot",
+        "color",
+        "percent",
     }
     raw_args = sys.argv[1:]
     mapped_args = []
@@ -545,7 +1019,13 @@ def main():
             key, value = arg.split("=", 1)
             flag = key_map.get(key)
             if flag:
-                mapped_args.extend([flag, value])
+                if key in bool_keys:
+                    if truthy(value):
+                        mapped_args.append(flag)
+                    elif key == "color":
+                        mapped_args.append("--no-color")
+                else:
+                    mapped_args.extend([flag, value])
                 continue
         mapped_args.append(arg)
     sys.argv[1:] = mapped_args
@@ -553,9 +1033,21 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Analyze benchmark history CSV files. Compare default vs nested backends, "
-            "list available descriptions, or inspect per-benchmark time series."
+            "list available descriptions, inspect per-benchmark time series, "
+            "or summarize backend-wide changes across runs."
         ),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  just perf-analyze --list\n"
+            "  just perf-analyze --backend-overview --backend default --mode all\n"
+            "  just perf-analyze --backend default --compare abc1234,def5678 --color\n"
+            "  just perf-analyze --backend-overview --backend default --backend-overview-extremes\n"
+            "  just perf-analyze description=\"<description>\" --plot\n"
+            "  just perf-analyze --series --plot bench=\"<bench>\" metric=\"<metric>\"\n"
+            "  python3 tools/perf_analyze.py --series --series-raw --bench \"<bench>\" "
+            "--metric \"<metric>\""
+        ),
+        formatter_class=HelpFormatter,
     )
     parser.add_argument(
         "--csv",
@@ -580,81 +1072,134 @@ def main():
     parser.add_argument(
         "--bench",
         default="",
-        help="Exact benchmark name for series mode (required with --series=1).",
+        help="Exact benchmark name for series mode (required with --series).",
     )
     parser.add_argument(
         "--metric",
         default="",
-        help="Exact metric name for series mode (required with --series=1).",
+        help="Exact metric name for series mode (required with --series).",
     )
     parser.add_argument(
         "--backend",
         default="both",
-        help="Backend filter: 'default', 'nested', or 'both'.",
+        help=(
+            "Backend filter: 'default', 'nested', or 'both'. "
+            "In default mode, selecting one backend shows backend-overview behavior."
+        ),
     )
     parser.add_argument(
         "--list",
-        default="0",
-        help="List descriptions and exit. Truthy values: 1,true,yes,y,on.",
+        action="store_true",
+        help="List descriptions, benches, and metrics, then exit.",
     )
     parser.add_argument(
         "--series",
-        default="0",
+        action="store_true",
         help="Show historical rows for one bench+metric instead of backend comparison.",
     )
     parser.add_argument(
+        "--backend-overview",
+        action="store_true",
+        help="Show whole-suite run-to-run deltas for one backend across timestamps.",
+    )
+    parser.add_argument(
+        "--backend-overview-extremes",
+        action="store_true",
+        help="With --backend-overview, include per-run best/worst single-pair changes.",
+    )
+    parser.add_argument(
+        "--compare",
+        default="",
+        help="Compare two commits in backend overview mode: --compare commit1,commit2.",
+    )
+    parser.add_argument(
         "--plot",
-        default="0",
+        action="store_true",
         help="Include an ASCII visualization (delta bar in compare mode, sparkline in series mode).",
     )
     parser.add_argument(
         "--plot-width",
-        default="24",
+        type=int,
+        default=24,
         help="Target sparkline width (characters) in series mode.",
     )
     parser.add_argument(
         "--color",
-        default="1",
-        help="Colorize metric names in compare mode. Truthy values: 1,true,yes,y,on.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Colorize rows by outcome (green improved, red regressed; use --no-color to disable).",
     )
     parser.add_argument(
         "--series-raw",
-        default="0",
+        action="store_true",
         help="In series mode, print raw rows instead of timestamp/backend averages.",
     )
     parser.add_argument(
         "--top",
-        default="0",
+        type=int,
+        default=0,
         help="If >0, keep only the N largest absolute nested-vs-default deltas.",
     )
     parser.add_argument(
         "--percent",
-        default="0",
+        action="store_true",
         help="Display ratio units as percent (multiply by 100).",
     )
     args = parser.parse_args()
 
     rows = load_rows(Path(args.csv))
 
-    if truthy(args.list):
+    if args.list:
         list_descriptions(rows)
         return
 
-    if truthy(args.series):
+    if args.series:
         series_rows(
             rows,
             args.bench,
             args.metric,
             args.mode,
             args.backend,
-            truthy(args.plot),
-            int(args.plot_width),
-            truthy(args.series_raw),
-            truthy(args.percent),
+            args.plot,
+            args.plot_width,
+            args.series_raw,
+            args.percent,
+            args.color,
         )
         return
 
-    selected, timestamp = select_rows(
+    if args.backend_overview:
+        backend_overview(
+            rows,
+            args.backend,
+            args.mode,
+            args.description,
+            args.backend_overview_extremes,
+            args.compare,
+            args.color,
+            args.percent,
+        )
+        return
+
+    if args.backend != "both":
+        if args.timestamp:
+            print("Note: --timestamp is ignored in single-backend overview mode.")
+        backend_overview(
+            rows,
+            args.backend,
+            args.mode,
+            args.description,
+            args.backend_overview_extremes,
+            args.compare,
+            args.color,
+            args.percent,
+        )
+        return
+
+    if args.compare:
+        raise SystemExit("--compare requires --backend default or --backend nested")
+
+    selected, timestamp = select_rows_for_backend_compare(
         rows,
         args.description,
         args.mode,
@@ -669,10 +1214,10 @@ def main():
     print(f"timestamp: {timestamp}")
     compare_rows(
         selected,
-        int(args.top),
-        truthy(args.plot),
-        truthy(args.color),
-        truthy(args.percent),
+        args.top,
+        args.plot,
+        args.color,
+        args.percent,
     )
 
 
