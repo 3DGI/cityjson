@@ -42,7 +42,7 @@ perf description mode="full" seed="" size="":
 
 # Analyze benchmark and profiling results
 perf-analyze *args:
-    python3 tools/analyze_bench.py {{args}}
+    python3 tools/perf_analyze.py {{args}}
 
 # ============================================================================
 # Memory profiling (internal helpers used by perf)

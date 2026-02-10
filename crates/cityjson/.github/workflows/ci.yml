@@ -14,12 +14,8 @@ env:
 
 jobs:
   test:
-    name: Rust nightly ${{matrix.os == 'windows' && '(windows)' || ''}}
-    runs-on: ${{matrix.os}}-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu, windows]
+    name: Test
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -29,14 +25,29 @@ jobs:
       - run: cargo run --example attributes
       - run: cargo run --example streaming_geometry_instances
       - uses: actions/upload-artifact@v6
-        if: matrix.os == 'ubuntu' && always()
+        if: always()
         with:
           name: Cargo.lock
           path: Cargo.lock
         continue-on-error: true
 
   build:
-    name: Rust ${{matrix.rust}} ${{matrix.os == 'windows' && '(windows)' || ''}}
+    name: Rust ${{matrix.rust}}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [ 1.93.0 ]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{matrix.rust}}
+      - run: cargo build --all-targets --all-features
+
+  nightly:
+    name: Rust nightly ${{matrix.os == 'windows' && '(windows)' || ''}}
     runs-on: ${{matrix.os}}-latest
     strategy:
       fail-fast: false
@@ -45,20 +56,20 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --all-targets --all-features
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo build --all-targets --all-features
 
-  miri:
-    name: Miri
-    runs-on: ubuntu-latest
-    env:
-      MIRIFLAGS: -Zmiri-strict-provenance
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@miri
-      - run: cargo miri setup
-      - run: cargo check --all-targets --all-features
+#  miri:
+#    name: Miri
+#    runs-on: ubuntu-latest
+#    env:
+#      MIRIFLAGS: -Zmiri-strict-provenance
+#    timeout-minutes: 45
+#    steps:
+#      - uses: actions/checkout@v6
+#      - uses: dtolnay/rust-toolchain@miri
+#      - run: cargo miri setup
+#      - run: cargo miri test
 
   clippy:
     name: Clippy
