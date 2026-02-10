@@ -2,6 +2,7 @@
 Cargo.lock
 .idea
 .run
+tools/__pycache__
 
 # Data
 tests/data/v1_0/schemas/*.schema.json

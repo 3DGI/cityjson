@@ -550,22 +550,88 @@ def main():
         mapped_args.append(arg)
     sys.argv[1:] = mapped_args
 
-    parser = argparse.ArgumentParser(description="Analyze bench_results/history.csv")
-    parser.add_argument("--csv", default="bench_results/history.csv")
-    parser.add_argument("--description", default="")
-    parser.add_argument("--mode", default="full")
-    parser.add_argument("--timestamp", default="")
-    parser.add_argument("--bench", default="")
-    parser.add_argument("--metric", default="")
-    parser.add_argument("--backend", default="both")
-    parser.add_argument("--list", default="0")
-    parser.add_argument("--series", default="0")
-    parser.add_argument("--plot", default="0")
-    parser.add_argument("--plot-width", default="24")
-    parser.add_argument("--color", default="1")
-    parser.add_argument("--series-raw", default="0")
-    parser.add_argument("--top", default="0")
-    parser.add_argument("--percent", default="0")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Analyze benchmark history CSV files. Compare default vs nested backends, "
+            "list available descriptions, or inspect per-benchmark time series."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--csv",
+        default="bench_results/history.csv",
+        help="Path to the benchmark history CSV file.",
+    )
+    parser.add_argument(
+        "--description",
+        default="",
+        help="Filter rows by exact benchmark run description.",
+    )
+    parser.add_argument(
+        "--mode",
+        default="full",
+        help="Filter by benchmark mode (set to 'all' to disable mode filtering).",
+    )
+    parser.add_argument(
+        "--timestamp",
+        default="",
+        help="Exact timestamp to analyze; when omitted, the latest matching timestamp is used.",
+    )
+    parser.add_argument(
+        "--bench",
+        default="",
+        help="Exact benchmark name for series mode (required with --series=1).",
+    )
+    parser.add_argument(
+        "--metric",
+        default="",
+        help="Exact metric name for series mode (required with --series=1).",
+    )
+    parser.add_argument(
+        "--backend",
+        default="both",
+        help="Backend filter: 'default', 'nested', or 'both'.",
+    )
+    parser.add_argument(
+        "--list",
+        default="0",
+        help="List descriptions and exit. Truthy values: 1,true,yes,y,on.",
+    )
+    parser.add_argument(
+        "--series",
+        default="0",
+        help="Show historical rows for one bench+metric instead of backend comparison.",
+    )
+    parser.add_argument(
+        "--plot",
+        default="0",
+        help="Include an ASCII visualization (delta bar in compare mode, sparkline in series mode).",
+    )
+    parser.add_argument(
+        "--plot-width",
+        default="24",
+        help="Target sparkline width (characters) in series mode.",
+    )
+    parser.add_argument(
+        "--color",
+        default="1",
+        help="Colorize metric names in compare mode. Truthy values: 1,true,yes,y,on.",
+    )
+    parser.add_argument(
+        "--series-raw",
+        default="0",
+        help="In series mode, print raw rows instead of timestamp/backend averages.",
+    )
+    parser.add_argument(
+        "--top",
+        default="0",
+        help="If >0, keep only the N largest absolute nested-vs-default deltas.",
+    )
+    parser.add_argument(
+        "--percent",
+        default="0",
+        help="Display ratio units as percent (multiply by 100).",
+    )
     args = parser.parse_args()
 
     rows = load_rows(Path(args.csv))
