@@ -47,6 +47,9 @@ perf description mode="full" seed="" size="":
 perf-analyze *args:
     python3 tools/perf_analyze.py {{args}}
 
+perf-check:
+    cargo bench --benches --no-run
+
 # ============================================================================
 # Memory profiling (internal helpers used by perf)
 # ============================================================================

@@ -25,11 +25,11 @@ default = []
 num = "0.4.3"
 
 [dev-dependencies]
-criterion = { version = "0.7.0", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 # For custom profiling and benchmarking
 dhat = "0.3"  # Heap profiling
-pprof = { version = "0.13", features = ["flamegraph", "criterion"] }  # Flamegraph profiling
-rand = "0.9.2"
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }  # Flamegraph profiling
+rand = "0.10.0"
 
 [[bench]]
 name = "memory"

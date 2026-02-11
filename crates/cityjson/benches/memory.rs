@@ -3,7 +3,7 @@
 #[allow(dead_code)]
 mod support;
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::hint::black_box;
 use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
 
@@ -12,7 +12,7 @@ use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_en
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 mod benches {
-    use super::{BenchParams, Rng, black_box, rng_from_seed};
+    use super::{BenchParams, Rng, RngExt, black_box, rng_from_seed};
 
     use cityjson::prelude::*;
     use cityjson::v2_0::{

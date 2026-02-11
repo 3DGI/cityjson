@@ -4,14 +4,14 @@
 mod support;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::hint::black_box;
 use support::{DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, params_from_env, rng_from_seed};
 
 mod benches {
     use super::{
-        Criterion, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, Rng, black_box, params_from_env,
-        rng_from_seed,
+        Criterion, DEFAULT_SIZE_PROCESSOR, FAST_SIZE_PROCESSOR, Rng, RngExt, black_box,
+        params_from_env, rng_from_seed,
     };
 
     use cityjson::prelude::*;
