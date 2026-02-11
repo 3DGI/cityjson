@@ -135,31 +135,20 @@ macro_rules! define_typed_resource_map {
                 self.inner.add_solid(solid_index);
             }
 
-            pub fn points(&self) -> Vec<Option<$handle>> {
-                self.inner
-                    .points()
-                    .iter()
-                    .copied()
-                    .map(|r| r.map(|x| <$handle>::from_raw(x)))
-                    .collect()
+            pub fn points(&self) -> &[Option<$handle>] {
+                crate::resources::handles::cast_option_handle_slice::<$handle>(self.inner.points())
             }
 
-            pub fn linestrings(&self) -> Vec<Option<$handle>> {
-                self.inner
-                    .linestrings()
-                    .iter()
-                    .copied()
-                    .map(|r| r.map(|x| <$handle>::from_raw(x)))
-                    .collect()
+            pub fn linestrings(&self) -> &[Option<$handle>] {
+                crate::resources::handles::cast_option_handle_slice::<$handle>(
+                    self.inner.linestrings(),
+                )
             }
 
-            pub fn surfaces(&self) -> Vec<Option<$handle>> {
-                self.inner
-                    .surfaces()
-                    .iter()
-                    .copied()
-                    .map(|r| r.map(|x| <$handle>::from_raw(x)))
-                    .collect()
+            pub fn surfaces(&self) -> &[Option<$handle>] {
+                crate::resources::handles::cast_option_handle_slice::<$handle>(
+                    self.inner.surfaces(),
+                )
             }
 
             pub fn shells(&self) -> &[crate::cityjson::core::vertex::VertexIndex<VR>] {

@@ -39,7 +39,7 @@
 //!
 //! ## Usage Example
 //!
-//! ```
+//! ```ignore
 //! use cityjson::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
 //!
 //! // Create a pool storing i32 values with ResourceId32 references
@@ -285,13 +285,13 @@ impl ResourceId32 {
 
     /// Returns the index part of the identifier.
     #[must_use]
-    pub fn index(&self) -> u32 {
+    pub fn index(self) -> u32 {
         self.index
     }
 
     /// Returns the generation part of the identifier.
     #[must_use]
-    pub fn generation(&self) -> u16 {
+    pub fn generation(self) -> u16 {
         self.generation
     }
 
@@ -310,7 +310,7 @@ impl ResourceId32 {
     ///
     /// Returns [`Error::IndexConversion`] when `self.index` cannot be represented by
     /// the target vertex reference type `T`.
-    pub fn to_vertex_index<T: VertexRef>(&self) -> Result<VertexIndex<T>> {
+    pub fn to_vertex_index<T: VertexRef>(self) -> Result<VertexIndex<T>> {
         T::from_u32(self.index)
             .map(|v| VertexIndex::new(v))
             .ok_or(Error::IndexConversion {
@@ -433,6 +433,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
 
     /// Returns the underlying resource slots (`None` means vacant slot).
     #[inline]
+    #[allow(dead_code)]
     #[must_use]
     pub fn as_slice(&self) -> &[Option<T>] {
         &self.resources
@@ -440,6 +441,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
 
     /// Returns generation counters for each slot.
     #[inline]
+    #[allow(dead_code)]
     #[must_use]
     pub fn generations(&self) -> &[u16] {
         &self.generations
@@ -657,7 +659,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use cityjson::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
     ///
     /// let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();

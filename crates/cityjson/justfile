@@ -15,6 +15,9 @@ build *args:
 lint:
     cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
 
+fmt:
+    cargo fmt --all
+
 test:
     -cargo test --all-features
     -cargo run --example cityjson_fake_complete_owned

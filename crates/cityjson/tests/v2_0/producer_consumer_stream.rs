@@ -1088,10 +1088,10 @@ fn build_geometry_from_wire(
             GeometryType::GeometryInstance,
             BuilderMode::Regular,
         )
-            .with_template_ref(*template_ref)?
-            .with_transformation_matrix(wire_geom.transformation_matrix.unwrap())?
-            .with_reference_vertex(vertex_refs[0])
-            .build_geometry();
+        .with_template_ref(*template_ref)?
+        .with_transformation_matrix(wire_geom.transformation_matrix.unwrap())?
+        .with_reference_vertex(vertex_refs[0])
+        .build_geometry();
     }
 
     // Handle regular geometries (Solid, MultiSurface, etc.)
@@ -1107,8 +1107,7 @@ fn build_geometry_from_wire(
     };
 
     let mut builder =
-        cityjson::v2_0::GeometryBuilder::new(model, geom_type, BuilderMode::Regular)
-            .with_lod(lod);
+        cityjson::v2_0::GeometryBuilder::new(model, geom_type, BuilderMode::Regular).with_lod(lod);
 
     // Add vertices to builder
     let bv: Vec<_> = vertex_refs

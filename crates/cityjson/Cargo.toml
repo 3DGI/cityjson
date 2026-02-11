@@ -9,6 +9,7 @@ description = "Types and accessor methods for representing semantic 3D city mode
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-rs"
 rust-version = "1.93"
+exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/"]
 
 [package.metadata]
 # Document platform requirements

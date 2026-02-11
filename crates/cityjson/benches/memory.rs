@@ -5,14 +5,14 @@ mod support;
 
 use rand::Rng;
 use std::hint::black_box;
-use support::{params_from_env, rng_from_seed, BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY};
+use support::{BenchParams, DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY, params_from_env, rng_from_seed};
 
 // Enable dhat heap profiling for the entire benchmark
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 mod benches {
-    use super::{black_box, rng_from_seed, BenchParams, Rng};
+    use super::{BenchParams, Rng, black_box, rng_from_seed};
 
     use cityjson::prelude::*;
     use cityjson::v2_0::{

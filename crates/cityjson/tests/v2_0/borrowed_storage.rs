@@ -1,5 +1,5 @@
-use cityjson::v2_0::GeometryBuilder;
 use cityjson::prelude::*;
+use cityjson::v2_0::GeometryBuilder;
 use cityjson::v2_0::*;
 
 type BorrowedModel = CityModel<u32, BorrowedStringStorage<'static>>;

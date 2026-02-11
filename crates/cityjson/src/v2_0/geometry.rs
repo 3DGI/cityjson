@@ -33,8 +33,12 @@ impl<'a, H> HandleOptionSlice<'a, H> {
     #[inline]
     fn as_handle_slice(&self) -> &'a [Option<H>] {
         const {
-            assert!(std::mem::size_of::<Option<H>>() == std::mem::size_of::<Option<ResourceId32>>());
-            assert!(std::mem::align_of::<Option<H>>() == std::mem::align_of::<Option<ResourceId32>>());
+            assert!(
+                std::mem::size_of::<Option<H>>() == std::mem::size_of::<Option<ResourceId32>>()
+            );
+            assert!(
+                std::mem::align_of::<Option<H>>() == std::mem::align_of::<Option<ResourceId32>>()
+            );
         }
 
         // SAFETY: handle types are `#[repr(transparent)]` wrappers over `ResourceId32`.
@@ -319,7 +323,9 @@ impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
     }
 
     pub fn semantics(&self) -> Option<SemanticMapView<'_, VR>> {
-        self.inner.semantics().map(|inner| SemanticMapView { inner })
+        self.inner
+            .semantics()
+            .map(|inner| SemanticMapView { inner })
     }
 
     pub fn materials(&self) -> Option<MaterialThemesView<'_, VR, SS>> {

@@ -1,6 +1,4 @@
-use crate::backend::default::geometry::{
-    GeometryBuilder as RawGeometryBuilder, GeometryModelOps,
-};
+use crate::backend::default::geometry::{GeometryBuilder as RawGeometryBuilder, GeometryModelOps};
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
@@ -12,11 +10,11 @@ use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{OwnedStringStorage, StringStorage};
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::geometry::Geometry;
+use crate::v2_0::geometry::semantic::Semantic;
 use crate::v2_0::metadata::Metadata;
 use crate::v2_0::{CityObjects, Extensions, Transform};
-use crate::{format_option, CityJSONVersion};
+use crate::{CityJSONVersion, format_option};
 use std::collections::HashSet;
 use std::fmt;
 

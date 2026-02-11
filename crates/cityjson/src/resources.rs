@@ -6,7 +6,7 @@
 //! The resources are managed by resource pools that are stored in the `CityModel`.
 pub mod handles;
 pub mod mapping;
-pub mod pool;
+pub(crate) mod pool;
 pub mod storage;
 
 pub use handles::{

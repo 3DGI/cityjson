@@ -41,6 +41,7 @@ pub mod prelude {
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
         core::attributes::{BorrowedAttributeValue, OwnedAttributeValue},
         core::boundary::{
+            Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
             nested::{
                 BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
                 BoundaryNestedMultiLineString32, BoundaryNestedMultiLineString64,
@@ -51,17 +52,15 @@ pub mod prelude {
                 BoundaryNestedMultiPoint, BoundaryNestedMultiPoint16, BoundaryNestedMultiPoint32,
                 BoundaryNestedMultiPoint64, BoundaryNestedSolid, BoundaryNestedSolid16,
                 BoundaryNestedSolid32, BoundaryNestedSolid64,
-            }, Boundary, Boundary16, Boundary32, Boundary64,
-            BoundaryType,
+            },
         },
         core::coordinate::{
             FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
             QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
             UVVertices64, Vertices,
         },
-        core::extension::{ExtensionCore, ExtensionItem, ExtensionsCore},
         core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
-        core::metadata::{BBox, CityModelIdentifier, Date, CRS},
+        core::metadata::{BBox, CRS, CityModelIdentifier, Date},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::coordinate::Coordinate,
         traits::semantic::SemanticTypeTrait,
@@ -77,8 +76,8 @@ pub mod prelude {
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
-    pub use crate::v2_0::types::{CityObjectIdentifier, ThemeName, RGB, RGBA};
-    pub use crate::v2_0::GeometryBuilderExt;
+    pub use crate::v2_0::types::{CityObjectIdentifier, RGB, RGBA, ThemeName};
+    pub use crate::v2_0::{Extension, Extensions, GeometryBuilderExt, Transform};
     pub use std::str::FromStr;
 }
 
@@ -186,6 +185,7 @@ impl TryFrom<String> for CityJSONVersion {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum CityJSON<VR: VertexRef, SS: StringStorage> {
     V2_0(v2_0::CityModel<VR, SS>),
 }

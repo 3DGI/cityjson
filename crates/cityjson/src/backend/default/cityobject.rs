@@ -87,9 +87,8 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.last()
     }
 
-    #[must_use]
-    pub fn ids(&self) -> Vec<RR> {
-        self.inner.iter().map(|(id, _)| id).collect()
+    pub fn ids(&self) -> impl Iterator<Item = RR> + '_ {
+        self.inner.iter().map(|(id, _)| id)
     }
 
     /// Add multiple city objects and return their resource references.
@@ -106,14 +105,11 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
         self.inner.clear();
     }
 
-    pub fn filter<F>(&self, predicate: F) -> Vec<(RR, &CO)>
+    pub fn filter<F>(&self, predicate: F) -> impl Iterator<Item = (RR, &CO)>
     where
         F: Fn(&CO) -> bool,
     {
-        self.inner
-            .iter()
-            .filter(|(_, obj)| predicate(obj))
-            .collect()
+        self.inner.iter().filter(move |(_, obj)| predicate(obj))
     }
 }
 

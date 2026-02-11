@@ -1,7 +1,7 @@
 //! # Opaque resource handle types
 //!
 //! This module defines type-safe opaque handles for different resource types.
-//! Each handle wraps a [`ResourceId32`] internally but provides compile-time type safety,
+//! Each handle wraps a `ResourceId32` internally but provides compile-time type safety,
 //! preventing accidental mixing of different resource references.
 //!
 //! Handles use the newtype pattern with `#[repr(transparent)]` for zero runtime overhead
@@ -220,4 +220,18 @@ pub(crate) fn cast_handle_slice<H: HandleType>(raw: &[ResourceId32]) -> &[H] {
     // SAFETY: all exported handle types are `#[repr(transparent)]` wrappers over `ResourceId32`,
     // and compile-time layout assertions above guarantee identical size/alignment.
     unsafe { std::slice::from_raw_parts(raw.as_ptr().cast::<H>(), raw.len()) }
+}
+
+#[inline]
+pub(crate) fn cast_option_handle_slice<H: HandleType>(
+    raw: &[Option<ResourceId32>],
+) -> &[Option<H>] {
+    const {
+        assert!(std::mem::size_of::<Option<H>>() == std::mem::size_of::<Option<ResourceId32>>());
+        assert!(std::mem::align_of::<Option<H>>() == std::mem::align_of::<Option<ResourceId32>>());
+    }
+
+    // SAFETY: handle types are `#[repr(transparent)]` wrappers over `ResourceId32`, and
+    // `Option<Handle>` has identical layout to `Option<ResourceId32>` due compile-time checks.
+    unsafe { std::slice::from_raw_parts(raw.as_ptr().cast::<Option<H>>(), raw.len()) }
 }

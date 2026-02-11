@@ -94,12 +94,8 @@ impl<SS: StringStorage> CityObjects<SS> {
             .map(|(id, value)| (CityObjectRef::from_raw(id), value))
     }
 
-    pub fn ids(&self) -> Vec<CityObjectRef> {
-        self.inner
-            .ids()
-            .into_iter()
-            .map(CityObjectRef::from_raw)
-            .collect()
+    pub fn ids(&self) -> impl Iterator<Item = CityObjectRef> + '_ {
+        self.inner.ids().map(CityObjectRef::from_raw)
     }
 
     /// Add many city objects and return their handles.
@@ -121,15 +117,13 @@ impl<SS: StringStorage> CityObjects<SS> {
         self.inner.clear();
     }
 
-    pub fn filter<F>(&self, predicate: F) -> Vec<(CityObjectRef, &CityObject<SS>)>
+    pub fn filter<F>(&self, predicate: F) -> impl Iterator<Item = (CityObjectRef, &CityObject<SS>)>
     where
         F: Fn(&CityObject<SS>) -> bool,
     {
         self.inner
             .filter(predicate)
-            .into_iter()
             .map(|(id, value)| (CityObjectRef::from_raw(id), value))
-            .collect()
     }
 }
 

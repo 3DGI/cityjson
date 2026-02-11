@@ -18,10 +18,10 @@
 //! ### Creating and using a transform
 //!
 //! ```rust
-//! use cityjson::cityjson::core::transform::TransformCore;
+//! use cityjson::v2_0::Transform;
 //!
 //! // Create a transform with default values
-//! let mut transform = TransformCore::default();
+//! let mut transform = Transform::default();
 //!
 //! // Default scale is [1.0, 1.0, 1.0] (no scaling)
 //! assert_eq!(transform.scale(), [1.0, 1.0, 1.0]);
@@ -44,10 +44,10 @@
 //! get the real-world coordinates:
 //!
 //! ```rust
-//! use cityjson::cityjson::core::transform::TransformCore;
+//! use cityjson::v2_0::Transform;
 //!
 //! // Create a transform
-//! let transform = TransformCore::new();
+//! let transform = Transform::new();
 //!
 //! // Example: Convert integer coordinates to real coordinates
 //! // In a real application, integers would come from CityJSON vertices
@@ -78,8 +78,8 @@ use std::fmt::{Display, Formatter};
 ///
 /// # Examples
 /// ```
-/// # use cityjson::cityjson::core::transform::TransformCore;
-/// let mut transform = TransformCore::new();
+/// # use cityjson::v2_0::Transform;
+/// let mut transform = Transform::new();
 /// transform.set_scale([2.0, 2.0, 2.0]);
 /// transform.set_translate([10.0, 20.0, 30.0]);
 ///

@@ -66,6 +66,7 @@ use std::fmt::Debug;
 /// `AttributeValue` is a generic enum that can hold various types of data,
 /// from simple scalars to complex nested structures like vectors and maps.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum AttributeValue<SS: StringStorage> {
     /// Represents a null or undefined value.
     Null,

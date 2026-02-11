@@ -1,79 +1,44 @@
 # cityjson-rs
 
-[//]: #todo (less pretentious intro: remove "meant to be a core dependency")
-The crate defines the types and methods for representing the complete `CityJSON` data model in Rust.
-*cityjson-rs* is meant to be a core dependency in Rust-based `CityJSON` software, so that the dependent applications can extend the types with their specific functionality.
-Therefore, *citjson-rs* is designed with performance, flexibility, and ease-of-use in mind.
-The three criteria are implemented in the following features:
+`cityjson-rs` provides types and accessors for the `CityJSON` data model in Rust.
+The crate focuses on:
 
-- The Geometry representation is flattened into densely packed containers to minimize allocations, improve cache-locality. This is very different to the nested arrays defined by the `CityJSON` schema.
-- Vertex indices, and consequently boundaries, semantics, and appearances can be specialized with either `u16`, `u32` or `u64` types to enable various use cases and memory optimizations.
-- Supports both borrowed and owned values.
-- Getter and setter methods are implemented for each `CityJSON` object and their members to provide a stable API and hide implementation details.
-- The API is thoroughly documented, including usage examples.
-- Supports `CityJSON` Extensions.
-- Native API targets `CityJSON` v2.0.
-- JSON de/serialization and legacy version upgrades are handled by *`serde_cityjson`*.
+- efficient geometry storage (flattened boundary containers),
+- typed resource handles (semantics/materials/textures/geometry),
+- owned and borrowed string storage strategies,
+- a stable public API centered on `CityJSON` v2.0 types.
+
+JSON de/serialization and legacy version upgrades are handled in a separate crate (`serde_cityjson`).
 
 ## Documentation
 
-The [cityjson-rs]() documentation include a comprehensive description of the library, including usage examples.
+- API docs: <https://docs.rs/cityjson>
+- Bench and profiling guide: `BENCHMARK_GUIDE.md`
 
 ## Installation
 
-Add the `cityjson-rs` crate as a dependency to your project with cargo.
-
 ```shell
-cargo add cityjson-rs
+cargo add cityjson
 ```
 
-## Library organisation
-
-### Core Structure
-
-[//]: #todo (remove references to traits, because i don't have them anymore)
-
-[//]: #todo (update core structure)
-
-- **`cityjson`** module: Contains version-agnostic types forming the stable API
-
-  - Contains version-independent types and functionality like coordinate representations, boundary models and attributes
-
-- Version module (**`v2_0`**)
-
-    - Implements the traits defined in the `cityjson` module
-    - Provides concrete types for `CityJSON` v2.0
-
-- **`resources`** module: Utilities for resource management
-
-    - `pool`: Defines a resource pool pattern for efficient memory management   
-    - `mapping`: Provides mapping between geometries and resources (semantics, materials, textures)
-    - `storage`: Implements flexible string storage strategies (owned vs. borrowed)
-
-### Prelude
-
-The prelude re-exports the types and traits from the `cityjson` and `resources` modules.
-The recommended way to use `cityjson-rs` is to use its prelude and one of the implemented `CityJSON` versions, for example v2.0.
+## Quick Start
 
 ```rust
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
+
+let model: CityModel<u32, OwnedStringStorage> = CityModel::new(CityModelType::CityJSON);
+assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
 ```
 
-### Errors
+## Library Organization
 
-The library defines custom errors in the `errors` module and uses Result types throughout for fallible operations.
+- `cityjson`: version-agnostic core types (`attributes`, `boundary`, `coordinate`, `geometry`, `vertex`, etc.)
+- `v2_0`: concrete `CityJSON` v2.0 model types and builders
+- `resources`: typed handle + mapping + storage utilities
+- `raw`: low-level read views for efficient downstream processing
 
-## Performance
-
-cityjson-rs makes the following assumptions about the software that integrates it:
-- Software that creates semantic 3D city models from scratch has its own data structures for storing the geometry and attributes, and converts to `CityJSON` at the serialization boundary.
-- Software that analyzes, modifies, converts `CityJSON` data would use the cityjson-rs data structures directly to avoid unnecessary allocations and copies.
-- Software that visualizes 3D city models has its own data structures for storing the geometry and attributes, and uses cityjson-rs to read `CityJSON` data and convert it to its own data structures.
-
-example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](https://github.com/rust-lang/regex?tab=readme-ov-file#performance)
-
-### Benchmarking
+## Benchmarking
 
 Run the full benchmark + profiling suite:
 
@@ -81,7 +46,7 @@ Run the full benchmark + profiling suite:
 just perf "my run description"
 ```
 
-Quick/fast mode:
+Quick mode:
 
 ```sh
 just perf "quick check" mode=fast
@@ -97,33 +62,25 @@ just perf-analyze --series --plot bench="builder/build_with_geometry" metric="ti
 
 ## API Stability
 
-This crate follows the semantic versioning system, such as `MAJOR.MINOR.PATCH`.
+This crate follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
-- `MAJOR` version is increased when there are incompatible API changes,
-- `MINOR` version is increased when new functionality is added in a backwards-compatible manner
-- `PATCH` version is increased when backwards-compatible bug fixes are made
+- `MAJOR`: incompatible API changes
+- `MINOR`: backwards-compatible feature additions
+- `PATCH`: backwards-compatible fixes
 
-Migration documentation is provided between major versions.
+## Minimum Rust Version
 
-### Minimum Rust version policy
-
-This crate's minimum supported rustc version is `1.93.0`.
-
-The policy is that the minimum Rust version required to use this crate can be increased in minor version updates. For example, if cityjson-rs `1.0` requires Rust `1.20.0`, then cityjson-rs `1.0.z` for all values of `z` will also require Rust `1.20.0` or newer. However, regex `1.y` for `y > 0` may require a newer minimum version of Rust.
+The minimum supported rustc version is `1.93.0`.
 
 ## License
 
-<sup>
-Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
-2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
-</sup>
+Licensed under either:
 
-<br>
+- Apache License, Version 2.0 (`LICENSE-APACHE`)
+- MIT license (`LICENSE-MIT`)
 
-<sub>
+at your option.
+
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in Serde by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
-</sub>
-
-[//]: #todo (remove examples that are parsed and appended automatically)
+for inclusion in cityjson-rs by you, as defined in the Apache-2.0 license, shall
+be dual licensed as above, without additional terms or conditions.

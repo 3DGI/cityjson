@@ -1,6 +1,6 @@
-use cityjson::v2_0::GeometryBuilder;
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
+use cityjson::v2_0::GeometryBuilder;
 use cityjson::v2_0::{
     CityModel, CityObject, CityObjectType, Extension, Material, Semantic, SemanticType, Texture,
 };

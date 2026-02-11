@@ -12,12 +12,13 @@ use std::marker::PhantomData;
 ///
 /// ```
 /// use cityjson::prelude::*;
+/// use cityjson::v2_0::{Extension, Extensions};
 ///
 /// // Create a collection of extensions
-/// let mut extensions = ExtensionsCore::<OwnedStringStorage, ExtensionCore<OwnedStringStorage>>::new();
+/// let mut extensions: Extensions<OwnedStringStorage> = Extensions::new();
 ///
 /// // Add a noise extension to the collection
-/// let noise_ext = ExtensionCore::new(
+/// let noise_ext = Extension::new(
 ///     "noise".to_string(),
 ///     "https://example.com/noise-extension/1.0".to_string(),
 ///     "1.0".to_string()
@@ -146,8 +147,9 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> fmt::Display for ExtensionsCore<SS
 ///
 /// ```
 /// use cityjson::prelude::*;
+/// use cityjson::v2_0::Extension;
 ///
-/// let noise_ext = ExtensionCore::<OwnedStringStorage>::new(
+/// let noise_ext: Extension<OwnedStringStorage> = Extension::new(
 ///     "noise".to_string(),
 ///     "https://example.com/noise-extension/1.0".to_string(),
 ///     "1.0".to_string()

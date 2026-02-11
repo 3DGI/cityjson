@@ -5,11 +5,18 @@ pub mod appearance {
 }
 
 pub mod attributes {
-    pub use crate::backend::default::attributes::*;
+    pub use crate::backend::default::attributes::{
+        AttributeValue, AttributeValueType, Attributes, BorrowedAttributeValue, BorrowedAttributes,
+        OwnedAttributeValue, OwnedAttributes,
+    };
 }
 
 pub mod boundary {
-    pub use crate::backend::default::boundary::*;
+    pub(crate) use crate::backend::default::boundary::BoundaryCounter;
+    pub use crate::backend::default::boundary::nested;
+    pub use crate::backend::default::boundary::{
+        Boundary, Boundary16, Boundary32, Boundary64, BoundaryType,
+    };
 }
 
 pub(crate) mod citymodel {
@@ -21,11 +28,17 @@ pub(crate) mod cityobject {
 }
 
 pub mod coordinate {
-    pub use crate::backend::default::coordinate::*;
+    pub use crate::backend::default::coordinate::{
+        FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
+        QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
+        UVVertices64, Vertices,
+    };
 }
 
-pub mod extension {
-    pub use crate::backend::default::extension::*;
+pub(crate) mod extension {
+    pub(crate) use crate::backend::default::extension::{
+        ExtensionCore, ExtensionItem, ExtensionsCore,
+    };
 }
 
 pub mod geometry {
@@ -37,13 +50,16 @@ pub(crate) mod geometry_struct {
 }
 
 pub mod metadata {
-    pub use crate::backend::default::metadata::*;
+    pub use crate::backend::default::metadata::{BBox, CRS, CityModelIdentifier, Date};
 }
 
-pub mod transform {
-    pub use crate::backend::default::transform::*;
+pub(crate) mod transform {
+    pub(crate) use crate::backend::default::transform::TransformCore;
 }
 
 pub mod vertex {
-    pub use crate::backend::default::vertex::*;
+    pub use crate::backend::default::vertex::{
+        RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64, VertexIndexVec,
+        VertexIndicesSequence, VertexRef,
+    };
 }
