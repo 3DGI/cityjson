@@ -66,6 +66,11 @@ The library defines custom errors in the `errors` module and uses Result types t
 
 ## Performance
 
+cityjson-rs makes the following assumptions about the software that integrates it:
+- Software that creates semantic 3D city models from scratch has its own data structures for storing the geometry and attributes, and converts to CityJSON at the serialization boundary.
+- Software that analyzes, modifies, converts CityJSON data would use the cityjson-rs data structures directly to avoid unnecessary allocations and copies.
+- Software that visualizes 3D city models has its own data structures for storing the geometry and attributes, and uses cityjson-rs to read CityJSON data and convert it to its own data structures.
+
 example: [https://github.com/rust-lang/regex?tab=readme-ov-file#performance](https://github.com/rust-lang/regex?tab=readme-ov-file#performance)
 
 ### Benchmarking
