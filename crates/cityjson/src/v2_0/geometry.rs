@@ -268,6 +268,7 @@ impl<'a, VR: VertexRef, SS: StringStorage> TextureThemesView<'a, VR, SS> {
 impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
     #[allow(clippy::too_many_arguments)]
     #[must_use]
+    #[allow(dead_code)]
     pub(crate) fn new(
         type_geometry: crate::cityjson::core::geometry::GeometryType,
         lod: Option<crate::cityjson::core::geometry::LoD>,

@@ -627,6 +627,7 @@ where
     }
 
     /// Returns a zero-copy raw view of the template geometry pool.
+    #[allow(dead_code)]
     pub fn template_geometries_raw(&self) -> RawPoolView<'_, Geometry> {
         self.template_geometries.raw_view()
     }

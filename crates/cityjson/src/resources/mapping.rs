@@ -174,6 +174,7 @@ macro_rules! define_typed_resource_map {
                 self.inner.check_type()
             }
 
+            #[allow(dead_code)]
             pub(crate) fn from_raw(
                 inner: crate::resources::mapping::SemanticOrMaterialMap<
                     VR,
@@ -183,6 +184,7 @@ macro_rules! define_typed_resource_map {
                 Self { inner }
             }
 
+            #[allow(dead_code)]
             pub(crate) fn to_raw(
                 &self,
             ) -> &crate::resources::mapping::SemanticOrMaterialMap<

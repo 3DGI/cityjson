@@ -240,10 +240,12 @@ impl<VR: VertexRef> TextureMap<VR> {
         self.inner.solids_mut()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_raw(inner: TextureMapCore<VR, ResourceId32>) -> Self {
         Self { inner }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn to_raw(&self) -> &TextureMapCore<VR, ResourceId32> {
         &self.inner
     }

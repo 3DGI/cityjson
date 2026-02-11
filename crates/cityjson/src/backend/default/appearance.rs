@@ -2,8 +2,10 @@ use crate::resources::storage::StringStorage;
 use std::{fmt, write};
 
 #[allow(clippy::upper_case_acronyms)]
+#[allow(dead_code)]
 pub type RGB = [f32; 3];
 #[allow(clippy::upper_case_acronyms)]
+#[allow(dead_code)]
 pub type RGBA = [f32; 4];
 
 #[repr(C)]
@@ -68,6 +70,7 @@ impl fmt::Display for TextureType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MaterialCore<SS: StringStorage> {
     name: SS::String,
@@ -80,6 +83,7 @@ pub struct MaterialCore<SS: StringStorage> {
     is_smooth: Option<bool>,
 }
 
+#[allow(dead_code)]
 impl<SS: StringStorage> MaterialCore<SS> {
     pub fn new(name: SS::String) -> Self {
         Self {
@@ -159,6 +163,7 @@ impl<SS: StringStorage> MaterialCore<SS> {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct TextureCore<SS: StringStorage> {
     image_type: ImageType,
@@ -168,6 +173,7 @@ pub struct TextureCore<SS: StringStorage> {
     border_color: Option<RGBA>,
 }
 
+#[allow(dead_code)]
 impl<SS: StringStorage> TextureCore<SS> {
     #[inline]
     pub fn new(image: SS::String, image_type: ImageType) -> Self {
