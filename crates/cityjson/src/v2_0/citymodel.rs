@@ -59,7 +59,7 @@ pub trait GeometryBuilderExt<VR: VertexRef, SS: StringStorage> {
     fn build_template(self) -> Result<TemplateGeometryRef>;
 }
 
-impl<'a, VR: VertexRef, SS: StringStorage> GeometryBuilderExt<VR, SS> for GeometryBuilder<'a, VR, SS> {
+impl<VR: VertexRef, SS: StringStorage> GeometryBuilderExt<VR, SS> for GeometryBuilder<'_, VR, SS> {
     fn with_template_ref(self, template_ref: TemplateGeometryRef) -> Result<Self> {
         self.with_template(template_ref.to_raw())
     }

@@ -62,7 +62,7 @@ impl<'a, H> HandleOptionSlice<'a, H> {
     }
 }
 
-impl<'a, H> Index<usize> for HandleOptionSlice<'a, H> {
+impl<H> Index<usize> for HandleOptionSlice<'_, H> {
     type Output = Option<H>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -94,26 +94,31 @@ pub struct SemanticMapView<'a, VR: VertexRef> {
 }
 
 impl<'a, VR: VertexRef> SemanticMapView<'a, VR> {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn points(&self) -> HandleOptionSlice<'a, SemanticRef> {
         HandleOptionSlice::new(self.inner.points())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn linestrings(&self) -> HandleOptionSlice<'a, SemanticRef> {
         HandleOptionSlice::new(self.inner.linestrings())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn surfaces(&self) -> HandleOptionSlice<'a, SemanticRef> {
         HandleOptionSlice::new(self.inner.surfaces())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn shells(&self) -> &'a [VertexIndex<VR>] {
         self.inner.shells()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn solids(&self) -> &'a [VertexIndex<VR>] {
         self.inner.solids()
@@ -126,26 +131,31 @@ pub struct MaterialMapView<'a, VR: VertexRef> {
 }
 
 impl<'a, VR: VertexRef> MaterialMapView<'a, VR> {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn points(&self) -> HandleOptionSlice<'a, MaterialRef> {
         HandleOptionSlice::new(self.inner.points())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn linestrings(&self) -> HandleOptionSlice<'a, MaterialRef> {
         HandleOptionSlice::new(self.inner.linestrings())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn surfaces(&self) -> HandleOptionSlice<'a, MaterialRef> {
         HandleOptionSlice::new(self.inner.surfaces())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn shells(&self) -> &'a [VertexIndex<VR>] {
         self.inner.shells()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn solids(&self) -> &'a [VertexIndex<VR>] {
         self.inner.solids()
@@ -188,31 +198,37 @@ pub struct TextureMapView<'a, VR: VertexRef> {
 }
 
 impl<'a, VR: VertexRef> TextureMapView<'a, VR> {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn vertices(&self) -> &'a [Option<VertexIndex<VR>>] {
         self.inner.vertices()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn rings(&self) -> &'a [VertexIndex<VR>] {
         self.inner.rings()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn ring_textures(&self) -> HandleOptionSlice<'a, TextureRef> {
         HandleOptionSlice::new(self.inner.ring_textures())
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn surfaces(&self) -> &'a [VertexIndex<VR>] {
         self.inner.surfaces()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn shells(&self) -> &'a [VertexIndex<VR>] {
         self.inner.shells()
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
     pub fn solids(&self) -> &'a [VertexIndex<VR>] {
         self.inner.solids()

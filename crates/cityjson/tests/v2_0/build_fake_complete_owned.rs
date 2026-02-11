@@ -413,7 +413,7 @@ fn assert_building_part_geometry(model: &OwnedModel, co1: &OwnedCityObject) {
 
     let irr_materials = materials1
         .iter()
-        .find(|(name, _)| name.to_string() == "irradiation")
+        .find(|(name, _)| *name == "irradiation")
         .expect("irradiation theme should exist")
         .1
         .surfaces();
@@ -426,7 +426,7 @@ fn assert_building_part_geometry(model: &OwnedModel, co1: &OwnedCityObject) {
 
     let red_materials = materials1
         .iter()
-        .find(|(name, _)| name.to_string() == "red")
+        .find(|(name, _)| *name == "red")
         .expect("red theme should exist")
         .1
         .surfaces();
@@ -444,7 +444,7 @@ fn assert_building_part_geometry(model: &OwnedModel, co1: &OwnedCityObject) {
 
     let winter_texture_map = &textures1
         .iter()
-        .find(|(name, _)| name.to_string() == "winter-textures")
+        .find(|(name, _)| *name == "winter-textures")
         .expect("winter-textures theme should exist")
         .1;
     let ring_textures = winter_texture_map.ring_textures();

@@ -1,7 +1,9 @@
 use crate::resources::storage::StringStorage;
 use std::{fmt, write};
 
+#[allow(clippy::upper_case_acronyms)]
 pub type RGB = [f32; 3];
+#[allow(clippy::upper_case_acronyms)]
 pub type RGBA = [f32; 4];
 
 #[repr(C)]
