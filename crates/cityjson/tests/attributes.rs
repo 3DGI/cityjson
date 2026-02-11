@@ -1,6 +1,5 @@
 //! Tests for inline attribute functionality
 
-use cityjson::backend::default::attributes::{OwnedAttributeValue, OwnedAttributes};
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;

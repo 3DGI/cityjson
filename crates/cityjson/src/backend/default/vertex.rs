@@ -689,9 +689,13 @@ impl<VR: VertexRef> std::ops::Deref for RawVertexView<'_, VR> {
     type Target = [VR];
 
     fn deref(&self) -> &Self::Target {
-        debug_assert_eq!(size_of::<VertexIndex<VR>>(), size_of::<VR>());
-        debug_assert_eq!(align_of::<VertexIndex<VR>>(), align_of::<VR>());
+        const {
+            assert!(std::mem::size_of::<VertexIndex<VR>>() == std::mem::size_of::<VR>());
+            assert!(std::mem::align_of::<VertexIndex<VR>>() == std::mem::align_of::<VR>());
+        }
 
+        // SAFETY: `VertexIndex<VR>` is `#[repr(transparent)]` over `VR`, so a slice of
+        // `VertexIndex<VR>` has identical layout to a slice of `VR`.
         unsafe { std::slice::from_raw_parts(self.0.as_ptr().cast::<VR>(), self.0.len()) }
     }
 }

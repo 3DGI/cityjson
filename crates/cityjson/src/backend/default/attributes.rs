@@ -126,6 +126,7 @@ where
 
 /// Type discriminator for attribute values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum AttributeValueType {
     /// Represents a null or undefined value.
     Null,

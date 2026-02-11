@@ -375,10 +375,10 @@ mod default_backend {
         StreamMetrics, WireAttributeValue, WireGeometry, WireGlobalProperties,
         WireMaterial, WireSemantic,
     };
-    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::resources::pool::ResourceId32;
-    use cityjson::v2_0::{CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType};
+    use cityjson::v2_0::{
+        CityModel, CityObject, CityObjectType, GeometryBuilder, Material, Semantic, SemanticType,
+    };
 
     fn create_batch_model(global: &WireGlobalProperties) -> CityModel<u32, OwnedStringStorage> {
         let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
@@ -396,7 +396,7 @@ mod default_backend {
         model: &mut CityModel<u32, OwnedStringStorage>,
         wire_geom: &WireGeometry,
         vertex_refs: &[VertexIndex<u32>],
-    ) -> Result<ResourceId32> {
+    ) -> Result<GeometryRef> {
         let lod = parse_lod(&wire_geom.lod);
 
         let geom_type = match wire_geom.geometry_type.as_str() {
@@ -457,7 +457,7 @@ mod default_backend {
             builder.add_shell(&surface_ids)?;
         }
 
-        builder.build()
+        builder.build_geometry()
     }
 
     fn convert_wire_semantic(wire_semantic: &WireSemantic) -> Result<Semantic<OwnedStringStorage>> {
@@ -645,10 +645,7 @@ mod default_backend {
                     for wire_geom in wire_co.geometries {
                         let geom_ref =
                             build_geometry_from_wire(&mut current_model, &wire_geom, &vertex_refs)?;
-                        cityobject.add_geometry(GeometryRef::from_parts(
-                            geom_ref.index(),
-                            geom_ref.generation(),
-                        ));
+                        cityobject.add_geometry(geom_ref);
                     }
 
                     current_model.cityobjects_mut().add(cityobject)?;

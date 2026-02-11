@@ -74,6 +74,7 @@ impl<SS: StringStorage> Display for Semantic<SS> {
 }
 
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SemanticType<SS: StringStorage> {
     #[default]
     Default,

@@ -3,7 +3,7 @@
 //! This mirrors the comprehensive owned-storage test and verifies that borrowed
 //! string storage can exercise the same feature surface.
 
-use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::v2_0::GeometryBuilder;
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
@@ -416,7 +416,7 @@ fn assert_building_part_geometry(model: &BorrowedModel, co1: &BorrowedCityObject
 
     let irr_materials = materials1
         .iter()
-        .find(|(name, _)| name == "irradiation")
+        .find(|(name, _)| name.to_string() == "irradiation")
         .expect("irradiation theme should exist")
         .1
         .surfaces();
@@ -429,7 +429,7 @@ fn assert_building_part_geometry(model: &BorrowedModel, co1: &BorrowedCityObject
 
     let red_materials = materials1
         .iter()
-        .find(|(name, _)| name == "red")
+        .find(|(name, _)| name.to_string() == "red")
         .expect("red theme should exist")
         .1
         .surfaces();
@@ -447,7 +447,7 @@ fn assert_building_part_geometry(model: &BorrowedModel, co1: &BorrowedCityObject
 
     let winter_texture_map = &textures1
         .iter()
-        .find(|(name, _)| name == "winter-textures")
+        .find(|(name, _)| name.to_string() == "winter-textures")
         .expect("winter-textures theme should exist")
         .1;
     let ring_textures = winter_texture_map.ring_textures();
@@ -776,13 +776,10 @@ fn set_cityobject_id_1_address(
             GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Regular)
                 .with_lod(LoD::LoD1);
         let _location_p = location_builder.add_vertex(v0);
-        if let Ok(location_geometry_ref) = location_builder.build() {
+        if let Ok(location_geometry_ref) = location_builder.build_geometry() {
             address_map.insert(
                 "location",
-                Box::new(AttributeValue::Geometry(GeometryRef::from_parts(
-                    location_geometry_ref.index(),
-                    location_geometry_ref.generation(),
-                ))),
+                Box::new(AttributeValue::Geometry(location_geometry_ref)),
             );
         }
     }
@@ -889,11 +886,8 @@ fn add_cityobject_id_1_geometry(
     geometry_builder.add_surface_inner_ring(ring5)?;
     geometry_builder.add_shell(&[surface_4])?;
 
-    let geometry_ref = geometry_builder.build()?;
-    building_part.add_geometry(GeometryRef::from_parts(
-        geometry_ref.index(),
-        geometry_ref.generation(),
-    ));
+    let geometry_ref = geometry_builder.build_geometry()?;
+    building_part.add_geometry(geometry_ref);
 
     Ok(())
 }
@@ -929,21 +923,18 @@ fn build_cityobject_tree(
     template_builder.start_surface();
     template_builder.add_surface_outer_ring(ring2)?;
 
-    let template_ref = template_builder.build()?;
+    let template_ref = template_builder.build_template()?;
 
     let tree_geometry_ref =
         GeometryBuilder::new(model, GeometryType::GeometryInstance, BuilderMode::Regular)
-            .with_template(template_ref)?
+            .with_template_ref(template_ref)?
             .with_transformation_matrix([
                 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
             ])?
             .with_reference_vertex(vertices.v1)
-            .build()?;
+            .build_geometry()?;
 
-    tree.add_geometry(GeometryRef::from_parts(
-        tree_geometry_ref.index(),
-        tree_geometry_ref.generation(),
-    ));
+    tree.add_geometry(tree_geometry_ref);
     Ok(())
 }
 
@@ -975,12 +966,9 @@ fn build_cityobject_neighbourhood(
     let p4 = geometry_builder.add_vertex(vertices.v1);
     let ring0 = geometry_builder.add_ring(&[p1, p4, p3, p2])?;
     geometry_builder.add_surface_outer_ring(ring0)?;
-    let neighbourhood_geometry_ref = geometry_builder.build()?;
+    let neighbourhood_geometry_ref = geometry_builder.build_geometry()?;
 
-    neighbourhood.add_geometry(GeometryRef::from_parts(
-        neighbourhood_geometry_ref.index(),
-        neighbourhood_geometry_ref.generation(),
-    ));
+    neighbourhood.add_geometry(neighbourhood_geometry_ref);
     Ok(())
 }
 

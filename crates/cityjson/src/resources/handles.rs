@@ -48,7 +48,7 @@ macro_rules! define_handle {
             }
 
             /// Create a typed handle from index and generation.
-            pub fn from_parts(index: u32, generation: u16) -> Self {
+            pub(crate) fn from_parts(index: u32, generation: u16) -> Self {
                 Self(ResourceId32::new(index, generation))
             }
 
@@ -147,7 +147,7 @@ pub struct AttributeRef(ResourceId32);
 impl AttributeRef {
     /// Create a typed handle from index and generation.
     #[must_use]
-    pub fn from_parts(index: u32, generation: u16) -> Self {
+    pub(crate) fn from_parts(index: u32, generation: u16) -> Self {
         Self(ResourceId32::new(index, generation))
     }
 
@@ -208,4 +208,16 @@ impl HandleType for AttributeRef {
     fn to_raw(self) -> ResourceId32 {
         self.0
     }
+}
+
+#[inline]
+pub(crate) fn cast_handle_slice<H: HandleType>(raw: &[ResourceId32]) -> &[H] {
+    const {
+        assert!(std::mem::size_of::<H>() == std::mem::size_of::<ResourceId32>());
+        assert!(std::mem::align_of::<H>() == std::mem::align_of::<ResourceId32>());
+    }
+
+    // SAFETY: all exported handle types are `#[repr(transparent)]` wrappers over `ResourceId32`,
+    // and compile-time layout assertions above guarantee identical size/alignment.
+    unsafe { std::slice::from_raw_parts(raw.as_ptr().cast::<H>(), raw.len()) }
 }

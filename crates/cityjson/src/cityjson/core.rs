@@ -29,7 +29,7 @@ pub mod extension {
 }
 
 pub mod geometry {
-    pub use crate::backend::default::geometry::{BuilderMode, GeometryType, LoD};
+    pub use crate::backend::default::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD};
 }
 
 pub(crate) mod geometry_struct {

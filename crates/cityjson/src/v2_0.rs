@@ -1,20 +1,20 @@
 //! # `CityJSON` version 2.0
 //!
 //! Implementation of the `CityJSON` types and traits for `CityJSON` version 2.0.
-pub mod appearance;
-pub mod citymodel;
-pub mod cityobject;
-pub mod extension;
-pub mod geometry;
-pub mod metadata;
-pub mod transform;
-pub mod types;
+pub(crate) mod appearance;
+pub(crate) mod citymodel;
+pub(crate) mod cityobject;
+pub(crate) mod extension;
+pub(crate) mod geometry;
+pub(crate) mod metadata;
+pub(crate) mod transform;
+pub(crate) mod types;
 
 pub use appearance::{
     material::{BorrowedMaterial, Material, OwnedMaterial},
     texture::{BorrowedTexture, OwnedTexture, Texture},
 };
-pub use citymodel::CityModel;
+pub use citymodel::{CityModel, GeometryBuilder, GeometryBuilderExt};
 pub use cityobject::{
     BorrowedCityObjects, CityObject, CityObjectType, CityObjects, OwnedCityObjects,
 };

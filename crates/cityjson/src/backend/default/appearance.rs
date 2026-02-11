@@ -6,6 +6,7 @@ pub type RGBA = [f32; 4];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ImageType {
     #[default]
     Png,
@@ -23,6 +24,7 @@ impl fmt::Display for ImageType {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum WrapMode {
     Wrap,
     Mirror,
@@ -46,6 +48,7 @@ impl fmt::Display for WrapMode {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TextureType {
     #[default]
     Unknown,

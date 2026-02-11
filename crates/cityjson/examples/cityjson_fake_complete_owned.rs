@@ -1,4 +1,4 @@
-use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::v2_0::GeometryBuilder;
 use cityjson::cityjson::core::attributes::OwnedAttributeValue;
 use cityjson::prelude::*;
 use cityjson::v2_0::{
@@ -158,13 +158,10 @@ fn add_address_location(
         GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Regular)
             .with_lod(LoD::LoD1);
     let _location_p = location_builder.add_vertex(v0);
-    if let Ok(location_geometry_ref) = location_builder.build() {
+    if let Ok(location_geometry_ref) = location_builder.build_geometry() {
         address_map.insert(
             "location".to_string(),
-            Box::new(OwnedAttributeValue::Geometry(GeometryRef::from_parts(
-                location_geometry_ref.index(),
-                location_geometry_ref.generation(),
-            ))),
+            Box::new(OwnedAttributeValue::Geometry(location_geometry_ref)),
         );
     }
 }
@@ -262,7 +259,7 @@ fn build_co_1_geometry(model: &mut OwnedModel, [v0, v1, v2, v3]: VertexRefs) -> 
     let ring5 = geometry_builder.add_ring(&[bv1, bv2, bv3, bv0])?;
     geometry_builder.add_surface_inner_ring(ring5)?;
     geometry_builder.add_shell(&[surface_4])?;
-    let _geometry_ref = geometry_builder.build()?;
+    let _geometry_ref = geometry_builder.build_geometry()?;
     Ok(())
 }
 
@@ -294,14 +291,14 @@ fn configure_tree(model: &mut OwnedModel, reference_vertex: VertexIndex<u32>) ->
     template_builder.start_surface();
     template_builder.add_surface_outer_ring(ring2)?;
 
-    let template_ref = template_builder.build()?;
+    let template_ref = template_builder.build_template()?;
     GeometryBuilder::new(model, GeometryType::GeometryInstance, BuilderMode::Regular)
-        .with_template(template_ref)?
+        .with_template_ref(template_ref)?
         .with_transformation_matrix([
             2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ])?
         .with_reference_vertex(reference_vertex)
-        .build()?;
+        .build_geometry()?;
     Ok(())
 }
 
@@ -336,7 +333,7 @@ fn configure_neighbourhood(
     ];
     let ring0 = geometry_builder.add_ring(&[p1, p4, p3, p2])?;
     geometry_builder.add_surface_outer_ring(ring0)?;
-    let _geometry_ref = geometry_builder.build()?;
+    let _geometry_ref = geometry_builder.build_geometry()?;
     Ok(())
 }
 

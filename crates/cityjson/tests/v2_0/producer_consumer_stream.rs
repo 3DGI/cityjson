@@ -1,6 +1,4 @@
-use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::prelude::*;
-use cityjson::resources::pool::ResourceId32;
 use cityjson::v2_0::*;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -753,7 +751,9 @@ fn producer(tx: &mpsc::SyncSender<StreamMessage>) {
 ///
 /// A tuple containing the initialized `CityModel` and a vector of template resource references
 #[allow(clippy::type_complexity)]
-fn create_batch_model(global: &WireGlobalProperties) -> Result<(OwnedModel, Vec<ResourceId32>)> {
+fn create_batch_model(
+    global: &WireGlobalProperties,
+) -> Result<(OwnedModel, Vec<TemplateGeometryRef>)> {
     let mut model = OwnedModel::new(CityModelType::CityJSON);
 
     // Set metadata from wire format
@@ -860,7 +860,7 @@ fn receive_global_properties(rx: &mpsc::Receiver<StreamMessage>) -> Result<WireG
 
 fn ingest_wire_cityobject(
     model: &mut OwnedModel,
-    template_refs: &[ResourceId32],
+    template_refs: &[TemplateGeometryRef],
     wire_co: WireCityObjectData,
 ) -> Result<usize> {
     let WireCityObjectData {
@@ -893,10 +893,7 @@ fn ingest_wire_cityobject(
 
     for wire_geom in geometries {
         let geom_ref = build_geometry_from_wire(model, &wire_geom, &vertex_refs, template_refs)?;
-        cityobject.add_geometry(GeometryRef::from_parts(
-            geom_ref.index(),
-            geom_ref.generation(),
-        ));
+        cityobject.add_geometry(geom_ref);
     }
 
     model.cityobjects_mut().add(cityobject)?;
@@ -908,7 +905,7 @@ struct ConsumerState {
     total_buildings_processed: usize,
     cumulative_metrics: BatchMetrics,
     current_model: OwnedModel,
-    template_refs: Vec<ResourceId32>,
+    template_refs: Vec<TemplateGeometryRef>,
     buildings_in_batch: usize,
     surfaces_in_batch: usize,
 }
@@ -1042,7 +1039,7 @@ fn consumer(rx: &mpsc::Receiver<StreamMessage>) -> Result<()> {
 fn build_template_from_wire(
     model: &mut CityModel<u32, OwnedStringStorage>,
     wire_template: &WireTemplateGeometry,
-) -> Result<ResourceId32> {
+) -> Result<TemplateGeometryRef> {
     let geom_type = match wire_template.geometry_type.as_str() {
         "MultiPoint" => GeometryType::MultiPoint,
         "MultiSurface" => GeometryType::MultiSurface,
@@ -1056,7 +1053,8 @@ fn build_template_from_wire(
 
     let lod = parse_lod(&wire_template.lod);
 
-    let mut builder = GeometryBuilder::new(model, geom_type, BuilderMode::Template).with_lod(lod);
+    let mut builder =
+        cityjson::v2_0::GeometryBuilder::new(model, geom_type, BuilderMode::Template).with_lod(lod);
 
     // Add template points
     for (x, y, z) in &wire_template.template_vertices {
@@ -1064,7 +1062,7 @@ fn build_template_from_wire(
     }
 
     // Build template geometry
-    builder.build()
+    builder.build_template()
 }
 
 /// Builds a geometry from wire format
@@ -1072,8 +1070,8 @@ fn build_geometry_from_wire(
     model: &mut CityModel<u32, OwnedStringStorage>,
     wire_geom: &WireGeometry,
     vertex_refs: &[VertexIndex<u32>],
-    template_refs: &[ResourceId32],
-) -> Result<ResourceId32> {
+    template_refs: &[TemplateGeometryRef],
+) -> Result<GeometryRef> {
     let lod = parse_lod(&wire_geom.lod);
 
     // Handle GeometryInstance separately
@@ -1085,11 +1083,15 @@ fn build_geometry_from_wire(
             Error::InvalidGeometry(format!("Invalid template reference: {template_idx}"))
         })?;
 
-        return GeometryBuilder::new(model, GeometryType::GeometryInstance, BuilderMode::Regular)
-            .with_template(*template_ref)?
+        return cityjson::v2_0::GeometryBuilder::new(
+            model,
+            GeometryType::GeometryInstance,
+            BuilderMode::Regular,
+        )
+            .with_template_ref(*template_ref)?
             .with_transformation_matrix(wire_geom.transformation_matrix.unwrap())?
             .with_reference_vertex(vertex_refs[0])
-            .build();
+            .build_geometry();
     }
 
     // Handle regular geometries (Solid, MultiSurface, etc.)
@@ -1104,7 +1106,9 @@ fn build_geometry_from_wire(
         }
     };
 
-    let mut builder = GeometryBuilder::new(model, geom_type, BuilderMode::Regular).with_lod(lod);
+    let mut builder =
+        cityjson::v2_0::GeometryBuilder::new(model, geom_type, BuilderMode::Regular)
+            .with_lod(lod);
 
     // Add vertices to builder
     let bv: Vec<_> = vertex_refs
@@ -1157,7 +1161,7 @@ fn build_geometry_from_wire(
         builder.add_shell(&surface_ids)?;
     }
 
-    builder.build()
+    builder.build_geometry()
 }
 
 /// Converts wire semantic to cityjson-rs Semantic

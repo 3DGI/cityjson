@@ -19,7 +19,7 @@
 //! ```
 //! </details>
 
-pub mod backend;
+pub(crate) mod backend;
 pub mod cityjson;
 pub mod error;
 pub mod raw;
@@ -39,6 +39,7 @@ pub mod prelude {
     pub use crate::cityjson::{
         core::appearance::{ImageType, TextureType, WrapMode},
         core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes},
+        core::attributes::{BorrowedAttributeValue, OwnedAttributeValue},
         core::boundary::{
             nested::{
                 BoundaryNestedMultiLineString, BoundaryNestedMultiLineString16,
@@ -59,7 +60,7 @@ pub mod prelude {
             UVVertices64, Vertices,
         },
         core::extension::{ExtensionCore, ExtensionItem, ExtensionsCore},
-        core::geometry::{BuilderMode, GeometryType, LoD},
+        core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
         core::metadata::{BBox, CityModelIdentifier, Date, CRS},
         core::vertex::{RawVertexView, VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
         traits::coordinate::Coordinate,
@@ -77,6 +78,7 @@ pub mod prelude {
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
     pub use crate::v2_0::types::{CityObjectIdentifier, ThemeName, RGB, RGBA};
+    pub use crate::v2_0::GeometryBuilderExt;
     pub use std::str::FromStr;
 }
 
@@ -88,6 +90,7 @@ use std::fmt;
 /// Marks if the `CityModel` represents a `CityJSON` object or a `CityJSONFeature` object.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CityModelType {
     #[default]
     CityJSON,
@@ -138,6 +141,7 @@ impl TryFrom<String> for CityModelType {
 
 #[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum CityJSONVersion {
     #[default]
     V2_0,

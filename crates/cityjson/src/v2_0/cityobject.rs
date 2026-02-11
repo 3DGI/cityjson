@@ -1,6 +1,6 @@
 use crate::cityjson::core::cityobject::{CityObjectCore, CityObjectsCore};
 use crate::error::{Error, Result};
-use crate::resources::handles::{CityObjectRef, GeometryRef};
+use crate::resources::handles::{CityObjectRef, GeometryRef, cast_handle_slice};
 use crate::resources::pool::ResourceId32;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 use crate::v2_0::types::CityObjectIdentifier;
@@ -154,25 +154,21 @@ impl<SS: StringStorage> CityObject<SS> {
         }
     }
 
-    pub fn id(&self) -> CityObjectIdentifier<SS>
+    pub fn id(&self) -> &str
     where
-        SS::String: Clone,
+        SS::String: AsRef<str>,
     {
-        CityObjectIdentifier::new(self.inner.id().clone())
+        self.inner.id().as_ref()
     }
 
     pub fn type_cityobject(&self) -> &CityObjectType<SS> {
         self.inner.type_cityobject()
     }
 
-    pub fn geometry(&self) -> Option<Vec<GeometryRef>> {
-        self.inner.geometry().map(|items| {
-            items
-                .iter()
-                .copied()
-                .map(GeometryRef::from_raw)
-                .collect::<Vec<_>>()
-        })
+    pub fn geometry(&self) -> Option<&[GeometryRef]> {
+        self.inner
+            .geometry()
+            .map(|items| cast_handle_slice::<GeometryRef>(items.as_slice()))
     }
 
     pub fn add_geometry(&mut self, geometry_ref: GeometryRef) {
@@ -199,14 +195,10 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.set_geographical_extent(bbox);
     }
 
-    pub fn children(&self) -> Option<Vec<CityObjectRef>> {
-        self.inner.children().map(|items| {
-            items
-                .iter()
-                .copied()
-                .map(CityObjectRef::from_raw)
-                .collect::<Vec<_>>()
-        })
+    pub fn children(&self) -> Option<&[CityObjectRef]> {
+        self.inner
+            .children()
+            .map(|items| cast_handle_slice::<CityObjectRef>(items.as_slice()))
     }
 
     pub fn add_child(&mut self, child: CityObjectRef) {
@@ -217,14 +209,10 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.children_mut().clear();
     }
 
-    pub fn parents(&self) -> Option<Vec<CityObjectRef>> {
-        self.inner.parents().map(|items| {
-            items
-                .iter()
-                .copied()
-                .map(CityObjectRef::from_raw)
-                .collect::<Vec<_>>()
-        })
+    pub fn parents(&self) -> Option<&[CityObjectRef]> {
+        self.inner
+            .parents()
+            .map(|items| cast_handle_slice::<CityObjectRef>(items.as_slice()))
     }
 
     pub fn add_parent(&mut self, parent: CityObjectRef) {
@@ -251,6 +239,7 @@ impl<SS: StringStorage> Display for CityObject<SS> {
 }
 
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CityObjectType<SS: StringStorage> {
     Bridge,
     BridgePart,

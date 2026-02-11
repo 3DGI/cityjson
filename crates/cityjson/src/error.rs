@@ -4,6 +4,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
     IncompatibleBoundary(String, String),
     IndexConversion {
@@ -180,3 +181,9 @@ impl Debug for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Error::Import(value.to_string())
+    }
+}

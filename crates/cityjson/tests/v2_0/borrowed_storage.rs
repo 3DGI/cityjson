@@ -1,4 +1,4 @@
-use cityjson::backend::default::geometry::GeometryBuilder;
+use cityjson::v2_0::GeometryBuilder;
 use cityjson::prelude::*;
 use cityjson::v2_0::*;
 
@@ -177,11 +177,8 @@ fn add_building_geometry(
         surface_wall4,
     ])?;
 
-    let geometry_ref = geometry_builder.build()?;
-    building.add_geometry(GeometryRef::from_parts(
-        geometry_ref.index(),
-        geometry_ref.generation(),
-    ));
+    let geometry_ref = geometry_builder.build_geometry()?;
+    building.add_geometry(geometry_ref);
     Ok(())
 }
 

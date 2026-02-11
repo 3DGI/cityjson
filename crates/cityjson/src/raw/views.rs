@@ -86,6 +86,10 @@ impl<'a, T> RawPoolView<'a, T> {
 
     #[inline]
     #[must_use]
+    /// Generation counters for each slot.
+    ///
+    /// This is a low-level view intended for advanced serializers and diagnostics.
+    /// Treat it as unstable internal detail rather than a high-level API contract.
     pub fn generations(&self) -> &'a [u16] {
         self.generations
     }

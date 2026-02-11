@@ -6,10 +6,8 @@
 use std::sync::mpsc;
 use std::thread;
 
-use cityjson::backend::default::geometry::GeometryBuilder;
 use cityjson::prelude::*;
-use cityjson::resources::pool::ResourceId32;
-use cityjson::v2_0::{CityModel, CityObject, CityObjectType};
+use cityjson::v2_0::{CityModel, CityObject, CityObjectType, GeometryBuilder};
 
 #[derive(Debug, Clone)]
 struct WireTemplateGeometry {
@@ -84,7 +82,7 @@ fn producer(tx: &mpsc::SyncSender<StreamMessage>) {
 fn build_template_from_wire(
     model: &mut CityModel<u32, OwnedStringStorage>,
     wire_template: &WireTemplateGeometry,
-) -> Result<ResourceId32> {
+) -> Result<TemplateGeometryRef> {
     let mut builder = GeometryBuilder::new(model, GeometryType::MultiPoint, BuilderMode::Template)
         .with_lod(LoD::LoD1);
 
@@ -92,7 +90,7 @@ fn build_template_from_wire(
         builder.add_template_point(RealWorldCoordinate::new(*x, *y, *z));
     }
 
-    builder.build()
+    builder.build_template()
 }
 
 fn consumer(rx: &mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedStringStorage>> {
@@ -148,15 +146,12 @@ fn consumer(rx: &mpsc::Receiver<StreamMessage>) -> Result<CityModel<u32, OwnedSt
                         GeometryType::GeometryInstance,
                         BuilderMode::Regular,
                     )
-                    .with_template(*template_ref)?
+                    .with_template_ref(*template_ref)?
                     .with_transformation_matrix(wire_geom.transformation_matrix)?
                     .with_reference_vertex(vertex_refs[0])
-                    .build()?;
+                    .build_geometry()?;
 
-                    cityobject.add_geometry(GeometryRef::from_parts(
-                        geom_ref.index(),
-                        geom_ref.generation(),
-                    ));
+                    cityobject.add_geometry(geom_ref);
                 }
 
                 model.cityobjects_mut().add(cityobject)?;

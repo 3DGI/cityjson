@@ -14,11 +14,10 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 mod benches {
     use super::{black_box, rng_from_seed, BenchParams, Rng};
 
-    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::{
-        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+        CityModel, CityObject, CityObjectType, GeometryBuilder, Material, Semantic, SemanticType,
+        Texture,
     };
     use std::collections::HashMap;
 
@@ -137,7 +136,7 @@ mod benches {
         index: u32,
         material: &Material<OwnedStringStorage>,
         texture: &Texture<OwnedStringStorage>,
-    ) -> ResourceId32 {
+    ) -> GeometryRef {
         let mut geometry_builder =
             GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
                 .with_lod(LoD::LoD2);
@@ -241,7 +240,9 @@ mod benches {
                 surface_left,
             ])
             .expect("failed to add shell");
-        geometry_builder.build().expect("failed to build geometry")
+        geometry_builder
+            .build_geometry()
+            .expect("failed to build geometry")
     }
 
     fn add_cityobject<R: Rng + ?Sized>(
@@ -261,10 +262,7 @@ mod benches {
 
         add_attributes(&mut cityobject, index_u32, seed);
         let geometry_ref = build_cube_geometry(model, &vertices, index_u32, material, texture);
-        cityobject.add_geometry(GeometryRef::from_parts(
-            geometry_ref.index(),
-            geometry_ref.generation(),
-        ));
+        cityobject.add_geometry(geometry_ref);
 
         model
             .cityobjects_mut()

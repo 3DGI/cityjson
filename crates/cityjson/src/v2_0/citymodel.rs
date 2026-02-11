@@ -1,4 +1,6 @@
-use crate::backend::default::geometry::GeometryModelOps;
+use crate::backend::default::geometry::{
+    GeometryBuilder as RawGeometryBuilder, GeometryModelOps,
+};
 use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
 use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
@@ -17,6 +19,59 @@ use crate::v2_0::{CityObjects, Extensions, Transform};
 use crate::{format_option, CityJSONVersion};
 use std::collections::HashSet;
 use std::fmt;
+
+pub type GeometryBuilder<'a, VR, SS> = RawGeometryBuilder<
+    'a,
+    VR,
+    ResourceId32,
+    QuantizedCoordinate,
+    Semantic<SS>,
+    Material<SS>,
+    Texture<SS>,
+    Geometry<VR, SS>,
+    CityModel<VR, SS>,
+    SS,
+>;
+
+pub trait GeometryBuilderExt<VR: VertexRef, SS: StringStorage> {
+    /// Use a typed template handle when building a `GeometryInstance`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidGeometryType`] if the builder is not configured
+    /// for `GeometryType::GeometryInstance`.
+    fn with_template_ref(self, template_ref: TemplateGeometryRef) -> Result<Self>
+    where
+        Self: Sized;
+
+    /// Build and return a typed regular-geometry handle.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from geometry validation and storage insertion.
+    fn build_geometry(self) -> Result<GeometryRef>;
+
+    /// Build and return a typed template-geometry handle.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from geometry validation and storage insertion.
+    fn build_template(self) -> Result<TemplateGeometryRef>;
+}
+
+impl<'a, VR: VertexRef, SS: StringStorage> GeometryBuilderExt<VR, SS> for GeometryBuilder<'a, VR, SS> {
+    fn with_template_ref(self, template_ref: TemplateGeometryRef) -> Result<Self> {
+        self.with_template(template_ref.to_raw())
+    }
+
+    fn build_geometry(self) -> Result<GeometryRef> {
+        self.build().map(GeometryRef::from_raw)
+    }
+
+    fn build_template(self) -> Result<TemplateGeometryRef> {
+        self.build().map(TemplateGeometryRef::from_raw)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CityModel<VR: VertexRef = u32, SS: StringStorage = OwnedStringStorage> {

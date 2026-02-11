@@ -14,11 +14,10 @@ mod benches {
         FAST_SIZE_PROCESSOR,
     };
 
-    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::{
-        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+        CityModel, CityObject, CityObjectType, GeometryBuilder, Material, Semantic, SemanticType,
+        Texture,
     };
     use std::collections::HashMap;
 
@@ -139,7 +138,7 @@ mod benches {
         index: u32,
         material: &Material<OwnedStringStorage>,
         texture: &Texture<OwnedStringStorage>,
-    ) -> ResourceId32 {
+    ) -> GeometryRef {
         let mut geometry_builder =
             GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
                 .with_lod(LoD::LoD2);
@@ -244,7 +243,9 @@ mod benches {
             ])
             .expect("failed to add shell");
 
-        geometry_builder.build().expect("failed to build geometry")
+        geometry_builder
+            .build_geometry()
+            .expect("failed to build geometry")
     }
 
     fn add_cityobject<R: Rng + ?Sized>(
@@ -264,10 +265,7 @@ mod benches {
 
         add_attributes(&mut cityobject, index_u32, seed);
         let geometry_ref = build_cube_geometry(model, &vertices, index_u32, material, texture);
-        cityobject.add_geometry(GeometryRef::from_parts(
-            geometry_ref.index(),
-            geometry_ref.generation(),
-        ));
+        cityobject.add_geometry(geometry_ref);
 
         model
             .cityobjects_mut()
@@ -313,7 +311,7 @@ mod benches {
 
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
-                    if let Some(geometry) = model.get_geometry(geometry_ref) {
+                    if let Some(geometry) = model.get_geometry(*geometry_ref) {
                         if let Some(semantics) = geometry.semantics() {
                             for semantic_ref in semantics.surfaces().iter().flatten() {
                                 if let Some(semantic) = model.get_semantic(*semantic_ref) {
@@ -339,8 +337,8 @@ mod benches {
                         }
 
                         if let Some(materials) = geometry.materials() {
-                            for (theme, mapping) in materials {
-                                acc = acc.wrapping_add(theme.as_inner().len() as u64);
+                            for (theme, mapping) in materials.iter() {
+                                acc = acc.wrapping_add(theme.len() as u64);
                                 for material_ref in mapping.surfaces().iter().flatten() {
                                     let _ = material_ref;
                                     acc = acc.wrapping_add(1);
@@ -349,8 +347,8 @@ mod benches {
                         }
 
                         if let Some(textures) = geometry.textures() {
-                            for (theme, mapping) in textures {
-                                acc = acc.wrapping_add(theme.as_inner().len() as u64);
+                            for (theme, mapping) in textures.iter() {
+                                acc = acc.wrapping_add(theme.len() as u64);
                                 acc = acc.wrapping_add(mapping.vertices().len() as u64);
                                 for texture_ref in mapping.ring_textures().iter().flatten() {
                                     let _ = texture_ref;
@@ -396,7 +394,7 @@ mod benches {
         for (_id, cityobject) in model.cityobjects().iter() {
             if let Some(geometries) = cityobject.geometry() {
                 for geometry_ref in geometries {
-                    if let Some(geometry) = model.get_geometry(geometry_ref)
+                    if let Some(geometry) = model.get_geometry(*geometry_ref)
                         && let Some(boundary) = geometry.boundaries()
                     {
                         let vertex_indices = boundary.vertices();

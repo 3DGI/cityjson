@@ -13,18 +13,17 @@ mod benches {
         FAST_SIZE_BUILDER,
     };
 
-    use cityjson::backend::default::geometry::GeometryBuilder;
     use cityjson::prelude::*;
-    use cityjson::resources::pool::ResourceId32;
     use cityjson::v2_0::{
-        CityModel, CityObject, CityObjectType, Material, Semantic, SemanticType, Texture,
+        CityModel, CityObject, CityObjectType, GeometryBuilder, Material, Semantic, SemanticType,
+        Texture,
     };
     use std::collections::HashMap;
 
     fn build_geometry_minimal(
         model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
-    ) -> Result<ResourceId32> {
+    ) -> Result<GeometryRef> {
         let mut geometry_builder =
             GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
                 .with_lod(LoD::LoD2);
@@ -71,7 +70,7 @@ mod benches {
             surface_left,
         ])?;
 
-        geometry_builder.build()
+        geometry_builder.build_geometry()
     }
 
     /// Helper function to build a geometry with semantics, materials, and textures.
@@ -81,7 +80,7 @@ mod benches {
         index: u32,
         material_data: Option<&(Material<OwnedStringStorage>, MaterialRef)>,
         texture_data: Option<&(Texture<OwnedStringStorage>, TextureRef)>,
-    ) -> Result<ResourceId32> {
+    ) -> Result<GeometryRef> {
         let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
         let ground_attrs = ground_semantic.attributes_mut();
         ground_attrs.insert(
@@ -183,7 +182,7 @@ mod benches {
         ];
         geometry_builder.add_shell(&shell_surfaces)?;
 
-        geometry_builder.build()
+        geometry_builder.build_geometry()
     }
 
     pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<CityObjectRef>> {
@@ -207,10 +206,7 @@ mod benches {
 
             let mut cityobject = CityObject::new(CityObjectIdentifier::new(co_id.clone()), co_type);
             let geometry_ref = build_geometry_minimal(&mut model, &vertices)?;
-            cityobject.add_geometry(GeometryRef::from_parts(
-                geometry_ref.index(),
-                geometry_ref.generation(),
-            ));
+            cityobject.add_geometry(geometry_ref);
 
             let co_ref = model.cityobjects_mut().add(cityobject)?;
             cityobject_refs.push(co_ref);
@@ -301,10 +297,7 @@ mod benches {
                 material_ref.as_ref(),
                 texture_ref.as_ref(),
             )?;
-            cityobject.add_geometry(GeometryRef::from_parts(
-                geometry_ref.index(),
-                geometry_ref.generation(),
-            ));
+            cityobject.add_geometry(geometry_ref);
 
             let co_ref = model.cityobjects_mut().add(cityobject)?;
             cityobject_refs.push(co_ref);

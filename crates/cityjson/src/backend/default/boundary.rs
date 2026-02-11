@@ -796,6 +796,7 @@ impl<VR: VertexRef> Boundary<VR> {
 /// assert_eq!(boundary.check_type(), BoundaryType::MultiPoint);
 /// ```
 #[derive(Copy, Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum BoundaryType {
     /// A collection of solids, possibly connected.
     MultiOrCompositeSolid,

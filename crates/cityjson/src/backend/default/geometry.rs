@@ -1432,6 +1432,7 @@ fn build_texture_map<VR: VertexRef, RR: ResourceRef, SS: StringStorage>(
 
 #[repr(C)]
 #[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum GeometryType {
     MultiPoint,
     MultiLineString,
@@ -1474,6 +1475,7 @@ impl FromStr for GeometryType {
 /// Level of Detail (`LoD`) for the geometry
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum LoD {
     LoD0,
     LoD0_0,
