@@ -279,13 +279,14 @@ def metric_effect(metric, delta_pct, unit=""):
     return -delta_pct if metric_is_lower_better(metric, unit) else delta_pct
 
 
-def status_symbol(effect):
-    if abs(effect) <= DELTA_EPSILON_PCT:
+def status_symbol(effect, threshold=0.0):
+    floor = max(float(threshold), DELTA_EPSILON_PCT)
+    if abs(effect) <= floor:
         return "="
     return "+" if effect > 0 else "-"
 
 
-def compare_rows(rows, top, plot, color, percent):
+def compare_rows(rows, top, plot, color, percent, threshold):
     for row in rows:
         try:
             row["value"] = float(row["value"])
@@ -331,7 +332,7 @@ def compare_rows(rows, top, plot, color, percent):
     table_rows = []
     for bench, metric, unit, default, nested, delta_pct in comparisons:
         effect = metric_effect(metric, delta_pct, unit)
-        status = status_symbol(effect)
+        status = status_symbol(effect, threshold)
         default_disp, unit_disp = format_value(default, unit, percent)
         nested_disp, unit_disp = format_value(nested, unit, percent)
         row = [
@@ -373,6 +374,8 @@ def compare_rows(rows, top, plot, color, percent):
     print("- impact = direction-aware change (positive means improvement)")
     print("- metric direction: miss rates/time/memory lower is better; throughput higher is better")
     print("- status: + improved, - regressed, = unchanged")
+    if threshold > 0:
+        print(f"- significance threshold: |impact| > {threshold:.2f}%")
     if plot:
         print("- Δ bar = fixed scale from -200% to +200% in 5% steps")
         print("- bar markers: ┆ = ±100%, │ = 0%")
@@ -422,7 +425,7 @@ def colorize_row(row, color_code):
     return [f"\x1b[{color_code}m{cell}{COLOR_RESET}" for cell in row]
 
 
-def summarize_snapshot_delta(prev_snapshot, curr_snapshot):
+def summarize_snapshot_delta(prev_snapshot, curr_snapshot, threshold):
     prev_keys = set(prev_snapshot.keys())
     curr_keys = set(curr_snapshot.keys())
     shared_keys = sorted(prev_keys & curr_keys)
@@ -444,12 +447,13 @@ def summarize_snapshot_delta(prev_snapshot, curr_snapshot):
         delta_pct = (curr_value / prev_value - 1.0) * 100.0
         delta_values.append(delta_pct)
 
-        if abs(delta_pct) <= DELTA_EPSILON_PCT:
+        effect = metric_effect(key[1], delta_pct, key[2])
+        status = status_symbol(effect, threshold)
+        if status == "=":
             unchanged += 1
             continue
 
-        effect = metric_effect(key[1], delta_pct, key[2])
-        if effect > 0:
+        if status == "+":
             improved += 1
             if best_improvement is None or effect > best_improvement[0]:
                 best_improvement = (effect, key, delta_pct)
@@ -484,7 +488,7 @@ def summarize_snapshot_delta(prev_snapshot, curr_snapshot):
     }
 
 
-def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
+def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent, threshold):
     shared_keys = sorted(
         set(prev_snapshot.keys()) & set(curr_snapshot.keys()),
         key=lambda key: (
@@ -499,6 +503,7 @@ def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
 
     improvements = []
     regressions = []
+    neutral_rows = []
     unchanged = 0
     skipped_zero = 0
 
@@ -512,11 +517,8 @@ def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
 
         delta_pct = (curr_value / prev_value - 1.0) * 100.0
         effect = metric_effect(metric, delta_pct, unit)
-        if abs(effect) <= DELTA_EPSILON_PCT:
-            unchanged += 1
-            continue
+        status = status_symbol(effect, threshold)
 
-        status = status_symbol(effect)
         row = [
             bench,
             metric,
@@ -525,6 +527,12 @@ def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
             format_pct(effect),
             status,
         ]
+        if status == "=":
+            unchanged += 1
+            if threshold > 0:
+                neutral_rows.append(row)
+            continue
+
         if effect > 0:
             improvements.append((effect, row))
         else:
@@ -538,11 +546,12 @@ def metric_delta_rows(prev_snapshot, curr_snapshot, color, percent):
         rows.append(colorize_row(row, "32") if color else row)
     for _effect, row in regressions:
         rows.append(colorize_row(row, "31") if color else row)
+    rows.extend(neutral_rows)
 
     return rows, len(improvements), len(regressions), unchanged, skipped_zero
 
 
-def print_metric_delta_table(prev_snapshot, curr_snapshot, color, label, percent):
+def print_metric_delta_table(prev_snapshot, curr_snapshot, color, label, percent, threshold):
     print("")
     print(f"Benchmark/metric changes ({label}):")
     rows, improved_count, regressed_count, unchanged_count, skipped_zero = metric_delta_rows(
@@ -550,6 +559,7 @@ def print_metric_delta_table(prev_snapshot, curr_snapshot, color, label, percent
         curr_snapshot,
         color,
         percent,
+        threshold,
     )
     if not rows:
         print("No changed comparable benchmark/metric pairs.")
@@ -562,16 +572,38 @@ def print_metric_delta_table(prev_snapshot, curr_snapshot, color, label, percent
         f"improved={improved_count}, regressed={regressed_count}, unchanged={unchanged_count}, "
         f"zero-baseline-skipped={skipped_zero}"
     )
+    if threshold > 0:
+        print(f"Significance threshold: |impact| > {threshold:.2f}%")
     print("Note: metric direction is miss rates/time/memory lower-better, throughput higher-better.")
     print("Note: status symbols use metric direction (+ improved, - regressed, = unchanged).")
 
 
-def resolve_compare_run(run_summaries, selector):
+def average_snapshots(snapshots):
+    by_key = defaultdict(list)
+    for snapshot in snapshots:
+        for key, value in snapshot.items():
+            by_key[key].append(value)
+
+    averaged = {}
+    for key, values in by_key.items():
+        averaged[key] = sum(values) / len(values)
+    return averaged
+
+
+def format_commit_run_window(first_timestamp, last_timestamp, run_count):
+    first = compact_timestamp(first_timestamp)
+    last = compact_timestamp(last_timestamp)
+    if run_count <= 1 or first == last:
+        return f"{first} (1 run)"
+    return f"{first}..{last} ({run_count} runs)"
+
+
+def resolve_compare_commit(filtered_rows, selector):
     selector = selector.strip()
     if not selector:
         raise SystemExit("--compare requires two non-empty commit selectors")
 
-    matches = sorted({r["commit"] for r in run_summaries if r["commit"] and r["commit"].startswith(selector)})
+    matches = sorted({r["commit"] for r in filtered_rows if r["commit"] and r["commit"].startswith(selector)})
     if not matches:
         raise SystemExit(f'No commit matched selector "{selector}" with current filters')
     if len(matches) > 1:
@@ -581,8 +613,27 @@ def resolve_compare_run(run_summaries, selector):
         )
 
     commit = matches[0]
-    candidates = [r for r in run_summaries if r["commit"] == commit]
-    return max(candidates, key=lambda r: r["timestamp"])
+    commit_rows = [r for r in filtered_rows if r["commit"] == commit]
+    if not commit_rows:
+        raise SystemExit(f'No rows matched commit selector "{selector}" with current filters')
+
+    by_timestamp = defaultdict(list)
+    for row in commit_rows:
+        by_timestamp[row["timestamp"]].append(row)
+
+    timestamps = sorted(by_timestamp.keys())
+    snapshots = []
+    for timestamp in timestamps:
+        summary = summarize_run(by_timestamp[timestamp])
+        snapshots.append(summary["snapshot"])
+
+    return {
+        "commit": commit,
+        "snapshot": average_snapshots(snapshots),
+        "run_count": len(timestamps),
+        "first_timestamp": timestamps[0],
+        "last_timestamp": timestamps[-1],
+    }
 
 
 def parse_compare_arg(compare):
@@ -593,7 +644,7 @@ def parse_compare_arg(compare):
     return parts[0], parts[1]
 
 
-def print_overview_legend(show_extremes):
+def print_overview_legend(show_extremes, threshold):
     print("")
     print("Legend:")
     print("- pairs: comparable bench+metric pairs shared with the previous run")
@@ -601,11 +652,13 @@ def print_overview_legend(show_extremes):
     print("- metric direction: miss rates/time/memory lower is better; throughput higher is better")
     print("- +new / -old: pairs only present in current/previous run")
     print("- net: improved - regressed")
+    if threshold > 0:
+        print(f"- significance threshold: |impact| > {threshold:.2f}%")
     if show_extremes:
         print("- best/worst: largest single-pair movement relative to previous run")
 
 
-def backend_overview(rows, backend, mode, description, show_extremes, compare, color, percent):
+def backend_overview(rows, backend, mode, description, show_extremes, compare, color, percent, threshold):
     if backend == "both":
         raise SystemExit("backend overview requires --backend default or --backend nested")
 
@@ -637,13 +690,16 @@ def backend_overview(rows, backend, mode, description, show_extremes, compare, c
 
     if compare:
         left_selector, right_selector = parse_compare_arg(compare)
-        left_run = resolve_compare_run(run_summaries, left_selector)
-        right_run = resolve_compare_run(run_summaries, right_selector)
+        left_run = resolve_compare_commit(filtered, left_selector)
+        right_run = resolve_compare_commit(filtered, right_selector)
 
-        delta = summarize_snapshot_delta(left_run["snapshot"], right_run["snapshot"])
+        delta = summarize_snapshot_delta(left_run["snapshot"], right_run["snapshot"], threshold)
         row = [
             f"{left_run['commit']} -> {right_run['commit']}",
-            f"{left_run['ts']} -> {right_run['ts']}",
+            (
+                f"{format_commit_run_window(left_run['first_timestamp'], left_run['last_timestamp'], left_run['run_count'])} "
+                f"-> {format_commit_run_window(right_run['first_timestamp'], right_run['last_timestamp'], right_run['run_count'])}"
+            ),
             str(delta["comparable"]),
             str(delta["improved"]),
             str(delta["regressed"]),
@@ -682,10 +738,18 @@ def backend_overview(rows, backend, mode, description, show_extremes, compare, c
             left_run["snapshot"],
             right_run["snapshot"],
             color,
-            f"{left_run['commit']} @ {left_run['ts']} -> {right_run['commit']} @ {right_run['ts']}",
+            (
+                f"{left_run['commit']} ({left_run['run_count']} run(s), "
+                f"{format_commit_run_window(left_run['first_timestamp'], left_run['last_timestamp'], left_run['run_count'])})"
+                " -> "
+                f"{right_run['commit']} ({right_run['run_count']} run(s), "
+                f"{format_commit_run_window(right_run['first_timestamp'], right_run['last_timestamp'], right_run['run_count'])})"
+            ),
             percent,
+            threshold,
         )
-        print_overview_legend(show_extremes)
+        print("Note: commit compare uses per-commit averages across all matching runs after filters.")
+        print_overview_legend(show_extremes, threshold)
         return
 
     run_rows = []
@@ -716,7 +780,7 @@ def backend_overview(rows, backend, mode, description, show_extremes, compare, c
             prev_snapshot = snapshot
             continue
 
-        delta = summarize_snapshot_delta(prev_snapshot, snapshot)
+        delta = summarize_snapshot_delta(prev_snapshot, snapshot, threshold)
         run_rows.append(
             [
                 compact_ts,
@@ -772,8 +836,9 @@ def backend_overview(rows, backend, mode, description, show_extremes, compare, c
             color,
             f"{first_run['commit']} @ {first_run['ts']} -> {last_run['commit']} @ {last_run['ts']}",
             percent,
+            threshold,
         )
-    print_overview_legend(show_extremes)
+    print_overview_legend(show_extremes, threshold)
 
 
 def aggregate_series(filtered):
@@ -823,7 +888,7 @@ def format_value(value, unit, percent):
     return value, display_unit(unit, percent)
 
 
-def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, percent, color):
+def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, percent, color, threshold):
     if not bench or not metric:
         raise SystemExit("series mode requires --bench and --metric")
 
@@ -935,7 +1000,7 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
                 effect = metric_effect(metric, delta_pct, unit)
                 delta_str = format_pct(delta_pct)
                 impact_str = format_pct(effect)
-                status = status_symbol(effect)
+                status = status_symbol(effect, threshold)
 
             row = [
                 backend_name,
@@ -958,6 +1023,8 @@ def series_rows(rows, bench, metric, mode, backend, plot, plot_width, raw, perce
         print("Note: sparklines are scaled per-backend (local min/max).")
         print("Note: metric direction is miss rates/time/memory lower-better, throughput higher-better.")
         print("Note: status symbols use metric direction (+ improved, - regressed, = unchanged).")
+        if threshold > 0:
+            print(f"Note: significance threshold for status/color is |impact| > {threshold:.2f}%.")
         if has_missing:
             print("Note: · in sparkline means missing data for that timestamp.")
 
@@ -994,6 +1061,7 @@ def main():
         "plot-width": "--plot-width",
         "color": "--color",
         "top": "--top",
+        "threshold": "--threshold",
         "percent": "--percent",
     }
     bool_keys = {
@@ -1110,7 +1178,10 @@ def main():
     parser.add_argument(
         "--compare",
         default="",
-        help="Compare two commits in backend overview mode: --compare commit1,commit2.",
+        help=(
+            "Compare two commits in backend overview mode using per-commit averages "
+            "across all matching runs: --compare commit1,commit2."
+        ),
     )
     parser.add_argument(
         "--plot",
@@ -1141,11 +1212,22 @@ def main():
         help="If >0, keep only the N largest absolute nested-vs-default deltas.",
     )
     parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.0,
+        help=(
+            "Significance threshold in percent for status/color. "
+            "Only impacts with absolute value greater than this are marked +/- and colored."
+        ),
+    )
+    parser.add_argument(
         "--percent",
         action="store_true",
         help="Display ratio units as percent (multiply by 100).",
     )
     args = parser.parse_args()
+    if args.threshold < 0:
+        raise SystemExit("--threshold must be >= 0")
 
     rows = load_rows(Path(args.csv))
 
@@ -1165,6 +1247,7 @@ def main():
             args.series_raw,
             args.percent,
             args.color,
+            args.threshold,
         )
         return
 
@@ -1178,6 +1261,7 @@ def main():
             args.compare,
             args.color,
             args.percent,
+            args.threshold,
         )
         return
 
@@ -1193,6 +1277,7 @@ def main():
             args.compare,
             args.color,
             args.percent,
+            args.threshold,
         )
         return
 
@@ -1218,6 +1303,7 @@ def main():
         args.plot,
         args.color,
         args.percent,
+        args.threshold,
     )
 
 
