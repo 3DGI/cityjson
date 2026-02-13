@@ -8,7 +8,7 @@ edition = "2024"
 description = "Types and accessor methods for representing semantic 3D city models in Rust, implementing the CityJSON specifications."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-rs"
-exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/"]
+exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/", "profiling/", "tools/", "docker/", "justfile"]
 
 [package.metadata]
 # Document platform requirements
