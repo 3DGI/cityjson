@@ -23,6 +23,7 @@ test:
     -cargo run --example cityjson_fake_complete_owned
     -cargo run --example attributes
     -cargo run --example streaming_geometry_instances
+    -cargo run --example quick_start
 
 miri:
     cargo +nightly miri test --all-features
