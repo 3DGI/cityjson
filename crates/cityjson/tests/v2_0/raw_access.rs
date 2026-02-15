@@ -1,5 +1,6 @@
 use cityjson::prelude::*;
 use cityjson::raw::RawAccess;
+use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
 use cityjson::v2_0::{
     CityModel, CityObject, CityObjectIdentifier, CityObjectType, Material, Semantic, SemanticType,
     Texture,

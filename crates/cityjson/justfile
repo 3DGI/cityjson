@@ -30,7 +30,7 @@ miri:
 
 # Build and open the crate documentation
 doc:
-    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
 
 # Extract the crate signatures to target/doc/cityjson.json
 doc-signatures:
