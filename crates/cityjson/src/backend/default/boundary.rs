@@ -49,6 +49,7 @@
 //!
 //! ```rust
 //! use cityjson::prelude::*;
+//! use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
 //!
 //! // Create a nested representation of a MultiPoint
 //! let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
@@ -94,6 +95,7 @@ use crate::error;
 ///
 /// ```
 /// use cityjson::prelude::*;
+/// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiLineString32;
 ///
 /// // Create a nested representation of a multi-linestring
 /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
@@ -334,6 +336,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
     ///
     /// // Create a boundary from a MultiPoint
     /// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
@@ -382,6 +385,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiLineString32;
     ///
     /// // Create a boundary from a MultiLineString
     /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
@@ -429,6 +433,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
     ///
     /// // Create a boundary from a MultiSurface
     /// // A simple MultiSurface with two surfaces, each with one ring
@@ -483,6 +488,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedSolid32;
     ///
     /// // Create a simplified solid representation (just one shell with one face for brevity)
     /// let solid: BoundaryNestedSolid32 = vec![
@@ -532,6 +538,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     ///
     /// // Create a very simplified MultiSolid (just two solids with minimal structure for brevity)
     /// let multi_solid: BoundaryNestedMultiOrCompositeSolid32 = vec![
@@ -679,6 +686,7 @@ impl<VR: VertexRef> Boundary<VR> {
     ///
     /// ```
     /// use cityjson::prelude::*;
+    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiLineString32;
     ///
     /// // Create a boundary from a MultiLineString
     /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![vec![0, 1, 2]];
@@ -787,6 +795,7 @@ impl<VR: VertexRef> Boundary<VR> {
 ///
 /// ```
 /// use cityjson::prelude::*;
+/// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
 ///
 /// // Create a boundary from a MultiPoint
 /// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
