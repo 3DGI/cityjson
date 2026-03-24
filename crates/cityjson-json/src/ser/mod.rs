@@ -1,3 +1,4 @@
+mod appearance;
 mod attributes;
 mod citymodel;
 mod geometry;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use cityjson::resources::handles::CityObjectHandle;
+use cityjson::resources::handles::{CityObjectHandle, GeometryTemplateHandle};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
     BBox, CityModel, CityObject, ContactRole, ContactType, Extension, Metadata, VertexRef,
@@ -8,6 +8,7 @@ use cityjson::v2_0::{
 use serde_json::{Map, Number, Value};
 
 use crate::errors::{Error, Result};
+use crate::ser::appearance::{appearance_to_json_value, geometry_templates_to_json_value};
 use crate::ser::attributes::attributes_to_json_map;
 use crate::ser::geometry::geometries_to_json_value;
 
@@ -16,29 +17,18 @@ where
     VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
-    if model.material_count() > 0 || model.texture_count() > 0 || model.semantic_count() > 0 {
-        return Err(Error::UnsupportedFeature(
-            "appearance serialization is not implemented yet",
-        ));
-    }
-    if !model.vertices_texture().is_empty()
-        || !model.template_vertices().is_empty()
-        || model.geometry_template_count() > 0
-    {
-        return Err(Error::UnsupportedFeature(
-            "geometry template serialization is not implemented yet",
-        ));
-    }
-
     let mut root = Map::new();
     root.insert(
         "type".to_owned(),
         Value::String(model.type_citymodel().to_string()),
     );
-    root.insert(
-        "version".to_owned(),
-        Value::String(model.version().unwrap_or_default().to_string()),
-    );
+    let mut template_indices = HashMap::<GeometryTemplateHandle, usize>::new();
+    if model.type_citymodel().to_string() != "CityJSONFeature" {
+        root.insert(
+            "version".to_owned(),
+            Value::String(model.version().unwrap_or_default().to_string()),
+        );
+    }
 
     if let Some(transform) = model.transform() {
         root.insert(
@@ -55,24 +45,29 @@ where
     }
 
     if let Some(extensions) = model.extensions() {
-        if !extensions.is_empty() {
-            let mut value = Map::new();
-            for extension in extensions {
-                value.insert(
-                    extension.name().as_ref().to_owned(),
-                    extension_to_json_value(extension),
-                );
-            }
-            root.insert("extensions".to_owned(), Value::Object(value));
+        let mut value = Map::new();
+        for extension in extensions {
+            value.insert(
+                extension.name().as_ref().to_owned(),
+                extension_to_json_value(extension),
+            );
         }
+        root.insert("extensions".to_owned(), Value::Object(value));
     }
 
     let id_by_handle = collect_cityobject_ids(model);
+    root.insert("vertices".to_owned(), vertices_to_json_value(model)?);
+    root.insert("appearance".to_owned(), appearance_to_json_value(model)?);
+
+    if model.type_citymodel().to_string() == "CityJSON" {
+        let (geometry_templates, indices) = geometry_templates_to_json_value(model)?;
+        template_indices = indices;
+        root.insert("geometry-templates".to_owned(), geometry_templates);
+    }
     root.insert(
         "CityObjects".to_owned(),
-        cityobjects_to_json_value(model, &id_by_handle)?,
+        cityobjects_to_json_value(model, &id_by_handle, &template_indices)?,
     );
-    root.insert("vertices".to_owned(), vertices_to_json_value(model)?);
 
     if let Some(extra) = model.extra() {
         root.extend(attributes_to_json_map(extra)?);
@@ -167,6 +162,7 @@ where
 fn cityobjects_to_json_value<VR, SS>(
     model: &CityModel<VR, SS>,
     id_by_handle: &HashMap<CityObjectHandle, String>,
+    template_indices: &HashMap<GeometryTemplateHandle, usize>,
 ) -> Result<Value>
 where
     VR: VertexRef + serde::Serialize,
@@ -179,7 +175,7 @@ where
             id_by_handle.get(&handle).cloned().ok_or_else(|| {
                 Error::InvalidValue(format!("missing id for CityObject {handle}"))
             })?,
-            cityobject_to_json_value(model, cityobject, id_by_handle)?,
+            cityobject_to_json_value(model, cityobject, id_by_handle, template_indices)?,
         );
     }
 
@@ -190,6 +186,7 @@ fn cityobject_to_json_value<VR, SS>(
     model: &CityModel<VR, SS>,
     cityobject: &CityObject<SS>,
     id_by_handle: &HashMap<CityObjectHandle, String>,
+    template_indices: &HashMap<GeometryTemplateHandle, usize>,
 ) -> Result<Value>
 where
     VR: VertexRef + serde::Serialize,
@@ -213,12 +210,10 @@ where
         }
     }
     if let Some(geometry) = cityobject.geometry() {
-        if !geometry.is_empty() {
-            value.insert(
-                "geometry".to_owned(),
-                geometries_to_json_value(model, geometry)?,
-            );
-        }
+        value.insert(
+            "geometry".to_owned(),
+            geometries_to_json_value(model, geometry, template_indices)?,
+        );
     }
     if let Some(parents) = cityobject.parents() {
         if !parents.is_empty() {
@@ -339,6 +334,7 @@ fn bbox_to_json_value(extent: &BBox) -> Value {
 fn contact_role_to_str(role: ContactRole) -> &'static str {
     match role {
         ContactRole::Author => "author",
+        ContactRole::CoAuthor => "co-author",
         ContactRole::Processor => "processor",
         ContactRole::PointOfContact => "pointOfContact",
         ContactRole::Owner => "owner",

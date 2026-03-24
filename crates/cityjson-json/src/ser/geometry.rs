@@ -1,4 +1,6 @@
-use cityjson::resources::handles::GeometryHandle;
+use std::collections::HashMap;
+
+use cityjson::resources::handles::{GeometryHandle, GeometryTemplateHandle};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{CityModel, Geometry, GeometryType, VertexRef};
 use serde_json::{Map, Value};
@@ -8,6 +10,7 @@ use crate::errors::{Error, Result};
 pub(crate) fn geometries_to_json_value<VR, SS>(
     model: &CityModel<VR, SS>,
     geometry_handles: &[GeometryHandle],
+    template_indices: &HashMap<GeometryTemplateHandle, usize>,
 ) -> Result<Value>
 where
     VR: VertexRef + serde::Serialize,
@@ -18,20 +21,35 @@ where
         let geometry = model
             .get_geometry(*handle)
             .ok_or_else(|| Error::InvalidValue(format!("missing geometry for handle {handle}")))?;
-        geometries.push(geometry_to_json_value(geometry)?);
+        geometries.push(geometry_to_json_value(geometry, Some(template_indices))?);
     }
     Ok(Value::Array(geometries))
 }
 
-fn geometry_to_json_value<VR, SS>(geometry: &Geometry<VR, SS>) -> Result<Value>
+pub(crate) fn geometry_to_json_value<VR, SS>(
+    geometry: &Geometry<VR, SS>,
+    template_indices: Option<&HashMap<GeometryTemplateHandle, usize>>,
+) -> Result<Value>
 where
     VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     if geometry.instance().is_some() {
-        return Err(Error::UnsupportedFeature(
-            "geometry template serialization is not implemented yet",
-        ));
+        let instance = geometry.instance().expect("checked above");
+        let template_index = template_indices
+            .and_then(|indices| indices.get(&instance.template()).copied())
+            .ok_or_else(|| {
+                Error::InvalidValue(format!(
+                    "missing dense template index for template {}",
+                    instance.template()
+                ))
+            })?;
+        return Ok(serde_json::json!({
+            "type": "GeometryInstance",
+            "template": template_index,
+            "boundaries": [instance.reference_point().value()],
+            "transformationMatrix": instance.transformation().into_array(),
+        }));
     }
     if geometry.semantics().is_some() {
         return Err(Error::UnsupportedFeature(
@@ -79,9 +97,7 @@ where
                 serde_json::to_value(boundaries.to_nested_multi_or_composite_solid()?)?
             }
             GeometryType::GeometryInstance => {
-                return Err(Error::UnsupportedFeature(
-                    "geometry template serialization is not implemented yet",
-                ));
+                unreachable!("handled above");
             }
             _ => {
                 return Err(Error::InvalidValue(format!(

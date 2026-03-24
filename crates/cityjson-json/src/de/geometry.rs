@@ -1,8 +1,10 @@
-use cityjson::resources::handles::GeometryHandle;
+use cityjson::resources::handles::{
+    GeometryHandle, GeometryTemplateHandle, MaterialHandle, TextureHandle,
+};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
-    BorrowedCityModel, CityModel, GeometryDraft, LineStringDraft, LoD, OwnedCityModel, PointDraft,
-    RingDraft, ShellDraft, SolidDraft, SurfaceDraft, VertexIndex,
+    AffineTransform3D, BorrowedCityModel, CityModel, GeometryDraft, LineStringDraft, LoD,
+    OwnedCityModel, PointDraft, RingDraft, ShellDraft, SolidDraft, SurfaceDraft, VertexIndex,
 };
 use serde::Deserialize;
 use serde_json::Value as OwnedJsonValue;
@@ -15,6 +17,13 @@ type MultiLineStringBoundary = Vec<MultiPointBoundary>;
 type MultiSurfaceBoundary = Vec<MultiLineStringBoundary>;
 type SolidBoundary = Vec<MultiSurfaceBoundary>;
 type MultiSolidBoundary = Vec<SolidBoundary>;
+
+#[derive(Debug, Default)]
+pub(crate) struct GeometryResources {
+    pub(crate) materials: Vec<MaterialHandle>,
+    pub(crate) textures: Vec<TextureHandle>,
+    pub(crate) templates: Vec<GeometryTemplateHandle>,
+}
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
@@ -203,11 +212,25 @@ pub(crate) enum RawGeometryBorrowed<'a> {
 pub(crate) fn import_owned_geometries(
     raw_geometries: Vec<RawGeometryOwned>,
     model: &mut OwnedCityModel,
+    resources: &GeometryResources,
 ) -> Result<Vec<GeometryHandle>> {
     raw_geometries
         .into_iter()
-        .map(|geometry| import_owned_geometry(geometry, model))
+        .map(|geometry| import_owned_geometry(geometry, model, resources))
         .collect()
+}
+
+pub(crate) fn import_owned_geometry_templates(
+    raw_geometries: Vec<RawGeometryOwned>,
+    model: &mut OwnedCityModel,
+    resources: &mut GeometryResources,
+) -> Result<()> {
+    for geometry in raw_geometries {
+        resources
+            .templates
+            .push(import_owned_template_geometry(geometry, model)?);
+    }
+    Ok(())
 }
 
 pub(crate) fn import_borrowed_geometries<'a>(
@@ -223,6 +246,7 @@ pub(crate) fn import_borrowed_geometries<'a>(
 fn import_owned_geometry(
     raw_geometry: RawGeometryOwned,
     model: &mut OwnedCityModel,
+    resources: &GeometryResources,
 ) -> Result<GeometryHandle> {
     match raw_geometry {
         RawGeometryOwned::MultiPoint {
@@ -328,12 +352,166 @@ fn import_owned_geometry(
             template,
             boundaries,
             transformation_matrix,
-        } => reject_geometry_instance(
+        } => import_geometry_instance(
             lod.as_deref(),
+            model,
+            resources,
             template,
             boundaries.as_ref(),
             transformation_matrix.as_ref(),
         ),
+    }
+}
+
+fn import_owned_template_geometry(
+    raw_geometry: RawGeometryOwned,
+    model: &mut OwnedCityModel,
+) -> Result<GeometryTemplateHandle> {
+    match raw_geometry {
+        RawGeometryOwned::MultiPoint {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            GeometryDraft::multi_point(
+                parse_lod(lod.as_deref())?,
+                boundaries.into_iter().map(point_draft),
+            )
+            .insert_template_into(model)
+            .map_err(Error::from)
+        }
+        RawGeometryOwned::MultiLineString {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let linestrings = boundaries.into_iter().map(|linestring| {
+                LineStringDraft::new(linestring.into_iter().map(VertexIndex::new))
+            });
+            GeometryDraft::multi_line_string(parse_lod(lod.as_deref())?, linestrings)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::MultiSurface {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let surfaces = boundaries
+                .into_iter()
+                .map(surface_draft::<cityjson::prelude::OwnedStringStorage>)
+                .collect::<Result<Vec<_>>>()?;
+            GeometryDraft::multi_surface(parse_lod(lod.as_deref())?, surfaces)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::CompositeSurface {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let surfaces = boundaries
+                .into_iter()
+                .map(surface_draft::<cityjson::prelude::OwnedStringStorage>)
+                .collect::<Result<Vec<_>>>()?;
+            GeometryDraft::composite_surface(parse_lod(lod.as_deref())?, surfaces)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::Solid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let mut shells = boundaries
+                .into_iter()
+                .map(solid_shell_draft::<cityjson::prelude::OwnedStringStorage>);
+            let outer = shells.next().transpose()?.ok_or_else(|| {
+                Error::InvalidValue("Solid geometry requires at least one shell".to_owned())
+            })?;
+            let inners = shells.collect::<Result<Vec<_>>>()?;
+            GeometryDraft::solid(parse_lod(lod.as_deref())?, outer, inners)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::MultiSolid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let solids = boundaries
+                .into_iter()
+                .map(solid_draft::<cityjson::prelude::OwnedStringStorage>)
+                .collect::<Result<Vec<_>>>()?;
+            GeometryDraft::multi_solid(parse_lod(lod.as_deref())?, solids)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::CompositeSolid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => {
+            reject_unsupported_mappings_owned(
+                semantics.as_ref(),
+                material.as_ref(),
+                texture.as_ref(),
+            )?;
+            let solids = boundaries
+                .into_iter()
+                .map(solid_draft::<cityjson::prelude::OwnedStringStorage>)
+                .collect::<Result<Vec<_>>>()?;
+            GeometryDraft::composite_solid(parse_lod(lod.as_deref())?, solids)
+                .insert_template_into(model)
+                .map_err(Error::from)
+        }
+        RawGeometryOwned::GeometryInstance { .. } => Err(Error::UnsupportedFeature(
+            "GeometryInstance cannot be used as a geometry template",
+        )),
     }
 }
 
@@ -445,7 +623,7 @@ fn import_borrowed_geometry<'a>(
             template,
             boundaries,
             transformation_matrix,
-        } => reject_geometry_instance(
+        } => reject_borrowed_geometry_instance(
             lod,
             template,
             boundaries.as_ref(),
@@ -555,6 +733,16 @@ fn shell_draft<SS: StringStorage>(surfaces: MultiSurfaceBoundary) -> Result<Shel
     Ok(ShellDraft::new(surfaces))
 }
 
+fn solid_shell_draft<SS: StringStorage>(
+    surfaces: MultiSurfaceBoundary,
+) -> Result<ShellDraft<u32, SS>> {
+    let surfaces = surfaces
+        .into_iter()
+        .map(surface_draft::<SS>)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(ShellDraft::new(surfaces))
+}
+
 fn solid_draft<SS: StringStorage>(shells: SolidBoundary) -> Result<SolidDraft<u32, SS>> {
     let mut shells = shells.into_iter().map(shell_draft::<SS>);
     let outer = shells.next().transpose()?.ok_or_else(|| {
@@ -564,10 +752,52 @@ fn solid_draft<SS: StringStorage>(shells: SolidBoundary) -> Result<SolidDraft<u3
     Ok(SolidDraft::new(outer, inners))
 }
 
-fn reject_geometry_instance(
+fn import_geometry_instance(
+    _lod: Option<&str>,
+    model: &mut OwnedCityModel,
+    resources: &GeometryResources,
+    template: Option<u32>,
+    boundaries: Option<&OwnedJsonValue>,
+    transformation_matrix: Option<&[f64; 16]>,
+) -> Result<GeometryHandle> {
+    let template = template.ok_or_else(|| {
+        Error::InvalidValue("GeometryInstance is missing a template index".to_owned())
+    })?;
+    let template = resources
+        .templates
+        .get(template as usize)
+        .copied()
+        .ok_or_else(|| {
+            Error::InvalidValue(format!("invalid geometry template index '{template}'"))
+        })?;
+
+    let reference_point = boundaries
+        .and_then(OwnedJsonValue::as_array)
+        .and_then(|values| values.first())
+        .and_then(OwnedJsonValue::as_u64)
+        .ok_or_else(|| {
+            Error::InvalidValue(
+                "GeometryInstance boundaries must contain a single reference-point index"
+                    .to_owned(),
+            )
+        })?;
+
+    GeometryDraft::instance(
+        template,
+        VertexIndex::new(reference_point as u32),
+        transformation_matrix
+            .copied()
+            .map(AffineTransform3D::from)
+            .unwrap_or_default(),
+    )
+    .insert_into(model)
+    .map_err(Error::from)
+}
+
+fn reject_borrowed_geometry_instance(
     _lod: Option<&str>,
     _template: Option<u32>,
-    _boundaries: Option<&impl Sized>,
+    _boundaries: Option<&BorrowedJsonValue<'_>>,
     _transformation_matrix: Option<&[f64; 16]>,
 ) -> Result<GeometryHandle> {
     Err(Error::UnsupportedFeature(

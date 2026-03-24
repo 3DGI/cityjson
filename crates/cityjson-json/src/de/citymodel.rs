@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use cityjson::resources::handles::CityObjectHandle;
 use cityjson::v2_0::{
     BBox, BorrowedCityModel, CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType,
-    Contact, ContactRole, ContactType, Date, Extension, Extensions, Metadata, OwnedCityModel,
-    RealWorldCoordinate, Transform, CRS,
+    Contact, ContactRole, ContactType, Date, Extension, Extensions, ImageType, Metadata,
+    OwnedCityModel, RealWorldCoordinate, TextureType, ThemeName, Transform, UVCoordinate, WrapMode,
+    CRS, RGB, RGBA,
 };
 use serde::Deserialize;
 use serde_json::Value as OwnedJsonValue;
@@ -14,7 +15,8 @@ use crate::de::attributes::{
     borrowed_attributes_from_json_owned, borrowed_attributes_from_map, owned_attributes_from_json,
 };
 use crate::de::geometry::{
-    import_borrowed_geometries, import_owned_geometries, RawGeometryBorrowed, RawGeometryOwned,
+    import_borrowed_geometries, import_owned_geometries, import_owned_geometry_templates,
+    GeometryResources, RawGeometryBorrowed, RawGeometryOwned,
 };
 use crate::de::header::parse_root_header;
 use crate::errors::{Error, Result};
@@ -82,7 +84,7 @@ struct RawCityObjectOwned {
     #[serde(default)]
     children: Vec<String>,
     #[serde(default)]
-    geometry: Vec<RawGeometryOwned>,
+    geometry: Option<Vec<RawGeometryOwned>>,
     #[serde(flatten)]
     extra: HashMap<String, OwnedJsonValue>,
 }
@@ -91,13 +93,14 @@ struct RawCityObjectOwned {
 struct RawRootOwned {
     #[serde(rename = "type")]
     type_name: String,
-    version: String,
+    #[serde(default)]
+    version: Option<String>,
     #[serde(default)]
     transform: Option<RawTransform>,
     #[serde(default)]
     metadata: Option<RawMetadataOwned>,
     #[serde(default)]
-    extensions: HashMap<String, RawExtensionOwned>,
+    extensions: Option<HashMap<String, RawExtensionOwned>>,
     #[serde(rename = "CityObjects")]
     cityobjects: HashMap<String, RawCityObjectOwned>,
     vertices: Vec<[f64; 3]>,
@@ -172,7 +175,7 @@ struct RawCityObjectBorrowed<'a> {
     #[serde(default, borrow)]
     children: Vec<&'a str>,
     #[serde(default, borrow)]
-    geometry: Vec<RawGeometryBorrowed<'a>>,
+    geometry: Option<Vec<RawGeometryBorrowed<'a>>>,
     #[serde(flatten, borrow)]
     extra: HashMap<&'a str, BorrowedJsonValue<'a>>,
 }
@@ -182,14 +185,14 @@ struct RawCityObjectBorrowed<'a> {
 struct RawRootBorrowed<'a> {
     #[serde(rename = "type", borrow)]
     type_name: &'a str,
-    #[serde(borrow)]
-    version: &'a str,
+    #[serde(default, borrow)]
+    version: Option<&'a str>,
     #[serde(default)]
     transform: Option<RawTransform>,
     #[serde(default, borrow)]
     metadata: Option<RawMetadataBorrowed<'a>>,
     #[serde(default, borrow)]
-    extensions: HashMap<&'a str, RawExtensionBorrowed<'a>>,
+    extensions: Option<HashMap<&'a str, RawExtensionBorrowed<'a>>>,
     #[serde(rename = "CityObjects", borrow)]
     cityobjects: HashMap<&'a str, RawCityObjectBorrowed<'a>>,
     vertices: Vec<[f64; 3]>,
@@ -226,13 +229,16 @@ pub(crate) fn from_str_borrowed<'a>(input: &'a str) -> Result<BorrowedCityModel<
 }
 
 fn build_owned_citymodel(raw: RawRootOwned) -> Result<OwnedCityModel> {
-    let header = parse_root_header(&raw.type_name, &raw.version)?;
+    let header = parse_root_header(&raw.type_name, raw.version.as_deref())?;
     let mut model = OwnedCityModel::new(header.type_citymodel);
     let transform = apply_transform(raw.transform, &mut model);
+    let mut resources = GeometryResources::default();
 
-    reject_unsupported_root_sections_owned(
+    import_owned_root_sections(
         raw.appearance.as_ref(),
         raw.geometry_templates.as_ref(),
+        &mut model,
+        &mut resources,
     )?;
     import_vertices(&raw.vertices, transform.as_ref(), &mut model)?;
 
@@ -240,8 +246,8 @@ fn build_owned_citymodel(raw: RawRootOwned) -> Result<OwnedCityModel> {
         *model.metadata_mut() = build_owned_metadata(metadata)?;
     }
 
-    if !raw.extensions.is_empty() {
-        *model.extensions_mut() = build_owned_extensions(raw.extensions);
+    if let Some(extensions) = raw.extensions {
+        *model.extensions_mut() = build_owned_extensions(extensions);
     }
 
     if !raw.extra.is_empty() {
@@ -249,7 +255,7 @@ fn build_owned_citymodel(raw: RawRootOwned) -> Result<OwnedCityModel> {
         *model.extra_mut() = owned_attributes_from_json(&value, "root extra properties")?;
     }
 
-    import_owned_cityobjects(raw.cityobjects, &mut model)?;
+    import_owned_cityobjects(raw.cityobjects, &mut model, &resources)?;
     debug_assert_eq!(model.version(), Some(header.version));
     Ok(model)
 }
@@ -269,8 +275,8 @@ fn build_borrowed_citymodel<'a>(raw: RawRootBorrowed<'a>) -> Result<BorrowedCity
         *model.metadata_mut() = build_borrowed_metadata(metadata)?;
     }
 
-    if !raw.extensions.is_empty() {
-        *model.extensions_mut() = build_borrowed_extensions(raw.extensions);
+    if let Some(extensions) = raw.extensions {
+        *model.extensions_mut() = build_borrowed_extensions(extensions);
     }
 
     if !raw.extra.is_empty() {
@@ -479,6 +485,7 @@ fn build_borrowed_contact<'a>(
 fn import_owned_cityobjects(
     raw_objects: HashMap<String, RawCityObjectOwned>,
     model: &mut OwnedCityModel,
+    resources: &GeometryResources,
 ) -> Result<()> {
     let mut handle_by_id = HashMap::with_capacity(raw_objects.len());
     let mut pending = Vec::with_capacity(raw_objects.len());
@@ -499,8 +506,14 @@ fn import_owned_cityobjects(
             let value = OwnedJsonValue::Object(raw_object.extra.into_iter().collect());
             *cityobject.extra_mut() = owned_attributes_from_json(&value, "CityObject extra")?;
         }
-        for geometry in import_owned_geometries(raw_object.geometry, model)? {
-            cityobject.add_geometry(geometry);
+        if let Some(raw_geometry) = raw_object.geometry {
+            if raw_geometry.is_empty() {
+                cityobject.clear_geometry();
+            } else {
+                for geometry in import_owned_geometries(raw_geometry, model, resources)? {
+                    cityobject.add_geometry(geometry);
+                }
+            }
         }
 
         let handle = model.cityobjects_mut().add(cityobject)?;
@@ -538,8 +551,14 @@ fn import_borrowed_cityobjects<'a>(
             *cityobject.extra_mut() =
                 borrowed_attributes_from_map(raw_object.extra, "CityObject extra")?;
         }
-        for geometry in import_borrowed_geometries(raw_object.geometry, model)? {
-            cityobject.add_geometry(geometry);
+        if let Some(raw_geometry) = raw_object.geometry {
+            if raw_geometry.is_empty() {
+                cityobject.clear_geometry();
+            } else {
+                for geometry in import_borrowed_geometries(raw_geometry, model)? {
+                    cityobject.add_geometry(geometry);
+                }
+            }
         }
 
         let handle = model.cityobjects_mut().add(cityobject)?;
@@ -656,6 +675,160 @@ fn reject_unsupported_root_sections_owned(
     Ok(())
 }
 
+#[derive(Deserialize)]
+struct RawAppearanceOwned {
+    #[serde(default)]
+    materials: Vec<RawMaterialOwned>,
+    #[serde(default)]
+    textures: Vec<RawTextureOwned>,
+    #[serde(rename = "vertices-texture", default)]
+    vertices_texture: Vec<[f32; 2]>,
+    #[serde(rename = "default-theme-material", default)]
+    default_theme_material: Option<String>,
+    #[serde(rename = "default-theme-texture", default)]
+    default_theme_texture: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawMaterialOwned {
+    name: String,
+    #[serde(rename = "ambientIntensity", default)]
+    ambient_intensity: Option<f32>,
+    #[serde(rename = "diffuseColor", default)]
+    diffuse_color: Option<[f32; 3]>,
+    #[serde(rename = "emissiveColor", default)]
+    emissive_color: Option<[f32; 3]>,
+    #[serde(rename = "specularColor", default)]
+    specular_color: Option<[f32; 3]>,
+    #[serde(default)]
+    shininess: Option<f32>,
+    #[serde(default)]
+    transparency: Option<f32>,
+    #[serde(rename = "isSmooth", default)]
+    is_smooth: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct RawTextureOwned {
+    #[serde(rename = "type")]
+    image_type: String,
+    image: String,
+    #[serde(rename = "wrapMode", default)]
+    wrap_mode: Option<String>,
+    #[serde(rename = "textureType", default)]
+    texture_type: Option<String>,
+    #[serde(rename = "borderColor", default)]
+    border_color: Option<[f32; 4]>,
+}
+
+#[derive(Deserialize)]
+struct RawGeometryTemplatesOwned {
+    #[serde(default)]
+    templates: Vec<RawGeometryOwned>,
+    #[serde(rename = "vertices-templates", default)]
+    vertices_templates: Vec<[f64; 3]>,
+}
+
+fn import_owned_root_sections(
+    appearance: Option<&OwnedJsonValue>,
+    geometry_templates: Option<&OwnedJsonValue>,
+    model: &mut OwnedCityModel,
+    resources: &mut GeometryResources,
+) -> Result<()> {
+    if let Some(appearance) = appearance {
+        let raw: RawAppearanceOwned = serde_json::from_value(appearance.clone())?;
+        for material in raw.materials {
+            let mut owned = cityjson::v2_0::appearance::material::OwnedMaterial::new(material.name);
+            owned.set_ambient_intensity(material.ambient_intensity);
+            owned.set_diffuse_color(material.diffuse_color.map(RGB::from));
+            owned.set_emissive_color(material.emissive_color.map(RGB::from));
+            owned.set_specular_color(material.specular_color.map(RGB::from));
+            owned.set_shininess(material.shininess);
+            owned.set_transparency(material.transparency);
+            owned.set_is_smooth(material.is_smooth);
+            resources.materials.push(model.add_material(owned)?);
+        }
+
+        for texture in raw.textures {
+            let mut owned = cityjson::v2_0::appearance::texture::OwnedTexture::new(
+                texture.image,
+                parse_image_type(&texture.image_type)?,
+            );
+            owned.set_wrap_mode(
+                texture
+                    .wrap_mode
+                    .as_deref()
+                    .map(parse_wrap_mode)
+                    .transpose()?,
+            );
+            owned.set_texture_type(
+                texture
+                    .texture_type
+                    .as_deref()
+                    .map(parse_texture_type)
+                    .transpose()?,
+            );
+            owned.set_border_color(texture.border_color.map(RGBA::from));
+            resources.textures.push(model.add_texture(owned)?);
+        }
+
+        for uv in raw.vertices_texture {
+            model.add_uv_coordinate(UVCoordinate::new(uv[0], uv[1]))?;
+        }
+
+        if let Some(theme) = raw.default_theme_material {
+            model.set_default_material_theme(Some(ThemeName::new(theme)));
+        }
+        if let Some(theme) = raw.default_theme_texture {
+            model.set_default_texture_theme(Some(ThemeName::new(theme)));
+        }
+    }
+
+    if let Some(geometry_templates) = geometry_templates {
+        let raw: RawGeometryTemplatesOwned = serde_json::from_value(geometry_templates.clone())?;
+        for vertex in raw.vertices_templates {
+            model.add_template_vertex(RealWorldCoordinate::new(vertex[0], vertex[1], vertex[2]))?;
+        }
+        import_owned_geometry_templates(raw.templates, model, resources)?;
+    }
+
+    Ok(())
+}
+
+fn parse_image_type(value: &str) -> Result<ImageType> {
+    match value {
+        "PNG" => Ok(ImageType::Png),
+        "JPG" => Ok(ImageType::Jpg),
+        _ => Err(Error::InvalidValue(format!(
+            "unsupported texture image type '{value}'"
+        ))),
+    }
+}
+
+fn parse_wrap_mode(value: &str) -> Result<WrapMode> {
+    match value {
+        "wrap" => Ok(WrapMode::Wrap),
+        "mirror" => Ok(WrapMode::Mirror),
+        "clamp" => Ok(WrapMode::Clamp),
+        "border" => Ok(WrapMode::Border),
+        "none" => Ok(WrapMode::None),
+        _ => Err(Error::InvalidValue(format!(
+            "unsupported texture wrapMode value '{value}'"
+        ))),
+    }
+}
+
+fn parse_texture_type(value: &str) -> Result<TextureType> {
+    match value {
+        "unknown" => Ok(TextureType::Unknown),
+        "specific" => Ok(TextureType::Specific),
+        "typical" => Ok(TextureType::Typical),
+        _ => Err(Error::InvalidValue(format!(
+            "unsupported texture textureType value '{value}'"
+        ))),
+    }
+}
+
 fn reject_unsupported_root_sections_borrowed(
     appearance: Option<&BorrowedJsonValue<'_>>,
     geometry_templates: Option<&BorrowedJsonValue<'_>>,
@@ -694,6 +867,7 @@ fn value_is_present_borrowed(value: &BorrowedJsonValue<'_>) -> bool {
 fn parse_contact_role(value: &str) -> Result<ContactRole> {
     match value {
         "author" => Ok(ContactRole::Author),
+        "co-author" => Ok(ContactRole::CoAuthor),
         "processor" => Ok(ContactRole::Processor),
         "pointOfContact" => Ok(ContactRole::PointOfContact),
         "owner" => Ok(ContactRole::Owner),

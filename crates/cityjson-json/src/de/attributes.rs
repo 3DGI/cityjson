@@ -70,12 +70,6 @@ fn owned_attribute_value_from_json(
     value: &OwnedJsonValue,
     context: &'static str,
 ) -> Result<OwnedAttributeValue> {
-    if is_geometry_attribute_object_owned(value) {
-        return Err(Error::UnsupportedFeature(
-            "geometry-valued attributes are not implemented yet",
-        ));
-    }
-
     Ok(match value {
         OwnedJsonValue::Null => OwnedAttributeValue::Null,
         OwnedJsonValue::Bool(value) => OwnedAttributeValue::Bool(*value),
@@ -116,12 +110,6 @@ fn borrowed_attribute_value_from_json_owned<'a>(
     value: BorrowedJsonValue<'a>,
     context: &'static str,
 ) -> Result<BorrowedAttributeValue<'a>> {
-    if is_geometry_attribute_object_borrowed(&value) {
-        return Err(Error::UnsupportedFeature(
-            "geometry-valued attributes are not implemented yet",
-        ));
-    }
-
     Ok(match value {
         BorrowedJsonValue::Null => BorrowedAttributeValue::Null,
         BorrowedJsonValue::Bool(value) => BorrowedAttributeValue::Bool(value),
@@ -163,16 +151,4 @@ fn cow_to_borrowed_str<'a>(value: Cow<'a, str>) -> &'a str {
         Cow::Borrowed(value) => value,
         Cow::Owned(value) => Box::leak(value.into_boxed_str()),
     }
-}
-
-fn is_geometry_attribute_object_owned(value: &OwnedJsonValue) -> bool {
-    value
-        .as_object()
-        .is_some_and(|object| object.contains_key("type") && object.contains_key("boundaries"))
-}
-
-fn is_geometry_attribute_object_borrowed(value: &BorrowedJsonValue<'_>) -> bool {
-    value
-        .as_object()
-        .is_some_and(|object| object.get("type").is_some() && object.get("boundaries").is_some())
 }
