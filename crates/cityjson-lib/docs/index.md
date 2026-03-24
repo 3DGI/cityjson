@@ -18,6 +18,7 @@ The future public API is intentionally small.
 - `cjlib::CityJSONVersion`
 - `cjlib::Error`
 - `cjlib::ErrorKind`
+- `cjlib::cityjson`
 
 ### Default JSON path
 
@@ -57,14 +58,16 @@ The facade should add only:
 - a small error surface
 - feature-gated format integration
 
-Everything else should come from `cityjson-rs`.
+Everything else should come from `cityjson-rs`, accessed explicitly through `cjlib::cityjson`.
+The wrapper boundary should stay explicit with `as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, and `AsMut`.
+It should not rely on `Deref` to blur the boundary.
 
 ## User Experience
 
 For most users, the expected workflow should be:
 
 1. read a CityJSON document or stream with `CityModel::from_*`
-2. work with the model through deref access to `cityjson-rs`
+2. access the inner model explicitly, then work with `cjlib::cityjson`
 3. drop down to `cjlib::json` when explicit format-boundary control is needed
 4. use feature-gated sibling modules for Arrow or Parquet transport
 

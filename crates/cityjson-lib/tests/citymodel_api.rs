@@ -3,7 +3,7 @@
 
 use std::io::Cursor;
 
-use cjlib::{CityJSONVersion, CityModel, CityModelType};
+use cjlib::{CityJSONVersion, CityModel};
 
 #[test]
 fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cjlib::Result<()> {
@@ -18,10 +18,24 @@ fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cjlib::Result<()>
 
 #[test]
 fn citymodel_is_a_thin_owned_wrapper_over_cityjson_rs() {
-    let model = CityModel::new(CityModelType::CityJSON);
+    let inner =
+        cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+    let mut model = CityModel::from(inner);
 
     let _: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
-    let _: &cjlib::cityjson::v2_0::OwnedCityModel = &model;
+    let _: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
+    let _: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_ref();
+    let _: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_mut();
+}
+
+#[test]
+fn advanced_model_access_flows_through_the_cityjson_crate_reexport() {
+    let inner =
+        cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+    let model = CityModel::from(inner);
+
+    let owned: cjlib::cityjson::v2_0::OwnedCityModel = model.into_inner();
+    let _ = owned;
 }
 
 #[test]

@@ -43,7 +43,10 @@ pub mod json {
 
     pub fn to_vec(model: &crate::CityModel) -> crate::Result<Vec<u8>>;
     pub fn to_string(model: &crate::CityModel) -> crate::Result<String>;
-    pub fn to_writer(writer: impl std::io::Write, model: &crate::CityModel) -> crate::Result<()>;
+    pub fn to_writer(
+        writer: &mut impl std::io::Write,
+        model: &crate::CityModel,
+    ) -> crate::Result<()>;
 }
 ```
 
@@ -61,6 +64,9 @@ That should remain explicit and format-qualified:
 - `json::to_vec`
 - `json::to_string`
 - `json::to_writer`
+
+The module should stay function-oriented.
+It does not need reader or writer builder types, extension-sniffing helpers, or a second public serde model.
 
 ## Probe Instead Of Ad Hoc Helpers
 
@@ -82,3 +88,9 @@ let version = cjlib::json::detect_version(bytes)?;
 ```
 
 `probe` is simpler for callers and avoids reparsing the same header multiple times.
+
+For the same reason, the probe surface should stay narrow:
+
+- `probe(bytes)` is enough
+- avoid `probe_file`
+- avoid `probe_reader`

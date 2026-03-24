@@ -84,20 +84,27 @@ json::to_writer(&mut writer, &model)?;
 ## Drop Down To `cityjson-rs` For Model Work
 
 `cjlib` should not proxy the entire model API.
-Once the model is loaded, most interaction should happen through the re-exported `cityjson-rs` types.
+Once the model is loaded, most interaction should happen through the re-exported `cityjson-rs` crate.
+That boundary should stay explicit rather than relying on `Deref`.
 
 ```rust
-use cjlib::{CityModel, CityModelType};
+let inner =
+    cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+let mut model = cjlib::CityModel::from(inner);
 
-let model = CityModel::new(CityModelType::CityJSON);
-let inner: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
-let _ = inner;
+let borrowed: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
+let _ = borrowed;
+let borrowed_mut: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
+let _ = borrowed_mut;
+let owned: cjlib::cityjson::v2_0::OwnedCityModel = model.into_inner();
+# let _ = owned;
 ```
 
 This is the key design point:
 
 - `cjlib` owns the entry points
 - `cityjson-rs` owns the model
+- `cjlib::cityjson` is the advanced access path
 
 ## Error Handling
 
@@ -111,6 +118,14 @@ assert_eq!(error.kind(), ErrorKind::Version);
 ```
 
 The exact display text may evolve, but the category-level contract should be stable.
+The intended stable categories are:
+
+- `ErrorKind::Io`
+- `ErrorKind::Syntax`
+- `ErrorKind::Version`
+- `ErrorKind::Shape`
+- `ErrorKind::Unsupported`
+- `ErrorKind::Model`
 
 ## Alternative Formats
 

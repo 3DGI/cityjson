@@ -16,7 +16,7 @@ The future public API is centered on:
 - `cjlib::ErrorKind`
 - `cjlib::json`
 - feature-gated format modules such as `cjlib::arrow` and `cjlib::parquet`
-- re-exports of `cityjson-rs` for advanced model access
+- `cjlib::cityjson` for advanced model access
 
 ## Default Path
 
@@ -69,6 +69,18 @@ Within `cjlib::json`, the intended surface is:
 - `to_vec`
 - `to_string`
 - `to_writer`
+
+For advanced model work, `cjlib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.
+The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, `AsMut`, and then work through `cjlib::cityjson`.
+
+`ErrorKind` should also stay intentionally small. The intended stable categories are:
+
+- `Io`
+- `Syntax`
+- `Version`
+- `Shape`
+- `Unsupported`
+- `Model`
 
 ## Status
 

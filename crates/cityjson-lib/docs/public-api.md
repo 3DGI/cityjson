@@ -23,9 +23,11 @@ The core user-facing surface should be:
 - `CityJSONVersion`
 - `Error`
 - `ErrorKind`
-- re-exports of `cityjson-rs` for advanced model access
+- `cityjson`, re-exported as a crate for advanced model access
 
 `CityModel` should remain a thin owned wrapper around `cityjson::v2_0::OwnedCityModel`.
+`cjlib` should avoid scattering lots of cherry-picked `cityjson-rs` items at the crate root.
+The clean advanced path is `cjlib::cityjson::...`.
 
 ## Default Entry Point
 
@@ -92,29 +94,50 @@ This gives a clean rule:
 - reading convenience aliases live on `CityModel`
 - format-boundary control and serialization live in `cjlib::json`
 
-## Relationship To `cityjson-rs`
+## Model Boundary
 
-`cjlib` should not mirror the whole `cityjson-rs` API.
-Once a model is loaded, callers should be able to drop down to the re-exported model crate directly.
+`cjlib` should not mirror the whole `cityjson-rs` API, and `CityModel` should not pretend to be the whole inner model via implicit `Deref`.
+The boundary should stay explicit:
 
 ```rust,ignore
-use cjlib::{CityModel, CityModelType};
+let inner =
+    cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+let mut model = cjlib::CityModel::from(inner);
 
-let model = CityModel::new(CityModelType::CityJSON);
-let inner: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
-let _ = inner;
+let borrowed: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
+let _ = borrowed;
+let borrowed_mut: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
+let _ = borrowed_mut;
+let as_ref_model: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_ref();
+let _ = as_ref_model;
+let as_mut_model: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_mut();
+let _ = as_mut_model;
+let owned: cjlib::cityjson::v2_0::OwnedCityModel = model.into_inner();
+# let _ = owned;
 ```
 
 This keeps the split clean:
 
 - `cjlib` is the facade
 - `cityjson-rs` is the model
+- conversions are explicit
+- the root namespace stays small
+
+For advanced work, callers should import from `cjlib::cityjson`, not from a `cjlib`-specific prelude.
 
 ## Error Surface
 
 The public error API should be structured.
 
 `Error` should remain the main error type, but callers should be able to branch on a small stable category enum such as `ErrorKind`.
+The preferred taxonomy is intentionally small:
+
+- `Io`
+- `Syntax`
+- `Version`
+- `Shape`
+- `Unsupported`
+- `Model`
 
 The goal is to support code like this:
 
@@ -126,6 +149,7 @@ assert_eq!(error.kind(), ErrorKind::Version);
 ```
 
 That is a better public contract than matching on formatted error strings.
+It is also simpler to maintain than a very granular error enum that mirrors every internal parsing branch.
 
 ## Alternative Format Modules
 
