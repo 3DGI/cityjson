@@ -12,6 +12,7 @@ site
 # Profiling
 /experiments/profiling/massif*
 /experiments/profiling/xtmemory*
+**/*.zst
 
 # Virtual environment
 /venv/
@@ -23,3 +24,6 @@ notes.md
 # Data
 /tests/output/*.json
 /tests/output/*.jsonl
+experiments/data/*
+experiments/geometry-enum/benches/data/*
+
