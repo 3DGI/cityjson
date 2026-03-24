@@ -13,6 +13,9 @@ use serde_json_borrow::Value as BorrowedJsonValue;
 use crate::de::attributes::{
     borrowed_attributes_from_json_owned, borrowed_attributes_from_map, owned_attributes_from_json,
 };
+use crate::de::geometry::{
+    import_borrowed_geometries, import_owned_geometries, RawGeometryBorrowed, RawGeometryOwned,
+};
 use crate::de::header::parse_root_header;
 use crate::errors::{Error, Result};
 
@@ -79,7 +82,7 @@ struct RawCityObjectOwned {
     #[serde(default)]
     children: Vec<String>,
     #[serde(default)]
-    geometry: Vec<OwnedJsonValue>,
+    geometry: Vec<RawGeometryOwned>,
     #[serde(flatten)]
     extra: HashMap<String, OwnedJsonValue>,
 }
@@ -169,7 +172,7 @@ struct RawCityObjectBorrowed<'a> {
     #[serde(default, borrow)]
     children: Vec<&'a str>,
     #[serde(default, borrow)]
-    geometry: Vec<BorrowedJsonValue<'a>>,
+    geometry: Vec<RawGeometryBorrowed<'a>>,
     #[serde(flatten, borrow)]
     extra: HashMap<&'a str, BorrowedJsonValue<'a>>,
 }
@@ -481,12 +484,6 @@ fn import_owned_cityobjects(
     let mut pending = Vec::with_capacity(raw_objects.len());
 
     for (id, raw_object) in raw_objects {
-        if !raw_object.geometry.is_empty() {
-            return Err(Error::UnsupportedFeature(
-                "geometry import is not implemented yet",
-            ));
-        }
-
         let type_cityobject = parse_owned_cityobject_type(&raw_object.type_name)?;
         let mut cityobject =
             CityObject::new(CityObjectIdentifier::new(id.clone()), type_cityobject);
@@ -501,6 +498,9 @@ fn import_owned_cityobjects(
         if !raw_object.extra.is_empty() {
             let value = OwnedJsonValue::Object(raw_object.extra.into_iter().collect());
             *cityobject.extra_mut() = owned_attributes_from_json(&value, "CityObject extra")?;
+        }
+        for geometry in import_owned_geometries(raw_object.geometry, model)? {
+            cityobject.add_geometry(geometry);
         }
 
         let handle = model.cityobjects_mut().add(cityobject)?;
@@ -524,12 +524,6 @@ fn import_borrowed_cityobjects<'a>(
     let mut pending = Vec::with_capacity(raw_objects.len());
 
     for (id, raw_object) in raw_objects {
-        if !raw_object.geometry.is_empty() {
-            return Err(Error::UnsupportedFeature(
-                "geometry import is not implemented yet",
-            ));
-        }
-
         let type_cityobject = parse_borrowed_cityobject_type(raw_object.type_name)?;
         let mut cityobject = CityObject::new(CityObjectIdentifier::new(id), type_cityobject);
 
@@ -543,6 +537,9 @@ fn import_borrowed_cityobjects<'a>(
         if !raw_object.extra.is_empty() {
             *cityobject.extra_mut() =
                 borrowed_attributes_from_map(raw_object.extra, "CityObject extra")?;
+        }
+        for geometry in import_borrowed_geometries(raw_object.geometry, model)? {
+            cityobject.add_geometry(geometry);
         }
 
         let handle = model.cityobjects_mut().add(cityobject)?;

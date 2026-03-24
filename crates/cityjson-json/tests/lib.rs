@@ -61,6 +61,110 @@ fn baseline_json() -> serde_json::Value {
     })
 }
 
+fn geometry_fixture_json() -> serde_json::Value {
+    json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "CityObjects": {
+            "multipoint": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "MultiPoint",
+                    "lod": "1",
+                    "boundaries": [0, 1, 2]
+                }]
+            },
+            "multiline": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "MultiLineString",
+                    "lod": "1",
+                    "boundaries": [[0, 1, 2], [2, 3, 0]]
+                }]
+            },
+            "multisurface": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "MultiSurface",
+                    "lod": "2",
+                    "boundaries": [[[0, 1, 2, 3]], [[4, 5, 6, 7]]]
+                }]
+            },
+            "composite_surface": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "CompositeSurface",
+                    "lod": "2",
+                    "boundaries": [[[0, 1, 5, 4]], [[1, 2, 6, 5]]]
+                }]
+            },
+            "solid": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "Solid",
+                    "lod": "2",
+                    "boundaries": [[
+                        [[0, 1, 2, 3]],
+                        [[4, 5, 6, 7]],
+                        [[0, 1, 5, 4]],
+                        [[1, 2, 6, 5]],
+                        [[2, 3, 7, 6]],
+                        [[3, 0, 4, 7]]
+                    ]]
+                }]
+            },
+            "multisolid": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "MultiSolid",
+                    "lod": "2",
+                    "boundaries": [
+                        [[
+                            [[0, 1, 2, 3]],
+                            [[4, 5, 6, 7]],
+                            [[0, 1, 5, 4]],
+                            [[1, 2, 6, 5]],
+                            [[2, 3, 7, 6]],
+                            [[3, 0, 4, 7]]
+                        ]],
+                        [[
+                            [[0, 1, 2, 3]],
+                            [[4, 5, 6, 7]],
+                            [[0, 3, 7, 4]],
+                            [[1, 2, 6, 5]]
+                        ]]
+                    ]
+                }]
+            },
+            "composite_solid": {
+                "type": "GenericCityObject",
+                "geometry": [{
+                    "type": "CompositeSolid",
+                    "lod": "2",
+                    "boundaries": [
+                        [[
+                            [[0, 1, 2, 3]],
+                            [[4, 5, 6, 7]],
+                            [[0, 1, 5, 4]],
+                            [[1, 2, 6, 5]]
+                        ]]
+                    ]
+                }]
+            }
+        },
+        "vertices": [
+            [0, 0, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+            [0, 1, 1]
+        ]
+    })
+}
+
 fn parse_owned(value: &serde_json::Value) -> OwnedCityModel {
     from_str_owned(&value.to_string()).unwrap()
 }
@@ -99,6 +203,21 @@ fn borrowed_and_owned_parity_match() {
 
     assert_eq!(owned_json, borrowed_json);
     assert_eq!(owned_json, input);
+}
+
+#[test]
+fn regular_geometry_roundtrips_for_owned_and_borrowed_models() {
+    let input = geometry_fixture_json();
+    let owned = parse_owned(&input);
+    let borrowed = parse_borrowed(&input);
+
+    assert_eq!(owned.iter_geometries().count(), 7);
+    assert_eq!(serde_json::to_value(as_json(&owned)).unwrap(), input);
+    assert_eq!(serde_json::to_value(as_json(&borrowed)).unwrap(), input);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&to_string(&owned).unwrap()).unwrap(),
+        input
+    );
 }
 
 #[test]
@@ -146,7 +265,7 @@ fn unresolved_cityobject_reference_is_rejected() {
 }
 
 #[test]
-fn geometry_import_is_explicitly_rejected_for_now() {
+fn geometry_semantics_are_explicitly_rejected_for_now() {
     let err = from_str_owned(
         &json!({
             "type": "CityJSON",
@@ -157,7 +276,11 @@ fn geometry_import_is_explicitly_rejected_for_now() {
                     "geometry": [{
                         "type": "MultiSurface",
                         "lod": "2",
-                        "boundaries": [[[0, 1, 2]]]
+                        "boundaries": [[[0, 1, 2]]],
+                        "semantics": {
+                            "surfaces": [{"type": "RoofSurface"}],
+                            "values": [0]
+                        }
                     }]
                 }
             },
@@ -168,6 +291,6 @@ fn geometry_import_is_explicitly_rejected_for_now() {
     .unwrap_err();
 
     assert!(
-        matches!(err, Error::UnsupportedFeature(feature) if feature == "geometry import is not implemented yet")
+        matches!(err, Error::UnsupportedFeature(feature) if feature == "geometry semantics import is not implemented yet")
     );
 }

@@ -9,17 +9,13 @@ use serde_json::{Map, Number, Value};
 
 use crate::errors::{Error, Result};
 use crate::ser::attributes::attributes_to_json_map;
+use crate::ser::geometry::geometries_to_json_value;
 
 pub(crate) fn citymodel_to_json_value<VR, SS>(model: &CityModel<VR, SS>) -> Result<Value>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
-    if model.iter_geometries().next().is_some() {
-        return Err(Error::UnsupportedFeature(
-            "geometry serialization is not implemented yet",
-        ));
-    }
     if model.material_count() > 0 || model.texture_count() > 0 || model.semantic_count() > 0 {
         return Err(Error::UnsupportedFeature(
             "appearance serialization is not implemented yet",
@@ -173,7 +169,7 @@ fn cityobjects_to_json_value<VR, SS>(
     id_by_handle: &HashMap<CityObjectHandle, String>,
 ) -> Result<Value>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     let mut value = Map::new();
@@ -183,29 +179,22 @@ where
             id_by_handle.get(&handle).cloned().ok_or_else(|| {
                 Error::InvalidValue(format!("missing id for CityObject {handle}"))
             })?,
-            cityobject_to_json_value(cityobject, id_by_handle)?,
+            cityobject_to_json_value(model, cityobject, id_by_handle)?,
         );
     }
 
     Ok(Value::Object(value))
 }
 
-fn cityobject_to_json_value<SS>(
+fn cityobject_to_json_value<VR, SS>(
+    model: &CityModel<VR, SS>,
     cityobject: &CityObject<SS>,
     id_by_handle: &HashMap<CityObjectHandle, String>,
 ) -> Result<Value>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
-    if cityobject
-        .geometry()
-        .is_some_and(|geometry| !geometry.is_empty())
-    {
-        return Err(Error::UnsupportedFeature(
-            "geometry serialization is not implemented yet",
-        ));
-    }
-
     let mut value = Map::new();
     value.insert(
         "type".to_owned(),
@@ -220,6 +209,14 @@ where
             value.insert(
                 "attributes".to_owned(),
                 Value::Object(attributes_to_json_map(attributes)?),
+            );
+        }
+    }
+    if let Some(geometry) = cityobject.geometry() {
+        if !geometry.is_empty() {
+            value.insert(
+                "geometry".to_owned(),
+                geometries_to_json_value(model, geometry)?,
             );
         }
     }

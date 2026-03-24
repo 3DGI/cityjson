@@ -14,7 +14,7 @@ pub fn from_str_borrowed<'a>(input: &'a str) -> Result<BorrowedCityModel<'a>> {
 
 pub fn to_string<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
 where
-    VR: VertexRef,
+    VR: VertexRef + Serialize,
     SS: StringStorage,
 {
     Ok(serde_json::to_string(&as_json(model))?)
@@ -22,7 +22,7 @@ where
 
 pub fn as_json<'a, VR, SS>(model: &'a CityModel<VR, SS>) -> SerializableCityModel<'a, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + Serialize,
     SS: StringStorage,
 {
     SerializableCityModel { model }
@@ -30,7 +30,7 @@ where
 
 pub struct SerializableCityModel<'a, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + Serialize,
     SS: StringStorage,
 {
     pub(crate) model: &'a CityModel<VR, SS>,
@@ -38,7 +38,7 @@ where
 
 impl<VR, SS> Serialize for SerializableCityModel<'_, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
