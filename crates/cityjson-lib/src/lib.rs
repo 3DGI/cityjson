@@ -1,4 +1,5 @@
 mod attributes;
+mod boundary;
 mod cityobject;
 pub mod errors;
 mod extensions;
