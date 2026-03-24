@@ -53,7 +53,9 @@ When the caller wants explicit format handling, the API should move into modules
 use cjlib::{json, CityJSONVersion};
 
 let bytes = std::fs::read("amsterdam.city.json")?;
-assert_eq!(json::detect_version(&bytes)?, CityJSONVersion::V2_0);
+let probe = json::probe(&bytes)?;
+assert_eq!(probe.kind(), json::RootKind::CityJSON);
+assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
 let model = json::from_slice(&bytes)?;
 # Ok::<(), cjlib::Error>(())
@@ -63,6 +65,21 @@ The same pattern should scale to sibling transport crates:
 
 - `cjlib::arrow`
 - `cjlib::parquet`
+
+The explicit JSON module should also own serialization:
+
+```rust
+use cjlib::{json, CityModel};
+
+let model = CityModel::from_file("amsterdam.city.json")?;
+let bytes = json::to_vec(&model)?;
+let text = json::to_string(&model)?;
+
+let mut writer = Vec::new();
+json::to_writer(&mut writer, &model)?;
+# let _ = (bytes, text, writer);
+# Ok::<(), cjlib::Error>(())
+```
 
 ## Drop Down To `cityjson-rs` For Model Work
 
@@ -81,6 +98,19 @@ This is the key design point:
 
 - `cjlib` owns the entry points
 - `cityjson-rs` owns the model
+
+## Error Handling
+
+The public error API should be structured enough for callers to branch on categories without matching strings.
+
+```rust
+use cjlib::{json, ErrorKind};
+
+let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
+assert_eq!(error.kind(), ErrorKind::Version);
+```
+
+The exact display text may evolve, but the category-level contract should be stable.
 
 ## Alternative Formats
 

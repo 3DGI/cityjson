@@ -17,6 +17,7 @@ The future public API is intentionally small.
 - `cjlib::CityModel`
 - `cjlib::CityJSONVersion`
 - `cjlib::Error`
+- `cjlib::ErrorKind`
 
 ### Default JSON path
 
@@ -38,6 +39,13 @@ The design goal is:
 
 - top-level methods for the common CityJSON path
 - module-qualified methods for format-specific behavior
+
+For JSON, that explicit boundary module should own:
+
+- probing
+- parsing
+- serialization
+- stream aggregation
 
 ## Working Model
 
@@ -68,3 +76,4 @@ The future `cjlib` API should not:
 - expose indexed JSON internals as the normal user-facing API
 - duplicate parsing or conversion logic that belongs in `serde_cityjson`
 - absorb storage invariants that belong in `cityjson-rs`
+- require callers to match on error strings for normal control flow

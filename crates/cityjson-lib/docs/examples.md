@@ -7,7 +7,9 @@ These examples describe the intended `cjlib` API for the rewrite.
 - [`examples/json_feature_stream.rs`](../examples/json_feature_stream.rs)
   Aggregate a strict `CityJSON` plus `CityJSONFeature` stream with `CityModel::from_stream`.
 - [`examples/explicit_json_module.rs`](../examples/explicit_json_module.rs)
-  Use the future `cjlib::json` module for explicit format-boundary control.
+  Use the future `cjlib::json` module for explicit probing and parsing.
+- [`examples/json_roundtrip.rs`](../examples/json_roundtrip.rs)
+  Use the explicit JSON boundary module for serialization and round-tripping.
 - [`examples/alternate_formats.rs`](../examples/alternate_formats.rs)
   Show the intended feature-gated module pattern for Arrow and Parquet backends.
 

@@ -22,6 +22,7 @@ The core user-facing surface should be:
 - `CityModel`
 - `CityJSONVersion`
 - `Error`
+- `ErrorKind`
 - re-exports of `cityjson-rs` for advanced model access
 
 `CityModel` should remain a thin owned wrapper around `cityjson::v2_0::OwnedCityModel`.
@@ -68,11 +69,28 @@ Example:
 use cjlib::{json, CityJSONVersion};
 
 let bytes = std::fs::read("rotterdam.city.json")?;
-assert_eq!(json::detect_version(&bytes)?, CityJSONVersion::V2_0);
+let probe = json::probe(&bytes)?;
+assert_eq!(probe.kind(), json::RootKind::CityJSON);
+assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
 let model = json::from_slice(&bytes)?;
 # Ok::<(), cjlib::Error>(())
 ```
+
+For simplicity, the explicit `json` boundary should own all JSON-specific operations:
+
+- `probe`
+- `from_slice`
+- `from_file`
+- `from_stream`
+- `to_vec`
+- `to_string`
+- `to_writer`
+
+This gives a clean rule:
+
+- reading convenience aliases live on `CityModel`
+- format-boundary control and serialization live in `cjlib::json`
 
 ## Relationship To `cityjson-rs`
 
@@ -91,6 +109,23 @@ This keeps the split clean:
 
 - `cjlib` is the facade
 - `cityjson-rs` is the model
+
+## Error Surface
+
+The public error API should be structured.
+
+`Error` should remain the main error type, but callers should be able to branch on a small stable category enum such as `ErrorKind`.
+
+The goal is to support code like this:
+
+```rust,ignore
+use cjlib::{json, ErrorKind};
+
+let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
+assert_eq!(error.kind(), ErrorKind::Version);
+```
+
+That is a better public contract than matching on formatted error strings.
 
 ## Alternative Format Modules
 

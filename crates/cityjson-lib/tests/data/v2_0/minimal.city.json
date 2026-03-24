@@ -1,0 +1,112 @@
+{
+  "type": "CityJSON",
+  "version": "2.0.1",
+  "transform": {
+    "scale": [0.5, 0.5, 1.0],
+    "translate": [10.0, 20.0, 0.0]
+  },
+  "extensions": {
+    "Noise": {
+      "url": "https://example.com/noise",
+      "version": "0.1.0"
+    }
+  },
+  "metadata": {
+    "title": "Facade Fixture",
+    "identifier": "fixture-1",
+    "referenceDate": "2026-03-24",
+    "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/7415",
+    "geographicalExtent": [10.0, 20.0, 0.0, 11.0, 21.0, 1.0],
+    "pointOfContact": {
+      "contactName": "Alice",
+      "emailAddress": "alice@example.com",
+      "role": "author",
+      "contactType": "individual"
+    }
+  },
+  "custom-root": {
+    "ok": true
+  },
+  "CityObjects": {
+    "building-1": {
+      "type": "Building",
+      "children": ["building-part-1"],
+      "attributes": {
+        "name": "Main",
+        "levels": 3
+      },
+      "geometry": [
+        {
+          "type": "MultiSurface",
+          "lod": "2.2",
+          "boundaries": [
+            [[0, 1, 2, 3, 0]]
+          ],
+          "semantics": {
+            "surfaces": [
+              {
+                "type": "RoofSurface",
+                "slope": 30.0
+              }
+            ],
+            "values": [0]
+          },
+          "material": {
+            "themeA": {
+              "value": 0
+            }
+          },
+          "texture": {
+            "themeT": {
+              "values": [
+                [[0, 0, 1, 2, 3, 0]]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "building-part-1": {
+      "type": "BuildingPart",
+      "parents": ["building-1"],
+      "attributes": {
+        "usage": "residential"
+      },
+      "geometry": [
+        {
+          "type": "MultiPoint",
+          "boundaries": [4]
+        }
+      ]
+    }
+  },
+  "vertices": [
+    [0, 0, 0],
+    [2, 0, 0],
+    [2, 2, 0],
+    [0, 2, 0],
+    [4, 4, 0]
+  ],
+  "appearance": {
+    "materials": [
+      {
+        "name": "roof",
+        "diffuseColor": [0.8, 0.2, 0.1]
+      }
+    ],
+    "textures": [
+      {
+        "image": "roof.png",
+        "type": "PNG",
+        "wrapMode": "wrap",
+        "textureType": "specific"
+      }
+    ],
+    "vertices-texture": [
+      [0.0, 0.0],
+      [1.0, 0.0],
+      [1.0, 1.0],
+      [0.0, 1.0]
+    ]
+  }
+}

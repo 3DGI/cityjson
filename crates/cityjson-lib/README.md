@@ -12,6 +12,8 @@ The future public API is centered on:
 
 - `cjlib::CityModel`
 - `cjlib::CityJSONVersion`
+- `cjlib::Error`
+- `cjlib::ErrorKind`
 - `cjlib::json`
 - feature-gated format modules such as `cjlib::arrow` and `cjlib::parquet`
 - re-exports of `cityjson-rs` for advanced model access
@@ -35,6 +37,18 @@ let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityOb
 
 The top-level constructors are only the convenience path for CityJSON JSON.
 
+Serialization should be explicit and format-qualified:
+
+```rust
+use cjlib::{json, CityModel};
+
+let model = CityModel::from_file("rotterdam.city.json")?;
+let bytes = json::to_vec(&model)?;
+let text = json::to_string(&model)?;
+# let _ = (bytes, text);
+# Ok::<(), cjlib::Error>(())
+```
+
 Alternative encodings and containers should live in explicit modules:
 
 - `cjlib::json`
@@ -45,6 +59,16 @@ That keeps the facade predictable:
 
 - `CityModel::from_*` means CityJSON JSON / JSONL
 - explicit modules mean explicit formats
+
+Within `cjlib::json`, the intended surface is:
+
+- `probe`
+- `from_slice`
+- `from_file`
+- `from_stream`
+- `to_vec`
+- `to_string`
+- `to_writer`
 
 ## Status
 
