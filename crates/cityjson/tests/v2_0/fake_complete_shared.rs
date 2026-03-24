@@ -225,7 +225,9 @@ where
 
     let material_irradiation = model.add_material(irradiation)?;
     let material_red = model.add_material(red)?;
-    model.set_default_theme_material(Some(material_irradiation))?;
+    model.set_default_material_theme(Some(ThemeName::new(SS::store(string(
+        &appearance["default-theme-material"],
+    )))));
 
     let texture_json = &array(&appearance["textures"])[0];
     let mut texture = Texture::new(
@@ -237,7 +239,9 @@ where
     texture.set_border_color(Some(rgba(&texture_json["borderColor"])));
 
     let texture_handle = model.add_texture(texture)?;
-    model.set_default_theme_texture(Some(texture_handle))?;
+    model.set_default_texture_theme(Some(ThemeName::new(SS::store(string(
+        &appearance["default-theme-texture"],
+    )))));
 
     Ok(Appearance {
         material_irradiation,
@@ -354,25 +358,34 @@ where
 
     let roof_ring = [vertices.v0, vertices.v3, vertices.v2, vertices.v1];
     let textured_ring = RingDraft::new(roof_ring).with_texture(
-        SS::store(appearance.texture_theme),
+        ThemeName::new(SS::store(appearance.texture_theme)),
         appearance.texture,
         [[0.0, 0.5], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
     );
 
     let surface_0 = SurfaceDraft::new(textured_ring.clone(), [])
         .with_semantic(roof_semantic)
-        .with_material(SS::store("irradiation"), appearance.material_irradiation)
-        .with_material(SS::store("red"), appearance.material_red);
+        .with_material(
+            ThemeName::new(SS::store("irradiation")),
+            appearance.material_irradiation,
+        )
+        .with_material(ThemeName::new(SS::store("red")), appearance.material_red);
     let surface_1 = SurfaceDraft::new(textured_ring, [])
         .with_semantic(roof_semantic)
-        .with_material(SS::store("irradiation"), appearance.material_irradiation)
-        .with_material(SS::store("red"), appearance.material_red);
+        .with_material(
+            ThemeName::new(SS::store("irradiation")),
+            appearance.material_irradiation,
+        )
+        .with_material(ThemeName::new(SS::store("red")), appearance.material_red);
     let surface_2 = SurfaceDraft::new(RingDraft::new(roof_ring), [])
-        .with_material(SS::store("irradiation"), appearance.material_irradiation)
-        .with_material(SS::store("red"), appearance.material_red);
+        .with_material(
+            ThemeName::new(SS::store("irradiation")),
+            appearance.material_irradiation,
+        )
+        .with_material(ThemeName::new(SS::store("red")), appearance.material_red);
     let surface_3 = SurfaceDraft::new(RingDraft::new(roof_ring), [])
         .with_semantic(patio_semantic)
-        .with_material(SS::store("red"), appearance.material_red);
+        .with_material(ThemeName::new(SS::store("red")), appearance.material_red);
     let surface_4 = SurfaceDraft::new(
         RingDraft::new([vertices.v1, vertices.v2, vertices.v3, vertices.v0]),
         [RingDraft::new([
@@ -642,16 +655,13 @@ fn assert_root_components_match_fixture<SS: StringStorage>(
         string(&extension_json["version"])
     );
 
-    let default_material = model
-        .get_material(
-            model
-                .default_theme_material()
-                .expect("default material handle should exist"),
-        )
-        .expect("default material should exist");
     assert_eq!(
-        default_material.name().as_ref(),
-        string(&fixture["appearance"]["default-theme-material"])
+        model.default_material_theme().map(AsRef::as_ref),
+        Some(string(&fixture["appearance"]["default-theme-material"]))
+    );
+    assert_eq!(
+        model.default_texture_theme().map(AsRef::as_ref),
+        Some(string(&fixture["appearance"]["default-theme-texture"]))
     );
 }
 

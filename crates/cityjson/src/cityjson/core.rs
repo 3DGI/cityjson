@@ -54,6 +54,36 @@ macro_rules! define_string_wrapper {
                 self.0.as_ref() == *other
             }
         }
+
+        impl<SS: crate::resources::storage::StringStorage> AsRef<str> for $name<SS>
+        where
+            SS::String: AsRef<str>,
+        {
+            fn as_ref(&self) -> &str {
+                self.0.as_ref()
+            }
+        }
+
+        impl<SS: crate::resources::storage::StringStorage> std::borrow::Borrow<str> for $name<SS>
+        where
+            SS::String: std::borrow::Borrow<str>,
+        {
+            fn borrow(&self) -> &str {
+                std::borrow::Borrow::borrow(&self.0)
+            }
+        }
+
+        impl From<String> for $name<crate::resources::storage::OwnedStringStorage> {
+            fn from(value: String) -> Self {
+                Self(value)
+            }
+        }
+
+        impl<'a> From<&'a str> for $name<crate::resources::storage::BorrowedStringStorage<'a>> {
+            fn from(value: &'a str) -> Self {
+                Self(value)
+            }
+        }
     };
 }
 

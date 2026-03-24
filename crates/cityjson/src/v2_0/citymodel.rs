@@ -52,6 +52,8 @@ use crate::backend::default::geometry_validation::{
     BoundaryVertexSource, GeometryValidationContext, validate_stored_geometry,
     validate_stored_geometry_for_boundary_source,
 };
+use crate::cityjson::core::appearance::ThemeName;
+use crate::error::Error;
 use crate::error::Result;
 use crate::raw::{RawAccess, RawPoolView, RawSliceView};
 use crate::resources::handles::{
@@ -611,41 +613,64 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.reserve_uv_capacity(new_uvs)
     }
 
-    pub fn default_theme_material(&self) -> Option<MaterialHandle> {
-        self.inner
-            .default_theme_material()
-            .map(MaterialHandle::from_raw)
+    pub fn default_material_theme(&self) -> Option<&ThemeName<SS>> {
+        self.inner.default_material_theme()
     }
 
-    /// Set the default material theme handle.
+    pub fn set_default_material_theme(&mut self, theme: Option<ThemeName<SS>>) {
+        self.inner.set_default_material_theme(theme);
+    }
+
+    pub fn default_texture_theme(&self) -> Option<&ThemeName<SS>> {
+        self.inner.default_texture_theme()
+    }
+
+    pub fn set_default_texture_theme(&mut self, theme: Option<ThemeName<SS>>) {
+        self.inner.set_default_texture_theme(theme);
+    }
+
+    pub fn has_material_theme(&self, theme: &str) -> bool {
+        self.iter_geometries()
+            .any(|(_, geometry)| Self::geometry_has_material_theme(geometry, theme))
+            || self
+                .iter_geometry_templates()
+                .any(|(_, geometry)| Self::geometry_has_material_theme(geometry, theme))
+    }
+
+    pub fn has_texture_theme(&self, theme: &str) -> bool {
+        self.iter_geometries()
+            .any(|(_, geometry)| Self::geometry_has_texture_theme(geometry, theme))
+            || self
+                .iter_geometry_templates()
+                .any(|(_, geometry)| Self::geometry_has_texture_theme(geometry, theme))
+    }
+
+    /// Validate that configured default appearance themes exist in the model.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::error::Error::InvalidReference`] when `material_ref`
-    /// does not refer to a live material in the model.
-    pub fn set_default_theme_material(
-        &mut self,
-        material_ref: Option<MaterialHandle>,
-    ) -> Result<()> {
-        self.inner
-            .set_default_theme_material(material_ref.map(MaterialHandle::to_raw))
-    }
+    /// Returns [`crate::error::Error::InvalidThemeName`] when a configured default theme name
+    /// does not appear in any geometry material or texture theme map.
+    pub fn validate_default_themes(&self) -> Result<()> {
+        if let Some(theme) = self.default_material_theme()
+            && !self.has_material_theme(theme.as_ref())
+        {
+            return Err(Error::InvalidThemeName {
+                theme_type: "material".to_string(),
+                theme: theme.as_ref().to_string(),
+            });
+        }
 
-    pub fn default_theme_texture(&self) -> Option<TextureHandle> {
-        self.inner
-            .default_theme_texture()
-            .map(TextureHandle::from_raw)
-    }
+        if let Some(theme) = self.default_texture_theme()
+            && !self.has_texture_theme(theme.as_ref())
+        {
+            return Err(Error::InvalidThemeName {
+                theme_type: "texture".to_string(),
+                theme: theme.as_ref().to_string(),
+            });
+        }
 
-    /// Set the default texture theme handle.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::error::Error::InvalidReference`] when `texture_ref`
-    /// does not refer to a live texture in the model.
-    pub fn set_default_theme_texture(&mut self, texture_ref: Option<TextureHandle>) -> Result<()> {
-        self.inner
-            .set_default_theme_texture(texture_ref.map(TextureHandle::to_raw))
+        Ok(())
     }
 
     /// Extracts a float attribute column from all `CityObjects`.
@@ -702,6 +727,18 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         }
 
         (object_refs, values)
+    }
+
+    fn geometry_has_material_theme(geometry: &Geometry<VR, SS>, theme: &str) -> bool {
+        geometry
+            .materials()
+            .is_some_and(|themes| themes.iter().any(|(name, _)| name.as_ref() == theme))
+    }
+
+    fn geometry_has_texture_theme(geometry: &Geometry<VR, SS>, theme: &str) -> bool {
+        geometry
+            .textures()
+            .is_some_and(|themes| themes.iter().any(|(name, _)| name.as_ref() == theme))
     }
 
     /// Returns all unique attribute keys from all `CityObjects`.
@@ -772,8 +809,8 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
             self.material_count(),
             self.texture_count(),
             self.vertices_texture().len(),
-            format_option(self.default_theme_texture().as_ref()),
-            format_option(self.default_theme_material().as_ref())
+            format_option(self.default_texture_theme()),
+            format_option(self.default_material_theme())
         )?;
         writeln!(f, "\tgeometry-templates: not implemented")?;
         writeln!(
@@ -823,13 +860,13 @@ mod tests {
     use super::*;
     use crate::CityModelType;
     use crate::backend::default::geometry::GeometryInstanceData;
-    use crate::error::Error;
     use crate::resources::id::ResourceId32;
     use crate::v2_0::appearance::ImageType;
     use crate::v2_0::appearance::material::Material;
     use crate::v2_0::appearance::texture::Texture;
     use crate::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
     use crate::v2_0::geometry::{AffineTransform3D, LoD};
+    use crate::v2_0::{GeometryDraft, RingDraft, SurfaceDraft};
 
     fn multi_point_geometry(
         vertices: BoundaryNestedMultiPoint32,
@@ -900,36 +937,75 @@ mod tests {
     }
 
     #[test]
-    fn set_default_theme_material_rejects_stale_handle() {
+    fn set_default_material_theme_stores_theme_name_without_validation() {
         let mut model = OwnedCityModel::new(CityModelType::CityJSON);
-        let material = model
-            .add_material(Material::new("theme".to_string()))
-            .unwrap();
-        assert!(model.remove_material(material).is_some());
+        model.set_default_material_theme(Some(ThemeName::new("missing-theme".to_string())));
 
-        let err = model
-            .set_default_theme_material(Some(material))
-            .unwrap_err();
+        assert_eq!(
+            model.default_material_theme().map(AsRef::as_ref),
+            Some("missing-theme")
+        );
+    }
+
+    #[test]
+    fn validate_default_themes_rejects_missing_material_theme() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model.set_default_material_theme(Some(ThemeName::new("missing-theme".to_string())));
+
+        let err = model.validate_default_themes().unwrap_err();
 
         assert!(matches!(
             err,
-            Error::InvalidReference { element_type, .. } if element_type == "default theme material"
+            Error::InvalidThemeName { ref theme_type, ref theme }
+                if theme_type == "material" && theme == "missing-theme"
         ));
     }
 
     #[test]
-    fn set_default_theme_texture_rejects_stale_handle() {
+    fn validate_default_themes_rejects_missing_texture_theme() {
         let mut model = OwnedCityModel::new(CityModelType::CityJSON);
-        let texture = model
-            .add_texture(Texture::new("theme.png".to_string(), ImageType::Png))
-            .unwrap();
-        assert!(model.remove_texture(texture).is_some());
+        model.set_default_texture_theme(Some(ThemeName::new("missing-theme".to_string())));
 
-        let err = model.set_default_theme_texture(Some(texture)).unwrap_err();
+        let err = model.validate_default_themes().unwrap_err();
 
         assert!(matches!(
             err,
-            Error::InvalidReference { element_type, .. } if element_type == "default theme texture"
+            Error::InvalidThemeName { ref theme_type, ref theme }
+                if theme_type == "texture" && theme == "missing-theme"
         ));
+    }
+
+    #[test]
+    fn validate_default_themes_accepts_present_geometry_themes() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let material = model
+            .add_material(Material::new("mat-a".to_string()))
+            .unwrap();
+        let texture = model
+            .add_texture(Texture::new("tex-a.png".to_string(), ImageType::Png))
+            .unwrap();
+        let theme = ThemeName::new("theme-a".to_string());
+
+        GeometryDraft::multi_surface(
+            None,
+            [SurfaceDraft::new(
+                RingDraft::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]).with_texture(
+                    theme.clone(),
+                    texture,
+                    [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+                ),
+                [],
+            )
+            .with_material(theme.clone(), material)],
+        )
+        .insert_into(&mut model)
+        .unwrap();
+
+        model.set_default_material_theme(Some(theme.clone()));
+        model.set_default_texture_theme(Some(theme.clone()));
+
+        assert!(model.has_material_theme("theme-a"));
+        assert!(model.has_texture_theme("theme-a"));
+        assert!(model.validate_default_themes().is_ok());
     }
 }

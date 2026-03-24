@@ -6,6 +6,7 @@
 //! used by all `CityJSON` versions. Version-specific implementations wrap this core type
 //! and provide version-specific behavior through macros.
 
+use crate::cityjson::core::appearance::ThemeName;
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::coordinate::UVCoordinate;
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
@@ -89,10 +90,10 @@ pub(crate) struct CityModelCore<
     textures: DefaultResourcePool<Texture, RR>,
     /// Pool of vertex textures (UV coordinates)
     vertices_texture: Vertices<VR, UVCoordinate>,
-    /// Default theme material reference
-    default_theme_material: Option<RR>,
-    /// Default theme texture reference
-    default_theme_texture: Option<RR>,
+    /// Default material theme name
+    default_material_theme: Option<ThemeName<SS>>,
+    /// Default texture theme name
+    default_texture_theme: Option<ThemeName<SS>>,
 }
 
 impl<
@@ -143,8 +144,8 @@ where
             materials: DefaultResourcePool::new_pool(),
             textures: DefaultResourcePool::new_pool(),
             vertices_texture: Vertices::new(),
-            default_theme_material: None,
-            default_theme_texture: None,
+            default_material_theme: None,
+            default_texture_theme: None,
         }
     }
 
@@ -171,8 +172,8 @@ where
             materials: DefaultResourcePool::with_capacity(capacities.materials),
             textures: DefaultResourcePool::with_capacity(capacities.textures),
             vertices_texture: Vertices::with_capacity(capacities.uv_coordinates),
-            default_theme_material: None,
-            default_theme_texture: None,
+            default_material_theme: None,
+            default_texture_theme: None,
         }
     }
 
@@ -606,53 +607,19 @@ where
     }
 
     // Appearance theme methods
-    pub fn default_theme_material(&self) -> Option<RR> {
-        self.default_theme_material
+    pub fn default_material_theme(&self) -> Option<&ThemeName<SS>> {
+        self.default_material_theme.as_ref()
     }
 
-    /// Set the default material theme reference.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::error::Error::InvalidReference`] when `material_ref`
-    /// does not refer to a live material in the model.
-    pub fn set_default_theme_material(&mut self, material_ref: Option<RR>) -> Result<()> {
-        if let Some(material_ref) = material_ref
-            && !self.materials.is_valid(material_ref)
-        {
-            return Err(crate::error::Error::InvalidReference {
-                element_type: "default theme material".to_string(),
-                index: material_ref.index() as usize,
-                max_index: self.materials.len().saturating_sub(1),
-            });
-        }
-
-        self.default_theme_material = material_ref;
-        Ok(())
+    pub fn set_default_material_theme(&mut self, theme: Option<ThemeName<SS>>) {
+        self.default_material_theme = theme;
     }
 
-    pub fn default_theme_texture(&self) -> Option<RR> {
-        self.default_theme_texture
+    pub fn default_texture_theme(&self) -> Option<&ThemeName<SS>> {
+        self.default_texture_theme.as_ref()
     }
 
-    /// Set the default texture theme reference.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::error::Error::InvalidReference`] when `texture_ref`
-    /// does not refer to a live texture in the model.
-    pub fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) -> Result<()> {
-        if let Some(texture_ref) = texture_ref
-            && !self.textures.is_valid(texture_ref)
-        {
-            return Err(crate::error::Error::InvalidReference {
-                element_type: "default theme texture".to_string(),
-                index: texture_ref.index() as usize,
-                max_index: self.textures.len().saturating_sub(1),
-            });
-        }
-
-        self.default_theme_texture = texture_ref;
-        Ok(())
+    pub fn set_default_texture_theme(&mut self, theme: Option<ThemeName<SS>>) {
+        self.default_texture_theme = theme;
     }
 }

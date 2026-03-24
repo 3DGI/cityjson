@@ -58,6 +58,7 @@ use crate::backend::default::geometry::GeometryInstanceData;
 use crate::backend::default::geometry_validation::{
     BoundaryVertexSource, validate_stored_geometry_for_boundary_source,
 };
+use crate::cityjson::core::appearance::ThemeName;
 use crate::error::{Error, Result};
 use crate::resources::handles::{
     GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
@@ -159,8 +160,8 @@ impl<VR: VertexRef> From<[f32; 2]> for UvDraft<VR> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct RingTextureDraft<VR: VertexRef, S> {
-    theme: S,
+struct RingTextureDraft<VR: VertexRef, SS: StringStorage> {
+    theme: ThemeName<SS>,
     texture: TextureHandle,
     uvs: Vec<UvDraft<VR>>,
 }
@@ -223,7 +224,7 @@ impl<VR: VertexRef> LineStringDraft<VR> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RingDraft<VR: VertexRef, SS: StringStorage> {
     vertices: Vec<VertexDraft<VR>>,
-    textures: Vec<RingTextureDraft<VR, SS::String>>,
+    textures: Vec<RingTextureDraft<VR, SS>>,
 }
 
 impl<VR: VertexRef, SS: StringStorage> RingDraft<VR, SS> {
@@ -239,13 +240,18 @@ impl<VR: VertexRef, SS: StringStorage> RingDraft<VR, SS> {
     }
 
     #[must_use]
-    pub fn with_texture<I, T>(mut self, theme: SS::String, texture: TextureHandle, uvs: I) -> Self
+    pub fn with_texture<I, T>(
+        mut self,
+        theme: impl Into<ThemeName<SS>>,
+        texture: TextureHandle,
+        uvs: I,
+    ) -> Self
     where
         I: IntoIterator<Item = T>,
         T: Into<UvDraft<VR>>,
     {
         self.textures.push(RingTextureDraft {
-            theme,
+            theme: theme.into(),
             texture,
             uvs: uvs.into_iter().map(Into::into).collect(),
         });
@@ -263,7 +269,7 @@ pub struct SurfaceDraft<VR: VertexRef, SS: StringStorage> {
     outer: RingDraft<VR, SS>,
     inners: Vec<RingDraft<VR, SS>>,
     semantic: Option<SemanticHandle>,
-    materials: Vec<(SS::String, MaterialHandle)>,
+    materials: Vec<(ThemeName<SS>, MaterialHandle)>,
 }
 
 impl<VR: VertexRef, SS: StringStorage> SurfaceDraft<VR, SS> {
@@ -286,8 +292,12 @@ impl<VR: VertexRef, SS: StringStorage> SurfaceDraft<VR, SS> {
     }
 
     #[must_use]
-    pub fn with_material(mut self, theme: SS::String, material: MaterialHandle) -> Self {
-        self.materials.push((theme, material));
+    pub fn with_material(
+        mut self,
+        theme: impl Into<ThemeName<SS>>,
+        material: MaterialHandle,
+    ) -> Self {
+        self.materials.push((theme.into(), material));
         self
     }
 }
@@ -1065,8 +1075,8 @@ fn build_surface_geometry<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
     semantics: &mut Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     surfaces: &[SurfaceDraft<VR, SS>],
 ) -> Result<()> {
     let mut surface_index = 0;
@@ -1088,8 +1098,8 @@ fn build_solid_geometry<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
     semantics: &mut Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     solid: &SolidDraft<VR, SS>,
 ) -> Result<()> {
     let mut surface_index = 0;
@@ -1120,8 +1130,8 @@ fn build_multi_solid_geometry<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
     semantics: &mut Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     solids: &[SolidDraft<VR, SS>],
 ) -> Result<()> {
     let mut surface_index = 0;
@@ -1244,8 +1254,8 @@ fn flatten_shell<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
     semantics: &mut Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     surface_index: &mut usize,
     shell: &ShellDraft<VR, SS>,
 ) -> Result<()> {
@@ -1270,8 +1280,8 @@ fn flatten_surface<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
     semantics: &mut Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     surface_index: &mut usize,
     surface: &SurfaceDraft<VR, SS>,
 ) -> Result<()> {
@@ -1298,9 +1308,9 @@ fn flatten_surface<VR: VertexRef, SS: StringStorage>(
 }
 
 fn push_surface_materials<VR: VertexRef, SS: StringStorage>(
-    materials: &mut Vec<(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)>,
+    materials: &mut Vec<(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)>,
     current_surface: usize,
-    assignments: &[(SS::String, MaterialHandle)],
+    assignments: &[(ThemeName<SS>, MaterialHandle)],
 ) {
     for (_, map) in materials.iter_mut() {
         map.add_surface(None);
@@ -1326,7 +1336,7 @@ fn push_surface_materials<VR: VertexRef, SS: StringStorage>(
 fn flatten_ring<VR: VertexRef, SS: StringStorage>(
     resolver: &mut DraftResolver<'_, VR, SS>,
     boundary: &mut Boundary<VR>,
-    textures: &mut Vec<(SS::String, TextureMapCore<VR, ResourceId32>)>,
+    textures: &mut Vec<(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)>,
     ring: &RingDraft<VR, SS>,
 ) -> Result<()> {
     let ring_index = boundary.rings.len();

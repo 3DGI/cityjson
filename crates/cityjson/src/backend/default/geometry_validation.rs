@@ -555,6 +555,7 @@ mod tests {
     use super::*;
     use crate::backend::default::geometry::{AffineTransform3D, GeometryInstanceData, LoD};
     use crate::backend::default::geometry::{ThemedMaterials, ThemedTextures};
+    use crate::cityjson::core::appearance::ThemeName;
     use crate::resources::id::ResourceId32;
     use crate::resources::storage::OwnedStringStorage;
     use crate::v2_0::boundary::nested::{
@@ -626,6 +627,10 @@ mod tests {
         VertexIndex::new(index)
     }
 
+    fn theme(value: &str) -> ThemeName<OwnedStringStorage> {
+        ThemeName::new(value.to_string())
+    }
+
     fn s1_boundary() -> B {
         let nested: BoundaryNestedMultiOrCompositeSurface32 = vec![
             vec![vec![0u32, 1, 4], vec![0, 2, 1]],
@@ -677,8 +682,8 @@ mod tests {
         type_geometry: GeometryType,
         boundary: B,
         semantics: Option<SemanticOrMaterialMap<u32, ResourceId32>>,
-        materials: Option<ThemedMaterials<u32, ResourceId32, String>>,
-        textures: Option<ThemedTextures<u32, ResourceId32, String>>,
+        materials: Option<ThemedMaterials<u32, ResourceId32, OwnedStringStorage>>,
+        textures: Option<ThemedTextures<u32, ResourceId32, OwnedStringStorage>>,
     ) -> G {
         GeometryCore::new(
             type_geometry,
@@ -694,8 +699,8 @@ mod tests {
     fn regular_geometry(
         boundary: B,
         semantics: Option<SemanticOrMaterialMap<u32, ResourceId32>>,
-        materials: Option<ThemedMaterials<u32, ResourceId32, String>>,
-        textures: Option<ThemedTextures<u32, ResourceId32, String>>,
+        materials: Option<ThemedMaterials<u32, ResourceId32, OwnedStringStorage>>,
+        textures: Option<ThemedTextures<u32, ResourceId32, OwnedStringStorage>>,
     ) -> G {
         geometry_of_type(
             GeometryType::MultiSurface,
@@ -804,11 +809,8 @@ mod tests {
     fn valid_regular_geometry_passes_full_shared_validator() {
         let boundary = s1_boundary();
         let semantics = Some(surface_map(&[Some(rid(0)), Some(rid(1))]));
-        let materials = Some(vec![(
-            "theme-a".to_string(),
-            surface_map(&[Some(rid(0)), None]),
-        )]);
-        let textures = Some(vec![("theme-a".to_string(), dense_texture_map(&boundary))]);
+        let materials = Some(vec![(theme("theme-a"), surface_map(&[Some(rid(0)), None]))]);
+        let textures = Some(vec![(theme("theme-a"), dense_texture_map(&boundary))]);
         let geometry = regular_geometry(boundary, semantics, materials, textures);
         let context = TestContext {
             semantics: 2,
@@ -871,8 +873,8 @@ mod tests {
             Some(LoD::LoD2),
             None,
             None,
-            None::<ThemedMaterials<u32, ResourceId32, String>>,
-            None::<ThemedTextures<u32, ResourceId32, String>>,
+            None::<ThemedMaterials<u32, ResourceId32, OwnedStringStorage>>,
+            None::<ThemedTextures<u32, ResourceId32, OwnedStringStorage>>,
             None,
         );
 
@@ -944,10 +946,7 @@ mod tests {
         let geometry = regular_geometry(
             s1_boundary(),
             None,
-            Some(vec![(
-                "theme-a".to_string(),
-                surface_map(&[Some(rid(2)), None]),
-            )]),
+            Some(vec![(theme("theme-a"), surface_map(&[Some(rid(2)), None]))]),
             None,
         );
 
@@ -972,7 +971,7 @@ mod tests {
             boundary,
             None,
             None,
-            Some(vec![("theme-a".to_string(), textures)]),
+            Some(vec![(theme("theme-a"), textures)]),
         );
 
         let err = validate_stored_geometry(
@@ -997,7 +996,7 @@ mod tests {
             boundary,
             None,
             None,
-            Some(vec![("theme-a".to_string(), textures)]),
+            Some(vec![(theme("theme-a"), textures)]),
         );
 
         let err = validate_stored_geometry(
@@ -1022,7 +1021,7 @@ mod tests {
             boundary,
             None,
             None,
-            Some(vec![("theme-a".to_string(), textures)]),
+            Some(vec![(theme("theme-a"), textures)]),
         );
 
         let err = validate_stored_geometry(
@@ -1047,7 +1046,7 @@ mod tests {
             boundary,
             None,
             None,
-            Some(vec![("theme-a".to_string(), textures)]),
+            Some(vec![(theme("theme-a"), textures)]),
         );
 
         let err = validate_stored_geometry(
@@ -1072,7 +1071,7 @@ mod tests {
             boundary,
             None,
             None,
-            Some(vec![("theme-a".to_string(), textures)]),
+            Some(vec![(theme("theme-a"), textures)]),
         );
 
         let err = validate_stored_geometry(
@@ -1095,8 +1094,8 @@ mod tests {
             None,
             None,
             None,
-            None::<ThemedMaterials<u32, ResourceId32, String>>,
-            None::<ThemedTextures<u32, ResourceId32, String>>,
+            None::<ThemedMaterials<u32, ResourceId32, OwnedStringStorage>>,
+            None::<ThemedTextures<u32, ResourceId32, OwnedStringStorage>>,
             Some(GeometryInstanceData::new(
                 rid(1),
                 vi(2),

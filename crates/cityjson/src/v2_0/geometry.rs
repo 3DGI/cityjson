@@ -62,6 +62,7 @@
 use crate::backend::default::geometry::{
     GeometryCore, GeometryInstanceData, ThemedMaterials, ThemedTextures,
 };
+use crate::cityjson::core::appearance::ThemeName;
 use crate::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
@@ -272,7 +273,7 @@ impl<'a, VR: VertexRef> MaterialMapView<'a, VR> {
 /// [`MaterialThemesView::iter`] to get `(theme_name, MaterialMapView)` pairs.
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialThemesView<'a, VR: VertexRef, SS: StringStorage> {
-    items: &'a [(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)],
+    items: &'a [(ThemeName<SS>, SemanticOrMaterialMap<VR, ResourceId32>)],
 }
 
 impl<'a, VR: VertexRef, SS: StringStorage> MaterialThemesView<'a, VR, SS> {
@@ -286,14 +287,14 @@ impl<'a, VR: VertexRef, SS: StringStorage> MaterialThemesView<'a, VR, SS> {
         self.items.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&'a SS::String, MaterialMapView<'a, VR>)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (&'a ThemeName<SS>, MaterialMapView<'a, VR>)> + 'a {
         self.items
             .iter()
             .map(|(theme, map)| (theme, MaterialMapView { inner: map }))
     }
 
     #[must_use]
-    pub fn first(&self) -> Option<(&'a SS::String, MaterialMapView<'a, VR>)> {
+    pub fn first(&self) -> Option<(&'a ThemeName<SS>, MaterialMapView<'a, VR>)> {
         self.items
             .first()
             .map(|(theme, map)| (theme, MaterialMapView { inner: map }))
@@ -332,7 +333,7 @@ impl<'a, VR: VertexRef> TextureMapView<'a, VR> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct TextureThemesView<'a, VR: VertexRef, SS: StringStorage> {
-    items: &'a [(SS::String, TextureMapCore<VR, ResourceId32>)],
+    items: &'a [(ThemeName<SS>, TextureMapCore<VR, ResourceId32>)],
 }
 
 impl<'a, VR: VertexRef, SS: StringStorage> TextureThemesView<'a, VR, SS> {
@@ -346,14 +347,14 @@ impl<'a, VR: VertexRef, SS: StringStorage> TextureThemesView<'a, VR, SS> {
         self.items.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&'a SS::String, TextureMapView<'a, VR>)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (&'a ThemeName<SS>, TextureMapView<'a, VR>)> + 'a {
         self.items
             .iter()
             .map(|(theme, map)| (theme, TextureMapView { inner: map }))
     }
 
     #[must_use]
-    pub fn first(&self) -> Option<(&'a SS::String, TextureMapView<'a, VR>)> {
+    pub fn first(&self) -> Option<(&'a ThemeName<SS>, TextureMapView<'a, VR>)> {
         self.items
             .first()
             .map(|(theme, map)| (theme, TextureMapView { inner: map }))
@@ -366,8 +367,8 @@ impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
         semantics: Option<SemanticOrMaterialMap<VR, ResourceId32>>,
-        materials: Option<ThemedMaterials<VR, ResourceId32, SS::String>>,
-        textures: Option<ThemedTextures<VR, ResourceId32, SS::String>>,
+        materials: Option<ThemedMaterials<VR, ResourceId32, SS>>,
+        textures: Option<ThemedTextures<VR, ResourceId32, SS>>,
         instance: Option<GeometryInstanceData<VR, ResourceId32>>,
     ) -> Self {
         Self {

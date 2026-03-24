@@ -296,7 +296,7 @@ mod benches {
 
                         if let Some(materials) = geometry.materials() {
                             for (theme, mapping) in materials.iter() {
-                                acc = acc.wrapping_add(theme.len() as u64);
+                                acc = acc.wrapping_add(theme.as_ref().len() as u64);
                                 for material_ref in mapping.surfaces().iter().flatten() {
                                     let _ = material_ref;
                                     acc = acc.wrapping_add(1);
@@ -306,7 +306,7 @@ mod benches {
 
                         if let Some(textures) = geometry.textures() {
                             for (theme, mapping) in textures.iter() {
-                                acc = acc.wrapping_add(theme.len() as u64);
+                                acc = acc.wrapping_add(theme.as_ref().len() as u64);
                                 acc = acc.wrapping_add(mapping.vertices().len() as u64);
                                 for texture_ref in mapping.ring_textures().iter().flatten() {
                                     let _ = texture_ref;

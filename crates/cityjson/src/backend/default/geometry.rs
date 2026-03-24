@@ -24,8 +24,14 @@ use crate::resources::storage::StringStorage;
 use crate::v2_0::vertex::VertexIndex;
 use std::str::FromStr;
 
-pub(crate) type ThemedMaterials<VR, RR, S> = Vec<(S, SemanticOrMaterialMap<VR, RR>)>;
-pub(crate) type ThemedTextures<VR, RR, S> = Vec<(S, TextureMapCore<VR, RR>)>;
+pub(crate) type ThemedMaterials<VR, RR, SS> = Vec<(
+    crate::cityjson::core::appearance::ThemeName<SS>,
+    SemanticOrMaterialMap<VR, RR>,
+)>;
+pub(crate) type ThemedTextures<VR, RR, SS> = Vec<(
+    crate::cityjson::core::appearance::ThemeName<SS>,
+    TextureMapCore<VR, RR>,
+)>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AffineTransform3D([f64; 16]);
@@ -120,8 +126,8 @@ pub(crate) struct GeometryCore<VR: VertexRef, RR: ResourceId, SS: StringStorage>
     lod: Option<LoD>,
     boundaries: Option<Boundary<VR>>,
     semantics: Option<SemanticOrMaterialMap<VR, RR>>,
-    materials: Option<ThemedMaterials<VR, RR, SS::String>>,
-    textures: Option<ThemedTextures<VR, RR, SS::String>>,
+    materials: Option<ThemedMaterials<VR, RR, SS>>,
+    textures: Option<ThemedTextures<VR, RR, SS>>,
     instance: Option<GeometryInstanceData<VR, RR>>,
 }
 
@@ -132,8 +138,8 @@ impl<VR: VertexRef, RR: ResourceId, SS: StringStorage> GeometryCore<VR, RR, SS> 
         lod: Option<LoD>,
         boundaries: Option<Boundary<VR>>,
         semantics: Option<SemanticOrMaterialMap<VR, RR>>,
-        materials: Option<ThemedMaterials<VR, RR, SS::String>>,
-        textures: Option<ThemedTextures<VR, RR, SS::String>>,
+        materials: Option<ThemedMaterials<VR, RR, SS>>,
+        textures: Option<ThemedTextures<VR, RR, SS>>,
         instance: Option<GeometryInstanceData<VR, RR>>,
     ) -> Self {
         Self {
@@ -163,11 +169,11 @@ impl<VR: VertexRef, RR: ResourceId, SS: StringStorage> GeometryCore<VR, RR, SS> 
         self.semantics.as_ref()
     }
 
-    pub(crate) fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS::String>> {
+    pub(crate) fn materials(&self) -> Option<&ThemedMaterials<VR, RR, SS>> {
         self.materials.as_ref()
     }
 
-    pub(crate) fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS::String>> {
+    pub(crate) fn textures(&self) -> Option<&ThemedTextures<VR, RR, SS>> {
         self.textures.as_ref()
     }
 

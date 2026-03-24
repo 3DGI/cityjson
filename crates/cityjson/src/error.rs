@@ -36,6 +36,8 @@ pub enum Error {
         index: usize,
         max_index: usize,
     },
+    /// A configured default appearance theme name does not exist in the model.
+    InvalidThemeName { theme_type: String, theme: String },
     /// A geometry operation expected one type but found another.
     InvalidGeometryType { expected: String, found: String },
     /// A geometry is structurally incomplete (e.g. missing required fields).
@@ -111,6 +113,9 @@ impl Display for Error {
                 f,
                 "Invalid {element_type} index: {index} (max: {max_index})"
             ),
+            Error::InvalidThemeName { theme_type, theme } => {
+                write!(f, "Invalid {theme_type} theme name: {theme}")
+            }
             Error::InvalidGeometryType { expected, found } => {
                 write!(
                     f,
