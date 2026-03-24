@@ -112,7 +112,7 @@ pub use geometry::{
     semantic::{BorrowedSemantic, OwnedSemantic, Semantic, SemanticType},
 };
 pub use geometry_draft::{
-    UvDraft, DraftVertex, GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft,
+    UvDraft, VertexDraft, GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft,
     SolidDraft, SurfaceDraft,
 };
 pub use metadata::{

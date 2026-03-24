@@ -107,24 +107,24 @@ impl From<&UVCoordinate> for UvCoordinateKey {
 /// or `New` to provide a raw coordinate that will be deduplicated and inserted on commit.
 /// Converts from `VertexIndex`, `RealWorldCoordinate`, and `[f64; 3]`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum DraftVertex<VR: VertexRef> {
+pub enum VertexDraft<VR: VertexRef> {
     Existing(VertexIndex<VR>),
     New(RealWorldCoordinate),
 }
 
-impl<VR: VertexRef> From<VertexIndex<VR>> for DraftVertex<VR> {
+impl<VR: VertexRef> From<VertexIndex<VR>> for VertexDraft<VR> {
     fn from(value: VertexIndex<VR>) -> Self {
         Self::Existing(value)
     }
 }
 
-impl<VR: VertexRef> From<RealWorldCoordinate> for DraftVertex<VR> {
+impl<VR: VertexRef> From<RealWorldCoordinate> for VertexDraft<VR> {
     fn from(value: RealWorldCoordinate) -> Self {
         Self::New(value)
     }
 }
 
-impl<VR: VertexRef> From<[f64; 3]> for DraftVertex<VR> {
+impl<VR: VertexRef> From<[f64; 3]> for VertexDraft<VR> {
     fn from(value: [f64; 3]) -> Self {
         Self::New(RealWorldCoordinate::from(value))
     }
@@ -132,7 +132,7 @@ impl<VR: VertexRef> From<[f64; 3]> for DraftVertex<VR> {
 
 /// A UV coordinate reference for use in texture drafts.
 ///
-/// Same pattern as [`DraftVertex`]: `Existing` reuses an index from the model's UV pool,
+/// Same pattern as [`VertexDraft`]: `Existing` reuses an index from the model's UV pool,
 /// `New` inserts a fresh coordinate. Converts from `VertexIndex`, `UVCoordinate`, and `[f32; 2]`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UvDraft<VR: VertexRef> {
@@ -168,14 +168,14 @@ struct RingTextureDraft<VR: VertexRef, S> {
 /// One point in a `MultiPoint` geometry draft, with an optional semantic handle.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PointDraft<VR: VertexRef> {
-    vertex: DraftVertex<VR>,
+    vertex: VertexDraft<VR>,
     semantic: Option<SemanticHandle>,
 }
 
 impl<VR: VertexRef> PointDraft<VR> {
     pub fn new<T>(vertex: T) -> Self
     where
-        T: Into<DraftVertex<VR>>,
+        T: Into<VertexDraft<VR>>,
     {
         Self {
             vertex: vertex.into(),
@@ -193,7 +193,7 @@ impl<VR: VertexRef> PointDraft<VR> {
 /// One linestring in a `MultiLineString` geometry draft, with an optional semantic handle.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineStringDraft<VR: VertexRef> {
-    vertices: Vec<DraftVertex<VR>>,
+    vertices: Vec<VertexDraft<VR>>,
     semantic: Option<SemanticHandle>,
 }
 
@@ -201,7 +201,7 @@ impl<VR: VertexRef> LineStringDraft<VR> {
     pub fn new<I, T>(vertices: I) -> Self
     where
         I: IntoIterator<Item = T>,
-        T: Into<DraftVertex<VR>>,
+        T: Into<VertexDraft<VR>>,
     {
         Self {
             vertices: vertices.into_iter().map(Into::into).collect(),
@@ -218,11 +218,11 @@ impl<VR: VertexRef> LineStringDraft<VR> {
 
 /// One ring (exterior or interior) in a surface draft.
 ///
-/// Accepts an iterator of vertices that convert to [`DraftVertex`], e.g. `[f64; 3]` arrays.
+/// Accepts an iterator of vertices that convert to [`VertexDraft`], e.g. `[f64; 3]` arrays.
 /// Optionally attach per-ring texture UV coordinates with [`RingDraft::with_texture`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RingDraft<VR: VertexRef, SS: StringStorage> {
-    vertices: Vec<DraftVertex<VR>>,
+    vertices: Vec<VertexDraft<VR>>,
     textures: Vec<RingTextureDraft<VR, SS::String>>,
 }
 
@@ -230,7 +230,7 @@ impl<VR: VertexRef, SS: StringStorage> RingDraft<VR, SS> {
     pub fn new<I, T>(vertices: I) -> Self
     where
         I: IntoIterator<Item = T>,
-        T: Into<DraftVertex<VR>>,
+        T: Into<VertexDraft<VR>>,
     {
         Self {
             vertices: vertices.into_iter().map(Into::into).collect(),
@@ -377,7 +377,7 @@ pub enum GeometryDraft<VR: VertexRef, SS: StringStorage> {
     },
     GeometryInstance {
         template: GeometryTemplateHandle,
-        reference_point: DraftVertex<VR>,
+        reference_point: VertexDraft<VR>,
         transformation: AffineTransform3D,
     },
 }
@@ -459,7 +459,7 @@ impl<VR: VertexRef, SS: StringStorage> GeometryDraft<VR, SS> {
         transformation: AffineTransform3D,
     ) -> Self
     where
-        T: Into<DraftVertex<VR>>,
+        T: Into<VertexDraft<VR>>,
     {
         Self::GeometryInstance {
             template,
@@ -824,7 +824,7 @@ fn validate_ring<VR: VertexRef, SS: StringStorage>(ring: &RingDraft<VR, SS>) -> 
 
 fn validate_non_empty_vertices<VR: VertexRef>(
     label: &str,
-    vertices: &[DraftVertex<VR>],
+    vertices: &[VertexDraft<VR>],
 ) -> Result<()> {
     if vertices.is_empty() {
         return Err(Error::InvalidGeometry(format!(
@@ -890,10 +890,10 @@ impl DraftAnalysis {
         &mut self,
         model: &CityModel<VR, SS>,
         mode: DraftInsertMode,
-        vertex: &DraftVertex<VR>,
+        vertex: &VertexDraft<VR>,
     ) -> Result<()> {
         match vertex {
-            DraftVertex::Existing(index) => {
+            VertexDraft::Existing(index) => {
                 let exists = match mode {
                     DraftInsertMode::Regular => model.get_vertex(*index).is_some(),
                     DraftInsertMode::Template => model.get_template_vertex(*index).is_some(),
@@ -908,7 +908,7 @@ impl DraftAnalysis {
                     )));
                 }
             }
-            DraftVertex::New(coord) => {
+            VertexDraft::New(coord) => {
                 if self.seen_new_vertices.insert((*coord).into()) {
                     self.new_vertices += 1;
                 }
@@ -1170,10 +1170,10 @@ impl<'a, VR: VertexRef, SS: StringStorage> DraftResolver<'a, VR, SS> {
         }
     }
 
-    fn resolve_vertex(&mut self, vertex: &DraftVertex<VR>) -> Result<VertexIndex<VR>> {
+    fn resolve_vertex(&mut self, vertex: &VertexDraft<VR>) -> Result<VertexIndex<VR>> {
         match vertex {
-            DraftVertex::Existing(index) => Ok(*index),
-            DraftVertex::New(coord) => {
+            VertexDraft::Existing(index) => Ok(*index),
+            VertexDraft::New(coord) => {
                 let key: RealWorldCoordinateKey = (*coord).into();
                 if let Some(index) = self.new_vertices.get(&key) {
                     return Ok(*index);
