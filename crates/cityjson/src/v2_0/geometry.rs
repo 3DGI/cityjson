@@ -66,8 +66,8 @@ use crate::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
 use crate::resources::id::ResourceId32;
-use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::mapping::SemanticOrMaterialMap;
+use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::storage::StringStorage;
 use crate::v2_0::boundary::Boundary;
 use crate::v2_0::vertex::{VertexIndex, VertexRef};

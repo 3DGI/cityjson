@@ -68,11 +68,11 @@ model.cityobjects_mut().add(building).unwrap();
 
 ## Modules
 
-| Module | Contents |
-|--------|----------|
-| `v2_0` | Domain types: `CityModel`, `CityObject`, `Geometry`, `GeometryDraft`, `Metadata`, `Transform`, `Semantic`, `Material`, `Texture`, … |
-| `resources` | Typed handles, resource pools, and string storage strategies |
-| `raw` | Zero-copy read views for use in downstream serializers |
+| Module      | Contents                                                                                                                            |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `v2_0`      | Domain types: `CityModel`, `CityObject`, `Geometry`, `GeometryDraft`, `Metadata`, `Transform`, `Semantic`, `Material`, `Texture`, … |
+| `resources` | Typed handles, resource pools, and string storage strategies                                                                        |
+| `raw`       | Zero-copy read views for use in downstream serializers                                                                              |
 
 ## Imports
 
@@ -81,8 +81,7 @@ use cityjson::v2_0::*;     // all domain types
 use cityjson::prelude::*;  // handles, storage strategies, error types
 ```
 
-The `prelude` is intentionally narrow — it re-exports crate-wide types (handles, errors, storage
-strategies) but not the domain types from `v2_0`.
+The `prelude` re-exports crate-wide types (handles, errors, storage strategies) but not the domain types from `v2_0`.
 
 ## API Stability
 

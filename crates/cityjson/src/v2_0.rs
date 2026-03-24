@@ -112,8 +112,8 @@ pub use geometry::{
     semantic::{BorrowedSemantic, OwnedSemantic, Semantic, SemanticType},
 };
 pub use geometry_draft::{
-    UvDraft, VertexDraft, GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft,
-    SolidDraft, SurfaceDraft,
+    GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft, SolidDraft, SurfaceDraft,
+    UvDraft, VertexDraft,
 };
 pub use metadata::{
     BBox, CRS, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata,

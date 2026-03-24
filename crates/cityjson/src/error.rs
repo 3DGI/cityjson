@@ -14,20 +14,11 @@ pub enum Error {
         value: String,
     },
     /// A vertex index value exceeds the range of the target index type.
-    IndexOverflow {
-        index_type: String,
-        value: String,
-    },
+    IndexOverflow { index_type: String, value: String },
     /// The vertex container is full for the chosen `VR` type (e.g. more than `u32::MAX` vertices).
-    VerticesContainerFull {
-        attempted: usize,
-        maximum: usize,
-    },
+    VerticesContainerFull { attempted: usize, maximum: usize },
     /// A resource pool (semantics, materials, textures, or geometries) has reached its limit.
-    ResourcePoolFull {
-        attempted: usize,
-        maximum: usize,
-    },
+    ResourcePoolFull { attempted: usize, maximum: usize },
     /// General geometry validation failure.
     InvalidGeometry(String),
     /// A shell failed validation (e.g. fewer than four surfaces for a closed solid).
@@ -36,15 +27,9 @@ pub enum Error {
         surface_count: usize,
     },
     /// A ring failed validation (e.g. fewer than three vertices).
-    InvalidRing {
-        reason: String,
-        vertex_count: usize,
-    },
+    InvalidRing { reason: String, vertex_count: usize },
     /// A linestring failed validation (e.g. fewer than two vertices).
-    InvalidLineString {
-        reason: String,
-        vertex_count: usize,
-    },
+    InvalidLineString { reason: String, vertex_count: usize },
     /// A boundary index references an element that does not exist.
     InvalidReference {
         element_type: String,
@@ -52,10 +37,7 @@ pub enum Error {
         max_index: usize,
     },
     /// A geometry operation expected one type but found another.
-    InvalidGeometryType {
-        expected: String,
-        found: String,
-    },
+    InvalidGeometryType { expected: String, found: String },
     /// A geometry is structurally incomplete (e.g. missing required fields).
     IncompleteGeometry(String),
     /// The `CityJSON` `"version"` field holds an unsupported value.
