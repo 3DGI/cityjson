@@ -33,14 +33,14 @@ The clean advanced path is `cjlib::cityjson::...`.
 
 The default path for CityJSON JSON input should stay on `CityModel`:
 
-```rust,ignore
+```rust
 use std::io::Cursor;
 
 use cjlib::CityModel;
 
-let document = CityModel::from_file("rotterdam.city.json")?;
-let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
-let stream = CityModel::from_stream(Cursor::new(std::fs::read("rotterdam.city.jsonl")?))?;
+let document = CityModel::from_file("rotterdam.city.json") ?;
+let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#) ?;
+let stream = CityModel::from_stream(Cursor::new(std::fs::read("rotterdam.city.jsonl") ? )) ?;
 # Ok::<(), cjlib::Error>(())
 ```
 
@@ -67,15 +67,15 @@ That yields a predictable rule:
 
 Example:
 
-```rust,ignore
+```rust
 use cjlib::{json, CityJSONVersion};
 
-let bytes = std::fs::read("rotterdam.city.json")?;
-let probe = json::probe(&bytes)?;
+let bytes = std::fs::read("rotterdam.city.json") ?;
+let probe = json::probe( & bytes) ?;
 assert_eq!(probe.kind(), json::RootKind::CityJSON);
 assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
-let model = json::from_slice(&bytes)?;
+let model = json::from_slice( & bytes) ?;
 # Ok::<(), cjlib::Error>(())
 ```
 
@@ -99,18 +99,18 @@ This gives a clean rule:
 `cjlib` should not mirror the whole `cityjson-rs` API, and `CityModel` should not pretend to be the whole inner model via implicit `Deref`.
 The boundary should stay explicit:
 
-```rust,ignore
+```rust
 let inner =
-    cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
 let mut model = cjlib::CityModel::from(inner);
 
-let borrowed: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
+let borrowed: & cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
 let _ = borrowed;
-let borrowed_mut: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
+let borrowed_mut: & mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
 let _ = borrowed_mut;
-let as_ref_model: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_ref();
+let as_ref_model: & cjlib::cityjson::v2_0::OwnedCityModel = model.as_ref();
 let _ = as_ref_model;
-let as_mut_model: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_mut();
+let as_mut_model: & mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_mut();
 let _ = as_mut_model;
 let owned: cjlib::cityjson::v2_0::OwnedCityModel = model.into_inner();
 # let _ = owned;
@@ -141,7 +141,7 @@ The preferred taxonomy is intentionally small:
 
 The goal is to support code like this:
 
-```rust,ignore
+```rust
 use cjlib::{json, ErrorKind};
 
 let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
@@ -155,12 +155,12 @@ It is also simpler to maintain than a very granular error enum that mirrors ever
 
 Arrow and Parquet integration should be feature-gated and explicit.
 
-```rust,ignore
+```rust
 #[cfg(feature = "arrow")]
-let model = cjlib::arrow::from_file("tiles.cjarrow")?;
+let model = cjlib::arrow::from_file("tiles.cjarrow") ?;
 
 #[cfg(feature = "parquet")]
-let model = cjlib::parquet::from_file("tiles.cjparquet")?;
+let model = cjlib::parquet::from_file("tiles.cjparquet") ?;
 # Ok::<(), cjlib::Error>(())
 ```
 

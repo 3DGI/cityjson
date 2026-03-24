@@ -82,6 +82,21 @@ The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`,
 - `Unsupported`
 - `Model`
 
+## Repository Tasks
+
+The repository now has a small `justfile` in the same style as `cityjson-rs`.
+The main tasks are:
+
+- `just check`
+- `just fmt`
+- `just lint`
+- `just test`
+- `just doc`
+- `just docs-build`
+- `just docs-serve`
+
+The MkDocs site is intended to be the main documentation home for the Rust facade, future FFI surface, and language bindings.
+
 ## Status
 
 This repository is currently being rewritten in a docs-first, tests-first style.

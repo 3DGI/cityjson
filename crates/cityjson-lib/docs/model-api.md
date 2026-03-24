@@ -9,7 +9,7 @@ The goal is to keep `cjlib` small and explicit.
 
 The intended wrapper surface is:
 
-```rust,ignore
+```rust
 impl CityModel {
     pub fn from_slice(bytes: &[u8]) -> crate::Result<Self>;
     pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<Self>;
@@ -39,7 +39,7 @@ The wrapper should not rely on `Deref` or `DerefMut`.
 
 Explicit access is clearer:
 
-```rust,ignore
+```rust
 let mut model = cjlib::CityModel::from_file("amsterdam.city.json")?;
 let inner = model.as_inner();
 let _ = inner;
@@ -51,7 +51,7 @@ let inner_mut = model.as_inner_mut();
 
 The advanced access path should be:
 
-```rust,ignore
+```rust
 use cjlib::cityjson;
 ```
 

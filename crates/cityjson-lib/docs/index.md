@@ -71,6 +71,18 @@ For most users, the expected workflow should be:
 3. drop down to `cjlib::json` when explicit format-boundary control is needed
 4. use feature-gated sibling modules for Arrow or Parquet transport
 
+## Documentation Structure
+
+The docs site should work for more than just the Rust crate surface.
+`cjlib` is intended to become a multi-language entry point through FFI, so the documentation should stay split by responsibility:
+
+- overview and guides for the common `cjlib` entry points
+- API design pages for the Rust facade itself
+- FFI and bindings pages for language-neutral concepts and future bindings
+- engineering notes for implementation plans and internal decisions
+
+That is why the project uses MkDocs for the main site rather than relying on Rust-only generated docs.
+
 ## Non-goals
 
 The future `cjlib` API should not:

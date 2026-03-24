@@ -3,4 +3,5 @@ pandas
 matplotlib
 pysimdjson
 # Documentation
+mkdocs
 mkdocs-material

@@ -21,14 +21,16 @@ That place should be `cjlib::json`.
 
 The target API is:
 
-```rust,ignore
+```rust
 pub mod json {
     pub enum RootKind {
         CityJSON,
         CityJSONFeature,
     }
 
-    pub struct Probe { /* private fields */ }
+    pub struct Probe {
+        /* private fields */
+    }
 
     impl Probe {
         pub fn kind(&self) -> RootKind;
@@ -74,17 +76,17 @@ The probing API should be one small object instead of several unrelated helper f
 
 Preferred:
 
-```rust,ignore
-let probe = cjlib::json::probe(bytes)?;
+```rust
+let probe = cjlib::json::probe(bytes) ?;
 let kind = probe.kind();
 let version = probe.version();
 ```
 
 Not preferred:
 
-```rust,ignore
-let kind = cjlib::json::detect_kind(bytes)?;
-let version = cjlib::json::detect_version(bytes)?;
+```rust
+let kind = cjlib::json::detect_kind(bytes) ?;
+let version = cjlib::json::detect_version(bytes) ?;
 ```
 
 `probe` is simpler for callers and avoids reparsing the same header multiple times.
