@@ -7,8 +7,7 @@ use std::fmt::{Display, Formatter};
 ///
 /// # Examples
 /// ```
-/// # use cityjson::prelude::*;
-/// # use cityjson::v2_0::*;
+/// # use cityjson::v2_0::BBox;
 /// let bbox = BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9);
 /// let bbox_height = bbox.height();
 /// ```
@@ -31,37 +30,31 @@ impl BBox {
         &self.values
     }
 
-    /// Returns the minimum x coordinate.
     #[must_use]
     pub fn min_x(&self) -> f64 {
         self.values[0]
     }
 
-    /// Returns the minimum y coordinate.
     #[must_use]
     pub fn min_y(&self) -> f64 {
         self.values[1]
     }
 
-    /// Returns the minimum z coordinate.
     #[must_use]
     pub fn min_z(&self) -> f64 {
         self.values[2]
     }
 
-    /// Returns the maximum x coordinate.
     #[must_use]
     pub fn max_x(&self) -> f64 {
         self.values[3]
     }
 
-    /// Returns the maximum y coordinate.
     #[must_use]
     pub fn max_y(&self) -> f64 {
         self.values[4]
     }
 
-    /// Returns the maximum z coordinate.
     #[must_use]
     pub fn max_z(&self) -> f64 {
         self.values[5]
@@ -87,7 +80,6 @@ impl BBox {
 }
 
 impl Default for BBox {
-    /// Creates a default `BBox` with all coordinates set to 0.0.
     fn default() -> Self {
         Self {
             values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -96,14 +88,12 @@ impl Default for BBox {
 }
 
 impl From<[f64; 6]> for BBox {
-    /// Creates a `BBox` from an array of 6 values.
     fn from(values: [f64; 6]) -> Self {
         Self { values }
     }
 }
 
 impl From<BBox> for [f64; 6] {
-    /// Converts a `BBox` into an array of 6 values.
     fn from(bbox: BBox) -> Self {
         bbox.values
     }
@@ -128,7 +118,8 @@ impl Display for BBox {
 ///
 /// # Examples
 /// ```
-/// # use cityjson::prelude::{BorrowedStringStorage, CityModelIdentifier};
+/// # use cityjson::resources::storage::BorrowedStringStorage;
+/// # use cityjson::v2_0::CityModelIdentifier;
 /// let city_id: CityModelIdentifier<BorrowedStringStorage> = CityModelIdentifier::new("44574905-d2d2-4f40-8e96-d39e1ae45f70");
 /// ```
 #[repr(C)]
@@ -158,7 +149,8 @@ impl<SS: StringStorage> Display for CityModelIdentifier<SS> {
 ///
 /// # Examples
 /// ```
-/// # use cityjson::prelude::{BorrowedStringStorage, Date};
+/// # use cityjson::resources::storage::BorrowedStringStorage;
+/// # use cityjson::v2_0::Date;
 /// let date: Date<BorrowedStringStorage> = Date::new("1977-02-28");
 /// ```
 #[repr(C)]
@@ -188,7 +180,8 @@ impl<SS: StringStorage> Display for Date<SS> {
 ///
 /// # Examples
 /// ```
-/// # use cityjson::prelude::{BorrowedStringStorage, CRS};
+/// # use cityjson::resources::storage::BorrowedStringStorage;
+/// # use cityjson::v2_0::CRS;
 /// let crs: CRS<BorrowedStringStorage> = CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415");
 /// ```
 #[repr(C)]

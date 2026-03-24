@@ -1,12 +1,44 @@
-use crate::cityjson::core::cityobject::{CityObjectCore, CityObjectsCore};
+//! City objects — the features in a `CityJSON` dataset.
+//!
+//! Each entry in the `CityObjects` map is a [`CityObject`] with a string ID, a type, optional
+//! geometry references, optional attributes, and optional parent/child relationships.
+//!
+//! 1st-level types (e.g. `Building`, `Road`, `WaterBody`) can exist on their own.
+//! 2nd-level types (e.g. `BuildingPart`, `BuildingRoom`) must reference at least one parent.
+//!
+//! ```rust
+//! use cityjson::CityModelType;
+//! use cityjson::v2_0::{
+//!     CityObject, CityObjectIdentifier, CityObjectType, OwnedAttributeValue, OwnedCityModel,
+//! };
+//!
+//! let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+//!
+//! let mut building = CityObject::new(
+//!     CityObjectIdentifier::new("building-001".to_string()),
+//!     CityObjectType::Building,
+//! );
+//! building
+//!     .attributes_mut()
+//!     .insert("measuredHeight".to_string(), OwnedAttributeValue::Float(15.3));
+//!
+//! let handle = model.cityobjects_mut().add(building).unwrap();
+//! assert!(model.cityobjects().get(handle).is_some());
+//! ```
+
+use crate::backend::default::cityobject::{CityObjectCore, CityObjectsCore};
 use crate::error::{Error, Result};
-use crate::resources::handles::{CityObjectRef, GeometryRef, cast_handle_slice};
-use crate::resources::pool::ResourceId32;
+use crate::resources::handles::{CityObjectHandle, GeometryHandle, cast_handle_slice};
+use crate::resources::id::ResourceId32;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
-use crate::v2_0::types::CityObjectIdentifier;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+pub use crate::cityjson::core::cityobject::CityObjectIdentifier;
+
+/// The ordered collection of city objects in a [`CityModel`](super::citymodel::CityModel).
+///
+/// Wraps a resource pool keyed by [`CityObjectHandle`].
 #[derive(Debug, Clone)]
 pub struct CityObjects<SS: StringStorage> {
     inner: CityObjectsCore<SS, ResourceId32, CityObject<SS>>,
@@ -33,20 +65,20 @@ impl<SS: StringStorage> CityObjects<SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when the city-object pool cannot store
     /// additional entries for `ResourceId32`.
-    pub fn add(&mut self, city_object: CityObject<SS>) -> Result<CityObjectRef> {
-        self.inner.add(city_object).map(CityObjectRef::from_raw)
+    pub fn add(&mut self, city_object: CityObject<SS>) -> Result<CityObjectHandle> {
+        self.inner.add(city_object).map(CityObjectHandle::from_raw)
     }
 
     #[must_use]
-    pub fn get(&self, id: CityObjectRef) -> Option<&CityObject<SS>> {
+    pub fn get(&self, id: CityObjectHandle) -> Option<&CityObject<SS>> {
         self.inner.get(id.to_raw())
     }
 
-    pub fn get_mut(&mut self, id: CityObjectRef) -> Option<&mut CityObject<SS>> {
+    pub fn get_mut(&mut self, id: CityObjectHandle) -> Option<&mut CityObject<SS>> {
         self.inner.get_mut(id.to_raw())
     }
 
-    pub fn remove(&mut self, id: CityObjectRef) -> Option<CityObject<SS>> {
+    pub fn remove(&mut self, id: CityObjectHandle) -> Option<CityObject<SS>> {
         self.inner.remove(id.to_raw())
     }
 
@@ -60,42 +92,42 @@ impl<SS: StringStorage> CityObjects<SS> {
         self.inner.is_empty()
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (CityObjectRef, &'a CityObject<SS>)>
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (CityObjectHandle, &'a CityObject<SS>)>
     where
         CityObject<SS>: 'a,
     {
         self.inner
             .iter()
-            .map(|(id, value)| (CityObjectRef::from_raw(id), value))
+            .map(|(id, value)| (CityObjectHandle::from_raw(id), value))
     }
 
     pub fn iter_mut<'a>(
         &'a mut self,
-    ) -> impl Iterator<Item = (CityObjectRef, &'a mut CityObject<SS>)>
+    ) -> impl Iterator<Item = (CityObjectHandle, &'a mut CityObject<SS>)>
     where
         CityObject<SS>: 'a,
     {
         self.inner
             .iter_mut()
-            .map(|(id, value)| (CityObjectRef::from_raw(id), value))
+            .map(|(id, value)| (CityObjectHandle::from_raw(id), value))
     }
 
     #[must_use]
-    pub fn first(&self) -> Option<(CityObjectRef, &CityObject<SS>)> {
+    pub fn first(&self) -> Option<(CityObjectHandle, &CityObject<SS>)> {
         self.inner
             .first()
-            .map(|(id, value)| (CityObjectRef::from_raw(id), value))
+            .map(|(id, value)| (CityObjectHandle::from_raw(id), value))
     }
 
     #[must_use]
-    pub fn last(&self) -> Option<(CityObjectRef, &CityObject<SS>)> {
+    pub fn last(&self) -> Option<(CityObjectHandle, &CityObject<SS>)> {
         self.inner
             .last()
-            .map(|(id, value)| (CityObjectRef::from_raw(id), value))
+            .map(|(id, value)| (CityObjectHandle::from_raw(id), value))
     }
 
-    pub fn ids(&self) -> impl Iterator<Item = CityObjectRef> + '_ {
-        self.inner.ids().map(CityObjectRef::from_raw)
+    pub fn ids(&self) -> impl Iterator<Item = CityObjectHandle> + '_ {
+        self.inner.ids().map(CityObjectHandle::from_raw)
     }
 
     /// Add many city objects and return their handles.
@@ -107,23 +139,26 @@ impl<SS: StringStorage> CityObjects<SS> {
     pub fn add_many<I: IntoIterator<Item = CityObject<SS>>>(
         &mut self,
         objects: I,
-    ) -> Result<Vec<CityObjectRef>> {
+    ) -> Result<Vec<CityObjectHandle>> {
         self.inner
             .add_many(objects)
-            .map(|ids| ids.into_iter().map(CityObjectRef::from_raw).collect())
+            .map(|ids| ids.into_iter().map(CityObjectHandle::from_raw).collect())
     }
 
     pub fn clear(&mut self) {
         self.inner.clear();
     }
 
-    pub fn filter<F>(&self, predicate: F) -> impl Iterator<Item = (CityObjectRef, &CityObject<SS>)>
+    pub fn filter<F>(
+        &self,
+        predicate: F,
+    ) -> impl Iterator<Item = (CityObjectHandle, &CityObject<SS>)>
     where
         F: Fn(&CityObject<SS>) -> bool,
     {
         self.inner
             .filter(predicate)
-            .map(|(id, value)| (CityObjectRef::from_raw(id), value))
+            .map(|(id, value)| (CityObjectHandle::from_raw(id), value))
     }
 }
 
@@ -136,6 +171,13 @@ impl<SS: StringStorage> Default for CityObjects<SS> {
 pub type OwnedCityObjects = CityObjects<OwnedStringStorage>;
 pub type BorrowedCityObjects<'a> = CityObjects<BorrowedStringStorage<'a>>;
 
+/// A single city object.
+///
+/// Corresponds to one entry in the `CityObjects` JSON map. Holds the object type, geometry
+/// handle references, attributes, optional bounding box, and parent/child handle lists.
+///
+/// Geometry handles must reference geometries already stored in the [`CityModel`](super::citymodel::CityModel);
+/// use [`CityObject::add_geometry`] to attach them after insertion.
 #[derive(Debug, Default, Clone)]
 pub struct CityObject<SS: StringStorage> {
     inner: CityObjectCore<SS, ResourceId32, CityObjectType<SS>>,
@@ -159,13 +201,13 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.type_cityobject()
     }
 
-    pub fn geometry(&self) -> Option<&[GeometryRef]> {
+    pub fn geometry(&self) -> Option<&[GeometryHandle]> {
         self.inner
             .geometry()
-            .map(|items| cast_handle_slice::<GeometryRef>(items.as_slice()))
+            .map(|items| cast_handle_slice::<GeometryHandle>(items.as_slice()))
     }
 
-    pub fn add_geometry(&mut self, geometry_ref: GeometryRef) {
+    pub fn add_geometry(&mut self, geometry_ref: GeometryHandle) {
         self.inner.geometry_mut().push(geometry_ref.to_raw());
     }
 
@@ -173,29 +215,29 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.geometry_mut().clear();
     }
 
-    pub fn attributes(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
+    pub fn attributes(&self) -> Option<&crate::v2_0::attributes::Attributes<SS>> {
         self.inner.attributes()
     }
 
-    pub fn attributes_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
+    pub fn attributes_mut(&mut self) -> &mut crate::v2_0::attributes::Attributes<SS> {
         self.inner.attributes_mut()
     }
 
-    pub fn geographical_extent(&self) -> Option<&crate::cityjson::core::metadata::BBox> {
+    pub fn geographical_extent(&self) -> Option<&crate::v2_0::metadata::BBox> {
         self.inner.geographical_extent()
     }
 
-    pub fn set_geographical_extent(&mut self, bbox: Option<crate::cityjson::core::metadata::BBox>) {
+    pub fn set_geographical_extent(&mut self, bbox: Option<crate::v2_0::metadata::BBox>) {
         self.inner.set_geographical_extent(bbox);
     }
 
-    pub fn children(&self) -> Option<&[CityObjectRef]> {
+    pub fn children(&self) -> Option<&[CityObjectHandle]> {
         self.inner
             .children()
-            .map(|items| cast_handle_slice::<CityObjectRef>(items.as_slice()))
+            .map(|items| cast_handle_slice::<CityObjectHandle>(items.as_slice()))
     }
 
-    pub fn add_child(&mut self, child: CityObjectRef) {
+    pub fn add_child(&mut self, child: CityObjectHandle) {
         self.inner.children_mut().push(child.to_raw());
     }
 
@@ -203,13 +245,13 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.children_mut().clear();
     }
 
-    pub fn parents(&self) -> Option<&[CityObjectRef]> {
+    pub fn parents(&self) -> Option<&[CityObjectHandle]> {
         self.inner
             .parents()
-            .map(|items| cast_handle_slice::<CityObjectRef>(items.as_slice()))
+            .map(|items| cast_handle_slice::<CityObjectHandle>(items.as_slice()))
     }
 
-    pub fn add_parent(&mut self, parent: CityObjectRef) {
+    pub fn add_parent(&mut self, parent: CityObjectHandle) {
         self.inner.parents_mut().push(parent.to_raw());
     }
 
@@ -217,11 +259,11 @@ impl<SS: StringStorage> CityObject<SS> {
         self.inner.parents_mut().clear();
     }
 
-    pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
+    pub fn extra(&self) -> Option<&crate::v2_0::attributes::Attributes<SS>> {
         self.inner.extra()
     }
 
-    pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
+    pub fn extra_mut(&mut self) -> &mut crate::v2_0::attributes::Attributes<SS> {
         self.inner.extra_mut()
     }
 }
@@ -232,6 +274,13 @@ impl<SS: StringStorage> Display for CityObject<SS> {
     }
 }
 
+/// The type of a city object, as defined in the `CityJSON` specification.
+///
+/// 1st-level types (e.g. `Building`, `Road`) can exist independently.
+/// 2nd-level types (e.g. `BuildingPart`, `BuildingRoom`) require a `parents` reference.
+///
+/// Extension types are represented by `Extension(name)` where `name` starts with `"+"`.
+/// `FromStr` accepts all standard names plus `"+"` prefixed extension names.
 #[derive(Debug, Default, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum CityObjectType<SS: StringStorage> {

@@ -1,12 +1,61 @@
+//! Surface material definitions for `CityJSON` v2.0.
+//!
+//! A [`Material`] is a named set of rendering properties. Materials are stored in the model's
+//! material pool and referenced from geometry by [`MaterialHandle`] via a theme map.
+//!
+//! All color values are in the range 0.0–1.0. Colors are represented as [`RGB`] (`[R, G, B]`).
+//! Transparency is 0.0 = fully opaque, 1.0 = fully transparent.
+//!
+//! Spec: [Material Object](https://www.cityjson.org/specs/2.0.1/#material-object).
+//!
+//! [`MaterialHandle`]: crate::resources::handles::MaterialHandle
+//!
+//! ```rust
+//! use cityjson::CityModelType;
+//! use cityjson::v2_0::{OwnedCityModel, RGB};
+//! use cityjson::v2_0::appearance::material::OwnedMaterial;
+//!
+//! let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+//!
+//! let mut mat = OwnedMaterial::new("roof-tiles".to_string());
+//! mat.set_diffuse_color(Some(RGB::new(0.8, 0.3, 0.1)));
+//! mat.set_shininess(Some(0.2));
+//! mat.set_transparency(Some(0.0));
+//!
+//! let handle = model.add_material(mat).unwrap();
+//! assert!(model.get_material(handle).is_some());
+//! ```
+//!
+//! ```rust
+//! use cityjson::v2_0::appearance::material::OwnedMaterial;
+//! use cityjson::v2_0::appearance::RGB;
+//!
+//! let mut material = OwnedMaterial::new("Roof".to_string());
+//!
+//! let diffuse = RGB::new(0.8, 0.2, 0.1);
+//! let raw_diffuse = diffuse.to_array();
+//! assert_eq!(raw_diffuse, [0.8, 0.2, 0.1]);
+//!
+//! let specular = RGB::from([0.9, 0.9, 0.9]);
+//! let raw_specular: [f32; 3] = specular.into();
+//! assert_eq!(raw_specular, [0.9, 0.9, 0.9]);
+//!
+//! material.set_diffuse_color(Some(diffuse));
+//! material.set_specular_color(Some(specular));
+//!
+//! assert_eq!(material.diffuse_color(), Some(RGB::from([0.8, 0.2, 0.1])));
+//! assert_eq!(material.specular_color(), Some(RGB::from([0.9, 0.9, 0.9])));
+//! ```
+
+use crate::format_option;
 use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
-use crate::v2_0::types::RGB;
+use crate::v2_0::appearance::RGB;
+use std::fmt::{Display, Formatter};
 
-/// Type alias for a material with owned string storage
 pub type OwnedMaterial = Material<OwnedStringStorage>;
-
-/// Type alias for a material with borrowed string storage
 pub type BorrowedMaterial<'a> = Material<BorrowedStringStorage<'a>>;
 
+/// A surface material. See the [module docs](self) for usage.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Material<SS: StringStorage> {
     name: SS::String,
@@ -98,36 +147,19 @@ impl<SS: StringStorage> Material<SS> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_material_equality() {
-        // Create two materials with identical properties
-        let mut material1 = OwnedMaterial::new("TestMaterial".to_string());
-        material1.set_ambient_intensity(Some(0.5));
-        material1.set_diffuse_color(Some([0.8, 0.7, 0.6].into()));
-        material1.set_emissive_color(Some([0.1, 0.2, 0.3].into()));
-        material1.set_specular_color(Some([1.0, 1.0, 1.0].into()));
-        material1.set_shininess(Some(0.9));
-        material1.set_transparency(Some(0.0));
-        material1.set_is_smooth(Some(true));
-
-        let mut material2 = OwnedMaterial::new("TestMaterial".to_string());
-        material2.set_ambient_intensity(Some(0.5));
-        material2.set_diffuse_color(Some([0.8, 0.7, 0.6].into()));
-        material2.set_emissive_color(Some([0.1, 0.2, 0.3].into()));
-        material2.set_specular_color(Some([1.0, 1.0, 1.0].into()));
-        material2.set_shininess(Some(0.9));
-        material2.set_transparency(Some(0.0));
-        material2.set_is_smooth(Some(true));
-
-        // Test equality - all fields are equal
-        assert_eq!(material1, material2);
-
-        // Test inequality - change one field
-        material2.set_diffuse_color(Some([0.9, 0.8, 0.7].into()));
-        assert_ne!(material1, material2);
+impl<SS: StringStorage> Display for Material<SS> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "name: {:?}, ambient_intensity: {}, diffuse_color: {}, emissive_color: {}, specular_color: {}, shininess: {}, transparency: {}, is_smooth: {}",
+            self.name,
+            format_option(self.ambient_intensity.as_ref()),
+            format_option(self.diffuse_color.as_ref()),
+            format_option(self.emissive_color.as_ref()),
+            format_option(self.specular_color.as_ref()),
+            format_option(self.shininess.as_ref()),
+            format_option(self.transparency.as_ref()),
+            format_option(self.is_smooth.as_ref())
+        )
     }
 }

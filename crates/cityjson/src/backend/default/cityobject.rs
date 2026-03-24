@@ -3,24 +3,25 @@
 use crate::cityjson::core::attributes::Attributes;
 use crate::cityjson::core::metadata::BBox;
 use crate::error::Result;
-use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
+use crate::resources::id::ResourceId;
+use crate::resources::pool::{DefaultResourcePool, ResourcePool};
 use crate::resources::storage::StringStorage;
 
 /// Core `CityObjects` container structure that contains the data for all `CityJSON` versions.
 /// Version-specific types wrap this core structure and implement methods via macros.
 #[derive(Debug, Clone)]
-pub struct CityObjectsCore<SS: StringStorage, RR: ResourceRef, CO> {
+pub(crate) struct CityObjectsCore<SS: StringStorage, RR: ResourceId, CO> {
     pub(crate) inner: DefaultResourcePool<CO, RR>,
     _phantom: std::marker::PhantomData<SS>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef, CO> Default for CityObjectsCore<SS, RR, CO> {
+impl<SS: StringStorage, RR: ResourceId, CO> Default for CityObjectsCore<SS, RR, CO> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
+impl<SS: StringStorage, RR: ResourceId, CO> CityObjectsCore<SS, RR, CO> {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -116,7 +117,7 @@ impl<SS: StringStorage, RR: ResourceRef, CO> CityObjectsCore<SS, RR, CO> {
 /// Core `CityObject` structure that contains the data for all `CityJSON` versions.
 /// Version-specific types wrap this core structure and implement methods via macros.
 #[derive(Debug, Default, Clone)]
-pub struct CityObjectCore<SS: StringStorage, RR: ResourceRef, CoType> {
+pub(crate) struct CityObjectCore<SS: StringStorage, RR: ResourceId, CoType> {
     id: SS::String,
     type_cityobject: CoType,
     geometry: Option<Vec<RR>>,
@@ -127,7 +128,7 @@ pub struct CityObjectCore<SS: StringStorage, RR: ResourceRef, CoType> {
     extra: Option<Attributes<SS>>,
 }
 
-impl<SS: StringStorage, RR: ResourceRef, CoType> CityObjectCore<SS, RR, CoType> {
+impl<SS: StringStorage, RR: ResourceId, CoType> CityObjectCore<SS, RR, CoType> {
     pub fn new(id: SS::String, type_cityobject: CoType) -> Self {
         Self {
             id,

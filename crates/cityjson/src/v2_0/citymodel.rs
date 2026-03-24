@@ -1,81 +1,128 @@
-use crate::backend::default::geometry::{GeometryBuilder as RawGeometryBuilder, GeometryModelOps};
-use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
-use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
-use crate::prelude::{QuantizedCoordinate, RealWorldCoordinate, Result};
+//! The root `CityJSON` object.
+//!
+//! [`CityModel`] holds everything in a `CityJSON` document: city objects, vertices, geometries,
+//! and the shared resource pools for semantics, materials, and textures.
+//!
+//! ## City objects and geometry
+//!
+//! City objects are stored in [`CityObjects`] and reference geometries by [`GeometryHandle`].
+//! Add a city object with [`CityModel::cityobjects_mut`], then attach geometries built with
+//! [`GeometryDraft`](super::geometry_draft::GeometryDraft).
+//!
+//! ```rust
+//! use cityjson::CityModelType;
+//! use cityjson::v2_0::{
+//!     CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, OwnedCityModel, PointDraft,
+//!     RealWorldCoordinate,
+//! };
+//!
+//! let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+//!
+//! // Add a city object.
+//! let mut tree = CityObject::new(
+//!     CityObjectIdentifier::new("tree-1".to_string()),
+//!     CityObjectType::SolitaryVegetationObject,
+//! );
+//!
+//! // Build and attach a geometry.
+//! let geom = GeometryDraft::multi_point(
+//!     None,
+//!     [PointDraft::new(RealWorldCoordinate::new(84710.0, 446900.0, 5.0))],
+//! )
+//! .insert_into(&mut model)
+//! .unwrap();
+//!
+//! tree.add_geometry(geom);
+//! model.cityobjects_mut().add(tree).unwrap();
+//! ```
+//!
+//! ## Resource pools
+//!
+//! Semantics, materials, and textures are stored once in the model and referenced by handle.
+//! Use [`CityModel::add_semantic`], [`CityModel::add_material`], and [`CityModel::add_texture`]
+//! to register resources; use [`CityModel::get_or_insert_semantic`] etc. to deduplicate.
+//!
+//! ## Generics
+//!
+//! `CityModel<VR, SS>` is generic over the vertex index type (`VR: VertexRef`, e.g. `u32`) and
+//! string storage (`SS: StringStorage`). `OwnedCityModel` and `BorrowedCityModel` are the
+//! common aliases.
+use crate::backend::default::citymodel::{CityModelCore, CityModelCoreCapacities};
+use crate::backend::default::geometry_validation::{
+    BoundaryVertexSource, GeometryValidationContext, validate_stored_geometry,
+    validate_stored_geometry_for_boundary_source,
+};
+use crate::error::Result;
 use crate::raw::{RawAccess, RawPoolView, RawSliceView};
 use crate::resources::handles::{
-    CityObjectRef, GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef,
+    CityObjectHandle, GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle,
+    TextureHandle,
 };
-use crate::resources::pool::ResourceId32;
-use crate::resources::storage::{OwnedStringStorage, StringStorage};
+use crate::resources::id::ResourceId32;
+use crate::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
+use crate::v2_0::CityObjects;
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
-use crate::v2_0::geometry::Geometry;
+use crate::v2_0::attributes::AttributeValue;
+use crate::v2_0::coordinate::{RealWorldCoordinate, UVCoordinate};
+use crate::v2_0::extension::Extensions;
+use crate::v2_0::geometry::GeometryView;
 use crate::v2_0::geometry::semantic::Semantic;
+use crate::v2_0::geometry::{Geometry, GeometryType};
 use crate::v2_0::metadata::Metadata;
-use crate::v2_0::{CityObjects, Extensions, Transform};
+use crate::v2_0::transform::Transform;
+use crate::v2_0::vertex::{VertexIndex, VertexRef};
+use crate::v2_0::vertices::Vertices;
 use crate::{CityJSONVersion, format_option};
 use std::collections::HashSet;
 use std::fmt;
 
-pub type GeometryBuilder<'a, VR, SS> = RawGeometryBuilder<
-    'a,
-    VR,
-    ResourceId32,
-    QuantizedCoordinate,
-    Semantic<SS>,
-    Material<SS>,
-    Texture<SS>,
-    Geometry<VR, SS>,
-    CityModel<VR, SS>,
-    SS,
->;
+/// `CityModel` with owned string storage and 32-bit vertex indices.
+pub type OwnedCityModel = CityModel<u32, OwnedStringStorage>;
 
-pub trait GeometryBuilderExt<VR: VertexRef, SS: StringStorage> {
-    /// Use a typed template handle when building a `GeometryInstance`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::error::Error::InvalidGeometryType`] if the builder is not configured
-    /// for `GeometryType::GeometryInstance`.
-    fn with_template_ref(self, template_ref: TemplateGeometryRef) -> Result<Self>
-    where
-        Self: Sized;
+/// `CityModel` with borrowed string storage and 32-bit vertex indices.
+pub type BorrowedCityModel<'a> = CityModel<u32, BorrowedStringStorage<'a>>;
 
-    /// Build and return a typed regular-geometry handle.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from geometry validation and storage insertion.
-    fn build_geometry(self) -> Result<GeometryRef>;
-
-    /// Build and return a typed template-geometry handle.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from geometry validation and storage insertion.
-    fn build_template(self) -> Result<TemplateGeometryRef>;
+/// Pre-allocation hints for [`CityModel::with_capacities`].
+///
+/// All fields are optional — set only what you know in advance. Unused fields default to zero.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CityModelCapacities {
+    pub cityobjects: usize,
+    pub vertices: usize,
+    pub semantics: usize,
+    pub materials: usize,
+    pub textures: usize,
+    pub geometries: usize,
+    pub template_vertices: usize,
+    pub template_geometries: usize,
+    pub uv_coordinates: usize,
 }
 
-impl<VR: VertexRef, SS: StringStorage> GeometryBuilderExt<VR, SS> for GeometryBuilder<'_, VR, SS> {
-    fn with_template_ref(self, template_ref: TemplateGeometryRef) -> Result<Self> {
-        self.with_template(template_ref.to_raw())
-    }
-
-    fn build_geometry(self) -> Result<GeometryRef> {
-        self.build().map(GeometryRef::from_raw)
-    }
-
-    fn build_template(self) -> Result<TemplateGeometryRef> {
-        self.build().map(TemplateGeometryRef::from_raw)
+impl From<CityModelCapacities> for CityModelCoreCapacities {
+    fn from(value: CityModelCapacities) -> Self {
+        Self {
+            cityobjects: value.cityobjects,
+            vertices: value.vertices,
+            semantics: value.semantics,
+            materials: value.materials,
+            textures: value.textures,
+            geometries: value.geometries,
+            template_vertices: value.template_vertices,
+            template_geometries: value.template_geometries,
+            uv_coordinates: value.uv_coordinates,
+        }
     }
 }
 
+/// The root `CityJSON` object.
+///
+/// Holds all vertices, city objects, and shared resource pools. See the [module docs](self)
+/// for usage examples.
 #[derive(Debug, Clone)]
 pub struct CityModel<VR: VertexRef = u32, SS: StringStorage = OwnedStringStorage> {
     #[allow(clippy::type_complexity)]
-    inner: crate::cityjson::core::citymodel::CityModelCore<
-        QuantizedCoordinate,
+    inner: CityModelCore<
         VR,
         ResourceId32,
         SS,
@@ -94,43 +141,30 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     #[must_use]
     pub fn new(type_citymodel: crate::CityModelType) -> Self {
         Self {
-            inner: crate::cityjson::core::citymodel::CityModelCore::new(
-                type_citymodel,
-                Some(CityJSONVersion::V2_0),
-            ),
+            inner: CityModelCore::new(type_citymodel, Some(CityJSONVersion::V2_0)),
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn with_capacity(
+    #[must_use]
+    pub fn with_capacities(
         type_citymodel: crate::CityModelType,
-        cityobjects_capacity: usize,
-        vertex_capacity: usize,
-        semantic_capacity: usize,
-        material_capacity: usize,
-        texture_capacity: usize,
-        geometry_capacity: usize,
+        capacities: CityModelCapacities,
     ) -> Self {
         Self {
-            inner: crate::cityjson::core::citymodel::CityModelCore::with_capacity(
+            inner: CityModelCore::with_capacities(
                 type_citymodel,
                 Some(CityJSONVersion::V2_0),
-                cityobjects_capacity,
-                vertex_capacity,
-                semantic_capacity,
-                material_capacity,
-                texture_capacity,
-                geometry_capacity,
+                capacities.into(),
                 CityObjects::with_capacity,
             ),
         }
     }
 
-    pub fn get_semantic(&self, id: SemanticRef) -> Option<&Semantic<SS>> {
+    pub fn get_semantic(&self, id: SemanticHandle) -> Option<&Semantic<SS>> {
         self.inner.get_semantic(id.to_raw())
     }
 
-    pub fn get_semantic_mut(&mut self, id: SemanticRef) -> Option<&mut Semantic<SS>> {
+    pub fn get_semantic_mut(&mut self, id: SemanticHandle) -> Option<&mut Semantic<SS>> {
         self.inner.get_semantic_mut(id.to_raw())
     }
 
@@ -140,8 +174,10 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when the semantic pool cannot store
     /// additional entries for `ResourceId32`.
-    pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef> {
-        self.inner.add_semantic(semantic).map(SemanticRef::from_raw)
+    pub fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticHandle> {
+        self.inner
+            .add_semantic(semantic)
+            .map(SemanticHandle::from_raw)
     }
 
     pub fn semantic_count(&self) -> usize {
@@ -152,35 +188,32 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.has_semantics()
     }
 
-    pub fn iter_semantics(&self) -> impl Iterator<Item = (SemanticRef, &Semantic<SS>)> + '_ {
+    pub fn iter_semantics(&self) -> impl Iterator<Item = (SemanticHandle, &Semantic<SS>)> + '_ {
         self.inner
             .iter_semantics()
-            .map(|(id, v)| (SemanticRef::from_raw(id), v))
+            .map(|(id, v)| (SemanticHandle::from_raw(id), v))
     }
 
     pub fn iter_semantics_mut(
         &mut self,
-    ) -> impl Iterator<Item = (SemanticRef, &mut Semantic<SS>)> + '_ {
+    ) -> impl Iterator<Item = (SemanticHandle, &mut Semantic<SS>)> + '_ {
         self.inner
             .iter_semantics_mut()
-            .map(|(id, v)| (SemanticRef::from_raw(id), v))
+            .map(|(id, v)| (SemanticHandle::from_raw(id), v))
     }
 
-    pub fn find_semantic(&self, semantic: &Semantic<SS>) -> Option<SemanticRef>
+    pub fn find_semantic(&self, semantic: &Semantic<SS>) -> Option<SemanticHandle>
     where
         Semantic<SS>: PartialEq,
     {
         self.inner
             .find_semantic(semantic)
-            .map(SemanticRef::from_raw)
+            .map(SemanticHandle::from_raw)
     }
 
-    pub fn remove_semantic(&mut self, id: SemanticRef) -> Option<Semantic<SS>> {
+    #[cfg(test)]
+    pub(crate) fn remove_semantic(&mut self, id: SemanticHandle) -> Option<Semantic<SS>> {
         self.inner.remove_semantic(id.to_raw())
-    }
-
-    pub fn clear_semantics(&mut self) {
-        self.inner.clear_semantics();
     }
 
     /// Return an existing semantic handle or insert a new semantic.
@@ -189,20 +222,20 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new semantic exceeds
     /// the semantic pool capacity.
-    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticRef>
+    pub fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<SemanticHandle>
     where
         Semantic<SS>: PartialEq,
     {
         self.inner
             .get_or_insert_semantic(semantic)
-            .map(SemanticRef::from_raw)
+            .map(SemanticHandle::from_raw)
     }
 
-    pub fn get_material(&self, id: MaterialRef) -> Option<&Material<SS>> {
+    pub fn get_material(&self, id: MaterialHandle) -> Option<&Material<SS>> {
         self.inner.get_material(id.to_raw())
     }
 
-    pub fn get_material_mut(&mut self, id: MaterialRef) -> Option<&mut Material<SS>> {
+    pub fn get_material_mut(&mut self, id: MaterialHandle) -> Option<&mut Material<SS>> {
         self.inner.get_material_mut(id.to_raw())
     }
 
@@ -212,43 +245,42 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when the material pool cannot store
     /// additional entries for `ResourceId32`.
-    pub fn add_material(&mut self, material: Material<SS>) -> Result<MaterialRef> {
-        self.inner.add_material(material).map(MaterialRef::from_raw)
+    pub fn add_material(&mut self, material: Material<SS>) -> Result<MaterialHandle> {
+        self.inner
+            .add_material(material)
+            .map(MaterialHandle::from_raw)
     }
 
     pub fn material_count(&self) -> usize {
         self.inner.material_count()
     }
 
-    pub fn iter_materials(&self) -> impl Iterator<Item = (MaterialRef, &Material<SS>)> + '_ {
+    pub fn iter_materials(&self) -> impl Iterator<Item = (MaterialHandle, &Material<SS>)> + '_ {
         self.inner
             .iter_materials()
-            .map(|(id, v)| (MaterialRef::from_raw(id), v))
+            .map(|(id, v)| (MaterialHandle::from_raw(id), v))
     }
 
     pub fn iter_materials_mut(
         &mut self,
-    ) -> impl Iterator<Item = (MaterialRef, &mut Material<SS>)> + '_ {
+    ) -> impl Iterator<Item = (MaterialHandle, &mut Material<SS>)> + '_ {
         self.inner
             .iter_materials_mut()
-            .map(|(id, v)| (MaterialRef::from_raw(id), v))
+            .map(|(id, v)| (MaterialHandle::from_raw(id), v))
     }
 
-    pub fn find_material(&self, material: &Material<SS>) -> Option<MaterialRef>
+    pub fn find_material(&self, material: &Material<SS>) -> Option<MaterialHandle>
     where
         Material<SS>: PartialEq,
     {
         self.inner
             .find_material(material)
-            .map(MaterialRef::from_raw)
+            .map(MaterialHandle::from_raw)
     }
 
-    pub fn remove_material(&mut self, id: MaterialRef) -> Option<Material<SS>> {
+    #[cfg(test)]
+    pub(crate) fn remove_material(&mut self, id: MaterialHandle) -> Option<Material<SS>> {
         self.inner.remove_material(id.to_raw())
-    }
-
-    pub fn clear_materials(&mut self) {
-        self.inner.clear_materials();
     }
 
     /// Return an existing material handle or insert a new material.
@@ -257,20 +289,20 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new material exceeds
     /// the material pool capacity.
-    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<MaterialRef>
+    pub fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<MaterialHandle>
     where
         Material<SS>: PartialEq,
     {
         self.inner
             .get_or_insert_material(material)
-            .map(MaterialRef::from_raw)
+            .map(MaterialHandle::from_raw)
     }
 
-    pub fn get_texture(&self, id: TextureRef) -> Option<&Texture<SS>> {
+    pub fn get_texture(&self, id: TextureHandle) -> Option<&Texture<SS>> {
         self.inner.get_texture(id.to_raw())
     }
 
-    pub fn get_texture_mut(&mut self, id: TextureRef) -> Option<&mut Texture<SS>> {
+    pub fn get_texture_mut(&mut self, id: TextureHandle) -> Option<&mut Texture<SS>> {
         self.inner.get_texture_mut(id.to_raw())
     }
 
@@ -280,41 +312,40 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when the texture pool cannot store
     /// additional entries for `ResourceId32`.
-    pub fn add_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef> {
-        self.inner.add_texture(texture).map(TextureRef::from_raw)
+    pub fn add_texture(&mut self, texture: Texture<SS>) -> Result<TextureHandle> {
+        self.inner.add_texture(texture).map(TextureHandle::from_raw)
     }
 
     pub fn texture_count(&self) -> usize {
         self.inner.texture_count()
     }
 
-    pub fn iter_textures(&self) -> impl Iterator<Item = (TextureRef, &Texture<SS>)> + '_ {
+    pub fn iter_textures(&self) -> impl Iterator<Item = (TextureHandle, &Texture<SS>)> + '_ {
         self.inner
             .iter_textures()
-            .map(|(id, v)| (TextureRef::from_raw(id), v))
+            .map(|(id, v)| (TextureHandle::from_raw(id), v))
     }
 
     pub fn iter_textures_mut(
         &mut self,
-    ) -> impl Iterator<Item = (TextureRef, &mut Texture<SS>)> + '_ {
+    ) -> impl Iterator<Item = (TextureHandle, &mut Texture<SS>)> + '_ {
         self.inner
             .iter_textures_mut()
-            .map(|(id, v)| (TextureRef::from_raw(id), v))
+            .map(|(id, v)| (TextureHandle::from_raw(id), v))
     }
 
-    pub fn find_texture(&self, texture: &Texture<SS>) -> Option<TextureRef>
+    pub fn find_texture(&self, texture: &Texture<SS>) -> Option<TextureHandle>
     where
         Texture<SS>: PartialEq,
     {
-        self.inner.find_texture(texture).map(TextureRef::from_raw)
+        self.inner
+            .find_texture(texture)
+            .map(TextureHandle::from_raw)
     }
 
-    pub fn remove_texture(&mut self, id: TextureRef) -> Option<Texture<SS>> {
+    #[cfg(test)]
+    pub(crate) fn remove_texture(&mut self, id: TextureHandle) -> Option<Texture<SS>> {
         self.inner.remove_texture(id.to_raw())
-    }
-
-    pub fn clear_textures(&mut self) {
-        self.inner.clear_textures();
     }
 
     /// Return an existing texture handle or insert a new texture.
@@ -323,85 +354,92 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when inserting a new texture exceeds
     /// the texture pool capacity.
-    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<TextureRef>
+    pub fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<TextureHandle>
     where
         Texture<SS>: PartialEq,
     {
         self.inner
             .get_or_insert_texture(texture)
-            .map(TextureRef::from_raw)
+            .map(TextureHandle::from_raw)
     }
 
-    pub fn get_geometry(&self, id: GeometryRef) -> Option<&Geometry<VR, SS>> {
+    pub fn get_geometry(&self, id: GeometryHandle) -> Option<&Geometry<VR, SS>> {
         self.inner.get_geometry(id.to_raw())
     }
 
-    pub fn get_geometry_mut(&mut self, id: GeometryRef) -> Option<&mut Geometry<VR, SS>> {
-        self.inner.get_geometry_mut(id.to_raw())
+    /// Resolve a geometry handle to the effective geometry view.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the geometry handle is invalid or when a
+    /// `GeometryInstance` references a missing geometry template.
+    pub fn resolve_geometry(&self, id: GeometryHandle) -> Result<GeometryView<'_, VR, SS>> {
+        let geometry =
+            self.get_geometry(id)
+                .ok_or_else(|| crate::error::Error::InvalidReference {
+                    element_type: "geometry".to_string(),
+                    index: id.to_raw().index() as usize,
+                    max_index: self.geometry_count().saturating_sub(1),
+                })?;
+
+        if let Some(instance) = geometry.instance() {
+            let template = self
+                .get_geometry_template(instance.template())
+                .ok_or_else(|| crate::error::Error::InvalidReference {
+                    element_type: "template geometry".to_string(),
+                    index: instance.template().to_raw().index() as usize,
+                    max_index: self.geometry_template_count().saturating_sub(1),
+                })?;
+            Ok(GeometryView::from_geometry(template, Some(instance)))
+        } else {
+            Ok(GeometryView::from_geometry(geometry, None))
+        }
     }
 
     /// Add a geometry and return its handle.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::error::Error::ResourcePoolFull`] when the geometry pool cannot store
-    /// additional entries for `ResourceId32`.
-    pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryRef> {
-        self.inner.add_geometry(geometry).map(GeometryRef::from_raw)
+    /// Returns [`crate::error::Error::InvalidGeometry`] when `geometry` violates the stored
+    /// geometry invariants, or [`crate::error::Error::ResourcePoolFull`] when the geometry pool
+    /// cannot store additional entries for `ResourceId32`.
+    pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryHandle> {
+        validate_stored_geometry(geometry.raw(), self)?;
+        self.inner
+            .add_geometry(geometry)
+            .map(GeometryHandle::from_raw)
     }
 
     pub fn geometry_count(&self) -> usize {
         self.inner.geometry_count()
     }
 
-    pub fn iter_geometries(&self) -> impl Iterator<Item = (GeometryRef, &Geometry<VR, SS>)> + '_ {
+    pub fn iter_geometries(
+        &self,
+    ) -> impl Iterator<Item = (GeometryHandle, &Geometry<VR, SS>)> + '_ {
         self.inner
             .iter_geometries()
-            .map(|(id, v)| (GeometryRef::from_raw(id), v))
+            .map(|(id, v)| (GeometryHandle::from_raw(id), v))
     }
 
-    pub fn iter_geometries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (GeometryRef, &mut Geometry<VR, SS>)> + '_ {
-        self.inner
-            .iter_geometries_mut()
-            .map(|(id, v)| (GeometryRef::from_raw(id), v))
-    }
-
-    pub fn remove_geometry(&mut self, id: GeometryRef) -> Option<Geometry<VR, SS>> {
-        self.inner.remove_geometry(id.to_raw())
-    }
-
-    pub fn clear_geometries(&mut self) {
-        self.inner.clear_geometries();
-    }
-
-    pub fn vertices(&self) -> &Vertices<VR, QuantizedCoordinate> {
+    pub fn vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
         self.inner.vertices()
     }
 
-    pub fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
-        self.inner.vertices_mut()
-    }
-
-    pub fn clear_vertices(&mut self) {
-        self.inner.clear_vertices();
-    }
-
-    /// Add a quantized vertex and return its index.
+    /// Add a vertex and return its index.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::error::Error::VerticesContainerFull`] when the quantized vertex
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex
     /// container cannot represent more vertices for `VR`.
     pub fn add_vertex(
         &mut self,
-        coordinate: QuantizedCoordinate,
+        coordinate: RealWorldCoordinate,
     ) -> crate::error::Result<VertexIndex<VR>> {
         self.inner.add_vertex(coordinate)
     }
 
-    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&QuantizedCoordinate> {
+    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.inner.get_vertex(index)
     }
 
@@ -413,11 +451,11 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.metadata_mut()
     }
 
-    pub fn extra(&self) -> Option<&crate::cityjson::core::attributes::Attributes<SS>> {
+    pub fn extra(&self) -> Option<&crate::v2_0::attributes::Attributes<SS>> {
         self.inner.extra()
     }
 
-    pub fn extra_mut(&mut self) -> &mut crate::cityjson::core::attributes::Attributes<SS> {
+    pub fn extra_mut(&mut self) -> &mut crate::v2_0::attributes::Attributes<SS> {
         self.inner.extra_mut()
     }
 
@@ -443,10 +481,16 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
 
     /// Returns a raw accessor for zero-copy reads of internal model pools.
     #[inline]
-    pub fn raw(&self) -> CityModelRawAccessor<'_, VR, SS> {
-        CityModelRawAccessor { model: self }
+    pub fn raw(&self) -> crate::raw::v2_0::CityModelRawAccessor<'_, VR, SS> {
+        crate::raw::v2_0::CityModelRawAccessor::new(self)
     }
 
+    /// Returns mutable access to the city object collection.
+    ///
+    /// This remains public because object authoring still happens through live
+    /// mutation. It can still create dangling geometry or object references; the
+    /// stricter guarantees in this module apply to stored geometry insertion,
+    /// not to arbitrary city object graph edits.
     pub fn cityobjects_mut(&mut self) -> &mut CityObjects<SS> {
         self.inner.cityobjects_mut()
     }
@@ -476,10 +520,6 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.vertices_texture()
     }
 
-    pub fn vertices_texture_mut(&mut self) -> &mut Vertices<VR, UVCoordinate> {
-        self.inner.vertices_texture_mut()
-    }
-
     /// Add a template vertex and return its index.
     ///
     /// # Errors
@@ -501,69 +541,47 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.template_vertices()
     }
 
-    pub fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
-        self.inner.template_vertices_mut()
-    }
-
-    pub fn clear_template_vertices(&mut self) {
-        self.inner.clear_template_vertices();
-    }
-
-    pub fn get_template_geometry(&self, id: TemplateGeometryRef) -> Option<&Geometry<VR, SS>> {
+    pub fn get_geometry_template(&self, id: GeometryTemplateHandle) -> Option<&Geometry<VR, SS>> {
         self.inner.get_template_geometry(id.to_raw())
-    }
-
-    pub fn get_template_geometry_mut(
-        &mut self,
-        id: TemplateGeometryRef,
-    ) -> Option<&mut Geometry<VR, SS>> {
-        self.inner.get_template_geometry_mut(id.to_raw())
     }
 
     /// Add a template geometry and return its handle.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::error::Error::ResourcePoolFull`] when the template-geometry pool cannot
-    /// store additional entries for `ResourceId32`.
-    pub fn add_template_geometry(
+    /// Returns [`crate::error::Error::InvalidGeometry`] when `geometry` violates the stored
+    /// template-geometry invariants, or [`crate::error::Error::ResourcePoolFull`] when the
+    /// template-geometry pool cannot store additional entries for `ResourceId32`.
+    pub fn add_geometry_template(
         &mut self,
         geometry: Geometry<VR, SS>,
-    ) -> Result<TemplateGeometryRef> {
+    ) -> Result<GeometryTemplateHandle> {
+        if *geometry.type_geometry() == GeometryType::GeometryInstance {
+            return Err(crate::error::Error::InvalidGeometry(
+                "GeometryInstance cannot be inserted into the template geometry pool".to_string(),
+            ));
+        }
+
+        validate_stored_geometry_for_boundary_source(
+            geometry.raw(),
+            self,
+            BoundaryVertexSource::Template,
+        )?;
         self.inner
             .add_template_geometry(geometry)
-            .map(TemplateGeometryRef::from_raw)
+            .map(GeometryTemplateHandle::from_raw)
     }
 
-    pub fn template_geometry_count(&self) -> usize {
+    pub fn geometry_template_count(&self) -> usize {
         self.inner.template_geometry_count()
     }
 
-    pub fn iter_template_geometries(
+    pub fn iter_geometry_templates(
         &self,
-    ) -> impl Iterator<Item = (TemplateGeometryRef, &Geometry<VR, SS>)> + '_ {
+    ) -> impl Iterator<Item = (GeometryTemplateHandle, &Geometry<VR, SS>)> + '_ {
         self.inner
             .iter_template_geometries()
-            .map(|(id, v)| (TemplateGeometryRef::from_raw(id), v))
-    }
-
-    pub fn iter_template_geometries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (TemplateGeometryRef, &mut Geometry<VR, SS>)> + '_ {
-        self.inner
-            .iter_template_geometries_mut()
-            .map(|(id, v)| (TemplateGeometryRef::from_raw(id), v))
-    }
-
-    pub fn remove_template_geometry(
-        &mut self,
-        id: TemplateGeometryRef,
-    ) -> Option<Geometry<VR, SS>> {
-        self.inner.remove_template_geometry(id.to_raw())
-    }
-
-    pub fn clear_template_geometries(&mut self) {
-        self.inner.clear_template_geometries();
+            .map(|(id, v)| (GeometryTemplateHandle::from_raw(id), v))
     }
 
     pub fn type_citymodel(&self) -> crate::CityModelType {
@@ -574,66 +592,80 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.version()
     }
 
-    pub fn default_theme_material(&self) -> Option<MaterialRef> {
+    pub(crate) fn reserve_draft_insert(
+        &mut self,
+        mode: super::geometry_draft::DraftInsertMode,
+        new_vertices: usize,
+        new_uvs: usize,
+    ) -> Result<()> {
+        match mode {
+            super::geometry_draft::DraftInsertMode::Regular => {
+                self.inner.reserve_geometry_capacity(1)?;
+                self.inner.reserve_vertex_capacity(new_vertices)?;
+            }
+            super::geometry_draft::DraftInsertMode::Template => {
+                self.inner.reserve_template_geometry_capacity(1)?;
+                self.inner.reserve_template_vertex_capacity(new_vertices)?;
+            }
+        }
+        self.inner.reserve_uv_capacity(new_uvs)
+    }
+
+    pub fn default_theme_material(&self) -> Option<MaterialHandle> {
         self.inner
             .default_theme_material()
-            .map(MaterialRef::from_raw)
+            .map(MaterialHandle::from_raw)
     }
 
-    pub fn set_default_theme_material(&mut self, material_ref: Option<MaterialRef>) {
-        self.inner.set_default_theme_material(
-            material_ref.map(super::super::resources::handles::MaterialRef::to_raw),
-        );
+    /// Set the default material theme handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when `material_ref`
+    /// does not refer to a live material in the model.
+    pub fn set_default_theme_material(
+        &mut self,
+        material_ref: Option<MaterialHandle>,
+    ) -> Result<()> {
+        self.inner
+            .set_default_theme_material(material_ref.map(MaterialHandle::to_raw))
     }
 
-    pub fn default_theme_texture(&self) -> Option<TextureRef> {
-        self.inner.default_theme_texture().map(TextureRef::from_raw)
+    pub fn default_theme_texture(&self) -> Option<TextureHandle> {
+        self.inner
+            .default_theme_texture()
+            .map(TextureHandle::from_raw)
     }
 
-    pub fn set_default_theme_texture(&mut self, texture_ref: Option<TextureRef>) {
-        self.inner.set_default_theme_texture(
-            texture_ref.map(super::super::resources::handles::TextureRef::to_raw),
-        );
+    /// Set the default texture theme handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when `texture_ref`
+    /// does not refer to a live texture in the model.
+    pub fn set_default_theme_texture(&mut self, texture_ref: Option<TextureHandle>) -> Result<()> {
+        self.inner
+            .set_default_theme_texture(texture_ref.map(TextureHandle::to_raw))
     }
 
     /// Extracts a float attribute column from all `CityObjects`.
     ///
     /// Returns `(object_refs, values)` where each index in both vectors corresponds.
-    pub fn extract_float_column(&self, key: &str) -> (Vec<CityObjectRef>, Vec<f64>) {
-        let mut object_refs = Vec::new();
-        let mut values = Vec::new();
-
-        for (id, cityobject) in self.cityobjects().iter() {
-            if let Some(attributes) = cityobject.attributes()
-                && let Some(crate::cityjson::core::attributes::AttributeValue::Float(value)) =
-                    attributes.get(key)
-            {
-                object_refs.push(id);
-                values.push(*value);
-            }
-        }
-
-        (object_refs, values)
+    pub fn extract_float_column(&self, key: &str) -> (Vec<CityObjectHandle>, Vec<f64>) {
+        self.extract_attribute_column(key, |value| match value {
+            AttributeValue::Float(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Extracts an integer attribute column from all `CityObjects`.
     ///
     /// Returns `(object_refs, values)` where each index in both vectors corresponds.
-    pub fn extract_integer_column(&self, key: &str) -> (Vec<CityObjectRef>, Vec<i64>) {
-        let mut object_refs = Vec::new();
-        let mut values = Vec::new();
-
-        for (id, cityobject) in self.cityobjects().iter() {
-            if let Some(attributes) = cityobject.attributes()
-                && let Some(crate::cityjson::core::attributes::AttributeValue::Integer(value)) =
-                    attributes.get(key)
-            {
-                object_refs.push(id);
-                values.push(*value);
-            }
-        }
-
-        (object_refs, values)
+    pub fn extract_integer_column(&self, key: &str) -> (Vec<CityObjectHandle>, Vec<i64>) {
+        self.extract_attribute_column(key, |value| match value {
+            AttributeValue::Integer(value) => Some(*value),
+            _ => None,
+        })
     }
 
     /// Extracts a string attribute column from all `CityObjects`.
@@ -642,14 +674,27 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     pub fn extract_string_column<'a>(
         &'a self,
         key: &str,
-    ) -> (Vec<CityObjectRef>, Vec<&'a SS::String>) {
+    ) -> (Vec<CityObjectHandle>, Vec<&'a SS::String>) {
+        self.extract_attribute_column(key, |value| match value {
+            AttributeValue::String(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    fn extract_attribute_column<'a, T, F>(
+        &'a self,
+        key: &str,
+        mut select: F,
+    ) -> (Vec<CityObjectHandle>, Vec<T>)
+    where
+        F: FnMut(&'a AttributeValue<SS>) -> Option<T>,
+    {
         let mut object_refs = Vec::new();
         let mut values = Vec::new();
 
         for (id, cityobject) in self.cityobjects().iter() {
             if let Some(attributes) = cityobject.attributes()
-                && let Some(crate::cityjson::core::attributes::AttributeValue::String(value)) =
-                    attributes.get(key)
+                && let Some(value) = attributes.get(key).and_then(&mut select)
             {
                 object_refs.push(id);
                 values.push(value);
@@ -675,63 +720,8 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     }
 }
 
-/// Raw accessor for zero-copy access to internal `CityModel` storage.
-pub struct CityModelRawAccessor<'a, VR: VertexRef, SS: StringStorage> {
-    model: &'a CityModel<VR, SS>,
-}
-
-impl<'a, VR: VertexRef, SS: StringStorage> CityModelRawAccessor<'a, VR, SS> {
-    #[inline]
-    #[must_use]
-    pub fn vertices(&self) -> &'a [QuantizedCoordinate] {
-        self.model.inner.vertices().as_slice()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn geometries(&self) -> RawPoolView<'a, Geometry<VR, SS>> {
-        self.model.inner.geometries_raw()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn semantics(&self) -> RawPoolView<'a, Semantic<SS>> {
-        self.model.inner.semantics_raw()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn materials(&self) -> RawPoolView<'a, Material<SS>> {
-        self.model.inner.materials_raw()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn textures(&self) -> RawPoolView<'a, Texture<SS>> {
-        self.model.inner.textures_raw()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn cityobjects(&self) -> &'a CityObjects<SS> {
-        self.model.cityobjects()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn template_vertices(&self) -> &'a [RealWorldCoordinate] {
-        self.model.inner.template_vertices().as_slice()
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn uv_coordinates(&self) -> &'a [UVCoordinate] {
-        self.model.inner.vertices_texture().as_slice()
-    }
-}
-
 impl<VR: VertexRef, SS: StringStorage> RawAccess for CityModel<VR, SS> {
-    type Vertex = QuantizedCoordinate;
+    type Vertex = RealWorldCoordinate;
     type Geometry = Geometry<VR, SS>;
     type Semantic = Semantic<SS>;
     type Material = Material<SS>;
@@ -796,75 +786,150 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
     }
 }
 
-impl<VR: VertexRef, SS: StringStorage>
-    GeometryModelOps<
-        VR,
-        ResourceId32,
-        QuantizedCoordinate,
-        Semantic<SS>,
-        Material<SS>,
-        Texture<SS>,
-        Geometry<VR, SS>,
-        SS,
-    > for CityModel<VR, SS>
+impl<VR: VertexRef, SS: StringStorage> GeometryValidationContext<VR, ResourceId32>
+    for CityModel<VR, SS>
 {
-    fn add_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
-        self.add_semantic(semantic)
-            .map(super::super::resources::handles::SemanticRef::to_raw)
+    fn semantic_exists(&self, id: ResourceId32) -> bool {
+        self.inner.get_semantic(id).is_some()
     }
 
-    fn get_or_insert_semantic(&mut self, semantic: Semantic<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_semantic(semantic)
-            .map(super::super::resources::handles::SemanticRef::to_raw)
+    fn material_exists(&self, id: ResourceId32) -> bool {
+        self.inner.get_material(id).is_some()
     }
 
-    fn add_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
-        self.add_material(material)
-            .map(super::super::resources::handles::MaterialRef::to_raw)
+    fn texture_exists(&self, id: ResourceId32) -> bool {
+        self.inner.get_texture(id).is_some()
     }
 
-    fn get_or_insert_material(&mut self, material: Material<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_material(material)
-            .map(super::super::resources::handles::MaterialRef::to_raw)
+    fn uv_exists(&self, id: VertexIndex<VR>) -> bool {
+        self.inner.get_uv_coordinate(id).is_some()
     }
 
-    fn add_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
-        self.add_texture(texture)
-            .map(super::super::resources::handles::TextureRef::to_raw)
+    fn regular_vertex_exists(&self, id: VertexIndex<VR>) -> bool {
+        self.inner.get_vertex(id).is_some()
     }
 
-    fn get_or_insert_texture(&mut self, texture: Texture<SS>) -> Result<ResourceId32> {
-        self.get_or_insert_texture(texture)
-            .map(super::super::resources::handles::TextureRef::to_raw)
+    fn template_vertex_exists(&self, id: VertexIndex<VR>) -> bool {
+        self.inner.get_template_vertex(id).is_some()
     }
 
-    fn add_uv_coordinate(&mut self, uvcoordinate: UVCoordinate) -> Result<VertexIndex<VR>> {
-        self.add_uv_coordinate(uvcoordinate)
+    fn template_geometry_exists(&self, id: ResourceId32) -> bool {
+        self.inner.get_template_geometry(id).is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CityModelType;
+    use crate::backend::default::geometry::GeometryInstanceData;
+    use crate::error::Error;
+    use crate::resources::id::ResourceId32;
+    use crate::v2_0::appearance::ImageType;
+    use crate::v2_0::appearance::material::Material;
+    use crate::v2_0::appearance::texture::Texture;
+    use crate::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
+    use crate::v2_0::geometry::{AffineTransform3D, LoD};
+
+    fn multi_point_geometry(
+        vertices: BoundaryNestedMultiPoint32,
+    ) -> Geometry<u32, OwnedStringStorage> {
+        Geometry::from_raw_parts(
+            GeometryType::MultiPoint,
+            Some(LoD::LoD1),
+            Some(vertices.into()),
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
-    fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
-        self.add_geometry(geometry)
-            .map(super::super::resources::handles::GeometryRef::to_raw)
+    #[test]
+    fn add_geometry_rejects_missing_regular_boundary_vertex_even_when_template_vertex_exists() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model
+            .add_template_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+
+        let err = model
+            .add_geometry(multi_point_geometry(vec![0u32]))
+            .unwrap_err();
+
+        assert!(format!("{err}").contains("missing regular vertex"));
     }
 
-    fn add_template_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<ResourceId32> {
-        self.add_template_geometry(geometry)
-            .map(super::super::resources::handles::TemplateGeometryRef::to_raw)
+    #[test]
+    fn add_geometry_template_rejects_missing_template_boundary_vertex_even_when_regular_vertex_exists()
+     {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model
+            .add_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+
+        let err = model
+            .add_geometry_template(multi_point_geometry(vec![0u32]))
+            .unwrap_err();
+
+        assert!(format!("{err}").contains("missing template vertex"));
     }
 
-    fn add_vertex(&mut self, coordinate: QuantizedCoordinate) -> Result<VertexIndex<VR>> {
-        self.add_vertex(coordinate)
+    #[test]
+    fn add_geometry_template_rejects_geometry_instance() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let geometry = Geometry::from_raw_parts(
+            GeometryType::GeometryInstance,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(GeometryInstanceData::new(
+                ResourceId32::new(0, 0),
+                VertexIndex::new(0),
+                AffineTransform3D::identity(),
+            )),
+        );
+
+        let err = model.add_geometry_template(geometry).unwrap_err();
+
+        assert_eq!(
+            format!("{err}"),
+            "GeometryInstance cannot be inserted into the template geometry pool"
+        );
     }
 
-    fn vertices_mut(&mut self) -> &mut Vertices<VR, QuantizedCoordinate> {
-        self.vertices_mut()
+    #[test]
+    fn set_default_theme_material_rejects_stale_handle() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let material = model
+            .add_material(Material::new("theme".to_string()))
+            .unwrap();
+        assert!(model.remove_material(material).is_some());
+
+        let err = model
+            .set_default_theme_material(Some(material))
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::InvalidReference { element_type, .. } if element_type == "default theme material"
+        ));
     }
 
-    fn add_template_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
-        self.add_template_vertex(coordinate)
-    }
+    #[test]
+    fn set_default_theme_texture_rejects_stale_handle() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        let texture = model
+            .add_texture(Texture::new("theme.png".to_string(), ImageType::Png))
+            .unwrap();
+        assert!(model.remove_texture(texture).is_some());
 
-    fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
-        self.template_vertices_mut()
+        let err = model.set_default_theme_texture(Some(texture)).unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::InvalidReference { element_type, .. } if element_type == "default theme texture"
+        ));
     }
 }

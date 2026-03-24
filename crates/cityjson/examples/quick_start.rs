@@ -1,13 +1,12 @@
-use cityjson::prelude::*;
-use cityjson::v2_0::CityModel;
+use cityjson::v2_0::{CityJSONVersion, CityModel, CityModelType};
 fn main() {
-    let model: CityModel<u32, OwnedStringStorage> = CityModel::new(CityModelType::CityJSON);
+    let model = CityModel::<u32>::new(CityModelType::CityJSON);
 
     assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
     assert!(model.cityobjects().is_empty());
 
     assert_eq!(model.iter_geometries().count(), 0);
-    assert_eq!(model.iter_template_geometries().count(), 0);
+    assert_eq!(model.iter_geometry_templates().count(), 0);
     assert!(model.template_vertices().is_empty());
     assert_eq!(model.iter_semantics().count(), 0);
     assert_eq!(model.iter_materials().count(), 0);

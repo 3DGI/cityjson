@@ -2,41 +2,15 @@ use crate::prelude::StringStorage;
 use std::fmt;
 use std::marker::PhantomData;
 
-/// A collection of `CityJSON` Extensions.
-///
-/// This type provides functionality to manage multiple extensions in a `CityJSON` model.
-/// It ensures that extension names are unique (replacing duplicates), and offers methods
-/// to add, remove, and query extensions by name.
-///
-/// # Example
-///
-/// ```
-/// use cityjson::prelude::*;
-/// use cityjson::v2_0::{Extension, Extensions};
-///
-/// // Create a collection of extensions
-/// let mut extensions: Extensions<OwnedStringStorage> = Extensions::new();
-///
-/// // Add a noise extension to the collection
-/// let noise_ext = Extension::new(
-///     "noise".to_string(),
-///     "https://example.com/noise-extension/1.0".to_string(),
-///     "1.0".to_string()
-/// );
-/// extensions.add(noise_ext);
-///
-/// // Retrieve an extension by name
-/// let found = extensions.get("noise");
-/// assert!(found.is_some());
-/// ```
+/// Collection of `CityJSON` extensions. Enforces unique names by replacing on duplicate.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct ExtensionsCore<SS: StringStorage, E> {
+pub(crate) struct ExtensionsCore<SS: StringStorage, E> {
     inner: Vec<E>,
     _marker: PhantomData<SS>,
 }
 
 // Trait to define the interface for extension items
-pub trait ExtensionItem<SS: StringStorage> {
+pub(crate) trait ExtensionItem<SS: StringStorage> {
     fn name(&self) -> &SS::String;
 }
 
@@ -146,7 +120,7 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> fmt::Display for ExtensionsCore<SS
 /// # Example
 ///
 /// ```
-/// use cityjson::prelude::*;
+/// use cityjson::resources::storage::OwnedStringStorage;
 /// use cityjson::v2_0::Extension;
 ///
 /// let noise_ext: Extension<OwnedStringStorage> = Extension::new(
@@ -158,7 +132,7 @@ impl<SS: StringStorage, E: ExtensionItem<SS>> fmt::Display for ExtensionsCore<SS
 /// assert_eq!(noise_ext.name().to_string(), "noise");
 /// ```
 #[derive(Clone, Default, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ExtensionCore<SS: StringStorage> {
+pub(crate) struct ExtensionCore<SS: StringStorage> {
     name: SS::String,
     url: SS::String,
     version: SS::String,

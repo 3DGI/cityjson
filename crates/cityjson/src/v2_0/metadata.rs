@@ -1,9 +1,39 @@
-use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
+//! `CityJSON` metadata fields.
+//!
+//! [`Metadata`] corresponds to the optional `metadata` member of a `CityJSON` object.
+//! All fields are optional. The spec defines these fields, aligned with ISO 19115:
+//!
+//! | Field | Type | Notes |
+//! |---|---|---|
+//! | `geographicalExtent` | [`BBox`] | `[minx, miny, minz, maxx, maxy, maxz]` |
+//! | `identifier` | [`CityModelIdentifier`] | e.g. a UUID |
+//! | `referenceDate` | [`Date`] | `YYYY-MM-DD` (RFC 3339 full-date) |
+//! | `referenceSystem` | [`CRS`] | OGC CRS URL, e.g. `https://www.opengis.net/def/crs/EPSG/0/7415` |
+//! | `title` | `String` | Human-readable dataset name |
+//! | `pointOfContact` | [`Contact`] | Contact information |
+//!
+//! ```rust
+//! use cityjson::CityModelType;
+//! use cityjson::v2_0::{BBox, CRS, CityModelIdentifier, Date, OwnedCityModel};
+//!
+//! let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+//! let meta = model.metadata_mut();
+//!
+//! meta.set_geographical_extent(BBox::new(84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9));
+//! meta.set_identifier(CityModelIdentifier::new("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string()));
+//! meta.set_reference_date(Date::new("1977-02-28".to_string()));
+//! meta.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string()));
+//! meta.set_title("Amsterdam buildings LoD2");
+//! ```
+
 use crate::format_option;
 use crate::resources::storage::StringStorage;
+use crate::v2_0::attributes::Attributes;
 use std::fmt::{Display, Formatter};
 
+pub use crate::cityjson::core::metadata::{BBox, CRS, CityModelIdentifier, Date};
+
+/// Metadata for a `CityJSON` document. See the [module docs](self) for field descriptions.
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Metadata<SS: StringStorage> {
     geographical_extent: Option<BBox>,
@@ -45,8 +75,9 @@ impl<SS: StringStorage> Metadata<SS> {
         self.extra.as_ref()
     }
 
-    pub fn extra_mut(&mut self) -> &mut Option<Attributes<SS>> {
-        &mut self.extra
+    /// Returns a mutable reference to the extra attributes, inserting an empty map if absent.
+    pub fn extra_mut(&mut self) -> &mut Attributes<SS> {
+        self.extra.get_or_insert_with(Attributes::new)
     }
 
     pub fn set_extra(&mut self, extra: Option<Attributes<SS>>) {
@@ -185,6 +216,9 @@ impl<SS: StringStorage> std::fmt::Display for Metadata<SS> {
     }
 }
 
+/// Point-of-contact information within [`Metadata`].
+///
+/// Corresponds to the `pointOfContact` field in the `CityJSON` spec.
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Contact<SS: StringStorage> {
     name: String,
@@ -271,8 +305,8 @@ impl<SS: StringStorage> Contact<SS> {
         self.address.as_ref()
     }
 
-    pub fn address_mut(&mut self) -> Option<&mut Attributes<SS>> {
-        self.address.as_mut()
+    pub fn address_mut(&mut self) -> &mut Attributes<SS> {
+        self.address.get_or_insert_with(Attributes::new)
     }
 
     pub fn set_address(&mut self, address: Option<Attributes<SS>>) {
@@ -297,6 +331,7 @@ impl<SS: StringStorage> Display for Contact<SS> {
     }
 }
 
+/// Role of the point of contact, as defined in ISO 19115.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactRole {
@@ -322,6 +357,7 @@ impl Display for ContactRole {
     }
 }
 
+/// Whether the point of contact is an individual or an organization.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactType {

@@ -7,19 +7,33 @@
 //! and provide version-specific behavior through macros.
 
 use crate::cityjson::core::attributes::Attributes;
-use crate::cityjson::core::coordinate::{UVCoordinate, Vertices};
+use crate::cityjson::core::coordinate::UVCoordinate;
 use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
-use crate::cityjson::traits::coordinate::Coordinate;
-use crate::prelude::{RealWorldCoordinate, Result};
+use crate::cityjson::core::vertices::Vertices;
+use crate::error::Result;
 use crate::raw::RawPoolView;
-use crate::resources::pool::{DefaultResourcePool, ResourcePool, ResourceRef};
+use crate::resources::id::ResourceId;
+use crate::resources::pool::{DefaultResourcePool, ResourcePool};
 use crate::resources::storage::StringStorage;
+use crate::v2_0::coordinate::RealWorldCoordinate;
 use crate::{CityJSONVersion, CityModelType};
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct CityModelCoreCapacities {
+    pub cityobjects: usize,
+    pub vertices: usize,
+    pub semantics: usize,
+    pub materials: usize,
+    pub textures: usize,
+    pub geometries: usize,
+    pub template_vertices: usize,
+    pub template_geometries: usize,
+    pub uv_coordinates: usize,
+}
 
 /// Core `CityModel` structure that is shared across all `CityJSON` versions.
 ///
 /// This type is generic over:
-/// - `C`: The coordinate type (`FlexibleCoordinate` or `QuantizedCoordinate`)
 /// - `VR`: The vertex reference type
 /// - `RR`: The resource reference type
 /// - `SS`: The string storage type
@@ -32,10 +46,9 @@ use crate::{CityJSONVersion, CityModelType};
 /// - `Extensions`: The extensions type for this version
 /// - `CityObjects`: The city objects collection type for this version
 #[derive(Debug, Clone)]
-pub struct CityModelCore<
-    C: Coordinate,
+pub(crate) struct CityModelCore<
     VR: VertexRef,
-    RR: ResourceRef,
+    RR: ResourceId,
     SS: StringStorage,
     Semantic,
     Material,
@@ -61,7 +74,7 @@ pub struct CityModelCore<
     /// The transform object
     transform: Option<Transform>,
     /// Pool of vertex coordinates
-    vertices: Vertices<VR, C>,
+    vertices: Vertices<VR, RealWorldCoordinate>,
     /// Pool of geometries
     geometries: DefaultResourcePool<Geometry, RR>,
     /// Pool of vertex coordinates used by the geometry templates in `template_geometries`
@@ -83,9 +96,8 @@ pub struct CityModelCore<
 }
 
 impl<
-    C: Coordinate,
     VR: VertexRef,
-    RR: ResourceRef,
+    RR: ResourceId,
     SS: StringStorage,
     Semantic,
     Material,
@@ -97,7 +109,6 @@ impl<
     CityObjects,
 >
     CityModelCore<
-        C,
         VR,
         RR,
         SS,
@@ -137,17 +148,11 @@ where
         }
     }
 
-    /// Create a new `CityModelCore` with specified capacities
-    #[allow(clippy::too_many_arguments)]
-    pub fn with_capacity(
+    /// Create a new `CityModelCore` with specified capacities.
+    pub fn with_capacities(
         type_citymodel: CityModelType,
         version: Option<CityJSONVersion>,
-        cityobjects_capacity: usize,
-        vertex_capacity: usize,
-        semantic_capacity: usize,
-        material_capacity: usize,
-        texture_capacity: usize,
-        geometry_capacity: usize,
+        capacities: CityModelCoreCapacities,
         create_cityobjects: impl FnOnce(usize) -> CityObjects,
     ) -> Self {
         Self {
@@ -156,16 +161,16 @@ where
             extensions: None,
             extra: None,
             metadata: None,
-            cityobjects: create_cityobjects(cityobjects_capacity),
+            cityobjects: create_cityobjects(capacities.cityobjects),
             transform: None,
-            vertices: Vertices::with_capacity(vertex_capacity),
-            geometries: DefaultResourcePool::with_capacity(geometry_capacity),
-            template_vertices: Vertices::new(),
-            template_geometries: DefaultResourcePool::new(),
-            semantics: DefaultResourcePool::with_capacity(semantic_capacity),
-            materials: DefaultResourcePool::with_capacity(material_capacity),
-            textures: DefaultResourcePool::with_capacity(texture_capacity),
-            vertices_texture: Vertices::new(),
+            vertices: Vertices::with_capacity(capacities.vertices),
+            geometries: DefaultResourcePool::with_capacity(capacities.geometries),
+            template_vertices: Vertices::with_capacity(capacities.template_vertices),
+            template_geometries: DefaultResourcePool::with_capacity(capacities.template_geometries),
+            semantics: DefaultResourcePool::with_capacity(capacities.semantics),
+            materials: DefaultResourcePool::with_capacity(capacities.materials),
+            textures: DefaultResourcePool::with_capacity(capacities.textures),
+            vertices_texture: Vertices::with_capacity(capacities.uv_coordinates),
             default_theme_material: None,
             default_theme_texture: None,
         }
@@ -227,13 +232,9 @@ where
     }
 
     /// Remove a semantic by its resource reference
-    pub fn remove_semantic(&mut self, id: RR) -> Option<Semantic> {
+    #[cfg(test)]
+    pub(crate) fn remove_semantic(&mut self, id: RR) -> Option<Semantic> {
         self.semantics.remove(id)
-    }
-
-    /// Clear all semantics
-    pub fn clear_semantics(&mut self) {
-        self.semantics.clear();
     }
 
     /// Get or insert a semantic, returning the resource reference
@@ -307,13 +308,9 @@ where
     }
 
     /// Remove a material by its resource reference
-    pub fn remove_material(&mut self, id: RR) -> Option<Material> {
+    #[cfg(test)]
+    pub(crate) fn remove_material(&mut self, id: RR) -> Option<Material> {
         self.materials.remove(id)
-    }
-
-    /// Clear all materials
-    pub fn clear_materials(&mut self) {
-        self.materials.clear();
     }
 
     /// Get or insert a material, returning the resource reference.
@@ -383,13 +380,9 @@ where
     }
 
     /// Remove a texture by its resource reference
-    pub fn remove_texture(&mut self, id: RR) -> Option<Texture> {
+    #[cfg(test)]
+    pub(crate) fn remove_texture(&mut self, id: RR) -> Option<Texture> {
         self.textures.remove(id)
-    }
-
-    /// Clear all textures
-    pub fn clear_textures(&mut self) {
-        self.textures.clear();
     }
 
     /// Get or insert a texture, returning the resource reference.
@@ -413,11 +406,6 @@ where
     /// Get a geometry by its resource reference
     pub fn get_geometry(&self, id: RR) -> Option<&Geometry> {
         self.geometries.get(id)
-    }
-
-    /// Get a mutable reference to a geometry
-    pub fn get_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry> {
-        self.geometries.get_mut(id)
     }
 
     /// Add a geometry and return its resource reference.
@@ -445,32 +433,17 @@ where
         self.geometries.raw_view()
     }
 
-    /// Iterate over all geometries with mutable references
-    pub fn iter_geometries_mut(&mut self) -> impl Iterator<Item = (RR, &mut Geometry)> + '_ {
-        self.geometries.iter_mut()
-    }
-
-    /// Remove a geometry by its resource reference
-    pub fn remove_geometry(&mut self, id: RR) -> Option<Geometry> {
-        self.geometries.remove(id)
-    }
-
-    /// Clear all geometries
-    pub fn clear_geometries(&mut self) {
-        self.geometries.clear();
+    pub(crate) fn reserve_geometry_capacity(&mut self, additional: usize) -> Result<()> {
+        self.geometries.reserve(additional)
     }
 
     // Vertex methods
-    pub fn vertices(&self) -> &Vertices<VR, C> {
+    pub fn vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
         &self.vertices
     }
 
-    pub fn vertices_mut(&mut self) -> &mut Vertices<VR, C> {
-        &mut self.vertices
-    }
-
-    pub fn clear_vertices(&mut self) {
-        self.vertices.clear();
+    pub(crate) fn reserve_vertex_capacity(&mut self, additional: usize) -> Result<()> {
+        self.vertices.reserve(additional)
     }
 
     /// Add a vertex and return its index.
@@ -479,11 +452,11 @@ where
     ///
     /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex container cannot
     /// represent more vertices for `VR`.
-    pub fn add_vertex(&mut self, coordinate: C) -> Result<VertexIndex<VR>> {
+    pub fn add_vertex(&mut self, coordinate: RealWorldCoordinate) -> Result<VertexIndex<VR>> {
         self.vertices.push(coordinate)
     }
 
-    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&C> {
+    pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }
 
@@ -560,8 +533,8 @@ where
         &self.vertices_texture
     }
 
-    pub fn vertices_texture_mut(&mut self) -> &mut Vertices<VR, UVCoordinate> {
-        &mut self.vertices_texture
+    pub(crate) fn reserve_uv_capacity(&mut self, additional: usize) -> Result<()> {
+        self.vertices_texture.reserve(additional)
     }
 
     // Template vertex methods
@@ -586,12 +559,8 @@ where
         &self.template_vertices
     }
 
-    pub fn template_vertices_mut(&mut self) -> &mut Vertices<VR, RealWorldCoordinate> {
-        &mut self.template_vertices
-    }
-
-    pub fn clear_template_vertices(&mut self) {
-        self.template_vertices.clear();
+    pub(crate) fn reserve_template_vertex_capacity(&mut self, additional: usize) -> Result<()> {
+        self.template_vertices.reserve(additional)
     }
 
     // ==================== TEMPLATE GEOMETRIES ====================
@@ -599,11 +568,6 @@ where
     /// Get a template geometry by its resource reference
     pub fn get_template_geometry(&self, id: RR) -> Option<&Geometry> {
         self.template_geometries.get(id)
-    }
-
-    /// Get a mutable reference to a template geometry
-    pub fn get_template_geometry_mut(&mut self, id: RR) -> Option<&mut Geometry> {
-        self.template_geometries.get_mut(id)
     }
 
     /// Add a template geometry and return its resource reference.
@@ -626,27 +590,8 @@ where
         self.template_geometries.iter()
     }
 
-    /// Returns a zero-copy raw view of the template geometry pool.
-    #[allow(dead_code)]
-    pub fn template_geometries_raw(&self) -> RawPoolView<'_, Geometry> {
-        self.template_geometries.raw_view()
-    }
-
-    /// Iterate over all template geometries with mutable references
-    pub fn iter_template_geometries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (RR, &mut Geometry)> + '_ {
-        self.template_geometries.iter_mut()
-    }
-
-    /// Remove a template geometry by its resource reference
-    pub fn remove_template_geometry(&mut self, id: RR) -> Option<Geometry> {
-        self.template_geometries.remove(id)
-    }
-
-    /// Clear all template geometries
-    pub fn clear_template_geometries(&mut self) {
-        self.template_geometries.clear();
+    pub(crate) fn reserve_template_geometry_capacity(&mut self, additional: usize) -> Result<()> {
+        self.template_geometries.reserve(additional)
     }
 
     // ==================== ATTRIBUTES ====================
@@ -665,15 +610,49 @@ where
         self.default_theme_material
     }
 
-    pub fn set_default_theme_material(&mut self, material_ref: Option<RR>) {
+    /// Set the default material theme reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when `material_ref`
+    /// does not refer to a live material in the model.
+    pub fn set_default_theme_material(&mut self, material_ref: Option<RR>) -> Result<()> {
+        if let Some(material_ref) = material_ref
+            && !self.materials.is_valid(material_ref)
+        {
+            return Err(crate::error::Error::InvalidReference {
+                element_type: "default theme material".to_string(),
+                index: material_ref.index() as usize,
+                max_index: self.materials.len().saturating_sub(1),
+            });
+        }
+
         self.default_theme_material = material_ref;
+        Ok(())
     }
 
     pub fn default_theme_texture(&self) -> Option<RR> {
         self.default_theme_texture
     }
 
-    pub fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) {
+    /// Set the default texture theme reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::InvalidReference`] when `texture_ref`
+    /// does not refer to a live texture in the model.
+    pub fn set_default_theme_texture(&mut self, texture_ref: Option<RR>) -> Result<()> {
+        if let Some(texture_ref) = texture_ref
+            && !self.textures.is_valid(texture_ref)
+        {
+            return Err(crate::error::Error::InvalidReference {
+                element_type: "default theme texture".to_string(),
+                index: texture_ref.index() as usize,
+                max_index: self.textures.len().saturating_sub(1),
+            });
+        }
+
         self.default_theme_texture = texture_ref;
+        Ok(())
     }
 }
