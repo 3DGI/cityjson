@@ -6,6 +6,9 @@ use cityjson::v2_0::{CityModel, Geometry, GeometryType, VertexRef};
 use serde_json::{Map, Value};
 
 use crate::errors::{Error, Result};
+use crate::ser::mappings::{
+    materials_to_json_value, semantics_to_json_value, textures_to_json_value,
+};
 
 pub(crate) fn geometries_to_json_value<VR, SS>(
     model: &CityModel<VR, SS>,
@@ -21,12 +24,13 @@ where
         let geometry = model
             .get_geometry(*handle)
             .ok_or_else(|| Error::InvalidValue(format!("missing geometry for handle {handle}")))?;
-        geometries.push(geometry_to_json_value(geometry, Some(template_indices))?);
+        geometries.push(geometry_to_json_value(model, geometry, Some(template_indices))?);
     }
     Ok(Value::Array(geometries))
 }
 
 pub(crate) fn geometry_to_json_value<VR, SS>(
+    model: &CityModel<VR, SS>,
     geometry: &Geometry<VR, SS>,
     template_indices: Option<&HashMap<GeometryTemplateHandle, usize>>,
 ) -> Result<Value>
@@ -50,21 +54,6 @@ where
             "boundaries": [instance.reference_point().value()],
             "transformationMatrix": instance.transformation().into_array(),
         }));
-    }
-    if geometry.semantics().is_some() {
-        return Err(Error::UnsupportedFeature(
-            "geometry semantics serialization is not implemented yet",
-        ));
-    }
-    if geometry.materials().is_some() {
-        return Err(Error::UnsupportedFeature(
-            "geometry material serialization is not implemented yet",
-        ));
-    }
-    if geometry.textures().is_some() {
-        return Err(Error::UnsupportedFeature(
-            "geometry texture serialization is not implemented yet",
-        ));
     }
 
     let boundaries = geometry.boundaries().ok_or_else(|| {
@@ -107,6 +96,15 @@ where
             }
         },
     );
+    if let Some(semantics) = semantics_to_json_value(model, geometry)? {
+        value.insert("semantics".to_owned(), semantics);
+    }
+    if let Some(materials) = materials_to_json_value(model, geometry)? {
+        value.insert("material".to_owned(), materials);
+    }
+    if let Some(textures) = textures_to_json_value(model, geometry)? {
+        value.insert("texture".to_owned(), textures);
+    }
 
     Ok(Value::Object(value))
 }

@@ -89,7 +89,7 @@ where
 
     for (dense_index, (handle, geometry)) in model.iter_geometry_templates().enumerate() {
         indices.insert(handle, dense_index);
-        templates.push(geometry_to_json_value(geometry, Some(&indices))?);
+        templates.push(geometry_to_json_value(model, geometry, Some(&indices))?);
     }
 
     Ok((
