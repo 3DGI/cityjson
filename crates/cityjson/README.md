@@ -5,7 +5,7 @@ Rust. The types map directly to the spec's object hierarchy: `CityModel` is the 
 `CityObject` is each entry in the `CityObjects` map, and `Geometry` covers all eight geometry
 types.
 
-JSON encoding and decoding, and upgrades from older CityJSON versions, are handled in the
+JSON encoding and decoding, and upgrades from older `CityJSON` versions, are handled in the
 separate `serde_cityjson` crate.
 
 ## Installation
@@ -16,7 +16,7 @@ cargo add cityjson
 
 ## Example
 
-A `Building` at LoD2 with two attributes, constructed from scratch:
+A `Building` at `LoD2` with two attributes, constructed from scratch:
 
 ```rust
 use cityjson::CityModelType;

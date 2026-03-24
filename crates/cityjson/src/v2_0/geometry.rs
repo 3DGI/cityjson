@@ -2,9 +2,9 @@
 //!
 //! [`Geometry`] covers the eight geometry types from spec §3 (boundary arrays) plus
 //! `GeometryInstance` (spec §3.4, geometry templates). The table below maps each type to the
-//! nesting depth of its boundary array and its typical LoD range:
+//! nesting depth of its boundary array and its typical `LoD` range:
 //!
-//! | Type | Boundary nesting | Typical LoD |
+//! | Type | Boundary nesting | Typical `LoD` |
 //! |------|-----------------|-------------|
 //! | `MultiPoint` | `[v, …]` | any |
 //! | `MultiLineString` | `[[v, …], …]` | any |

@@ -4,7 +4,7 @@
 //!
 //! | Spec concept | Rust type |
 //! |---|---|
-//! | Root CityJSON object | [`CityModel`] |
+//! | Root `CityJSON` object | [`CityModel`] |
 //! | `CityObjects` map entry | [`CityObject`] |
 //! | Geometry (stored) | [`Geometry`] |
 //! | Geometry (authoring) | [`GeometryDraft`] |
@@ -112,7 +112,7 @@ pub use geometry::{
     semantic::{BorrowedSemantic, OwnedSemantic, Semantic, SemanticType},
 };
 pub use geometry_draft::{
-    DraftUv, DraftVertex, GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft,
+    UvDraft, DraftVertex, GeometryDraft, LineStringDraft, PointDraft, RingDraft, ShellDraft,
     SolidDraft, SurfaceDraft,
 };
 pub use metadata::{

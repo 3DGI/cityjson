@@ -135,24 +135,24 @@ impl<VR: VertexRef> From<[f64; 3]> for DraftVertex<VR> {
 /// Same pattern as [`DraftVertex`]: `Existing` reuses an index from the model's UV pool,
 /// `New` inserts a fresh coordinate. Converts from `VertexIndex`, `UVCoordinate`, and `[f32; 2]`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum DraftUv<VR: VertexRef> {
+pub enum UvDraft<VR: VertexRef> {
     Existing(VertexIndex<VR>),
     New(UVCoordinate),
 }
 
-impl<VR: VertexRef> From<VertexIndex<VR>> for DraftUv<VR> {
+impl<VR: VertexRef> From<VertexIndex<VR>> for UvDraft<VR> {
     fn from(value: VertexIndex<VR>) -> Self {
         Self::Existing(value)
     }
 }
 
-impl<VR: VertexRef> From<UVCoordinate> for DraftUv<VR> {
+impl<VR: VertexRef> From<UVCoordinate> for UvDraft<VR> {
     fn from(value: UVCoordinate) -> Self {
         Self::New(value)
     }
 }
 
-impl<VR: VertexRef> From<[f32; 2]> for DraftUv<VR> {
+impl<VR: VertexRef> From<[f32; 2]> for UvDraft<VR> {
     fn from(value: [f32; 2]) -> Self {
         Self::New(UVCoordinate::new(value[0], value[1]))
     }
@@ -162,7 +162,7 @@ impl<VR: VertexRef> From<[f32; 2]> for DraftUv<VR> {
 struct RingTextureDraft<VR: VertexRef, S> {
     theme: S,
     texture: TextureHandle,
-    uvs: Vec<DraftUv<VR>>,
+    uvs: Vec<UvDraft<VR>>,
 }
 
 /// One point in a `MultiPoint` geometry draft, with an optional semantic handle.
@@ -242,7 +242,7 @@ impl<VR: VertexRef, SS: StringStorage> RingDraft<VR, SS> {
     pub fn with_texture<I, T>(mut self, theme: SS::String, texture: TextureHandle, uvs: I) -> Self
     where
         I: IntoIterator<Item = T>,
-        T: Into<DraftUv<VR>>,
+        T: Into<UvDraft<VR>>,
     {
         self.textures.push(RingTextureDraft {
             theme,
@@ -920,17 +920,17 @@ impl DraftAnalysis {
     fn record_uv<VR: VertexRef, SS: StringStorage>(
         &mut self,
         model: &CityModel<VR, SS>,
-        uv: &DraftUv<VR>,
+        uv: &UvDraft<VR>,
     ) -> Result<()> {
         match uv {
-            DraftUv::Existing(index) => {
+            UvDraft::Existing(index) => {
                 if model.get_uv_coordinate(*index).is_none() {
                     return Err(Error::InvalidGeometry(format!(
                         "draft references missing UV {index}"
                     )));
                 }
             }
-            DraftUv::New(coord) => {
+            UvDraft::New(coord) => {
                 if self.seen_new_uvs.insert(coord.into()) {
                     self.new_uvs += 1;
                 }
@@ -1188,10 +1188,10 @@ impl<'a, VR: VertexRef, SS: StringStorage> DraftResolver<'a, VR, SS> {
         }
     }
 
-    fn resolve_uv(&mut self, uv: &DraftUv<VR>) -> Result<VertexIndex<VR>> {
+    fn resolve_uv(&mut self, uv: &UvDraft<VR>) -> Result<VertexIndex<VR>> {
         match uv {
-            DraftUv::Existing(index) => Ok(*index),
-            DraftUv::New(coord) => {
+            UvDraft::Existing(index) => Ok(*index),
+            UvDraft::New(coord) => {
                 let key: UvCoordinateKey = coord.into();
                 if let Some(index) = self.new_uvs.get(&key) {
                     return Ok(*index);
