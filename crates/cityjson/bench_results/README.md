@@ -14,7 +14,7 @@ timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_ver
 - `commit`: short git hash of the code under test.
 - `description`: user-provided description.
 - `mode`: `fast` or `full` input sizing.
-- `backend`: `default` or `nested`.
+- `backend`: backend label for the run (currently `default` in the standard `just perf` flow).
 - `bench`: stable benchmark ID (e.g. `builder/build_with_geometry`).
 - `metric`: `time_ms`, `time_producer_ms`, `time_consumer_ms`,
   `throughput_elem_s`, `heap_max_bytes`, `heap_total_bytes`, `heap_max_blocks`,
@@ -27,7 +27,6 @@ timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_ver
 - `rustc`: full `rustc --version` output.
 
 Notes:
-- `tools/perf.sh` defaults to `BACKEND_SPLIT=1`, so nested runs use `--no-default-features` to avoid duplicate benchmarks.
 - `bench_version` is bumped whenever the suite shape or benchmark IDs change.
 
 ## Running

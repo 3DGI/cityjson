@@ -2,9 +2,9 @@ pub mod materials;
 pub mod semantics;
 pub mod textures;
 
-use crate::cityjson::core::boundary::BoundaryType;
-use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
-use crate::resources::pool::ResourceRef;
+use crate::resources::id::ResourceId;
+use crate::v2_0::boundary::BoundaryType;
+use crate::v2_0::vertex::VertexRef;
 
 pub use materials::MaterialMap;
 pub use semantics::SemanticMap;
@@ -12,25 +12,21 @@ pub use textures::TextureMap;
 
 #[repr(C)]
 #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) struct SemanticOrMaterialMap<VR: VertexRef, RR: ResourceRef> {
+pub(crate) struct SemanticOrMaterialMap<VR: VertexRef, RR: ResourceId> {
     pub(crate) points: Vec<Option<RR>>,
     pub(crate) linestrings: Vec<Option<RR>>,
     pub(crate) surfaces: Vec<Option<RR>>,
-    pub(crate) shells: Vec<VertexIndex<VR>>,
-    pub(crate) solids: Vec<VertexIndex<VR>>,
+    // The boundary is authoritative for shell and solid topology.
+    _phantom: std::marker::PhantomData<VR>,
 }
 
-impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
+impl<VR: VertexRef, RR: ResourceId> SemanticOrMaterialMap<VR, RR> {
     pub(crate) fn new() -> Self {
         Self::default()
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.points.is_empty()
-            && self.linestrings.is_empty()
-            && self.surfaces.is_empty()
-            && self.shells.is_empty()
-            && self.solids.is_empty()
+        self.points.is_empty() && self.linestrings.is_empty() && self.surfaces.is_empty()
     }
 
     pub(crate) fn add_point(&mut self, resource: Option<RR>) {
@@ -45,14 +41,6 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
         self.surfaces.push(resource);
     }
 
-    pub(crate) fn add_shell(&mut self, shell_index: VertexIndex<VR>) {
-        self.shells.push(shell_index);
-    }
-
-    pub(crate) fn add_solid(&mut self, solid_index: VertexIndex<VR>) {
-        self.solids.push(solid_index);
-    }
-
     pub(crate) fn points(&self) -> &[Option<RR>] {
         &self.points
     }
@@ -65,20 +53,8 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
         &self.surfaces
     }
 
-    pub(crate) fn shells(&self) -> &[VertexIndex<VR>] {
-        &self.shells
-    }
-
-    pub(crate) fn solids(&self) -> &[VertexIndex<VR>] {
-        &self.solids
-    }
-
     pub(crate) fn check_type(&self) -> BoundaryType {
-        if !self.solids.is_empty() {
-            BoundaryType::MultiOrCompositeSolid
-        } else if !self.shells.is_empty() {
-            BoundaryType::Solid
-        } else if !self.surfaces.is_empty() {
+        if !self.surfaces.is_empty() {
             BoundaryType::MultiOrCompositeSurface
         } else if !self.linestrings.is_empty() {
             BoundaryType::MultiLineString
@@ -93,14 +69,14 @@ impl<VR: VertexRef, RR: ResourceRef> SemanticOrMaterialMap<VR, RR> {
 macro_rules! define_typed_resource_map {
     ($name:ident, $handle:ty) => {
         #[derive(Clone, Debug, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
-        pub struct $name<VR: crate::cityjson::core::vertex::VertexRef> {
+        pub struct $name<VR: crate::v2_0::vertex::VertexRef> {
             inner: crate::resources::mapping::SemanticOrMaterialMap<
                 VR,
-                crate::resources::pool::ResourceId32,
+                crate::resources::id::ResourceId32,
             >,
         }
 
-        impl<VR: crate::cityjson::core::vertex::VertexRef> $name<VR> {
+        impl<VR: crate::v2_0::vertex::VertexRef> $name<VR> {
             pub fn new() -> Self {
                 Self::default()
             }
@@ -121,20 +97,6 @@ macro_rules! define_typed_resource_map {
                 self.inner.add_surface(resource.map(|r| r.to_raw()));
             }
 
-            pub fn add_shell(
-                &mut self,
-                shell_index: crate::cityjson::core::vertex::VertexIndex<VR>,
-            ) {
-                self.inner.add_shell(shell_index);
-            }
-
-            pub fn add_solid(
-                &mut self,
-                solid_index: crate::cityjson::core::vertex::VertexIndex<VR>,
-            ) {
-                self.inner.add_solid(solid_index);
-            }
-
             pub fn points(&self) -> &[Option<$handle>] {
                 crate::resources::handles::cast_option_handle_slice::<$handle>(self.inner.points())
             }
@@ -151,15 +113,7 @@ macro_rules! define_typed_resource_map {
                 )
             }
 
-            pub fn shells(&self) -> &[crate::cityjson::core::vertex::VertexIndex<VR>] {
-                self.inner.shells()
-            }
-
-            pub fn solids(&self) -> &[crate::cityjson::core::vertex::VertexIndex<VR>] {
-                self.inner.solids()
-            }
-
-            pub fn check_type(&self) -> crate::cityjson::core::boundary::BoundaryType {
+            pub fn check_type(&self) -> crate::v2_0::boundary::BoundaryType {
                 self.inner.check_type()
             }
 
@@ -167,7 +121,7 @@ macro_rules! define_typed_resource_map {
             pub(crate) fn from_raw(
                 inner: crate::resources::mapping::SemanticOrMaterialMap<
                     VR,
-                    crate::resources::pool::ResourceId32,
+                    crate::resources::id::ResourceId32,
                 >,
             ) -> Self {
                 Self { inner }
@@ -178,7 +132,7 @@ macro_rules! define_typed_resource_map {
                 &self,
             ) -> &crate::resources::mapping::SemanticOrMaterialMap<
                 VR,
-                crate::resources::pool::ResourceId32,
+                crate::resources::id::ResourceId32,
             > {
                 &self.inner
             }
@@ -187,3 +141,93 @@ macro_rules! define_typed_resource_map {
 }
 
 pub(crate) use define_typed_resource_map;
+
+// ---------------------------------------------------------------------------
+// Unit tests for SemanticOrMaterialMap
+// Family 5: semantic/material map shape
+// Family 6: map check_type() correctness
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod semantic_material_map {
+    use super::*;
+    use crate::resources::id::ResourceId32;
+
+    type Map = SemanticOrMaterialMap<u32, ResourceId32>;
+
+    fn make_surface_map() -> Map {
+        let mut m = Map::new();
+        m.add_surface(Some(ResourceId32::new(0, 0)));
+        m.add_surface(Some(ResourceId32::new(1, 0)));
+        m.add_surface(None);
+        m
+    }
+
+    // -----------------------------------------------------------------------
+    // Family 5: map has correct bucket counts
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn surface_map_surfaces_bucket_has_correct_length() {
+        let m = make_surface_map();
+        assert_eq!(m.surfaces().len(), 3, "one entry per surface");
+        assert!(m.points().is_empty());
+        assert!(m.linestrings().is_empty());
+    }
+
+    #[test]
+    fn point_map_points_bucket_has_correct_length() {
+        let mut m = Map::new();
+        m.add_point(Some(ResourceId32::new(0, 0)));
+        m.add_point(None);
+        assert_eq!(m.points().len(), 2);
+        assert!(m.linestrings().is_empty());
+        assert!(m.surfaces().is_empty());
+    }
+
+    #[test]
+    fn linestring_map_linestrings_bucket_has_correct_length() {
+        let mut m = Map::new();
+        m.add_linestring(None);
+        m.add_linestring(Some(ResourceId32::new(7, 0)));
+        assert_eq!(m.linestrings().len(), 2);
+        assert!(m.points().is_empty());
+        assert!(m.surfaces().is_empty());
+    }
+
+    #[test]
+    fn none_entries_are_preserved() {
+        let m = make_surface_map();
+        assert!(m.surfaces()[2].is_none(), "None entry must be preserved");
+    }
+
+    // -----------------------------------------------------------------------
+    // Family 6: check_type() correctness
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn empty_map_check_type_is_none() {
+        let m = Map::new();
+        assert_eq!(m.check_type(), BoundaryType::None);
+    }
+
+    #[test]
+    fn surface_only_map_check_type_is_multi_or_composite_surface() {
+        let m = make_surface_map();
+        assert_eq!(m.check_type(), BoundaryType::MultiOrCompositeSurface);
+    }
+
+    #[test]
+    fn point_only_map_check_type_is_multi_point() {
+        let mut m = Map::new();
+        m.add_point(None);
+        assert_eq!(m.check_type(), BoundaryType::MultiPoint);
+    }
+
+    #[test]
+    fn linestring_only_map_check_type_is_multi_linestring() {
+        let mut m = Map::new();
+        m.add_linestring(None);
+        assert_eq!(m.check_type(), BoundaryType::MultiLineString);
+    }
+}

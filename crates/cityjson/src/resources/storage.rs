@@ -1,28 +1,21 @@
-//! # String storage
+//! String storage strategies for the `CityJSON` data model.
 //!
-//! This module provides string storage strategies for the `CityJSON` data model.
-//! It defines traits and implementations for both owned and borrowed string types,
-//! allowing for flexible memory management based on application needs.
-//!
-//! The module supports two primary string storage strategies:
-//! - `OwnedStringStorage`: Uses Rust's `String` type for full ownership of string data
-//! - `BorrowedStringStorage`: Uses string references (`&str`) for borrowed data
-//!
-//! This design enables cityjson-rs users to choose between memory efficiency (borrowed strings)
-//! and convenience/ownership (owned strings) depending on their specific use case.
-//!
-//! ## Examples
+//! Two strategies are available: [`OwnedStringStorage`] (uses `String`) and
+//! [`BorrowedStringStorage`] (uses `&str`).
 //!
 //! ```rust
-//! use cityjson::prelude::*;
+//! use cityjson::resources::storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage};
 //!
-//! // Using owned strings
-//! type MyOwnedString = <OwnedStringStorage as StringStorage>::String;
-//! let owned: MyOwnedString = "example".to_string();
+//! fn to_upper_text<SS: StringStorage>(value: SS::String) -> String {
+//!     value.as_ref().to_uppercase()
+//! }
 //!
-//! // Using borrowed strings with a lifetime
-//! type MyBorrowedString<'a> = <BorrowedStringStorage<'a> as StringStorage>::String;
-//! let borrowed: MyBorrowedString = "example";
+//! let owned: <OwnedStringStorage as StringStorage>::String = "example".to_string();
+//! assert_eq!(to_upper_text::<OwnedStringStorage>(owned), "EXAMPLE");
+//!
+//! let backing = String::from("borrowed");
+//! let borrowed: <BorrowedStringStorage<'_> as StringStorage>::String = backing.as_str();
+//! assert_eq!(to_upper_text::<BorrowedStringStorage<'_>>(borrowed), "BORROWED");
 //! ```
 
 use std::borrow::Borrow;
@@ -30,21 +23,9 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-/// Trait for different string storage strategies (owned vs borrowed)
-///
-/// This trait defines the requirements for string storage implementations and
-/// provides an associated type to represent the actual string type used.
-/// Implementing types can specify whether strings should be owned (`String`)
-/// or borrowed (`&str`) based on application needs.
+/// Trait for string storage strategies.
 pub trait StringStorage: Clone + Debug + Default + PartialEq + Eq + Hash {
-    /// The string type (String for owned, &str for borrowed)
-    ///
-    /// This associated type determines the actual string representation:
-    /// - `String` for owned storage
-    /// - `&str` for borrowed storage
-    ///
-    /// The constraints ensure that regardless of the storage strategy,
-    /// the string type supports all necessary operations for the `CityJSON` model.
+    /// `String` for owned storage, `&str` for borrowed.
     type String: AsRef<str>
         + Eq
         + PartialEq
@@ -58,43 +39,17 @@ pub trait StringStorage: Clone + Debug + Default + PartialEq + Eq + Hash {
         + Display;
 }
 
-/// Storage implementation for owned strings
-///
-/// This implementation uses Rust's `String` type to store string data,
-/// providing full ownership and control over the memory allocation.
-/// Use this storage strategy when:
-/// - You need to modify string contents
-/// - Strings have dynamic lifetimes
-/// - You want to avoid lifetime management complexity
+/// Storage strategy using owned `String` values.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub struct OwnedStringStorage;
-
-// impl Display for OwnedStringStorage {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", self)
-//     }
-// }
 
 impl StringStorage for OwnedStringStorage {
     type String = String;
 }
 
-/// Storage implementation for borrowed strings
-///
-/// This implementation uses string references (`&str`) to avoid copying string data.
-/// The lifetime parameter `'a` defines how long the string references must remain valid.
-/// Use this storage strategy when:
-/// - You're processing data without modifying strings
-/// - Memory efficiency is critical
-/// - Source data already owns the strings
+/// Storage strategy using borrowed `&str` references.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub struct BorrowedStringStorage<'a>(PhantomData<&'a ()>);
-
-// impl<'a> Display for BorrowedStringStorage<'a> {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", self)
-//     }
-// }
 
 impl<'a> StringStorage for BorrowedStringStorage<'a> {
     type String = &'a str;

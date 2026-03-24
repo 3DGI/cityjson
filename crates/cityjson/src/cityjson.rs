@@ -1,9 +1,8 @@
 //! # `CityJSON` types and traits
 //!
-//! These types are version-agnostic, as they are not expected to change across versions.
+//! Shared internal modules used to implement versioned `CityJSON` APIs.
 
 pub mod core;
-pub mod traits;
 
 #[cfg(test)]
 mod tests {

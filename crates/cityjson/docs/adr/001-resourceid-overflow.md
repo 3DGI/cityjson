@@ -1,4 +1,4 @@
-Overflow in the `test_producer_consumer_stream` with 100_000 buildings and `ResourceId32`.
+Overflow in a high-volume streaming test with 100_000 buildings and `ResourceId32`.
 
 ## Problem
 

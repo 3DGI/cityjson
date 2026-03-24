@@ -9,8 +9,17 @@
 //!
 //! - Maintains stable references to resources even as the underlying collection changes
 //! - Efficiently reuses memory when resources are removed
-//! - Prevents use-after-free bugs through generation counters
+//! - Prevents stale-reference bugs: an ID is only valid while its resource is alive
 //! - Supports zero-cost abstraction over different resource reference types
+//!
+//! [`ResourcePool::len`] returns the number of **active** (occupied) resources, matching
+//! the convention of standard Rust collections. Vacant slots (freed or retired) are not counted.
+//!
+//! ## ID Validity
+//!
+//! [`ResourcePool::is_valid`] returns `true` only when the ID's generation matches the current
+//! slot generation **and** the slot is occupied. This means an ID becomes invalid immediately
+//! on [`ResourcePool::remove`], before the slot is reused.
 //!
 //! ## Generation Counter Overflow Protection
 //!
@@ -26,55 +35,22 @@
 //!
 //! ## Pool Size Limits
 //!
-//! Resource IDs are bounded by [`ResourceRef::max_index`]. Insertion fails with
-//! [`crate::error::Error::ResourcePoolFull`] when a new slot index would exceed that
+//! Resource IDs are bounded by [`ResourceId::max_index`]. Insertion fails with
+//! [`Error::ResourcePoolFull`] when a new slot index would exceed that
 //! bound. For [`ResourceId32`], the maximum representable slot index is `u32::MAX`.
 //!
 //! ## Key Components
 //!
 //! - [`ResourcePool`]: Trait defining the interface for resource pools
-//! - [`ResourceRef`]: Trait for resource identifiers that combine an index with a generation counter
-//! - [`ResourceId32`]: A concrete implementation of `ResourceRef` using 32-bit indices
+//! - [`ResourceId`]: Trait for resource identifiers that combine an index with a generation counter
+//! - [`ResourceId32`]: A concrete implementation of [`ResourceId`] using 32-bit indices
 //! - [`DefaultResourcePool`]: A general-purpose implementation of `ResourcePool`
-//!
-//! ## Usage Example
-//!
-//! ```ignore
-//! use cityjson::resources::pool::{DefaultResourcePool, ResourceId32, ResourcePool};
-//!
-//! // Create a pool storing i32 values with ResourceId32 references
-//! let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-//!
-//! // Add resources and get their unique identifiers
-//! let id1 = pool.add(42).unwrap();
-//! let id2 = pool.add(100).unwrap();
-//!
-//! // Retrieve resources
-//! assert_eq!(pool.get(id1), Some(&42));
-//! assert_eq!(pool.get(id2), Some(&100));
-//!
-//! // Modify resources
-//! if let Some(value) = pool.get_mut(id1) {
-//!     *value = 84;
-//! }
-//! assert_eq!(pool.get(id1), Some(&84));
-//!
-//! // Remove resources
-//! let removed = pool.remove(id1);
-//! assert_eq!(removed, Some(84));
-//!
-//! // The slot will be reused for future additions
-//! let id3 = pool.add(200).unwrap();
-//! assert_eq!(id3.index(), id1.index()); // Same index
-//! assert_eq!(id3.generation(), id1.generation() + 1); // Different generation
-//! ```
 
-use crate::cityjson::core::vertex::VertexIndex;
-use crate::cityjson::core::vertex::VertexRef;
 use crate::error::{Error, Result};
 use crate::raw::RawPoolView;
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::Hash;
+use crate::resources::id;
+use crate::resources::id::ResourceId;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 /// Trait for a resource pool storing items of type T and using a resource reference RR.
@@ -123,7 +99,7 @@ pub trait ResourcePool<T, RR> {
     /// # Errors
     ///
     /// Returns [`crate::error::Error::ResourcePoolFull`] when the next slot index
-    /// would exceed [`ResourceRef::max_index`].
+    /// would exceed [`ResourceId::max_index`].
     fn add(&mut self, resource: T) -> Result<RR>;
 
     /// Retrieves a reference to the resource identified by `id`
@@ -229,116 +205,6 @@ pub trait ResourcePool<T, RR> {
     fn clear(&mut self);
 }
 
-/// Abstraction over a resource identifier.
-///
-/// A resource identifier combines an index (position in the storage) with a generation count
-/// that is incremented each time a resource slot is reused. This prevents use-after-free bugs
-/// by ensuring that old references to a slot that has been reused are invalid.
-pub trait ResourceRef:
-    Copy + Debug + Default + Display + PartialEq + Eq + PartialOrd + Ord + Hash
-{
-    /// Creates an instance of the resource reference with the given index and generation.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The index of the resource in the storage
-    /// * `generation` - The generation counter for the resource slot
-    fn new(index: u32, generation: u16) -> Self;
-
-    /// Returns the underlying index.
-    fn index(&self) -> u32;
-
-    /// Returns the generation.
-    fn generation(&self) -> u16;
-
-    /// Maximum index representable by this reference type.
-    #[must_use]
-    fn max_index() -> u32 {
-        u32::MAX
-    }
-}
-
-/// A 32-bit resource identifier that combines a 32-bit index with a 16-bit generation counter.
-///
-/// This structure allows for up to 2^32 (approximately 4.2 billion) unique resource slots,
-/// and each slot can be reused up to 2^16 (65,536) times. When a slot reaches generation
-/// `u16::MAX`, it is retired and will not be reused, preventing generation counter overflow.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct ResourceId32 {
-    /// The index of the resource in the storage
-    index: u32,
-    /// The generation counter, incremented each time a slot is reused
-    generation: u16,
-}
-
-impl ResourceId32 {
-    /// Creates a new `ResourceId32` with the given index and generation.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The index of the resource in the storage
-    /// * `generation` - The generation counter for the resource slot
-    #[must_use]
-    pub fn new(index: u32, generation: u16) -> Self {
-        Self { index, generation }
-    }
-
-    /// Returns the index part of the identifier.
-    #[must_use]
-    pub fn index(self) -> u32 {
-        self.index
-    }
-
-    /// Returns the generation part of the identifier.
-    #[must_use]
-    pub fn generation(self) -> u16 {
-        self.generation
-    }
-
-    /// Convert the resource index to a [`VertexIndex`].
-    ///
-    /// This is useful when the resource pool is storing vertices or related entities
-    /// that can be referenced by vertex indices.
-    ///
-    /// # Arguments
-    ///
-    /// # Returns
-    ///
-    /// A Result containing the converted `VertexIndex` or an error if conversion fails
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::IndexConversion`] when `self.index` cannot be represented by
-    /// the target vertex reference type `T`.
-    pub fn to_vertex_index<T: VertexRef>(self) -> Result<VertexIndex<T>> {
-        T::from_u32(self.index)
-            .map(|v| VertexIndex::new(v))
-            .ok_or(Error::IndexConversion {
-                source_type: "u32".to_string(),
-                target_type: std::any::type_name::<T>().to_string(),
-                value: self.index.to_string(),
-            })
-    }
-}
-
-impl Display for ResourceId32 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "index: {}, generation: {}", self.index, self.generation)
-    }
-}
-
-impl ResourceRef for ResourceId32 {
-    fn new(index: u32, generation: u16) -> Self {
-        ResourceId32 { index, generation }
-    }
-    fn index(&self) -> u32 {
-        self.index
-    }
-    fn generation(&self) -> u16 {
-        self.generation
-    }
-}
-
 /// A default implementation of `ResourcePool` that uses a Vec to store resources.
 ///
 /// This implementation provides efficient O(1) lookups, additions, and removals of resources.
@@ -355,18 +221,20 @@ impl ResourceRef for ResourceId32 {
 /// - `T`: The type of resources stored in the pool
 /// - `RR`: The reference type used to identify resources, must implement `ResourceRef`
 #[derive(Debug, Clone)]
-pub struct DefaultResourcePool<T, RR: ResourceRef> {
+pub struct DefaultResourcePool<T, RR: ResourceId> {
     /// Storage for resources, with Some(T) for occupied slots and None for vacant slots
     resources: Vec<Option<T>>,
     /// Generation counters for each slot, incremented when a slot is reused
     generations: Vec<u16>,
     /// List of indices of vacant slots that can be reused
     free_list: Vec<u32>,
+    /// Number of currently active (occupied) slots
+    active_count: usize,
     /// Phantom data to satisfy the type parameter RR
     _phantom: PhantomData<RR>,
 }
 
-impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
+impl<T, RR: ResourceId> DefaultResourcePool<T, RR> {
     #[inline]
     fn max_index() -> u32 {
         RR::max_index()
@@ -400,7 +268,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
     #[inline]
     fn id_for_slot(&self, index: usize) -> Option<RR> {
         let generation = self.generations.get(index).copied()?;
-        let index_u32 = usize_to_resource_index::<RR>(index)?;
+        let index_u32 = id::usize_to_resource_index::<RR>(index)?;
         Some(RR::new(index_u32, generation))
     }
 
@@ -420,6 +288,7 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
             resources: Vec::new(),
             generations: Vec::new(),
             free_list: Vec::new(),
+            active_count: 0,
             _phantom: PhantomData,
         }
     }
@@ -431,30 +300,21 @@ impl<T, RR: ResourceRef> DefaultResourcePool<T, RR> {
         RawPoolView::new(&self.resources, &self.generations)
     }
 
-    /// Returns the underlying resource slots (`None` means vacant slot).
-    #[inline]
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn as_slice(&self) -> &[Option<T>] {
-        &self.resources
-    }
+    pub(crate) fn reserve(&mut self, additional: usize) -> Result<()> {
+        let reusable = self.free_list.len();
+        let needed_new_slots = additional.saturating_sub(reusable);
+        let attempted = self.resources.len().saturating_add(needed_new_slots);
 
-    /// Returns generation counters for each slot.
-    #[inline]
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn generations(&self) -> &[u16] {
-        &self.generations
-    }
-}
+        if attempted > Self::max_slots() {
+            return Err(Error::ResourcePoolFull {
+                attempted,
+                maximum: Self::max_slots(),
+            });
+        }
 
-#[inline]
-fn usize_to_resource_index<RR: ResourceRef>(index: usize) -> Option<u32> {
-    let index_u32 = u32::try_from(index).ok()?;
-    if index_u32 <= RR::max_index() {
-        Some(index_u32)
-    } else {
-        None
+        self.resources.reserve(needed_new_slots);
+        self.generations.reserve(needed_new_slots);
+        Ok(())
     }
 }
 
@@ -468,7 +328,7 @@ fn usize_to_resource_index<RR: ResourceRef>(index: usize) -> Option<u32> {
 /// - `'a`: The lifetime of the references yielded by the iterator
 /// - `T`: The type of resources stored in the pool
 /// - `RR`: The reference type used to identify resources
-pub struct DefaultResourcePoolIter<'a, T, RR: ResourceRef> {
+pub struct DefaultResourcePoolIter<'a, T, RR: ResourceId> {
     /// Inner iterator over the resources vector
     inner: std::iter::Enumerate<std::slice::Iter<'a, Option<T>>>,
     /// Reference to the generations vector
@@ -477,7 +337,7 @@ pub struct DefaultResourcePoolIter<'a, T, RR: ResourceRef> {
     _phantom: PhantomData<RR>,
 }
 
-impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
+impl<'a, T, RR: ResourceId> Iterator for DefaultResourcePoolIter<'a, T, RR> {
     type Item = (RR, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -487,7 +347,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
                     debug_assert!(false, "generation vector shorter than resources");
                     return None;
                 };
-                let Some(index_u32) = usize_to_resource_index::<RR>(index) else {
+                let Some(index_u32) = id::usize_to_resource_index::<RR>(index) else {
                     debug_assert!(false, "resource index outside representable RR range");
                     return None;
                 };
@@ -508,7 +368,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIter<'a, T, RR> {
 /// - `'a`: The lifetime of the mutable references yielded by the iterator
 /// - `T`: The type of resources stored in the pool
 /// - `RR`: The resource reference type used to identify resources
-pub struct DefaultResourcePoolIterMut<'a, T, RR: ResourceRef> {
+pub struct DefaultResourcePoolIterMut<'a, T, RR: ResourceId> {
     /// Inner iterator over the resources vector
     inner: std::iter::Enumerate<std::slice::IterMut<'a, Option<T>>>,
     /// Reference to the generations vector
@@ -517,7 +377,7 @@ pub struct DefaultResourcePoolIterMut<'a, T, RR: ResourceRef> {
     _phantom: PhantomData<RR>,
 }
 
-impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIterMut<'a, T, RR> {
+impl<'a, T, RR: ResourceId> Iterator for DefaultResourcePoolIterMut<'a, T, RR> {
     type Item = (RR, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -527,7 +387,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIterMut<'a, T, RR> 
                     debug_assert!(false, "generation vector shorter than resources");
                     return None;
                 };
-                let Some(index_u32) = usize_to_resource_index::<RR>(index) else {
+                let Some(index_u32) = id::usize_to_resource_index::<RR>(index) else {
                     debug_assert!(false, "resource index outside representable RR range");
                     return None;
                 };
@@ -538,7 +398,7 @@ impl<'a, T, RR: ResourceRef> Iterator for DefaultResourcePoolIterMut<'a, T, RR> 
     }
 }
 
-impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
+impl<T, RR: ResourceId> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
     type Iter<'a>
         = DefaultResourcePoolIter<'a, T, RR>
     where
@@ -559,6 +419,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
             resources: Vec::with_capacity(capacity),
             generations: Vec::with_capacity(capacity),
             free_list: Vec::new(),
+            active_count: 0,
             _phantom: PhantomData,
         }
     }
@@ -591,6 +452,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
                     *slot_resource = Some(resource);
                 }
                 let id = RR::new(free_index, generation);
+                self.active_count += 1;
                 self.debug_assert_invariants();
                 return Ok(id);
             }
@@ -600,6 +462,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         let index_u32 = Self::usize_to_index(index)?;
         self.resources.push(Some(resource));
         self.generations.push(0);
+        self.active_count += 1;
         self.debug_assert_invariants();
         Ok(RR::new(index_u32, 0))
     }
@@ -618,7 +481,7 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         }
     }
     fn len(&self) -> usize {
-        self.resources.len()
+        self.active_count
     }
     fn remove(&mut self, id: RR) -> Option<T> {
         self.debug_assert_invariants();
@@ -628,12 +491,15 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
 
         let resource = self.resources[id.index() as usize].take()?;
         self.free_list.push(id.index());
+        self.active_count -= 1;
         Some(resource)
     }
     fn is_valid(&self, id: RR) -> bool {
         self.debug_assert_invariants();
         let index = id.index() as usize;
-        index < self.generations.len() && self.generations[index] == id.generation()
+        index < self.generations.len()
+            && self.generations[index] == id.generation()
+            && self.resources[index].is_some()
     }
     // Iterator support
     fn iter<'a>(&'a self) -> Self::Iter<'a>
@@ -734,17 +600,27 @@ impl<T, RR: ResourceRef> ResourcePool<T, RR> for DefaultResourcePool<T, RR> {
         self.resources.clear();
         self.generations.clear();
         self.free_list.clear();
+        self.active_count = 0;
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_default_resource_pool {
+    //! Unit tests for the `DefaultResourcePool` implementation.
+    //! - initialization: We should be able to initialize a valid pool.
+    //! - operations: Are the supported operations functional?
+    //! - `edge_cases`: Invalid index access
+    //! - `resource_management`: Are the resource management functions working correctly
+    //!   to prevent free-after-use errors?
+    //! - Boundary conditions: Index overflow, generation wraparound
     use super::*;
-    use std::cell::RefCell;
+    use crate::resources::id::ResourceId32;
+    use std::cell::Cell;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
     use std::thread;
-    use std::time::Instant;
+
+    type Pool = DefaultResourcePool<i32, ResourceId32>;
 
     macro_rules! add_pool {
         ($pool:expr, $resource:expr) => {
@@ -754,60 +630,53 @@ mod tests {
         };
     }
 
-    // Helper function to create a pool with some initial values
-    fn setup_test_pool() -> (DefaultResourcePool<i32, ResourceId32>, Vec<ResourceId32>) {
-        let mut pool = DefaultResourcePool::new();
+    /// Helper function to create a pool with values `[1,2,3]`.
+    fn setup_test_pool() -> (Pool, Vec<ResourceId32>) {
+        let mut pool = Pool::new();
         let ids = (1..=3).map(|i| add_pool!(pool, i)).collect();
         (pool, ids)
-    }
-
-    mod resource_id {
-        use super::*;
-
-        #[test]
-        fn test_conversion() {
-            let vi: VertexIndex<u16> = ResourceId32::new(1, 0).to_vertex_index().unwrap();
-            assert_eq!(vi.value(), 1u16);
-        }
     }
 
     mod initialization {
         use super::*;
 
+        /// Can we initialize a valid, empty pool?
         #[test]
         fn test_new_pool() {
-            let pool: DefaultResourcePool<i32, ResourceId32> = DefaultResourcePool::new();
+            let pool = Pool::new();
             assert!(pool.resources.is_empty());
             assert!(pool.generations.is_empty());
             assert!(pool.free_list.is_empty());
         }
 
+        /// Can we initialize a valid, empty pool with a custom capacity?
         #[test]
         fn test_with_capacity() {
-            let pool: DefaultResourcePool<i32, ResourceId32> =
-                DefaultResourcePool::with_capacity(10);
+            let pool = Pool::with_capacity(10);
             assert_eq!(pool.resources.capacity(), 10);
             assert_eq!(pool.generations.capacity(), 10);
             assert!(pool.free_list.is_empty());
         }
     }
 
-    mod basic_operations {
+    mod operations {
         use super::*;
 
+        /// Add a resource, an integer with value 42, to the pool and check if it's
+        /// returned as a resource identifier.
         #[test]
         fn test_add_and_get() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id = add_pool!(pool, 42);
-
+            let mut pool = Pool::new();
+            let id = pool
+                .add(42)
+                .expect("resource pool insertion should succeed");
             assert_eq!(pool.get(id), Some(&42));
-            assert_eq!(id.index(), 0);
-            assert_eq!(id.generation(), 0);
         }
 
+        /// Can we mutate the resource that the resource identifier points to?
         #[test]
         fn test_get_mut() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
+            let mut pool = Pool::new();
             let id = add_pool!(pool, 42);
             if let Some(value) = pool.get_mut(id) {
                 *value = 24;
@@ -815,126 +684,78 @@ mod tests {
             assert_eq!(pool.get(id), Some(&24));
         }
 
-        #[test]
-        fn test_remove() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id = add_pool!(pool, 42);
-            assert_eq!(pool.remove(id), Some(42));
-            assert_eq!(pool.get(id), None);
-            assert!(!pool.free_list.is_empty());
-        }
-
-        #[test]
-        fn test_invalid_id() {
-            let mut pool: DefaultResourcePool<u32, ResourceId32> = DefaultResourcePool::new();
-            let invalid_id = ResourceId32::new(0, 0);
-            assert_eq!(pool.get(invalid_id), None);
-            assert_eq!(pool.get_mut(invalid_id), None);
-            assert_eq!(pool.remove(invalid_id), None);
-        }
-
+        /// The length of the pool should increase after adding a resource and decrease
+        /// after removing it.
         #[test]
         fn test_len() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
+            let mut pool = Pool::new();
             assert_eq!(pool.len(), 0);
 
             add_pool!(pool, 42);
             add_pool!(pool, 43);
-            assert_eq!(pool.len(), 2);
+            assert_eq!(pool.len(), 2, "pool length should increase after addition");
 
             let id = add_pool!(pool, 44);
-            assert_eq!(pool.len(), 3);
+            assert_eq!(pool.len(), 3, "pool length should increase after addition");
 
             pool.remove(id);
-            // Length doesn't decrease, as it counts slots not resources
-            assert_eq!(pool.len(), 3);
+            assert_eq!(pool.len(), 2, "pool length should decrease after removal");
         }
 
+        /// Removing a resource from the pool should return the resource value,
+        /// update the resource ID to be invalid. If it was the last resource, the
+        /// pool should become empty.
         #[test]
-        fn test_find() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-
-            let id1 = add_pool!(pool, 10);
-            let id2 = add_pool!(pool, 20);
-            let id3 = add_pool!(pool, 10); // duplicate
-
-            // Finds the first matching resource
-            assert_eq!(pool.find(&10), Some(id1));
-            assert_eq!(pool.find(&20), Some(id2));
-            assert_eq!(pool.find(&30), None);
-
-            // After removing the first match, it should find the next one
-            pool.remove(id1);
-            assert_eq!(pool.find(&10), Some(id3));
-
-            // After removing all matches, it should return None
-            pool.remove(id3);
-            assert_eq!(pool.find(&10), None);
+        fn test_remove_is_empty() {
+            let mut pool = Pool::new();
+            let id = add_pool!(pool, 42);
+            assert_eq!(pool.remove(id), Some(42));
+            assert_eq!(pool.get(id), None);
+            assert!(
+                pool.is_empty(),
+                "pool should be empty after removing the last resource"
+            );
+            // The free_list tracks vacant slots for reuse. After removal, the slot's
+            // index is added to the free_list so it can be efficiently reused for
+            // future additions instead of always growing the pool.
+            assert!(!pool.free_list.is_empty());
         }
-    }
 
-    mod resource_management {
-        use super::*;
-
+        /// Is the resource identifier invalidated after removing the resource from the
+        /// pool?
         #[test]
-        fn test_generation_increment() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id1 = add_pool!(pool, 42);
-            pool.remove(id1);
-            let id2 = add_pool!(pool, 24);
-
-            assert_eq!(id1.index(), id2.index());
-            assert_eq!(id2.generation(), id1.generation() + 1);
-            assert_eq!(pool.get(id1), None);
-            assert_eq!(pool.get(id2), Some(&24));
+        fn test_is_valid() {
+            let mut pool = Pool::new();
+            let id = add_pool!(pool, 42);
+            assert!(
+                pool.is_valid(id),
+                "newly added resource identifier should be valid after adding it to the pool"
+            );
+            pool.remove(id);
+            assert!(
+                !pool.is_valid(id),
+                "removed resource identifier should be invalid after removal"
+            );
         }
 
+        /// Can we iterate over an empty pool?
         #[test]
-        fn test_reuse_freed_slot() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id1 = add_pool!(pool, 1);
-            add_pool!(pool, 2); // Add another resource to ensure proper indexing
-            pool.remove(id1);
-            let id3 = add_pool!(pool, 3);
-
-            assert_eq!(id3.index(), id1.index());
-            assert_eq!(id3.generation(), id1.generation() + 1);
-            assert_eq!(pool.get(id3), Some(&3));
+        fn test_iter_empty() {
+            let pool = Pool::new();
+            let collected: Vec<_> = pool.iter().collect();
+            assert_eq!(collected.len(), 0);
         }
 
-        #[test]
-        fn test_multiple_removals_and_additions() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id1 = add_pool!(pool, 1);
-            let id2 = add_pool!(pool, 2);
-            let id3 = add_pool!(pool, 3);
-
-            pool.remove(id1); // index 0 is added to free_list
-            pool.remove(id2); // index 1 is added to free_list
-
-            // free_list is now [0, 1] (LIFO order means they'll be popped as 1, then 0)
-
-            let id4 = add_pool!(pool, 4); // Uses index 1 from free_list
-            let id5 = add_pool!(pool, 5); // Uses index 0 from free_list
-
-            // The free list is LIFO, so id2's slot should be reused first (index 1)
-            assert_eq!(id4.index(), id2.index());
-            assert_eq!(id5.index(), id1.index());
-
-            assert_eq!(pool.get(id3), Some(&3));
-            assert_eq!(pool.get(id4), Some(&4));
-            assert_eq!(pool.get(id5), Some(&5));
-            assert_eq!(pool.get(id1), None);
-            assert_eq!(pool.get(id2), None);
-        }
-    }
-
-    mod iteration {
-        use super::*;
-
+        /// Can we iterate over a pool with values, even after a resource is removed?
         #[test]
         fn test_iter() {
+            // Iterate over a basic, unmodified pool.
             let (mut pool, ids) = setup_test_pool();
+            let collected: Vec<_> = pool.iter().collect();
+            assert_eq!(collected.len(), ids.len());
+
+            // Test that the iterator returns the correct items from the pool after
+            // removing a resource.
             pool.remove(ids[1]); // Create a gap
 
             let collected: Vec<_> = pool.iter().collect();
@@ -942,46 +763,19 @@ mod tests {
             assert_eq!(collected[0].1, &1);
             assert_eq!(collected[1].1, &3);
 
-            // Check that the ids match
+            // Check that the resource ids match
             assert_eq!(collected[0].0.index(), ids[0].index());
             assert_eq!(collected[0].0.generation(), ids[0].generation());
             assert_eq!(collected[1].0.index(), ids[2].index());
             assert_eq!(collected[1].0.generation(), ids[2].generation());
         }
 
+        /// Can we iterate over a pool and modify the resources?
         #[test]
-        fn test_iter_empty_pool() {
-            let pool: DefaultResourcePool<i32, ResourceId32> = DefaultResourcePool::new();
-            let collected: Vec<_> = pool.iter().collect();
-            assert_eq!(collected.len(), 0);
-        }
-
-        #[test]
-        fn test_iter_with_all_removed() {
+        fn test_iter_mut() {
             let (mut pool, ids) = setup_test_pool();
-            for id in ids {
-                pool.remove(id);
-            }
-
-            let collected: Vec<_> = pool.iter().collect();
-            assert_eq!(collected.len(), 0);
-        }
-    }
-
-    mod iter_mut_tests {
-        use super::*;
-
-        #[test]
-        fn iteration_mutable() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-
-            // Add some resources
-            let id1 = add_pool!(pool, 10);
-            let id2 = add_pool!(pool, 20);
-            let id3 = add_pool!(pool, 30);
-
             // Remove one to create a gap
-            pool.remove(id2);
+            pool.remove(ids[1]);
 
             // Use iter_mut to modify all values
             for (_, value) in pool.iter_mut() {
@@ -989,26 +783,14 @@ mod tests {
             }
 
             // Verify the changes
-            assert_eq!(pool.get(id1), Some(&20)); // 10 * 2
-            assert_eq!(pool.get(id2), None); // Removed
-            assert_eq!(pool.get(id3), Some(&60)); // 30 * 2
+            assert_eq!(pool.get(ids[0]), Some(&2)); // 1 * 2
+            assert_eq!(pool.get(ids[1]), None); // Removed
+            assert_eq!(pool.get(ids[2]), Some(&6)); // 3 * 2
         }
 
+        /// Can we have a pool with custom types?
         #[test]
-        fn test_iter_mut_on_empty_pool() {
-            let mut pool: DefaultResourcePool<i32, ResourceId32> = DefaultResourcePool::new();
-            let mut count = 0;
-
-            // Should not iterate over any items
-            for _ in pool.iter_mut() {
-                count += 1;
-            }
-
-            assert_eq!(count, 0);
-        }
-
-        #[test]
-        fn test_iter_mut_with_custom_types() {
+        fn test_iter_mut_custom() {
             #[derive(Debug, Clone, PartialEq)]
             struct TestData {
                 value: String,
@@ -1018,20 +800,18 @@ mod tests {
             let mut pool = DefaultResourcePool::<TestData, ResourceId32>::new();
 
             // Add data
-            let id1 = add_pool!(
-                pool,
-                TestData {
+            let id1 = pool
+                .add(TestData {
                     value: "hello".to_string(),
                     counter: 0,
-                }
-            );
-            let id2 = add_pool!(
-                pool,
-                TestData {
+                })
+                .unwrap();
+            let id2 = pool
+                .add(TestData {
                     value: "world".to_string(),
                     counter: 0,
-                }
-            );
+                })
+                .unwrap();
 
             // Use iter_mut to modify the data
             for (_, data) in pool.iter_mut() {
@@ -1056,9 +836,201 @@ mod tests {
             );
         }
 
+        /// Can we get the first resource in the pool?
+        #[test]
+        fn test_first() {
+            let (mut pool, ids) = setup_test_pool();
+            assert_eq!(pool.first(), Some((ids[0], &1)));
+            pool.remove(ids[0]);
+            assert_eq!(pool.first(), Some((ids[1], &2)));
+        }
+
+        /// Can we get the last resource in the pool?
+        #[test]
+        fn test_last() {
+            let (mut pool, ids) = setup_test_pool();
+            assert_eq!(pool.last(), Some((ids[2], &3)));
+            pool.remove(ids[2]);
+            assert_eq!(pool.last(), Some((ids[1], &2)));
+        }
+
+        /// Can we find a resource by its value in the pool?
+        #[test]
+        fn test_find() {
+            let mut pool = Pool::new();
+
+            let id1 = add_pool!(pool, 10);
+            let id2 = add_pool!(pool, 20);
+            let id3 = add_pool!(pool, 10); // duplicate
+
+            // Finds the first matching resource
+            assert_eq!(pool.find(&10), Some(id1));
+            assert_eq!(pool.find(&20), Some(id2));
+            assert_eq!(pool.find(&30), None);
+
+            // After removing the first match, it should find the next one
+            pool.remove(id1);
+            assert_eq!(pool.find(&10), Some(id3));
+
+            // After removing all matches, it should return None
+            pool.remove(id3);
+            assert_eq!(pool.find(&10), None);
+        }
+
+        /// Does the pool clear correctly and completely?
+        #[test]
+        fn test_clear_basic() {
+            let mut pool = Pool::new();
+            let id1 = add_pool!(pool, 10);
+            let id2 = add_pool!(pool, 20);
+            let id3 = add_pool!(pool, 30);
+
+            assert_eq!(pool.len(), 3);
+            assert_eq!(pool.get(id1), Some(&10));
+            assert_eq!(pool.get(id2), Some(&20));
+            assert_eq!(pool.get(id3), Some(&30));
+
+            pool.clear();
+
+            // After clear, everything should be empty
+            assert_eq!(pool.len(), 0);
+            assert!(pool.is_empty());
+            assert!(pool.free_list.is_empty());
+            assert!(pool.generations.is_empty());
+
+            // Old IDs should no longer be valid
+            assert_eq!(pool.get(id1), None);
+            assert_eq!(pool.get(id2), None);
+            assert_eq!(pool.get(id3), None);
+        }
+
+        /// Test that clearing the pool does not break the resource management.
+        #[test]
+        fn test_add_after_clear() {
+            let mut pool = Pool::new();
+
+            let id1 = add_pool!(pool, 10);
+            let _id2 = add_pool!(pool, 20);
+            pool.remove(id1); // Create free slot
+
+            pool.clear();
+
+            // Adding after clear should work correctly
+            let new_id = add_pool!(pool, 100);
+            assert_eq!(new_id.index(), 0);
+            assert_eq!(new_id.generation(), 0);
+            assert_eq!(pool.get(new_id), Some(&100));
+            assert_eq!(pool.len(), 1);
+        }
+
+        /// Test that the pool can be cleared even if it is empty.
+        #[test]
+        fn test_clear_empty() {
+            let mut pool = Pool::new();
+
+            pool.clear();
+
+            assert_eq!(pool.len(), 0);
+            assert!(pool.is_empty());
+        }
+    }
+
+    mod edge_cases {
+        use super::*;
+        #[test]
+        fn test_invalid_id() {
+            let mut pool = Pool::new();
+
+            let invalid_id = ResourceId32::new(0, 0);
+            assert_eq!(pool.get(invalid_id), None);
+            assert_eq!(pool.get_mut(invalid_id), None);
+            assert_eq!(pool.remove(invalid_id), None);
+
+            // Out-of-bounds index
+            let mut pool = Pool::new();
+            let invalid_id = ResourceId32::new(999, 0);
+            assert!(!pool.is_valid(invalid_id));
+
+            // Valid index but wrong generation
+            let id = add_pool!(pool, 42);
+            let wrong_gen_id = ResourceId32::new(id.index(), id.generation() + 1);
+            assert!(!pool.is_valid(wrong_gen_id));
+        }
+        #[test]
+        fn test_iter_with_all_removed() {
+            let (mut pool, ids) = setup_test_pool();
+            for id in ids {
+                pool.remove(id);
+            }
+
+            let collected: Vec<_> = pool.iter().collect();
+            assert_eq!(collected.len(), 0);
+        }
+
+        #[test]
+        fn test_iter_mut_on_empty_pool() {
+            let mut pool = Pool::new();
+            let mut count = 0;
+
+            // Should not iterate over any items
+            for _ in pool.iter_mut() {
+                count += 1;
+            }
+
+            assert_eq!(count, 0);
+        }
+    }
+
+    mod resource_management {
+        use super::*;
+
+        /// Test that reusing a freed slot increments the generation count while
+        /// retaining the same index.
+        #[test]
+        fn test_reuse_freed_slot() {
+            let mut pool = Pool::new();
+            let id1 = add_pool!(pool, 1);
+            add_pool!(pool, 2); // Add another resource so that id1 is not the last
+            pool.remove(id1);
+            let id3 = add_pool!(pool, 3);
+
+            assert_eq!(id3.index(), id1.index());
+            assert_eq!(id3.generation(), id1.generation() + 1);
+            assert_eq!(pool.get(id3), Some(&3));
+        }
+
+        /// Test that multiple removals and additions don't confuse the resource
+        /// management.
+        #[test]
+        fn test_multiple_removals_and_additions() {
+            let mut pool = Pool::new();
+            let id1 = add_pool!(pool, 1);
+            let id2 = add_pool!(pool, 2);
+            let id3 = add_pool!(pool, 3);
+
+            pool.remove(id1); // index 0 is added to free_list
+            pool.remove(id2); // index 1 is added to free_list
+
+            // free_list is now [0, 1] (LIFO order means they'll be popped as 1, then 0)
+
+            let id4 = add_pool!(pool, 4); // Uses index 1 from free_list
+            let id5 = add_pool!(pool, 5); // Uses index 0 from free_list
+
+            // The free list is LIFO, so id2's slot should be reused first (index 1)
+            assert_eq!(id4.index(), id2.index());
+            assert_eq!(id5.index(), id1.index());
+
+            assert_eq!(pool.get(id3), Some(&3));
+            assert_eq!(pool.get(id4), Some(&4));
+            assert_eq!(pool.get(id5), Some(&5));
+            assert_eq!(pool.get(id1), None);
+            assert_eq!(pool.get(id2), None);
+        }
+
+        /// Test that the iterator only iterates over valid resources.
         #[test]
         fn test_iter_mut_collects_all_valid_resources() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
+            let mut pool = Pool::new();
 
             // Add resources including gaps
             let id1 = add_pool!(pool, 1);
@@ -1098,12 +1070,13 @@ mod tests {
         }
     }
 
-    mod concurrency_and_performance {
+    mod concurrency {
         use super::*;
 
+        /// Test Mutex-serialized access to the pool.
         #[test]
-        fn test_concurrent_access() {
-            let pool = Arc::new(Mutex::new(DefaultResourcePool::<u32, ResourceId32>::new()));
+        fn test_concurrent_mutation() {
+            let pool = Arc::new(Mutex::new(Pool::new()));
             let handles: Vec<_> = (0..4)
                 .map(|_| {
                     let pool = Arc::clone(&pool);
@@ -1129,36 +1102,6 @@ mod tests {
                     .all(std::option::Option::is_none)
             );
         }
-
-        #[test]
-        fn test_performance() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::with_capacity(100_000);
-            let start = Instant::now();
-            let ids: Vec<_> = (0..100_000).map(|i| add_pool!(pool, i)).collect();
-            let add_time = start.elapsed();
-
-            let start = Instant::now();
-            for id in &ids {
-                pool.get(*id);
-            }
-            let get_time = start.elapsed();
-
-            let start = Instant::now();
-            for id in ids {
-                pool.remove(id);
-            }
-            let remove_time = start.elapsed();
-
-            println!("Performance metrics for 100K operations:");
-            println!("Add: {add_time:?}");
-            println!("Lookup: {get_time:?}");
-            println!("Remove: {remove_time:?}");
-
-            // Reduced the test size and made assertions less strict
-            assert!(add_time.as_secs() < 1);
-            assert!(get_time.as_secs() < 1);
-            assert!(remove_time.as_secs() < 1);
-        }
     }
 
     mod memory_safety {
@@ -1166,275 +1109,68 @@ mod tests {
 
         // Test helper struct for memory leak detection
         struct LeakDetector {
-            counter: Rc<RefCell<i32>>,
+            counter: Rc<Cell<i32>>,
         }
 
         impl LeakDetector {
-            fn new(counter: Rc<RefCell<i32>>) -> Self {
-                *counter.borrow_mut() += 1;
+            fn new(counter: Rc<Cell<i32>>) -> Self {
+                counter.set(counter.get() + 1);
                 Self { counter }
             }
         }
 
         impl Drop for LeakDetector {
             fn drop(&mut self) {
-                *self.counter.borrow_mut() -= 1;
+                self.counter.set(self.counter.get() - 1);
             }
         }
 
-        #[test]
-        fn test_memory_leaks() {
-            let counter = Rc::new(RefCell::new(0));
-            {
-                let mut pool = DefaultResourcePool::<LeakDetector, ResourceId32>::new();
-                let mut ids = Vec::new();
-
-                for _ in 0..100 {
-                    ids.push(add_pool!(pool, LeakDetector::new(Rc::clone(&counter))));
-                }
-                assert_eq!(*counter.borrow(), 100);
-            }
-            assert_eq!(*counter.borrow(), 0, "Memory leak detected!");
-        }
-
+        /// Verifies that `Drop` runs exactly once for each resource in three scenarios:
+        /// explicit `remove`, bulk `remove`, and implicit drop when the pool goes out of scope.
         #[test]
         fn test_resource_lifetime() {
-            // This test verifies that resources are properly dropped when removed from the pool
-            let counter = Rc::new(RefCell::new(0));
+            let counter = Rc::new(Cell::new(0));
 
-            // First, verify the LeakDetector behaves as expected on its own
+            // Verify LeakDetector behaves as expected on its own
             {
                 let _detector = LeakDetector::new(Rc::clone(&counter));
-                assert_eq!(*counter.borrow(), 1);
+                assert_eq!(counter.get(), 1);
             }
-            assert_eq!(*counter.borrow(), 0);
+            assert_eq!(counter.get(), 0);
 
-            // Now test with the resource pool
+            // Drop on explicit remove
             let mut pool = DefaultResourcePool::<LeakDetector, ResourceId32>::new();
-
-            // Add a single resource
             let id = add_pool!(pool, LeakDetector::new(Rc::clone(&counter)));
-            assert_eq!(*counter.borrow(), 1);
-
-            // Remove it - using let _ to ensure the value is dropped immediately
+            assert_eq!(counter.get(), 1);
             let _ = pool.remove(id);
-            assert_eq!(*counter.borrow(), 0);
+            assert_eq!(counter.get(), 0);
 
-            // Test adding multiple resources
+            // Drop on bulk remove
             let ids: Vec<_> = (0..10)
                 .map(|_| add_pool!(pool, LeakDetector::new(Rc::clone(&counter))))
                 .collect();
-            assert_eq!(*counter.borrow(), 10);
-
-            // Remove them one by one
+            assert_eq!(counter.get(), 10);
             for id in ids {
                 let _ = pool.remove(id);
             }
-            assert_eq!(*counter.borrow(), 0);
-        }
-    }
+            assert_eq!(counter.get(), 0);
 
-    mod clear_tests {
-        use super::*;
-
-        #[test]
-        fn test_clear_basic() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-            let id1 = add_pool!(pool, 10);
-            let id2 = add_pool!(pool, 20);
-            let id3 = add_pool!(pool, 30);
-
-            assert_eq!(pool.len(), 3);
-            assert_eq!(pool.get(id1), Some(&10));
-            assert_eq!(pool.get(id2), Some(&20));
-            assert_eq!(pool.get(id3), Some(&30));
-
-            pool.clear();
-
-            // After clear, pool should be empty
-            assert_eq!(pool.len(), 0);
-            assert!(pool.is_empty());
-
-            // Old IDs should no longer be valid
-            assert_eq!(pool.get(id1), None);
-            assert_eq!(pool.get(id2), None);
-            assert_eq!(pool.get(id3), None);
-        }
-
-        #[test]
-        fn test_clear_with_reuse() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-
-            // Add and remove to populate free_list
-            let id1 = add_pool!(pool, 10);
-            let _id2 = add_pool!(pool, 20);
-            pool.remove(id1);
-
-            assert_eq!(pool.len(), 2);
-            assert!(!pool.free_list.is_empty());
-
-            pool.clear();
-
-            // After clear, everything should be reset
-            assert_eq!(pool.len(), 0);
-            assert!(pool.is_empty());
-            assert!(pool.free_list.is_empty());
-            assert!(pool.generations.is_empty());
-        }
-
-        #[test]
-        fn test_add_after_clear() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-
-            // Add some resources
-            let id1 = add_pool!(pool, 10);
-            let _id2 = add_pool!(pool, 20);
-            pool.remove(id1); // Create free slot
-
-            pool.clear();
-
-            // Adding after clear should work correctly
-            let new_id = add_pool!(pool, 100);
-            assert_eq!(new_id.index(), 0);
-            assert_eq!(new_id.generation(), 0);
-            assert_eq!(pool.get(new_id), Some(&100));
-            assert_eq!(pool.len(), 1);
-        }
-
-        #[test]
-        fn test_clear_empty_pool() {
-            let mut pool = DefaultResourcePool::<i32, ResourceId32>::new();
-
-            pool.clear();
-
-            assert_eq!(pool.len(), 0);
-            assert!(pool.is_empty());
+            // Drop on pool scope exit
+            {
+                let mut scoped_pool = DefaultResourcePool::<LeakDetector, ResourceId32>::new();
+                for _ in 0..100 {
+                    add_pool!(scoped_pool, LeakDetector::new(Rc::clone(&counter)));
+                }
+                assert_eq!(counter.get(), 100);
+            }
+            assert_eq!(counter.get(), 0);
         }
     }
 
     mod boundary_conditions {
         use super::*;
-
-        #[test]
-        fn test_generation_wraparound() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-            let id = add_pool!(pool, 42);
-
-            // Manually set the generation to u16::MAX to test wraparound
-            pool.generations[id.index() as usize] = u16::MAX;
-            pool.remove(id);
-
-            let id2 = add_pool!(pool, 43);
-            // Generation should have wrapped around to 0
-            assert_eq!(id2.generation(), 0);
-            assert_eq!(pool.get(id2), Some(&43));
-        }
-
-        #[test]
-        fn test_generation_overflow_prevention() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-
-            // Add a resource and get its ID
-            let id1 = add_pool!(pool, 100);
-            let original_index = id1.index();
-
-            // Manually set the generation to u16::MAX - 1
-            pool.generations[original_index as usize] = u16::MAX - 1;
-
-            // Create a valid ID with the updated generation
-            let id1_updated = ResourceId32::new(original_index, u16::MAX - 1);
-
-            // Remove and re-add once - this should increment to u16::MAX
-            pool.remove(id1_updated);
-            let id2 = add_pool!(pool, 200);
-            assert_eq!(id2.index(), original_index);
-            assert_eq!(id2.generation(), u16::MAX);
-            assert_eq!(pool.get(id2), Some(&200));
-
-            // Remove again - now generation is at u16::MAX
-            pool.remove(id2);
-
-            // Add another resource - should NOT reuse the slot at MAX generation
-            // Instead, it should allocate a new slot
-            let id3 = add_pool!(pool, 300);
-            assert_ne!(
-                id3.index(),
-                original_index,
-                "Should allocate new slot instead of reusing overflowed slot"
-            );
-            assert_eq!(id3.generation(), 0, "New slot should start at generation 0");
-            assert_eq!(pool.get(id3), Some(&300));
-
-            // Verify the old slot at MAX generation is retired (not accessible)
-            let retired_id = ResourceId32::new(original_index, u16::MAX);
-            assert_eq!(
-                pool.get(retired_id),
-                None,
-                "Retired slot should not be accessible"
-            );
-
-            // Verify pool length increased (new slot was allocated)
-            assert_eq!(
-                pool.len(),
-                2,
-                "Pool should have 2 slots (1 retired, 1 active)"
-            );
-        }
-
-        #[test]
-        fn test_multiple_generation_overflows() {
-            let mut pool = DefaultResourcePool::<u32, ResourceId32>::new();
-
-            // Create two slots and set both to u16::MAX
-            let id1 = add_pool!(pool, 1);
-            let id2 = add_pool!(pool, 2);
-            let index1 = id1.index();
-            let index2 = id2.index();
-
-            pool.generations[index1 as usize] = u16::MAX;
-            pool.generations[index2 as usize] = u16::MAX;
-
-            // Create valid IDs with the updated generations
-            let id1_updated = ResourceId32::new(index1, u16::MAX);
-            let id2_updated = ResourceId32::new(index2, u16::MAX);
-
-            // Remove both
-            pool.remove(id1_updated);
-            pool.remove(id2_updated);
-
-            // Add new resources - should allocate new slots, not reuse the overflowed ones
-            let id3 = add_pool!(pool, 3);
-            let id4 = add_pool!(pool, 4);
-
-            assert_ne!(id3.index(), index1);
-            assert_ne!(id3.index(), index2);
-            assert_ne!(id4.index(), index1);
-            assert_ne!(id4.index(), index2);
-
-            assert_eq!(id3.generation(), 0);
-            assert_eq!(id4.generation(), 0);
-
-            // Pool should now have 4 slots (2 retired, 2 active)
-            assert_eq!(pool.len(), 4);
-        }
-
-        #[test]
-        fn test_is_valid_edge_cases() {
-            let mut pool = DefaultResourcePool::new();
-
-            // Test with out-of-bounds index
-            let invalid_id = ResourceId32::new(999, 0);
-            assert!(!pool.is_valid(invalid_id));
-
-            // Test with valid index but wrong generation
-            let id = add_pool!(pool, 42);
-            let wrong_gen_id = ResourceId32::new(id.index(), id.generation() + 1);
-            assert!(!pool.is_valid(wrong_gen_id));
-        }
-    }
-
-    mod index_capacity {
-        use super::*;
+        use crate::resources::id::ResourceId;
+        use std::fmt::{Display, Formatter};
 
         #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
         struct TinyResourceId {
@@ -1448,7 +1184,7 @@ mod tests {
             }
         }
 
-        impl ResourceRef for TinyResourceId {
+        impl ResourceId for TinyResourceId {
             fn new(index: u32, generation: u16) -> Self {
                 Self { index, generation }
             }
@@ -1466,6 +1202,7 @@ mod tests {
             }
         }
 
+        /// Verifies that inserting beyond the pool's maximum index returns `Error::ResourcePoolFull`.
         #[test]
         fn test_pool_full_error_at_tiny_capacity() {
             let mut pool = DefaultResourcePool::<u32, TinyResourceId>::new();
@@ -1484,26 +1221,67 @@ mod tests {
             );
         }
 
+        /// Verifies that a slot whose generation has reached `u16::MAX` is retired rather than
+        /// reused, so the next allocation uses a fresh slot with generation 0.
         #[test]
-        fn test_iterator_identity_with_tiny_ids() {
-            let mut pool = DefaultResourcePool::<u32, TinyResourceId>::new();
-            let id0 = pool.add(10).unwrap();
-            let id1 = pool.add(20).unwrap();
-            let id2 = pool.add(30).unwrap();
+        fn test_generation_wraparound() {
+            let mut pool = Pool::new();
+            let id = add_pool!(pool, 42);
+            assert_eq!(id.index(), 0);
+            assert_eq!(id.generation(), 0);
 
-            pool.remove(id1);
-            let reused = pool.add(99).unwrap();
-            assert_eq!(reused.index(), id1.index());
-            assert_eq!(reused.generation(), id1.generation() + 1);
+            // Manually set the generation to u16::MAX to test wraparound
+            pool.generations[id.index() as usize] = u16::MAX;
+            pool.remove(id);
 
-            let first = pool.first().unwrap();
-            assert_eq!(first.0.index(), id0.index());
+            let id2 = add_pool!(pool, 43);
+            // Generation should have wrapped around to 0, by using the next slot
+            assert_eq!(id2.index(), 1);
+            assert_eq!(id2.generation(), 0);
+            assert_eq!(pool.get(id2), Some(&43));
+        }
 
-            let last = pool.last().unwrap();
-            assert_eq!(last.0.index(), id2.index());
+        /// Verifies the full retirement lifecycle: a slot is reusable up to generation `u16::MAX`,
+        /// then permanently retired — never reused and inaccessible via `get`. Also covers
+        /// multiple independently retired slots in the same pool.
+        #[test]
+        fn test_generation_overflow_prevention() {
+            let mut pool = Pool::new();
 
-            let iter_ids: Vec<u32> = pool.iter().map(|(id, _)| id.index()).collect();
-            assert_eq!(iter_ids, vec![id0.index(), reused.index(), id2.index()]);
+            // Walk a slot from MAX-1 to MAX, then verify it is retired
+            let id1 = add_pool!(pool, 100);
+            let index1 = id1.index();
+            pool.generations[index1 as usize] = u16::MAX - 1;
+            pool.remove(ResourceId32::new(index1, u16::MAX - 1));
+
+            let id2 = add_pool!(pool, 200);
+            assert_eq!(id2.index(), index1);
+            assert_eq!(id2.generation(), u16::MAX);
+            pool.remove(id2);
+
+            // Retired slot must not be reused or accessible
+            let id3 = add_pool!(pool, 300);
+            assert_ne!(
+                id3.index(),
+                index1,
+                "should allocate new slot, not reuse retired one"
+            );
+            assert_eq!(id3.generation(), 0);
+            assert_eq!(pool.get(id3), Some(&300));
+            assert_eq!(pool.get(ResourceId32::new(index1, u16::MAX)), None);
+
+            // Multiple retired slots: retire a second slot the same way
+            let index3 = id3.index();
+            pool.generations[index3 as usize] = u16::MAX;
+            pool.remove(ResourceId32::new(index3, u16::MAX));
+
+            let id4 = add_pool!(pool, 400);
+            assert_ne!(id4.index(), index1);
+            assert_ne!(id4.index(), index3);
+            assert_eq!(id4.generation(), 0);
+
+            // 3 slots total: index1 (retired), index3 (retired), id4 (active)
+            assert_eq!(pool.len(), 1);
         }
     }
 }

@@ -1,63 +1,74 @@
-//! # Error types
-//!
-//! When operations go wrong.
+//! Error types.
 use std::fmt::{Debug, Display, Formatter};
 
+/// Errors returned by cityjson-rs operations.
 #[derive(Clone, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
+    /// Boundary type mismatch — e.g. trying to convert a `Solid` boundary into a `MultiPoint`.
     IncompatibleBoundary(String, String),
+    /// A vertex index could not be converted between integer types (e.g. `u64` → `u16` overflow).
     IndexConversion {
         source_type: String,
         target_type: String,
         value: String,
     },
+    /// A vertex index value exceeds the range of the target index type.
     IndexOverflow {
         index_type: String,
         value: String,
     },
+    /// The vertex container is full for the chosen `VR` type (e.g. more than `u32::MAX` vertices).
     VerticesContainerFull {
         attempted: usize,
         maximum: usize,
     },
+    /// A resource pool (semantics, materials, textures, or geometries) has reached its limit.
     ResourcePoolFull {
         attempted: usize,
         maximum: usize,
     },
+    /// General geometry validation failure.
     InvalidGeometry(String),
+    /// A shell failed validation (e.g. fewer than four surfaces for a closed solid).
     InvalidShell {
         reason: String,
         surface_count: usize,
     },
+    /// A ring failed validation (e.g. fewer than three vertices).
     InvalidRing {
         reason: String,
         vertex_count: usize,
     },
+    /// A linestring failed validation (e.g. fewer than two vertices).
     InvalidLineString {
         reason: String,
         vertex_count: usize,
     },
-    NoActiveElement {
-        element_type: String, // "surface", "shell", or "solid"
-    },
+    /// A boundary index references an element that does not exist.
     InvalidReference {
-        element_type: String, // "surface", "shell"
+        element_type: String,
         index: usize,
         max_index: usize,
     },
-    MissingOuterElement {
-        context: String, // e.g., "Cannot add inner ring before outer ring is set"
-    },
+    /// A geometry operation expected one type but found another.
     InvalidGeometryType {
         expected: String,
         found: String,
     },
+    /// A geometry is structurally incomplete (e.g. missing required fields).
     IncompleteGeometry(String),
+    /// The `CityJSON` `"version"` field holds an unsupported value.
     UnsupportedVersion(String, String),
+    /// The city object type string is not a known `CityJSON` type and does not start with `"+"`.
     InvalidCityObjectType(String),
+    /// JSON parsing failed.
     InvalidJson(String),
+    /// The `CityJSON` document is missing the required `"version"` field.
     MissingVersion,
+    /// The `CityJSON` version is not supported by this crate.
     UnsupportedCityJSONVersion(String),
+    /// An I/O or import error.
     Import(String),
 }
 
@@ -110,7 +121,6 @@ impl Display for Error {
                 f,
                 "Invalid linestring: {reason} (vertex count: {vertex_count})"
             ),
-            Error::NoActiveElement { element_type } => write!(f, "No {element_type} in progress"),
             Error::InvalidReference {
                 element_type,
                 index,
@@ -119,7 +129,6 @@ impl Display for Error {
                 f,
                 "Invalid {element_type} index: {index} (max: {max_index})"
             ),
-            Error::MissingOuterElement { context } => write!(f, "{context}"),
             Error::InvalidGeometryType { expected, found } => {
                 write!(
                     f,

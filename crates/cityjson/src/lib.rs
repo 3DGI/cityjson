@@ -1,77 +1,31 @@
 #![doc = include_str!("../README.md")]
-//! ## Examples
-//!
-//! Below is an integration test that builds a `CityModel` with all possible features from the `CityJSON` v2.0 specification.
-//!
-//! <details>
-//!
-//! ```
-#![doc = include_str!("../examples/cityjson_fake_complete_owned.rs")]
-//! ```
-//! </details>
-//!
-//! Its JSON representation:
-//!
-//! <details>
-//!
-//! ```json
-#![doc = include_str!("../tests/data/v2_0/cityjson_fake_complete.city.json")]
-//! ```
-//! </details>
-
 pub(crate) mod backend;
-pub mod cityjson;
+mod cityjson;
 pub mod error;
 pub mod raw;
 pub mod resources;
 pub mod v2_0;
 
-/// The prelude module provides a convenient way to import commonly used types and traits.
 pub mod prelude {
     pub use super::{CityJSON, CityJSONVersion, CityModelType};
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexIndexVec;
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexIndicesSequence;
-    // Re-export from cityjson module
-    pub use crate::cityjson::core::vertex::VertexRef;
-    // Re-export from cityjson module
-    pub use crate::cityjson::{
-        core::appearance::{ImageType, TextureType, WrapMode},
-        core::attributes::{AttributeValue, Attributes, BorrowedAttributes, OwnedAttributes, BorrowedAttributeValue, OwnedAttributeValue},
-        core::boundary::{Boundary, Boundary16, Boundary32, Boundary64, BoundaryType},
-        core::coordinate::{
-            FlexibleCoordinate, GeometryVertices16, GeometryVertices32, GeometryVertices64,
-            QuantizedCoordinate, RealWorldCoordinate, UVCoordinate, UVVertices16, UVVertices32,
-            UVVertices64, Vertices,
-        },
-        core::geometry::{BuilderMode, GeometryBuilder, GeometryType, LoD},
-        core::metadata::{BBox, CityModelIdentifier, Date, CRS},
-        core::vertex::{VertexIndex, VertexIndex16, VertexIndex32, VertexIndex64},
-        traits::coordinate::Coordinate,
-        traits::semantic::SemanticTypeTrait,
-    };
-    // Re-export from errors module
     pub use crate::error::{Error, Result};
-    // Re-export from resources module
     pub use crate::resources::{
         handles::{
-            AttributeRef, CityObjectRef, GeometryRef, MaterialRef, SemanticRef,
-            TemplateGeometryRef, TextureRef,
+            CityObjectHandle, GeometryHandle, GeometryTemplateHandle, MaterialHandle,
+            SemanticHandle, TextureHandle,
         },
         mapping::{materials::MaterialMap, semantics::SemanticMap, textures::TextureMap},
         storage::{BorrowedStringStorage, OwnedStringStorage, StringStorage},
     };
-    pub use crate::v2_0::types::{CityObjectIdentifier, ThemeName, RGB, RGBA};
-    pub use crate::v2_0::{Extension, Extensions, GeometryBuilderExt, Transform};
 }
 
-use prelude::*;
+use crate::error::{Error, Result};
+use crate::resources::storage::StringStorage;
+use crate::v2_0::VertexRef;
 use std::fmt;
 
-/// `CityModel` type.
-///
-/// Marks if the `CityModel` represents a `CityJSON` object or a `CityJSONFeature` object.
+/// Whether a [`CityModel`](v2_0::citymodel::CityModel) is a full `CityJSON` document or a
+/// single-feature `CityJSONFeature` (used for streaming and tiling).
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -123,6 +77,7 @@ impl TryFrom<String> for CityModelType {
     }
 }
 
+/// Supported `CityJSON` spec versions. Currently only v2.0.
 #[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
