@@ -1,32 +1,70 @@
 # cjlib
 
-`cjlib` is the ergonomic entry point for the CityJSON crates in this repository.
+`cjlib` is the integration crate for the CityJSON ecosystem in this repository.
 
-The design is intentionally small:
+It is not a second CityJSON domain model. The intended layering is:
 
-- `cityjson-rs` is the only in-memory model
-- `cjlib::CityModel` is a thin owned wrapper over `cityjson::v2_0::OwnedCityModel`
-- `cjlib` keeps version classification and constructor convenience methods
-- future FFI crates should bind to `cjlib`, not reimplement the model boundary
+- `cityjson-rs`: normalized in-memory model and correctness-critical invariants
+- `serde_cityjson`: CityJSON JSON and JSONL parsing/serialization
+- `cjlib`: user-facing convenience API, version dispatch, sibling format integration, and future FFI boundary
 
-## Current scope
+## Public API Shape
 
-Supported today:
+The future public API is intentionally small.
 
-- constructing a new owned model with `CityModel::new`
-- importing a full `CityJSON` v2.0 document with `from_slice` or `from_file`
-- importing a strict `CityJSONFeature` stream with `from_stream`
-- working directly with re-exported `cityjson` types when finer control is needed
+### Primary entry points
 
-Recognized but intentionally unfinished:
+- `cjlib::CityModel`
+- `cjlib::CityJSONVersion`
+- `cjlib::Error`
 
-- `CityJSON` v1.0 import: `todo!()`
-- `CityJSON` v1.1 import: `todo!()`
+### Default JSON path
 
-## Positioning
+These stay as the ergonomic default for CityJSON JSON input:
 
-`cjlib` is not a second CityJSON domain model anymore.
+- `CityModel::from_slice`
+- `CityModel::from_file`
+- `CityModel::from_stream`
 
-If a type already exists in `cityjson-rs`, `cjlib` should re-export it or let callers access it
-through the wrapped model. The crate’s job is to be the stable, user-friendly facade at the format
-boundary and the future FFI boundary.
+### Explicit format modules
+
+Formats beyond the default CityJSON JSON path should be explicit:
+
+- `cjlib::json`
+- `cjlib::arrow`
+- `cjlib::parquet`
+
+The design goal is:
+
+- top-level methods for the common CityJSON path
+- module-qualified methods for format-specific behavior
+
+## Working Model
+
+`cjlib::CityModel` should remain a thin owned wrapper over `cityjson::v2_0::OwnedCityModel`.
+The facade should add only:
+
+- constructor convenience
+- version classification
+- a small error surface
+- feature-gated format integration
+
+Everything else should come from `cityjson-rs`.
+
+## User Experience
+
+For most users, the expected workflow should be:
+
+1. read a CityJSON document or stream with `CityModel::from_*`
+2. work with the model through deref access to `cityjson-rs`
+3. drop down to `cjlib::json` when explicit format-boundary control is needed
+4. use feature-gated sibling modules for Arrow or Parquet transport
+
+## Non-goals
+
+The future `cjlib` API should not:
+
+- reintroduce a second in-memory CityJSON model
+- expose indexed JSON internals as the normal user-facing API
+- duplicate parsing or conversion logic that belongs in `serde_cityjson`
+- absorb storage invariants that belong in `cityjson-rs`

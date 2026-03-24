@@ -1,22 +1,52 @@
 # cjlib
 
-`cjlib` is a thin, user-facing facade over [`cityjson-rs`](../cityjson-rs).
+`cjlib` is the user-facing facade for the CityJSON crates in this repository.
 
-It keeps a small set of convenience constructors and version-dispatch logic:
+The intended shape is deliberately small:
 
-- `CityModel::from_slice`
-- `CityModel::from_file`
-- `CityModel::from_stream`
-- `CityJSONVersion`
+- `cityjson-rs` owns the in-memory model
+- `serde_cityjson` owns CityJSON JSON and JSONL parsing/serialization
+- `cjlib` owns the ergonomic entry points, version dispatch, and format-level integration
 
-The in-memory model comes from `cityjson-rs`. `cjlib::CityModel` is an owned newtype over
-`cityjson::v2_0::OwnedCityModel`, and the crate re-exports `cityjson` so callers can drop down to
-the underlying API when needed.
+The future public API is centered on:
 
-Today, the supported import path is:
+- `cjlib::CityModel`
+- `cjlib::CityJSONVersion`
+- `cjlib::json`
+- feature-gated format modules such as `cjlib::arrow` and `cjlib::parquet`
+- re-exports of `cityjson-rs` for advanced model access
 
-- `CityJSON` v2.0 document import
-- strict `CityJSONFeature` stream aggregation into a v2.0 model
+## Default Path
 
-Legacy `CityJSON` v1.0 and v1.1 branches are still recognized at the boundary and remain
-`todo!()` intentionally.
+For CityJSON JSON input, the default entry points stay on `CityModel`:
+
+```rust
+use std::io::Cursor;
+
+use cjlib::CityModel;
+
+let document = CityModel::from_file("rotterdam.city.json")?;
+let stream = CityModel::from_stream(Cursor::new(std::fs::read("rotterdam.city.jsonl")?))?;
+let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
+# Ok::<(), cjlib::Error>(())
+```
+
+## Explicit Format Modules
+
+The top-level constructors are only the convenience path for CityJSON JSON.
+
+Alternative encodings and containers should live in explicit modules:
+
+- `cjlib::json`
+- `cjlib::arrow`
+- `cjlib::parquet`
+
+That keeps the facade predictable:
+
+- `CityModel::from_*` means CityJSON JSON / JSONL
+- explicit modules mean explicit formats
+
+## Status
+
+This repository is currently being rewritten in a docs-first, tests-first style.
+The documents and integration tests describe the target API, even when the implementation is still catching up.

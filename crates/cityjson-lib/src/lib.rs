@@ -1,3 +1,5 @@
+#![doc = include_str!("../docs/public-api.md")]
+
 mod error;
 mod format;
 mod io;

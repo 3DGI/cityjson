@@ -1,5 +1,15 @@
-# Examples (a.k.a eating our own dogfood)
+# Examples
 
-- [ ] Parallel-iterate over a directory of CityJSON files and extract the CityObjects with X properties. Do this for the *complete* 3D Basisvoorziening.
-- [ ] CityJSON RESTful demo implemented with cjlib.
-- [ ] Stream from a database table containing records of CityJSONFeatures (jsonb).
+These examples describe the intended `cjlib` API for the rewrite.
+
+- [`examples/json_document.rs`](../examples/json_document.rs)
+  Read a single CityJSON document through `CityModel::from_file` and `CityModel::from_slice`.
+- [`examples/json_feature_stream.rs`](../examples/json_feature_stream.rs)
+  Aggregate a strict `CityJSON` plus `CityJSONFeature` stream with `CityModel::from_stream`.
+- [`examples/explicit_json_module.rs`](../examples/explicit_json_module.rs)
+  Use the future `cjlib::json` module for explicit format-boundary control.
+- [`examples/alternate_formats.rs`](../examples/alternate_formats.rs)
+  Show the intended feature-gated module pattern for Arrow and Parquet backends.
+
+The examples are the contract for the public API.
+Some of them intentionally target APIs that are not implemented yet.

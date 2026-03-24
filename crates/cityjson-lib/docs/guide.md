@@ -1,625 +1,104 @@
-# Guide to using cjlib
+# Guide to Using cjlib
 
-## Differences between the CityJSON and cjlib data model
+This guide describes the intended public API of `cjlib`.
+It is a contract for the rewrite, not a description of temporary implementation details.
 
-CityJSON uses JSON as an encoding format for *exchanging* semantic 3D city models.
-Therefore, the data model of CityJSON is optimized for storage and simplicity, so that a CityJSON document has a small size, it is easy extract the information from it, and it is easy to create.
-On the other hand, *cjlib* needs a data model that is optimized for computation, so that operations on city models can be done as efficiently as possible.
-The two goals are not completely orthogonal and there are several parts where cjlib follows CityJSON completely, but there are parts where it differs from it.
-Normally you don't need to be aware of these differences in order to use cjlib, but for the sake of completeness they are described here.
+## Start With `CityModel`
 
-1) **Geometry boundaries store the vertex coordinates instead of vertex indices.**
+The normal entry point should be `cjlib::CityModel`.
 
-In a CityJSON document the vertex coordinates are stored in the `"vertices"` array at the document root.
-The Geometry boundaries are then [arrays of different depth](https://www.cityjson.org/specs/1.1.2/#arrays-to-represent-boundaries) (depending on the Geometry type), containing array-indices, each pointing to a vertex in the `"vertices"` array.
+```rust
+use cjlib::CityModel;
 
-```json
-// The global vertex array, containing a collection of vertices 
-// with their [x, y, z] coordinates.
-"vertices": [
-    [102, 103, 1],
-    [11, 910, 43],
-    [25, 744, 22],
-    [8523, 487, 22],
-    ...
-]
-
-// A Geometry Object's boundary stores array-indices, each pointing 
-// to a vertex in the "vertices" array.
-"boundaries": [
-    [[0, 3, 2, 1]], [[...]], ...
-]
+let model = CityModel::from_file("amsterdam.city.json")?;
+println!("loaded {} CityObjects", model.cityobjects().len());
+# Ok::<(), cjlib::Error>(())
 ```
 
-On the contrary, *cjlib* stores the vertex coordinates directly in the geometry boundaries, and there is no global vertex array.
-If we translate the CityJSON snippet above to *cjlib*'s data model, we get something similar to what you can see below.
-*But read on to the next point!*
+`CityModel` should remain the ergonomic default for the CityJSON JSON path:
 
-```json
-"boundaries": [
-  [[ [102, 103, 1], [8523, 487, 22], [25, 744, 22], [11, 910, 43] ]], [[...]], ...
-]
+- `from_slice` for bytes already in memory
+- `from_file` for file-based import
+- `from_stream` for `CityJSON` plus `CityJSONFeature` streams
+
+## Read a `CityJSONFeature` Stream
+
+`from_stream` is the high-level convenience path for strict JSONL aggregation.
+
+```rust
+use std::fs::File;
+use std::io::BufReader;
+
+use cjlib::CityModel;
+
+let reader = BufReader::new(File::open("tiles.city.jsonl")?);
+let model = CityModel::from_stream(reader)?;
+# Ok::<(), cjlib::Error>(())
 ```
 
-2) **Coordinates are un-transformed**
+The intended semantics stay strict:
 
-CityJSON requires that the vertex coordinates in the document are transformed.
-*Transformation* means scaling and translation by the values set in the [Transform object](https://www.cityjson.org/specs/1.1.2/#transform-object) in the document.
+- the first non-empty value must be `CityJSON`
+- remaining values must be `CityJSONFeature`
+- all versions must agree
+- conflicting IDs or incompatible root state are errors
 
-On the contrary, *cjlib* stores the true (un-transformed) coordinate values, by reversing the coordinate transformation when the CityJSON document is parsed.
+## Use Explicit Format Modules When You Need Boundary Control
 
+The top-level `CityModel::from_*` methods should stay reserved for the common CityJSON JSON path.
 
-3) **Naming conventions**
+When the caller wants explicit format handling, the API should move into modules:
 
-The table below shows the names of objects in CityJSON and their equivalent in *cjlib*.
+```rust
+use cjlib::{json, CityJSONVersion};
 
-| CityJSON        | cjlib       |
-|-----------------|-------------|
-| CityJSON object | CityModel   |
-| CityJSONFeature | CityFeature |
+let bytes = std::fs::read("amsterdam.city.json")?;
+assert_eq!(json::detect_version(&bytes)?, CityJSONVersion::V2_0);
 
+let model = json::from_slice(&bytes)?;
+# Ok::<(), cjlib::Error>(())
+```
 
-## Creating CityModels
+The same pattern should scale to sibling transport crates:
 
-- [x] Create a new blank instance of a `CityModel`.
+- `cjlib::arrow`
+- `cjlib::parquet`
 
-=== "Rust"
+## Drop Down To `cityjson-rs` For Model Work
 
-    ```rust
-    let cm = CityModel::new(); // (1)
-    ```
+`cjlib` should not proxy the entire model API.
+Once the model is loaded, most interaction should happen through the re-exported `cityjson-rs` types.
 
-    1. Although, most likely you'll want to create `cm` as `mut`able and fill it up with content later, using the `set_*` methods.
+```rust
+use cjlib::{CityModel, CityModelType};
 
-=== "Python"
+let model = CityModel::new(CityModelType::CityJSON);
+let inner: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
+let _ = inner;
+```
 
-    ```python
-    cm = CityModel()
-    ```
+This is the key design point:
 
-!!! note "Dev note"
+- `cjlib` owns the entry points
+- `cityjson-rs` owns the model
 
-    Build a `CityModel` with parameters. 
-    In Rust this makes sense, however, in Python we can just keyword parameters.
+## Alternative Formats
 
-    === "Rust"
+The intended API for non-JSON formats is explicit and feature-gated.
 
-        ```rust
-        let cm = CityModel::builder()
-            .transform()
-            .title()
-            .cityobjects()
-            .identifier()
-            .extension("A", Extension)
-            .extension("B", Extension)
-            .version()
-            .build()
-            .unwrap();
-        ```
+```rust
+# fn main() -> cjlib::Result<()> {
+#[cfg(feature = "arrow")]
+let arrow_model = cjlib::arrow::from_file("buildings.cjarrow")?;
 
-    === "Python"
-    
-        ```python
-        cm = CityModel(
-            transform=None, 
-            title=None, 
-            cityobjects=None, 
-            *others
-        )
-        ```
+#[cfg(feature = "parquet")]
+let parquet_model = cjlib::parquet::from_file("buildings.cjparquet")?;
+# Ok(())
+# }
+```
 
-    I'm still debating if a builder is necessary. The user can still configure a blank 
-    CityModel by calling the constructor and any of the setters afterwards. For instance,
+That keeps the crate easy to teach:
 
-    ```rust
-    let mut cm = CityModel::new();
-    cm.set_extension("A", Extension);
-    cm.set_extension("B", Extension);
-    cm.set_title();
-    cm.set_transform();
-    cm.set_identifier();
-    cm.set_cityobjects();
-    cm.set_version();
-    ```
-    Also, because calling at least one of the setters might be inevitable, because we only 
-    have the information later on.
-
-    ```rust
-    let mut cm = CityModel::builder()
-        .title()
-        .identifier("id_1")
-        .extension("A", Extension)
-        .extension("B", Extension)
-        .version()
-        .build()
-        .unwrap();
-    // do some processing here
-    let cityobjects = SomeData;
-    cm.set_cityobjects(cityobjects);
-    // change the id on the model
-    cm.set_identifier("id_2");
-    // set the transform for writing out the citymodel
-    cm.set_transform();
-    ```
-
-- [x] Create a `CityModel` from a CityJSON string.
-
-!!! note "Dev note"
-
-    Consider merging the `from_str` and `from_reader` functions into a `from_document`, that accepts any string and path.
-    See [video/article/slides](https://www.youtube.com/watch?v=6-8-9ZV-2WQ&list=WL&index=1) on how to do this.
-    Or maybe at least make `from_reader` --> `from_file`.
-    Although, maybe all this is too much abstraction.
-
-=== "Rust"
-
-    ```rust
-    let cityjson_str = r#"{
-        "type": "CityJSON",
-        "version": "1.1",
-        "transform": {
-            "scale": [1.0, 1.0, 1.0],
-            "translate": [0.0, 0.0, 0.0]
-        },
-        "CityObjects": {},
-        "vertices": []
-    }"#;
-    let cm = CityModel::from_str(&cityjson_str);
-    ```
-
-=== "Python"
-
-    ```python
-    cityjson_str = """{
-        "type": "CityJSON",
-        "version": "1.1",
-        "transform": {
-            "scale": [1.0, 1.0, 1.0],
-            "translate": [0.0, 0.0, 0.0]
-        },
-        "CityObjects": {},
-        "vertices": []
-    }"""
-    cm = CityModel.from_str(cityjson_str)
-    ```
-
-- [x] Create a `CityModel` from a CityJSON file.
-The file can be either a regular CityJSON file, or a [JSON Lines text](https://jsonlines.org/) file, containing [`CityJSONFeature`s](https://www.cityjson.org/specs/1.1.2/#text-sequences-and-streaming-with-cityjsonfeature).
-The parsing method is based on the file extension.
-A file with an extension of `.city.json`, `.cityjson` or `.json` is expected to contain only a single CityJSON object at the root level.
-A file with an extension of `.city.jsonl` or `.jsonl` a newline-delimited sequence of `CityJSON` and `CityJSONFeature` objects, where the first object in the file is a `CityJSON` object and all subsequent objects are `CityJSONFeature`s.
-
-=== "Rust"
-    
-    ```rust
-    let cm = CityModel::from_file("myfile.city.json");
-    let cm_from_features = CityModel::from_file("myfile_with_features.city.jsonl");
-    ```
-
-=== "Python"
-
-    ```python
-    cm = CityModel.from_file("myfile.city.json")
-    cm_from_features = CityModel.from_file("myfile_with_features.city.jsonl")
-    ```
-
-### Reading a stream of CityJSONFeatures
-
-- [x] Stream with only CityJSONFeatures
-
-Parse a stream of text sequence into [`CityJSONFeature`s](https://www.cityjson.org/specs/1.1.2/#text-sequences-and-streaming-with-cityjsonfeature).
-While this approach does not need access to `CityModel`, we only recommend it in the case when you process and discard the features one by one, because the semantic and appearance objects are duplicated across the features.
-
-=== "Rust"
-
-    ```rust
-    let transform_properties = Transform::new()
-        .scale(1.0, 1.0, 1.0)
-        .translate(0.0, 0.0, 0.0);
-
-    let feature_sequence = r#"{"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
-        {"type":"CityJSONFeature","id":"id-3","CityObjects":{},"vertices":[]}#;
-    
-    for result in CityFeatureStreamDeserializer::new(&feature_sequence) {
-        if let Ok(cityfeature) = result {
-            // process the CityFeature
-        } else {
-            // not a CityFeature
-        }
-    }
-    ```
-
-=== "Python"
-
-    ```python
-    from io import StringIO
-
-    features_sequence = """
-        {"type":"CityJSONFeature"}
-        {"type":"CityJSONFeature"}
-    """.strip("\n").strip()
-    stream = StringIO(features_sequence)
-    
-    transform_properties = Transform(
-        scale=(1.0, 1.0, 1.0),
-        translate=(0.0, 0.0, 0.0)
-    )
-
-    for cityjsonfeature_str in stream:
-        if cityjsonfeature_str is None or cityjsonfeature_str == "":
-            break
-        else:
-            cityfeature = CityFeature.from_str(cityjsonfeature_str)
-        for (coid, co) in cityfeature.cityobjects:
-            print(f"CityObject id: {coid}")
-            co.transform(transform_properties)
-            # process the CityObject
-    ```
-
-Normally, a `CityJSONFeature` stream will contain a single `CityJSON` object as the first item.
-This `CityJSON` object contains metadata about the city model, but also the transformation properties that are required for converting the compressed `CityObject` vertices into real-world coordinates.
-We expect that the first item is a `CityJSON` object.
-If this is not the case, you can also create an empty `CityModel` and set the transformation properties for the `CityJSONFeature`s in the stream.
-
-- [x] If you want to collect the whole stream into a single `CityModel`, use the `from_stream` method.
-
-=== "Rust"
-
-    ```rust
-    use std::io::{BufRead, Cursor};
-
-    let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-        {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
-        {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-    let mut stream = Cursor::new(feature_sequence);
-
-    let cm = CityModel::from_stream(stream);
-    ```
-
-=== "Python"
-
-    ```python
-    from io import StringIO
-
-    features_sequence = """{"type":"CityJSON"}
-        {"type":"CityJSONFeature"}
-        {"type":"CityJSONFeature"}
-    """.strip("\n").strip()
-    stream = StringIO(features_sequence)
-
-    cm = CityModel.from_stream(stream)
-    ```
-
-??? failure "Rejected"
-
-    The idea of accessing a CityModel while parsing features (and thus using the semantics, appearance containers of 
-    the CityModel) was rejected, because we don't want to accumulate data when iterating over features.
-    When a feature goes out of scope, all its data should be discarded.
-
-    The information that is needed for using the feature geometry (e.g. transformation and CRS) can be accessed in the 
-    feature processing loop, as it is shown in the example above.
-
-    - [ ] You can also create the features with accessing a CityModel as you iterate over the stream by using the `with()` method.
-
-
-    === "Rust"
-
-        ```rust
-        use std::io::{BufRead, Cursor};
-    
-        let feature_sequence = r#"{"type":"CityJSON","version":"1.1","transform":{"scale":[0.1,0.1,0.1],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-            {"type":"CityJSONFeature","id":"id-1","CityObjects":{},"vertices":[]}
-            {"type":"CityJSONFeature","id":"id-2","CityObjects":{},"vertices":[]}"#;
-        let mut stream_iter = Cursor::new(feature_sequence).lines();
-    
-        let mut cm: CityModel; // (1)
-        if let Some(res) = stream_iter.next() // (2) {
-            let cityjson_str = res.expect("Failed to read object from the sequence.");
-            cm = CityModel::from_str(&cityjson_str);
-        }
-    
-        for res in stream_iter {
-            let cityjsonfeature_str = res.expect("Failed to read item from the stream.");
-    
-            let cf = CityFeature::from_str(&cityjsonfeature_str).with(&mut cm); // (3)
-    
-            for (coid, co) in cf.cityobjects.iter() {
-                println!("CityObject id: {}", coid);
-            }
-    
-            // Additionally, you can insert the CityObjects from 
-            // the CityFeature to the CityModel.
-            cm.cityobjects.insert(cf);
-        }
-        ```
-        
-        1. We need a `mut`able `CityModel`, because its semantics and appearances will be populated from the `CityJSONFeature`s.
-        
-        2. We expect that the first item in the stream is a `CityJSON` object.
-            This first `CityJSON` object is converted to a `CityModel`, which is then used for parsing the `CityJSONFeature`.
-        
-        3. Parse the `CityJSONFeature` into a `CityFeature`, with the information from the CityModel `cm` (transformation properties etc.). 
-            Since the appearance and semantic objects of the `CityObject`s are stored on the `CityModel`, we need a mutable reference to it.
-
-    === "Python"
-    
-        ```python
-        from io import StringIO
-    
-        features_sequence = """
-            {"type":"CityJSON"}
-            {"type":"CityJSONFeature"}
-            {"type":"CityJSONFeature"}
-        """.strip("\n").strip()
-        stream = StringIO(features_sequence)
-    
-        citymodel_str = stream.readline()
-        cm = CityModel.from_str(citymodel_str)
-        
-        for cityjsonfeature_str in stream:
-            if cityjsonfeature_str is None or cityjsonfeature_str == "":
-                break
-            else:
-                cf = CityFeature.from_str(cityjsonfeature_str, citymodel=cm)
-    
-            # Additionally, you can insert the CityObjects from 
-            # the CityFeature to the CityModel.
-            cm.cityobjects.insert(cf)
-        ```
-
-### Writing a stream of CityJSONFeatures
-
-- [x] Send `CityFeature`s and `CityJSONFeature`s from a `CityModel`.
-
-The `to_features` method returns an iterator over the `CityFeature`s that are generated from the `CityModel` on the fly.
-Expanding on this method, you can `map` the `CityFeature`s with `to_string` to generate `CityJSONFeature` strings.
-Note that the `CityFeatureIterator` returned from `to_features` does not give you a `CityModel` as its first item, only `CityFeature`s are returned.
-
-=== "Rust"
-
-    ```rust
-    let mut cityobjects = CityObjects::new();
-    cityobjects.insert("id-1".to_string(), CityObject);
-    cityobjects.insert("id-2".to_string(), CityObject);
-    cityobjects.insert("id-3".to_string(), CityObject);
-    let cm = CityModel {
-        version: CityJSONVersion::V1_1,
-        transform: None,
-        cityobjects,
-    };
-
-    // Get an iterator over CityFeatures from the CityModel
-    let cityfeature_iter: CityFeatureIterator = cm.to_features();
-    for cf in cityfeature_iter {
-        println!("{:?}", cf)
-    }
-
-    // Write CityJSONFeature-strings from a CityModel
-    let cityfeature_iter: CityFeatureIterator = cm.to_features();
-    let cityjsonfeature_iter = cityfeature_iter.map(|cityfeature| cityfeature.to_string());
-    for cityjsonfeature in cityjsonfeature_iter.flatten() {
-        println!("{}", cityjsonfeature);
-    }
-    ```
-
-=== "Python"
-
-    ```python
-    ```
-
-
-## Writing a CityJSON document
-
-- [x] Convert a `CityModel` to a CityJSON string.
-
-=== "Rust"
-
-    ```rust
-    let cm = CityModel::new();
-    let cityjson = cm.to_string()?;
-    ```
-
-=== "Python"
-
-    ```python
-    cm = CityModel()
-    cityjson = cm.to_str(cm)
-    ```
-
-- [x] Convert a `CityModel` to a CityJSON file.
-
-=== "Rust"
-
-    ```rust
-    let cm = CityModel::new();
-    let cityjson = cm.to_file("mynew.city.json")?;
-    ```
-
-=== "Python"
-
-    ```python
-    cm = CityModel()
-    cityjson = cm.to_file("mynew.city.json")
-    ```
-
-??? info "Vertex transformation"
-
-    The CityJSON specifications require that the vertices of the city model are transformed. The transformation is 
-    coordinate scaling and translation, so that we end up with small(er) integers instead of floating point numbers  
-    as coordinates. Thus, the vertex transformation reduces the size of the CityJSON document.
-    Besides doing the actual coordinate transformation, we need to store the transformation properties in the 
-    [Transform Object](https://www.cityjson.org/specs/1.1.2/#transform-object) in the CityJSON document.
-
-    Internally, *cjlib* stores the vertices with their true, untransformed coordinates. 
-
-    When a CityJSON document is loaded, its transformation properties are preserved in the `CityModel`, and these same 
-    properties are used by default when the `CityModel` is written to a CityJSON document. However, you can override the 
-    transformation properties by providing new ones.
-
-- [x] Set new transformation properties for the CityJSON document. 
-
-!!! info
-
-    Internally, *cjlib* stores the vertices with their true, untransformed coordinates, thus the transformation 
-    properties are only applied when the `CityModel` is converted to a CityJSON document.
-
-=== "Rust"
-
-    ```rust
-    let cm = CityModel::new();
-    cm.set_transform(Transform::default());
-    let cityjson = cm.to_file("mynew.city.json")?;
-    ```
-
-=== "Python"
-
-    ```python
-    cm = CityModel()
-    cm.set_transform(Transform())
-    cityjson = cm.to_file("mynew.city.json")
-    ```
-
-!!! note "Dev note"
-
-    The default transformation is `scale: [1.0, 1.0, 1.0]`.
-    Maybe it could be `scale: [0.001, 0.001, 0.001]`, which is a sensible default for projected CRS-es with meters as units?
-    And probably most citymodels are like that.
-    Or, we could just set `scale: [0.001, 0.001, 0.001]` as default only when writing a CityJSON and keep `scale: [1.0, 1.0, 1.0]` as default in the Transform constructor..
-
-### Writing a CityJSON Lines file
-
-- [x] You can convert a `CityModel` to CityJSONFeatures and write them to a newline-delimited JSON Lines text file.
-To write the `CityModel` as JSON Lines file, set the file extension to `.city.jsonl` (instead of `.city.json`).
-When you write a CityJSON file in this way, the first JSON object is a `CityJSON` object, followed by `CityJSONFeature` objects.
-
-=== "Rust"
-
-    ```rust
-    let mut cityobjects = CityObjects::new();
-    cityobjects.insert("id-1".to_string(), CityObject);
-    cityobjects.insert("id-2".to_string(), CityObject);
-    cityobjects.insert("id-3".to_string(), CityObject);
-    let cm = CityModel {
-        version: CityJSONVersion::V1_1,
-        transform: None,
-        cityobjects,
-    };
-
-    cm.to_file("mynew_features.city.jsonl");
-    ```
-
-=== "Python"
-
-    ```python
-    ```
-
-## Metadata for the city model
-
-- [x] Often you want to document the contents of a city model, by providing a date of creation, contact information or 
-similar. You can do this with Metadata. For a detailed explanation on the possible metadata members, see the 
-[CityJSON Metadata specs](https://www.cityjson.org/specs/1.1.2/#metadata).
-
-=== "Rust"
-
-    ```rust
-    let mut metadata = cjlib::Metadata::new();
-    metadata.set_organization("3DGI");
-    metadata.set_role(cjlib::ContactRole::Author);
-    metadata.set_contact_name("Balázs Dukai");
-    metadata.set_email_address("my@email.com");
-    metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
-    metadata.set_identifier("123-456-789");
-
-    metadata.geographical_extent();
-    metadata.identifier();
-    ```
-
-=== "Python"
-
-    ```python
-    metadata = Metadata()
-    metadata.set_organization("3DGI")
-    metadata.set_role(cjlib::ContactRole::Author)
-    metadata.set_contact_name("Balázs Dukai")
-    metadata.set_email_address("my@email.com")
-    metadata.set_geographical_extent([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    metadata.set_identifier("123-456-789")
-
-    metadata.geographical_extent()
-    metadata.identifier()
-    ```
-
-## CityJSON Extensions
-
-[CityJSON Extensions](https://www.cityjson.org/specs/1.1.2/#extensions) are first-class citizen in cjlib.
-
-!!! note "Dev note"
-    
-    Can we make an API for creating and modifying extensions? So that is possible (and easier) to create extensions 
-    interactively? This would enable to create an simple web UI for creating extensions, 
-    eg. [like this one but prettier and specific to CityJSON](https://bjdash.github.io/JSON-Schema-Builder/).
-
-- [ ] If you load a document that contains extensions, the extensions are automatically loaded from their `url`.
-You don't need to do anything special.
-Currently, only the `http(s)://` and `file://` protocols are supported for loading extensions.
-
-=== "Rust"
-
-    ```rust
-    let cityjson_with_extension = r#"{
-        "type": "CityJSON",
-        "version": "1.1",
-        "extensions": {
-            "Noise": {
-                "url" : "https://someurl.org/noise.json",
-                "version": "2.0"
-            },
-            "Solar_Potential": {
-                "url" : "http://otherurl.org/solar.json",
-                "version": "0.8"
-            }
-        },
-        "CityObjects": {},
-        "vertices": []
-    }"#
-    let cm = CityModel::from_str(&cityjson_with_extension);
-    ```
-
-=== "Python"
-
-    ```python
-    cityjson_with_extension = """{
-        "type": "CityJSON",
-        "version": "1.1",
-        "extensions": {
-            "Noise": {
-                "url" : "https://someurl.org/noise.json",
-                "version": "2.0"
-            },
-            "Solar_Potential": {
-                "url" : "http://otherurl.org/solar.json",
-                "version": "0.8"
-            }
-        },
-        "CityObjects": {},
-        "vertices": []
-    }"""
-    cm = CityModel.from_str(cityjson_with_extension)
-    ```
-
-- [ ] You can override the extension `url` by passing the new `url` along with the extension name when loading the document.
-The parameter is a collection of tuples, where the first value of the tuple is the extension name, the second value is the new `url`.
-
-=== "Rust"
-
-    ```rust
-    let extensions_uris = [("Noise", "file:///mydirectory/noise.json"), ];
-    let cm = CityModel::from_str(&cityjson_with_extension, &extensions_uris);
-    ```
-
-=== "Python"
-
-    ```python
-    extensions_uris = [("Noise", "file:///mydirectory/noise.json"), ]
-    cm = CityModel.from_str(cityjson_with_extension, extensions_uris=extensions_uris)
-    ```
+- CityJSON JSON: `CityModel::from_*`
+- explicit JSON boundary work: `cjlib::json::*`
+- alternate encodings: dedicated format modules
