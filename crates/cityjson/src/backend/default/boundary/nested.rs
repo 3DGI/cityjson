@@ -28,8 +28,8 @@
 //! ## Examples
 //!
 //! ```
-//! use cityjson::cityjson::core::boundary::Boundary;
-//! use cityjson::cityjson::core::boundary::nested::*;
+//! use cityjson::v2_0::Boundary;
+//! use cityjson::v2_0::boundary::nested::*;
 //!
 //! // Create a nested multi-surface
 //! let multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![
@@ -111,19 +111,11 @@ fn next_index<T: VertexRef>(index: VertexIndex<T>) -> error::Result<VertexIndex<
 impl<T: VertexRef> From<BoundaryNestedMultiPoint<T>> for Boundary<T> {
     /// Converts a nested `MultiPoint` representation to a flattened Boundary.
     ///
-    /// # Parameters
-    ///
-    /// * `value` - A vector of vertex indices representing a `MultiPoint`
-    ///
-    /// # Returns
-    ///
-    /// A flattened `Boundary<T>` representation of the `MultiPoint`
-    ///
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::core::boundary::Boundary;
-    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
+    /// use cityjson::v2_0::Boundary;
+    /// use cityjson::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
     ///
     /// let multi_point: BoundaryNestedMultiPoint32 = vec![0, 1, 2, 3];
     /// let boundary: Boundary<u32> = multi_point.into();
@@ -145,20 +137,11 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiLineString<T>> for Boundary<T> {
 
     /// Converts a nested `MultiLineString` representation to a flattened Boundary.
     ///
-    /// # Parameters
-    ///
-    /// * `value` - A vector of linestrings, each a vector of vertex indices
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiLineString`,
-    /// or an error if index offsets overflow.
-    ///
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::core::boundary::Boundary;
-    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiLineString32;
+    /// use cityjson::v2_0::Boundary;
+    /// use cityjson::v2_0::boundary::nested::BoundaryNestedMultiLineString32;
     ///
     /// let multi_linestring: BoundaryNestedMultiLineString32 = vec![
     ///     vec![0, 1, 2],
@@ -194,20 +177,11 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSurface<T>> for Boundar
 
     /// Converts a nested `MultiSurface` or `CompositeSurface` representation to a flattened Boundary.
     ///
-    /// # Parameters
-    ///
-    /// * `value` - A vector of surfaces, each a vector of rings, each a vector of vertex indices
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiSurface` or
-    /// `CompositeSurface`, or an error if index offsets overflow.
-    ///
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::core::boundary::Boundary;
-    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
+    /// use cityjson::v2_0::Boundary;
+    /// use cityjson::v2_0::boundary::nested::BoundaryNestedMultiOrCompositeSurface32;
     ///
     /// let multi_surface: BoundaryNestedMultiOrCompositeSurface32 = vec![
     ///     vec![vec![0, 1, 2, 0]], // First surface with one ring
@@ -256,21 +230,11 @@ impl<T: VertexRef> TryFrom<BoundaryNestedSolid<T>> for Boundary<T> {
 
     /// Converts a nested Solid representation to a flattened Boundary.
     ///
-    /// # Parameters
-    ///
-    /// * `value` - A vector of shells, each a vector of surfaces, each a vector of rings,
-    ///   each a vector of vertex indices
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the Solid,
-    /// or an error if index offsets overflow.
-    ///
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::core::boundary::Boundary;
-    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedSolid32;
+    /// use cityjson::v2_0::Boundary;
+    /// use cityjson::v2_0::boundary::nested::BoundaryNestedSolid32;
     ///
     /// // A simplified solid with one shell containing one surface with one ring
     /// let solid: BoundaryNestedSolid32 = vec![
@@ -335,21 +299,11 @@ impl<T: VertexRef> TryFrom<BoundaryNestedMultiOrCompositeSolid<T>> for Boundary<
 
     /// Converts a nested `MultiSolid` or `CompositeSolid` representation to a flattened Boundary.
     ///
-    /// # Parameters
-    ///
-    /// * `value` - A vector of solids, each a vector of shells, each a vector of surfaces,
-    ///   each a vector of rings, each a vector of vertex indices
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the flattened `Boundary<T>` representation of the `MultiSolid` or
-    /// `CompositeSolid`, or an error if index offsets overflow.
-    ///
     /// # Examples
     ///
     /// ```
-    /// use cityjson::cityjson::core::boundary::Boundary;
-    /// use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
+    /// use cityjson::v2_0::Boundary;
+    /// use cityjson::v2_0::boundary::nested::BoundaryNestedMultiOrCompositeSolid32;
     ///
     /// // A simplified multi-solid with two solids, each with minimal structure
     /// let multi_solid: BoundaryNestedMultiOrCompositeSolid32 = vec![

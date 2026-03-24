@@ -1,19 +1,122 @@
-use crate::cityjson::core::geometry_struct::GeometryCore;
-use crate::cityjson::core::vertex::{VertexIndex, VertexRef};
-use crate::resources::handles::{MaterialRef, SemanticRef, TemplateGeometryRef, TextureRef};
+//! Geometry read API for `CityJSON` 2.0.
+//!
+//! [`Geometry`] covers all eight geometry types defined in the spec:
+//! `MultiPoint`, `MultiLineString`, `MultiSurface`, `CompositeSurface`,
+//! `Solid`, `MultiSolid`, `CompositeSolid`, and `GeometryInstance`.
+//!
+//! Boundaries are stored flat. Use [`Boundary::check_type`](super::boundary::Boundary::check_type)
+//! and the `to_nested_*` methods to recover the nested JSON form.
+//!
+//! Semantics, materials, and textures are accessed through map views ([`SemanticMapView`],
+//! [`MaterialMapView`], [`TextureMapView`]) keyed by theme name.
+//!
+//! For `GeometryInstance`, [`CityModel::resolve_geometry`](super::citymodel::CityModel::resolve_geometry) returns a [`GeometryView`] pointing
+//! at the referenced template geometry.
+//!
+//! ```rust
+//! use cityjson::CityModelType;
+//! use cityjson::error::Result;
+//! use cityjson::v2_0::{
+//!     AffineTransform3D, CityModel, GeometryDraft, GeometryType, PointDraft,
+//!     RealWorldCoordinate,
+//! };
+//!
+//! fn read_instance_and_resolve() -> Result<()> {
+//!     let mut model = CityModel::<u32>::new(CityModelType::CityJSON);
+//!
+//!     let template_handle = GeometryDraft::multi_point(
+//!         None,
+//!         [PointDraft::new(RealWorldCoordinate::new(0.0, 0.0, 0.0))],
+//!     )
+//!     .insert_template_into(&mut model)?;
+//!
+//!     let instance_handle = GeometryDraft::instance(
+//!         template_handle,
+//!         RealWorldCoordinate::new(10.0, 20.0, 0.0),
+//!         AffineTransform3D::identity(),
+//!     )
+//!     .insert_into(&mut model)?;
+//!
+//!     let geometry = model.get_geometry(instance_handle).unwrap();
+//!     assert_eq!(geometry.type_geometry(), &GeometryType::GeometryInstance);
+//!     let instance = geometry.instance().unwrap();
+//!     assert_eq!(instance.template(), template_handle);
+//!
+//!     let resolved = model.resolve_geometry(instance_handle)?;
+//!     assert_eq!(resolved.type_geometry(), &GeometryType::MultiPoint);
+//!     Ok(())
+//! }
+//! ```
+use crate::backend::default::geometry::{
+    GeometryCore, GeometryInstanceData, ThemedMaterials, ThemedTextures,
+};
+use crate::resources::handles::{
+    GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
+};
+use crate::resources::id::ResourceId32;
 use crate::resources::mapping::textures::TextureMapCore;
-use crate::resources::mapping::{MaterialMap, SemanticMap, SemanticOrMaterialMap, TextureMap};
-use crate::resources::pool::ResourceId32;
+use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::storage::StringStorage;
-use crate::v2_0::types::ThemeName;
+use crate::v2_0::boundary::Boundary;
+use crate::v2_0::vertex::{VertexIndex, VertexRef};
 use std::marker::PhantomData;
-use std::ops::Index;
+use std::ops::{Deref, Index};
 
 pub mod semantic;
+pub use crate::backend::default::geometry::AffineTransform3D;
+pub use crate::cityjson::core::geometry::{GeometryType, LoD};
 
+/// A stored geometry.
+///
+/// Covers all eight `CityJSON` geometry types. Use [`Geometry::type_geometry`] to determine
+/// the type, then access boundaries, semantics, materials, and textures through the
+/// corresponding methods.
+///
+/// Boundaries are stored in flat offset-encoded form. Use `boundary.to_nested_*` to get
+/// nested arrays compatible with the JSON representation.
 #[derive(Clone, Debug)]
 pub struct Geometry<VR: VertexRef, SS: StringStorage> {
     inner: GeometryCore<VR, ResourceId32, SS>,
+}
+
+/// Read view over the `GeometryInstance` fields of a geometry.
+///
+/// A `GeometryInstance` references a template geometry and places it at a point
+/// in the model's vertex pool using a 4×4 transformation matrix.
+/// Use [`CityModel::resolve_geometry`](super::citymodel::CityModel::resolve_geometry)
+/// to get a view of the effective (resolved) geometry type.
+#[derive(Clone, Copy, Debug)]
+pub struct GeometryInstanceView<'a, VR: VertexRef> {
+    inner: &'a GeometryInstanceData<VR, ResourceId32>,
+}
+
+impl<VR: VertexRef> GeometryInstanceView<'_, VR> {
+    #[must_use]
+    pub fn template(&self) -> GeometryTemplateHandle {
+        GeometryTemplateHandle::from_raw(*self.inner.template())
+    }
+
+    #[must_use]
+    pub fn reference_point(&self) -> VertexIndex<VR> {
+        *self.inner.reference_point()
+    }
+
+    #[must_use]
+    pub fn transformation(&self) -> AffineTransform3D {
+        *self.inner.transformation()
+    }
+}
+
+/// A read view over a geometry, optionally resolved from a `GeometryInstance`.
+///
+/// When obtained from [`CityModel::resolve_geometry`](super::citymodel::CityModel::resolve_geometry),
+/// this view points at the effective geometry type (e.g. the `MultiSurface` that a
+/// `GeometryInstance` references), with the original instance data available through
+/// [`GeometryView::instance`].
+#[derive(Clone, Copy, Debug)]
+pub struct GeometryView<'a, VR: VertexRef, SS: StringStorage> {
+    geometry: &'a Geometry<VR, SS>,
+    instance: Option<GeometryInstanceView<'a, VR>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -92,6 +195,12 @@ impl<'a, H: 'a> IntoIterator for &'_ HandleOptionSlice<'a, H> {
     }
 }
 
+/// Read view over the semantic map of a geometry.
+///
+/// Exposes semantic handle assignments per primitive level:
+/// `points()`, `linestrings()`, and `surfaces()`. Each returns a [`HandleOptionSlice`]
+/// with one optional [`SemanticHandle`] per primitive. `None` means no semantic is assigned
+/// to that primitive.
 #[derive(Clone, Copy, Debug)]
 pub struct SemanticMapView<'a, VR: VertexRef> {
     inner: &'a SemanticOrMaterialMap<VR, ResourceId32>,
@@ -100,35 +209,26 @@ pub struct SemanticMapView<'a, VR: VertexRef> {
 impl<'a, VR: VertexRef> SemanticMapView<'a, VR> {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn points(&self) -> HandleOptionSlice<'a, SemanticRef> {
+    pub fn points(&self) -> HandleOptionSlice<'a, SemanticHandle> {
         HandleOptionSlice::new(self.inner.points())
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn linestrings(&self) -> HandleOptionSlice<'a, SemanticRef> {
+    pub fn linestrings(&self) -> HandleOptionSlice<'a, SemanticHandle> {
         HandleOptionSlice::new(self.inner.linestrings())
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn surfaces(&self) -> HandleOptionSlice<'a, SemanticRef> {
+    pub fn surfaces(&self) -> HandleOptionSlice<'a, SemanticHandle> {
         HandleOptionSlice::new(self.inner.surfaces())
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn shells(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.shells()
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn solids(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.solids()
     }
 }
 
+/// Read view over a material map for one theme.
+///
+/// Same structure as [`SemanticMapView`] but for material handles.
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialMapView<'a, VR: VertexRef> {
     inner: &'a SemanticOrMaterialMap<VR, ResourceId32>,
@@ -137,35 +237,27 @@ pub struct MaterialMapView<'a, VR: VertexRef> {
 impl<'a, VR: VertexRef> MaterialMapView<'a, VR> {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn points(&self) -> HandleOptionSlice<'a, MaterialRef> {
+    pub fn points(&self) -> HandleOptionSlice<'a, MaterialHandle> {
         HandleOptionSlice::new(self.inner.points())
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn linestrings(&self) -> HandleOptionSlice<'a, MaterialRef> {
+    pub fn linestrings(&self) -> HandleOptionSlice<'a, MaterialHandle> {
         HandleOptionSlice::new(self.inner.linestrings())
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn surfaces(&self) -> HandleOptionSlice<'a, MaterialRef> {
+    pub fn surfaces(&self) -> HandleOptionSlice<'a, MaterialHandle> {
         HandleOptionSlice::new(self.inner.surfaces())
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn shells(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.shells()
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn solids(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.solids()
     }
 }
 
+/// Read view over all material themes for a geometry.
+///
+/// In `CityJSON`, material assignments are grouped by theme name. Iterate with
+/// [`MaterialThemesView::iter`] to get `(theme_name, MaterialMapView)` pairs.
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialThemesView<'a, VR: VertexRef, SS: StringStorage> {
     items: &'a [(SS::String, SemanticOrMaterialMap<VR, ResourceId32>)],
@@ -196,6 +288,11 @@ impl<'a, VR: VertexRef, SS: StringStorage> MaterialThemesView<'a, VR, SS> {
     }
 }
 
+/// Read view over the texture map for one theme.
+///
+/// Texture assignments in `CityJSON` associate UV coordinates (`vertices-texture`) with rings.
+/// `vertices()` returns the UV index per geometry vertex (`None` = not textured),
+/// `rings()` is the offset array, and `ring_textures()` gives the texture handle per ring.
 #[derive(Clone, Copy, Debug)]
 pub struct TextureMapView<'a, VR: VertexRef> {
     inner: &'a TextureMapCore<VR, ResourceId32>,
@@ -216,26 +313,8 @@ impl<'a, VR: VertexRef> TextureMapView<'a, VR> {
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[must_use]
-    pub fn ring_textures(&self) -> HandleOptionSlice<'a, TextureRef> {
+    pub fn ring_textures(&self) -> HandleOptionSlice<'a, TextureHandle> {
         HandleOptionSlice::new(self.inner.ring_textures())
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn surfaces(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.surfaces()
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn shells(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.shells()
-    }
-
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    #[must_use]
-    pub fn solids(&self) -> &'a [VertexIndex<VR>] {
-        self.inner.solids()
     }
 }
 
@@ -270,55 +349,41 @@ impl<'a, VR: VertexRef, SS: StringStorage> TextureThemesView<'a, VR, SS> {
 }
 
 impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
-    #[allow(clippy::too_many_arguments)]
-    #[must_use]
-    #[allow(dead_code)]
-    pub(crate) fn new(
-        type_geometry: crate::cityjson::core::geometry::GeometryType,
-        lod: Option<crate::cityjson::core::geometry::LoD>,
-        boundaries: Option<crate::cityjson::core::boundary::Boundary<VR>>,
-        semantics: Option<SemanticMap<VR>>,
-        materials: Option<Vec<(ThemeName<SS>, MaterialMap<VR>)>>,
-        textures: Option<Vec<(ThemeName<SS>, TextureMap<VR>)>>,
-        instance_template: Option<TemplateGeometryRef>,
-        instance_reference_point: Option<crate::cityjson::core::vertex::VertexIndex<VR>>,
-        instance_transformation_matrix: Option<[f64; 16]>,
+    pub(crate) fn from_raw_parts(
+        type_geometry: GeometryType,
+        lod: Option<LoD>,
+        boundaries: Option<Boundary<VR>>,
+        semantics: Option<SemanticOrMaterialMap<VR, ResourceId32>>,
+        materials: Option<ThemedMaterials<VR, ResourceId32, SS::String>>,
+        textures: Option<ThemedTextures<VR, ResourceId32, SS::String>>,
+        instance: Option<GeometryInstanceData<VR, ResourceId32>>,
     ) -> Self {
         Self {
             inner: GeometryCore::new(
                 type_geometry,
                 lod,
                 boundaries,
-                semantics.map(|m| m.to_raw().clone()),
-                materials.map(|items| {
-                    items
-                        .into_iter()
-                        .map(|(theme, map)| (theme.into_inner(), map.to_raw().clone()))
-                        .collect()
-                }),
-                textures.map(|items| {
-                    items
-                        .into_iter()
-                        .map(|(theme, map)| (theme.into_inner(), map.to_raw().clone()))
-                        .collect()
-                }),
-                instance_template
-                    .map(super::super::resources::handles::TemplateGeometryRef::to_raw),
-                instance_reference_point,
-                instance_transformation_matrix,
+                semantics,
+                materials,
+                textures,
+                instance,
             ),
         }
     }
 
-    pub fn type_geometry(&self) -> &crate::cityjson::core::geometry::GeometryType {
+    pub(crate) fn raw(&self) -> &GeometryCore<VR, ResourceId32, SS> {
+        &self.inner
+    }
+
+    pub fn type_geometry(&self) -> &GeometryType {
         self.inner.type_geometry()
     }
 
-    pub fn lod(&self) -> Option<&crate::cityjson::core::geometry::LoD> {
+    pub fn lod(&self) -> Option<&LoD> {
         self.inner.lod()
     }
 
-    pub fn boundaries(&self) -> Option<&crate::cityjson::core::boundary::Boundary<VR>> {
+    pub fn boundaries(&self) -> Option<&Boundary<VR>> {
         self.inner.boundaries()
     }
 
@@ -340,62 +405,36 @@ impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
             .map(|items| TextureThemesView { items })
     }
 
-    pub fn instance_template(&self) -> Option<TemplateGeometryRef> {
+    pub fn instance(&self) -> Option<GeometryInstanceView<'_, VR>> {
         self.inner
-            .instance_template()
-            .copied()
-            .map(TemplateGeometryRef::from_raw)
-    }
-
-    pub fn instance_reference_point(
-        &self,
-    ) -> Option<&crate::cityjson::core::vertex::VertexIndex<VR>> {
-        self.inner.instance_reference_point()
-    }
-
-    pub fn instance_transformation_matrix(&self) -> Option<&[f64; 16]> {
-        self.inner.instance_transformation_matrix()
+            .instance()
+            .map(|inner| GeometryInstanceView { inner })
     }
 }
 
-impl<VR: VertexRef, SS: StringStorage>
-    crate::backend::default::geometry::GeometryConstructor<VR, ResourceId32, SS::String>
-    for Geometry<VR, SS>
-{
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        type_geometry: crate::cityjson::core::geometry::GeometryType,
-        lod: Option<crate::cityjson::core::geometry::LoD>,
-        boundaries: Option<crate::cityjson::core::boundary::Boundary<VR>>,
-        semantics: Option<crate::resources::mapping::SemanticOrMaterialMap<VR, ResourceId32>>,
-        materials: Option<
-            Vec<(
-                SS::String,
-                crate::resources::mapping::SemanticOrMaterialMap<VR, ResourceId32>,
-            )>,
-        >,
-        textures: Option<
-            Vec<(
-                SS::String,
-                crate::resources::mapping::textures::TextureMapCore<VR, ResourceId32>,
-            )>,
-        >,
-        instance_template: Option<ResourceId32>,
-        instance_reference_point: Option<crate::cityjson::core::vertex::VertexIndex<VR>>,
-        instance_transformation_matrix: Option<[f64; 16]>,
+impl<'a, VR: VertexRef, SS: StringStorage> GeometryView<'a, VR, SS> {
+    pub(crate) fn from_geometry(
+        geometry: &'a Geometry<VR, SS>,
+        instance: Option<GeometryInstanceView<'a, VR>>,
     ) -> Self {
-        Self {
-            inner: GeometryCore::new(
-                type_geometry,
-                lod,
-                boundaries,
-                semantics,
-                materials,
-                textures,
-                instance_template,
-                instance_reference_point,
-                instance_transformation_matrix,
-            ),
-        }
+        Self { geometry, instance }
+    }
+
+    #[must_use]
+    pub fn geometry(&self) -> &'a Geometry<VR, SS> {
+        self.geometry
+    }
+
+    #[must_use]
+    pub fn instance(&self) -> Option<GeometryInstanceView<'a, VR>> {
+        self.instance
+    }
+}
+
+impl<VR: VertexRef, SS: StringStorage> Deref for GeometryView<'_, VR, SS> {
+    type Target = Geometry<VR, SS>;
+
+    fn deref(&self) -> &Self::Target {
+        self.geometry
     }
 }
