@@ -1,19 +1,12 @@
 # cityjson-rs
 
-`cityjson-rs` provides types and accessors for the `CityJSON` data model in Rust.
-The crate focuses on:
+`cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in
+Rust. The types map directly to the spec's object hierarchy: `CityModel` is the root object,
+`CityObject` is each entry in the `CityObjects` map, and `Geometry` covers all eight geometry
+types.
 
-- efficient geometry storage (flattened boundary containers),
-- typed resource handles (semantics/materials/textures/geometry),
-- owned and borrowed string storage strategies,
-- a stable public API centered on `CityJSON` v2.0 types.
-
-JSON de/serialization and legacy version upgrades are handled in a separate crate (`serde_cityjson`).
-
-## Documentation
-
-- API docs: <https://docs.rs/cityjson>
-- Bench and profiling guide: `BENCHMARK_GUIDE.md`
+JSON encoding and decoding, and upgrades from older CityJSON versions, are handled in the
+separate `serde_cityjson` crate.
 
 ## Installation
 
@@ -21,63 +14,75 @@ JSON de/serialization and legacy version upgrades are handled in a separate crat
 cargo add cityjson
 ```
 
-## Quick Start
+## Example
+
+A `Building` at LoD2 with two attributes, constructed from scratch:
 
 ```rust
-use cityjson::v2_0::{CityJSONVersion, CityModel, CityModelType};
+use cityjson::CityModelType;
+use cityjson::v2_0::{
+    CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, LoD,
+    OwnedAttributeValue, OwnedCityModel, RingDraft, SurfaceDraft,
+};
 
-let model = CityModel::<u32>::new(CityModelType::CityJSON);
+let mut model = OwnedCityModel::new(CityModelType::CityJSON);
 
-assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
-assert!(model.cityobjects().is_empty());
+// Build a CompositeSurface: three planar faces of a building shell.
+let wall_a = SurfaceDraft::new(
+    RingDraft::new([
+        [0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 0.0, 3.0], [0.0, 0.0, 3.0],
+    ]),
+    [],
+);
+let wall_b = SurfaceDraft::new(
+    RingDraft::new([
+        [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [10.0, 10.0, 3.0], [10.0, 0.0, 3.0],
+    ]),
+    [],
+);
+let roof = SurfaceDraft::new(
+    RingDraft::new([
+        [0.0, 0.0, 3.0], [10.0, 0.0, 3.0], [10.0, 10.0, 3.0], [0.0, 10.0, 3.0],
+    ]),
+    [],
+);
+let geom = GeometryDraft::composite_surface(Some(LoD::LoD2), [wall_a, wall_b, roof])
+    .insert_into(&mut model)
+    .unwrap();
 
-assert_eq!(model.iter_geometries().count(), 0);
-assert_eq!(model.iter_geometry_templates().count(), 0);
-assert!(model.template_vertices().is_empty());
-assert_eq!(model.iter_semantics().count(), 0);
-assert_eq!(model.iter_materials().count(), 0);
-assert_eq!(model.iter_textures().count(), 0);
-assert!(model.vertices_texture().is_empty());
+// Create the city object and attach the geometry.
+let mut building = CityObject::new(
+    CityObjectIdentifier::new("building-1".to_string()),
+    CityObjectType::Building,
+);
+building
+    .attributes_mut()
+    .insert("measuredHeight".to_string(), OwnedAttributeValue::Float(3.0));
+building
+    .attributes_mut()
+    .insert("yearOfConstruction".to_string(), OwnedAttributeValue::Integer(2024));
+building.add_geometry(geom);
 
-assert!(model.vertices().is_empty());
-assert_eq!(model.transform(), None);
-
-assert_eq!(model.metadata(), None);
-assert_eq!(model.extra(), None);
-assert_eq!(model.extensions(), None);
+model.cityobjects_mut().add(building).unwrap();
 ```
 
-Note: for the common owned `CityJSON` v2.0 path, import from `cityjson::v2_0::*` directly. The `prelude` is intentionally narrow and only reexports crate-wide types, errors, storage strategies, and resource handles.
+## Modules
 
-## Library Organization
+| Module | Contents |
+|--------|----------|
+| `v2_0` | Domain types: `CityModel`, `CityObject`, `Geometry`, `GeometryDraft`, `Metadata`, `Transform`, `Semantic`, `Material`, `Texture`, … |
+| `resources` | Typed handles, resource pools, and string storage strategies |
+| `raw` | Zero-copy read views for use in downstream serializers |
 
-- `v2_0`: the primary public `CityJSON` v2.0 API, including model types, builders, and reusable value types such as `Transform`, `Extension`, `Boundary`, and `VertexIndex`
-- `resources`: typed handle + mapping + storage utilities
-- `raw`: low-level read views for efficient downstream processing
+## Imports
 
-Internal shared layers such as the old `cityjson::core` storage/domain split are implementation details and are not part of the public API surface. Downstream code should import `CityJSON` domain types from `cityjson::v2_0::*`; the prelude is only for crate-wide types, errors, storage strategies, and resource handles.
-
-## Benchmarking
-
-Run the full benchmark + profiling suite:
-
-```sh
-just perf "my run description"
+```rust
+use cityjson::v2_0::*;     // all domain types
+use cityjson::prelude::*;  // handles, storage strategies, error types
 ```
 
-Quick mode:
-
-```sh
-just perf "quick check" mode=fast
-```
-
-Analyze results from `bench_results/history.csv`:
-
-```sh
-just perf-analyze description="my run description" --plot
-just perf-analyze --backend-overview --backend default --mode all
-just perf-analyze --series --plot bench="builder/build_with_geometry" metric="time_ms"
-```
+The `prelude` is intentionally narrow — it re-exports crate-wide types (handles, errors, storage
+strategies) but not the domain types from `v2_0`.
 
 ## API Stability
 
@@ -100,6 +105,6 @@ Licensed under either:
 
 at your option.
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in cityjson-rs by you, as defined in the Apache-2.0 license, shall
-be dual licensed as above, without additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
+cityjson-rs by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without additional terms or conditions.

@@ -1,11 +1,23 @@
 //! Geometry read API for `CityJSON` 2.0.
 //!
-//! [`Geometry`] covers all eight geometry types defined in the spec:
-//! `MultiPoint`, `MultiLineString`, `MultiSurface`, `CompositeSurface`,
-//! `Solid`, `MultiSolid`, `CompositeSolid`, and `GeometryInstance`.
+//! [`Geometry`] covers the eight geometry types from spec §3 (boundary arrays) plus
+//! `GeometryInstance` (spec §3.4, geometry templates). The table below maps each type to the
+//! nesting depth of its boundary array and its typical LoD range:
 //!
-//! Boundaries are stored flat. Use [`Boundary::check_type`](super::boundary::Boundary::check_type)
-//! and the `to_nested_*` methods to recover the nested JSON form.
+//! | Type | Boundary nesting | Typical LoD |
+//! |------|-----------------|-------------|
+//! | `MultiPoint` | `[v, …]` | any |
+//! | `MultiLineString` | `[[v, …], …]` | any |
+//! | `MultiSurface` | `[[[v, …], …], …]` | 0–2 |
+//! | `CompositeSurface` | `[[[v, …], …], …]` | 2–3 |
+//! | `Solid` | `[[[[v, …], …], …], …]` | 1–3 |
+//! | `MultiSolid` | `[[[[[v, …], …], …], …], …]` | 1–3 |
+//! | `CompositeSolid` | `[[[[[v, …], …], …], …], …]` | 3 |
+//! | `GeometryInstance` | — (template reference) | any |
+//!
+//! Boundaries are stored flat internally. Use
+//! [`Boundary::check_type`](super::boundary::Boundary::check_type) and the `to_nested_*`
+//! methods to recover the nested JSON form.
 //!
 //! Semantics, materials, and textures are accessed through map views ([`SemanticMapView`],
 //! [`MaterialMapView`], [`TextureMapView`]) keyed by theme name.

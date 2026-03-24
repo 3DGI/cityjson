@@ -3,8 +3,19 @@
 //! Each entry in the `CityObjects` map is a [`CityObject`] with a string ID, a type, optional
 //! geometry references, optional attributes, and optional parent/child relationships.
 //!
-//! 1st-level types (e.g. `Building`, `Road`, `WaterBody`) can exist on their own.
-//! 2nd-level types (e.g. `BuildingPart`, `BuildingRoom`) must reference at least one parent.
+//! **1st-level types** can exist without a parent:
+//!
+//! `Bridge`, `Building`, `CityFurniture`, `CityObjectGroup`, `GenericCityObject`, `LandUse`,
+//! `OtherConstruction`, `PlantCover`, `SolitaryVegetationObject`, `TINRelief`, `Road`,
+//! `Railway`, `TransportSquare`, `Waterway`, `WaterBody`, `Tunnel`
+//!
+//! **2nd-level types** must reference at least one parent:
+//!
+//! `BridgeConstructiveElement`, `BridgeFurniture`, `BridgeInstallation`, `BridgePart`,
+//! `BridgeRoom`, `BuildingConstructiveElement`, `BuildingFurniture`, `BuildingInstallation`,
+//! `BuildingPart`, `BuildingRoom`, `BuildingStorey`, `BuildingUnit`,
+//! `TunnelConstructiveElement`, `TunnelFurniture`, `TunnelHollowSpace`, `TunnelInstallation`,
+//! `TunnelPart`
 //!
 //! ```rust
 //! use cityjson::CityModelType;

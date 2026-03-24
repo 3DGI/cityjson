@@ -1,33 +1,44 @@
 //! `CityJSON` v2.0 types.
 //!
-//! This module mirrors the `CityJSON` 2.0 data model. If you know the spec, the types map
-//! directly: [`CityModel`] is the root object, [`CityObject`] is each
-//! entry in the `CityObjects` map, and [`Geometry`] covers all eight geometry types.
+//! The types map directly to the [CityJSON 2.0 spec](https://www.cityjson.org/specs/2.0.1/).
 //!
-//! A few things differ from the JSON representation:
+//! | Spec concept | Rust type |
+//! |---|---|
+//! | Root CityJSON object | [`CityModel`] |
+//! | `CityObjects` map entry | [`CityObject`] |
+//! | Geometry (stored) | [`Geometry`] |
+//! | Geometry (authoring) | [`GeometryDraft`] |
+//! | Semantic surface | [`Semantic`], [`SemanticType`] |
+//! | Material / Texture resource | [`Material`], [`Texture`] (registered in model pools) |
+//! | Appearance assignment | [`MaterialMap`], [`TextureMap`] (per geometry, per theme) |
+//! | Coordinate transform | [`Transform`] |
+//! | Metadata | [`Metadata`] |
 //!
-//! - **Vertices are floats.** The transform (scale + translate) is a serialization concern;
-//!   internally all coordinates are `f64` real-world values.
-//! - **Boundaries are flat.** The nested JSON arrays are stored as flat vectors with offset
-//!   counters. Use [`Boundary::to_nested_*`](boundary::Boundary) methods or the `raw` module
-//!   to get the nested form for serialization.
-//! - **Semantics, materials, and textures live in global pools.** Instead of inline objects,
-//!   the model holds one pool per resource type. References in geometry are typed handles
-//!   ([`SemanticHandle`], [`MaterialHandle`], [`TextureHandle`]) returned when you add a
-//!   resource to the model.
-//! - **Geometry authoring uses a draft API.** [`GeometryDraft`] lets you build geometries from
-//!   raw coordinates. It deduplicates vertices, validates geometry, and inserts in one step.
+//! ## Differences from the JSON representation
 //!
-//! The typical import:
+//! - **Coordinates are floats, not integers.** The `transform` object (spec §4) is a
+//!   serialization concern. Internally all vertices are `f64` real-world coordinates.
+//! - **Boundaries are flat.** The nested JSON arrays (spec §3.2) are stored as flat `Vec`s
+//!   with offset counters. Use `Boundary::to_nested_*` or the [`raw`](crate::raw) module to
+//!   recover the nested form for serialization.
+//! - **Resources live in model-level pools.** Semantics, materials, and textures are stored
+//!   once on [`CityModel`] and referenced by typed handles ([`SemanticHandle`],
+//!   [`MaterialHandle`], [`TextureHandle`]).
+//! - **Geometry authoring uses a draft.** [`GeometryDraft`] accepts raw coordinates,
+//!   deduplicates vertices, validates the geometry, and inserts it into the model in one step.
+//!
+//! ## Imports
 //!
 //! ```rust
-//! use cityjson::v2_0::*;
-//! use cityjson::prelude::*;
+//! use cityjson::v2_0::*;     // all domain types
+//! use cityjson::prelude::*;  // handles, storage strategies, error types
 //! ```
 //!
 //! [`SemanticHandle`]: crate::resources::handles::SemanticHandle
 //! [`MaterialHandle`]: crate::resources::handles::MaterialHandle
 //! [`TextureHandle`]: crate::resources::handles::TextureHandle
+//! [`MaterialMap`]: crate::resources::mapping::materials::MaterialMap
+//! [`TextureMap`]: crate::resources::mapping::textures::TextureMap
 pub use crate::{CityJSONVersion, CityModelType};
 
 pub mod appearance;
