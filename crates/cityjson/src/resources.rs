@@ -5,11 +5,12 @@
 //! These maps are version agnostic, while the Semantic, Material, and Texture definitions are versioned.
 //! The resources are managed by resource pools that are stored in the `CityModel`.
 pub mod handles;
+pub(crate) mod id;
 pub mod mapping;
 pub(crate) mod pool;
 pub mod storage;
 
 pub use handles::{
-    AttributeRef, CityObjectRef, GeometryRef, MaterialRef, SemanticRef, TemplateGeometryRef,
-    TextureRef,
+    CityObjectHandle, GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle,
+    TextureHandle,
 };

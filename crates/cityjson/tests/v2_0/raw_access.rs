@@ -1,10 +1,20 @@
-use cityjson::prelude::*;
+use cityjson::error::Result;
 use cityjson::raw::RawAccess;
-use cityjson::cityjson::core::boundary::nested::BoundaryNestedMultiPoint32;
+use cityjson::resources::storage::OwnedStringStorage;
 use cityjson::v2_0::{
-    CityModel, CityObject, CityObjectIdentifier, CityObjectType, Material, Semantic, SemanticType,
-    Texture,
+    AttributeValue, Boundary, CityModel, CityModelType, CityObject, CityObjectIdentifier,
+    CityObjectType, ImageType, Material, RealWorldCoordinate, Semantic, SemanticType, Texture,
+    boundary::nested::BoundaryNestedMultiPoint32,
 };
+
+const FLOAT_EPSILON: f64 = 1.0e-9;
+
+fn assert_f64_eq(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= FLOAT_EPSILON,
+        "expected {expected}, got {actual}"
+    );
+}
 
 #[test]
 fn raw_access_and_attribute_column_helpers_work() -> Result<()> {
@@ -31,7 +41,7 @@ fn raw_access_and_attribute_column_helpers_work() -> Result<()> {
         "https://example.com/tex.png".to_string(),
         ImageType::Png,
     ))?;
-    model.add_vertex(QuantizedCoordinate::new(1, 2, 3))?;
+    model.add_vertex(RealWorldCoordinate::new(1.0, 2.0, 3.0))?;
 
     let raw = model.raw();
     assert_eq!(raw.vertices().len(), 1);
@@ -41,11 +51,12 @@ fn raw_access_and_attribute_column_helpers_work() -> Result<()> {
 
     let raw_vertices = model.vertices_raw();
     assert_eq!(raw_vertices.len(), 1);
-    assert_eq!(raw_vertices.get(0).expect("vertex 0").x(), 1);
+    assert_f64_eq(raw_vertices.get(0).expect("vertex 0").x(), 1.0);
 
     let (ids_h, heights) = model.extract_float_column("height");
     assert_eq!(ids_h.len(), 1);
-    assert_eq!(heights, vec![12.5]);
+    assert_eq!(heights.len(), 1);
+    assert_f64_eq(heights[0], 12.5);
 
     let (ids_f, floors) = model.extract_integer_column("floors");
     assert_eq!(ids_f.len(), 1);

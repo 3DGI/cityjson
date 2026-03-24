@@ -13,64 +13,58 @@ mod benches {
         params_from_env,
     };
 
-    use cityjson::prelude::*;
+    use cityjson::error::Result;
+    use cityjson::resources::storage::OwnedStringStorage;
+    use cityjson::resources::{CityObjectHandle, GeometryHandle, MaterialHandle, TextureHandle};
     use cityjson::v2_0::{
-        CityModel, CityObject, CityObjectType, GeometryBuilder, Material, Semantic, SemanticType,
-        Texture,
+        AttributeValue, BBox, CityModel, CityModelType, CityObject, CityObjectIdentifier,
+        CityObjectType, GeometryDraft, ImageType, LoD, Material, RealWorldCoordinate, RingDraft,
+        Semantic, SemanticType, ShellDraft, SurfaceDraft, Texture, UVCoordinate, VertexIndex32,
     };
     use std::collections::HashMap;
 
     fn build_geometry_minimal(
         model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
-    ) -> Result<GeometryRef> {
-        let mut geometry_builder =
-            GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
-                .with_lod(LoD::LoD2);
-
-        let bv0 = geometry_builder.add_vertex(vertices[0]);
-        let bv1 = geometry_builder.add_vertex(vertices[1]);
-        let bv2 = geometry_builder.add_vertex(vertices[2]);
-        let bv3 = geometry_builder.add_vertex(vertices[3]);
-        let bv4 = geometry_builder.add_vertex(vertices[4]);
-        let bv5 = geometry_builder.add_vertex(vertices[5]);
-        let bv6 = geometry_builder.add_vertex(vertices[6]);
-        let bv7 = geometry_builder.add_vertex(vertices[7]);
-
-        let ring_bottom = geometry_builder.add_ring(&[bv0, bv1, bv2, bv3])?;
-        let surface_bottom = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_bottom)?;
-
-        let ring_top = geometry_builder.add_ring(&[bv4, bv7, bv6, bv5])?;
-        let surface_top = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_top)?;
-
-        let ring_front = geometry_builder.add_ring(&[bv0, bv1, bv5, bv4])?;
-        let surface_front = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_front)?;
-
-        let ring_right = geometry_builder.add_ring(&[bv1, bv2, bv6, bv5])?;
-        let surface_right = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_right)?;
-
-        let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
-        let surface_back = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_back)?;
-
-        let ring_left = geometry_builder.add_ring(&[bv3, bv0, bv4, bv7])?;
-        let surface_left = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_left)?;
-
-        geometry_builder.add_shell(&[
+    ) -> Result<GeometryHandle> {
+        let surface_bottom = SurfaceDraft::new(
+            RingDraft::new([vertices[0], vertices[1], vertices[2], vertices[3]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_top = SurfaceDraft::new(
+            RingDraft::new([vertices[4], vertices[7], vertices[6], vertices[5]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_front = SurfaceDraft::new(
+            RingDraft::new([vertices[0], vertices[1], vertices[5], vertices[4]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_right = SurfaceDraft::new(
+            RingDraft::new([vertices[1], vertices[2], vertices[6], vertices[5]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_back = SurfaceDraft::new(
+            RingDraft::new([vertices[2], vertices[3], vertices[7], vertices[6]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_left = SurfaceDraft::new(
+            RingDraft::new([vertices[3], vertices[0], vertices[4], vertices[7]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let shell = ShellDraft::new([
             surface_bottom,
             surface_top,
             surface_front,
             surface_right,
             surface_back,
             surface_left,
-        ])?;
-
-        geometry_builder.build_geometry()
+        ]);
+        GeometryDraft::solid(
+            Some(LoD::LoD2),
+            shell,
+            std::iter::empty::<ShellDraft<u32, OwnedStringStorage>>(),
+        )
+        .insert_into(model)
     }
 
     /// Helper function to build a geometry with semantics, materials, and textures.
@@ -78,9 +72,9 @@ mod benches {
         model: &mut CityModel<u32, OwnedStringStorage>,
         vertices: &[VertexIndex32],
         index: u32,
-        material_data: Option<&(Material<OwnedStringStorage>, MaterialRef)>,
-        texture_data: Option<&(Texture<OwnedStringStorage>, TextureRef)>,
-    ) -> Result<GeometryRef> {
+        material_ref: MaterialHandle,
+        texture_ref: TextureHandle,
+    ) -> Result<GeometryHandle> {
         let mut ground_semantic = Semantic::new(SemanticType::GroundSurface);
         let ground_attrs = ground_semantic.attributes_mut();
         ground_attrs.insert(
@@ -106,92 +100,71 @@ mod benches {
             AttributeValue::String("north".to_string()),
         );
 
-        let mut geometry_builder =
-            GeometryBuilder::new(model, GeometryType::Solid, BuilderMode::Regular)
-                .with_lod(LoD::LoD2_2);
+        let ground_semantic = model.add_semantic(ground_semantic)?;
+        let roof_semantic = model.add_semantic(roof_semantic)?;
+        let wall_north = model.add_semantic(wall_north)?;
 
-        let bv0 = geometry_builder.add_vertex(vertices[0]);
-        let bv1 = geometry_builder.add_vertex(vertices[1]);
-        let bv2 = geometry_builder.add_vertex(vertices[2]);
-        let bv3 = geometry_builder.add_vertex(vertices[3]);
-        let bv4 = geometry_builder.add_vertex(vertices[4]);
-        let bv5 = geometry_builder.add_vertex(vertices[5]);
-        let bv6 = geometry_builder.add_vertex(vertices[6]);
-        let bv7 = geometry_builder.add_vertex(vertices[7]);
+        let uv0 = model.add_uv_coordinate(UVCoordinate::new(0.0, 0.0))?;
+        let uv1 = model.add_uv_coordinate(UVCoordinate::new(1.0, 0.0))?;
+        let uv2 = model.add_uv_coordinate(UVCoordinate::new(1.0, 1.0))?;
+        let uv3 = model.add_uv_coordinate(UVCoordinate::new(0.0, 1.0))?;
 
-        let ring_bottom = geometry_builder.add_ring(&[bv0, bv3, bv2, bv1])?;
-        let surface_bottom = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_bottom)?;
-        geometry_builder.set_semantic_surface(None, ground_semantic, false)?;
-
-        let ring_top = geometry_builder.add_ring(&[bv4, bv5, bv6, bv7])?;
-        let surface_top = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_top)?;
-        geometry_builder.set_semantic_surface(None, roof_semantic, false)?;
-
-        if let Some((material, _mat_ref)) = material_data {
-            geometry_builder.set_material_surface(
-                None,
-                material.clone(),
+        let surface_bottom = SurfaceDraft::new(
+            RingDraft::new([vertices[0], vertices[3], vertices[2], vertices[1]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        )
+        .with_semantic(ground_semantic);
+        let surface_top = SurfaceDraft::new(
+            RingDraft::new([vertices[4], vertices[5], vertices[6], vertices[7]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        )
+        .with_semantic(roof_semantic)
+        .with_material("default".to_string(), material_ref);
+        let surface_front = SurfaceDraft::new(
+            RingDraft::new([vertices[0], vertices[1], vertices[5], vertices[4]]).with_texture(
                 "default".to_string(),
-                true,
-            )?;
-        }
+                texture_ref,
+                [uv0, uv1, uv2, uv3],
+            ),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        )
+        .with_semantic(wall_north);
+        let surface_back = SurfaceDraft::new(
+            RingDraft::new([vertices[2], vertices[3], vertices[7], vertices[6]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_left = SurfaceDraft::new(
+            RingDraft::new([vertices[0], vertices[4], vertices[7], vertices[3]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
+        let surface_right = SurfaceDraft::new(
+            RingDraft::new([vertices[1], vertices[2], vertices[6], vertices[5]]),
+            std::iter::empty::<RingDraft<u32, OwnedStringStorage>>(),
+        );
 
-        let ring_front = geometry_builder.add_ring(&[bv0, bv1, bv5, bv4])?;
-        let surface_front = geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_front)?;
-        geometry_builder.set_semantic_surface(None, wall_north, false)?;
-
-        if let Some((texture, _tex_ref)) = texture_data {
-            let uv0 = geometry_builder.add_uv_coordinate(0.0, 0.0);
-            let uv1 = geometry_builder.add_uv_coordinate(1.0, 0.0);
-            let uv2 = geometry_builder.add_uv_coordinate(1.0, 1.0);
-            let uv3 = geometry_builder.add_uv_coordinate(0.0, 1.0);
-            geometry_builder.map_vertex_to_uv(bv0, uv0);
-            geometry_builder.map_vertex_to_uv(bv1, uv1);
-            geometry_builder.map_vertex_to_uv(bv5, uv2);
-            geometry_builder.map_vertex_to_uv(bv4, uv3);
-            geometry_builder.set_texture_ring(
-                None,
-                texture.clone(),
-                "default".to_string(),
-                true,
-            )?;
-        }
-
-        let ring_back = geometry_builder.add_ring(&[bv2, bv3, bv7, bv6])?;
-        geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_back)?;
-
-        let ring_left = geometry_builder.add_ring(&[bv0, bv4, bv7, bv3])?;
-        geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_left)?;
-
-        let ring_right = geometry_builder.add_ring(&[bv1, bv2, bv6, bv5])?;
-        geometry_builder.start_surface();
-        geometry_builder.add_surface_outer_ring(ring_right)?;
-
-        let shell_surfaces = vec![
+        let shell = ShellDraft::new([
             surface_bottom,
             surface_top,
             surface_front,
-            surface_front + 1,
-            surface_front + 2,
-            surface_front + 3,
-        ];
-        geometry_builder.add_shell(&shell_surfaces)?;
-
-        geometry_builder.build_geometry()
+            surface_back,
+            surface_left,
+            surface_right,
+        ]);
+        GeometryDraft::solid(
+            Some(LoD::LoD2_2),
+            shell,
+            std::iter::empty::<ShellDraft<u32, OwnedStringStorage>>(),
+        )
+        .insert_into(model)
     }
 
-    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<CityObjectRef>> {
+    pub fn build_cityobjects_minimal(num_cityobjects: usize) -> Result<Vec<CityObjectHandle>> {
         let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
 
         let vertices = CUBE_VERTICES
             .iter()
-            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .map(|(x, y, z)| model.add_vertex(RealWorldCoordinate::new(*x, *y, *z)))
             .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
@@ -215,7 +188,10 @@ mod benches {
         Ok(cityobject_refs)
     }
 
-    pub fn build_cityobjects_full(num_cityobjects: usize, seed: u64) -> Result<Vec<CityObjectRef>> {
+    pub fn build_cityobjects_full(
+        num_cityobjects: usize,
+        seed: u64,
+    ) -> Result<Vec<CityObjectHandle>> {
         let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
         let mut cityobject_refs = Vec::with_capacity(num_cityobjects);
         let seed_u32 = u32::try_from(seed).expect("seed exceeds u32 range");
@@ -223,15 +199,13 @@ mod benches {
         let mut material = Material::new("benchmark_material".to_string());
         material.set_ambient_intensity(Some(0.5));
         material.set_diffuse_color(Some([0.8, 0.8, 0.8].into()));
-        let mat_ref = model.add_material(material.clone())?;
+        let mat_ref = model.add_material(material)?;
         let texture = Texture::new("benchmark_texture.png".to_string(), ImageType::Png);
-        let tex_ref = model.add_texture(texture.clone())?;
-        let material_ref = Some((material, mat_ref));
-        let texture_ref = Some((texture, tex_ref));
+        let tex_ref = model.add_texture(texture)?;
 
         let vertices = CUBE_VERTICES
             .iter()
-            .map(|(x, y, z)| model.add_vertex(QuantizedCoordinate::new(*x, *y, *z)))
+            .map(|(x, y, z)| model.add_vertex(RealWorldCoordinate::new(*x, *y, *z)))
             .collect::<Result<Vec<_>>>()?;
 
         for i in 0..num_cityobjects {
@@ -290,13 +264,8 @@ mod benches {
                 20.0,
             )));
 
-            let geometry_ref = build_geometry_full_feature(
-                &mut model,
-                &vertices,
-                index_u32,
-                material_ref.as_ref(),
-                texture_ref.as_ref(),
-            )?;
+            let geometry_ref =
+                build_geometry_full_feature(&mut model, &vertices, index_u32, mat_ref, tex_ref)?;
             cityobject.add_geometry(geometry_ref);
 
             let co_ref = model.cityobjects_mut().add(cityobject)?;

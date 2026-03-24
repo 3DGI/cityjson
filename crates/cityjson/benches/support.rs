@@ -15,15 +15,15 @@ pub const FAST_SIZE_MEMORY: usize = 1_000;
 pub const DEFAULT_SIZE_PROCESSOR: usize = 10_000;
 pub const FAST_SIZE_PROCESSOR: usize = 1_000;
 
-pub const CUBE_VERTICES: [(i64, i64, i64); 8] = [
-    (0, 0, 0),
-    (1000, 0, 0),
-    (1000, 1000, 0),
-    (0, 1000, 0),
-    (0, 0, 500),
-    (1000, 0, 500),
-    (1000, 1000, 500),
-    (0, 1000, 500),
+pub const CUBE_VERTICES: [(f64, f64, f64); 8] = [
+    (0.0, 0.0, 0.0),
+    (1000.0, 0.0, 0.0),
+    (1000.0, 1000.0, 0.0),
+    (0.0, 1000.0, 0.0),
+    (0.0, 0.0, 500.0),
+    (1000.0, 0.0, 500.0),
+    (1000.0, 1000.0, 500.0),
+    (0.0, 1000.0, 500.0),
 ];
 
 #[derive(Clone, Copy, Debug)]

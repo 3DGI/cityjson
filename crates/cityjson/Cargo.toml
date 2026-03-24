@@ -28,7 +28,9 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 # For custom profiling and benchmarking
 dhat = "0.3"  # Heap profiling
 pprof = { version = "0.15", features = ["flamegraph", "criterion"] }  # Flamegraph profiling
+proptest = "1.6.0"
 rand = "0.10.0"
+serde_json = "1"
 
 [[bench]]
 name = "memory"
@@ -40,10 +42,6 @@ harness = false
 
 [[bench]]
 name = "processor"
-harness = false
-
-[[bench]]
-name = "streaming"
 harness = false
 
 [profile.bench]

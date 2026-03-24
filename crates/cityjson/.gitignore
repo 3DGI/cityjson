@@ -30,5 +30,6 @@ dhat-heap.json
 
 # Misc
 .claude
+!.claude/plans
 !.claude/attributes-plan.md
 /.devcontainer/postCreateCommand.log

@@ -10,7 +10,7 @@
 
 ## High-Level Takeaways
 - The default backend still leads in build-heavy and simple traversal workloads: `compute_mean_coordinates` is 58.7% faster, `builder/build_minimal_geometry` is 30.5% faster, and `builder/build_full_feature` is 30.7% faster than nested.  
-- Nested now has a clearer lead in complex processing and end-to-end streaming: `compute_full_feature_stats` is 8.7% faster and `streaming/e2e` is 23.1% faster than default.  
+- Nested now has a clearer lead in complex processing and end-to-end ingestion: `compute_full_feature_stats` is 8.7% faster and the ingestion workload is 23.1% faster than default.  
 - Default still has lower memory footprint in this run: `heap_max_bytes` is 28.1% lower, `heap_total_bytes` is 9.1% lower, `heap_max_blocks` is 23.4% lower, and `heap_total_blocks` is 5.3% lower than nested.  
 - In `processor/compute_full_feature_stats`, default shows lower cache miss rates (D1: -28.3%, LL: -41.8%) but slightly higher branch miss rate (+5.5%) versus nested.  
 
@@ -19,7 +19,7 @@
 - Default backend regressed in build throughput and time: `builder/build_minimal_geometry` time is +27.6% and `builder/build_full_feature` time is +28.0% (throughput down ~21.6% to 21.9%).  
 - Default memory allocation activity increased: `heap_total_bytes` is +10.3%, `heap_max_blocks` is +22.5%, and `heap_total_blocks` is +32.5% (with `heap_max_bytes` essentially unchanged at +0.05%).  
 - Nested backend remained close to baseline on build and memory metrics (roughly within +/-2% for builder timings; memory metrics unchanged).  
-- Streaming improved for both backends by about 20% (`time_ms`: default -20.0%, nested -19.9%).  
+- The ingestion workload improved for both backends by about 20% (`time_ms`: default -20.0%, nested -19.9%).  
 - Cache miss rates improved significantly for both backends, especially default (`cache_d1_miss_rate`: -51.3%, `cache_ll_miss_rate`: -61.8% vs inline baseline averages).  
 
 ## Interpretation  

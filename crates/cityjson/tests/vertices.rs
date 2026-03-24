@@ -1,0 +1,224 @@
+//! Tests for the public vertices API.
+
+const FLOAT_EPSILON: f64 = 1.0e-12;
+
+fn assert_f64_eq(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= FLOAT_EPSILON,
+        "expected {expected}, got {actual} (epsilon {FLOAT_EPSILON})"
+    );
+}
+
+fn assert_f64_slice_eq(actual: &[f64], expected: &[f64]) {
+    assert_eq!(actual.len(), expected.len());
+    for (actual_item, expected_item) in actual.iter().zip(expected.iter()) {
+        assert_f64_eq(*actual_item, *expected_item);
+    }
+}
+
+mod basic {
+    use super::{assert_f64_eq, assert_f64_slice_eq};
+    use cityjson::v2_0::*;
+
+    #[test]
+    fn new_starts_empty() {
+        let vertices = GeometryVertices16::new();
+
+        assert!(vertices.is_empty());
+        assert_eq!(vertices.len(), 0);
+    }
+
+    #[test]
+    fn with_capacity_starts_empty() {
+        let vertices = GeometryVertices16::with_capacity(4);
+
+        assert!(vertices.is_empty());
+        assert_eq!(vertices.len(), 0);
+    }
+
+    #[test]
+    fn reserve_allows_future_insertions() {
+        let mut vertices = GeometryVertices16::new();
+
+        vertices.reserve(2).unwrap();
+
+        let index = vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+
+        assert_eq!(index, VertexIndex16::new(0));
+        assert_eq!(vertices.len(), 1);
+    }
+
+    #[test]
+    fn push_returns_index_of_inserted_coordinate() {
+        let mut vertices = GeometryVertices32::new();
+
+        let index = vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+
+        assert_eq!(index, VertexIndex32::new(0));
+        assert_eq!(vertices.len(), 1);
+    }
+
+    #[test]
+    fn get_returns_inserted_coordinate() {
+        let mut vertices = GeometryVertices16::new();
+        let index = vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+
+        let coordinate = vertices.get(index).unwrap();
+
+        assert_f64_slice_eq(&coordinate.to_array(), &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn len_tracks_number_of_coordinates() {
+        let mut vertices = GeometryVertices16::new();
+        vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+        vertices
+            .push(RealWorldCoordinate::new(4.0, 5.0, 6.0))
+            .unwrap();
+
+        assert_eq!(vertices.len(), 2);
+    }
+
+    #[test]
+    fn is_empty_reflects_insertions() {
+        let mut vertices = GeometryVertices16::new();
+        assert!(vertices.is_empty());
+
+        vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+
+        assert!(!vertices.is_empty());
+    }
+
+    #[test]
+    fn as_slice_exposes_coordinates_in_order() {
+        let mut vertices = GeometryVertices32::new();
+        vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+        vertices
+            .push(RealWorldCoordinate::new(4.0, 5.0, 6.0))
+            .unwrap();
+
+        let coordinates = vertices.as_slice();
+
+        assert_eq!(coordinates.len(), 2);
+        assert_f64_eq(coordinates[0].x(), 1.0);
+        assert_f64_eq(coordinates[1].x(), 4.0);
+    }
+
+    #[test]
+    fn clear_removes_all_coordinates() {
+        let mut vertices = GeometryVertices32::new();
+        vertices
+            .push(RealWorldCoordinate::new(1.0, 2.0, 3.0))
+            .unwrap();
+        vertices
+            .push(RealWorldCoordinate::new(4.0, 5.0, 6.0))
+            .unwrap();
+
+        vertices.clear();
+
+        assert!(vertices.is_empty());
+        assert_eq!(vertices.len(), 0);
+    }
+
+    #[test]
+    fn default_creates_empty_collection() {
+        let vertices: GeometryVertices32 = Vertices::default();
+
+        assert!(vertices.is_empty());
+        assert_eq!(vertices.len(), 0);
+    }
+
+    #[test]
+    fn from_vec_populates_collection() {
+        let coordinates = vec![
+            RealWorldCoordinate::new(1.0, 2.0, 3.0),
+            RealWorldCoordinate::new(4.0, 5.0, 6.0),
+        ];
+
+        let vertices = GeometryVertices32::from(coordinates);
+
+        assert_eq!(vertices.len(), 2);
+        assert_f64_slice_eq(&vertices.as_slice()[1].to_array(), &[4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn from_slice_copies_coordinates() {
+        let coordinates = [
+            RealWorldCoordinate::new(1.0, 2.0, 3.0),
+            RealWorldCoordinate::new(4.0, 5.0, 6.0),
+        ];
+
+        let vertices = GeometryVertices32::from(&coordinates[..]);
+
+        assert_eq!(vertices.len(), 2);
+        assert_f64_slice_eq(&vertices.as_slice()[0].to_array(), &[1.0, 2.0, 3.0]);
+    }
+}
+
+mod edge_cases {
+    use cityjson::error::Error;
+    use cityjson::v2_0::*;
+
+    #[test]
+    fn get_returns_none_for_missing_index() {
+        let vertices = GeometryVertices16::new();
+
+        assert!(vertices.get(VertexIndex16::new(0)).is_none());
+    }
+
+    #[test]
+    fn reserve_rejects_capacity_past_index_limit() {
+        let mut vertices = GeometryVertices16::new();
+
+        let error = vertices.reserve(usize::from(u16::MAX) + 1).unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::VerticesContainerFull {
+                attempted: 1,
+                maximum
+            } if maximum == usize::from(u16::MAX)
+        ));
+    }
+
+    #[test]
+    fn push_rejects_more_than_the_index_type_can_store() {
+        let mut vertices = GeometryVertices16::new();
+
+        for i in 0..5 {
+            vertices
+                .push(RealWorldCoordinate::new(f64::from(i), 0.0, 0.0))
+                .unwrap();
+        }
+
+        for _ in 5..usize::from(u16::MAX) {
+            vertices
+                .push(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+                .unwrap();
+        }
+
+        let error = vertices
+            .push(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::VerticesContainerFull {
+                attempted,
+                maximum
+            } if attempted == usize::from(u16::MAX) + 1 && maximum == usize::from(u16::MAX)
+        ));
+    }
+}

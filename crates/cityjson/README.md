@@ -24,38 +24,38 @@ cargo add cityjson
 ## Quick Start
 
 ```rust
-use cityjson::prelude::*;
-use cityjson::v2_0::CityModel;
+use cityjson::v2_0::{CityJSONVersion, CityModel, CityModelType};
 
-fn main() {
-    let model: CityModel<u32, OwnedStringStorage> = CityModel::new(CityModelType::CityJSON);
+let model = CityModel::<u32>::new(CityModelType::CityJSON);
 
-    assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
-    assert!(model.cityobjects().is_empty());
+assert_eq!(model.version(), Some(CityJSONVersion::V2_0));
+assert!(model.cityobjects().is_empty());
 
-    assert_eq!(model.iter_geometries().count(), 0);
-    assert_eq!(model.iter_template_geometries().count(), 0);
-    assert!(model.template_vertices().is_empty());
-    assert_eq!(model.iter_semantics().count(), 0);
-    assert_eq!(model.iter_materials().count(), 0);
-    assert_eq!(model.iter_textures().count(), 0);
-    assert!(model.vertices_texture().is_empty());
+assert_eq!(model.iter_geometries().count(), 0);
+assert_eq!(model.iter_geometry_templates().count(), 0);
+assert!(model.template_vertices().is_empty());
+assert_eq!(model.iter_semantics().count(), 0);
+assert_eq!(model.iter_materials().count(), 0);
+assert_eq!(model.iter_textures().count(), 0);
+assert!(model.vertices_texture().is_empty());
 
-    assert!(model.vertices().is_empty());
-    assert_eq!(model.transform(), None);
+assert!(model.vertices().is_empty());
+assert_eq!(model.transform(), None);
 
-    assert_eq!(model.metadata(), None);
-    assert_eq!(model.extra(), None);
-    assert_eq!(model.extensions(), None);
-}
+assert_eq!(model.metadata(), None);
+assert_eq!(model.extra(), None);
+assert_eq!(model.extensions(), None);
 ```
+
+Note: for the common owned `CityJSON` v2.0 path, import from `cityjson::v2_0::*` directly. The `prelude` is intentionally narrow and only reexports crate-wide types, errors, storage strategies, and resource handles.
 
 ## Library Organization
 
-- `cityjson`: version-agnostic core types (`attributes`, `boundary`, `coordinate`, `geometry`, `vertex`, etc.)
-- `v2_0`: concrete `CityJSON` v2.0 model types and builders
+- `v2_0`: the primary public `CityJSON` v2.0 API, including model types, builders, and reusable value types such as `Transform`, `Extension`, `Boundary`, and `VertexIndex`
 - `resources`: typed handle + mapping + storage utilities
 - `raw`: low-level read views for efficient downstream processing
+
+Internal shared layers such as the old `cityjson::core` storage/domain split are implementation details and are not part of the public API surface. Downstream code should import `CityJSON` domain types from `cityjson::v2_0::*`; the prelude is only for crate-wide types, errors, storage strategies, and resource handles.
 
 ## Benchmarking
 
