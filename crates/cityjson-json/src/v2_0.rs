@@ -1,87 +1,52 @@
-use std::fmt;
+use cityjson::resources::storage::StringStorage;
+use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
+use serde::Serialize;
 
-use serde::{Deserialize, Serialize};
-use serde_json_borrow::Value;
+use crate::errors::Result;
 
-use crate::errors::{Error, Result};
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CityModel<'a> {
-    pub version: Option<CityJSONVersion>,
-    pub geometry: Option<Vec<Boundary>>,
-    #[serde(borrow, deserialize_with = "deserialize_attributes")]
-    pub attributes: Option<Attributes<'a>>,
+pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
+    crate::de::from_str_owned(input)
 }
 
-type Attributes<'a> = Value<'a>;
+pub fn from_str_borrowed<'a>(input: &'a str) -> Result<BorrowedCityModel<'a>> {
+    crate::de::from_str_borrowed(input)
+}
 
-pub fn deserialize_attributes<'de: 'a, 'a, D>(
-    deserializer: D,
-) -> std::result::Result<Option<Attributes<'a>>, D::Error>
+pub fn to_string<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
 where
-    D: serde::de::Deserializer<'de>,
+    VR: VertexRef,
+    SS: StringStorage,
 {
-    let s = Value::deserialize(deserializer)?;
-    Ok((!s.is_null()).then_some(s))
+    Ok(serde_json::to_string(&as_json(model))?)
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Boundary {
-    inner: Vec<usize>,
+pub fn as_json<'a, VR, SS>(model: &'a CityModel<VR, SS>) -> SerializableCityModel<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    SerializableCityModel { model }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize, Serialize)]
-#[serde(tag = "version", try_from = "String", into = "String")]
-pub enum CityJSONVersion {
-    V2_0,
+pub struct SerializableCityModel<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    pub(crate) model: &'a CityModel<VR, SS>,
 }
 
-impl fmt::Display for CityJSONVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
-            CityJSONVersion::V2_0 => {
-                write!(f, "2.0")
-            }
-        }
-    }
-}
-
-impl TryFrom<&str> for CityJSONVersion {
-    type Error = Error;
-
-    fn try_from(value: &str) -> Result<Self> {
-        CityJSONVersion::_from_str(value)
-    }
-}
-
-impl TryFrom<String> for CityJSONVersion {
-    type Error = Error;
-
-    fn try_from(value: String) -> Result<Self> {
-        CityJSONVersion::_from_str(value.as_ref())
-    }
-}
-
-impl CityJSONVersion {
-    fn _from_str(value: &str) -> Result<CityJSONVersion> {
-        match value {
-            "2.0" | "2.0.0" => Ok(CityJSONVersion::V2_0),
-            _ => Err(Error::UnsupportedVersion(
-                value.to_string(),
-                "2.0, 2.0.0".to_string(),
-            )),
-        }
-    }
-}
-
-/// This implementation is only used for serializing the CityJSON version, because serde cannot
-/// serialize from 'try_into' (which is provided by the 'try_from' implementations).
-/// So we need this Into, even though [std says that one should avoid implementing Into](https://doc.rust-lang.org/std/convert/trait.Into.html).
-#[allow(clippy::from_over_into)]
-impl Into<String> for CityJSONVersion {
-    fn into(self) -> String {
-        match self {
-            CityJSONVersion::V2_0 => String::from("2.0"),
-        }
+impl<VR, SS> Serialize for SerializableCityModel<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        crate::ser::citymodel_to_json_value(self.model)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
     }
 }

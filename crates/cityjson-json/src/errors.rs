@@ -1,22 +1,19 @@
-//! When operations on city models go wrong.
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
-use std::path::PathBuf;
-
-use crate::SupportedFileExtension;
 
 pub enum Error {
-    ExpectedCityJSON(String),
-    ExpectedCityJSONFeature(String),
-    InvalidExtension(PathBuf),
-    Io(std::io::Error),
-    MalformedCityJSON(serde_json::Error, Option<serde_json::Value>),
-    ///Some(_) if JSON was syntactically valid
-    MetadataError(String),
-    StreamingError(String),
-    UnsupportedExtension,
-    UnsupportedVersion(String, String),
-    IncompatibleBoundary(String, String),
+    Json(serde_json::Error),
+    CityJson(cityjson::error::Error),
+    UnsupportedType(String),
+    UnsupportedVersion(String),
+    MalformedRootObject(&'static str),
+    InvalidValue(String),
+    UnsupportedFeature(&'static str),
+    UnresolvedCityObjectReference {
+        source_id: String,
+        target_id: String,
+        relation: &'static str,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -24,81 +21,49 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::ExpectedCityJSON(t) => {
-                write!(f, "the CityModel type should be CityJSON, but got {}", t)
+            Error::Json(err) => write!(f, "JSON error: {err}"),
+            Error::CityJson(err) => write!(f, "cityjson error: {err}"),
+            Error::UnsupportedType(kind) => {
+                write!(f, "unsupported CityJSON root type: {kind}")
             }
-            Error::ExpectedCityJSONFeature(t) => {
+            Error::UnsupportedVersion(version) => {
+                write!(f, "unsupported CityJSON version: {version}")
+            }
+            Error::MalformedRootObject(reason) => write!(f, "malformed root object: {reason}"),
+            Error::InvalidValue(reason) => write!(f, "invalid value: {reason}"),
+            Error::UnsupportedFeature(feature) => {
                 write!(
                     f,
-                    "the CityModel type should be CityJSONFeature, but got {}",
-                    t
+                    "unsupported feature in current migration slice: {feature}"
                 )
             }
-            Error::InvalidExtension(pb) => {
-                write!(
-                    f,
-                    "the Path.extension method should have returned the file extension from {}",
-                    pb.display()
-                )
-            }
-            Error::Io(e) => {
-                write!(f, "IO error: {}", e)
-            }
-            Error::MalformedCityJSON(error, value) => {
-                write!(f, "error while deserializing the JSON document: {}", error)?;
-
-                if let Some(value) = value.as_ref() {
-                    write!(f, ", value: {}", value)?;
-                }
-
-                Ok(())
-            }
-            Error::MetadataError(s) => {
-                write!(f, "{}", s)
-            }
-            Error::StreamingError(s) => {
-                write!(f, "{}", s)
-            }
-            Error::UnsupportedVersion(v, supported) => {
-                write!(
-                    f,
-                    "the CityJSON version should be one of {}, but got {}",
-                    supported, v
-                )
-            }
-            Error::UnsupportedExtension => {
-                write!(
-                    f,
-                    "the file extension should be one of {}",
-                    SupportedFileExtension
-                )
-            }
-            Error::IncompatibleBoundary(source_boundarytype, target_boundarytype) => {
-                write!(
-                    f,
-                    "cannot convert a {} to a {}",
-                    source_boundarytype, target_boundarytype
-                )
-            }
+            Error::UnresolvedCityObjectReference {
+                source_id,
+                target_id,
+                relation,
+            } => write!(
+                f,
+                "unresolved CityObject {relation} reference from '{source_id}' to '{target_id}'"
+            ),
         }
     }
 }
 
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
-        Self::MalformedCityJSON(error, None)
+        Self::Json(error)
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error) -> Self {
-        Self::Io(error)
+impl From<cityjson::error::Error> for Error {
+    fn from(error: cityjson::error::Error) -> Self {
+        Self::CityJson(error)
     }
 }
 

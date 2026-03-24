@@ -5,7 +5,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use criterion::{black_box, Criterion, criterion_group, criterion_main, SamplingMode};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 
 /// Deserialize into a serde_json::Value.
 fn serde_value<P: AsRef<Path>>(path: P) -> serde_json::Result<serde_json::Value> {
