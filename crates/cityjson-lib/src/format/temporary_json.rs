@@ -1,3 +1,9 @@
+//! Temporary JSON-to-model bridge.
+//!
+//! This module is intentionally not part of `cjlib`'s core facade design. It exists only to keep
+//! the crate functional until `serde_cityjson <--> cityjson-rs` conversion is ready, at which
+//! point this module should be deleted and replaced by a thin boundary call into `serde_cityjson`.
+
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 

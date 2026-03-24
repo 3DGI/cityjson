@@ -4,7 +4,8 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::{CityJSONVersion, CityModel, Error, Result, import};
+use crate::format::{ActiveCityJsonBoundary, CityJsonBoundary};
+use crate::{CityJSONVersion, CityModel, Error, Result};
 
 #[derive(Debug, Deserialize)]
 struct Header {
@@ -19,7 +20,7 @@ pub(crate) fn from_slice(bytes: &[u8]) -> Result<CityModel> {
         "CityJSON" => match CityJSONVersion::try_from(
             header.version.as_deref().ok_or(Error::MissingVersion)?,
         )? {
-            CityJSONVersion::V2_0 => import::import_document(bytes),
+            CityJSONVersion::V2_0 => ActiveCityJsonBoundary::import_document_v2(bytes),
             CityJSONVersion::V1_0 => todo!(),
             CityJSONVersion::V1_1 => todo!(),
         },
@@ -67,7 +68,7 @@ where
     let version =
         CityJSONVersion::try_from(header.version.as_deref().ok_or(Error::MissingVersion)?)?;
     let mut model = match version {
-        CityJSONVersion::V2_0 => import::import_document(first_line.as_bytes())?,
+        CityJSONVersion::V2_0 => ActiveCityJsonBoundary::import_document_v2(first_line.as_bytes())?,
         CityJSONVersion::V1_0 => todo!(),
         CityJSONVersion::V1_1 => todo!(),
     };
@@ -88,7 +89,9 @@ where
         }
 
         match version {
-            CityJSONVersion::V2_0 => import::merge_feature(&mut model, line.as_bytes())?,
+            CityJSONVersion::V2_0 => {
+                ActiveCityJsonBoundary::merge_feature_v2(&mut model, line.as_bytes())?
+            }
             CityJSONVersion::V1_0 => todo!(),
             CityJSONVersion::V1_1 => todo!(),
         }
