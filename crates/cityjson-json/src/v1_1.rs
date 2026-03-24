@@ -7,11 +7,11 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap as Map;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "datasize")]
 use datasize::DataSize;
-use derive_more::Display;
+use derive_more::Display as DeriveDisplay;
 use serde::de::{IntoDeserializer, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
@@ -169,7 +169,7 @@ pub type CityObjects<'cm> = Map<Cow<'cm, str>, CityObject<'cm>>;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Display, Clone, Deserialize, Serialize)]
+#[derive(Debug, DeriveDisplay, Clone, Deserialize, Serialize)]
 #[display(
     "type: {}, geometry: {:?}, attributes: {:?}, geographical_extent: {:?}, children: {:?}, parents: {:?}",
     type_co,
@@ -234,7 +234,7 @@ pub struct CityObject<'cm> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Default, Display, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Default, DeriveDisplay, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum CityObjectType {
     Bridge,
@@ -724,7 +724,7 @@ struct IntermediateGeometry<'a> {
     template_transformation_matrix: Option<[f64; 16]>,
 }
 
-#[derive(Debug, Display, Clone, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, DeriveDisplay, Clone, Hash, Ord, PartialOrd, Eq, PartialEq, Deserialize, Serialize)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum GeometryType {
     MultiPoint,
@@ -766,7 +766,7 @@ pub enum LoD {
 }
 
 pub type MaterialMap<'cm> = Map<Cow<'cm, str>, MaterialValues>;
-#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, DeriveDisplay, PartialEq, Deserialize, Serialize)]
 #[display("value: {:?}, values: {:?}", value, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct MaterialValues {
@@ -777,7 +777,7 @@ pub struct MaterialValues {
 }
 
 pub type TextureMap<'cm> = Map<Cow<'cm, str>, TextureValues>;
-#[derive(Clone, Debug, Default, Display, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, DeriveDisplay, PartialEq, Deserialize, Serialize)]
 #[display("values: {:?}", values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct TextureValues {
@@ -805,7 +805,7 @@ pub struct TextureValues {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, DeriveDisplay, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[display(
     "materials: {:?}, textures: {:?}, vertices-texture: {:?}, default-theme-texture: {:?}, default-theme-material: {:?}",
@@ -860,7 +860,7 @@ struct IntermediateAppearanceValues<'a> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, DeriveDisplay, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[display(
     "name: {}, ambient_intensity: {:?}, diffuse_color: {:?}, emissive_color: {:?}, specular_color: {:?}, shininess: {:?}, transparency: {:?}, is_smooth: {:?}",
@@ -913,7 +913,7 @@ pub struct Material<'cm> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default, Debug, Display, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, DeriveDisplay, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[display(
     "type: {:?}, image: {:?}, wrap_mode: {:?}, texture_type: {:?}, border_color: {:?}",
@@ -940,7 +940,7 @@ pub struct Texture<'cm> {
 /// Texture image type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
-#[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, DeriveDisplay, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum ImageType {
@@ -952,7 +952,7 @@ pub enum ImageType {
 /// Texture wrap mode.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
-#[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, DeriveDisplay, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum WrapMode {
@@ -967,7 +967,7 @@ pub enum WrapMode {
 /// Texture type.
 ///
 /// Specs: <https://www.cityjson.org/specs/1.1.3/#texture-object>.
-#[derive(Clone, Copy, Debug, Default, Display, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, DeriveDisplay, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub enum TextureType {
@@ -1021,7 +1021,7 @@ pub type VerticesTexture = Vec<[f32; 2]>;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default, Debug, Display, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, DeriveDisplay, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[display(
     "templates: {:?}, vertices-templates: {:?}",
@@ -1066,7 +1066,7 @@ pub type VerticesTemplates = Vec<[f64; 3]>;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, DeriveDisplay, PartialEq, Eq, Deserialize, Serialize)]
 #[display("surfaces: {:?}, values: {:?}", surfaces, values)]
 #[cfg_attr(feature = "datasize", derive(DataSize))]
 pub struct Semantics<'cm> {
@@ -1105,7 +1105,7 @@ struct IntermediateSemantics<'a> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug, Display, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, DeriveDisplay, PartialEq, Eq, Deserialize, Serialize)]
 #[display(
     "type: {:?}, children: {:?}, parent: {:?}, attributes: {:?}",
     type_sem,
