@@ -712,14 +712,17 @@ fn import_owned_multi_line_string(
 
     let semantic_handles = import_geometry_semantics(semantics, model)?;
     let assignments = parse_linestring_assignments(semantics, &semantic_handles, boundaries.len())?;
-    let linestrings = boundaries.into_iter().enumerate().map(|(index, linestring)| {
-        let linestring = LineStringDraft::new(linestring.into_iter().map(VertexIndex::new));
-        if let Some(Some(semantic)) = assignments.get(index) {
-            linestring.with_semantic(*semantic)
-        } else {
-            linestring
-        }
-    });
+    let linestrings = boundaries
+        .into_iter()
+        .enumerate()
+        .map(|(index, linestring)| {
+            let linestring = LineStringDraft::new(linestring.into_iter().map(VertexIndex::new));
+            if let Some(Some(semantic)) = assignments.get(index) {
+                linestring.with_semantic(*semantic)
+            } else {
+                linestring
+            }
+        });
 
     GeometryDraft::multi_line_string(parse_lod(lod)?, linestrings)
         .insert_into(model)
@@ -736,14 +739,8 @@ fn import_owned_multi_surface(
     model: &mut OwnedCityModel,
     resources: &GeometryResources,
 ) -> Result<GeometryHandle> {
-    let mappings = parse_multi_surface_mappings(
-        semantics,
-        material,
-        texture,
-        &boundaries,
-        model,
-        resources,
-    )?;
+    let mappings =
+        parse_multi_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
     let mut surface_index = 0;
     let mut ring_index = 0;
     let surfaces = boundaries
@@ -773,9 +770,9 @@ fn import_owned_solid(
         parse_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
     let mut surface_index = 0;
     let mut ring_index = 0;
-    let mut shells = boundaries.into_iter().map(|shell| {
-        mapped_shell_draft(shell, &mappings, &mut surface_index, &mut ring_index)
-    });
+    let mut shells = boundaries
+        .into_iter()
+        .map(|shell| mapped_shell_draft(shell, &mappings, &mut surface_index, &mut ring_index));
     let outer = shells.next().transpose()?.ok_or_else(|| {
         Error::InvalidValue("Solid geometry requires at least one shell".to_owned())
     })?;
@@ -801,9 +798,7 @@ fn import_owned_multi_solid(
     let mut ring_index = 0;
     let solids = boundaries
         .into_iter()
-        .map(|solid| {
-            mapped_solid_draft(solid, &mappings, &mut surface_index, &mut ring_index)
-        })
+        .map(|solid| mapped_solid_draft(solid, &mappings, &mut surface_index, &mut ring_index))
         .collect::<Result<Vec<_>>>()?;
     let draft = if is_composite {
         GeometryDraft::composite_solid(parse_lod(lod)?, solids)
@@ -1012,10 +1007,8 @@ fn mapped_surface_draft(
     }
     for (theme, assignments) in &mappings.materials {
         if let Some(Some(material)) = assignments.get(current_surface) {
-            surface = surface.with_material(
-                cityjson::v2_0::ThemeName::new(theme.clone()),
-                *material,
-            );
+            surface =
+                surface.with_material(cityjson::v2_0::ThemeName::new(theme.clone()), *material);
         }
     }
     *surface_index += 1;
@@ -1041,9 +1034,9 @@ fn mapped_solid_draft(
     surface_index: &mut usize,
     ring_index: &mut usize,
 ) -> Result<SolidDraft<u32, cityjson::prelude::OwnedStringStorage>> {
-    let mut shells = shells.into_iter().map(|shell| {
-        mapped_shell_draft(shell, mappings, surface_index, ring_index)
-    });
+    let mut shells = shells
+        .into_iter()
+        .map(|shell| mapped_shell_draft(shell, mappings, surface_index, ring_index));
     let outer = shells.next().transpose()?.ok_or_else(|| {
         Error::InvalidValue("solid boundary requires at least one shell".to_owned())
     })?;
@@ -1204,7 +1197,12 @@ fn parse_point_assignments(
     else {
         return Ok(vec![None; expected_len]);
     };
-    parse_assignment_array(values, semantic_handles, expected_len, "geometry semantics.values")
+    parse_assignment_array(
+        values,
+        semantic_handles,
+        expected_len,
+        "geometry semantics.values",
+    )
 }
 
 fn parse_linestring_assignments(
@@ -1218,7 +1216,12 @@ fn parse_linestring_assignments(
     else {
         return Ok(vec![None; expected_len]);
     };
-    parse_assignment_array(values, semantic_handles, expected_len, "geometry semantics.values")
+    parse_assignment_array(
+        values,
+        semantic_handles,
+        expected_len,
+        "geometry semantics.values",
+    )
 }
 
 fn parse_multi_surface_scalar_assignments<T: Copy>(
@@ -1263,10 +1266,13 @@ fn parse_multi_solid_scalar_assignments<T: Copy>(
         .and_then(OwnedJsonValue::as_object)
         .and_then(|object| object.get("values"))
     else {
-        return Ok(vec![None; boundaries
-            .iter()
-            .map(|solid| solid.iter().map(Vec::len).sum::<usize>())
-            .sum()]);
+        return Ok(vec![
+            None;
+            boundaries
+                .iter()
+                .map(|solid| solid.iter().map(Vec::len).sum::<usize>())
+                .sum()
+        ]);
     };
     let expected_len = boundaries
         .iter()
@@ -1281,12 +1287,14 @@ fn parse_multi_surface_materials(
     resources: &GeometryResources,
 ) -> Result<Vec<(String, Vec<Option<MaterialHandle>>)>> {
     let expected_len = boundaries.len();
-    parse_material_themes(
-        material,
-        &resources.materials,
-        expected_len,
-        |values| parse_assignment_array(values, &resources.materials, expected_len, "geometry material.values"),
-    )
+    parse_material_themes(material, &resources.materials, expected_len, |values| {
+        parse_assignment_array(
+            values,
+            &resources.materials,
+            expected_len,
+            "geometry material.values",
+        )
+    })
 }
 
 fn parse_solid_materials(
@@ -1296,7 +1304,12 @@ fn parse_solid_materials(
 ) -> Result<Vec<(String, Vec<Option<MaterialHandle>>)>> {
     let surface_count = boundaries.iter().map(Vec::len).sum();
     parse_material_themes(material, &resources.materials, surface_count, |values| {
-        parse_assignment_array(values, &resources.materials, surface_count, "geometry material.values")
+        parse_assignment_array(
+            values,
+            &resources.materials,
+            surface_count,
+            "geometry material.values",
+        )
     })
 }
 
@@ -1310,7 +1323,12 @@ fn parse_multi_solid_materials(
         .map(|solid| solid.iter().map(Vec::len).sum::<usize>())
         .sum();
     parse_material_themes(material, &resources.materials, surface_count, |values| {
-        parse_assignment_array(values, &resources.materials, surface_count, "geometry material.values")
+        parse_assignment_array(
+            values,
+            &resources.materials,
+            surface_count,
+            "geometry material.values",
+        )
     })
 }
 
@@ -1318,7 +1336,7 @@ fn parse_multi_surface_textures(
     texture: Option<&OwnedJsonValue>,
     boundaries: &MultiSurfaceBoundary,
     resources: &GeometryResources,
-) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>) >> {
+) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>)>> {
     parse_texture_themes(texture, |values| {
         parse_multi_surface_ring_textures(values, boundaries, resources)
     })
@@ -1328,15 +1346,17 @@ fn parse_solid_textures(
     texture: Option<&OwnedJsonValue>,
     boundaries: &SolidBoundary,
     resources: &GeometryResources,
-) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>) >> {
-    parse_texture_themes(texture, |values| parse_solid_ring_textures(values, boundaries, resources))
+) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>)>> {
+    parse_texture_themes(texture, |values| {
+        parse_solid_ring_textures(values, boundaries, resources)
+    })
 }
 
 fn parse_multi_solid_textures(
     texture: Option<&OwnedJsonValue>,
     boundaries: &MultiSolidBoundary,
     resources: &GeometryResources,
-) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>) >> {
+) -> Result<Vec<(String, Vec<Option<RingTextureAssignment>>)>> {
     parse_texture_themes(texture, |values| {
         parse_multi_solid_ring_textures(values, boundaries, resources)
     })
@@ -1511,8 +1531,11 @@ fn parse_ring_texture_assignment(
         return Ok(None);
     }
 
-    let texture = parse_optional_handle_index(first, &resources.textures, "geometry texture index")?
-        .ok_or_else(|| Error::InvalidValue("geometry texture index cannot be null".to_owned()))?;
+    let texture =
+        parse_optional_handle_index(first, &resources.textures, "geometry texture index")?
+            .ok_or_else(|| {
+                Error::InvalidValue("geometry texture index cannot be null".to_owned())
+            })?;
     let mut uvs = Vec::with_capacity(values.len().saturating_sub(1));
     for uv in values.iter().skip(1) {
         let index = uv.as_u64().ok_or_else(|| {
@@ -1533,9 +1556,7 @@ fn parse_optional_usize(value: &OwnedJsonValue) -> Result<Option<usize>> {
             .map(|value| value as usize)
             .map(Some)
             .ok_or_else(|| {
-                Error::InvalidValue(format!(
-                    "expected unsigned integer or null, got {value}"
-                ))
+                Error::InvalidValue(format!("expected unsigned integer or null, got {value}"))
             }),
         _ => Err(Error::InvalidValue(format!(
             "expected unsigned integer or null, got {value}"
@@ -1551,17 +1572,13 @@ fn parse_usize_array(value: &OwnedJsonValue) -> Result<Vec<usize>> {
         .iter()
         .map(|value| {
             value.as_u64().map(|value| value as usize).ok_or_else(|| {
-                Error::InvalidValue(format!(
-                    "expected unsigned integer in array, got {value}"
-                ))
+                Error::InvalidValue(format!("expected unsigned integer in array, got {value}"))
             })
         })
         .collect()
 }
 
-fn parse_semantic_type(
-    value: &str,
-) -> Result<SemanticType<cityjson::prelude::OwnedStringStorage>> {
+fn parse_semantic_type(value: &str) -> Result<SemanticType<cityjson::prelude::OwnedStringStorage>> {
     Ok(match value {
         "RoofSurface" => SemanticType::RoofSurface,
         "GroundSurface" => SemanticType::GroundSurface,

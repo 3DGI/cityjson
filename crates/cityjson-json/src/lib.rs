@@ -11,4 +11,7 @@ pub use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel};
 pub use cityjson::{CityJSONVersion, CityModelType};
 
 pub use errors::{Error, Result};
-pub use v2_0::{as_json, from_str_borrowed, from_str_owned, to_string, SerializableCityModel};
+pub use v2_0::{
+    as_json, from_str_borrowed, from_str_owned, to_string, to_string_validated,
+    SerializableCityModel,
+};

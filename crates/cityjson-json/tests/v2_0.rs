@@ -354,10 +354,10 @@ fn cityjson_fake_complete() {
 fn cityjson_fake_complete_deserialize() {
     let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
     let cm = from_str_owned(&json_input).unwrap();
-    assert!(cm.vertices().len() > 0);
+    assert!(!cm.vertices().is_empty());
     assert!(cm.extensions().is_some());
     assert!(cm.metadata().is_some());
-    assert!(cm.cityobjects().len() > 0);
+    assert!(!cm.cityobjects().is_empty());
     assert!(
         cm.material_count() > 0
             || cm.texture_count() > 0

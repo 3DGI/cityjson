@@ -47,10 +47,6 @@ download: _download-3dbag _download-3dbasisvoorziening
 clean:
     rm -rf {{datadir}}
 
-# Build and open the crate documentation
-doc:
-    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open
-
 # Run all benchmarks and generate the comparison plots. Requires a python virtualenv in "resources/compare_benchmarks/.venv"
 bench: bench-speed bench-size bench-plot
 
@@ -62,3 +58,21 @@ bench-size:
 
 bench-plot:
     resources/compare_benchmarks/.venv/bin/python resources/compare_benchmarks/compare_benchmarks.py
+
+check:
+    cargo check --all-targets --all-features
+
+build *args:
+    cargo build --all-targets --all-features {{args}}
+
+lint:
+    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+
+fmt:
+    cargo fmt --all
+
+test:
+    cargo test --all-targets --all-features
+
+doc:
+    cargo doc --all-features --no-deps --open

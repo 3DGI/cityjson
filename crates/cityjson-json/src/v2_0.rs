@@ -20,6 +20,15 @@ where
     Ok(serde_json::to_string(&as_json(model))?)
 }
 
+pub fn to_string_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    model.validate_default_themes()?;
+    Ok(serde_json::to_string(&as_json(model))?)
+}
+
 pub fn as_json<'a, VR, SS>(model: &'a CityModel<VR, SS>) -> SerializableCityModel<'a, VR, SS>
 where
     VR: VertexRef + Serialize,

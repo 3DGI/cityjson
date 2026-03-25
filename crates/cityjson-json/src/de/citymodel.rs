@@ -658,23 +658,6 @@ fn resolve_borrowed_relations<'a>(
     Ok(())
 }
 
-fn reject_unsupported_root_sections_owned(
-    appearance: Option<&OwnedJsonValue>,
-    geometry_templates: Option<&OwnedJsonValue>,
-) -> Result<()> {
-    if appearance.is_some_and(value_is_present_owned) {
-        return Err(Error::UnsupportedFeature(
-            "appearance import is not implemented yet",
-        ));
-    }
-    if geometry_templates.is_some_and(value_is_present_owned) {
-        return Err(Error::UnsupportedFeature(
-            "geometry template import is not implemented yet",
-        ));
-    }
-    Ok(())
-}
-
 #[derive(Deserialize)]
 struct RawAppearanceOwned {
     #[serde(default)]
@@ -844,15 +827,6 @@ fn reject_unsupported_root_sections_borrowed(
         ));
     }
     Ok(())
-}
-
-fn value_is_present_owned(value: &OwnedJsonValue) -> bool {
-    match value {
-        OwnedJsonValue::Null => false,
-        OwnedJsonValue::Array(values) => !values.is_empty(),
-        OwnedJsonValue::Object(values) => !values.is_empty(),
-        _ => true,
-    }
 }
 
 fn value_is_present_borrowed(value: &BorrowedJsonValue<'_>) -> bool {

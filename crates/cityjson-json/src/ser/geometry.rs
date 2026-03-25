@@ -24,7 +24,11 @@ where
         let geometry = model
             .get_geometry(*handle)
             .ok_or_else(|| Error::InvalidValue(format!("missing geometry for handle {handle}")))?;
-        geometries.push(geometry_to_json_value(model, geometry, Some(template_indices))?);
+        geometries.push(geometry_to_json_value(
+            model,
+            geometry,
+            Some(template_indices),
+        )?);
     }
     Ok(Value::Array(geometries))
 }

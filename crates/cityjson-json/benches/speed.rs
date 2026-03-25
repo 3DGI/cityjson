@@ -51,7 +51,7 @@ fn real_data(c: &mut Criterion) {
             let mut file = File::open(black_box(&p_json)).unwrap();
             let mut cityjson_json = String::new();
             file.read_to_string(&mut cityjson_json).unwrap();
-            let cj = serde_cityjson::from_str(&cityjson_json).unwrap();
+            let cj = serde_cityjson::from_str_owned(&cityjson_json).unwrap();
             black_box(&cj);
         })
     });
@@ -79,7 +79,7 @@ fn real_data(c: &mut Criterion) {
             let mut file = File::open(black_box(&p_json)).unwrap();
             let mut cityjson_json = String::new();
             file.read_to_string(&mut cityjson_json).unwrap();
-            let cj = serde_cityjson::from_str(&cityjson_json).unwrap();
+            let cj = serde_cityjson::from_str_owned(&cityjson_json).unwrap();
             black_box(&cj);
         })
     });

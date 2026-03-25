@@ -39,9 +39,9 @@ where
     let surfaces = handles
         .iter()
         .map(|handle| {
-            let semantic = model
-                .get_semantic(*handle)
-                .ok_or_else(|| Error::InvalidValue(format!("missing semantic for handle {handle}")))?;
+            let semantic = model.get_semantic(*handle).ok_or_else(|| {
+                Error::InvalidValue(format!("missing semantic for handle {handle}"))
+            })?;
             semantic_to_json_value(semantic, &handle_to_local)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -66,7 +66,11 @@ where
             let assignments = semantics
                 .surfaces()
                 .iter()
-                .map(|handle| handle.as_ref().and_then(|handle| handle_to_local.get(handle).copied()))
+                .map(|handle| {
+                    handle
+                        .as_ref()
+                        .and_then(|handle| handle_to_local.get(handle).copied())
+                })
                 .collect::<Vec<_>>();
             serialize_surface_usize_options(boundary, geometry.type_geometry(), &assignments)
         }
@@ -161,7 +165,12 @@ where
             theme.as_ref().to_owned(),
             Value::Object(Map::from_iter([(
                 "values".to_owned(),
-                serialize_texture_values(boundary, geometry.type_geometry(), texture_map, &dense_indices)?,
+                serialize_texture_values(
+                    boundary,
+                    geometry.type_geometry(),
+                    texture_map,
+                    &dense_indices,
+                )?,
             )])),
         );
     }
@@ -272,7 +281,11 @@ fn serialize_flat_semantics<'a>(
         handles
             .into_iter()
             .map(|handle| {
-                optional_index_to_json(handle.as_ref().and_then(|handle| handle_to_local.get(handle).copied()))
+                optional_index_to_json(
+                    handle
+                        .as_ref()
+                        .and_then(|handle| handle_to_local.get(handle).copied()),
+                )
             })
             .collect(),
     )
@@ -364,7 +377,8 @@ where
         GeometryType::Solid => Value::Array(
             (0..boundary.shells().len())
                 .map(|shell_index| {
-                    let (surface_start, surface_end) = surface_range_for_shell(boundary, shell_index);
+                    let (surface_start, surface_end) =
+                        surface_range_for_shell(boundary, shell_index);
                     Value::Array(
                         (surface_start..surface_end)
                             .map(|surface_index| {
@@ -373,7 +387,11 @@ where
                                 Ok(Value::Array(
                                     (ring_start..ring_end)
                                         .map(|ring_index| {
-                                            serialize_ring_texture_value(texture_map, ring_index, dense_indices)
+                                            serialize_ring_texture_value(
+                                                texture_map,
+                                                ring_index,
+                                                dense_indices,
+                                            )
                                         })
                                         .collect::<Result<Vec<_>>>()?,
                                 ))
