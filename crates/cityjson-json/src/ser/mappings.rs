@@ -72,7 +72,7 @@ where
                         .and_then(|handle| handle_to_local.get(handle).copied())
                 })
                 .collect::<Vec<_>>();
-            serialize_surface_usize_options(boundary, geometry.type_geometry(), &assignments)
+            serialize_surface_usize_options(boundary, *geometry.type_geometry(), &assignments)
         }
         _ => {
             return Err(Error::InvalidValue(format!(
@@ -127,7 +127,7 @@ where
         } else {
             Value::Object(Map::from_iter([(
                 "values".to_owned(),
-                serialize_surface_usize_options(boundary, geometry.type_geometry(), &surfaces),
+                serialize_surface_usize_options(boundary, *geometry.type_geometry(), &surfaces),
             )]))
         };
         value.insert(theme.as_ref().to_owned(), theme_value);
@@ -167,7 +167,7 @@ where
                 "values".to_owned(),
                 serialize_texture_values(
                     boundary,
-                    geometry.type_geometry(),
+                    *geometry.type_geometry(),
                     texture_map,
                     &dense_indices,
                 )?,
@@ -293,7 +293,7 @@ fn serialize_flat_semantics<'a>(
 
 fn serialize_surface_usize_options<VR>(
     boundary: &Boundary<VR>,
-    geometry_type: &GeometryType,
+    geometry_type: GeometryType,
     assignments: &[Option<usize>],
 ) -> Value
 where
@@ -351,7 +351,7 @@ where
 
 fn serialize_texture_values<VR>(
     boundary: &Boundary<VR>,
-    geometry_type: &GeometryType,
+    geometry_type: GeometryType,
     texture_map: TextureMapView<'_, VR>,
     dense_indices: &HashMap<TextureHandle, usize>,
 ) -> Result<Value>
@@ -368,8 +368,7 @@ where
                             .map(|ring_index| {
                                 serialize_ring_texture_value(texture_map, ring_index, dense_indices)
                             })
-                            .collect::<Result<Vec<_>>>()
-                            .unwrap_or_default(),
+                            .collect::<Vec<_>>(),
                     )
                 })
                 .collect(),
@@ -384,7 +383,7 @@ where
                             .map(|surface_index| {
                                 let (ring_start, ring_end) =
                                     ring_range_for_surface(boundary, surface_index);
-                                Ok(Value::Array(
+                                Value::Array(
                                     (ring_start..ring_end)
                                         .map(|ring_index| {
                                             serialize_ring_texture_value(
@@ -393,11 +392,10 @@ where
                                                 dense_indices,
                                             )
                                         })
-                                        .collect::<Result<Vec<_>>>()?,
-                                ))
+                                        .collect::<Vec<_>>(),
+                                )
                             })
-                            .collect::<Result<Vec<_>>>()
-                            .unwrap_or_default(),
+                            .collect::<Vec<_>>(),
                     )
                 })
                 .collect(),
@@ -411,12 +409,12 @@ where
                             .map(|shell_index| {
                                 let (surface_start, surface_end) =
                                     surface_range_for_shell(boundary, shell_index);
-                                Ok(Value::Array(
+                                Value::Array(
                                     (surface_start..surface_end)
                                         .map(|surface_index| {
                                             let (ring_start, ring_end) =
                                                 ring_range_for_surface(boundary, surface_index);
-                                            Ok(Value::Array(
+                                            Value::Array(
                                                 (ring_start..ring_end)
                                                     .map(|ring_index| {
                                                         serialize_ring_texture_value(
@@ -425,22 +423,20 @@ where
                                                             dense_indices,
                                                         )
                                                     })
-                                                    .collect::<Result<Vec<_>>>()?,
-                                            ))
+                                                    .collect::<Vec<_>>(),
+                                            )
                                         })
-                                        .collect::<Result<Vec<_>>>()?,
-                                ))
+                                        .collect::<Vec<_>>(),
+                                )
                             })
-                            .collect::<Result<Vec<_>>>()
-                            .unwrap_or_default(),
+                            .collect::<Vec<_>>(),
                     )
                 })
                 .collect(),
         ),
         _ => {
             return Err(Error::InvalidValue(format!(
-                "geometry texture export is not supported for geometry type '{}'",
-                geometry_type
+                "geometry texture export is not supported for geometry type '{geometry_type}'"
             )))
         }
     })
@@ -450,7 +446,7 @@ fn serialize_ring_texture_value<VR>(
     texture_map: TextureMapView<'_, VR>,
     ring_index: usize,
     dense_indices: &HashMap<TextureHandle, usize>,
-) -> Result<Value>
+) -> Value
 where
     VR: VertexRef,
 {
@@ -461,26 +457,24 @@ where
         .flatten()
         .and_then(|handle| dense_indices.get(&handle).copied());
     let Some(texture_index) = texture else {
-        return Ok(Value::Array(vec![Value::Null]));
+        return Value::Array(vec![Value::Null]);
     };
 
     let vertex_start = texture_map
         .rings()
         .get(ring_index)
-        .map(|value| value.to_usize())
-        .unwrap_or(0);
-    let vertex_end = texture_map
-        .rings()
-        .get(ring_index + 1)
-        .map(|value| value.to_usize())
-        .unwrap_or(texture_map.vertices().len());
+        .map_or(0, cityjson::v2_0::VertexIndex::to_usize);
+    let vertex_end = texture_map.rings().get(ring_index + 1).map_or(
+        texture_map.vertices().len(),
+        cityjson::v2_0::VertexIndex::to_usize,
+    );
 
     let mut values = Vec::with_capacity(vertex_end.saturating_sub(vertex_start) + 1);
     values.push(Value::Number(Number::from(texture_index)));
     for uv_index in &texture_map.vertices()[vertex_start..vertex_end] {
         values.push(optional_index_to_json(uv_index.map(|uv| uv.to_usize())));
     }
-    Ok(Value::Array(values))
+    Value::Array(values)
 }
 
 fn ring_range_for_surface<VR>(boundary: &Boundary<VR>, surface_index: usize) -> (usize, usize)
@@ -488,11 +482,10 @@ where
     VR: VertexRef,
 {
     let start = boundary.surfaces()[surface_index].to_usize();
-    let end = boundary
-        .surfaces()
-        .get(surface_index + 1)
-        .map(|value| value.to_usize())
-        .unwrap_or(boundary.rings().len());
+    let end = boundary.surfaces().get(surface_index + 1).map_or(
+        boundary.rings().len(),
+        cityjson::v2_0::VertexIndex::to_usize,
+    );
     (start, end)
 }
 
@@ -501,11 +494,10 @@ where
     VR: VertexRef,
 {
     let start = boundary.shells()[shell_index].to_usize();
-    let end = boundary
-        .shells()
-        .get(shell_index + 1)
-        .map(|value| value.to_usize())
-        .unwrap_or(boundary.surfaces().len());
+    let end = boundary.shells().get(shell_index + 1).map_or(
+        boundary.surfaces().len(),
+        cityjson::v2_0::VertexIndex::to_usize,
+    );
     (start, end)
 }
 
@@ -514,11 +506,10 @@ where
     VR: VertexRef,
 {
     let start = boundary.solids()[solid_index].to_usize();
-    let end = boundary
-        .solids()
-        .get(solid_index + 1)
-        .map(|value| value.to_usize())
-        .unwrap_or(boundary.shells().len());
+    let end = boundary.solids().get(solid_index + 1).map_or(
+        boundary.shells().len(),
+        cityjson::v2_0::VertexIndex::to_usize,
+    );
     (start, end)
 }
 
@@ -546,15 +537,12 @@ where
         SemanticType::TransportationMarking => "TransportationMarking",
         SemanticType::TransportationHole => "TransportationHole",
         SemanticType::Extension(value) => value.as_ref(),
-        SemanticType::Default => "Default",
         _ => "Default",
     }
 }
 
 fn optional_index_to_json(value: Option<usize>) -> Value {
-    value
-        .map(|value| Value::Number(Number::from(value)))
-        .unwrap_or(Value::Null)
+    value.map_or(Value::Null, |value| Value::Number(Number::from(value)))
 }
 
 fn is_uniform_non_null(values: &[Option<usize>]) -> bool {

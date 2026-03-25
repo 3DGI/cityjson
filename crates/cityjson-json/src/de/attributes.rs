@@ -1,154 +1,167 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
+use std::marker::PhantomData;
 
-use cityjson::v2_0::{
-    BorrowedAttributeValue, BorrowedAttributes, OwnedAttributeValue, OwnedAttributes,
-};
-use serde_json::Value as OwnedJsonValue;
-use serde_json_borrow::Value as BorrowedJsonValue;
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
+use cityjson::v2_0::{AttributeValue, Attributes};
+
+use crate::de::parse::ParseStringStorage;
 use crate::errors::{Error, Result};
 
-pub(crate) fn owned_attributes_from_json(
-    value: &OwnedJsonValue,
-    context: &'static str,
-) -> Result<OwnedAttributes> {
-    let object = value.as_object().ok_or_else(|| {
-        Error::InvalidValue(format!("{context} must be a JSON object, got {value}"))
-    })?;
-
-    let mut attributes = OwnedAttributes::new();
-    for (key, value) in object {
-        attributes.insert(
-            key.clone(),
-            owned_attribute_value_from_json(value, context)?,
-        );
-    }
-
-    Ok(attributes)
+/// A typed recursive enum for JSON attribute values, borrowing strings from the
+/// original input where possible.
+///
+/// `String` holds a `Cow<'de, str>` so that:
+/// - unescaped strings are borrowed from the input (`Cow::Borrowed`)
+/// - escaped strings are owned (`Cow::Owned`)
+///
+/// Object keys use `&'de str` (unescaped JSON object keys only).
+#[derive(Debug)]
+pub(crate) enum RawAttribute<'de> {
+    Null,
+    Bool(bool),
+    Number(serde_json::Number),
+    String(Cow<'de, str>),
+    Array(Vec<RawAttribute<'de>>),
+    Object(HashMap<&'de str, RawAttribute<'de>>),
 }
 
-pub(crate) fn borrowed_attributes_from_json_owned<'a>(
-    value: BorrowedJsonValue<'a>,
-    context: &'static str,
-) -> Result<BorrowedAttributes<'a>> {
-    match value {
-        BorrowedJsonValue::Object(values) => {
-            let mut attributes = BorrowedAttributes::new();
-            for (key, value) in values.into_vec() {
-                attributes.insert(
-                    cow_to_borrowed_str(key),
-                    borrowed_attribute_value_from_json_owned(value, context)?,
-                );
-            }
-            Ok(attributes)
+struct RawAttributeVisitor<'de>(PhantomData<&'de ()>);
+
+impl<'de> Visitor<'de> for RawAttributeVisitor<'de> {
+    type Value = RawAttribute<'de>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("any JSON value")
+    }
+
+    fn visit_unit<E: de::Error>(self) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Null)
+    }
+
+    fn visit_none<E: de::Error>(self) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Null)
+    }
+
+    fn visit_bool<E: de::Error>(self, v: bool) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Bool(v))
+    }
+
+    fn visit_i64<E: de::Error>(self, v: i64) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Number(v.into()))
+    }
+
+    fn visit_u64<E: de::Error>(self, v: u64) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Number(v.into()))
+    }
+
+    fn visit_f64<E: de::Error>(self, v: f64) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::Number(
+            serde_json::Number::from_f64(v)
+                .ok_or_else(|| de::Error::custom("non-finite float in attribute"))?,
+        ))
+    }
+
+    fn visit_borrowed_str<E: de::Error>(self, v: &'de str) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::String(Cow::Borrowed(v)))
+    }
+
+    fn visit_str<E: de::Error>(self, v: &str) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::String(Cow::Owned(v.to_owned())))
+    }
+
+    fn visit_string<E: de::Error>(self, v: String) -> std::result::Result<Self::Value, E> {
+        Ok(RawAttribute::String(Cow::Owned(v)))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(
+        self,
+        mut seq: A,
+    ) -> std::result::Result<Self::Value, A::Error> {
+        let mut vec = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+        while let Some(elem) = seq.next_element::<RawAttribute<'de>>()? {
+            vec.push(elem);
         }
-        other => Err(Error::InvalidValue(format!(
-            "{context} must be a JSON object, got {other}"
-        ))),
+        Ok(RawAttribute::Array(vec))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(
+        self,
+        mut map: A,
+    ) -> std::result::Result<Self::Value, A::Error> {
+        let mut hm = HashMap::with_capacity(map.size_hint().unwrap_or(0));
+        while let Some(k) = map.next_key::<&'de str>()? {
+            let v = map.next_value::<RawAttribute<'de>>()?;
+            hm.insert(k, v);
+        }
+        Ok(RawAttribute::Object(hm))
     }
 }
 
-pub(crate) fn borrowed_attributes_from_map<'a, I>(
-    values: I,
+impl<'de> Deserialize<'de> for RawAttribute<'de> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        deserializer.deserialize_any(RawAttributeVisitor(PhantomData))
+    }
+}
+
+/// Convert a `RawAttribute<'de>` into a typed `AttributeValue<SS>`.
+///
+/// For borrowed mode: string values that required allocation (escaped strings in JSON)
+/// will return an error.
+pub(crate) fn attribute_value<'de, SS>(
+    raw: RawAttribute<'de>,
     context: &'static str,
-) -> Result<BorrowedAttributes<'a>>
+) -> Result<AttributeValue<SS>>
 where
-    I: IntoIterator<Item = (&'a str, BorrowedJsonValue<'a>)>,
+    SS: ParseStringStorage<'de>,
 {
-    let mut attributes = BorrowedAttributes::new();
-    for (key, value) in values {
-        attributes.insert(
-            key,
-            borrowed_attribute_value_from_json_owned(value, context)?,
-        );
-    }
-    Ok(attributes)
-}
-
-fn owned_attribute_value_from_json(
-    value: &OwnedJsonValue,
-    context: &'static str,
-) -> Result<OwnedAttributeValue> {
-    Ok(match value {
-        OwnedJsonValue::Null => OwnedAttributeValue::Null,
-        OwnedJsonValue::Bool(value) => OwnedAttributeValue::Bool(*value),
-        OwnedJsonValue::Number(value) => {
-            if let Some(value) = value.as_u64() {
-                OwnedAttributeValue::Unsigned(value)
-            } else if let Some(value) = value.as_i64() {
-                OwnedAttributeValue::Integer(value)
-            } else if let Some(value) = value.as_f64() {
-                OwnedAttributeValue::Float(value)
+    Ok(match raw {
+        RawAttribute::Null => AttributeValue::Null,
+        RawAttribute::Bool(b) => AttributeValue::Bool(b),
+        RawAttribute::Number(n) => {
+            if let Some(v) = n.as_u64() {
+                AttributeValue::Unsigned(v)
+            } else if let Some(v) = n.as_i64() {
+                AttributeValue::Integer(v)
+            } else if let Some(v) = n.as_f64() {
+                AttributeValue::Float(v)
             } else {
                 return Err(Error::InvalidValue(format!(
                     "{context} contains an unsupported JSON number"
                 )));
             }
         }
-        OwnedJsonValue::String(value) => OwnedAttributeValue::String(value.clone()),
-        OwnedJsonValue::Array(values) => OwnedAttributeValue::Vec(
-            values
-                .iter()
-                .map(|value| owned_attribute_value_from_json(value, context).map(Box::new))
-                .collect::<Result<Vec<_>>>()?,
-        ),
-        OwnedJsonValue::Object(values) => {
-            let mut map = HashMap::with_capacity(values.len());
-            for (key, value) in values {
-                map.insert(
-                    key.clone(),
-                    Box::new(owned_attribute_value_from_json(value, context)?),
-                );
-            }
-            OwnedAttributeValue::Map(map)
-        }
-    })
-}
-
-fn borrowed_attribute_value_from_json_owned<'a>(
-    value: BorrowedJsonValue<'a>,
-    context: &'static str,
-) -> Result<BorrowedAttributeValue<'a>> {
-    Ok(match value {
-        BorrowedJsonValue::Null => BorrowedAttributeValue::Null,
-        BorrowedJsonValue::Bool(value) => BorrowedAttributeValue::Bool(value),
-        BorrowedJsonValue::Number(value) => {
-            if let Some(value) = value.as_u64() {
-                BorrowedAttributeValue::Unsigned(value)
-            } else if let Some(value) = value.as_i64() {
-                BorrowedAttributeValue::Integer(value)
-            } else if let Some(value) = value.as_f64() {
-                BorrowedAttributeValue::Float(value)
-            } else {
-                return Err(Error::InvalidValue(format!(
-                    "{context} contains an unsupported JSON number"
-                )));
-            }
-        }
-        BorrowedJsonValue::Str(value) => BorrowedAttributeValue::String(cow_to_borrowed_str(value)),
-        BorrowedJsonValue::Array(values) => BorrowedAttributeValue::Vec(
+        RawAttribute::String(cow) => AttributeValue::String(SS::store_cow(cow)?),
+        RawAttribute::Array(values) => AttributeValue::Vec(
             values
                 .into_iter()
-                .map(|value| borrowed_attribute_value_from_json_owned(value, context).map(Box::new))
+                .map(|v| attribute_value::<SS>(v, context).map(Box::new))
                 .collect::<Result<Vec<_>>>()?,
         ),
-        BorrowedJsonValue::Object(values) => {
-            let mut map = HashMap::with_capacity(values.as_vec().len());
-            for (key, value) in values.into_vec() {
-                map.insert(
-                    cow_to_borrowed_str(key),
-                    Box::new(borrowed_attribute_value_from_json_owned(value, context)?),
-                );
+        RawAttribute::Object(map) => {
+            let mut result = HashMap::with_capacity(map.len());
+            for (k, v) in map {
+                result.insert(SS::store(k), Box::new(attribute_value::<SS>(v, context)?));
             }
-            BorrowedAttributeValue::Map(map)
+            AttributeValue::Map(result)
         }
     })
 }
 
-fn cow_to_borrowed_str<'a>(value: Cow<'a, str>) -> &'a str {
-    match value {
-        Cow::Borrowed(value) => value,
-        Cow::Owned(value) => Box::leak(value.into_boxed_str()),
+/// Convert a `HashMap<&'de str, RawAttribute<'de>>` into a typed `Attributes<SS>`.
+pub(crate) fn attribute_map<'de, SS>(
+    raw: HashMap<&'de str, RawAttribute<'de>>,
+    context: &'static str,
+) -> Result<Attributes<SS>>
+where
+    SS: ParseStringStorage<'de>,
+{
+    let mut attrs = Attributes::<SS>::new();
+    for (k, v) in raw {
+        attrs.insert(SS::store(k), attribute_value::<SS>(v, context)?);
     }
+    Ok(attrs)
 }

@@ -16,6 +16,7 @@ pub(crate) fn citymodel_to_json_value<VR, SS>(model: &CityModel<VR, SS>) -> Resu
 where
     VR: VertexRef + serde::Serialize,
     SS: StringStorage,
+    SS::String: AsRef<str>,
 {
     let mut root = Map::new();
     root.insert(
@@ -57,7 +58,7 @@ where
 
     let id_by_handle = collect_cityobject_ids(model);
     root.insert("vertices".to_owned(), vertices_to_json_value(model)?);
-    root.insert("appearance".to_owned(), appearance_to_json_value(model)?);
+    root.insert("appearance".to_owned(), appearance_to_json_value(model));
 
     if model.type_citymodel().to_string() == "CityJSON" {
         let (geometry_templates, indices) = geometry_templates_to_json_value(model)?;
@@ -79,6 +80,7 @@ where
 fn metadata_to_json_value<SS>(metadata: &Metadata<SS>) -> Result<Value>
 where
     SS: StringStorage,
+    SS::String: AsRef<str>,
 {
     let mut value = Map::new();
 
@@ -112,7 +114,10 @@ where
             );
         }
         if let Some(website) = contact.website().as_ref() {
-            contact_value.insert("website".to_owned(), Value::String(website.clone()));
+            contact_value.insert(
+                "website".to_owned(),
+                Value::String(website.as_ref().to_owned()),
+            );
         }
         if let Some(kind) = contact.contact_type() {
             contact_value.insert(
@@ -127,12 +132,12 @@ where
             );
         }
         if let Some(phone) = contact.phone().as_ref() {
-            contact_value.insert("phone".to_owned(), Value::String(phone.clone()));
+            contact_value.insert("phone".to_owned(), Value::String(phone.as_ref().to_owned()));
         }
         if let Some(organization) = contact.organization().as_ref() {
             contact_value.insert(
                 "organization".to_owned(),
-                Value::String(organization.clone()),
+                Value::String(organization.as_ref().to_owned()),
             );
         }
         value.insert("pointOfContact".to_owned(), Value::Object(contact_value));
@@ -358,6 +363,7 @@ fn contact_type_to_str(kind: ContactType) -> &'static str {
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn number_value(value: f64) -> Result<Value> {
     let rounded = value.round();
     if (value - rounded).abs() < 1e-9 && rounded >= i64::MIN as f64 && rounded <= i64::MAX as f64 {

@@ -1,14 +1,13 @@
 use std::path::PathBuf;
 
-use once_cell::sync::Lazy;
 use serde_json::{json, Map, Value};
 
 use common::*;
-use serde_cityjson::from_str_owned;
+use serde_cityjson::{from_str_borrowed, from_str_owned};
 
 mod common;
 
-static DATA_DIR: Lazy<PathBuf> = Lazy::new(|| {
+static DATA_DIR: std::sync::LazyLock<PathBuf> = std::sync::LazyLock::new(|| {
     cargo_workspace_directory()
         .unwrap()
         .join("tests")
@@ -19,7 +18,13 @@ static DATA_DIR: Lazy<PathBuf> = Lazy::new(|| {
 fn dummy_vertices(count: usize) -> Value {
     Value::Array(
         (0..count)
-            .map(|index| json!([index as f64, 0.0, 0.0]))
+            .map(|index| {
+                json!([
+                    f64::from(u32::try_from(index).unwrap_or(u32::MAX)),
+                    0.0,
+                    0.0
+                ])
+            })
             .collect(),
     )
 }
@@ -27,7 +32,12 @@ fn dummy_vertices(count: usize) -> Value {
 fn dummy_uv_vertices(count: usize) -> Value {
     Value::Array(
         (0..count)
-            .map(|index| json!([index as f64 / 100.0, 0.0]))
+            .map(|index| {
+                json!([
+                    f64::from(u32::try_from(index).unwrap_or(u32::MAX)) / 100.0,
+                    0.0
+                ])
+            })
             .collect(),
     )
 }
@@ -56,6 +66,7 @@ fn wrap_transform(value: Value) -> Value {
     Value::Object(root)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_cityobject(value: Value) -> Value {
     let mut root = base_citymodel();
     let mut cityobjects = Map::new();
@@ -77,10 +88,12 @@ fn wrap_cityobject(value: Value) -> Value {
     Value::Object(root)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_geometry(value: Value) -> Value {
     let vertex_count = max_u64_in(value.get("boundaries").unwrap_or(&Value::Null))
-        .map(|max| max as usize + 1)
-        .unwrap_or(1);
+        .map_or(1, |max| {
+            usize::try_from(max).unwrap_or(usize::MAX).saturating_add(1)
+        });
 
     let mut root = base_citymodel();
     root.insert("vertices".to_owned(), dummy_vertices(vertex_count));
@@ -95,16 +108,12 @@ fn wrap_geometry(value: Value) -> Value {
     );
 
     if value.get("material").is_some() || value.get("texture").is_some() {
-        let material_count = value
-            .get("material")
-            .and_then(max_u64_in)
-            .map(|max| max as usize + 1)
-            .unwrap_or(0);
-        let texture_index_bound = value
-            .get("texture")
-            .and_then(max_u64_in)
-            .map(|max| max as usize + 1)
-            .unwrap_or(0);
+        let material_count = value.get("material").and_then(max_u64_in).map_or(0, |max| {
+            usize::try_from(max).unwrap_or(usize::MAX).saturating_add(1)
+        });
+        let texture_index_bound = value.get("texture").and_then(max_u64_in).map_or(0, |max| {
+            usize::try_from(max).unwrap_or(usize::MAX).saturating_add(1)
+        });
 
         let mut appearance = Map::new();
         if material_count > 0 {
@@ -162,10 +171,12 @@ fn wrap_appearance(value: Value) -> Value {
     Value::Object(root)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_material(value: Value) -> Value {
     wrap_appearance(json!({ "materials": [value] }))
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_texture(value: Value) -> Value {
     wrap_appearance(json!({ "textures": [value], "vertices-texture": [] }))
 }
@@ -176,6 +187,7 @@ fn wrap_geometry_templates(value: Value) -> Value {
     Value::Object(root)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_semantic_minimal(value: Value) -> Value {
     let mut root = base_citymodel();
     root.insert("vertices".to_owned(), dummy_vertices(3));
@@ -237,6 +249,7 @@ fn wrap_metadata(value: Value) -> Value {
     Value::Object(root)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn wrap_extension(value: Value) -> Value {
     let mut root = base_citymodel();
     root.insert("extensions".to_owned(), json!({ "Noise": value }));
@@ -562,4 +575,288 @@ fn metadata_extra_properties() {
 fn extension() {
     let json_input = read_to_string(DATA_DIR.join("extension.city.json"));
     assert_eq_roundtrip_wrapped(&json_input, wrap_extension, extract_extension);
+}
+
+// ---------------------------------------------------------------------------
+// Borrowed-mode mirrors: same fixtures, same assertions, borrowed storage
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cityjson_fake_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
+    assert_eq_roundtrip_borrowed(&json_input);
+}
+
+#[test]
+fn cityjson_fake_complete_deserialize_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
+    let cm = from_str_borrowed(&json_input).unwrap();
+    assert!(!cm.vertices().is_empty());
+    assert!(cm.extensions().is_some());
+    assert!(cm.metadata().is_some());
+    assert!(!cm.cityobjects().is_empty());
+    assert!(
+        cm.material_count() > 0
+            || cm.texture_count() > 0
+            || cm.default_material_theme().is_some()
+            || cm.default_texture_theme().is_some()
+            || !cm.vertices_texture().is_empty()
+    );
+    assert!(cm.geometry_template_count() > 0);
+}
+
+#[test]
+fn cityjson_minimal_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityjson_minimal_complete.city.json"));
+    let cm = from_str_borrowed(&json_input).unwrap();
+    assert!(cm.extra().is_none());
+    assert_eq_roundtrip_borrowed(&json_input);
+}
+
+#[test]
+fn cityjsonfeature_minimal_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityjsonfeature_minimal_complete.city.jsonl"));
+    assert_eq_roundtrip_borrowed(&json_input);
+}
+
+#[test]
+fn transform_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("transform.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_transform, extract_transform);
+}
+
+#[test]
+fn cityobject_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityobject_complete.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_cityobject, extract_cityobject);
+}
+
+#[test]
+fn cityobject_extended_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("cityobject_extended.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_cityobject, extract_cityobject);
+}
+
+#[test]
+fn geometry_instance_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_instance.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_complete_solid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_complete_solid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_material_solid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_material_solid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_texture_multisolid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_multisolid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_texture_solid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_solid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_texture_multisurface_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_texture_multisurface.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_semantics_multisolid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multisolid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_semantics_solid_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_solid.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_semantics_multisurface_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multisurface.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_semantics_multilinestring_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multilinestring.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn geometry_semantics_multipoint_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_semantics_multipoint.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn appearance_minimal_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("appearance_minimal_complete.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_appearance, extract_appearance);
+}
+
+#[test]
+fn appearance_empty_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("appearance_empty.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_appearance, extract_appearance);
+}
+
+#[test]
+fn material_minimal_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("material_minimal.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_material, extract_material);
+}
+
+#[test]
+fn material_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("material_complete.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_material, extract_material);
+}
+
+#[test]
+fn texture_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("texture_complete.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_texture, extract_texture);
+}
+
+#[test]
+fn texture_minimal_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("texture_minimal.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_texture, extract_texture);
+}
+
+#[test]
+fn geometry_templates_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_templates.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(
+        &json_input,
+        wrap_geometry_templates,
+        extract_geometry_templates,
+    );
+}
+
+#[test]
+fn semantic_minimal_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("semantic_minimal.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(
+        &json_input,
+        wrap_semantic_minimal,
+        extract_semantic_minimal,
+    );
+}
+
+#[test]
+fn semantic_extended_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("semantic_extended.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(
+        &json_input,
+        wrap_semantic_extended,
+        extract_semantic_extended,
+    );
+}
+
+#[test]
+fn vertices_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("vertices.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_vertices, extract_vertices);
+}
+
+#[test]
+fn metadata_empty_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("metadata_empty.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_metadata, extract_metadata);
+}
+
+#[test]
+fn metadata_complete_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("metadata_complete.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_metadata, extract_metadata);
+}
+
+#[test]
+fn metadata_poc_minimal_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("metadata_poc_minimal.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_metadata, extract_metadata);
+}
+
+#[test]
+fn metadata_extra_properties_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("metadata_extra_properties.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_metadata, extract_metadata);
+}
+
+#[test]
+fn extension_borrowed() {
+    let json_input = read_to_string(DATA_DIR.join("extension.city.json"));
+    assert_eq_roundtrip_borrowed_wrapped(&json_input, wrap_extension, extract_extension);
+}
+
+// ---------------------------------------------------------------------------
+// Parity tests: owned and borrowed must produce identical output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cityjson_fake_complete_parity() {
+    let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
+    assert_eq_roundtrip_parity(&json_input);
+}
+
+#[test]
+fn transform_parity() {
+    let json_input = read_to_string(DATA_DIR.join("transform.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_transform, extract_transform);
+}
+
+#[test]
+fn cityobject_complete_parity() {
+    let json_input = read_to_string(DATA_DIR.join("cityobject_complete.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_cityobject, extract_cityobject);
+}
+
+#[test]
+fn geometry_instance_parity() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_instance.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_geometry, extract_geometry);
+}
+
+#[test]
+fn appearance_minimal_complete_parity() {
+    let json_input = read_to_string(DATA_DIR.join("appearance_minimal_complete.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_appearance, extract_appearance);
+}
+
+#[test]
+fn geometry_templates_parity() {
+    let json_input = read_to_string(DATA_DIR.join("geometry_templates.city.json"));
+    assert_eq_roundtrip_parity_wrapped(
+        &json_input,
+        wrap_geometry_templates,
+        extract_geometry_templates,
+    );
+}
+
+#[test]
+fn metadata_complete_parity() {
+    let json_input = read_to_string(DATA_DIR.join("metadata_complete.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_metadata, extract_metadata);
+}
+
+#[test]
+fn extension_parity() {
+    let json_input = read_to_string(DATA_DIR.join("extension.city.json"));
+    assert_eq_roundtrip_parity_wrapped(&json_input, wrap_extension, extract_extension);
 }

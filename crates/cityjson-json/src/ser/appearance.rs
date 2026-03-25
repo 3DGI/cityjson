@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::errors::Result;
 use cityjson::resources::handles::GeometryTemplateHandle;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::appearance::material::Material;
@@ -7,10 +8,9 @@ use cityjson::v2_0::appearance::texture::Texture;
 use cityjson::v2_0::{CityModel, ImageType, TextureType, VertexRef, WrapMode, RGB, RGBA};
 use serde_json::{Map, Value};
 
-use crate::errors::Result;
 use crate::ser::geometry::geometry_to_json_value;
 
-pub(crate) fn appearance_to_json_value<VR, SS>(model: &CityModel<VR, SS>) -> Result<Value>
+pub(crate) fn appearance_to_json_value<VR, SS>(model: &CityModel<VR, SS>) -> Value
 where
     VR: VertexRef + serde::Serialize,
     SS: StringStorage,
@@ -74,7 +74,7 @@ where
         );
     }
 
-    Ok(Value::Object(value))
+    Value::Object(value)
 }
 
 pub(crate) fn geometry_templates_to_json_value<VR, SS>(
@@ -220,5 +220,5 @@ fn color4_to_json(color: RGBA) -> Value {
 }
 
 fn normalize_f32(value: f32) -> f64 {
-    ((value as f64) * 1_000_000.0).round() / 1_000_000.0
+    (f64::from(value) * 1_000_000.0).round() / 1_000_000.0
 }
