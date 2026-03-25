@@ -23,7 +23,7 @@
 //! meta.set_identifier(CityModelIdentifier::new("eaeceeaa-3f66-429a-b81d-bbc6140b8c1c".to_string()));
 //! meta.set_reference_date(Date::new("1977-02-28".to_string()));
 //! meta.set_reference_system(CRS::new("https://www.opengis.net/def/crs/EPSG/0/7415".to_string()));
-//! meta.set_title("Amsterdam buildings LoD2");
+//! meta.set_title("Amsterdam buildings LoD2".to_string());
 //! ```
 
 use crate::format_option;
@@ -41,7 +41,7 @@ pub struct Metadata<SS: StringStorage> {
     point_of_contact: Option<Contact<SS>>,
     reference_date: Option<Date<SS>>,
     reference_system: Option<CRS<SS>>,
-    title: Option<String>,
+    title: Option<SS::String>,
     extra: Option<Attributes<SS>>,
 }
 
@@ -100,100 +100,12 @@ impl<SS: StringStorage> Metadata<SS> {
         self.reference_system = Some(crs);
     }
 
-    pub fn set_title<S: AsRef<str>>(&mut self, title: S) {
-        self.title = Some(title.as_ref().to_owned());
-    }
-
-    pub fn set_phone<S: AsRef<str>>(&mut self, phone: S) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.phone = Some(phone.as_ref().to_owned());
-        } else {
-            self.point_of_contact = Some(Contact {
-                phone: Some(phone.as_ref().to_owned()),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_organization<S: AsRef<str>>(&mut self, organization: S) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.organization = Some(organization.as_ref().to_owned());
-        } else {
-            self.point_of_contact = Some(Contact {
-                organization: Some(organization.as_ref().to_owned()),
-                ..Default::default()
-            });
-        }
+    pub fn set_title(&mut self, title: SS::String) {
+        self.title = Some(title);
     }
 
     pub fn point_of_contact(&self) -> Option<&Contact<SS>> {
         self.point_of_contact.as_ref()
-    }
-
-    pub fn set_contact_name<S: AsRef<str>>(&mut self, name: S) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            name.as_ref().clone_into(&mut poc.name);
-        } else {
-            self.point_of_contact = Some(Contact {
-                name: name.as_ref().to_owned(),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_email_address<S: AsRef<str>>(&mut self, email: S) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            email.as_ref().clone_into(&mut poc.email_address);
-        } else {
-            self.point_of_contact = Some(Contact {
-                email_address: email.as_ref().to_owned(),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_role(&mut self, role: ContactRole) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.role = Some(role);
-        } else {
-            self.point_of_contact = Some(Contact {
-                role: Some(role),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_website<S: AsRef<str>>(&mut self, website: S) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.website = Some(website.as_ref().to_owned());
-        } else {
-            self.point_of_contact = Some(Contact {
-                website: Some(website.as_ref().to_owned()),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_contact_type(&mut self, contact_type: ContactType) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.kind = Some(contact_type);
-        } else {
-            self.point_of_contact = Some(Contact {
-                kind: Some(contact_type),
-                ..Default::default()
-            });
-        }
-    }
-
-    pub fn set_address(&mut self, address: Attributes<SS>) {
-        if let Some(poc) = self.point_of_contact.as_mut() {
-            poc.address = Some(address);
-        } else {
-            self.point_of_contact = Some(Contact {
-                address: Some(address),
-                ..Default::default()
-            });
-        }
     }
 
     pub fn set_point_of_contact(&mut self, contact: Option<Contact<SS>>) {
@@ -221,14 +133,14 @@ impl<SS: StringStorage> std::fmt::Display for Metadata<SS> {
 /// Corresponds to the `pointOfContact` field in the `CityJSON` spec.
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Contact<SS: StringStorage> {
-    name: String,
-    email_address: String,
+    name: SS::String,
+    email_address: SS::String,
     role: Option<ContactRole>,
-    website: Option<String>,
+    website: Option<SS::String>,
     kind: Option<ContactType>,
     address: Option<Attributes<SS>>,
-    phone: Option<String>,
-    organization: Option<String>,
+    phone: Option<SS::String>,
+    organization: Option<SS::String>,
 }
 
 impl<SS: StringStorage> Contact<SS> {
@@ -239,12 +151,12 @@ impl<SS: StringStorage> Contact<SS> {
 
     #[must_use]
     pub fn contact_name(&self) -> &str {
-        &self.name
+        self.name.as_ref()
     }
 
     #[must_use]
     pub fn email_address(&self) -> &str {
-        &self.email_address
+        self.email_address.as_ref()
     }
 
     #[must_use]
@@ -253,7 +165,7 @@ impl<SS: StringStorage> Contact<SS> {
     }
 
     #[must_use]
-    pub fn website(&self) -> &Option<String> {
+    pub fn website(&self) -> &Option<SS::String> {
         &self.website
     }
 
@@ -263,20 +175,20 @@ impl<SS: StringStorage> Contact<SS> {
     }
 
     #[must_use]
-    pub fn phone(&self) -> &Option<String> {
+    pub fn phone(&self) -> &Option<SS::String> {
         &self.phone
     }
 
     #[must_use]
-    pub fn organization(&self) -> &Option<String> {
+    pub fn organization(&self) -> &Option<SS::String> {
         &self.organization
     }
 
-    pub fn set_contact_name(&mut self, contact_name: String) {
+    pub fn set_contact_name(&mut self, contact_name: SS::String) {
         self.name = contact_name;
     }
 
-    pub fn set_email_address(&mut self, email_address: String) {
+    pub fn set_email_address(&mut self, email_address: SS::String) {
         self.email_address = email_address;
     }
 
@@ -284,7 +196,7 @@ impl<SS: StringStorage> Contact<SS> {
         self.role = role;
     }
 
-    pub fn set_website(&mut self, website: Option<String>) {
+    pub fn set_website(&mut self, website: Option<SS::String>) {
         self.website = website;
     }
 
@@ -292,11 +204,11 @@ impl<SS: StringStorage> Contact<SS> {
         self.kind = contact_type;
     }
 
-    pub fn set_phone(&mut self, phone: Option<String>) {
+    pub fn set_phone(&mut self, phone: Option<SS::String>) {
         self.phone = phone;
     }
 
-    pub fn set_organization(&mut self, organization: Option<String>) {
+    pub fn set_organization(&mut self, organization: Option<SS::String>) {
         self.organization = organization;
     }
 

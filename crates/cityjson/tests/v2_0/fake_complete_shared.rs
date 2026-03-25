@@ -137,15 +137,17 @@ where
     metadata.set_reference_system(CRS::new(SS::store(string(
         &metadata_json["referenceSystem"],
     ))));
-    metadata.set_title(string(&metadata_json["title"]));
-    metadata.set_contact_name(string(&contact["contactName"]));
-    metadata.set_email_address(string(&contact["emailAddress"]));
-    metadata.set_role(contact_role(&contact["role"]));
-    metadata.set_website(string(&contact["website"]));
-    metadata.set_contact_type(contact_type(&contact["contactType"]));
-    metadata.set_phone(string(&contact["phone"]));
-    metadata.set_organization(string(&contact["organization"]));
-    metadata.set_address(attributes_from_object::<SS>(&contact["address"]));
+    metadata.set_title(SS::store(string(&metadata_json["title"])));
+    let mut poc = Contact::<SS>::new();
+    poc.set_contact_name(SS::store(string(&contact["contactName"])));
+    poc.set_email_address(SS::store(string(&contact["emailAddress"])));
+    poc.set_role(Some(contact_role(&contact["role"])));
+    poc.set_website(Some(SS::store(string(&contact["website"]))));
+    poc.set_contact_type(Some(contact_type(&contact["contactType"])));
+    poc.set_phone(Some(SS::store(string(&contact["phone"]))));
+    poc.set_organization(Some(SS::store(string(&contact["organization"]))));
+    poc.set_address(Some(attributes_from_object::<SS>(&contact["address"])));
+    metadata.set_point_of_contact(Some(poc));
     metadata.extra_mut().insert(
         SS::store("nospec_description"),
         attribute_value_from_fixture::<SS>(&metadata_json["nospec_description"]),

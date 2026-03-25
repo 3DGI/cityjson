@@ -22,11 +22,13 @@ use std::borrow::Borrow;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::ops::Deref;
 
 /// Trait for string storage strategies.
 pub trait StringStorage: Clone + Debug + Default + PartialEq + Eq + Hash {
     /// `String` for owned storage, `&str` for borrowed.
     type String: AsRef<str>
+        + Deref<Target = str>
         + Eq
         + PartialEq
         + PartialOrd
