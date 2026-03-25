@@ -200,7 +200,7 @@ fn wrap_semantic_minimal(value: Value) -> Value {
 }
 
 fn wrap_semantic_extended(value: Value) -> Value {
-    let mut surfaces = vec![json!({ "type": "WallSurface" }); 38];
+    let mut surfaces = vec![json!({ "type": "WallSurface" }); 3];
     surfaces[1] = value;
 
     let mut root = base_citymodel();
@@ -213,10 +213,10 @@ fn wrap_semantic_extended(value: Value) -> Value {
                 "geometry": [{
                     "type": "MultiSurface",
                     "lod": "1",
-                    "boundaries": [[[0, 1, 2]]],
+                    "boundaries": [[[0, 1, 2]], [[0, 1, 2]]],
                     "semantics": {
                         "surfaces": surfaces,
-                        "values": [1]
+                        "values": [0, 1]
                     }
                 }]
             }
@@ -345,13 +345,13 @@ fn extract_extension(value: &Value) -> Value {
 }
 
 #[test]
-fn citymodel_fake_complete() {
+fn cityjson_fake_complete() {
     let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
     assert_eq_roundtrip(&json_input);
 }
 
 #[test]
-fn citymodel_fake_complete_deserialize() {
+fn cityjson_fake_complete_deserialize() {
     let json_input = read_to_string(DATA_DIR.join("cityjson_fake_complete.city.json"));
     let cm = from_str_owned(&json_input).unwrap();
     assert!(cm.vertices().len() > 0);
@@ -369,7 +369,7 @@ fn citymodel_fake_complete_deserialize() {
 }
 
 #[test]
-fn citymodel_minimal_complete() {
+fn cityjson_minimal_complete() {
     let json_input = read_to_string(DATA_DIR.join("cityjson_minimal_complete.city.json"));
     let cm = from_str_owned(&json_input).unwrap();
     assert!(cm.extra().is_none());

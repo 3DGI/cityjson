@@ -8,11 +8,11 @@
   }
  },
  "transform": {
-  "scale": [ 1, 1, 1 ],
-  "translate": [ 0, 0, 0 ]
+  "scale": [ 1.0, 1.0, 1.0 ],
+  "translate": [ 0.0, 0.0, 0.0 ]
  },
  "metadata": {
-  "geographicalExtent": [ 84710.1, 446846, -5.3, 84757.1, 446944, 40.9 ],
+  "geographicalExtent": [ 84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9 ],
   "identifier": "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
   "pointOfContact": {
    "contactName": "Kitalált Név",
@@ -35,7 +35,7 @@
  "CityObjects": {
   "id-1": {
    "type": "BuildingPart",
-   "geographicalExtent": [ 84710.1, 446846, -5.3, 84757.1, 446944, 40.9 ],
+   "geographicalExtent": [ 84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9 ],
    "address": [
     {
      "Country": "Canada",
@@ -106,7 +106,12 @@
      "type": "GeometryInstance",
      "template": 0,
      "boundaries": [ 1 ],
-     "transformationMatrix": [ 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1 ]
+     "transformationMatrix": [
+      2.0, 0.0, 0.0, 0.0,
+      0.0, 2.0, 0.0, 0.0,
+      0.0, 0.0, 2.0, 0.0,
+      0.0, 0.0, 0.0, 1.0
+     ]
     }
    ]
   },
@@ -148,10 +153,10 @@
     "image": "http://www.someurl.org/filename.jpg",
     "wrapMode": "wrap",
     "textureType": "specific",
-    "borderColor": [ 1, 1, 1, 1 ]
+    "borderColor": [ 1.0, 1.0, 1.0, 1.0 ]
    }
   ],
-  "vertices-texture": [ [ 0, 0.5 ], [ 1, 0 ], [ 1, 1 ], [ 0, 1 ] ],
+  "vertices-texture": [ [ 0.0, 0.5 ], [ 1.0, 0.0 ], [ 1.0, 1.0 ], [ 0.0, 1.0 ] ],
   "default-theme-texture": "summer-textures",
   "default-theme-material": "irradiation"
  },
@@ -163,7 +168,7 @@
     "boundaries": [ [ [ 0, 3, 2, 1 ] ], [ [ 1, 2, 0, 3 ] ], [ [ 0, 1, 3, 2 ] ] ]
    }
   ],
-  "vertices-templates": [ [ 0, 0.5, 0 ], [ 1, 1, 0 ], [ 0, 1, 0 ], [ 2.1, 4.2, 1.2 ] ]
+  "vertices-templates": [ [ 0.0, 0.5, 0.0 ], [ 1.0, 1.0, 0.0 ], [ 0.0, 1.0, 0.0 ], [ 2.1, 4.2, 1.2 ] ]
  },
  "+census": {
   "percent_men": 49.5,
