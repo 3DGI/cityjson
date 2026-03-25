@@ -12,6 +12,8 @@ These examples describe the intended `cjlib` API for the rewrite.
   Use the explicit JSON boundary module for serialization and round-tripping.
 - `examples/alternate_formats.rs`
   Show the intended feature-gated module pattern for Arrow and Parquet backends.
+- `examples/model_operations.rs`
+  Show the intended `cjlib::ops` namespace for higher-level workflows such as subset, merge, and measurements.
 
 The examples are the contract for the public API.
 Some of them intentionally target APIs that are not implemented yet.

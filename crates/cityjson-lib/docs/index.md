@@ -18,6 +18,7 @@ The future public API is intentionally small.
 - `cjlib::CityJSONVersion`
 - `cjlib::Error`
 - `cjlib::ErrorKind`
+- `cjlib::ops`
 - `cjlib::cityjson`
 
 ### Default JSON path
@@ -47,6 +48,27 @@ For JSON, that explicit boundary module should own:
 - parsing
 - serialization
 - stream aggregation
+
+For Arrow and Parquet, the initial public contract should stay file-oriented:
+
+- `from_file`
+- `to_file`
+
+That is enough for a clean facade over sibling transport crates without committing too early to backend-specific stream APIs.
+
+## Higher-level Operations
+
+Application-level workflows that do not belong in the `cityjson-rs` core model should live under `cjlib::ops`.
+
+That namespace is the intended home for:
+
+- merge and subset operations
+- LoD filtering
+- version upgrade helpers
+- vertex cleanup
+- texture path updates
+- geometry measurements such as surface area and volume
+- feature-gated CRS helpers
 
 ## Working Model
 
@@ -91,4 +113,6 @@ The future `cjlib` API should not:
 - expose indexed JSON internals as the normal user-facing API
 - duplicate parsing or conversion logic that belongs in `serde_cityjson`
 - absorb storage invariants that belong in `cityjson-rs`
+- absorb `cjfake` into the root facade API
+- hide format choice behind a generic registry or extension-sniffing dispatcher
 - require callers to match on error strings for normal control flow

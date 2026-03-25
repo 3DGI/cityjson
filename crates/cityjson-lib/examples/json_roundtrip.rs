@@ -12,7 +12,7 @@ fn main() -> cjlib::Result<()> {
     let reparsed = json::from_slice(&bytes)?;
     println!(
         "round-tripped {} CityObjects from {} bytes and {} chars",
-        reparsed.cityobjects().len(),
+        reparsed.as_inner().cityobjects().len(),
         writer.len(),
         text.len()
     );

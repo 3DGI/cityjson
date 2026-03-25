@@ -12,6 +12,8 @@ nav:
       - Public API: public-api.md
       - Model Boundary: model-api.md
       - JSON Boundary: json-api.md
+      - Format Modules: format-api.md
+      - Operations: operations-api.md
   - FFI & Bindings:
       - Overview: ffi/index.md
       - Conventions: ffi/conventions.md

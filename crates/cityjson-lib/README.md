@@ -15,6 +15,7 @@ The future public API is centered on:
 - `cjlib::Error`
 - `cjlib::ErrorKind`
 - `cjlib::json`
+- `cjlib::ops`
 - feature-gated format modules such as `cjlib::arrow` and `cjlib::parquet`
 - `cjlib::cityjson` for advanced model access
 
@@ -69,6 +70,40 @@ Within `cjlib::json`, the intended surface is:
 - `to_vec`
 - `to_string`
 - `to_writer`
+
+For non-JSON transport modules, the initial public contract should stay narrower:
+
+- `from_file`
+- `to_file`
+
+That keeps the format layer explicit without locking the crate into backend-specific stream abstractions too early.
+
+## Higher-level Operations
+
+Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cjlib::ops`.
+
+The intended home for those includes:
+
+- merge and subset
+- LoD filtering
+- version upgrade
+- vertex cleanup
+- texture-path relocation
+- geometry measurements
+- feature-gated CRS helpers
+
+The design rule is to keep these out of `CityModel` itself.
+`CityModel` stays the loading and wrapper boundary; `cjlib::ops` becomes the reusable workflow layer.
+
+## Relationship To `cjfake`
+
+`cjfake` should remain a sibling crate above `cjlib`, not part of the `cjlib` root API.
+
+That keeps the dependency direction clean:
+
+- `cjfake` generates model data
+- `cjfake` uses `cjlib` format modules to emit JSON, Arrow, Parquet, and future formats
+- `cjlib` stays focused on facade, format integration, and operations
 
 For advanced model work, `cjlib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.
 The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, `AsMut`, and then work through `cjlib::cityjson`.

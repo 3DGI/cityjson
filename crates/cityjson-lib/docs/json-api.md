@@ -85,8 +85,9 @@ let version = probe.version();
 Not preferred:
 
 ```rust
-let kind = cjlib::json::detect_kind(bytes) ?;
-let version = cjlib::json::detect_version(bytes) ?;
+let probe = cjlib::json::probe(bytes) ?;
+let kind = probe.kind();
+let version = probe.version();
 ```
 
 `probe` is simpler for callers and avoids reparsing the same header multiple times.

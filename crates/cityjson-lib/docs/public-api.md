@@ -23,6 +23,7 @@ The core user-facing surface should be:
 - `CityJSONVersion`
 - `Error`
 - `ErrorKind`
+- `ops`
 - `cityjson`, re-exported as a crate for advanced model access
 
 `CityModel` should remain a thin owned wrapper around `cityjson::v2_0::OwnedCityModel`.
@@ -94,6 +95,37 @@ This gives a clean rule:
 - reading convenience aliases live on `CityModel`
 - format-boundary control and serialization live in `cjlib::json`
 
+For non-JSON transport crates, the intended surface should stay smaller:
+
+- `from_file`
+- `to_file`
+
+That is enough for a clean first public contract over sibling crates such as `cityarrow` and `cityparquet`.
+If reader or writer variants become necessary later, they can be added after the backend crates settle.
+
+## No Generic Format Registry
+
+`cjlib` should prefer explicit modules over a generic codec registry or extension-sniffing dispatcher.
+
+Preferred:
+
+```rust
+let model = cjlib::json::from_file("rotterdam.city.json")?;
+#[cfg(feature = "arrow")]
+cjlib::arrow::to_file("rotterdam.cjarrow", &model)?;
+# Ok::<(), cjlib::Error>(())
+```
+
+Not preferred:
+
+```rust
+let model = cjlib::read("rotterdam.city.json")?;
+cjlib::write("rotterdam.cjarrow", &model)?;
+# Ok::<(), cjlib::Error>(())
+```
+
+The explicit-module design is simpler to teach, easier to maintain, and avoids a growing matrix of path sniffing rules.
+
 ## Model Boundary
 
 `cjlib` should not mirror the whole `cityjson-rs` API, and `CityModel` should not pretend to be the whole inner model via implicit `Deref`.
@@ -151,6 +183,54 @@ assert_eq!(error.kind(), ErrorKind::Version);
 That is a better public contract than matching on formatted error strings.
 It is also simpler to maintain than a very granular error enum that mirrors every internal parsing branch.
 
+## Higher-level Operations
+
+`cjlib` should also own higher-level model operations that are useful to application code but do not belong in the core `cityjson-rs` data model.
+
+Those operations should live under `cjlib::ops`, not as a large set of inherent `CityModel` methods.
+
+That keeps the facade organized:
+
+- `CityModel` stays focused on loading and wrapper-boundary access
+- `cityjson-rs` stays focused on the model and its invariants
+- `cjlib::ops` becomes the place for reusable higher-level workflows
+
+Examples of the intended shape:
+
+```rust
+use cjlib::{ops, CityModel};
+
+let mut model = CityModel::from_file("rotterdam.city.json")?;
+let subset = ops::subset(&model, ops::Selection::from_ids(["bldg-1"]))?;
+let merged = ops::merge([model, subset])?;
+let _surface_area = ops::geometry::surface_area(&merged, "bldg-1")?;
+# Ok::<(), cjlib::Error>(())
+```
+
+The initial operations namespace should cover:
+
+- `merge`
+- `subset`
+- `upgrade`
+- `lod::filter`
+- `vertices::clean`
+- `geometry::surface_area`
+- `geometry::volume`
+- `textures` helpers for texture-path relocation
+- feature-gated `crs` helpers such as assign and reproject
+
+## Relationship To `cjfake`
+
+`cjfake` should not be re-exported as `cjlib::fake`.
+
+The cleaner dependency direction is:
+
+- `cjfake` depends on `cjlib`
+- `cjlib` depends on sibling format crates and `cityjson-rs`
+
+That way `cjfake` can generate `cityjson-rs` data and then emit any supported format by calling the explicit `cjlib` format modules.
+`cjlib` stays focused on facade and format integration instead of absorbing test-data generation concerns.
+
 ## Alternative Format Modules
 
 Arrow and Parquet integration should be feature-gated and explicit.
@@ -159,8 +239,14 @@ Arrow and Parquet integration should be feature-gated and explicit.
 #[cfg(feature = "arrow")]
 let model = cjlib::arrow::from_file("tiles.cjarrow") ?;
 
+#[cfg(feature = "arrow")]
+cjlib::arrow::to_file("tiles-out.cjarrow", &model) ?;
+
 #[cfg(feature = "parquet")]
 let model = cjlib::parquet::from_file("tiles.cjparquet") ?;
+
+#[cfg(feature = "parquet")]
+cjlib::parquet::to_file("tiles-out.cjparquet", &model) ?;
 # Ok::<(), cjlib::Error>(())
 ```
 

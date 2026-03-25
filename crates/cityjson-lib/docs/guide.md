@@ -11,7 +11,7 @@ The normal entry point should be `cjlib::CityModel`.
 use cjlib::CityModel;
 
 let model = CityModel::from_file("amsterdam.city.json")?;
-println!("loaded {} CityObjects", model.cityobjects().len());
+println!("loaded {} CityObjects", model.as_inner().cityobjects().len());
 # Ok::<(), cjlib::Error>(())
 ```
 
@@ -65,6 +65,25 @@ The same pattern should scale to sibling transport crates:
 
 - `cjlib::arrow`
 - `cjlib::parquet`
+
+For those transport modules, the initial public contract should stay minimal and file-oriented:
+
+```rust
+# fn main() -> cjlib::Result<()> {
+#[cfg(feature = "arrow")]
+{
+    let model = cjlib::arrow::from_file("tiles.cjarrow")?;
+    cjlib::arrow::to_file("tiles-out.cjarrow", &model)?;
+}
+
+#[cfg(feature = "parquet")]
+{
+    let model = cjlib::parquet::from_file("tiles.cjparquet")?;
+    cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
+}
+# Ok(())
+# }
+```
 
 The explicit JSON module should also own serialization:
 
@@ -147,3 +166,39 @@ That keeps the crate easy to teach:
 - CityJSON JSON: `CityModel::from_*`
 - explicit JSON boundary work: `cjlib::json::*`
 - alternate encodings: dedicated format modules
+
+## Use `ops` For Higher-level Workflows
+
+Operations that are useful to applications, but do not belong in the `cityjson-rs` core model, should live under `cjlib::ops`.
+
+```rust
+use cjlib::{ops, CityModel};
+
+let mut model = CityModel::from_file("amsterdam.city.json")?;
+let selection = ops::Selection::from_ids(["building-1"]);
+let subset = ops::subset(&model, selection)?;
+let merged = ops::merge([model, subset])?;
+let _surface_area = ops::geometry::surface_area(&merged, "building-1")?;
+# Ok::<(), cjlib::Error>(())
+```
+
+The intended split is:
+
+- `ops::merge`, `ops::subset`, `ops::upgrade` for whole-model workflows
+- `ops::lod`, `ops::vertices`, `ops::textures` for maintenance-style operations
+- `ops::geometry` for measurements
+- feature-gated `ops::crs` for CRS assignment and reprojection
+
+This keeps `CityModel` from turning into a catch-all method bag.
+
+## Keep `cjfake` Above The Facade
+
+`cjfake` should not become `cjlib::fake`.
+
+The cleaner ecosystem layering is:
+
+- `cjfake` generates `cityjson-rs`-compatible model data
+- `cjfake` uses `cjlib` to write JSON, Arrow, Parquet, or future formats
+- `cjlib` stays focused on format integration and reusable operations
+
+That way new formats can become available to `cjfake` simply by landing in `cjlib`, without making fake-data generation part of the facade itself.
