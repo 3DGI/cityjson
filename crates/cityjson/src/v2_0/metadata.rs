@@ -336,6 +336,7 @@ impl<SS: StringStorage> Display for Contact<SS> {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ContactRole {
     Author,
+    CoAuthor,
     Processor,
     PointOfContact,
     Owner,
