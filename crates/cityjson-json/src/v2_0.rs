@@ -1,9 +1,14 @@
+use std::collections::HashSet;
+use std::io::BufRead;
+
+use cityjson::{CityJSONVersion, CityModelType};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 pub use crate::de::ParseStringStorage;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 
 /// Parse a `CityJSON` document into a [`CityModel`].
 ///
@@ -27,6 +32,19 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
     crate::de::from_str_owned(input)
 }
 
+/// Parse a `CityJSONFeature` object into an [`OwnedCityModel`].
+///
+/// # Errors
+///
+/// Returns an error if the input is not valid `CityJSONFeature`.
+pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
+    let model = from_str_owned(input)?;
+    match model.type_citymodel() {
+        CityModelType::CityJSONFeature => Ok(model),
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
+}
+
 /// Parse a `CityJSON` document into a [`BorrowedCityModel`].
 ///
 /// # Errors
@@ -34,6 +52,50 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// Returns an error if the input is not valid `CityJSON`.
 pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
     crate::de::from_str_borrowed(input)
+}
+
+/// Read a strict `CityJSON` + `CityJSONFeature` stream into self-contained feature models.
+///
+/// # Errors
+///
+/// Returns an error if the stream is empty, the first non-empty item is not
+/// `CityJSON`, a later item is not `CityJSONFeature`, versions conflict, or
+/// feature IDs are duplicated across the stream.
+pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
+where
+    R: BufRead,
+{
+    let parsed = parse_feature_stream(reader)?;
+    let mut models = Vec::with_capacity(parsed.features.len());
+    for feature in parsed.features {
+        let feature = materialize_feature_document(&parsed.base_root, feature)?;
+        let input = serde_json::to_string(&Value::Object(feature))?;
+        models.push(from_feature_str_owned(&input));
+    }
+    Ok(models.into_iter())
+}
+
+/// Merge a strict `CityJSON` + `CityJSONFeature` stream into one [`OwnedCityModel`].
+///
+/// # Errors
+///
+/// Returns an error if the stream shape is invalid or if feature items carry
+/// incompatible root state that cannot be merged without loss.
+pub fn merge_feature_stream<R>(reader: R) -> Result<OwnedCityModel>
+where
+    R: BufRead,
+{
+    let mut parsed = parse_feature_stream(reader)?;
+    for feature in parsed.features {
+        merge_feature_into_root(&mut parsed.aggregate_root, feature)?;
+    }
+
+    let input = serde_json::to_string(&Value::Object(parsed.aggregate_root))?;
+    let model = from_str_owned(&input)?;
+    match model.type_citymodel() {
+        CityModelType::CityJSON => Ok(model),
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
 }
 
 /// Serialize a [`CityModel`] to a `CityJSON` string.
@@ -61,6 +123,22 @@ where
 {
     model.validate_default_themes()?;
     Ok(serde_json::to_string(&as_json(model))?)
+}
+
+/// Serialize a [`CityModel`] as a `CityJSONFeature` string.
+///
+/// # Errors
+///
+/// Returns an error if the model is not a `CityJSONFeature` or cannot be serialized.
+pub fn to_string_feature<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    match model.type_citymodel() {
+        CityModelType::CityJSONFeature => to_string_validated(model),
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
 }
 
 pub fn as_json<VR, SS>(model: &CityModel<VR, SS>) -> SerializableCityModel<'_, VR, SS>
@@ -91,5 +169,263 @@ where
         crate::ser::citymodel_to_json_value(self.model)
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
+    }
+}
+
+struct ParsedFeatureStream {
+    base_root: Map<String, Value>,
+    aggregate_root: Map<String, Value>,
+    features: Vec<Map<String, Value>>,
+}
+
+fn parse_feature_stream<R>(reader: R) -> Result<ParsedFeatureStream>
+where
+    R: BufRead,
+{
+    let mut stream = serde_json::Deserializer::from_reader(reader).into_iter::<Value>();
+    let first = stream
+        .next()
+        .transpose()?
+        .ok_or(Error::MalformedRootObject("empty feature stream"))?;
+    let aggregate_root = into_object(first)?;
+    let version = ensure_document_root(&aggregate_root)?;
+    let mut seen_ids = collect_cityobject_ids(&aggregate_root)?;
+    let base_root = build_feature_base_root(&aggregate_root);
+
+    let mut features = Vec::new();
+    for item in stream {
+        let feature = into_object(item?)?;
+        ensure_feature_root(&feature, version)?;
+        extend_seen_ids(&mut seen_ids, &feature)?;
+        features.push(feature);
+    }
+
+    Ok(ParsedFeatureStream {
+        base_root,
+        aggregate_root,
+        features,
+    })
+}
+
+fn into_object(value: Value) -> Result<Map<String, Value>> {
+    match value {
+        Value::Object(map) => Ok(map),
+        _ => Err(Error::MalformedRootObject("stream items must be JSON objects")),
+    }
+}
+
+fn ensure_document_root(root: &Map<String, Value>) -> Result<CityJSONVersion> {
+    let kind = root_kind(root)?;
+    if kind != CityModelType::CityJSON {
+        return Err(Error::MalformedRootObject(
+            "first non-empty stream item must be CityJSON",
+        ));
+    }
+
+    let version = root
+        .get("version")
+        .and_then(Value::as_str)
+        .ok_or(Error::MalformedRootObject("missing root version"))?;
+    let version = CityJSONVersion::try_from(version)
+        .map_err(|_| Error::UnsupportedVersion(version.to_owned()))?;
+    if version != CityJSONVersion::V2_0 {
+        return Err(Error::UnsupportedVersion(version.to_string()));
+    }
+    Ok(version)
+}
+
+fn ensure_feature_root(root: &Map<String, Value>, version: CityJSONVersion) -> Result<()> {
+    let kind = root_kind(root)?;
+    if kind != CityModelType::CityJSONFeature {
+        return Err(Error::MalformedRootObject(
+            "stream items after the first must be CityJSONFeature",
+        ));
+    }
+
+    if let Some(found) = root.get("version").and_then(Value::as_str) {
+        let found = CityJSONVersion::try_from(found)
+            .map_err(|_| Error::UnsupportedVersion(found.to_owned()))?;
+        if found != version {
+            return Err(Error::InvalidValue(format!(
+                "feature stream version mismatch: expected {version}, found {found}"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn build_feature_base_root(root: &Map<String, Value>) -> Map<String, Value> {
+    root.iter()
+        .filter(|(key, _)| {
+            !matches!(
+                key.as_str(),
+                "type" | "version" | "CityObjects" | "vertices"
+            )
+        })
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
+fn root_kind(root: &Map<String, Value>) -> Result<CityModelType> {
+    let type_name = root
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or(Error::MalformedRootObject("missing root type"))?;
+    CityModelType::try_from(type_name).map_err(|_| Error::UnsupportedType(type_name.to_owned()))
+}
+
+fn collect_cityobject_ids(root: &Map<String, Value>) -> Result<HashSet<String>> {
+    let Some(cityobjects) = root.get("CityObjects") else {
+        return Ok(HashSet::new());
+    };
+    let cityobjects = cityobjects
+        .as_object()
+        .ok_or(Error::MalformedRootObject("CityObjects must be an object"))?;
+    Ok(cityobjects.keys().cloned().collect())
+}
+
+fn extend_seen_ids(seen: &mut HashSet<String>, root: &Map<String, Value>) -> Result<()> {
+    for id in collect_cityobject_ids(root)? {
+        if !seen.insert(id.clone()) {
+            return Err(Error::InvalidValue(format!(
+                "duplicate CityObject id in feature stream: {id}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn materialize_feature_document(
+    base_root: &Map<String, Value>,
+    feature: Map<String, Value>,
+) -> Result<Map<String, Value>> {
+    let mut document = base_root.clone();
+    document.insert(
+        "type".to_owned(),
+        Value::String(CityModelType::CityJSONFeature.to_string()),
+    );
+    for (key, value) in feature {
+        if key != "version" {
+            document.insert(key, value);
+        }
+    }
+    Ok(document)
+}
+
+fn merge_feature_into_root(
+    aggregate_root: &mut Map<String, Value>,
+    mut feature: Map<String, Value>,
+) -> Result<()> {
+    ensure_compatible_feature_root(aggregate_root, &feature)?;
+
+    let vertex_offset = aggregate_root
+        .get("vertices")
+        .and_then(Value::as_array)
+        .ok_or(Error::MalformedRootObject("vertices must be an array"))?
+        .len();
+
+    let mut cityobjects = feature
+        .remove("CityObjects")
+        .ok_or(Error::MalformedRootObject("missing CityObjects"))?;
+    offset_feature_cityobject_vertices(&mut cityobjects, vertex_offset)?;
+
+    let feature_vertices = feature
+        .remove("vertices")
+        .ok_or(Error::MalformedRootObject("missing vertices"))?;
+    let feature_vertices = feature_vertices
+        .as_array()
+        .ok_or(Error::MalformedRootObject("vertices must be an array"))?;
+
+    let aggregate_vertices = aggregate_root
+        .get_mut("vertices")
+        .and_then(Value::as_array_mut)
+        .ok_or(Error::MalformedRootObject("vertices must be an array"))?;
+    aggregate_vertices.extend(feature_vertices.iter().cloned());
+
+    let cityobjects = cityobjects
+        .as_object()
+        .ok_or(Error::MalformedRootObject("CityObjects must be an object"))?;
+    let aggregate_cityobjects = aggregate_root
+        .get_mut("CityObjects")
+        .and_then(Value::as_object_mut)
+        .ok_or(Error::MalformedRootObject("CityObjects must be an object"))?;
+    for (id, cityobject) in cityobjects {
+        aggregate_cityobjects.insert(id.clone(), cityobject.clone());
+    }
+
+    Ok(())
+}
+
+fn ensure_compatible_feature_root(
+    aggregate_root: &Map<String, Value>,
+    feature: &Map<String, Value>,
+) -> Result<()> {
+    for (key, value) in feature {
+        if matches!(key.as_str(), "type" | "version" | "CityObjects" | "vertices") {
+            continue;
+        }
+
+        match aggregate_root.get(key) {
+            Some(existing) if existing == value => {}
+            Some(_) => {
+                return Err(Error::InvalidValue(format!(
+                    "feature stream carries incompatible root state for '{key}'"
+                )));
+            }
+            None => {
+                return Err(Error::UnsupportedFeature(
+                    "feature-specific root sections are not yet mergeable",
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn offset_feature_cityobject_vertices(value: &mut Value, offset: usize) -> Result<()> {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                offset_feature_cityobject_vertices(item, offset)?;
+            }
+            Ok(())
+        }
+        Value::Object(map) => {
+            for (key, value) in map {
+                if key == "boundaries" {
+                    offset_boundary_indices(value, offset)?;
+                } else {
+                    offset_feature_cityobject_vertices(value, offset)?;
+                }
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn offset_boundary_indices(value: &mut Value, offset: usize) -> Result<()> {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                offset_boundary_indices(item, offset)?;
+            }
+            Ok(())
+        }
+        Value::Number(number) => {
+            let index = number
+                .as_u64()
+                .ok_or(Error::MalformedRootObject("boundary indices must be integers"))?;
+            let offset = u64::try_from(offset)
+                .map_err(|_| Error::InvalidValue("vertex offset overflow".to_owned()))?;
+            *value = Value::Number(serde_json::Number::from(index + offset));
+            Ok(())
+        }
+        Value::Null => Ok(()),
+        _ => Err(Error::MalformedRootObject(
+            "geometry boundaries must be arrays of integer indices",
+        )),
     }
 }

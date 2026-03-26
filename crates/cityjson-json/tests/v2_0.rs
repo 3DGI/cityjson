@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use serde_json::{json, Map, Value};
 
 use common::*;
-use serde_cityjson::{from_str_borrowed, from_str_owned};
+use serde_cityjson::{
+    from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
+    read_feature_stream,
+};
 
 mod common;
 
@@ -393,6 +396,55 @@ fn cityjson_minimal_complete() {
 fn cityjsonfeature_minimal_complete() {
     let json_input = read_to_string(DATA_DIR.join("cityjsonfeature_minimal_complete.city.jsonl"));
     assert_eq_roundtrip(&json_input);
+}
+
+#[test]
+fn feature_constructor_rejects_full_documents() {
+    let json_input = read_to_string(DATA_DIR.join("cityjson_minimal_complete.city.json"));
+    let err = from_feature_str_owned(&json_input).unwrap_err();
+    assert!(format!("{err}").contains("CityJSON"));
+}
+
+#[test]
+fn strict_feature_stream_reads_self_contained_models() {
+    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
+"#;
+
+    let mut models = read_feature_stream(std::io::Cursor::new(input))
+        .unwrap()
+        .collect::<serde_cityjson::Result<Vec<_>>>()
+        .unwrap();
+    assert_eq!(models.len(), 1);
+
+    let model = models.pop().unwrap();
+    assert_eq!(model.type_citymodel(), cityjson::CityModelType::CityJSONFeature);
+    assert_eq!(model.cityobjects().len(), 1);
+    assert!(model.transform().is_some());
+}
+
+#[test]
+fn strict_feature_stream_merges_into_one_document() {
+    let input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
+{"type":"CityJSONFeature","CityObjects":{"feature-2":{"type":"BuildingPart","parents":["feature-1"],"geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
+"#;
+
+    let model = merge_feature_stream(std::io::Cursor::new(input)).unwrap();
+    assert_eq!(model.type_citymodel(), cityjson::CityModelType::CityJSON);
+    assert_eq!(model.cityobjects().len(), 2);
+    assert_eq!(model.vertices().len(), 5);
+}
+
+#[test]
+fn strict_feature_stream_rejects_duplicate_ids() {
+    let input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+"#;
+
+    let err = merge_feature_stream(std::io::Cursor::new(input)).unwrap_err();
+    assert!(format!("{err}").contains("duplicate CityObject id"));
 }
 
 #[test]
