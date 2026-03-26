@@ -3,17 +3,24 @@
 This document defines the intended public shape of `cjlib::json`.
 
 The role of `cjlib::json` is not to be a second JSON implementation.
-It is the explicit boundary layer over `serde_cityjson` for callers that want control over probing, parsing, and serialization.
+It is the explicit boundary layer over `serde_cityjson` for callers that want
+control over probing, parsing, and serialization.
 
 ## Why A `json` Module Exists
 
-`CityModel::from_slice`, `from_file`, and `from_stream` should stay as the ergonomic default path.
+`CityModel::from_slice` and `from_file` should stay as the ergonomic default
+single-document path.
 
-But the crate also needs a place for JSON-specific operations that should not clutter `CityModel`, such as:
+But the crate also needs a place for JSON-specific operations that should not
+clutter `CityModel`, such as:
 
 - probing the root type and version
-- explicit JSON parsing functions
+- explicit document parsing
+- explicit feature parsing
+- model-stream reading
+- strict stream aggregation
 - serialization
+- future raw or staged read paths
 
 That place should be `cjlib::json`.
 
@@ -41,7 +48,13 @@ pub mod json {
 
     pub fn from_slice(bytes: &[u8]) -> crate::Result<crate::CityModel>;
     pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<crate::CityModel>;
-    pub fn from_stream(reader: impl std::io::BufRead) -> crate::Result<crate::CityModel>;
+    pub fn from_feature_slice(bytes: &[u8]) -> crate::Result<crate::CityModel>;
+    pub fn merge_feature_stream(reader: impl std::io::BufRead) -> crate::Result<crate::CityModel>;
+    pub fn read_feature_stream<R>(
+        reader: R,
+    ) -> crate::Result<impl Iterator<Item = crate::Result<crate::CityModel>>>
+    where
+        R: std::io::BufRead;
 
     pub fn to_vec(model: &crate::CityModel) -> crate::Result<Vec<u8>>;
     pub fn to_string(model: &crate::CityModel) -> crate::Result<String>;
@@ -49,6 +62,7 @@ pub mod json {
         writer: &mut impl std::io::Write,
         model: &crate::CityModel,
     ) -> crate::Result<()>;
+    pub fn to_feature_string(model: &crate::CityModel) -> crate::Result<String>;
 }
 ```
 
@@ -58,7 +72,6 @@ The intended relationship is:
 
 - `CityModel::from_slice` is a convenience alias for `json::from_slice`
 - `CityModel::from_file` is a convenience alias for `json::from_file`
-- `CityModel::from_stream` is a convenience alias for `json::from_stream`
 
 Serialization does not belong on `CityModel`.
 That should remain explicit and format-qualified:
@@ -66,13 +79,20 @@ That should remain explicit and format-qualified:
 - `json::to_vec`
 - `json::to_string`
 - `json::to_writer`
+- `json::to_feature_string`
 
 The module should stay function-oriented.
-It does not need reader or writer builder types, extension-sniffing helpers, or a second public serde model.
+It does not need reader or writer builder types, extension-sniffing helpers, or
+a second public serde model.
+
+If a compatibility `CityModel::from_stream` is kept during migration, it should
+be a thin alias over `json::merge_feature_stream`, not the architectural center
+of the facade.
 
 ## Probe Instead Of Ad Hoc Helpers
 
-The probing API should be one small object instead of several unrelated helper functions.
+The probing API should be one small object instead of several unrelated helper
+functions.
 
 Preferred:
 
@@ -90,10 +110,36 @@ let kind = probe.kind();
 let version = probe.version();
 ```
 
-`probe` is simpler for callers and avoids reparsing the same header multiple times.
+`probe` is simpler for callers and avoids reparsing the same header multiple
+times.
 
 For the same reason, the probe surface should stay narrow:
 
 - `probe(bytes)` is enough
 - avoid `probe_file`
 - avoid `probe_reader`
+
+## `CityJSONFeature` Is A Boundary Form, Not A Semantic Type
+
+The JSON module needs to deal with `CityJSONFeature`, but only as a wire-format
+concern.
+
+The returned semantic unit should still be `crate::CityModel`.
+That keeps the semantic architecture aligned with the rest of the ecosystem:
+
+- one model
+- or a stream of models
+- format differences only at the boundary
+
+## Leave Room For Raw And Staged APIs
+
+If the ecosystem later exposes lower-level JSON access, that should happen
+explicitly in this module.
+Examples include:
+
+- `RawDocument`
+- `from_slice_raw`
+- staged section readers
+
+Those are valuable advanced tools, but they should not distort the default
+owned `CityModel` path.

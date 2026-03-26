@@ -5,15 +5,15 @@ These examples describe the intended `cjlib` API for the rewrite.
 - `examples/json_document.rs`
   Read a single CityJSON document through `CityModel::from_file` and `CityModel::from_slice`.
 - `examples/json_feature_stream.rs`
-  Aggregate a strict `CityJSON` plus `CityJSONFeature` stream with `CityModel::from_stream`.
+  Read or aggregate a strict `CityJSON` plus `CityJSONFeature` stream through the explicit `cjlib::json` boundary.
 - `examples/explicit_json_module.rs`
-  Use the future `cjlib::json` module for explicit probing and parsing.
+  Use `cjlib::json` for probing, feature handling, and explicit boundary control.
 - `examples/json_roundtrip.rs`
-  Use the explicit JSON boundary module for serialization and round-tripping.
+  Use the explicit JSON boundary module for document and feature serialization.
 - `examples/alternate_formats.rs`
-  Show the intended feature-gated module pattern for Arrow and Parquet backends.
+  Show the intended feature-gated module pattern for Arrow and Parquet backends while preserving `CityModel` as the semantic unit.
 - `examples/model_operations.rs`
-  Show the intended `cjlib::ops` namespace for higher-level workflows such as subset, merge, and measurements.
+  Show the intended split between `cityjson-rs` model semantics and `cjlib::ops` workflow helpers.
 
 The examples are the contract for the public API.
 Some of them intentionally target APIs that are not implemented yet.

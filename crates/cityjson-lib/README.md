@@ -4,9 +4,20 @@
 
 The intended shape is deliberately small:
 
-- `cityjson-rs` owns the in-memory model
-- `serde_cityjson` owns CityJSON JSON and JSONL parsing/serialization
-- `cjlib` owns the ergonomic entry points, version dispatch, and format-level integration
+- `cityjson-rs` owns the one semantic model
+- `serde_cityjson` owns the CityJSON JSON and JSONL boundary
+- `cjlib` owns the ergonomic facade, explicit format modules, and version-level
+  dispatch where needed
+
+The semantic rule is:
+
+- one semantic model: `cityjson::v2_0::OwnedCityModel`
+- one facade wrapper: `cjlib::CityModel`
+- one semantic interchange unit: a self-contained `CityModel`
+- many format boundaries: JSON, JSONL, Arrow, Parquet, and future raw/staged
+  APIs
+
+For the full synthesis, see [`docs/architecture.md`](docs/architecture.md).
 
 The future public API is centered on:
 
@@ -21,15 +32,13 @@ The future public API is centered on:
 
 ## Default Path
 
-For CityJSON JSON input, the default entry points stay on `CityModel`:
+For single-document CityJSON input, the default entry points stay on
+`CityModel`:
 
 ```rust
-use std::io::Cursor;
-
 use cjlib::CityModel;
 
 let document = CityModel::from_file("rotterdam.city.json")?;
-let stream = CityModel::from_stream(Cursor::new(std::fs::read("rotterdam.city.jsonl")?))?;
 let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
 # Ok::<(), cjlib::Error>(())
 ```
@@ -38,7 +47,8 @@ let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityOb
 
 The top-level constructors are only the convenience path for CityJSON JSON.
 
-Serialization should be explicit and format-qualified:
+Serialization, feature handling, and model streams should be explicit and
+format-qualified:
 
 ```rust
 use cjlib::{json, CityModel};
@@ -46,7 +56,8 @@ use cjlib::{json, CityModel};
 let model = CityModel::from_file("rotterdam.city.json")?;
 let bytes = json::to_vec(&model)?;
 let text = json::to_string(&model)?;
-# let _ = (bytes, text);
+let feature_text = json::to_feature_string(&model)?;
+# let _ = (bytes, text, feature_text);
 # Ok::<(), cjlib::Error>(())
 ```
 
@@ -58,7 +69,7 @@ Alternative encodings and containers should live in explicit modules:
 
 That keeps the facade predictable:
 
-- `CityModel::from_*` means CityJSON JSON / JSONL
+- `CityModel::from_*` means the common single-document CityJSON path
 - explicit modules mean explicit formats
 
 Within `cjlib::json`, the intended surface is:
@@ -66,17 +77,22 @@ Within `cjlib::json`, the intended surface is:
 - `probe`
 - `from_slice`
 - `from_file`
-- `from_stream`
+- `from_feature_slice`
+- `merge_feature_stream`
+- `read_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`
+- `to_feature_string`
 
-For non-JSON transport modules, the initial public contract should stay narrower:
+For non-JSON transport modules, file-oriented helpers are fine, but the public
+semantic unit should still stay `CityModel`:
 
 - `from_file`
 - `to_file`
 
-That keeps the format layer explicit without locking the crate into backend-specific stream abstractions too early.
+Where a backend naturally supports streams, those stream APIs should also trade
+in `CityModel` values rather than format-specific semantic objects.
 
 ## Higher-level Operations
 
@@ -94,6 +110,7 @@ The intended home for those includes:
 
 The design rule is to keep these out of `CityModel` itself.
 `CityModel` stays the loading and wrapper boundary; `cjlib::ops` becomes the reusable workflow layer.
+Core extraction and merge semantics should still be owned by `cityjson-rs`.
 
 ## Relationship To `cjfake`
 

@@ -1,7 +1,8 @@
 # Guide to Using cjlib
 
 This guide describes the intended public API of `cjlib`.
-It is a contract for the rewrite, not a description of temporary implementation details.
+It is a contract for the rewrite, not a description of temporary
+implementation details.
 
 ## Start With `CityModel`
 
@@ -15,39 +16,26 @@ println!("loaded {} CityObjects", model.as_inner().cityobjects().len());
 # Ok::<(), cjlib::Error>(())
 ```
 
-`CityModel` should remain the ergonomic default for the CityJSON JSON path:
+`CityModel` should remain the ergonomic default for loading one CityJSON
+document:
 
 - `from_slice` for bytes already in memory
 - `from_file` for file-based import
-- `from_stream` for `CityJSON` plus `CityJSONFeature` streams
 
-## Read a `CityJSONFeature` Stream
+The same wrapper type may represent:
 
-`from_stream` is the high-level convenience path for strict JSONL aggregation.
+- a whole document
+- a grouped subset
+- a single-feature-sized self-contained model
 
-```rust
-use std::fs::File;
-use std::io::BufReader;
+That is a semantic scope difference, not a type difference.
 
-use cjlib::CityModel;
+## Use The Explicit JSON Module For Boundary Control
 
-let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-let model = CityModel::from_stream(reader)?;
-# Ok::<(), cjlib::Error>(())
-```
-
-The intended semantics stay strict:
-
-- the first non-empty value must be `CityJSON`
-- remaining values must be `CityJSONFeature`
-- all versions must agree
-- conflicting IDs or incompatible root state are errors
-
-## Use Explicit Format Modules When You Need Boundary Control
-
-The top-level `CityModel::from_*` methods should stay reserved for the common CityJSON JSON path.
-
-When the caller wants explicit format handling, the API should move into modules:
+The top-level `CityModel::from_*` methods should stay reserved for the common
+single-document path.
+When the caller wants probing, feature-level handling, or model streams, the
+API should move into `cjlib::json`.
 
 ```rust
 use cjlib::{json, CityJSONVersion};
@@ -61,12 +49,52 @@ let model = json::from_slice(&bytes)?;
 # Ok::<(), cjlib::Error>(())
 ```
 
+## Read Or Merge A `CityJSONFeature` Stream
+
+The JSON boundary should support both streaming and aggregation.
+
+When the caller wants one semantic submodel at a time:
+
+```rust
+use std::fs::File;
+use std::io::BufReader;
+
+let reader = BufReader::new(File::open("tiles.city.jsonl")?);
+let models = cjlib::json::read_feature_stream(reader)?;
+for model in models {
+    let model = model?;
+    let _ = model;
+}
+# Ok::<(), cjlib::Error>(())
+```
+
+When the caller wants to rebuild one larger model from a strict stream:
+
+```rust
+use std::fs::File;
+use std::io::BufReader;
+
+let reader = BufReader::new(File::open("tiles.city.jsonl")?);
+let model = cjlib::json::merge_feature_stream(reader)?;
+# let _ = model;
+# Ok::<(), cjlib::Error>(())
+```
+
+The strict aggregation rules should stay:
+
+- the first non-empty value must be `CityJSON`
+- remaining values must be `CityJSONFeature`
+- all versions must agree
+- conflicting IDs or incompatible root state are errors
+
+## Use Explicit Format Modules When You Need Boundary Control
+
 The same pattern should scale to sibling transport crates:
 
 - `cjlib::arrow`
 - `cjlib::parquet`
 
-For those transport modules, the initial public contract should stay minimal and file-oriented:
+File-oriented helpers are fine, but the semantic rule should remain the same:
 
 ```rust
 # fn main() -> cjlib::Result<()> {
@@ -85,6 +113,9 @@ For those transport modules, the initial public contract should stay minimal and
 # }
 ```
 
+Where the backend format naturally supports streams, the item type should still
+be `cjlib::CityModel`, not a format-specific semantic object.
+
 The explicit JSON module should also own serialization:
 
 ```rust
@@ -96,14 +127,19 @@ let text = json::to_string(&model)?;
 
 let mut writer = Vec::new();
 json::to_writer(&mut writer, &model)?;
-# let _ = (bytes, text, writer);
+let feature_text = json::to_feature_string(&model)?;
+# let _ = (bytes, text, writer, feature_text);
 # Ok::<(), cjlib::Error>(())
 ```
+
+If lower-level JSON access becomes important later, it should be added here as
+an explicit raw or staged API rather than folded into `CityModel`.
 
 ## Drop Down To `cityjson-rs` For Model Work
 
 `cjlib` should not proxy the entire model API.
-Once the model is loaded, most interaction should happen through the re-exported `cityjson-rs` crate.
+Once the model is loaded, most interaction should happen through the
+re-exported `cityjson-rs` crate.
 That boundary should stay explicit rather than relying on `Deref`.
 
 ```rust
@@ -127,7 +163,8 @@ This is the key design point:
 
 ## Error Handling
 
-The public error API should be structured enough for callers to branch on categories without matching strings.
+The public error API should be structured enough for callers to branch on
+categories without matching strings.
 
 ```rust
 use cjlib::{json, ErrorKind};
@@ -136,7 +173,8 @@ let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":
 assert_eq!(error.kind(), ErrorKind::Version);
 ```
 
-The exact display text may evolve, but the category-level contract should be stable.
+The exact display text may evolve, but the category-level contract should be
+stable.
 The intended stable categories are:
 
 - `ErrorKind::Io`
@@ -169,7 +207,8 @@ That keeps the crate easy to teach:
 
 ## Use `ops` For Higher-level Workflows
 
-Operations that are useful to applications, but do not belong in the `cityjson-rs` core model, should live under `cjlib::ops`.
+Operations that are useful to applications, but do not belong in the
+`cityjson-rs` core model, should live under `cjlib::ops`.
 
 ```rust
 use cjlib::{ops, CityModel};
@@ -184,7 +223,9 @@ let _surface_area = ops::geometry::surface_area(&merged, "building-1")?;
 
 The intended split is:
 
-- `ops::merge`, `ops::subset`, `ops::upgrade` for whole-model workflows
+- `cityjson-rs` for authoritative extraction and merge semantics
+- `ops::merge`, `ops::subset`, `ops::upgrade` as optional ergonomic wrappers
+  over those model capabilities
 - `ops::lod`, `ops::vertices`, `ops::textures` for maintenance-style operations
 - `ops::geometry` for measurements
 - feature-gated `ops::crs` for CRS assignment and reprojection
@@ -201,4 +242,5 @@ The cleaner ecosystem layering is:
 - `cjfake` uses `cjlib` to write JSON, Arrow, Parquet, or future formats
 - `cjlib` stays focused on format integration and reusable operations
 
-That way new formats can become available to `cjfake` simply by landing in `cjlib`, without making fake-data generation part of the facade itself.
+That way new formats can become available to `cjfake` simply by landing in
+`cjlib`, without making fake-data generation part of the facade itself.

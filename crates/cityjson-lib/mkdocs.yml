@@ -5,6 +5,7 @@ strict: true
 nav:
   - Overview:
       - Home: index.md
+      - Architecture: architecture.md
       - Guide: guide.md
       - Examples: examples.md
       - FAQ: faq.md

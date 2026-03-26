@@ -4,9 +4,12 @@ This document pins down how `cjlib` should expose sibling format crates.
 
 The design goal is to keep the facade explicit and unsurprising:
 
-- `CityModel::from_*` stays reserved for the default CityJSON JSON path
+- `CityModel::from_*` stays reserved for the default single-document CityJSON
+  path
 - explicit modules own explicit formats
 - `cjlib` does not grow a generic format registry
+- every format boundary speaks in terms of `CityModel` or streams of
+  `CityModel`
 
 ## Intended Modules
 
@@ -23,7 +26,8 @@ pub mod parquet;
 ```
 
 Those names are the public `cjlib` facade.
-Their implementations should delegate to sibling backend crates such as `serde_cityjson`, `cityarrow`, and `cityparquet`.
+Their implementations should delegate to sibling backend crates such as
+`serde_cityjson`, `cityarrow`, and `cityparquet`.
 
 ## JSON Is Richer Than The Others
 
@@ -31,24 +35,37 @@ Their implementations should delegate to sibling backend crates such as `serde_c
 
 - it is the default and most common path
 - it needs probing
-- it needs stream aggregation
+- it needs document and feature entry points
+- it needs model-stream reading and strict stream aggregation helpers
 - it needs text serialization helpers
+- it is the most likely home for explicit raw/staged read APIs
 
 That is why `cjlib::json` owns:
 
 - `probe`
 - `from_slice`
 - `from_file`
-- `from_stream`
+- `from_feature_slice`
+- `merge_feature_stream`
+- `read_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`
+- `to_feature_string`
 
-The other transport modules should start smaller.
+The other transport modules can stay smaller.
 
-## Arrow And Parquet Should Start File-oriented
+## Transport Modules Must Preserve The Same Semantic Unit
 
-The initial contract for Arrow and Parquet should be deliberately narrow:
+Arrow and Parquet should not invent new semantic units at the `cjlib`
+boundary.
+Even when the backend uses batches, row groups, or columnar chunks internally,
+the public facade should still trade in:
+
+- one `CityModel`
+- or streams of `CityModel` values
+
+File-oriented helpers are fine as conveniences:
 
 ```rust
 #[cfg(feature = "arrow")]
@@ -70,13 +87,10 @@ pub mod parquet {
 }
 ```
 
-This is enough for the intended user stories:
-
-- explicit file-based import
-- explicit file-based export
-- straightforward backend reuse from tools such as `cjfake`
-
-If stream-oriented APIs become necessary later, they can be added once the backend crates stabilize.
+But the architecture should also leave room for explicit model-stream APIs where
+the backend format makes that natural.
+The public contract should not expose Arrow batches or Parquet row groups as if
+they were semantic application objects.
 
 ## No Generic `read` / `write`
 
@@ -87,8 +101,10 @@ The public surface should avoid APIs like:
 - `cjlib::Format`
 - `cjlib::Codec`
 
-Those look compact at first, but they push format detection, extension policy, feature interactions, and backend-specific options into one place.
-That is exactly the kind of convenience layer that becomes hard to keep elegant.
+Those look compact at first, but they push format detection, extension policy,
+feature interactions, and backend-specific options into one place.
+That is exactly the kind of convenience layer that becomes hard to keep
+elegant.
 
 The explicit-module rule is cleaner:
 
@@ -106,7 +122,8 @@ The preferred dependency direction is:
 cjfake -> cjlib -> { serde_cityjson, cityarrow, cityparquet, cityjson-rs }
 ```
 
-That gives `cjfake` automatic access to every output format that `cjlib` exposes, without making `cjlib` responsible for fake-data generation.
+That gives `cjfake` automatic access to every output format that `cjlib`
+exposes, without making `cjlib` responsible for fake-data generation.
 
 A `cjfake`-style workflow should look like this:
 

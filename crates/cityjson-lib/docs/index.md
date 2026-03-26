@@ -2,11 +2,24 @@
 
 `cjlib` is the integration crate for the CityJSON ecosystem in this repository.
 
-It is not a second CityJSON domain model. The intended layering is:
+It is not a second CityJSON domain model.
+The intended architecture is:
 
-- `cityjson-rs`: normalized in-memory model and correctness-critical invariants
-- `serde_cityjson`: CityJSON JSON and JSONL parsing/serialization
-- `cjlib`: user-facing convenience API, version dispatch, sibling format integration, and future FFI boundary
+- one semantic model: `cityjson::v2_0::OwnedCityModel`
+- one facade wrapper: `cjlib::CityModel`
+- many format boundaries: `serde_cityjson`, future Arrow and Parquet crates,
+  and explicit raw/staged boundary APIs where needed
+
+The responsibility split is:
+
+- `cityjson-rs`: normalized in-memory model, invariants, extraction, and merge
+- `serde_cityjson`: CityJSON JSON and JSONL parsing, feature handling,
+  staged/raw JSON boundary work, and serialization
+- `cjlib`: user-facing convenience API, explicit format modules, version
+  dispatch, and future FFI boundary
+- `cjfake`: generator crate above `cjlib`, not part of the facade
+
+For the full cross-crate synthesis, see [Architecture](architecture.md).
 
 ## Public API Shape
 
@@ -23,15 +36,14 @@ The future public API is intentionally small.
 
 ### Default JSON path
 
-These stay as the ergonomic default for CityJSON JSON input:
+These stay as the ergonomic default for loading one CityJSON document:
 
 - `CityModel::from_slice`
 - `CityModel::from_file`
-- `CityModel::from_stream`
 
 ### Explicit format modules
 
-Formats beyond the default CityJSON JSON path should be explicit:
+Formats beyond the default single-document CityJSON path should be explicit:
 
 - `cjlib::json`
 - `cjlib::arrow`
@@ -39,30 +51,36 @@ Formats beyond the default CityJSON JSON path should be explicit:
 
 The design goal is:
 
-- top-level methods for the common CityJSON path
-- module-qualified methods for format-specific behavior
+- top-level methods for the common single-document CityJSON path
+- module-qualified methods for format-specific behavior, model-stream APIs, and
+  future raw/lazy access
 
 For JSON, that explicit boundary module should own:
 
 - probing
-- parsing
+- document parsing
+- feature parsing
+- model-stream reading
+- strict stream aggregation when a larger document must be rebuilt
 - serialization
-- stream aggregation
+- future raw/staged access
 
-For Arrow and Parquet, the initial public contract should stay file-oriented:
+For Arrow and Parquet, file-oriented helpers are fine, but the semantic rule
+stays the same:
 
-- `from_file`
-- `to_file`
+- read or write one `CityModel`
+- or read or write streams of `CityModel` values
 
-That is enough for a clean facade over sibling transport crates without committing too early to backend-specific stream APIs.
+`cjlib` should not surface Arrow batches or Parquet row groups as semantic
+application types.
 
 ## Higher-level Operations
 
-Application-level workflows that do not belong in the `cityjson-rs` core model should live under `cjlib::ops`.
+Application-level workflows that do not belong in the `cityjson-rs` core model
+should live under `cjlib::ops`.
 
 That namespace is the intended home for:
 
-- merge and subset operations
 - LoD filtering
 - version upgrade helpers
 - vertex cleanup
@@ -70,9 +88,15 @@ That namespace is the intended home for:
 - geometry measurements such as surface area and volume
 - feature-gated CRS helpers
 
+Core submodel extraction and merge semantics should stay owned by
+`cityjson-rs`.
+`cjlib::ops` may wrap those capabilities, but it should not redefine them.
+
 ## Working Model
 
-`cjlib::CityModel` should remain a thin owned wrapper over `cityjson::v2_0::OwnedCityModel`.
+`cjlib::CityModel` should remain a thin owned wrapper over
+`cityjson::v2_0::OwnedCityModel`.
+That wrapper may represent a full document or a smaller self-contained package.
 The facade should add only:
 
 - constructor convenience
@@ -80,30 +104,35 @@ The facade should add only:
 - a small error surface
 - feature-gated format integration
 
-Everything else should come from `cityjson-rs`, accessed explicitly through `cjlib::cityjson`.
-The wrapper boundary should stay explicit with `as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, and `AsMut`.
+Everything else should come from `cityjson-rs`, accessed explicitly through
+`cjlib::cityjson`.
+The wrapper boundary should stay explicit with `as_inner`, `as_inner_mut`,
+`into_inner`, `AsRef`, and `AsMut`.
 It should not rely on `Deref` to blur the boundary.
 
 ## User Experience
 
 For most users, the expected workflow should be:
 
-1. read a CityJSON document or stream with `CityModel::from_*`
-2. access the inner model explicitly, then work with `cjlib::cityjson`
-3. drop down to `cjlib::json` when explicit format-boundary control is needed
-4. use feature-gated sibling modules for Arrow or Parquet transport
+1. read a CityJSON document with `CityModel::from_*`
+2. drop down to `cjlib::json`, `cjlib::arrow`, or `cjlib::parquet` when
+   explicit boundary control or model streams are needed
+3. access the inner model explicitly, then work with `cjlib::cityjson`
+4. use `cjlib::ops` for higher-level reusable workflows
 
 ## Documentation Structure
 
 The docs site should work for more than just the Rust crate surface.
-`cjlib` is intended to become a multi-language entry point through FFI, so the documentation should stay split by responsibility:
+`cjlib` is intended to become a multi-language entry point through FFI, so the
+documentation should stay split by responsibility:
 
 - overview and guides for the common `cjlib` entry points
-- API design pages for the Rust facade itself
+- architecture and API design pages for the facade itself
 - FFI and bindings pages for language-neutral concepts and future bindings
 - engineering notes for implementation plans and internal decisions
 
-That is why the project uses MkDocs for the main site rather than relying on Rust-only generated docs.
+That is why the project uses MkDocs for the main site rather than relying on
+Rust-only generated docs.
 
 ## Non-goals
 

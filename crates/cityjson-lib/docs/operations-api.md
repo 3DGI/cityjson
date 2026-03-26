@@ -2,7 +2,9 @@
 
 This document pins down the intended public shape of `cjlib::ops`.
 
-The purpose of `cjlib::ops` is to hold higher-level operations that are useful to applications, but that should not live in the core `cityjson-rs` model crate.
+The purpose of `cjlib::ops` is to hold higher-level operations that are useful
+to applications, but that should not live in the core `cityjson-rs` model
+crate.
 
 ## Why `ops` Exists
 
@@ -11,12 +13,12 @@ The purpose of `cjlib::ops` is to hold higher-level operations that are useful t
 - the normalized data model
 - invariants
 - validated construction and mutation
+- extraction, localization, and merge semantics for self-contained submodels
 
-`cjlib` should be allowed to grow a small layer of reusable workflows above that model.
+`cjlib` should be allowed to grow a small layer of reusable workflows above
+that model.
 Examples include:
 
-- merging datasets
-- subsetting
 - filtering by LoD
 - cleaning vertices
 - updating texture paths
@@ -83,11 +85,13 @@ This keeps the overall facade simple:
 
 - `CityModel` for loading and wrapper access
 - `cjlib::json` / `arrow` / `parquet` for explicit formats
-- `cjlib::ops` for reusable higher-level workflows
+- `cjlib::ops` for reusable higher-level workflows and thin convenience
+  wrappers
 
 ## Why Free Functions, Not Inherent Methods
 
-The operations namespace should prefer free functions over a long list of inherent methods on `CityModel`.
+The operations namespace should prefer free functions over a long list of
+inherent methods on `CityModel`.
 
 That keeps the boundary clearer:
 
@@ -95,11 +99,13 @@ That keeps the boundary clearer:
 - model internals stay in `cityjson-rs`
 - higher-level workflows stay grouped under one explicit namespace
 
-This is easier to teach and lower-maintenance than growing dozens of `CityModel::*` methods over time.
+This is easier to teach and lower-maintenance than growing dozens of
+`CityModel::*` methods over time.
 
 ## Keep `Selection` Small
 
-Subsetting needs a structured selector type, but the selector should start small.
+Subsetting needs a structured selector type, but the selector should start
+small.
 
 Preferred:
 
@@ -115,12 +121,14 @@ Not preferred:
 - ad hoc string mini-languages
 - a large query DSL at the `cjlib` boundary
 
-If additional selectors become necessary later, they can be added to `Selection` without fragmenting the top-level API.
+If additional selectors become necessary later, they can be added to
+`Selection` without fragmenting the top-level API.
 
 ## Feature-gate Heavy Dependencies
 
 CRS work may pull in heavier dependencies than the rest of the facade.
-For that reason, the CRS operations should be feature-gated rather than always present.
+For that reason, the CRS operations should be feature-gated rather than always
+present.
 
 The intended rule is:
 
@@ -130,9 +138,15 @@ The intended rule is:
 ## Relationship To `cityjson-rs`
 
 `cjlib::ops` should use `cityjson-rs` as its foundation.
-It should not bypass model invariants or duplicate the underlying storage model.
+It should not bypass model invariants or duplicate the underlying storage
+model.
 
 The role split stays:
 
-- `cityjson-rs`: authoritative model rules
-- `cjlib::ops`: reusable higher-level behavior on top of that model
+- `cityjson-rs`: authoritative model rules, submodel extraction, and merge
+- `cjlib::ops`: reusable higher-level behavior and ergonomic selection wrappers
+  on top of that model
+
+When `ops::merge` or `ops::subset` exist, they should delegate to model-owned
+capabilities in `cityjson-rs` rather than define competing merge logic in
+`cjlib`.
