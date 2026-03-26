@@ -1,16 +1,9 @@
-use cjfake::prelude::*;
 use clap::Parser;
 
 fn main() {
-    let config = CJFakeConfig::parse();
-    let json = CityModelBuilder::<u32, OwnedStringStorage>::new(config, None)
-        .metadata(None)
-        .vertices()
-        .materials(None)
-        .textures(None)
-        .attributes(None)
-        .cityobjects()
-        .build_string()
-        .expect("serialization failed");
-    println!("{json}");
+    let cli = cjfake::cli::Cli::parse();
+    if let Err(err) = cjfake::cli::run(cli) {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
 }

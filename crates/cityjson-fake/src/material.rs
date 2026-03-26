@@ -18,6 +18,20 @@ impl Dummy<RgbFaker> for RGB {
 }
 
 /// Builder for creating `Material` with random properties
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::prelude::*;
+///
+/// let material: cityjson::v2_0::Material<OwnedStringStorage> = MaterialBuilder::default()
+///     .name()
+///     .diffuse_color()
+///     .shininess()
+///     .build();
+///
+/// assert!(!material.name().is_empty());
+/// ```
 pub struct MaterialBuilder<SS: StringStorage> {
     material: Material<SS>,
     rng: SmallRng,

@@ -4,6 +4,7 @@ use fake::faker::lorem::raw::Word;
 use fake::locales::EN;
 use fake::Fake;
 use rand::Rng;
+use std::collections::HashMap;
 
 /// Builder for creating Attributes with random values
 pub struct AttributesBuilder {
@@ -94,25 +95,57 @@ impl AttributesFaker {
     fn generate_value<R: Rng + ?Sized>(
         &self,
         rng: &mut R,
-        _depth: u8,
+        depth: u8,
     ) -> AttributeValue<OwnedStringStorage> {
+        fn leaf_value<R: Rng + ?Sized>(rng: &mut R) -> AttributeValue<OwnedStringStorage> {
+            match rng.random_range(0..7u8) {
+                0 => AttributeValue::Null,
+                1 => AttributeValue::Bool(rng.random_bool(0.5)),
+                2 => AttributeValue::Integer(rng.random_range(-1000..1000)),
+                3 => AttributeValue::Unsigned(rng.random_range(0..1000)),
+                4 => AttributeValue::Float(rng.random_range(0.0..100.0)),
+                5 => {
+                    let word: String = Word(EN).fake_with_rng(rng);
+                    AttributeValue::String(word)
+                }
+                _ => {
+                    let word1: String = Word(EN).fake_with_rng(rng);
+                    let word2: String = Word(EN).fake_with_rng(rng);
+                    AttributeValue::String(format!("{word1} {word2}"))
+                }
+            }
+        }
+
         if !self.random_values {
             return AttributeValue::String("default".into());
         }
 
-        match rng.random_range(0..6u8) {
-            0 => AttributeValue::Null,
-            1 => AttributeValue::Bool(rng.random_bool(0.5)),
-            2 => AttributeValue::Integer(rng.random_range(-1000..1000)),
-            3 => AttributeValue::Float(rng.random_range(0.0..100.0)),
-            4 => {
-                let word: String = Word(EN).fake_with_rng(rng);
-                AttributeValue::String(word)
+        if depth >= self.max_depth {
+            return leaf_value(rng);
+        }
+
+        match rng.random_range(0..9u8) {
+            0..=6 => leaf_value(rng),
+            7 => {
+                let len = rng.random_range(1..=3usize);
+                AttributeValue::Vec(
+                    (0..len)
+                        .map(|_| Box::new(self.generate_value(rng, depth + 1)))
+                        .collect(),
+                )
             }
             _ => {
-                let word1: String = Word(EN).fake_with_rng(rng);
-                let word2: String = Word(EN).fake_with_rng(rng);
-                AttributeValue::String(format!("{word1} {word2}"))
+                let len = rng.random_range(1..=3usize);
+                let mut map = HashMap::new();
+                for idx in 0..len {
+                    let key = if self.random_keys {
+                        Word(EN).fake_with_rng(rng)
+                    } else {
+                        format!("attr_{depth}_{idx}")
+                    };
+                    map.insert(key, Box::new(self.generate_value(rng, depth + 1)));
+                }
+                AttributeValue::Map(map)
             }
         }
     }

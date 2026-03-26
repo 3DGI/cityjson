@@ -21,14 +21,13 @@ use rand::Rng;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use cjfake::prelude::MetadataBuilder;
+/// ```rust
+/// use cjfake::prelude::*;
+/// use rand::SeedableRng;
 ///
-/// // Create metadata with all default fake values
-/// let metadata = MetadataBuilder::default().build();
-///
-/// // Create metadata with custom values
-/// let metadata = MetadataBuilder::new()
+/// let config = CJFakeConfig::default();
+/// let mut rng = rand::prelude::SmallRng::seed_from_u64(7);
+/// let metadata: Metadata<OwnedStringStorage> = MetadataBuilder::new(&config, &mut rng)
 ///     .geographical_extent()
 ///     .identifier()
 ///     .point_of_contact()
@@ -36,6 +35,9 @@ use rand::Rng;
 ///     .reference_system()
 ///     .title()
 ///     .build();
+///
+/// assert!(metadata.identifier().is_some());
+/// assert!(metadata.point_of_contact().is_some());
 /// ```
 pub struct MetadataBuilder<'cmbuild, SS: StringStorage> {
     rng: &'cmbuild mut SmallRng,

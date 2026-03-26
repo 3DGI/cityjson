@@ -4,3 +4,4 @@
 tests/invalids
 tmp
 notes.md
+*.proptest-regressions

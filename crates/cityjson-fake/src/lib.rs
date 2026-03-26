@@ -1,146 +1,83 @@
 //! # cjfake
 //!
-//! A library for generating fake [CityJSON](https://www.cityjson.org/) data for testing purposes.
+//! Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 //!
-//! ## Overview
+//! `cjfake` is useful when you need schema-valid `CityJSON` documents without depending on large
+//! real-world datasets. It can generate complete models, or you can use the lower-level builders
+//! to generate individual pieces such as metadata, materials, textures, attributes, or vertices.
 //!
-//! `CityJSON` is a JSON-based encoding format for 3D city models. While there are many publicly
-//! available datasets, they have limitations that make them unsuitable for automated testing:
-//!
-//! - Files are often large and slow to download/process
-//! - Models contain irrelevant information for specific test cases
-//! - Certain `CityObject` types are rare or nonexistent
-//! - Advanced features like Appearances or Geometry-templates are rarely modeled
-//!
-//! This library allows you to generate valid `CityJSON` test data quickly and efficiently,
-//! with precise control over the model contents and structure.
-//!
-//! ## Features
-//!
-//! - Generate complete `CityJSON` documents that pass validation with [cjval](https://github.com/cityjson/cjval)
-//! - Control the number of vertices in surfaces (e.g. for triangulated surfaces)
-//! - Support for all `CityJSON` object types and features
-//! - Generate random but valid values for all properties
-//! - Builder pattern for intuitive model construction
-//!
-//! Note: While the generated `CityJSON` is schema-valid, the geometric values are random and
-//! do not represent valid real-world objects.
-//!
-//! ## Basic Usage
+//! ## Quick Start
 //!
 //! ```rust
 //! use cjfake::prelude::*;
 //!
-//! // Create a basic CityJSON model with defaults
 //! let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default().build();
-//!
-//! // Create a customized model
-//! let config = CJFakeConfig::default();
-//! let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::new(config, None)
-//!     .metadata(None)
-//!     .vertices()
-//!     .materials(None)
-//!     .textures(None)
-//!     .attributes(None)
-//!     .cityobjects()
-//!     .build();
+//! assert_eq!(model.cityobjects().len(), 1);
 //! ```
 //!
-//! ## Configuration
+//! ```rust
+//! use cjfake::prelude::*;
 //!
-//! The [`CJFakeConfig`](prelude::CJFakeConfig) struct provides extensive control over the generated content:
+//! let json = cjfake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
+//! assert!(json.starts_with('{'));
+//! ```
+//!
+//! ## What It Can Generate
+//!
+//! `cjfake` focuses on the `CityJSON` v2.0 generation surface that is most useful for automated
+//! testing:
+//!
+//! - city objects and parent-child hierarchy
+//! - geometry types, `LoDs`, templates, and geometry counts
+//! - vertices within configurable coordinate ranges
+//! - metadata, materials, textures, attributes, and semantics
+//!
+//! The generated documents are valid according to the `CityJSON` schema, but the geometry itself is
+//! random and not intended to represent realistic city models.
+//!
+//! ## Public API
+//!
+//! The easiest entry points are:
+//!
+//! - [`generate_model`] for a ready-to-use `CityModel`
+//! - [`generate_string`] for a serialized `CityJSON` string
+//! - [`generate_vec`] for UTF-8 encoded `CityJSON` bytes
+//! - [`CityModelBuilder`](citymodel::CityModelBuilder) for fine-grained control
+//!
+//! ## Example Config
 //!
 //! ```rust
 //! use cjfake::prelude::*;
 //!
 //! let config = CJFakeConfig {
 //!     cityobjects: CityObjectConfig {
-//!         // Restrict to specific CityObject types
 //!         allowed_types_cityobject: Some(vec![CityObjectType::Building, CityObjectType::Bridge]),
-//!
-//!         // Control number of objects
 //!         min_cityobjects: 5,
 //!         max_cityobjects: 10,
-//!
-//!         // Enable parent-child relationships
 //!         cityobject_hierarchy: true,
-//!
 //!         ..Default::default()
 //!     },
 //!     vertices: VertexConfig {
-//!         // Control geometry coordinate range
 //!         min_coordinate: -10.0,
 //!         max_coordinate: 10.0,
-//!
 //!         ..Default::default()
 //!     },
-//!
 //!     ..Default::default()
 //! };
 //! ```
 //!
 //! ## Builders
 //!
-//! The library provides several builders for creating different components:
-//!
-//! - [`CityModelBuilder`](citymodel::CityModelBuilder) - Main builder for complete `CityJSON` models
-//! - [`MaterialBuilder`](material::MaterialBuilder) - Creates material appearances with properties like color and shininess
-//! - [`TextureBuilder`](texture::TextureBuilder) - Creates texture appearances with image mappings and wrap modes
-//! - [`MetadataBuilder`](metadata::MetadataBuilder) - Creates metadata with contact info, dates, and references
-//!
-//! ### Material Example
-//!
-//! ```rust,ignore
-//! use cjfake::prelude::*;
-//!
-//! let material = MaterialBuilder::new()
-//!     .name()
-//!     .diffuse_color()
-//!     .shininess()
-//!     .transparency()
-//!     .build();
-//! ```
-//!
-//! ### Texture Example
-//!
-//! ```rust,ignore
-//! use cjfake::prelude::*;
-//!
-//! let texture = TextureBuilder::new()
-//!     .image_type()
-//!     .image()
-//!     .wrap_mode()
-//!     .border_color()
-//!     .build();
-//! ```
-//!
-//! ### Metadata Example
-//!
-//! ```rust,ignore
-//! use cjfake::prelude::*;
-//!
-//! let metadata = MetadataBuilder::new()
-//!     .geographical_extent()
-//!     .identifier()
-//!     .point_of_contact()
-//!     .reference_system()
-//!     .build();
-//! ```
-//!
-//! ## Implementation Details
-//!
-//! The library uses the [fake](https://docs.rs/fake/) crate to generate random but realistic
-//! values for properties like names, dates, and colors. Geometric values are generated within
-//! configurable ranges to ensure they are valid according to the `CityJSON` specification.
-//!
-//! The generated `CityJSON` can be output as either JSON strings or UTF-8 encoded byte vectors,
-//! making it suitable for both file-based and in-memory testing scenarios.
+//! - [`MetadataBuilder`](metadata::MetadataBuilder)
+//! - [`MaterialBuilder`](material::MaterialBuilder)
+//! - [`TextureBuilder`](texture::TextureBuilder)
+//! - [`AttributesBuilder`](attribute::AttributesBuilder)
 //!
 //! ## Limitations
 //!
-//! - Generated geometric values are random and do not form valid 3D shapes
-//! - Semantic relationships may not make real-world sense
-//! - Generated file paths for textures do not point to real files
+//! - Geometry is schema-valid, but not guaranteed to be a meaningful real-world shape
+//! - Semantic relationships are generated for validation, not semantic correctness
+//! - Texture image paths are synthetic file paths, not actual files
 //!
 pub mod attribute;
 pub mod citymodel;
@@ -174,6 +111,10 @@ pub mod prelude {
         AttributeConfig, CJFakeConfig, CityObjectConfig, GeometryConfig, MaterialConfig,
         MetadataConfig, SemanticConfig, TemplateConfig, TextureConfig, VertexConfig,
     };
+
+    #[cfg(feature = "serialize")]
+    pub use crate::{generate_string, generate_vec};
+    pub use crate::generate_model;
 }
 
 // TODO: use Coordinate instead of array (also implement in serde_cityjson)
@@ -196,6 +137,68 @@ pub(crate) const CRS_OGC_CODES: [&str; 4] = ["CRS1", "CRS27", "CRS83", "CRS84"];
 pub(crate) const CRS_EPSG_VERSIONS: [&str; 5] = ["0", "1", "2", "3", "4"];
 
 type IndexType = u32;
+
+/// Generate a `CityModel` using the default `u32` vertex references and owned string storage.
+#[must_use]
+pub fn generate_model(
+    config: cli::CJFakeConfig,
+    seed: Option<u64>,
+) -> cityjson::v2_0::CityModel<u32, OwnedStringStorage> {
+    citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
+        .metadata(None)
+        .vertices()
+        .materials(None)
+        .textures(None)
+        .attributes(None)
+        .cityobjects()
+        .build()
+}
+
+/// Generate a `CityJSON` string using the default `u32` vertex references and owned string storage.
+///
+/// # Errors
+///
+/// Returns any serialization error from `serde_cityjson`.
+#[cfg(feature = "serialize")]
+pub fn generate_string(
+    config: cli::CJFakeConfig,
+    seed: Option<u64>,
+) -> serde_cityjson::Result<String>
+where
+    u32: serde::Serialize,
+{
+    citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
+        .metadata(None)
+        .vertices()
+        .materials(None)
+        .textures(None)
+        .attributes(None)
+        .cityobjects()
+        .build_string()
+}
+
+/// Generate UTF-8 encoded `CityJSON` bytes using the default `u32` vertex references and owned string storage.
+///
+/// # Errors
+///
+/// Returns any serialization error from `serde_cityjson`.
+#[cfg(feature = "serialize")]
+pub fn generate_vec(
+    config: cli::CJFakeConfig,
+    seed: Option<u64>,
+) -> serde_cityjson::Result<Vec<u8>>
+where
+    u32: serde::Serialize,
+{
+    citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
+        .metadata(None)
+        .vertices()
+        .materials(None)
+        .textures(None)
+        .attributes(None)
+        .cityobjects()
+        .build_vec()
+}
 
 #[allow(dead_code)]
 type CityObjectGeometryTypes = HashMap<CityObjectType<OwnedStringStorage>, Vec<GeometryType>>;

@@ -1,6 +1,6 @@
 # cjfake
 
-Generate fake [CityJSON](https://www.cityjson.org/) data for testing purposes.
+Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 
 ## Problem
 
@@ -11,16 +11,23 @@ Generate fake [CityJSON](https://www.cityjson.org/) data for testing purposes.
 - Certain CityObject types (e.g. Tunnels, CityFurniture) are rare or nonexistent
 - Advanced features like Appearances or Geometry-templates are rarely modeled
 
-## Goals
+## What It Does
 
 cjfake aims to:
 
 - Generate valid CityJSON test data quickly and efficiently
 - Allow precise control over the model contents and structure
-- Support the complete CityJSON specification
+- Support the CityJSON v2.0 generation surface used in tests
 - Produce models that pass validation with [cjval](https://github.com/cityjson/cjval)
 
-Note: While the generated CityJSON is schema-valid, the geometric values are random and do not represent valid real-world objects.
+It can generate:
+
+- CityObjects and parent/child hierarchies
+- Geometry types, LoDs, and geometry templates
+- Vertices within configurable coordinate ranges
+- Metadata, materials, textures, attributes, and semantics
+
+The output is schema-valid CityJSON, but the geometry is random and not intended to represent real-world objects.
 
 ## Installation
 
@@ -42,21 +49,15 @@ cargo install cjfake
 ### As a Library
 
 ```rust
-use cjfake::{CityModelBuilder, CJFakeConfig};
+use cjfake::prelude::*;
 
 // Create a basic CityJSON model
-let model = CityModelBuilder::default().build();
+let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default().build();
+assert_eq!(model.cityobjects().len(), 1);
 
-// Customize the generation
-let config = CJFakeConfig::default();
-let model = CityModelBuilder::new(config, None)
-    .metadata(None)
-    .vertices()
-    .materials(None)
-    .textures(None)
-    .attributes()
-    .cityobjects()
-    .build();
+// Generate a serialized CityJSON document
+let json = cjfake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
+assert!(json.starts_with('{'));
 ```
 
 See the [API documentation](https://docs.rs/cjfake) for more details.
@@ -72,8 +73,11 @@ cjfake > output.city.json
 # Generate model with specific CityObject types
 cjfake --allowed-types-cityobject Building,Bridge > output.city.json
 
-# Control number of objects and vertices
-cjfake --min-cityobjects 5 --max-cityobjects 10 --min-vertices 4 --max-vertices 20 > output.city.json
+# Write directly to a file
+cjfake --output output.city.json
+
+# Generate multiple CityJSON files into a directory
+cjfake --count 3 --output out/
 ```
 
 Key configuration options:
@@ -82,14 +86,23 @@ Key configuration options:
 - `--allowed-types-geometry` - Restrict to specific geometry types  
 - `--min/max-cityobjects` - Control number of CityObjects
 - `--cityobject-hierarchy` - Enable/disable parent-child relationships
-- `--min/max-vertices` - Control number of vertices
-- `--min/max-members-*` - Control number of geometry components
-- `--min/max-materials` - Control number of materials
-- `--min/max-textures` - Control number of textures
+- `--min/max-members-*` - Control geometry component counts
+- `--min/max-materials` and `--min/max-textures` - Control appearance resources
 - `--use-templates` - Enable geometry templates
 - `--texture-allow-none` - Allow null values in texture coordinates
+- `--output` - Write to a file or directory instead of stdout
+- `--count` - Generate multiple documents
 
 Run `cjfake --help` to see all available options.
+
+## API Shape
+
+The easiest entry points are:
+
+- `cjfake::generate_model(config, seed)` for a `CityModel`
+- `cjfake::generate_string(config, seed)` for a serialized CityJSON string
+- `cjfake::generate_vec(config, seed)` for UTF-8 encoded bytes
+- `CityModelBuilder` when you need fine-grained control over generation
 
 ## License
 

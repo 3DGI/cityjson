@@ -5,7 +5,20 @@ use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 use std::path::PathBuf;
 
-/// Builder for creating Texture with random properties
+/// Builder for creating `Texture` with random properties.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::prelude::*;
+///
+/// let texture: cityjson::v2_0::Texture<OwnedStringStorage> = TextureBuilder::default()
+///     .image()
+///     .image_type()
+///     .build();
+///
+/// assert!(!texture.image().is_empty());
+/// ```
 pub struct TextureBuilder {
     image_path: String,
     image_type: ImageType,

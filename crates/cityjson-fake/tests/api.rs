@@ -2,6 +2,17 @@ use cjfake::prelude::*;
 
 // ─── Basic construction ───────────────────────────────────────────────────────
 
+/// Can we use the top-level generation helpers?
+#[test]
+fn generate_helpers() {
+    let config = CJFakeConfig::default();
+    let model = generate_model(config.clone(), Some(1));
+    assert_eq!(model.cityobjects().len(), 1);
+
+    let json = generate_string(config, Some(1)).expect("serialization should succeed");
+    assert!(json.starts_with('{'));
+}
+
 /// Can we fake a valid `CityJSON` with the default parameters?
 #[test]
 fn default() {

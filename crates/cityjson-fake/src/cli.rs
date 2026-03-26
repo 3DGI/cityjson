@@ -1,6 +1,8 @@
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
 use clap::{Args, Parser};
+use std::fs;
+use std::path::PathBuf;
 use std::str::FromStr;
 type IndexType = u32;
 
@@ -409,9 +411,8 @@ impl Default for SemanticConfig {
 
 // ─── Top-level config ─────────────────────────────────────────────────────────
 
-/// Configuration for `CityJSON` fake data generation
-#[derive(Parser, Debug, Clone, Default)]
-#[command(author, version, about)]
+/// Configuration for `CityJSON` fake data generation.
+#[derive(Args, Debug, Clone, Default)]
 pub struct CJFakeConfig {
     /// Random seed for deterministic output
     #[arg(long)]
@@ -443,6 +444,25 @@ pub struct CJFakeConfig {
 
     #[clap(flatten)]
     pub semantics: SemanticConfig,
+}
+
+/// Command-line interface for generating `CityJSON`.
+#[derive(Parser, Debug, Clone)]
+#[command(author, version, about)]
+pub struct Cli {
+    #[command(flatten)]
+    pub config: CJFakeConfig,
+
+    /// Optional output path.
+    ///
+    /// If `--count 1` is used, this is treated as a file path.
+    /// If `--count > 1`, this is treated as a directory and multiple files are written there.
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+
+    /// Number of `CityJSON` documents to generate.
+    #[arg(long, default_value_t = 1)]
+    pub count: usize,
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
@@ -507,16 +527,70 @@ fn parse_semantic_type(s: &str) -> Result<SemanticType<OwnedStringStorage>, Stri
     }
 }
 
+// ─── CLI runner ──────────────────────────────────────────────────────────────
+
+#[cfg(feature = "serialize")]
+/// Run the CLI and write the generated `CityJSON` to stdout or files.
+///
+/// # Errors
+///
+/// Returns an error if generation fails, output paths cannot be created, or writing fails.
+pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{self, Write};
+
+    let seed = cli.config.seed;
+    let config = cli.config;
+
+    if cli.count > 1 && cli.output.is_none() {
+        return Err("multiple documents require --output <DIR>".into());
+    }
+
+    if let Some(output) = cli.output {
+        if cli.count == 1 {
+            let json = crate::generate_string(config, seed)?;
+            fs::write(output, json)?;
+        } else {
+            fs::create_dir_all(&output)?;
+            for idx in 0..cli.count {
+                let json = crate::generate_string(config.clone(), seed)?;
+                let file_name = format!("cjfake-{idx:04}.city.json");
+                fs::write(output.join(file_name), json)?;
+            }
+        }
+        return Ok(());
+    }
+
+    let json = crate::generate_string(config, seed)?;
+    let mut stdout = io::stdout().lock();
+    stdout.write_all(json.as_bytes())?;
+    stdout.write_all(b"\n")?;
+    stdout.flush()?;
+    Ok(())
+}
+
+#[cfg(not(feature = "serialize"))]
+/// Run the CLI when serialization support is unavailable.
+///
+/// # Errors
+///
+/// Always returns an error because the `serialize` feature is required.
+pub fn run(_cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    Err("serialize feature required for the CLI".into())
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     #[allow(clippy::float_cmp)]
-    fn test_cjfakeconfig_defaults() {
-        let config = CJFakeConfig::default();
+    fn test_cli_defaults() {
+        let cli = Cli::parse_from(["cjfake"]);
+        let config = cli.config;
 
         assert_eq!(config.seed, None);
         assert_eq!(config.cityobjects.allowed_types_cityobject, None);
@@ -551,6 +625,8 @@ mod tests {
         assert_eq!(config.templates.max_templates, 10);
         assert!(!config.templates.use_templates);
         assert!(!config.textures.texture_allow_none);
+        assert!(cli.output.is_none());
+        assert_eq!(cli.count, 1);
     }
 
     #[test]
@@ -618,9 +694,14 @@ mod tests {
             "5",
             "--use-templates",
             "--texture-allow-none",
+            "--output",
+            "output.city.json",
+            "--count",
+            "3",
         ];
 
-        let config = CJFakeConfig::parse_from(args);
+        let cli = Cli::parse_from(args);
+        let config = cli.config;
 
         assert_eq!(
             config.cityobjects.allowed_types_cityobject,
@@ -660,5 +741,28 @@ mod tests {
         assert_eq!(config.templates.max_templates, 5);
         assert!(config.templates.use_templates);
         assert!(config.textures.texture_allow_none);
+        assert_eq!(cli.output, Some(PathBuf::from("output.city.json")));
+        assert_eq!(cli.count, 3);
+    }
+
+    #[test]
+    fn test_cli_run_writes_file() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("cjfake-cli-{stamp}"));
+        fs::create_dir_all(&dir).expect("temp dir should be creatable");
+        let output = dir.join("model.city.json");
+
+        let cli = Cli {
+            config: CJFakeConfig::default(),
+            output: Some(output.clone()),
+            count: 1,
+        };
+
+        run(cli).expect("CLI should succeed");
+        let json = fs::read_to_string(&output).expect("output should exist");
+        assert!(json.starts_with('{'));
     }
 }
