@@ -1,6 +1,6 @@
 #!/usr/bin/env just --justfile
 
-default:
+_default:
     just --list
 
 check:

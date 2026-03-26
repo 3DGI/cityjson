@@ -1,70 +1,82 @@
-use cityjson::prelude::{GeometryType, OwnedStringStorage};
-use cityjson::v2_0::CityObjectType;
-use clap::Parser;
+use cityjson::prelude::OwnedStringStorage;
+use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
+use clap::{Args, Parser};
 use std::str::FromStr;
 type IndexType = u32;
 
-/// Configuration for CityJSON fake data generation
-#[derive(Parser, Debug, Clone)]
-#[command(author, version, about)]
-pub struct CJFakeConfig {
-    /// Restrict the CityObject types to the provided types
-    #[arg(long, value_delimiter = ',', value_parser = parse_cityobject_type )]
+// ─── Sub-configs ─────────────────────────────────────────────────────────────
+
+#[derive(Args, Debug, Clone)]
+pub struct CityObjectConfig {
+    /// Restrict the `CityObject` types to the provided types
+    #[arg(long, value_delimiter = ',', value_parser = parse_cityobject_type)]
     pub allowed_types_cityobject: Option<Vec<CityObjectType<OwnedStringStorage>>>,
 
-    /// Restrict the Geometry types to the provided types
-    #[arg(long, value_delimiter = ',', value_parser = parse_geometry_type )]
-    pub allowed_types_geometry: Option<Vec<GeometryType>>,
-
-    /// Minimum number of CityObjects to generate
+    /// Minimum number of `CityObjects` to generate
     #[arg(long, default_value_t = 1)]
     pub min_cityobjects: IndexType,
 
-    /// Maximum number of CityObjects to generate
+    /// Maximum number of `CityObjects` to generate
     #[arg(long, default_value_t = 1)]
     pub max_cityobjects: IndexType,
 
-    /// Whether to generate hierarchical CityObjects (parent-child relationships)
+    /// Whether to generate hierarchical `CityObjects` (parent-child relationships)
     #[arg(long, default_value_t = false)]
     pub cityobject_hierarchy: bool,
 
-    /// Minimum coordinate value for geometry vertices
-    #[arg(long, default_value_t = i64::MIN)]
-    pub min_coordinate: i64,
+    /// Minimum number of child `CityObjects` per parent (when hierarchy is enabled)
+    #[arg(long, default_value_t = 1)]
+    pub min_children: IndexType,
 
-    /// Maximum coordinate value for geometry vertices
-    #[arg(long, default_value_t = i64::MAX)]
-    pub max_coordinate: i64,
+    /// Maximum number of child `CityObjects` per parent (when hierarchy is enabled)
+    #[arg(long, default_value_t = 3)]
+    pub max_children: IndexType,
+}
 
-    /// Minimum number of vertices in geometry objects
-    #[arg(long, default_value_t = 8)]
-    pub min_vertices: IndexType,
+impl Default for CityObjectConfig {
+    fn default() -> Self {
+        Self {
+            allowed_types_cityobject: None,
+            min_cityobjects: 1,
+            max_cityobjects: 1,
+            cityobject_hierarchy: false,
+            min_children: 1,
+            max_children: 3,
+        }
+    }
+}
 
-    /// Maximum number of vertices in geometry objects
-    #[arg(long, default_value_t = 8)]
-    pub max_vertices: IndexType,
+#[derive(Args, Debug, Clone)]
+pub struct GeometryConfig {
+    /// Restrict the Geometry types to the provided types
+    #[arg(long, value_delimiter = ',', value_parser = parse_geometry_type)]
+    pub allowed_types_geometry: Option<Vec<GeometryType>>,
 
-    /// Minimum number of points in MultiPoint geometries
+    /// Restrict the `LoD` values to the provided values
+    #[arg(long, value_delimiter = ',', value_parser = parse_lod)]
+    pub allowed_lods: Option<Vec<LoD>>,
+
+    /// Minimum number of points in `MultiPoint` geometries
     #[arg(long, default_value_t = 11)]
     pub min_members_multipoint: IndexType,
 
-    /// Maximum number of points in MultiPoint geometries
+    /// Maximum number of points in `MultiPoint` geometries
     #[arg(long, default_value_t = 11)]
     pub max_members_multipoint: IndexType,
 
-    /// Minimum number of linestrings in MultiLineString geometries
+    /// Minimum number of linestrings in `MultiLineString` geometries
     #[arg(long, default_value_t = 1)]
     pub min_members_multilinestring: IndexType,
 
-    /// Maximum number of linestrings in MultiLineString geometries
+    /// Maximum number of linestrings in `MultiLineString` geometries
     #[arg(long, default_value_t = 1)]
     pub max_members_multilinestring: IndexType,
 
-    /// Minimum number of surfaces in MultiSurface geometries
+    /// Minimum number of surfaces in `MultiSurface` geometries
     #[arg(long, default_value_t = 1)]
     pub min_members_multisurface: IndexType,
 
-    /// Maximum number of surfaces in MultiSurface geometries
+    /// Maximum number of surfaces in `MultiSurface` geometries
     #[arg(long, default_value_t = 1)]
     pub max_members_multisurface: IndexType,
 
@@ -76,21 +88,99 @@ pub struct CJFakeConfig {
     #[arg(long, default_value_t = 3)]
     pub max_members_solid: IndexType,
 
-    /// Minimum number of solids in MultiSolid geometries
+    /// Minimum number of solids in `MultiSolid` geometries
     #[arg(long, default_value_t = 1)]
     pub min_members_multisolid: IndexType,
 
-    /// Maximum number of solids in MultiSolid geometries
+    /// Maximum number of solids in `MultiSolid` geometries
     #[arg(long, default_value_t = 3)]
     pub max_members_multisolid: IndexType,
 
-    /// Minimum number of geometries per CityObject
+    /// Minimum number of surfaces in `CompositeSurface` geometries
+    #[arg(long, default_value_t = 1)]
+    pub min_members_compositesurface: IndexType,
+
+    /// Maximum number of surfaces in `CompositeSurface` geometries
+    #[arg(long, default_value_t = 3)]
+    pub max_members_compositesurface: IndexType,
+
+    /// Minimum number of solids in `CompositeSolid` geometries
+    #[arg(long, default_value_t = 1)]
+    pub min_members_compositesolid: IndexType,
+
+    /// Maximum number of solids in `CompositeSolid` geometries
+    #[arg(long, default_value_t = 3)]
+    pub max_members_compositesolid: IndexType,
+
+    /// Minimum number of geometries per `CityObject`
     #[arg(long, default_value_t = 1)]
     pub min_members_cityobject_geometries: IndexType,
 
-    /// Maximum number of geometries per CityObject
+    /// Maximum number of geometries per `CityObject`
     #[arg(long, default_value_t = 1)]
     pub max_members_cityobject_geometries: IndexType,
+}
+
+impl Default for GeometryConfig {
+    fn default() -> Self {
+        Self {
+            allowed_types_geometry: None,
+            allowed_lods: None,
+            min_members_multipoint: 11,
+            max_members_multipoint: 11,
+            min_members_multilinestring: 1,
+            max_members_multilinestring: 1,
+            min_members_multisurface: 1,
+            max_members_multisurface: 1,
+            min_members_solid: 1,
+            max_members_solid: 3,
+            min_members_multisolid: 1,
+            max_members_multisolid: 3,
+            min_members_compositesurface: 1,
+            max_members_compositesurface: 3,
+            min_members_compositesolid: 1,
+            max_members_compositesolid: 3,
+            min_members_cityobject_geometries: 1,
+            max_members_cityobject_geometries: 1,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct VertexConfig {
+    /// Minimum coordinate value for geometry vertices
+    #[arg(long, default_value_t = -1000.0)]
+    pub min_coordinate: f64,
+
+    /// Maximum coordinate value for geometry vertices
+    #[arg(long, default_value_t = 1000.0)]
+    pub max_coordinate: f64,
+
+    /// Minimum number of vertices in geometry objects
+    #[arg(long, default_value_t = 8)]
+    pub min_vertices: IndexType,
+
+    /// Maximum number of vertices in geometry objects
+    #[arg(long, default_value_t = 8)]
+    pub max_vertices: IndexType,
+}
+
+impl Default for VertexConfig {
+    fn default() -> Self {
+        Self {
+            min_coordinate: -1000.0,
+            max_coordinate: 1000.0,
+            min_vertices: 8,
+            max_vertices: 8,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct MaterialConfig {
+    /// Whether to generate materials (default: true)
+    #[arg(long, default_value_t = true)]
+    pub materials_enabled: bool,
 
     /// Minimum number of materials
     #[arg(long, default_value_t = 1)]
@@ -103,6 +193,54 @@ pub struct CJFakeConfig {
     /// Number of material themes
     #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(IndexType).range(1..))]
     pub nr_themes_materials: IndexType,
+
+    /// Whether to generate ambient intensity (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_ambient_intensity: Option<bool>,
+
+    /// Whether to generate diffuse color (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_diffuse_color: Option<bool>,
+
+    /// Whether to generate emissive color (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_emissive_color: Option<bool>,
+
+    /// Whether to generate specular color (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_specular_color: Option<bool>,
+
+    /// Whether to generate shininess (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_shininess: Option<bool>,
+
+    /// Whether to generate transparency (None=random, true=always, false=never)
+    #[arg(long)]
+    pub generate_transparency: Option<bool>,
+}
+
+impl Default for MaterialConfig {
+    fn default() -> Self {
+        Self {
+            materials_enabled: true,
+            min_materials: 1,
+            max_materials: 3,
+            nr_themes_materials: 3,
+            generate_ambient_intensity: None,
+            generate_diffuse_color: None,
+            generate_emissive_color: None,
+            generate_specular_color: None,
+            generate_shininess: None,
+            generate_transparency: None,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TextureConfig {
+    /// Whether to generate textures (default: true)
+    #[arg(long, default_value_t = true)]
+    pub textures_enabled: bool,
 
     /// Minimum number of textures
     #[arg(long, default_value_t = 2)]
@@ -120,6 +258,30 @@ pub struct CJFakeConfig {
     #[arg(long, default_value_t = 10)]
     pub max_vertices_texture: IndexType,
 
+    /// Allow null in the texture values
+    #[arg(long, default_value_t = false)]
+    pub texture_allow_none: bool,
+}
+
+impl Default for TextureConfig {
+    fn default() -> Self {
+        Self {
+            textures_enabled: true,
+            min_textures: 2,
+            max_textures: 2,
+            nr_themes_textures: 3,
+            max_vertices_texture: 10,
+            texture_allow_none: false,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TemplateConfig {
+    /// Generate `GeometryInstances` (templates)
+    #[arg(long, default_value_t = false)]
+    pub use_templates: bool,
+
     /// Minimum number of templates
     #[arg(long, default_value_t = 1)]
     pub min_templates: IndexType,
@@ -127,106 +289,273 @@ pub struct CJFakeConfig {
     /// Maximum number of templates
     #[arg(long, default_value_t = 10)]
     pub max_templates: IndexType,
-
-    /// Generate GeometryInstances too
-    #[arg(long, default_value_t = false)]
-    pub use_templates: bool,
-
-    /// Allow null in the texture values
-    #[arg(long, default_value_t = false)]
-    pub texture_allow_none: bool,
 }
 
-impl Default for CJFakeConfig {
+impl Default for TemplateConfig {
     fn default() -> Self {
         Self {
-            allowed_types_cityobject: None,
-            allowed_types_geometry: None,
-            min_cityobjects: 1,
-            max_cityobjects: 1,
-            cityobject_hierarchy: false,
-            min_coordinate: i64::MIN,
-            max_coordinate: i64::MAX,
-            min_vertices: 8,
-            max_vertices: 8,
-            min_members_multipoint: 11,
-            max_members_multipoint: 11,
-            min_members_multilinestring: 1,
-            max_members_multilinestring: 1,
-            min_members_multisurface: 1,
-            max_members_multisurface: 1,
-            min_members_solid: 1,
-            max_members_solid: 3,
-            min_members_multisolid: 1,
-            max_members_multisolid: 3,
-            min_members_cityobject_geometries: 1,
-            max_members_cityobject_geometries: 1,
-            min_materials: 1,
-            max_materials: 3,
-            nr_themes_materials: 3,
-            min_textures: 2,
-            max_textures: 2,
-            nr_themes_textures: 3,
-            max_vertices_texture: 10,
+            use_templates: false,
             min_templates: 1,
             max_templates: 10,
-            use_templates: false,
-            texture_allow_none: false,
         }
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Args, Debug, Clone)]
+pub struct MetadataConfig {
+    /// Whether to generate metadata (default: true)
+    #[arg(long, default_value_t = true)]
+    pub metadata_enabled: bool,
+
+    /// Whether to generate geographical extent in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_geographical_extent: bool,
+
+    /// Whether to generate identifier in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_identifier: bool,
+
+    /// Whether to generate reference date in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_reference_date: bool,
+
+    /// Whether to generate reference system in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_reference_system: bool,
+
+    /// Whether to generate title in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_title: bool,
+
+    /// Whether to generate point of contact in metadata
+    #[arg(long, default_value_t = true)]
+    pub metadata_point_of_contact: bool,
+}
+
+impl Default for MetadataConfig {
+    fn default() -> Self {
+        Self {
+            metadata_enabled: true,
+            metadata_geographical_extent: true,
+            metadata_identifier: true,
+            metadata_reference_date: true,
+            metadata_reference_system: true,
+            metadata_title: true,
+            metadata_point_of_contact: true,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AttributeConfig {
+    /// Whether to generate attributes (default: true)
+    #[arg(long, default_value_t = true)]
+    pub attributes_enabled: bool,
+
+    /// Minimum number of attributes per `CityObject`
+    #[arg(long, default_value_t = 3)]
+    pub min_attributes: IndexType,
+
+    /// Maximum number of attributes per `CityObject`
+    #[arg(long, default_value_t = 8)]
+    pub max_attributes: IndexType,
+
+    /// Maximum nesting depth for attribute objects
+    #[arg(long, default_value_t = 2)]
+    pub attributes_max_depth: u8,
+
+    /// Whether to generate random attribute keys
+    #[arg(long, default_value_t = true)]
+    pub attributes_random_keys: bool,
+
+    /// Whether to generate random attribute values
+    #[arg(long, default_value_t = true)]
+    pub attributes_random_values: bool,
+}
+
+impl Default for AttributeConfig {
+    fn default() -> Self {
+        Self {
+            attributes_enabled: true,
+            min_attributes: 3,
+            max_attributes: 8,
+            attributes_max_depth: 2,
+            attributes_random_keys: true,
+            attributes_random_values: true,
+        }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct SemanticConfig {
+    /// Whether to generate semantics (default: true)
+    #[arg(long, default_value_t = true)]
+    pub semantics_enabled: bool,
+
+    /// Restrict semantic types to the provided types
+    #[arg(long, value_delimiter = ',', value_parser = parse_semantic_type)]
+    pub allowed_types_semantic: Option<Vec<SemanticType<OwnedStringStorage>>>,
+}
+
+impl Default for SemanticConfig {
+    fn default() -> Self {
+        Self {
+            semantics_enabled: true,
+            allowed_types_semantic: None,
+        }
+    }
+}
+
+// ─── Top-level config ─────────────────────────────────────────────────────────
+
+/// Configuration for `CityJSON` fake data generation
+#[derive(Parser, Debug, Clone, Default)]
+#[command(author, version, about)]
+pub struct CJFakeConfig {
+    /// Random seed for deterministic output
+    #[arg(long)]
+    pub seed: Option<u64>,
+
+    #[clap(flatten)]
+    pub cityobjects: CityObjectConfig,
+
+    #[clap(flatten)]
+    pub geometry: GeometryConfig,
+
+    #[clap(flatten)]
+    pub vertices: VertexConfig,
+
+    #[clap(flatten)]
+    pub materials: MaterialConfig,
+
+    #[clap(flatten)]
+    pub textures: TextureConfig,
+
+    #[clap(flatten)]
+    pub templates: TemplateConfig,
+
+    #[clap(flatten)]
+    pub metadata: MetadataConfig,
+
+    #[clap(flatten)]
+    pub attributes: AttributeConfig,
+
+    #[clap(flatten)]
+    pub semantics: SemanticConfig,
+}
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
+
 fn parse_cityobject_type(s: &str) -> Result<CityObjectType<OwnedStringStorage>, String> {
-    CityObjectType::from_str(s).map_err(|e| format!("Failed to parse CityObjectType: {}", e))
+    CityObjectType::from_str(s).map_err(|e| format!("Failed to parse CityObjectType: {e}"))
 }
 
 fn parse_geometry_type(s: &str) -> Result<GeometryType, String> {
-    GeometryType::from_str(s).map_err(|e| format!("Failed to parse GeometryType: {}", e))
+    GeometryType::from_str(s).map_err(|e| format!("Failed to parse GeometryType: {e}"))
 }
+
+fn parse_lod(s: &str) -> Result<LoD, String> {
+    match s {
+        "0" => Ok(LoD::LoD0),
+        "0.0" => Ok(LoD::LoD0_0),
+        "0.1" => Ok(LoD::LoD0_1),
+        "0.2" => Ok(LoD::LoD0_2),
+        "0.3" => Ok(LoD::LoD0_3),
+        "1" => Ok(LoD::LoD1),
+        "1.0" => Ok(LoD::LoD1_0),
+        "1.1" => Ok(LoD::LoD1_1),
+        "1.2" => Ok(LoD::LoD1_2),
+        "1.3" => Ok(LoD::LoD1_3),
+        "2" => Ok(LoD::LoD2),
+        "2.0" => Ok(LoD::LoD2_0),
+        "2.1" => Ok(LoD::LoD2_1),
+        "2.2" => Ok(LoD::LoD2_2),
+        "2.3" => Ok(LoD::LoD2_3),
+        "3" => Ok(LoD::LoD3),
+        "3.0" => Ok(LoD::LoD3_0),
+        "3.1" => Ok(LoD::LoD3_1),
+        "3.2" => Ok(LoD::LoD3_2),
+        "3.3" => Ok(LoD::LoD3_3),
+        _ => Err(format!(
+            "Unknown LoD: {s}. Valid values: 0, 0.0–0.3, 1, 1.0–1.3, 2, 2.0–2.3, 3, 3.0–3.3"
+        )),
+    }
+}
+
+fn parse_semantic_type(s: &str) -> Result<SemanticType<OwnedStringStorage>, String> {
+    match s {
+        "RoofSurface" => Ok(SemanticType::RoofSurface),
+        "GroundSurface" => Ok(SemanticType::GroundSurface),
+        "WallSurface" => Ok(SemanticType::WallSurface),
+        "ClosureSurface" => Ok(SemanticType::ClosureSurface),
+        "OuterCeilingSurface" => Ok(SemanticType::OuterCeilingSurface),
+        "OuterFloorSurface" => Ok(SemanticType::OuterFloorSurface),
+        "Window" => Ok(SemanticType::Window),
+        "Door" => Ok(SemanticType::Door),
+        "InteriorWallSurface" => Ok(SemanticType::InteriorWallSurface),
+        "CeilingSurface" => Ok(SemanticType::CeilingSurface),
+        "FloorSurface" => Ok(SemanticType::FloorSurface),
+        "WaterSurface" => Ok(SemanticType::WaterSurface),
+        "WaterGroundSurface" => Ok(SemanticType::WaterGroundSurface),
+        "WaterClosureSurface" => Ok(SemanticType::WaterClosureSurface),
+        "TrafficArea" => Ok(SemanticType::TrafficArea),
+        "AuxiliaryTrafficArea" => Ok(SemanticType::AuxiliaryTrafficArea),
+        "TransportationMarking" => Ok(SemanticType::TransportationMarking),
+        "TransportationHole" => Ok(SemanticType::TransportationHole),
+        _ => Err(format!("Unknown SemanticType: {s}")),
+    }
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_cjfakeconfig_defaults() {
         let config = CJFakeConfig::default();
 
-        assert_eq!(config.allowed_types_cityobject, None);
-        assert_eq!(config.allowed_types_geometry, None);
-        assert_eq!(config.min_cityobjects, 1);
-        assert_eq!(config.max_cityobjects, 1);
-        assert!(!config.cityobject_hierarchy);
-        assert_eq!(config.min_coordinate, i64::MIN);
-        assert_eq!(config.max_coordinate, i64::MAX);
-        assert_eq!(config.min_vertices, 8);
-        assert_eq!(config.max_vertices, 8);
-        assert_eq!(config.min_members_multipoint, 11);
-        assert_eq!(config.max_members_multipoint, 11);
-        assert_eq!(config.min_members_multilinestring, 1);
-        assert_eq!(config.max_members_multilinestring, 1);
-        assert_eq!(config.min_members_multisurface, 1);
-        assert_eq!(config.max_members_multisurface, 1);
-        assert_eq!(config.min_members_solid, 1);
-        assert_eq!(config.max_members_solid, 3);
-        assert_eq!(config.min_members_multisolid, 1);
-        assert_eq!(config.max_members_multisolid, 3);
-        assert_eq!(config.min_members_cityobject_geometries, 1);
-        assert_eq!(config.max_members_cityobject_geometries, 1);
-        assert_eq!(config.min_materials, 1);
-        assert_eq!(config.max_materials, 3);
-        assert_eq!(config.nr_themes_materials, 3);
-        assert_eq!(config.min_textures, 2);
-        assert_eq!(config.max_textures, 2);
-        assert_eq!(config.nr_themes_textures, 3);
-        assert_eq!(config.max_vertices_texture, 10);
-        assert_eq!(config.min_templates, 1);
-        assert_eq!(config.max_templates, 10);
-        assert!(!config.use_templates);
-        assert!(!config.texture_allow_none);
+        assert_eq!(config.seed, None);
+        assert_eq!(config.cityobjects.allowed_types_cityobject, None);
+        assert_eq!(config.geometry.allowed_types_geometry, None);
+        assert_eq!(config.cityobjects.min_cityobjects, 1);
+        assert_eq!(config.cityobjects.max_cityobjects, 1);
+        assert!(!config.cityobjects.cityobject_hierarchy);
+        assert_eq!(config.vertices.min_coordinate, -1000.0f64);
+        assert_eq!(config.vertices.max_coordinate, 1000.0f64);
+        assert_eq!(config.vertices.min_vertices, 8);
+        assert_eq!(config.vertices.max_vertices, 8);
+        assert_eq!(config.geometry.min_members_multipoint, 11);
+        assert_eq!(config.geometry.max_members_multipoint, 11);
+        assert_eq!(config.geometry.min_members_multilinestring, 1);
+        assert_eq!(config.geometry.max_members_multilinestring, 1);
+        assert_eq!(config.geometry.min_members_multisurface, 1);
+        assert_eq!(config.geometry.max_members_multisurface, 1);
+        assert_eq!(config.geometry.min_members_solid, 1);
+        assert_eq!(config.geometry.max_members_solid, 3);
+        assert_eq!(config.geometry.min_members_multisolid, 1);
+        assert_eq!(config.geometry.max_members_multisolid, 3);
+        assert_eq!(config.geometry.min_members_cityobject_geometries, 1);
+        assert_eq!(config.geometry.max_members_cityobject_geometries, 1);
+        assert_eq!(config.materials.min_materials, 1);
+        assert_eq!(config.materials.max_materials, 3);
+        assert_eq!(config.materials.nr_themes_materials, 3);
+        assert_eq!(config.textures.min_textures, 2);
+        assert_eq!(config.textures.max_textures, 2);
+        assert_eq!(config.textures.nr_themes_textures, 3);
+        assert_eq!(config.textures.max_vertices_texture, 10);
+        assert_eq!(config.templates.min_templates, 1);
+        assert_eq!(config.templates.max_templates, 10);
+        assert!(!config.templates.use_templates);
+        assert!(!config.textures.texture_allow_none);
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::float_cmp)]
     fn test_cli_argument_parsing() {
         let args = vec![
             "cjfake",
@@ -294,42 +623,42 @@ mod tests {
         let config = CJFakeConfig::parse_from(args);
 
         assert_eq!(
-            config.allowed_types_cityobject,
+            config.cityobjects.allowed_types_cityobject,
             Some(vec![CityObjectType::Building, CityObjectType::Bridge])
         );
         assert_eq!(
-            config.allowed_types_geometry,
+            config.geometry.allowed_types_geometry,
             Some(vec![GeometryType::MultiSurface, GeometryType::Solid])
         );
-        assert_eq!(config.min_cityobjects, 5);
-        assert_eq!(config.max_cityobjects, 10);
-        assert!(config.cityobject_hierarchy);
-        assert_eq!(config.min_coordinate, -1000);
-        assert_eq!(config.max_coordinate, 1000);
-        assert_eq!(config.min_vertices, 4);
-        assert_eq!(config.max_vertices, 20);
-        assert_eq!(config.min_members_multipoint, 2);
-        assert_eq!(config.max_members_multipoint, 5);
-        assert_eq!(config.min_members_multilinestring, 3);
-        assert_eq!(config.max_members_multilinestring, 6);
-        assert_eq!(config.min_members_multisurface, 1);
-        assert_eq!(config.max_members_multisurface, 3);
-        assert_eq!(config.min_members_solid, 2);
-        assert_eq!(config.max_members_solid, 4);
-        assert_eq!(config.min_members_multisolid, 1);
-        assert_eq!(config.max_members_multisolid, 2);
-        assert_eq!(config.min_members_cityobject_geometries, 1);
-        assert_eq!(config.max_members_cityobject_geometries, 3);
-        assert_eq!(config.min_materials, 1);
-        assert_eq!(config.max_materials, 2);
-        assert_eq!(config.nr_themes_materials, 2);
-        assert_eq!(config.min_textures, 1);
-        assert_eq!(config.max_textures, 3);
-        assert_eq!(config.nr_themes_textures, 2);
-        assert_eq!(config.max_vertices_texture, 15);
-        assert_eq!(config.min_templates, 2);
-        assert_eq!(config.max_templates, 5);
-        assert!(config.use_templates);
-        assert!(config.texture_allow_none);
+        assert_eq!(config.cityobjects.min_cityobjects, 5);
+        assert_eq!(config.cityobjects.max_cityobjects, 10);
+        assert!(config.cityobjects.cityobject_hierarchy);
+        assert_eq!(config.vertices.min_coordinate, -1000.0f64);
+        assert_eq!(config.vertices.max_coordinate, 1000.0f64);
+        assert_eq!(config.vertices.min_vertices, 4);
+        assert_eq!(config.vertices.max_vertices, 20);
+        assert_eq!(config.geometry.min_members_multipoint, 2);
+        assert_eq!(config.geometry.max_members_multipoint, 5);
+        assert_eq!(config.geometry.min_members_multilinestring, 3);
+        assert_eq!(config.geometry.max_members_multilinestring, 6);
+        assert_eq!(config.geometry.min_members_multisurface, 1);
+        assert_eq!(config.geometry.max_members_multisurface, 3);
+        assert_eq!(config.geometry.min_members_solid, 2);
+        assert_eq!(config.geometry.max_members_solid, 4);
+        assert_eq!(config.geometry.min_members_multisolid, 1);
+        assert_eq!(config.geometry.max_members_multisolid, 2);
+        assert_eq!(config.geometry.min_members_cityobject_geometries, 1);
+        assert_eq!(config.geometry.max_members_cityobject_geometries, 3);
+        assert_eq!(config.materials.min_materials, 1);
+        assert_eq!(config.materials.max_materials, 2);
+        assert_eq!(config.materials.nr_themes_materials, 2);
+        assert_eq!(config.textures.min_textures, 1);
+        assert_eq!(config.textures.max_textures, 3);
+        assert_eq!(config.textures.nr_themes_textures, 2);
+        assert_eq!(config.textures.max_vertices_texture, 15);
+        assert_eq!(config.templates.min_templates, 2);
+        assert_eq!(config.templates.max_templates, 5);
+        assert!(config.templates.use_templates);
+        assert!(config.textures.texture_allow_none);
     }
 }
