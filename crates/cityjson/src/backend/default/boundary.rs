@@ -231,6 +231,33 @@ impl<VR: VertexRef> Boundary<VR> {
         }
     }
 
+    /// Creates a boundary from owned flat parts.
+    ///
+    /// Returns an error when the offset buffers are inconsistent with the child buffers.
+    pub fn from_parts(
+        vertices: Vec<VertexIndex<VR>>,
+        rings: Vec<VertexIndex<VR>>,
+        surfaces: Vec<VertexIndex<VR>>,
+        shells: Vec<VertexIndex<VR>>,
+        solids: Vec<VertexIndex<VR>>,
+    ) -> error::Result<Self> {
+        let boundary = Self {
+            vertices,
+            rings,
+            surfaces,
+            shells,
+            solids,
+        };
+
+        if !boundary.is_consistent() {
+            return Err(error::Error::InvalidGeometry(
+                "inconsistent boundary offsets".to_owned(),
+            ));
+        }
+
+        Ok(boundary)
+    }
+
     #[must_use]
     pub fn vertices_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.vertices)
