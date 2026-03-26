@@ -114,10 +114,7 @@ where
             );
         }
         if let Some(website) = contact.website().as_ref() {
-            contact_value.insert(
-                "website".to_owned(),
-                Value::String(website.to_string()),
-            );
+            contact_value.insert("website".to_owned(), Value::String(website.to_string()));
         }
         if let Some(kind) = contact.contact_type() {
             contact_value.insert(

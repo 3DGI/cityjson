@@ -9,10 +9,11 @@ use cityjson::v2_0::{
 };
 
 use crate::de::attributes::attribute_map;
-use crate::de::cityobjects::import_buffered_cityobjects;
+use crate::de::cityobjects::import_cityobjects;
 use crate::de::geometry::{import_template_geometry, GeometryResources};
 use crate::de::parse::ParseStringStorage;
-use crate::de::root::{ParsedRoot, RawTransform};
+use crate::de::profiling::timed;
+use crate::de::root::{PreparedRoot, RawTransform};
 use crate::de::sections::{
     RawAppearanceSection, RawExtension, RawGeometryTemplatesSection, RawMetadataSection,
 };
@@ -26,35 +27,49 @@ use crate::errors::Result;
 // Entry point
 // ---------------------------------------------------------------------------
 
-pub(crate) fn build_model<'de, SS>(raw: ParsedRoot<'de>) -> Result<CityModel<u32, SS>>
+pub(crate) fn build_model<'de, SS>(raw: PreparedRoot<'de>) -> Result<CityModel<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let header = parse_root_header(raw.type_name, raw.version)?;
+    let header = timed("build.parse_root_header", || {
+        parse_root_header(raw.type_name, raw.version)
+    })?;
     let mut model = CityModel::<u32, SS>::new(header.type_citymodel);
-    let transform = apply_transform(raw.transform, &mut model);
+    let transform = timed("build.apply_transform", || {
+        apply_transform(raw.transform, &mut model)
+    });
     let mut resources = GeometryResources::default();
 
     if let Some(appearance) = raw.appearance {
-        import_appearance::<SS>(appearance, &mut model, &mut resources)?;
+        timed("build.import_appearance", || {
+            import_appearance::<SS>(appearance, &mut model, &mut resources)
+        })?;
     }
     if let Some(templates) = raw.geometry_templates {
-        import_geometry_templates::<SS>(templates, &mut model, &mut resources)?;
+        timed("build.import_geometry_templates", || {
+            import_geometry_templates::<SS>(templates, &mut model, &mut resources)
+        })?;
     }
-    import_vertices(&raw.vertices, transform.as_ref(), &mut model)?;
+    timed("build.import_vertices", || {
+        import_vertices(&raw.vertices, transform.as_ref(), &mut model)
+    })?;
 
     if let Some(metadata) = raw.metadata {
-        *model.metadata_mut() = build_metadata::<SS>(metadata)?;
+        *model.metadata_mut() = timed("build.metadata", || build_metadata::<SS>(metadata))?;
     }
     if let Some(extensions) = raw.extensions {
-        *model.extensions_mut() = build_extensions::<SS>(extensions);
+        *model.extensions_mut() = timed("build.extensions", || build_extensions::<SS>(extensions));
     }
     if !raw.extra.is_empty() {
-        *model.extra_mut() = attribute_map::<SS>(raw.extra, "root extra properties")?;
+        *model.extra_mut() = timed("build.root_extra_attributes", || {
+            attribute_map::<SS>(raw.extra, "root extra properties")
+        })?;
     }
 
-    import_buffered_cityobjects::<SS>(raw.cityobjects, &mut model, &resources)?;
+    timed("build.import_cityobjects", || {
+        import_cityobjects::<SS>(raw.cityobjects, &mut model, &resources)
+    })?;
 
     debug_assert_eq!(model.version(), Some(header.version));
     Ok(model)

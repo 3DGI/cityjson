@@ -3,22 +3,22 @@ use std::fmt;
 
 use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use crate::de::attributes::RawAttribute;
-use crate::de::cityobjects::{BufferedCityObject, CityObjectsBufferSeed};
 use crate::de::sections::{
     RawAppearanceSection, RawExtension, RawGeometryTemplatesSection, RawMetadataSection,
 };
 use crate::errors::{Error, Result};
 
-pub(crate) struct ParsedRoot<'a> {
+pub(crate) struct PreparedRoot<'a> {
     pub(crate) type_name: &'a str,
     pub(crate) version: Option<&'a str>,
     pub(crate) transform: Option<RawTransform>,
     pub(crate) vertices: Vec<[f64; 3]>,
     pub(crate) metadata: Option<RawMetadataSection<'a>>,
     pub(crate) extensions: Option<HashMap<&'a str, RawExtension<'a>>>,
-    pub(crate) cityobjects: Vec<BufferedCityObject<'a>>,
+    pub(crate) cityobjects: &'a RawValue,
     pub(crate) appearance: Option<RawAppearanceSection<'a>>,
     pub(crate) geometry_templates: Option<RawGeometryTemplatesSection<'a>>,
     pub(crate) extra: HashMap<&'a str, RawAttribute<'a>>,
@@ -30,7 +30,7 @@ pub(crate) struct RawTransform {
     pub(crate) translate: [f64; 3],
 }
 
-pub(crate) fn parse_root(input: &str) -> Result<ParsedRoot<'_>> {
+pub(crate) fn parse_root(input: &str) -> Result<PreparedRoot<'_>> {
     let mut deserializer = serde_json::Deserializer::from_str(input);
     let root = RootSeed
         .deserialize(&mut deserializer)
@@ -42,7 +42,7 @@ pub(crate) fn parse_root(input: &str) -> Result<ParsedRoot<'_>> {
 struct RootSeed;
 
 impl<'de> DeserializeSeed<'de> for RootSeed {
-    type Value = ParsedRoot<'de>;
+    type Value = PreparedRoot<'de>;
 
     fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
     where
@@ -55,7 +55,7 @@ impl<'de> DeserializeSeed<'de> for RootSeed {
 struct RootVisitor;
 
 impl<'de> Visitor<'de> for RootVisitor {
-    type Value = ParsedRoot<'de>;
+    type Value = PreparedRoot<'de>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a CityJSON root object")
@@ -84,11 +84,7 @@ impl<'de> Visitor<'de> for RootVisitor {
                 "vertices" => set_once(&mut vertices, "vertices", map.next_value()?)?,
                 "metadata" => set_once(&mut metadata, "metadata", map.next_value()?)?,
                 "extensions" => set_once(&mut extensions, "extensions", map.next_value()?)?,
-                "CityObjects" => set_once(
-                    &mut cityobjects,
-                    "CityObjects",
-                    map.next_value_seed(CityObjectsBufferSeed)?,
-                )?,
+                "CityObjects" => set_once(&mut cityobjects, "CityObjects", map.next_value()?)?,
                 "appearance" => set_once(&mut appearance, "appearance", map.next_value()?)?,
                 "geometry-templates" => set_once(
                     &mut geometry_templates,
@@ -101,7 +97,7 @@ impl<'de> Visitor<'de> for RootVisitor {
             }
         }
 
-        Ok(ParsedRoot {
+        Ok(PreparedRoot {
             type_name: type_name.ok_or_else(|| de::Error::missing_field("type"))?,
             version,
             transform,

@@ -3,6 +3,7 @@ mod build;
 mod cityobjects;
 mod geometry;
 mod parse;
+mod profiling;
 mod root;
 mod sections;
 mod validation;
@@ -19,6 +20,7 @@ mod perf_probe {
     use cityjson::prelude::OwnedStringStorage;
 
     use super::build::build_model;
+    use super::profiling;
     use super::root::parse_root;
 
     fn data_path(name: &str) -> PathBuf {
@@ -48,6 +50,17 @@ mod perf_probe {
         elapsed
     }
 
+    fn print_profile() {
+        let mut entries = profiling::snapshot();
+        entries.sort_by(|a, b| b.1.total.cmp(&a.1.total).then_with(|| a.0.cmp(b.0)));
+        for (label, record) in entries {
+            eprintln!(
+                "  {label:<34} total={:?} count={}",
+                record.total, record.count
+            );
+        }
+    }
+
     #[test]
     #[ignore = "manual timing probe"]
     fn probe_deser_breakdown_3dbag() {
@@ -58,10 +71,12 @@ mod perf_probe {
             serde_json::from_str::<serde_json::Value>(&input).unwrap()
         });
         measure("parse_root", || parse_root(&input).unwrap());
+        profiling::reset();
         measure("build_model", || {
             let raw = parse_root(&input).unwrap();
             build_model::<OwnedStringStorage>(raw).unwrap()
         });
+        print_profile();
         measure("from_str_owned", || super::from_str_owned(&input).unwrap());
         measure("legacy::from_str", || {
             serde_cityjson_legacy::from_str(&legacy_input).unwrap()
@@ -78,10 +93,12 @@ mod perf_probe {
             serde_json::from_str::<serde_json::Value>(&input).unwrap()
         });
         measure("parse_root", || parse_root(&input).unwrap());
+        profiling::reset();
         measure("build_model", || {
             let raw = parse_root(&input).unwrap();
             build_model::<OwnedStringStorage>(raw).unwrap()
         });
+        print_profile();
         measure("from_str_owned", || super::from_str_owned(&input).unwrap());
         measure("legacy::from_str", || {
             serde_cityjson_legacy::from_str(&legacy_input).unwrap()

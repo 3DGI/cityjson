@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use serde::de::{self, DeserializeSeed, SeqAccess, Visitor};
+use serde::de::{self, MapAccess, Visitor};
 use serde::Deserialize;
 use serde_json::value::RawValue;
 
 use crate::de::attributes::attribute_map;
 use crate::de::parse::ParseStringStorage;
+use crate::de::profiling::timed;
 use crate::de::sections::{RawAssignment, RawGeometry, RawMaterialTheme, RawSemantics};
 use crate::de::validation::{parse_lod, parse_semantic_type};
 use crate::errors::{Error, Result};
@@ -48,25 +49,174 @@ struct SurfaceMappings<'de> {
     textures: Vec<(&'de str, Vec<Option<RingTextureAssignment>>)>,
 }
 
-#[derive(Deserialize)]
-#[serde(bound(deserialize = "'de: 'a, 'a: 'de"))]
 pub(crate) struct StreamingGeometry<'a> {
-    #[serde(rename = "type", borrow)]
-    pub(crate) type_name: &'a str,
-    #[serde(default, borrow)]
+    kind: GeometryKind,
     lod: Option<&'a str>,
-    #[serde(default, borrow)]
-    boundaries: Option<&'a RawValue>,
-    #[serde(default, borrow)]
+    boundaries: Option<Boundary<u32>>,
+    instance_boundaries: Option<Vec<u32>>,
     semantics: Option<RawSemantics<'a>>,
-    #[serde(default, borrow)]
     material: Option<HashMap<&'a str, RawMaterialTheme>>,
-    #[serde(default, borrow)]
     texture: Option<HashMap<&'a str, crate::de::sections::RawTextureTheme>>,
-    #[serde(default)]
     template: Option<u32>,
-    #[serde(rename = "transformationMatrix", default)]
     transformation_matrix: Option<[f64; 16]>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum GeometryKind {
+    MultiPoint,
+    MultiLineString,
+    MultiSurface { composite: bool },
+    Solid,
+    MultiSolid { composite: bool },
+    GeometryInstance,
+}
+
+impl GeometryKind {
+    fn from_type_name(type_name: &str) -> Result<Self> {
+        match type_name {
+            "MultiPoint" => Ok(Self::MultiPoint),
+            "MultiLineString" => Ok(Self::MultiLineString),
+            "MultiSurface" => Ok(Self::MultiSurface { composite: false }),
+            "CompositeSurface" => Ok(Self::MultiSurface { composite: true }),
+            "Solid" => Ok(Self::Solid),
+            "MultiSolid" => Ok(Self::MultiSolid { composite: false }),
+            "CompositeSolid" => Ok(Self::MultiSolid { composite: true }),
+            "GeometryInstance" => Ok(Self::GeometryInstance),
+            _ => Err(Error::InvalidValue(format!(
+                "unsupported geometry type '{type_name}'"
+            ))),
+        }
+    }
+
+    fn type_name(self) -> &'static str {
+        match self {
+            Self::MultiPoint => "MultiPoint",
+            Self::MultiLineString => "MultiLineString",
+            Self::MultiSurface { composite: false } => "MultiSurface",
+            Self::MultiSurface { composite: true } => "CompositeSurface",
+            Self::Solid => "Solid",
+            Self::MultiSolid { composite: false } => "MultiSolid",
+            Self::MultiSolid { composite: true } => "CompositeSolid",
+            Self::GeometryInstance => "GeometryInstance",
+        }
+    }
+
+    fn boundary_kind(self) -> Option<BoundaryParseKind> {
+        match self {
+            Self::MultiPoint => Some(BoundaryParseKind::MultiPoint),
+            Self::MultiLineString => Some(BoundaryParseKind::MultiLineString),
+            Self::MultiSurface { .. } => Some(BoundaryParseKind::MultiSurface),
+            Self::Solid => Some(BoundaryParseKind::Solid),
+            Self::MultiSolid { .. } => Some(BoundaryParseKind::MultiSolid),
+            Self::GeometryInstance => None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for StreamingGeometry<'de> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(StreamingGeometryVisitor)
+    }
+}
+
+struct StreamingGeometryVisitor;
+
+impl<'de> Visitor<'de> for StreamingGeometryVisitor {
+    type Value = StreamingGeometry<'de>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a CityJSON geometry object")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut kind = None;
+        let mut lod = None;
+        let mut boundaries = None;
+        let mut instance_boundaries = None;
+        let mut semantics = None;
+        let mut material = None;
+        let mut texture = None;
+        let mut template = None;
+        let mut transformation_matrix = None;
+        let mut raw_boundaries = None;
+
+        while let Some(key) = map.next_key::<&'de str>()? {
+            match key {
+                "type" => {
+                    let parsed_kind = GeometryKind::from_type_name(map.next_value::<&'de str>()?)
+                        .map_err(de::Error::custom)?;
+                    if let Some(raw) = raw_boundaries.take() {
+                        parse_geometry_boundaries(
+                            raw,
+                            parsed_kind,
+                            &mut boundaries,
+                            &mut instance_boundaries,
+                        )
+                        .map_err(de::Error::custom)?;
+                    }
+                    kind = Some(parsed_kind);
+                }
+                "lod" => lod = map.next_value()?,
+                "boundaries" => {
+                    let raw = map.next_value::<&'de RawValue>()?;
+                    if let Some(parsed_kind) = kind {
+                        parse_geometry_boundaries(
+                            raw,
+                            parsed_kind,
+                            &mut boundaries,
+                            &mut instance_boundaries,
+                        )
+                        .map_err(de::Error::custom)?;
+                    } else {
+                        raw_boundaries = Some(raw);
+                    }
+                }
+                "semantics" => semantics = map.next_value()?,
+                "material" => material = map.next_value()?,
+                "texture" => texture = map.next_value()?,
+                "template" => template = map.next_value()?,
+                "transformationMatrix" => transformation_matrix = map.next_value()?,
+                _ => {
+                    let _: de::IgnoredAny = map.next_value()?;
+                }
+            }
+        }
+
+        let kind = kind.ok_or_else(|| de::Error::missing_field("type"))?;
+        if let Some(raw) = raw_boundaries {
+            parse_geometry_boundaries(raw, kind, &mut boundaries, &mut instance_boundaries)
+                .map_err(de::Error::custom)?;
+        }
+
+        match kind {
+            GeometryKind::GeometryInstance => {}
+            _ if boundaries.is_none() => {
+                return Err(de::Error::custom(format!(
+                    "{} is missing boundaries",
+                    kind.type_name()
+                )));
+            }
+            _ => {}
+        }
+
+        Ok(StreamingGeometry {
+            kind,
+            lod,
+            boundaries,
+            instance_boundaries,
+            semantics,
+            material,
+            texture,
+            template,
+            transformation_matrix,
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +224,7 @@ pub(crate) struct StreamingGeometry<'a> {
 // ---------------------------------------------------------------------------
 
 #[derive(Default)]
-struct FlatBoundaryBuilder {
+struct BoundaryParts {
     vertices: Vec<VertexIndex<u32>>,
     rings: Vec<VertexIndex<u32>>,
     surfaces: Vec<VertexIndex<u32>>,
@@ -82,244 +232,29 @@ struct FlatBoundaryBuilder {
     solids: Vec<VertexIndex<u32>>,
 }
 
-impl FlatBoundaryBuilder {
-    fn finish(self) -> Boundary<u32> {
-        let mut boundary = Boundary::with_capacity(
-            self.vertices.len(),
-            self.rings.len(),
-            self.surfaces.len(),
-            self.shells.len(),
-            self.solids.len(),
-        );
-        boundary.set_vertices_from_iter(self.vertices);
-        boundary.set_rings_from_iter(self.rings);
-        boundary.set_surfaces_from_iter(self.surfaces);
-        boundary.set_shells_from_iter(self.shells);
-        boundary.set_solids_from_iter(self.solids);
-        boundary
-    }
-}
-
-fn boundary_offset<E: de::Error>(
-    len: usize,
-    level: &'static str,
-) -> std::result::Result<VertexIndex<u32>, E> {
+fn boundary_offset(len: usize, level: &'static str) -> Result<VertexIndex<u32>> {
     u32::try_from(len)
         .map(VertexIndex::new)
-        .map_err(|_| E::custom(format!("{level} boundary exceeds u32 index range")))
+        .map_err(|_| Error::InvalidValue(format!("{level} boundary exceeds u32 index range")))
 }
 
-struct ExtendVertices<'a>(&'a mut FlatBoundaryBuilder);
-struct ExtendVerticesVisitor<'a>(&'a mut FlatBoundaryBuilder);
-
-impl<'de> Visitor<'de> for ExtendVerticesVisitor<'_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an array of vertex indices")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(size_hint) = seq.size_hint() {
-            self.0.vertices.reserve(size_hint);
+fn parse_geometry_boundaries(
+    raw: &RawValue,
+    kind: GeometryKind,
+    boundaries: &mut Option<Boundary<u32>>,
+    instance_boundaries: &mut Option<Vec<u32>>,
+) -> Result<()> {
+    match kind.boundary_kind() {
+        Some(boundary_kind) => {
+            *boundaries = Some(timed("geometry.parse_boundary", || {
+                parse_boundary_from_raw(raw, boundary_kind)
+            })?);
         }
-
-        while let Some(vertex) = seq.next_element::<u32>()? {
-            self.0.vertices.push(VertexIndex::new(vertex));
+        None => {
+            *instance_boundaries = Some(serde_json::from_str(raw.get())?);
         }
-
-        Ok(())
     }
-}
-
-impl<'de> DeserializeSeed<'de> for ExtendVertices<'_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ExtendVerticesVisitor(self.0))
-    }
-}
-
-struct ExtendRings<'a>(&'a mut FlatBoundaryBuilder);
-struct ExtendRingsVisitor<'a>(&'a mut FlatBoundaryBuilder);
-
-impl<'de> Visitor<'de> for ExtendRingsVisitor<'_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a surface boundary array")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(size_hint) = seq.size_hint() {
-            self.0.rings.reserve(size_hint);
-        }
-
-        self.0
-            .rings
-            .push(boundary_offset(self.0.vertices.len(), "ring")?);
-
-        while let Some(()) = seq.next_element_seed(ExtendVertices(self.0))? {
-            self.0
-                .rings
-                .push(boundary_offset(self.0.vertices.len(), "ring")?);
-        }
-
-        self.0.rings.pop();
-        Ok(())
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for ExtendRings<'_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ExtendRingsVisitor(self.0))
-    }
-}
-
-struct ExtendSurfaces<'a>(&'a mut FlatBoundaryBuilder);
-struct ExtendSurfacesVisitor<'a>(&'a mut FlatBoundaryBuilder);
-
-impl<'de> Visitor<'de> for ExtendSurfacesVisitor<'_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a multi-surface or shell boundary array")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(size_hint) = seq.size_hint() {
-            self.0.surfaces.reserve(size_hint);
-        }
-
-        self.0
-            .surfaces
-            .push(boundary_offset(self.0.rings.len(), "surface")?);
-
-        while let Some(()) = seq.next_element_seed(ExtendRings(self.0))? {
-            self.0
-                .surfaces
-                .push(boundary_offset(self.0.rings.len(), "surface")?);
-        }
-
-        self.0.surfaces.pop();
-        Ok(())
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for ExtendSurfaces<'_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ExtendSurfacesVisitor(self.0))
-    }
-}
-
-struct ExtendShells<'a>(&'a mut FlatBoundaryBuilder);
-struct ExtendShellsVisitor<'a>(&'a mut FlatBoundaryBuilder);
-
-impl<'de> Visitor<'de> for ExtendShellsVisitor<'_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a solid boundary array")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(size_hint) = seq.size_hint() {
-            self.0.shells.reserve(size_hint);
-        }
-
-        self.0
-            .shells
-            .push(boundary_offset(self.0.surfaces.len(), "shell")?);
-
-        while let Some(()) = seq.next_element_seed(ExtendSurfaces(self.0))? {
-            self.0
-                .shells
-                .push(boundary_offset(self.0.surfaces.len(), "shell")?);
-        }
-
-        self.0.shells.pop();
-        Ok(())
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for ExtendShells<'_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ExtendShellsVisitor(self.0))
-    }
-}
-
-struct ExtendSolids<'a>(&'a mut FlatBoundaryBuilder);
-struct ExtendSolidsVisitor<'a>(&'a mut FlatBoundaryBuilder);
-
-impl<'de> Visitor<'de> for ExtendSolidsVisitor<'_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a multi-solid boundary array")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(size_hint) = seq.size_hint() {
-            self.0.solids.reserve(size_hint);
-        }
-
-        self.0
-            .solids
-            .push(boundary_offset(self.0.shells.len(), "solid")?);
-
-        while let Some(()) = seq.next_element_seed(ExtendShells(self.0))? {
-            self.0
-                .solids
-                .push(boundary_offset(self.0.shells.len(), "solid")?);
-        }
-
-        self.0.solids.pop();
-        Ok(())
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for ExtendSolids<'_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(ExtendSolidsVisitor(self.0))
-    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -332,26 +267,172 @@ enum BoundaryParseKind {
 }
 
 fn parse_boundary_from_raw(raw: &RawValue, kind: BoundaryParseKind) -> Result<Boundary<u32>> {
-    let mut deserializer = serde_json::Deserializer::from_str(raw.get());
-    let mut builder = FlatBoundaryBuilder::default();
+    BoundaryParser::new(raw.get().as_bytes()).parse(kind)
+}
 
-    match kind {
-        BoundaryParseKind::MultiPoint => {
-            ExtendVertices(&mut builder).deserialize(&mut deserializer)?;
-        }
-        BoundaryParseKind::MultiLineString => {
-            ExtendRings(&mut builder).deserialize(&mut deserializer)?;
-        }
-        BoundaryParseKind::MultiSurface => {
-            ExtendSurfaces(&mut builder).deserialize(&mut deserializer)?;
-        }
-        BoundaryParseKind::Solid => ExtendShells(&mut builder).deserialize(&mut deserializer)?,
-        BoundaryParseKind::MultiSolid => {
-            ExtendSolids(&mut builder).deserialize(&mut deserializer)?;
+struct BoundaryParser<'a> {
+    input: &'a [u8],
+    cursor: usize,
+    parts: BoundaryParts,
+}
+
+impl<'a> BoundaryParser<'a> {
+    fn new(input: &'a [u8]) -> Self {
+        Self {
+            input,
+            cursor: 0,
+            parts: BoundaryParts::default(),
         }
     }
 
-    Ok(builder.finish())
+    fn parse(mut self, kind: BoundaryParseKind) -> Result<Boundary<u32>> {
+        match kind {
+            BoundaryParseKind::MultiPoint => self.parse_vertices_array()?,
+            BoundaryParseKind::MultiLineString => self.parse_rings_array()?,
+            BoundaryParseKind::MultiSurface => self.parse_surfaces_array()?,
+            BoundaryParseKind::Solid => self.parse_shells_array()?,
+            BoundaryParseKind::MultiSolid => self.parse_solids_array()?,
+        }
+        self.skip_ws();
+        if self.cursor != self.input.len() {
+            return Err(self.error("unexpected trailing characters in geometry boundaries"));
+        }
+        Boundary::from_parts(
+            self.parts.vertices,
+            self.parts.rings,
+            self.parts.surfaces,
+            self.parts.shells,
+            self.parts.solids,
+        )
+        .map_err(Error::from)
+    }
+
+    fn parse_vertices_array(&mut self) -> Result<()> {
+        self.parse_array(|this| {
+            let vertex = this.parse_u32()?;
+            this.parts.vertices.push(VertexIndex::new(vertex));
+            Ok(())
+        })
+    }
+
+    fn parse_rings_array(&mut self) -> Result<()> {
+        self.parse_array(|this| {
+            this.parts
+                .rings
+                .push(boundary_offset(this.parts.vertices.len(), "ring")?);
+            this.parse_vertices_array()
+        })
+    }
+
+    fn parse_surfaces_array(&mut self) -> Result<()> {
+        self.parse_array(|this| {
+            this.parts
+                .surfaces
+                .push(boundary_offset(this.parts.rings.len(), "surface")?);
+            this.parse_rings_array()
+        })
+    }
+
+    fn parse_shells_array(&mut self) -> Result<()> {
+        self.parse_array(|this| {
+            this.parts
+                .shells
+                .push(boundary_offset(this.parts.surfaces.len(), "shell")?);
+            this.parse_surfaces_array()
+        })
+    }
+
+    fn parse_solids_array(&mut self) -> Result<()> {
+        self.parse_array(|this| {
+            this.parts
+                .solids
+                .push(boundary_offset(this.parts.shells.len(), "solid")?);
+            this.parse_shells_array()
+        })
+    }
+
+    fn parse_array<F>(&mut self, mut parse_element: F) -> Result<()>
+    where
+        F: FnMut(&mut Self) -> Result<()>,
+    {
+        self.expect_byte(b'[')?;
+        self.skip_ws();
+        if self.consume_if(b']') {
+            return Ok(());
+        }
+
+        loop {
+            parse_element(self)?;
+            self.skip_ws();
+            if self.consume_if(b',') {
+                continue;
+            }
+            self.expect_byte(b']')?;
+            return Ok(());
+        }
+    }
+
+    fn parse_u32(&mut self) -> Result<u32> {
+        self.skip_ws();
+        let start = self.cursor;
+        let mut value = 0u32;
+
+        while let Some(byte) = self.peek() {
+            if !byte.is_ascii_digit() {
+                break;
+            }
+            value = value
+                .checked_mul(10)
+                .and_then(|acc| acc.checked_add(u32::from(byte - b'0')))
+                .ok_or_else(|| self.error("vertex index exceeds u32 range"))?;
+            self.cursor += 1;
+        }
+
+        if self.cursor == start {
+            return Err(self.error("expected vertex index"));
+        }
+
+        Ok(value)
+    }
+
+    fn expect_byte(&mut self, expected: u8) -> Result<()> {
+        self.skip_ws();
+        match self.peek() {
+            Some(byte) if byte == expected => {
+                self.cursor += 1;
+                Ok(())
+            }
+            Some(_) => Err(self.error(&format!("expected '{}'", char::from(expected)))),
+            None => Err(self.error("unexpected end of geometry boundaries")),
+        }
+    }
+
+    fn consume_if(&mut self, expected: u8) -> bool {
+        self.skip_ws();
+        if self.peek() == Some(expected) {
+            self.cursor += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn skip_ws(&mut self) {
+        while matches!(self.peek(), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+            self.cursor += 1;
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.input.get(self.cursor).copied()
+    }
+
+    fn error(&self, message: &str) -> Error {
+        Error::InvalidValue(format!(
+            "invalid geometry boundaries at byte {}: {message}",
+            self.cursor
+        ))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -367,8 +448,12 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let geometry = build_stream_geometry(raw, model, resources)?;
-    model.add_geometry_unchecked(geometry).map_err(Error::from)
+    let geometry = timed("geometry.build_stream_geometry", || {
+        build_stream_geometry(raw, model, resources)
+    })?;
+    timed("geometry.add_geometry", || {
+        model.add_geometry_unchecked(geometry).map_err(Error::from)
+    })
 }
 
 /// Import a geometry as a template (not a regular city object geometry).
@@ -535,45 +620,17 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    match raw.type_name {
-        "MultiPoint" => build_stream_point_geometry(&raw, BoundaryParseKind::MultiPoint, model),
-        "MultiLineString" => {
-            build_stream_linestring_geometry(&raw, BoundaryParseKind::MultiLineString, model)
+    match raw.kind {
+        GeometryKind::MultiPoint => build_stream_point_geometry(raw, model),
+        GeometryKind::MultiLineString => build_stream_linestring_geometry(raw, model),
+        GeometryKind::MultiSurface { composite } => {
+            build_stream_surface_geometry(raw, composite, model, resources)
         }
-        "MultiSurface" => build_stream_surface_geometry(
-            raw,
-            BoundaryParseKind::MultiSurface,
-            false,
-            model,
-            resources,
-        ),
-        "CompositeSurface" => build_stream_surface_geometry(
-            raw,
-            BoundaryParseKind::MultiSurface,
-            true,
-            model,
-            resources,
-        ),
-        "Solid" => build_stream_solid_geometry(raw, BoundaryParseKind::Solid, model, resources),
-        "MultiSolid" => build_stream_multi_solid_geometry(
-            raw,
-            BoundaryParseKind::MultiSolid,
-            false,
-            model,
-            resources,
-        ),
-        "CompositeSolid" => build_stream_multi_solid_geometry(
-            raw,
-            BoundaryParseKind::MultiSolid,
-            true,
-            model,
-            resources,
-        ),
-        "GeometryInstance" => build_stream_geometry_instance(&raw, resources),
-        _ => Err(Error::InvalidValue(format!(
-            "unsupported geometry type '{}'",
-            raw.type_name
-        ))),
+        GeometryKind::Solid => build_stream_solid_geometry(raw, model, resources),
+        GeometryKind::MultiSolid { composite } => {
+            build_stream_multi_solid_geometry(raw, composite, model, resources)
+        }
+        GeometryKind::GeometryInstance => build_stream_geometry_instance(&raw, resources),
     }
 }
 
@@ -656,17 +713,17 @@ where
 }
 
 fn build_stream_point_geometry<'de, SS>(
-    raw: &StreamingGeometry<'de>,
-    kind: BoundaryParseKind,
+    raw: StreamingGeometry<'de>,
     model: &mut CityModel<u32, SS>,
 ) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let boundaries = required_stream_boundaries(raw.boundaries, raw.kind)?;
     build_multi_point_geometry(
         raw.lod,
-        parse_stream_boundary(raw, kind)?,
+        boundaries,
         raw.semantics.as_ref(),
         raw.material.as_ref(),
         raw.texture.as_ref(),
@@ -675,17 +732,17 @@ where
 }
 
 fn build_stream_linestring_geometry<'de, SS>(
-    raw: &StreamingGeometry<'de>,
-    kind: BoundaryParseKind,
+    raw: StreamingGeometry<'de>,
     model: &mut CityModel<u32, SS>,
 ) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let boundaries = required_stream_boundaries(raw.boundaries, raw.kind)?;
     build_multi_line_string_geometry(
         raw.lod,
-        parse_stream_boundary(raw, kind)?,
+        boundaries,
         raw.semantics.as_ref(),
         raw.material.as_ref(),
         raw.texture.as_ref(),
@@ -695,7 +752,6 @@ where
 
 fn build_stream_surface_geometry<'de, SS>(
     raw: StreamingGeometry<'de>,
-    kind: BoundaryParseKind,
     composite: bool,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
@@ -704,9 +760,10 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let boundaries = required_stream_boundaries(raw.boundaries, raw.kind)?;
     build_multi_surface_geometry(
         raw.lod,
-        parse_stream_boundary(&raw, kind)?,
+        boundaries,
         composite,
         raw.semantics.as_ref(),
         raw.material,
@@ -718,7 +775,6 @@ where
 
 fn build_stream_solid_geometry<'de, SS>(
     raw: StreamingGeometry<'de>,
-    kind: BoundaryParseKind,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
 ) -> Result<Geometry<u32, SS>>
@@ -726,9 +782,10 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let boundaries = required_stream_boundaries(raw.boundaries, raw.kind)?;
     build_solid_geometry(
         raw.lod,
-        parse_stream_boundary(&raw, kind)?,
+        boundaries,
         raw.semantics.as_ref(),
         raw.material,
         raw.texture,
@@ -739,7 +796,6 @@ where
 
 fn build_stream_multi_solid_geometry<'de, SS>(
     raw: StreamingGeometry<'de>,
-    kind: BoundaryParseKind,
     composite: bool,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
@@ -748,9 +804,10 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let boundaries = required_stream_boundaries(raw.boundaries, raw.kind)?;
     build_multi_solid_geometry(
         raw.lod,
-        parse_stream_boundary(&raw, kind)?,
+        boundaries,
         composite,
         raw.semantics.as_ref(),
         raw.material,
@@ -768,30 +825,20 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let instance_boundaries = raw
-        .boundaries
-        .map(|boundaries| serde_json::from_str::<Vec<u32>>(boundaries.get()))
-        .transpose()?;
     build_geometry_instance(
         raw.template,
-        instance_boundaries.as_deref(),
+        raw.instance_boundaries.as_deref(),
         raw.transformation_matrix,
         resources,
     )
 }
 
-fn parse_stream_boundary(
-    raw: &StreamingGeometry<'_>,
-    kind: BoundaryParseKind,
+fn required_stream_boundaries(
+    boundaries: Option<Boundary<u32>>,
+    kind: GeometryKind,
 ) -> Result<Boundary<u32>> {
-    parse_boundary_from_raw(required_boundaries(raw.boundaries, raw.type_name)?, kind)
-}
-
-fn required_boundaries<'de>(
-    boundaries: Option<&'de RawValue>,
-    type_name: &str,
-) -> Result<&'de RawValue> {
-    boundaries.ok_or_else(|| Error::InvalidValue(format!("{type_name} is missing boundaries")))
+    boundaries
+        .ok_or_else(|| Error::InvalidValue(format!("{} is missing boundaries", kind.type_name())))
 }
 
 fn build_multi_point_geometry<'de, SS>(
@@ -1068,15 +1115,17 @@ where
             .collect::<Vec<_>>()
     });
     let textures = has_textures.then(|| {
-        surface_textures
-            .into_iter()
-            .map(|(theme, assignments)| {
-                (
-                    ThemeName::<SS>::new(SS::store(theme)),
-                    build_texture_map(&boundaries, &assignments),
-                )
-            })
-            .collect::<Vec<_>>()
+        timed("geometry.build_texture_maps", || {
+            surface_textures
+                .into_iter()
+                .map(|(theme, assignments)| {
+                    (
+                        ThemeName::<SS>::new(SS::store(theme)),
+                        build_texture_map(&boundaries, &assignments),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
     });
 
     Geometry::from_stored_parts(StoredGeometryParts {
@@ -1150,20 +1199,26 @@ where
 
         if !surface.attributes.is_empty() {
             // Remove known keys that are not attributes
-            let attrs: HashMap<&'de str, _> = surface
-                .attributes
-                .iter()
-                .filter(|(k, _)| **k != "type" && **k != "parent" && **k != "children")
-                .map(|(k, v)| (*k, v))
-                .collect::<HashMap<_, _>>();
+            let attrs: HashMap<&'de str, _> = timed("geometry.semantic_attr_filter", || {
+                surface
+                    .attributes
+                    .iter()
+                    .filter(|(k, _)| **k != "type" && **k != "parent" && **k != "children")
+                    .map(|(k, v)| (*k, v))
+                    .collect::<HashMap<_, _>>()
+            });
 
             if !attrs.is_empty() {
-                let attrs_cloned: HashMap<&'de str, _> = attrs
-                    .into_iter()
-                    .map(|(k, v)| (k, clone_raw_attribute(v)))
-                    .collect();
-                *semantic.attributes_mut() =
-                    attribute_map::<SS>(attrs_cloned, "semantic attributes")?;
+                let attrs_cloned: HashMap<&'de str, _> =
+                    timed("geometry.semantic_attr_clone", || {
+                        attrs
+                            .into_iter()
+                            .map(|(k, v)| (k, clone_raw_attribute(v)))
+                            .collect()
+                    });
+                *semantic.attributes_mut() = timed("geometry.semantic_attr_map", || {
+                    attribute_map::<SS>(attrs_cloned, "semantic attributes")
+                })?;
             }
         }
 
@@ -1316,12 +1371,18 @@ where
 {
     let surface_count = boundaries.surfaces().len();
     let ring_count = boundaries.rings().len();
-    let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
+    let semantic_handles = timed("geometry.import_semantics", || {
+        import_geometry_semantics::<SS>(semantics, model)
+    })?;
     Ok(SurfaceMappings {
         semantics: parse_surface_scalar_assignments(semantics, &semantic_handles, surface_count),
-        materials: parse_material_themes(material, &resources.materials, surface_count)?,
-        textures: parse_texture_themes(texture, |values| {
-            parse_ring_texture_assignments(values, ring_count, resources)
+        materials: timed("geometry.parse_material_themes", || {
+            parse_material_themes(material, &resources.materials, surface_count)
+        })?,
+        textures: timed("geometry.parse_texture_themes", || {
+            parse_texture_themes(texture, |values| {
+                parse_ring_texture_assignments(values, ring_count, resources)
+            })
         })?,
     })
 }
@@ -1470,4 +1531,48 @@ fn parse_ring_texture_assignment(
         })?));
     }
     Ok(Some(RingTextureAssignment { texture, uvs }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_boundary_from_raw, BoundaryParseKind, GeometryKind, StreamingGeometry};
+    use serde_json::value::RawValue;
+
+    #[test]
+    fn parse_multisurface_boundary_flattens_offsets() {
+        let raw = RawValue::from_string("[[[0,1,2,0]],[[3,4,5,3],[6,7,8,6]]]".to_owned())
+            .expect("valid raw boundary");
+        let boundary =
+            parse_boundary_from_raw(&raw, BoundaryParseKind::MultiSurface).expect("parse boundary");
+
+        assert_eq!(
+            &*boundary.vertices_raw(),
+            &[0, 1, 2, 0, 3, 4, 5, 3, 6, 7, 8, 6]
+        );
+        assert_eq!(&*boundary.rings_raw(), &[0, 4, 8]);
+        assert_eq!(&*boundary.surfaces_raw(), &[0, 1]);
+        assert!(boundary.shells().is_empty());
+        assert!(boundary.solids().is_empty());
+    }
+
+    #[test]
+    fn deserialize_streaming_geometry_accepts_boundaries_before_type() {
+        let raw = r#"{
+            "boundaries": [[[0,1,2,0]]],
+            "lod": "2",
+            "type": "MultiSurface"
+        }"#;
+        let geometry: StreamingGeometry<'_> =
+            serde_json::from_str(raw).expect("parse streamed geometry");
+
+        assert!(matches!(
+            geometry.kind,
+            GeometryKind::MultiSurface { composite: false }
+        ));
+        assert_eq!(geometry.lod, Some("2"));
+        let boundary = geometry.boundaries.expect("parsed boundary");
+        assert_eq!(&*boundary.vertices_raw(), &[0, 1, 2, 0]);
+        assert_eq!(&*boundary.rings_raw(), &[0]);
+        assert_eq!(&*boundary.surfaces_raw(), &[0]);
+    }
 }

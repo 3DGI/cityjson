@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::io::BufRead;
 
-use cityjson::{CityJSONVersion, CityModelType};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
+use cityjson::{CityJSONVersion, CityModelType};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -68,7 +68,7 @@ where
     let parsed = parse_feature_stream(reader)?;
     let mut models = Vec::with_capacity(parsed.features.len());
     for feature in parsed.features {
-        let feature = materialize_feature_document(&parsed.base_root, feature)?;
+        let feature = materialize_feature_document(&parsed.base_root, feature);
         let input = serde_json::to_string(&Value::Object(feature))?;
         models.push(from_feature_str_owned(&input));
     }
@@ -210,7 +210,9 @@ where
 fn into_object(value: Value) -> Result<Map<String, Value>> {
     match value {
         Value::Object(map) => Ok(map),
-        _ => Err(Error::MalformedRootObject("stream items must be JSON objects")),
+        _ => Err(Error::MalformedRootObject(
+            "stream items must be JSON objects",
+        )),
     }
 }
 
@@ -299,7 +301,7 @@ fn extend_seen_ids(seen: &mut HashSet<String>, root: &Map<String, Value>) -> Res
 fn materialize_feature_document(
     base_root: &Map<String, Value>,
     feature: Map<String, Value>,
-) -> Result<Map<String, Value>> {
+) -> Map<String, Value> {
     let mut document = base_root.clone();
     document.insert(
         "type".to_owned(),
@@ -310,7 +312,7 @@ fn materialize_feature_document(
             document.insert(key, value);
         }
     }
-    Ok(document)
+    document
 }
 
 fn merge_feature_into_root(
@@ -362,7 +364,10 @@ fn ensure_compatible_feature_root(
     feature: &Map<String, Value>,
 ) -> Result<()> {
     for (key, value) in feature {
-        if matches!(key.as_str(), "type" | "version" | "CityObjects" | "vertices") {
+        if matches!(
+            key.as_str(),
+            "type" | "version" | "CityObjects" | "vertices"
+        ) {
             continue;
         }
 
@@ -415,9 +420,9 @@ fn offset_boundary_indices(value: &mut Value, offset: usize) -> Result<()> {
             Ok(())
         }
         Value::Number(number) => {
-            let index = number
-                .as_u64()
-                .ok_or(Error::MalformedRootObject("boundary indices must be integers"))?;
+            let index = number.as_u64().ok_or(Error::MalformedRootObject(
+                "boundary indices must be integers",
+            ))?;
             let offset = u64::try_from(offset)
                 .map_err(|_| Error::InvalidValue("vertex offset overflow".to_owned()))?;
             *value = Value::Number(serde_json::Number::from(index + offset));

@@ -418,7 +418,10 @@ fn strict_feature_stream_reads_self_contained_models() {
     assert_eq!(models.len(), 1);
 
     let model = models.pop().unwrap();
-    assert_eq!(model.type_citymodel(), cityjson::CityModelType::CityJSONFeature);
+    assert_eq!(
+        model.type_citymodel(),
+        cityjson::CityModelType::CityJSONFeature
+    );
     assert_eq!(model.cityobjects().len(), 1);
     assert!(model.transform().is_some());
 }

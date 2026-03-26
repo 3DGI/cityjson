@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use serde::de::{DeserializeSeed, MapAccess, Visitor};
+use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use cityjson::resources::handles::CityObjectHandle;
 use cityjson::resources::storage::StringStorage;
@@ -11,6 +12,7 @@ use cityjson::v2_0::{BBox, CityModel, CityObject, CityObjectIdentifier};
 use crate::de::attributes::{attribute_map, RawAttribute};
 use crate::de::geometry::{import_stream_geometry, GeometryResources, StreamingGeometry};
 use crate::de::parse::ParseStringStorage;
+use crate::de::profiling::timed;
 use crate::de::validation::parse_cityobject_type;
 use crate::errors::{Error, Result};
 
@@ -33,11 +35,6 @@ pub(crate) struct StreamingCityObject<'a> {
     pub(crate) extra: HashMap<&'a str, RawAttribute<'a>>,
 }
 
-pub(crate) struct BufferedCityObject<'a> {
-    pub(crate) id: &'a str,
-    pub(crate) raw: StreamingCityObject<'a>,
-}
-
 struct PendingRelations<'de> {
     source_id: &'de str,
     source_handle: CityObjectHandle,
@@ -45,8 +42,8 @@ struct PendingRelations<'de> {
     children: Vec<&'de str>,
 }
 
-pub(crate) fn import_buffered_cityobjects<'de, SS>(
-    cityobjects: Vec<BufferedCityObject<'de>>,
+pub(crate) fn import_cityobjects<'de, SS>(
+    cityobjects: &'de RawValue,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
 ) -> Result<()>
@@ -54,40 +51,50 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let capacity = cityobjects.len();
-    if capacity != 0 {
-        model.cityobjects_mut().reserve(capacity)?;
-    }
-
-    let mut handle_by_id = HashMap::with_capacity(capacity);
-    let mut pending = Vec::with_capacity(capacity);
-
-    for cityobject in cityobjects {
-        let imported = import_cityobject::<SS>(cityobject.id, cityobject.raw, model, resources)?;
-        handle_by_id.insert(cityobject.id, imported.source_handle);
-        pending.push(imported);
-    }
-
-    resolve_relations(pending, &handle_by_id, model)
+    let mut deserializer = serde_json::Deserializer::from_str(cityobjects.get());
+    timed("cityobjects.deserialize", || {
+        CityObjectsImportSeed { model, resources }
+            .deserialize(&mut deserializer)
+            .map_err(Error::from)
+    })?;
+    deserializer.end().map_err(Error::from)?;
+    Ok(())
 }
 
-pub(crate) struct CityObjectsBufferSeed;
+struct CityObjectsImportSeed<'a, SS: StringStorage> {
+    model: &'a mut CityModel<u32, SS>,
+    resources: &'a GeometryResources,
+}
 
-impl<'de> DeserializeSeed<'de> for CityObjectsBufferSeed {
-    type Value = Vec<BufferedCityObject<'de>>;
+impl<'de, SS> DeserializeSeed<'de> for CityObjectsImportSeed<'_, SS>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    type Value = ();
 
     fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_map(CityObjectsBufferVisitor)
+        deserializer.deserialize_map(CityObjectsImportVisitor {
+            model: self.model,
+            resources: self.resources,
+        })
     }
 }
 
-struct CityObjectsBufferVisitor;
+struct CityObjectsImportVisitor<'a, SS: StringStorage> {
+    model: &'a mut CityModel<u32, SS>,
+    resources: &'a GeometryResources,
+}
 
-impl<'de> Visitor<'de> for CityObjectsBufferVisitor {
-    type Value = Vec<BufferedCityObject<'de>>;
+impl<'de, SS> Visitor<'de> for CityObjectsImportVisitor<'_, SS>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    type Value = ();
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a CityObjects map")
@@ -98,16 +105,28 @@ impl<'de> Visitor<'de> for CityObjectsBufferVisitor {
         A: MapAccess<'de>,
     {
         let capacity = map.size_hint().unwrap_or(0);
-        let mut buffered = Vec::with_capacity(capacity);
-
-        while let Some(id) = map.next_key::<&'de str>()? {
-            buffered.push(BufferedCityObject {
-                id,
-                raw: map.next_value()?,
-            });
+        if capacity != 0 {
+            self.model
+                .cityobjects_mut()
+                .reserve(capacity)
+                .map_err(de::Error::custom)?;
         }
 
-        Ok(buffered)
+        let mut handle_by_id = HashMap::with_capacity(capacity);
+        let mut pending = Vec::with_capacity(capacity);
+
+        while let Some(id) = map.next_key::<&'de str>()? {
+            let imported = timed("cityobjects.import_object", || {
+                import_cityobject::<SS>(id, map.next_value()?, self.model, self.resources)
+                    .map_err(de::Error::custom)
+            })?;
+            handle_by_id.insert(id, imported.source_handle);
+            pending.push(imported);
+        }
+
+        timed("cityobjects.resolve_relations", || {
+            resolve_relations(pending, &handle_by_id, self.model).map_err(de::Error::custom)
+        })
     }
 }
 
@@ -121,30 +140,40 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let type_cityobject = parse_cityobject_type::<SS>(raw_object.type_name)?;
+    let type_cityobject = timed("cityobjects.parse_type", || {
+        parse_cityobject_type::<SS>(raw_object.type_name)
+    })?;
     let mut cityobject = CityObject::new(CityObjectIdentifier::new(SS::store(id)), type_cityobject);
 
     if let Some(extent) = raw_object.geographical_extent {
         cityobject.set_geographical_extent(Some(BBox::from(extent)));
     }
     if let Some(attributes) = raw_object.attributes {
-        *cityobject.attributes_mut() = attribute_map::<SS>(attributes, "CityObject.attributes")?;
+        *cityobject.attributes_mut() = timed("cityobjects.attributes", || {
+            attribute_map::<SS>(attributes, "CityObject.attributes")
+        })?;
     }
     if !raw_object.extra.is_empty() {
-        *cityobject.extra_mut() = attribute_map::<SS>(raw_object.extra, "CityObject extra")?;
+        *cityobject.extra_mut() = timed("cityobjects.extra", || {
+            attribute_map::<SS>(raw_object.extra, "CityObject extra")
+        })?;
     }
     if let Some(geometries) = raw_object.geometry {
         if geometries.is_empty() {
             cityobject.clear_geometry();
         } else {
             for geometry in geometries {
-                let handle = import_stream_geometry::<SS>(geometry, model, resources)?;
+                let handle = timed("cityobjects.geometry", || {
+                    import_stream_geometry::<SS>(geometry, model, resources)
+                })?;
                 cityobject.add_geometry(handle);
             }
         }
     }
 
-    let handle = model.cityobjects_mut().add(cityobject)?;
+    let handle = timed("cityobjects.add_object", || {
+        model.cityobjects_mut().add(cityobject)
+    })?;
     Ok(PendingRelations {
         source_id: id,
         source_handle: handle,
