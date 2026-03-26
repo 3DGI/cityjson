@@ -4,4 +4,5 @@ Cargo.lock
 /resources/data/10-356-724.city.json
 /experiments/attributes/target/
 /tests/data/downloaded/
+/tests/data/downloaded_legacy/
 **/.venv

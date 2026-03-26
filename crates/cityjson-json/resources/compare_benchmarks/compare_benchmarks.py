@@ -19,7 +19,7 @@ def cargo_target_directory() -> Path:
     return Path(metadata["target_directory"])
 
 
-GROUPS = ("3DBAG", "3D Basisvoorziening")
+GROUPS = ("3DBAG", "3D Basisvoorziening", "3DBAG (v0.4.5)", "3D Basisvoorziening (v0.4.5)")
 OUTPUT_FIGS_DIR = cargo_target_directory().parent.joinpath("benches", "results")
 OUTPUT_FIGS_DIR.mkdir(exist_ok=True, parents=True)
 MARKER = "d"
@@ -29,7 +29,11 @@ MARKERSIZE = 60
 def compare_criterion():
     # The serde_json::Value in the baseline for comparison that we compare serde_cityjson to
     benchmark_id_baseline = "serde_json::Value"
-    benchmark_ids = ("serde_cityjson/owned", "serde_cityjson/borrowed")
+    benchmark_ids = (
+        "serde_cityjson/owned",
+        "serde_cityjson/borrowed",
+        "serde_cityjson_legacy/from_str",
+    )
     criterion_dir = cargo_target_directory().joinpath("criterion")
     # Contains the benchmark results. Note that the schema of this file is not stable.
     estimates_filename = "estimates.json"
@@ -41,6 +45,9 @@ def compare_criterion():
         # Get the latest run of the baseline benchmark (serde_json::Value)
         bench_baseline_dir_name = re.sub(r'[^a-zA-Z0-9 \n.]', '_', benchmark_id_baseline)
         bench_baseline_new_estimates_file = group_dir.joinpath(bench_baseline_dir_name, "new", estimates_filename)
+        # skip groups whose baseline hasn't been run yet (e.g. legacy data not downloaded)
+        if not bench_baseline_new_estimates_file.exists():
+            continue
         with bench_baseline_new_estimates_file.open("r") as fo:
             estimates_baseline = json.load(fo)
         for bench_id in benchmark_ids:
@@ -92,6 +99,8 @@ def compare_datasize():
     handles = []
     for group in GROUPS:
         group_dir = datasize_dir.joinpath(group)
+        if not group_dir.exists():
+            continue
         for bench_id in group_dir.iterdir():
             with bench_id.joinpath("new", estimates_filename).open("r") as fo:
                 datasize = json.load(fo)

@@ -1,5 +1,5 @@
 //! Benchmark the execution speed with criterion.rs.
-//! Run 'just download' first to download and upgrade the data files.
+//! Run 'just download' and 'just download-legacy' first to download the data files.
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -11,7 +11,10 @@ use criterion::{criterion_group, criterion_main, Criterion, SamplingMode};
 
 fn read_file<P: AsRef<Path>>(path: P) -> String {
     let mut s = String::new();
-    File::open(path.as_ref()).unwrap().read_to_string(&mut s).unwrap();
+    File::open(path.as_ref())
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
     s
 }
 
@@ -28,12 +31,16 @@ fn calculate_measurement_time(expected_time_per_test: Duration, sample_size: u32
     expected_time_per_test * (sample_size as f32 * 7.0).floor() as u32
 }
 
-/// Benchmark with real data. Run 'just download' first to download and upgrade the data files.
+/// Benchmark with real data. Run 'just download' and 'just download-legacy' first.
 fn real_data(c: &mut Criterion) {
     let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("data")
         .join("downloaded");
+    let legacy_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("data")
+        .join("downloaded_legacy");
     let warm_up_multiplier: u32 = 8;
     // Need to find a good balance for the sample size because one test takes long.
     let sample_size: u32 = 10;
@@ -91,6 +98,53 @@ fn real_data(c: &mut Criterion) {
         });
     });
     group_3dbvz.finish();
+
+    // --- v0.4.5 legacy groups (v1.1 data, pre-cityjson-rs refactor) ---
+    // Run 'just download-legacy' to populate tests/data/downloaded_legacy/.
+    // These groups are skipped gracefully if the legacy data is not present.
+
+    let legacy_3dbag = legacy_dir.join("10-356-724.city.json");
+    if legacy_3dbag.exists() {
+        let content_3dbag_v11 = read_file(&legacy_3dbag);
+        let mut group = c.benchmark_group("3DBAG (v0.4.5)");
+        group.sample_size(sample_size as usize);
+        group.warm_up_time(expected_time_per_test * warm_up_multiplier);
+        group.measurement_time(calculate_measurement_time(
+            expected_time_per_test,
+            sample_size,
+        ));
+        group.sampling_mode(sampling_mode);
+        group.bench_function("serde_cityjson_legacy/from_str", |b| {
+            b.iter_with_large_drop(|| {
+                serde_cityjson_legacy::from_str(black_box(&content_3dbag_v11)).unwrap()
+            });
+        });
+        group.bench_function("serde_json::Value", |b| {
+            b.iter_with_large_drop(|| {
+                serde_json::from_str::<serde_json::Value>(black_box(&content_3dbag_v11)).unwrap()
+            });
+        });
+        group.finish();
+    }
+
+    let legacy_3dbvz = legacy_dir.join("30gz1_04.city.json");
+    if legacy_3dbvz.exists() {
+        let content_3dbvz_v11 = read_file(&legacy_3dbvz);
+        let mut group = c.benchmark_group("3D Basisvoorziening (v0.4.5)");
+        group.sample_size(sample_size as usize);
+        group.sampling_mode(sampling_mode);
+        group.bench_function("serde_cityjson_legacy/from_str", |b| {
+            b.iter_with_large_drop(|| {
+                serde_cityjson_legacy::from_str(black_box(&content_3dbvz_v11)).unwrap()
+            });
+        });
+        group.bench_function("serde_json::Value", |b| {
+            b.iter_with_large_drop(|| {
+                serde_json::from_str::<serde_json::Value>(black_box(&content_3dbvz_v11)).unwrap()
+            });
+        });
+        group.finish();
+    }
 }
 
 criterion_group!(benches, real_data);
