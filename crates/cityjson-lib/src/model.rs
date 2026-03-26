@@ -2,7 +2,7 @@ use std::io::BufRead;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
-use crate::{Result, io};
+use crate::{json, Result};
 
 #[derive(Debug, Clone)]
 pub struct CityModel(pub(crate) cityjson::v2_0::OwnedCityModel);
@@ -13,18 +13,18 @@ impl CityModel {
     }
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self> {
-        io::from_slice(bytes)
+        json::from_slice(bytes)
     }
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        io::from_file(path)
+        json::from_file(path)
     }
 
     pub fn from_stream<R>(reader: R) -> Result<Self>
     where
         R: BufRead,
     {
-        io::from_stream(reader)
+        json::from_stream(reader)
     }
 
     pub fn into_inner(self) -> cityjson::v2_0::OwnedCityModel {
@@ -57,5 +57,17 @@ impl DerefMut for CityModel {
 impl From<cityjson::v2_0::OwnedCityModel> for CityModel {
     fn from(value: cityjson::v2_0::OwnedCityModel) -> Self {
         Self(value)
+    }
+}
+
+impl AsRef<cityjson::v2_0::OwnedCityModel> for CityModel {
+    fn as_ref(&self) -> &cityjson::v2_0::OwnedCityModel {
+        self.as_inner()
+    }
+}
+
+impl AsMut<cityjson::v2_0::OwnedCityModel> for CityModel {
+    fn as_mut(&mut self) -> &mut cityjson::v2_0::OwnedCityModel {
+        self.as_inner_mut()
     }
 }

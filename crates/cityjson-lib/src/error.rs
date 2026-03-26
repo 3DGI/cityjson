@@ -1,6 +1,16 @@
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErrorKind {
+    Io,
+    Syntax,
+    Version,
+    Shape,
+    Unsupported,
+    Model,
+}
+
 pub enum Error {
     Io(std::io::Error),
     Json(serde_json::Error),
@@ -16,6 +26,23 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl Error {
+    pub fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Io(_) => ErrorKind::Io,
+            Self::Json(_) => ErrorKind::Syntax,
+            Self::CityJSON(_) => ErrorKind::Model,
+            Self::MissingVersion => ErrorKind::Version,
+            Self::ExpectedCityJSON(_) | Self::ExpectedCityJSONFeature(_) => ErrorKind::Shape,
+            Self::UnsupportedType(_) | Self::UnsupportedVersion { .. } | Self::UnsupportedFeature(_) => {
+                ErrorKind::Unsupported
+            }
+            Self::Streaming(_) => ErrorKind::Shape,
+            Self::Import(_) => ErrorKind::Model,
+        }
+    }
+}
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -69,5 +96,11 @@ impl From<serde_json::Error> for Error {
 impl From<cityjson::error::Error> for Error {
     fn from(value: cityjson::error::Error) -> Self {
         Self::CityJSON(value)
+    }
+}
+
+impl From<serde_cityjson::Error> for Error {
+    fn from(value: serde_cityjson::Error) -> Self {
+        Self::Import(value.to_string())
     }
 }

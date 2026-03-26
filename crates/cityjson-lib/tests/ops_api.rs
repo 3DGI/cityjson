@@ -22,8 +22,8 @@ fn vertex_cleanup_returns_a_small_structured_report() -> cjlib::Result<()> {
     let mut model = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
     let report = ops::vertices::clean(&mut model)?;
 
-    let _duplicates_removed: usize = report.duplicates_removed;
-    let _orphans_removed: usize = report.orphans_removed;
+    let _ = report.duplicates_removed;
+    let _ = report.orphans_removed;
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 #![allow(unexpected_cfgs)]
+#![allow(clippy::unnecessary_wraps)]
 
 fn main() -> cjlib::Result<()> {
     #[cfg(feature = "arrow")]

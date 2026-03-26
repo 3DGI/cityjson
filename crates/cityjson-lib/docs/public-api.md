@@ -45,7 +45,7 @@ The default path for loading one CityJSON document should stay on `CityModel`:
 ```rust
 use cjlib::CityModel;
 
-let document = CityModel::from_file("rotterdam.city.json") ?;
+let document = CityModel::from_file("tests/data/v2_0/minimal.city.json") ?;
 let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#) ?;
 # Ok::<(), cjlib::Error>(())
 ```
@@ -76,13 +76,13 @@ Example:
 ```rust
 use cjlib::{json, CityJSONVersion};
 
-let bytes = std::fs::read("rotterdam.city.json") ?;
+let bytes = std::fs::read("tests/data/v2_0/minimal.city.json") ?;
 let probe = json::probe( & bytes) ?;
 assert_eq!(probe.kind(), json::RootKind::CityJSON);
 assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
 let model = json::from_slice( & bytes) ?;
-let feature = json::from_feature_slice(br#"{"type":"CityJSONFeature","id":"bldg-1","CityObjects":{},"vertices":[]}"#) ?;
+let feature = json::from_feature_slice(br#"{"type":"CityJSONFeature","CityObjects":{},"vertices":[]}"#) ?;
 # Ok::<(), cjlib::Error>(())
 ```
 
@@ -125,7 +125,7 @@ extension-sniffing dispatcher.
 Preferred:
 
 ```rust
-let model = cjlib::json::from_file("rotterdam.city.json")?;
+let model = cjlib::json::from_file("tests/data/v2_0/minimal.city.json")?;
 #[cfg(feature = "arrow")]
 cjlib::arrow::to_file("rotterdam.cjarrow", &model)?;
 # Ok::<(), cjlib::Error>(())
@@ -133,7 +133,7 @@ cjlib::arrow::to_file("rotterdam.cjarrow", &model)?;
 
 Not preferred:
 
-```rust
+```rust,ignore
 let model = cjlib::read("rotterdam.city.json")?;
 cjlib::write("rotterdam.cjarrow", &model)?;
 # Ok::<(), cjlib::Error>(())
@@ -227,7 +227,7 @@ Examples of the intended shape:
 ```rust
 use cjlib::{ops, CityModel};
 
-let mut model = CityModel::from_file("rotterdam.city.json")?;
+let mut model = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 let subset = ops::subset(&model, ops::Selection::from_ids(["bldg-1"]))?;
 let merged = ops::merge([model, subset])?;
 let _surface_area = ops::geometry::surface_area(&merged, "bldg-1")?;
