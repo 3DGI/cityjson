@@ -97,32 +97,38 @@ pub fn from_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 }
 
 pub fn from_feature_slice(bytes: &[u8]) -> Result<CityModel> {
-    let _ = bytes;
-    Err(Error::Streaming(
-        "CityJSONFeature parsing is not yet implemented in serde_cityjson".into(),
-    ))
+    let probe = probe(bytes)?;
+    match probe.kind {
+        RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind.to_string())),
+        RootKind::CityJSONFeature => {
+            let input = std::str::from_utf8(bytes).map_err(|error| {
+                Error::Json(serde_json::Error::io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    error,
+                )))
+            })?;
+            Ok(CityModel(serde_cityjson::v2_0::from_feature_str_owned(
+                input,
+            )?))
+        }
+    }
 }
 
 pub fn merge_feature_stream<R>(reader: R) -> Result<CityModel>
 where
     R: BufRead,
 {
-    let _ = reader;
-    Err(Error::Streaming(
-        "CityJSONFeature stream aggregation is not yet implemented in serde_cityjson".into(),
-    ))
+    Ok(CityModel(serde_cityjson::v2_0::merge_feature_stream(
+        reader,
+    )?))
 }
 
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
 where
     R: BufRead,
 {
-    let _ = reader;
-    let iter = std::iter::empty::<Result<CityModel>>();
-    Err(Error::Streaming(
-        "CityJSONFeature stream iteration is not yet implemented in serde_cityjson".into(),
-    ))?;
-    Ok(iter)
+    let iter = serde_cityjson::v2_0::read_feature_stream(reader)?;
+    Ok(iter.map(|item| item.map(CityModel::from).map_err(Error::from)))
 }
 
 pub fn from_stream<R>(reader: R) -> Result<CityModel>
@@ -146,5 +152,5 @@ pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
 }
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
-    to_string(model)
+    Ok(serde_cityjson::v2_0::to_string_feature(model.as_inner())?)
 }

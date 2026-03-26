@@ -8,6 +8,7 @@ use cjlib::{CityJSONVersion, json};
 #[test]
 fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<()> {
     let document = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
     let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 "#;
@@ -17,8 +18,12 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
     assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
     let _ = json::from_slice(document)?;
+    let _ = json::from_feature_slice(feature)?;
     let _ = json::from_file("tests/data/v2_0/minimal.city.json")?;
     let _ = json::from_stream(Cursor::new(stream))?;
+    let models = json::read_feature_stream(Cursor::new(stream))?
+        .collect::<cjlib::Result<Vec<_>>>()?;
+    assert_eq!(models.len(), 1);
 
     Ok(())
 }
