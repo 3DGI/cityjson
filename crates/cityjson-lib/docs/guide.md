@@ -49,9 +49,9 @@ let model = json::from_slice(&bytes)?;
 # Ok::<(), cjlib::Error>(())
 ```
 
-## Read Or Merge A `CityJSONFeature` Stream
+## Read And Write A `CityJSONFeature` Stream
 
-The JSON boundary should support both streaming and aggregation.
+The JSON boundary should support explicit streaming.
 
 When the caller wants one semantic submodel at a time:
 
@@ -68,24 +68,24 @@ for model in models {
 # Ok::<(), cjlib::Error>(())
 ```
 
-When the caller wants to rebuild one larger model from a strict stream:
+When the caller wants to write those feature models back out as JSONL:
 
 ```rust
 use std::fs::File;
 use std::io::BufReader;
 
 let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-let model = cjlib::json::merge_feature_stream(reader)?;
-# let _ = model;
+let models = cjlib::json::read_feature_stream(reader)?
+    .collect::<cjlib::Result<Vec<_>>>()?;
+let mut writer = Vec::new();
+cjlib::json::write_feature_stream(&mut writer, models)?;
+# let _ = writer;
 # Ok::<(), cjlib::Error>(())
 ```
 
-The strict aggregation rules should stay:
-
-- the first non-empty value must be `CityJSON`
-- remaining values must be `CityJSONFeature`
-- all versions must agree
-- conflicting IDs or incompatible root state are errors
+`CityModel::from_stream` may continue to exist as a transitional compatibility
+alias, but it should not be the primary way callers think about the JSON
+boundary.
 
 ## Use Explicit Format Modules When You Need Boundary Control
 

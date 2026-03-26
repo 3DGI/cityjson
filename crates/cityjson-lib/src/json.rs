@@ -131,6 +131,18 @@ where
     Ok(iter.map(|item| item.map(CityModel::from).map_err(Error::from)))
 }
 
+pub fn write_feature_stream<I, W>(mut writer: W, models: I) -> Result<()>
+where
+    I: IntoIterator<Item = CityModel>,
+    W: Write,
+{
+    for model in models {
+        writer.write_all(to_feature_string(&model)?.as_bytes())?;
+        writer.write_all(b"\n")?;
+    }
+    Ok(())
+}
+
 pub fn from_stream<R>(reader: R) -> Result<CityModel>
 where
     R: BufRead,

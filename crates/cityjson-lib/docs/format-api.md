@@ -36,7 +36,7 @@ Their implementations should delegate to sibling backend crates such as
 - it is the default and most common path
 - it needs probing
 - it needs document and feature entry points
-- it needs model-stream reading and strict stream aggregation helpers
+- it needs model-stream reading and writing helpers
 - it needs text serialization helpers
 - it is the most likely home for explicit raw/staged read APIs
 
@@ -46,8 +46,8 @@ That is why `cjlib::json` owns:
 - `from_slice`
 - `from_file`
 - `from_feature_slice`
-- `merge_feature_stream`
 - `read_feature_stream`
+- `write_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`

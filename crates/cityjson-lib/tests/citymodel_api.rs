@@ -10,8 +10,16 @@ fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cjlib::Result<()>
     let bytes = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 
     let _ = CityModel::from_slice(bytes)?;
-    let _ = CityModel::from_stream(Cursor::new(bytes))?;
     let _ = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
+
+    Ok(())
+}
+
+#[test]
+fn citymodel_from_stream_remains_a_compatibility_alias() -> cjlib::Result<()> {
+    let bytes = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+
+    let _ = CityModel::from_stream(Cursor::new(bytes))?;
 
     Ok(())
 }

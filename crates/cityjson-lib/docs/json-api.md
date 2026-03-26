@@ -18,7 +18,7 @@ clutter `CityModel`, such as:
 - explicit document parsing
 - explicit feature parsing
 - model-stream reading
-- strict stream aggregation
+- model-stream writing
 - serialization
 - future raw or staged read paths
 
@@ -49,12 +49,15 @@ pub mod json {
     pub fn from_slice(bytes: &[u8]) -> crate::Result<crate::CityModel>;
     pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<crate::CityModel>;
     pub fn from_feature_slice(bytes: &[u8]) -> crate::Result<crate::CityModel>;
-    pub fn merge_feature_stream(reader: impl std::io::BufRead) -> crate::Result<crate::CityModel>;
     pub fn read_feature_stream<R>(
         reader: R,
     ) -> crate::Result<impl Iterator<Item = crate::Result<crate::CityModel>>>
     where
         R: std::io::BufRead;
+    pub fn write_feature_stream<I, W>(writer: W, models: I) -> crate::Result<()>
+    where
+        I: IntoIterator<Item = crate::CityModel>,
+        W: std::io::Write;
 
     pub fn to_vec(model: &crate::CityModel) -> crate::Result<Vec<u8>>;
     pub fn to_string(model: &crate::CityModel) -> crate::Result<String>;
@@ -80,14 +83,14 @@ That should remain explicit and format-qualified:
 - `json::to_string`
 - `json::to_writer`
 - `json::to_feature_string`
+- `json::write_feature_stream`
 
 The module should stay function-oriented.
 It does not need reader or writer builder types, extension-sniffing helpers, or
 a second public serde model.
 
 If a compatibility `CityModel::from_stream` is kept during migration, it should
-be a thin alias over `json::merge_feature_stream`, not the architectural center
-of the facade.
+stay transitional and should not be the architectural center of the facade.
 
 ## Probe Instead Of Ad Hoc Helpers
 

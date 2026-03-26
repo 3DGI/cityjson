@@ -1,5 +1,5 @@
 //! Public API contract for the explicit `cjlib::json` boundary layer.
-//! The module described here does not need to exist yet; this test file defines the target surface.
+//! This test file defines the intended surface for the stream-first JSON path.
 
 use std::io::Cursor;
 
@@ -8,10 +8,11 @@ use cjlib::{CityJSONVersion, json};
 #[test]
 fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<()> {
     let document = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
-    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
     let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}
 "#;
+    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
 
     let probe = json::probe(document)?;
     assert_eq!(probe.kind(), json::RootKind::CityJSON);
@@ -20,10 +21,32 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
     let _ = json::from_slice(document)?;
     let _ = json::from_feature_slice(feature)?;
     let _ = json::from_file("tests/data/v2_0/minimal.city.json")?;
+    let models =
+        json::read_feature_stream(Cursor::new(stream))?.collect::<cjlib::Result<Vec<_>>>()?;
+    assert_eq!(models.len(), 2);
+
+    let mut writer = Vec::new();
+    json::write_feature_stream(&mut writer, models.clone())?;
+
+    let output = String::from_utf8(writer).expect("feature stream output is valid UTF-8");
+    let expected = models
+        .iter()
+        .map(json::to_feature_string)
+        .collect::<cjlib::Result<Vec<_>>>()?
+        .join("\n")
+        + "\n";
+    assert_eq!(output, expected);
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_keeps_from_stream_as_a_compatibility_alias() -> cjlib::Result<()> {
+    let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+"#;
+
     let _ = json::from_stream(Cursor::new(stream))?;
-    let models = json::read_feature_stream(Cursor::new(stream))?
-        .collect::<cjlib::Result<Vec<_>>>()?;
-    assert_eq!(models.len(), 1);
 
     Ok(())
 }

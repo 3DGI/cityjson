@@ -78,12 +78,15 @@ Within `cjlib::json`, the intended surface is:
 - `from_slice`
 - `from_file`
 - `from_feature_slice`
-- `merge_feature_stream`
 - `read_feature_stream`
+- `write_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`
 - `to_feature_string`
+
+`CityModel::from_stream` remains a transitional compatibility alias for now,
+but it is not the architectural center of the JSON boundary.
 
 For non-JSON transport modules, file-oriented helpers are fine, but the public
 semantic unit should still stay `CityModel`:

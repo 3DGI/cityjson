@@ -93,8 +93,8 @@ operations:
 - `from_slice`
 - `from_file`
 - `from_feature_slice`
-- `merge_feature_stream`
 - `read_feature_stream`
+- `write_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`
