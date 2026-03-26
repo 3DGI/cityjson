@@ -2,7 +2,7 @@ use std::io::BufRead;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
-use crate::{json, Result};
+use crate::{Result, json};
 
 #[derive(Debug, Clone)]
 pub struct CityModel(pub(crate) cityjson::v2_0::OwnedCityModel);

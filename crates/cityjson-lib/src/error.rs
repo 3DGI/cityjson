@@ -35,9 +35,9 @@ impl Error {
             Self::CityJSON(_) => ErrorKind::Model,
             Self::MissingVersion => ErrorKind::Version,
             Self::ExpectedCityJSON(_) | Self::ExpectedCityJSONFeature(_) => ErrorKind::Shape,
-            Self::UnsupportedType(_) | Self::UnsupportedVersion { .. } | Self::UnsupportedFeature(_) => {
-                ErrorKind::Unsupported
-            }
+            Self::UnsupportedType(_)
+            | Self::UnsupportedVersion { .. }
+            | Self::UnsupportedFeature(_) => ErrorKind::Unsupported,
             Self::Streaming(_) => ErrorKind::Shape,
             Self::Import(_) => ErrorKind::Model,
         }

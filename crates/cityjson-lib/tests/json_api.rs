@@ -25,7 +25,8 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
 
 #[test]
 fn citymodel_constructors_are_aliases_for_the_default_json_path() {
-    let citymodel_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> = cjlib::CityModel::from_slice;
+    let citymodel_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> =
+        cjlib::CityModel::from_slice;
     let json_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> = json::from_slice;
 
     let _ = citymodel_from_slice;

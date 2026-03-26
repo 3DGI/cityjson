@@ -17,14 +17,15 @@ fn missing_file_is_a_structured_io_error() {
 
 #[test]
 fn missing_version_is_a_structured_version_error() {
-    let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
+    let error =
+        json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
     assert_eq!(error.kind(), ErrorKind::Version);
 }
 
 #[test]
 fn wrong_root_type_is_a_structured_shape_error() {
-    let error =
-        json::from_slice(br#"{"type":"CityJSONFeature","CityObjects":{},"vertices":[]}"#).unwrap_err();
+    let error = json::from_slice(br#"{"type":"CityJSONFeature","CityObjects":{},"vertices":[]}"#)
+        .unwrap_err();
     assert_eq!(error.kind(), ErrorKind::Shape);
 }
 

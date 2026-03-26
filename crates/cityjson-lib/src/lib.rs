@@ -3,8 +3,6 @@
 
 mod error;
 pub mod json;
-mod format;
-mod io;
 mod model;
 pub mod ops;
 mod version;

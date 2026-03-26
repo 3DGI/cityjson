@@ -40,7 +40,16 @@ fn advanced_model_access_flows_through_the_cityjson_crate_reexport() {
 
 #[test]
 fn cityjson_version_stays_in_the_public_boundary() {
-    assert_eq!(CityJSONVersion::try_from("1.0.3").unwrap(), CityJSONVersion::V1_0);
-    assert_eq!(CityJSONVersion::try_from("1.1.2").unwrap(), CityJSONVersion::V1_1);
-    assert_eq!(CityJSONVersion::try_from("2.0.1").unwrap(), CityJSONVersion::V2_0);
+    assert_eq!(
+        CityJSONVersion::try_from("1.0.3").unwrap(),
+        CityJSONVersion::V1_0
+    );
+    assert_eq!(
+        CityJSONVersion::try_from("1.1.2").unwrap(),
+        CityJSONVersion::V1_1
+    );
+    assert_eq!(
+        CityJSONVersion::try_from("2.0.1").unwrap(),
+        CityJSONVersion::V2_0
+    );
 }
