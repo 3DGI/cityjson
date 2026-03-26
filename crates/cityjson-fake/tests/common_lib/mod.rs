@@ -19,16 +19,17 @@ pub fn count_invalids(invalids_dir: &PathBuf) -> usize {
                 .to_string_lossy()
                 .replace("cjfake_invalid_", "")
                 .replace(".city.json", "");
-            let c = d.parse::<usize>().unwrap();
-            if c > count {
-                count = c;
+            if let Ok(c) = d.parse::<usize>() {
+                if c > count {
+                    count = c;
+                }
             }
         }
     }
     count
 }
 
-/// Validate a CityJSON str with [cjval]. If the CityJSON is invalid, serialize it for
+/// Validate a `CityJSON` str with [cjval]. If the `CityJSON` is invalid, serialize it for
 /// later analysis.
 #[allow(dead_code)]
 pub fn validate(cityjson_str: &str, test_name: &str) {
@@ -45,16 +46,14 @@ pub fn validate(cityjson_str: &str, test_name: &str) {
         let idir = invalids_dir();
         let invalids_count = count_invalids(&idir);
         let current_invalid_nr = invalids_count + 1;
-        let fname = format!("{}_{}.city.json", test_name, current_invalid_nr);
+        let fname = format!("{test_name}_{current_invalid_nr}.city.json");
         std::fs::write(idir.join(&fname), cityjson_str).unwrap();
-        println!("Serialized invalid CityJSON to {}", &fname);
+        println!("Serialized invalid CityJSON to {fname}");
     }
-    for (criterion, summary) in val.validate().iter() {
+    for (criterion, summary) in &val.validate() {
         assert!(
             summary.is_valid(),
-            "{} is not valid with {}",
-            criterion,
-            summary
-        )
+            "{criterion} is not valid with {summary}"
+        );
     }
 }

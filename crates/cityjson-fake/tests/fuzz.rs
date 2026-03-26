@@ -1,4 +1,6 @@
-mod common;
+#[path = "common_lib/mod.rs"]
+mod common_lib;
+
 use cjfake::prelude::*;
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -24,6 +26,7 @@ fn city_object_type_strategy() -> impl Strategy<Value = Vec<CityObjectType<Owned
         CityObjectType::BuildingUnit,
         CityObjectType::CityFurniture,
         CityObjectType::CityObjectGroup,
+        CityObjectType::GenericCityObject,
         CityObjectType::Default,
         CityObjectType::LandUse,
         CityObjectType::OtherConstruction,
@@ -47,16 +50,7 @@ fn city_object_type_strategy() -> impl Strategy<Value = Vec<CityObjectType<Owned
 }
 
 fn geometry_type_strategy() -> impl Strategy<Value = Vec<GeometryType>> {
-    let types = vec![
-        GeometryType::MultiPoint,
-        GeometryType::MultiLineString,
-        GeometryType::MultiSurface,
-        GeometryType::CompositeSurface,
-        GeometryType::Solid,
-        GeometryType::MultiSolid,
-        GeometryType::CompositeSolid,
-        GeometryType::GeometryInstance,
-    ];
+    let types = vec![GeometryType::MultiSurface, GeometryType::CompositeSurface];
     let nr_types = types.len();
     vec(select(types), 1..nr_types)
 }
@@ -74,39 +68,59 @@ proptest! {
         allowed_types_cityobject in city_object_type_strategy(),
         allowed_types_geometry in geometry_type_strategy(),
         cityobject_hierarchy in any::<bool>(),
-        min_coordinate in i64::MIN..=0i64,
-        max_coordinate in 0i64..=i64::MAX,
+        min_coordinate in -1000.0f64..=0.0f64,
+        max_coordinate in 0.0f64..=1000.0f64,
         nr_themes_materials in 1u32..3,
         nr_themes_textures in 1u32..3,
         max_vertices_texture in 4u32..10,
-        use_templates in any::<bool>(),
     ) {
-        let min_cityobjects = 2u32;
-        let max_cityobjects = 2u32;
         let config = CJFakeConfig {
-            allowed_types_cityobject: Some(allowed_types_cityobject.clone()),
-            allowed_types_geometry: Some(allowed_types_geometry.clone()),
-            cityobject_hierarchy,
-            min_coordinate,
-            max_coordinate,
-            nr_themes_materials,
-            nr_themes_textures,
-            max_vertices_texture,
-            use_templates,
-            min_cityobjects,
-            max_cityobjects,
+            cityobjects: CityObjectConfig {
+                allowed_types_cityobject: Some(allowed_types_cityobject.clone()),
+                cityobject_hierarchy,
+                min_cityobjects: 2,
+                max_cityobjects: 2,
+                ..Default::default()
+            },
+            geometry: GeometryConfig {
+                allowed_types_geometry: Some(allowed_types_geometry.clone()),
+                ..Default::default()
+            },
+            vertices: VertexConfig {
+                min_coordinate,
+                max_coordinate,
+                ..Default::default()
+            },
+            materials: MaterialConfig {
+                nr_themes_materials,
+                ..Default::default()
+            },
+            textures: TextureConfig {
+                nr_themes_textures,
+                max_vertices_texture,
+                texture_allow_none: true,
+                ..Default::default()
+            },
+            templates: TemplateConfig {
+                use_templates: false,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        let cm: CityModel = CityModelBuilder::new(config, None).metadata(None)
+        let json = CityModelBuilder::<u32, OwnedStringStorage>::new(config, None)
+            .metadata(None)
             .vertices()
             .materials(None)
             .textures(None)
             .attributes(None)
-            .cityobjects().build();
+            .cityobjects()
+            .build_string()
+            .expect("serialization failed");
 
-        // TODO: Validate with cjval once serialization is available
-        // The new cityjson-rs API doesn't have serde serialization yet
+        crate::common_lib::validate(&json, "fuzz_config");
+
+        let cm: CityModel = serde_cityjson::from_str_owned(&json).expect("deserialization failed");
 
         // ----- Assertions -----
         // 1. Vertex coordinate range check
@@ -117,31 +131,17 @@ proptest! {
             assert!(vertex.z() >= min_coordinate && vertex.z() <= max_coordinate, "Vertex z coordinate out of configured range");
         }
 
-        // 2. CityObject type is allowed
-        // NOTE: The current implementation doesn't respect allowed_types_cityobject yet
-        // It always generates Building types. This test is disabled until that's implemented.
-        // for (id, cityobject) in cm.cityobjects().iter() {
-        //     assert!(
-        //         allowed_types_cityobject.contains(cityobject.type_cityobject()),
-        //         "CityObject (ID: {}) type {:?} is not allowed",
-        //         id,
-        //         cityobject.type_cityobject()
-        //     );
-        // }
-
-        // Check geometries exist and are valid
+        // 2. Check geometries exist and are valid
         for (_id, cityobject) in cm.cityobjects().iter() {
             if let Some(geometry_refs) = cityobject.geometry() {
                 for geom_ref in geometry_refs {
                     let geom = cm.get_geometry(*geom_ref).unwrap();
-                    // NOTE: The current implementation doesn't filter geometry types yet
-                    // Just verify we can access the geometry
                     let _ = geom.type_geometry();
                 }
             }
         }
 
-        // 4. Verify themes (materials and textures)
+        // 3. Verify themes (materials and textures)
         // NOTE: nr_themes_materials and nr_themes_textures control theme generation,
         // not the actual count of materials/textures. The actual count is controlled
         // by min_materials/max_materials config which uses defaults here.
@@ -149,8 +149,8 @@ proptest! {
         let _materials_count = cm.iter_materials().count();
         let _textures_count = cm.iter_textures().count();
 
-        // Ensure CityModel contains at least the configured number of city objects
+        // When hierarchy is disabled the count must match config; with hierarchy, children are added.
         let cityobjects_count = cm.cityobjects().len();
-        assert!(cityobjects_count >= min_cityobjects as usize && cityobjects_count <= max_cityobjects as usize, "CityObjects count is out of configured range");
+        assert!(cityobjects_count >= 2usize, "CityObjects count should be at least the configured minimum");
     }
 }

@@ -1,18 +1,20 @@
 use crate::cli::CJFakeConfig;
 use crate::{CRS_AUTHORITIES, CRS_EPSG_VERSIONS, CRS_OGC_CODES, CRS_OGC_VERSIONS};
-use cityjson::prelude::{BBox, CityModelIdentifier, Date, StringStorage, CRS};
-use cityjson::v2_0::{ContactRole, ContactType, Metadata};
+use cityjson::prelude::StringStorage;
+use cityjson::v2_0::{
+    BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
+};
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::lorem::raw::Words;
 use fake::locales::EN;
 use fake::uuid::UUIDv1;
 use fake::{Dummy, Fake, Faker};
 use rand::prelude::{IndexedRandom, SmallRng};
-use rand::{rng, Rng};
+use rand::Rng;
 
-/// Builder for creating CityJSON metadata with fake data.
+/// Builder for creating `CityJSON` metadata with fake data.
 ///
-/// The builder provides methods to configure different aspects of a CityJSON metadata object
+/// The builder provides methods to configure different aspects of a `CityJSON` metadata object
 /// including geographical extent, identifiers, contact information, references and titles.
 /// When fields are not explicitly configured, they will receive random but valid fake data
 /// when built.
@@ -43,7 +45,7 @@ pub struct MetadataBuilder<'cmbuild, SS: StringStorage> {
 }
 
 impl<SS: StringStorage> From<MetadataBuilder<'_, SS>> for Metadata<SS> {
-    /// Converts the builder into a Metadata object by returning the inner value.
+    /// Converts the builder into a `Metadata` object by returning the inner value.
     fn from(val: MetadataBuilder<SS>) -> Self {
         val.build()
     }
@@ -52,11 +54,12 @@ impl<SS: StringStorage> From<MetadataBuilder<'_, SS>> for Metadata<SS> {
 // Note: Default implementation removed as it requires a valid lifetime and references
 
 impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
-    /// Creates a new MetadataBuilder with an empty metadata object.
+    /// Creates a new `MetadataBuilder` with an empty metadata object.
     ///
     /// # Returns
     ///
-    /// A new MetadataBuilder instance
+    /// A new `MetadataBuilder` instance
+    #[must_use]
     pub fn new(cjfake_config: &'cmbuild CJFakeConfig, rng: &'cmbuild mut SmallRng) -> Self {
         MetadataBuilder {
             rng,
@@ -73,6 +76,7 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
     /// # Returns
     ///
     /// Self with geographical extent set
+    #[must_use]
     pub fn geographical_extent(mut self) -> Self {
         let bbox = BBoxFaker.fake_with_rng(&mut *self.rng);
         self.metadata.set_geographical_extent(bbox);
@@ -81,17 +85,19 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
 
     /// Sets a random UUID as the identifier.
     ///
-    /// Generates a valid UUIDv1 string to uniquely identify the model.
+    /// Generates a valid `UUIDv1` string to uniquely identify the model.
     ///
     /// # Returns
     ///
     /// Self with identifier set
+    #[must_use]
     pub fn identifier(mut self) -> Self
     where
         SS::String: From<String>,
     {
-        self.metadata
-            .set_identifier(CityModelIdentifier::new(UUIDv1.fake::<String>().into()));
+        self.metadata.set_identifier(CityModelIdentifier::new(
+            UUIDv1.fake_with_rng::<String, _>(&mut *self.rng).into(),
+        ));
         self
     }
 
@@ -102,12 +108,16 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
     /// # Returns
     ///
     /// Self with reference date set
+    #[must_use]
     pub fn reference_date(mut self) -> Self
     where
         SS::String: From<String>,
     {
-        self.metadata
-            .set_reference_date(Date::new(FakeDate(EN).fake::<String>().into()));
+        self.metadata.set_reference_date(Date::new(
+            FakeDate(EN)
+                .fake_with_rng::<String, _>(&mut *self.rng)
+                .into(),
+        ));
         self
     }
 
@@ -121,23 +131,27 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
     /// # Returns
     ///
     /// Self with reference system set
+    #[must_use]
     pub fn reference_system(mut self) -> Self
     where
         SS::String: From<String>,
     {
         let ogc_def_crs = "http://www.opengis.net/def/crs";
-        let authority = *CRS_AUTHORITIES.choose(&mut rng()).unwrap_or(&"EPSG");
+        let authority = *CRS_AUTHORITIES.choose(&mut *self.rng).unwrap_or(&"EPSG");
         let version = match authority {
-            "EPSG" => *CRS_EPSG_VERSIONS.choose(&mut rng()).unwrap_or(&"0"),
-            "OGC" => *CRS_OGC_VERSIONS.choose(&mut rng()).unwrap_or(&"0"),
+            "EPSG" => *CRS_EPSG_VERSIONS.choose(&mut *self.rng).unwrap_or(&"0"),
+            "OGC" => *CRS_OGC_VERSIONS.choose(&mut *self.rng).unwrap_or(&"0"),
             _ => "0",
         };
         let code = match authority {
             "EPSG" => {
-                let a = rng().random_range(2000..10500);
+                let a = self.rng.random_range(2000..10500);
                 a.to_string()
             }
-            "OGC" => CRS_OGC_CODES.choose(&mut rng()).unwrap_or(&"0").to_string(),
+            "OGC" => CRS_OGC_CODES
+                .choose(&mut *self.rng)
+                .unwrap_or(&"0")
+                .to_string(),
             _ => "0".to_string(),
         };
         let crs = format!("{ogc_def_crs}/{authority}/{version}/{code}");
@@ -150,27 +164,65 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
     /// # Returns
     ///
     /// Self with title set
+    #[must_use]
     pub fn title(mut self) -> Self
     where
         SS::String: From<String>,
     {
-        let words: Vec<String> = Words(EN, 0..6).fake();
+        let words: Vec<String> = Words(EN, 0..6).fake_with_rng(&mut *self.rng);
         let title: SS::String = words.join(" ").into();
         self.metadata.set_title(title);
         self
     }
 
-    // Note: point_of_contact method temporarily removed due to API changes
-    // The new API uses AttributePool for contact information
-    // This needs to be reimplemented according to the new flattened attributes system
+    /// Sets a random point of contact.
+    ///
+    /// Generates a `Contact` with a random name, email, role, and optional
+    /// phone and organisation fields.
+    ///
+    /// # Returns
+    ///
+    /// Self with point of contact set
+    #[must_use]
+    pub fn point_of_contact(mut self) -> Self
+    where
+        SS::String: From<String>,
+    {
+        use fake::faker::internet::raw::SafeEmail;
+        use fake::faker::name::raw::Name;
 
-    /// Builds the final Metadata object.
+        let mut contact = Contact::new();
+
+        let name: String = Name(EN).fake_with_rng(&mut *self.rng);
+        contact.set_contact_name(name.into());
+
+        let email: String = SafeEmail(EN).fake_with_rng(&mut *self.rng);
+        contact.set_email_address(email.into());
+
+        let role: ContactRole = ContactRoleFaker.fake_with_rng(&mut *self.rng);
+        contact.set_role(Some(role));
+
+        let contact_type: ContactType = ContactTypeFaker.fake_with_rng(&mut *self.rng);
+        contact.set_contact_type(Some(contact_type));
+
+        if self.rng.random_bool(0.5) {
+            let org: String =
+                fake::faker::company::raw::CompanyName(EN).fake_with_rng(&mut *self.rng);
+            contact.set_organization(Some(org.into()));
+        }
+
+        self.metadata.set_point_of_contact(Some(contact));
+        self
+    }
+
+    /// Builds the final `Metadata` object.
     ///
     /// Any fields that were not explicitly set will receive random but valid values.
     ///
     /// # Returns
     ///
-    /// The complete Metadata object
+    /// The complete `Metadata` object
+    #[must_use]
     pub fn build(self) -> Metadata<SS> {
         self.metadata
     }
@@ -180,27 +232,20 @@ struct ContactRoleFaker;
 
 impl Dummy<ContactRoleFaker> for ContactRole {
     fn dummy_with_rng<R: Rng + ?Sized>(_: &ContactRoleFaker, rng: &mut R) -> Self {
-        match rng.random_range(0..20) {
+        // Extended variant list with all available ContactRole types
+        match rng.random_range(0..12) {
             0 => ContactRole::Author,
             1 => ContactRole::CoAuthor,
-            2 => ContactRole::Collaborator,
-            3 => ContactRole::Contributor,
-            4 => ContactRole::Custodian,
-            5 => ContactRole::Distributor,
-            6 => ContactRole::Editor,
-            7 => ContactRole::Funder,
-            8 => ContactRole::Mediator,
-            9 => ContactRole::Originator,
-            10 => ContactRole::Owner,
-            11 => ContactRole::PointOfContact,
-            12 => ContactRole::PrincipalInvestigator,
-            13 => ContactRole::Processor,
-            14 => ContactRole::Publisher,
-            15 => ContactRole::ResourceProvider,
-            16 => ContactRole::RightsHolder,
-            17 => ContactRole::Sponsor,
-            18 => ContactRole::Stakeholder,
-            19 => ContactRole::User,
+            2 => ContactRole::Custodian,
+            3 => ContactRole::Distributor,
+            4 => ContactRole::Originator,
+            5 => ContactRole::Owner,
+            6 => ContactRole::PointOfContact,
+            7 => ContactRole::PrincipalInvestigator,
+            8 => ContactRole::Processor,
+            9 => ContactRole::Publisher,
+            10 => ContactRole::ResourceProvider,
+            11 => ContactRole::User,
             _ => unreachable!(),
         }
     }

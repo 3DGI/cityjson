@@ -1,28 +1,31 @@
 use crate::cli::CJFakeConfig;
 use crate::get_nr_items;
-use cityjson::prelude::{QuantizedCoordinate, VertexRef, Vertices};
+use cityjson::v2_0::{RealWorldCoordinate, VertexRef, Vertices};
 use fake::{Dummy, Fake};
 use rand::Rng;
 
-/// Fake [Vertices] with [QuantizedCoordinate]s.
+/// Fake [`Vertices`] with [`RealWorldCoordinate`]s.
 ///
 /// # Examples
 /// ```rust
 /// use cjfake::prelude::*;
 /// use fake::{Fake, Faker};
-/// use cityjson::prelude::{Vertices, QuantizedCoordinate, VertexRef};
+/// use cityjson::v2_0::{Vertices, RealWorldCoordinate, VertexRef};
 /// use rand;
 ///
 /// // Example CJFakeConfig with arbitrary values
 /// let cjfake = CJFakeConfig {
-///     min_coordinate: 0,
-///     max_coordinate: 100,
-///     min_vertices: 3,
-///     max_vertices: 5,
+///     vertices: VertexConfig {
+///         min_coordinate: 0.0,
+///         max_coordinate: 100.0,
+///         min_vertices: 3,
+///         max_vertices: 5,
+///         ..Default::default()
+///     },
 ///     ..Default::default()
 /// };
 /// let mut rng = rand::rng();
-/// let vertices: Vertices<u32, QuantizedCoordinate> = VerticesFaker::new(&cjfake).fake_with_rng(&mut rng);
+/// let vertices: Vertices<u32, RealWorldCoordinate> = VerticesFaker::new(&cjfake).fake_with_rng(&mut rng);
 /// assert!(vertices.len() >= 3 && vertices.len() <= 5);
 /// ```
 pub struct VerticesFaker<'cmbuild> {
@@ -30,33 +33,36 @@ pub struct VerticesFaker<'cmbuild> {
 }
 
 impl<'cmbuild> VerticesFaker<'cmbuild> {
+    #[must_use]
     pub fn new(cjfake_config: &'cmbuild CJFakeConfig) -> Self {
         Self {
             cjfake: cjfake_config,
         }
     }
 }
-impl<'cmbuild, VR: VertexRef> Dummy<VerticesFaker<'cmbuild>> for Vertices<VR, QuantizedCoordinate> {
+impl<VR: VertexRef> Dummy<VerticesFaker<'_>> for Vertices<VR, RealWorldCoordinate> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &VerticesFaker, rng: &mut R) -> Self {
-        let cf = QuantizedCoordinateFaker {
-            min: config.cjfake.min_coordinate,
-            max: config.cjfake.max_coordinate,
+        let cf = RealWorldCoordinateFaker {
+            min: config.cjfake.vertices.min_coordinate,
+            max: config.cjfake.vertices.max_coordinate,
         };
-        let nr_vertices =
-            get_nr_items(config.cjfake.min_vertices..=config.cjfake.max_vertices, rng);
-        let coords: Vec<QuantizedCoordinate> = (cf, nr_vertices).fake_with_rng(rng);
+        let nr_vertices = get_nr_items(
+            config.cjfake.vertices.min_vertices..=config.cjfake.vertices.max_vertices,
+            rng,
+        );
+        let coords: Vec<RealWorldCoordinate> = (cf, nr_vertices).fake_with_rng(rng);
         Vertices::from(coords)
     }
 }
 
-pub struct QuantizedCoordinateFaker {
-    min: i64,
-    max: i64,
+pub struct RealWorldCoordinateFaker {
+    min: f64,
+    max: f64,
 }
 
-impl Dummy<QuantizedCoordinateFaker> for QuantizedCoordinate {
-    fn dummy_with_rng<R: Rng + ?Sized>(config: &QuantizedCoordinateFaker, rng: &mut R) -> Self {
-        QuantizedCoordinate::new(
+impl Dummy<RealWorldCoordinateFaker> for RealWorldCoordinate {
+    fn dummy_with_rng<R: Rng + ?Sized>(config: &RealWorldCoordinateFaker, rng: &mut R) -> Self {
+        RealWorldCoordinate::new(
             rng.random_range(config.min..=config.max),
             rng.random_range(config.min..=config.max),
             rng.random_range(config.min..=config.max),
