@@ -1,21 +1,23 @@
 use std::collections::HashMap;
+use std::fmt;
+
+use serde::de::{self, DeserializeSeed, SeqAccess, Visitor};
+use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use crate::de::attributes::attribute_map;
 use crate::de::parse::ParseStringStorage;
-use crate::de::sections::{
-    MultiLineStringBoundary, MultiPointBoundary, MultiSolidBoundary, MultiSurfaceBoundary,
-    RawAssignment, RawGeometry, RawMaterialTheme, RawSemantics, SolidBoundary,
-};
+use crate::de::sections::{RawAssignment, RawGeometry, RawMaterialTheme, RawSemantics};
 use crate::de::validation::{parse_lod, parse_semantic_type};
 use crate::errors::{Error, Result};
 use cityjson::resources::handles::{
     GeometryHandle, GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
+use cityjson::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
-    AffineTransform3D, Boundary, CityModel, Geometry, GeometryType, LoD, MaterialMap, Semantic,
-    SemanticMap, SemanticType, StoredGeometryInstance, StoredGeometryParts, ThemeName, TextureMap,
-    VertexIndex,
+    AffineTransform3D, Boundary, CityModel, Geometry, GeometryType, LoD, Semantic, SemanticType,
+    StoredGeometryInstance, StoredGeometryParts, ThemeName, VertexIndex,
 };
 
 // ---------------------------------------------------------------------------
@@ -46,12 +48,318 @@ struct SurfaceMappings<'de> {
     textures: Vec<(&'de str, Vec<Option<RingTextureAssignment>>)>,
 }
 
+#[derive(Deserialize)]
+#[serde(bound(deserialize = "'de: 'a, 'a: 'de"))]
+pub(crate) struct StreamingGeometry<'a> {
+    #[serde(rename = "type", borrow)]
+    pub(crate) type_name: &'a str,
+    #[serde(default, borrow)]
+    lod: Option<&'a str>,
+    #[serde(default, borrow)]
+    boundaries: Option<&'a RawValue>,
+    #[serde(default, borrow)]
+    semantics: Option<RawSemantics<'a>>,
+    #[serde(default, borrow)]
+    material: Option<HashMap<&'a str, RawMaterialTheme>>,
+    #[serde(default, borrow)]
+    texture: Option<HashMap<&'a str, crate::de::sections::RawTextureTheme>>,
+    #[serde(default)]
+    template: Option<u32>,
+    #[serde(rename = "transformationMatrix", default)]
+    transformation_matrix: Option<[f64; 16]>,
+}
+
+// ---------------------------------------------------------------------------
+// Flat boundary parsing
+// ---------------------------------------------------------------------------
+
+#[derive(Default)]
+struct FlatBoundaryBuilder {
+    vertices: Vec<VertexIndex<u32>>,
+    rings: Vec<VertexIndex<u32>>,
+    surfaces: Vec<VertexIndex<u32>>,
+    shells: Vec<VertexIndex<u32>>,
+    solids: Vec<VertexIndex<u32>>,
+}
+
+impl FlatBoundaryBuilder {
+    fn finish(self) -> Boundary<u32> {
+        let mut boundary = Boundary::with_capacity(
+            self.vertices.len(),
+            self.rings.len(),
+            self.surfaces.len(),
+            self.shells.len(),
+            self.solids.len(),
+        );
+        boundary.set_vertices_from_iter(self.vertices);
+        boundary.set_rings_from_iter(self.rings);
+        boundary.set_surfaces_from_iter(self.surfaces);
+        boundary.set_shells_from_iter(self.shells);
+        boundary.set_solids_from_iter(self.solids);
+        boundary
+    }
+}
+
+fn boundary_offset<E: de::Error>(
+    len: usize,
+    level: &'static str,
+) -> std::result::Result<VertexIndex<u32>, E> {
+    u32::try_from(len)
+        .map(VertexIndex::new)
+        .map_err(|_| E::custom(format!("{level} boundary exceeds u32 index range")))
+}
+
+struct ExtendVertices<'a>(&'a mut FlatBoundaryBuilder);
+struct ExtendVerticesVisitor<'a>(&'a mut FlatBoundaryBuilder);
+
+impl<'de> Visitor<'de> for ExtendVerticesVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("an array of vertex indices")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        if let Some(size_hint) = seq.size_hint() {
+            self.0.vertices.reserve(size_hint);
+        }
+
+        while let Some(vertex) = seq.next_element::<u32>()? {
+            self.0.vertices.push(VertexIndex::new(vertex));
+        }
+
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for ExtendVertices<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ExtendVerticesVisitor(self.0))
+    }
+}
+
+struct ExtendRings<'a>(&'a mut FlatBoundaryBuilder);
+struct ExtendRingsVisitor<'a>(&'a mut FlatBoundaryBuilder);
+
+impl<'de> Visitor<'de> for ExtendRingsVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a surface boundary array")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        if let Some(size_hint) = seq.size_hint() {
+            self.0.rings.reserve(size_hint);
+        }
+
+        self.0
+            .rings
+            .push(boundary_offset(self.0.vertices.len(), "ring")?);
+
+        while let Some(()) = seq.next_element_seed(ExtendVertices(self.0))? {
+            self.0
+                .rings
+                .push(boundary_offset(self.0.vertices.len(), "ring")?);
+        }
+
+        self.0.rings.pop();
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for ExtendRings<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ExtendRingsVisitor(self.0))
+    }
+}
+
+struct ExtendSurfaces<'a>(&'a mut FlatBoundaryBuilder);
+struct ExtendSurfacesVisitor<'a>(&'a mut FlatBoundaryBuilder);
+
+impl<'de> Visitor<'de> for ExtendSurfacesVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a multi-surface or shell boundary array")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        if let Some(size_hint) = seq.size_hint() {
+            self.0.surfaces.reserve(size_hint);
+        }
+
+        self.0
+            .surfaces
+            .push(boundary_offset(self.0.rings.len(), "surface")?);
+
+        while let Some(()) = seq.next_element_seed(ExtendRings(self.0))? {
+            self.0
+                .surfaces
+                .push(boundary_offset(self.0.rings.len(), "surface")?);
+        }
+
+        self.0.surfaces.pop();
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for ExtendSurfaces<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ExtendSurfacesVisitor(self.0))
+    }
+}
+
+struct ExtendShells<'a>(&'a mut FlatBoundaryBuilder);
+struct ExtendShellsVisitor<'a>(&'a mut FlatBoundaryBuilder);
+
+impl<'de> Visitor<'de> for ExtendShellsVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a solid boundary array")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        if let Some(size_hint) = seq.size_hint() {
+            self.0.shells.reserve(size_hint);
+        }
+
+        self.0
+            .shells
+            .push(boundary_offset(self.0.surfaces.len(), "shell")?);
+
+        while let Some(()) = seq.next_element_seed(ExtendSurfaces(self.0))? {
+            self.0
+                .shells
+                .push(boundary_offset(self.0.surfaces.len(), "shell")?);
+        }
+
+        self.0.shells.pop();
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for ExtendShells<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ExtendShellsVisitor(self.0))
+    }
+}
+
+struct ExtendSolids<'a>(&'a mut FlatBoundaryBuilder);
+struct ExtendSolidsVisitor<'a>(&'a mut FlatBoundaryBuilder);
+
+impl<'de> Visitor<'de> for ExtendSolidsVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a multi-solid boundary array")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        if let Some(size_hint) = seq.size_hint() {
+            self.0.solids.reserve(size_hint);
+        }
+
+        self.0
+            .solids
+            .push(boundary_offset(self.0.shells.len(), "solid")?);
+
+        while let Some(()) = seq.next_element_seed(ExtendShells(self.0))? {
+            self.0
+                .solids
+                .push(boundary_offset(self.0.shells.len(), "solid")?);
+        }
+
+        self.0.solids.pop();
+        Ok(())
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for ExtendSolids<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ExtendSolidsVisitor(self.0))
+    }
+}
+
+#[derive(Clone, Copy)]
+enum BoundaryParseKind {
+    MultiPoint,
+    MultiLineString,
+    MultiSurface,
+    Solid,
+    MultiSolid,
+}
+
+fn parse_boundary_from_raw(raw: &RawValue, kind: BoundaryParseKind) -> Result<Boundary<u32>> {
+    let mut deserializer = serde_json::Deserializer::from_str(raw.get());
+    let mut builder = FlatBoundaryBuilder::default();
+
+    match kind {
+        BoundaryParseKind::MultiPoint => {
+            ExtendVertices(&mut builder).deserialize(&mut deserializer)?;
+        }
+        BoundaryParseKind::MultiLineString => {
+            ExtendRings(&mut builder).deserialize(&mut deserializer)?;
+        }
+        BoundaryParseKind::MultiSurface => {
+            ExtendSurfaces(&mut builder).deserialize(&mut deserializer)?;
+        }
+        BoundaryParseKind::Solid => ExtendShells(&mut builder).deserialize(&mut deserializer)?,
+        BoundaryParseKind::MultiSolid => {
+            ExtendSolids(&mut builder).deserialize(&mut deserializer)?;
+        }
+    }
+
+    Ok(builder.finish())
+}
+
 // ---------------------------------------------------------------------------
 // Top-level geometry dispatch
 // ---------------------------------------------------------------------------
 
-pub(crate) fn import_geometry<'de, SS>(
-    raw: RawGeometry<'de>,
+pub(crate) fn import_stream_geometry<'de, SS>(
+    raw: StreamingGeometry<'de>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
 ) -> Result<GeometryHandle>
@@ -59,7 +367,7 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let geometry = build_geometry(raw, model, resources)?;
+    let geometry = build_stream_geometry(raw, model, resources)?;
     model.add_geometry_unchecked(geometry).map_err(Error::from)
 }
 
@@ -87,6 +395,7 @@ where
         .map_err(Error::from)
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_geometry<'de, SS>(
     raw: RawGeometry<'de>,
     model: &mut CityModel<u32, SS>,
@@ -97,36 +406,397 @@ where
     SS::String: From<&'de str>,
 {
     match raw {
-        RawGeometry::MultiPoint { lod, boundaries, semantics, material, texture } => {
-            build_multi_point_geometry(lod, boundaries, semantics.as_ref(), material.as_ref(), texture.as_ref(), model)
-        }
-        RawGeometry::MultiLineString { lod, boundaries, semantics, material, texture } => {
-            build_multi_line_string_geometry(lod, boundaries, semantics.as_ref(), material.as_ref(), texture.as_ref(), model)
-        }
-        RawGeometry::MultiSurface { lod, boundaries, semantics, material, texture } => {
-            build_multi_surface_geometry(lod, boundaries, false, semantics.as_ref(), material, texture, model, resources)
-        }
-        RawGeometry::CompositeSurface { lod, boundaries, semantics, material, texture } => {
-            build_multi_surface_geometry(lod, boundaries, true, semantics.as_ref(), material, texture, model, resources)
-        }
-        RawGeometry::Solid { lod, boundaries, semantics, material, texture } => {
-            build_solid_geometry(lod, boundaries, semantics.as_ref(), material, texture, model, resources)
-        }
-        RawGeometry::MultiSolid { lod, boundaries, semantics, material, texture } => {
-            build_multi_solid_geometry(lod, boundaries, false, semantics.as_ref(), material, texture, model, resources)
-        }
-        RawGeometry::CompositeSolid { lod, boundaries, semantics, material, texture } => {
-            build_multi_solid_geometry(lod, boundaries, true, semantics.as_ref(), material, texture, model, resources)
-        }
-        RawGeometry::GeometryInstance { template, boundaries, transformation_matrix } => {
-            build_geometry_instance(template, boundaries.as_deref(), transformation_matrix, resources)
-        }
+        RawGeometry::MultiPoint {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_multi_point_geometry(
+            lod,
+            boundaries.into(),
+            semantics.as_ref(),
+            material.as_ref(),
+            texture.as_ref(),
+            model,
+        ),
+        RawGeometry::MultiLineString {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_multi_line_string_geometry(
+            lod,
+            boundaries.try_into()?,
+            semantics.as_ref(),
+            material.as_ref(),
+            texture.as_ref(),
+            model,
+        ),
+        RawGeometry::MultiSurface {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_raw_surface_geometry(
+            lod,
+            boundaries,
+            false,
+            semantics.as_ref(),
+            material,
+            texture,
+            model,
+            resources,
+        ),
+        RawGeometry::CompositeSurface {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_raw_surface_geometry(
+            lod,
+            boundaries,
+            true,
+            semantics.as_ref(),
+            material,
+            texture,
+            model,
+            resources,
+        ),
+        RawGeometry::Solid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_raw_solid_geometry(
+            lod,
+            boundaries,
+            semantics.as_ref(),
+            material,
+            texture,
+            model,
+            resources,
+        ),
+        RawGeometry::MultiSolid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_raw_multi_solid_geometry(
+            lod,
+            boundaries,
+            false,
+            semantics.as_ref(),
+            material,
+            texture,
+            model,
+            resources,
+        ),
+        RawGeometry::CompositeSolid {
+            lod,
+            boundaries,
+            semantics,
+            material,
+            texture,
+        } => build_raw_multi_solid_geometry(
+            lod,
+            boundaries,
+            true,
+            semantics.as_ref(),
+            material,
+            texture,
+            model,
+            resources,
+        ),
+        RawGeometry::GeometryInstance {
+            template,
+            boundaries,
+            transformation_matrix,
+        } => build_geometry_instance(
+            template,
+            boundaries.as_deref(),
+            transformation_matrix,
+            resources,
+        ),
     }
+}
+
+fn build_stream_geometry<'de, SS>(
+    raw: StreamingGeometry<'de>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    match raw.type_name {
+        "MultiPoint" => build_stream_point_geometry(&raw, BoundaryParseKind::MultiPoint, model),
+        "MultiLineString" => {
+            build_stream_linestring_geometry(&raw, BoundaryParseKind::MultiLineString, model)
+        }
+        "MultiSurface" => build_stream_surface_geometry(
+            raw,
+            BoundaryParseKind::MultiSurface,
+            false,
+            model,
+            resources,
+        ),
+        "CompositeSurface" => build_stream_surface_geometry(
+            raw,
+            BoundaryParseKind::MultiSurface,
+            true,
+            model,
+            resources,
+        ),
+        "Solid" => build_stream_solid_geometry(raw, BoundaryParseKind::Solid, model, resources),
+        "MultiSolid" => build_stream_multi_solid_geometry(
+            raw,
+            BoundaryParseKind::MultiSolid,
+            false,
+            model,
+            resources,
+        ),
+        "CompositeSolid" => build_stream_multi_solid_geometry(
+            raw,
+            BoundaryParseKind::MultiSolid,
+            true,
+            model,
+            resources,
+        ),
+        "GeometryInstance" => build_stream_geometry_instance(&raw, resources),
+        _ => Err(Error::InvalidValue(format!(
+            "unsupported geometry type '{}'",
+            raw.type_name
+        ))),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_raw_surface_geometry<'de, SS>(
+    lod: Option<&'de str>,
+    boundaries: crate::de::sections::MultiSurfaceBoundary,
+    composite: bool,
+    semantics: Option<&RawSemantics<'de>>,
+    material: Option<HashMap<&'de str, RawMaterialTheme>>,
+    texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_surface_geometry(
+        lod,
+        boundaries.try_into()?,
+        composite,
+        semantics,
+        material,
+        texture,
+        model,
+        resources,
+    )
+}
+
+fn build_raw_solid_geometry<'de, SS>(
+    lod: Option<&'de str>,
+    boundaries: crate::de::sections::SolidBoundary,
+    semantics: Option<&RawSemantics<'de>>,
+    material: Option<HashMap<&'de str, RawMaterialTheme>>,
+    texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_solid_geometry(
+        lod,
+        boundaries.try_into()?,
+        semantics,
+        material,
+        texture,
+        model,
+        resources,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_raw_multi_solid_geometry<'de, SS>(
+    lod: Option<&'de str>,
+    boundaries: crate::de::sections::MultiSolidBoundary,
+    composite: bool,
+    semantics: Option<&RawSemantics<'de>>,
+    material: Option<HashMap<&'de str, RawMaterialTheme>>,
+    texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_solid_geometry(
+        lod,
+        boundaries.try_into()?,
+        composite,
+        semantics,
+        material,
+        texture,
+        model,
+        resources,
+    )
+}
+
+fn build_stream_point_geometry<'de, SS>(
+    raw: &StreamingGeometry<'de>,
+    kind: BoundaryParseKind,
+    model: &mut CityModel<u32, SS>,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_point_geometry(
+        raw.lod,
+        parse_stream_boundary(raw, kind)?,
+        raw.semantics.as_ref(),
+        raw.material.as_ref(),
+        raw.texture.as_ref(),
+        model,
+    )
+}
+
+fn build_stream_linestring_geometry<'de, SS>(
+    raw: &StreamingGeometry<'de>,
+    kind: BoundaryParseKind,
+    model: &mut CityModel<u32, SS>,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_line_string_geometry(
+        raw.lod,
+        parse_stream_boundary(raw, kind)?,
+        raw.semantics.as_ref(),
+        raw.material.as_ref(),
+        raw.texture.as_ref(),
+        model,
+    )
+}
+
+fn build_stream_surface_geometry<'de, SS>(
+    raw: StreamingGeometry<'de>,
+    kind: BoundaryParseKind,
+    composite: bool,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_surface_geometry(
+        raw.lod,
+        parse_stream_boundary(&raw, kind)?,
+        composite,
+        raw.semantics.as_ref(),
+        raw.material,
+        raw.texture,
+        model,
+        resources,
+    )
+}
+
+fn build_stream_solid_geometry<'de, SS>(
+    raw: StreamingGeometry<'de>,
+    kind: BoundaryParseKind,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_solid_geometry(
+        raw.lod,
+        parse_stream_boundary(&raw, kind)?,
+        raw.semantics.as_ref(),
+        raw.material,
+        raw.texture,
+        model,
+        resources,
+    )
+}
+
+fn build_stream_multi_solid_geometry<'de, SS>(
+    raw: StreamingGeometry<'de>,
+    kind: BoundaryParseKind,
+    composite: bool,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    build_multi_solid_geometry(
+        raw.lod,
+        parse_stream_boundary(&raw, kind)?,
+        composite,
+        raw.semantics.as_ref(),
+        raw.material,
+        raw.texture,
+        model,
+        resources,
+    )
+}
+
+fn build_stream_geometry_instance<'de, SS>(
+    raw: &StreamingGeometry<'de>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    let instance_boundaries = raw
+        .boundaries
+        .map(|boundaries| serde_json::from_str::<Vec<u32>>(boundaries.get()))
+        .transpose()?;
+    build_geometry_instance(
+        raw.template,
+        instance_boundaries.as_deref(),
+        raw.transformation_matrix,
+        resources,
+    )
+}
+
+fn parse_stream_boundary(
+    raw: &StreamingGeometry<'_>,
+    kind: BoundaryParseKind,
+) -> Result<Boundary<u32>> {
+    parse_boundary_from_raw(required_boundaries(raw.boundaries, raw.type_name)?, kind)
+}
+
+fn required_boundaries<'de>(
+    boundaries: Option<&'de RawValue>,
+    type_name: &str,
+) -> Result<&'de RawValue> {
+    boundaries.ok_or_else(|| Error::InvalidValue(format!("{type_name} is missing boundaries")))
 }
 
 fn build_multi_point_geometry<'de, SS>(
     lod: Option<&'de str>,
-    boundaries: MultiPointBoundary,
+    boundaries: Boundary<u32>,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<&HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<&HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
@@ -147,8 +817,9 @@ where
         ));
     }
 
+    let point_count = boundaries.vertices().len();
     let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
-    let assignments = parse_point_assignments(semantics, &semantic_handles, boundaries.len());
+    let assignments = parse_point_assignments(semantics, &semantic_handles, point_count);
     let semantic_map = semantics.map(|_| {
         let mut map = SemanticMap::<u32>::new();
         for assignment in assignments {
@@ -160,7 +831,7 @@ where
     Ok(Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiPoint,
         lod: parse_lod(lod)?,
-        boundaries: Some(boundaries.into()),
+        boundaries: Some(boundaries),
         semantics: semantic_map,
         materials: None,
         textures: None,
@@ -170,7 +841,7 @@ where
 
 fn build_multi_line_string_geometry<'de, SS>(
     lod: Option<&'de str>,
-    boundaries: MultiLineStringBoundary,
+    boundaries: Boundary<u32>,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<&HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<&HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
@@ -191,8 +862,9 @@ where
         ));
     }
 
+    let linestring_count = boundaries.rings().len();
     let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
-    let assignments = parse_linestring_assignments(semantics, &semantic_handles, boundaries.len());
+    let assignments = parse_linestring_assignments(semantics, &semantic_handles, linestring_count);
     let semantic_map = semantics.map(|_| {
         let mut map = SemanticMap::<u32>::new();
         for assignment in assignments {
@@ -201,7 +873,6 @@ where
         map
     });
 
-    let boundaries: Boundary<u32> = boundaries.try_into()?;
     Ok(Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiLineString,
         lod: parse_lod(lod)?,
@@ -216,7 +887,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn build_multi_surface_geometry<'de, SS>(
     lod: Option<&'de str>,
-    boundaries: MultiSurfaceBoundary,
+    boundaries: Boundary<u32>,
     is_composite: bool,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<HashMap<&'de str, RawMaterialTheme>>,
@@ -232,8 +903,7 @@ where
     let has_material = material.is_some();
     let has_texture = texture.is_some();
     let mappings =
-        parse_multi_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let boundaries: Boundary<u32> = boundaries.try_into()?;
+        parse_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
     Ok(build_surface_geometry_parts(
         if is_composite {
             GeometryType::CompositeSurface
@@ -251,7 +921,7 @@ where
 
 fn build_solid_geometry<'de, SS>(
     lod: Option<&'de str>,
-    boundaries: SolidBoundary,
+    boundaries: Boundary<u32>,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
@@ -265,8 +935,8 @@ where
     let has_semantics = semantics.is_some();
     let has_material = material.is_some();
     let has_texture = texture.is_some();
-    let mappings = parse_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let boundaries: Boundary<u32> = boundaries.try_into()?;
+    let mappings =
+        parse_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
     Ok(build_surface_geometry_parts(
         GeometryType::Solid,
         parse_lod(lod)?,
@@ -281,7 +951,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn build_multi_solid_geometry<'de, SS>(
     lod: Option<&'de str>,
-    boundaries: MultiSolidBoundary,
+    boundaries: Boundary<u32>,
     is_composite: bool,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<HashMap<&'de str, RawMaterialTheme>>,
@@ -297,8 +967,7 @@ where
     let has_material = material.is_some();
     let has_texture = texture.is_some();
     let mappings =
-        parse_multi_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let boundaries: Boundary<u32> = boundaries.try_into()?;
+        parse_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
     Ok(build_surface_geometry_parts(
         if is_composite {
             GeometryType::CompositeSolid
@@ -432,7 +1101,9 @@ fn build_texture_map(
             .get(ring_index + 1)
             .map_or(boundary.vertices().len(), VertexIndex::to_usize);
         let ring_vertices = ring_end.saturating_sub(ring_start.to_usize());
-        let assignment = assignments.get(ring_index).and_then(|assignment| assignment.as_ref());
+        let assignment = assignments
+            .get(ring_index)
+            .and_then(|assignment| assignment.as_ref());
 
         map.add_ring(ring_start);
         map.add_ring_texture(assignment.map(|assignment| assignment.texture));
@@ -631,11 +1302,11 @@ fn parse_surface_scalar_assignments(
 // SurfaceMappings builders
 // ---------------------------------------------------------------------------
 
-fn parse_multi_surface_mappings<'de, SS>(
+fn parse_surface_mappings<'de, SS>(
     semantics: Option<&RawSemantics<'de>>,
     material: Option<HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
-    boundaries: &MultiSurfaceBoundary,
+    boundaries: &Boundary<u32>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
 ) -> Result<SurfaceMappings<'de>>
@@ -643,75 +1314,13 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let surface_count = boundaries.len();
+    let surface_count = boundaries.surfaces().len();
+    let ring_count = boundaries.rings().len();
     let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
     Ok(SurfaceMappings {
         semantics: parse_surface_scalar_assignments(semantics, &semantic_handles, surface_count),
         materials: parse_material_themes(material, &resources.materials, surface_count)?,
         textures: parse_texture_themes(texture, |values| {
-            let ring_count: usize = boundaries.iter().map(Vec::len).sum();
-            parse_ring_texture_assignments(values, ring_count, resources)
-        })?,
-    })
-}
-
-fn parse_solid_mappings<'de, SS>(
-    semantics: Option<&RawSemantics<'de>>,
-    material: Option<HashMap<&'de str, RawMaterialTheme>>,
-    texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
-    boundaries: &SolidBoundary,
-    model: &mut CityModel<u32, SS>,
-    resources: &GeometryResources,
-) -> Result<SurfaceMappings<'de>>
-where
-    SS: ParseStringStorage<'de>,
-    SS::String: From<&'de str>,
-{
-    let surface_count: usize = boundaries.iter().map(Vec::len).sum();
-    let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
-    Ok(SurfaceMappings {
-        semantics: parse_surface_scalar_assignments(semantics, &semantic_handles, surface_count),
-        materials: parse_material_themes(material, &resources.materials, surface_count)?,
-        textures: parse_texture_themes(texture, |values| {
-            let ring_count: usize = boundaries
-                .iter()
-                .map(|shell| shell.iter().map(Vec::len).sum::<usize>())
-                .sum();
-            parse_ring_texture_assignments(values, ring_count, resources)
-        })?,
-    })
-}
-
-fn parse_multi_solid_mappings<'de, SS>(
-    semantics: Option<&RawSemantics<'de>>,
-    material: Option<HashMap<&'de str, RawMaterialTheme>>,
-    texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
-    boundaries: &MultiSolidBoundary,
-    model: &mut CityModel<u32, SS>,
-    resources: &GeometryResources,
-) -> Result<SurfaceMappings<'de>>
-where
-    SS: ParseStringStorage<'de>,
-    SS::String: From<&'de str>,
-{
-    let surface_count: usize = boundaries
-        .iter()
-        .map(|solid| solid.iter().map(Vec::len).sum::<usize>())
-        .sum();
-    let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
-    Ok(SurfaceMappings {
-        semantics: parse_surface_scalar_assignments(semantics, &semantic_handles, surface_count),
-        materials: parse_material_themes(material, &resources.materials, surface_count)?,
-        textures: parse_texture_themes(texture, |values| {
-            let ring_count: usize = boundaries
-                .iter()
-                .map(|solid| {
-                    solid
-                        .iter()
-                        .map(|shell| shell.iter().map(Vec::len).sum::<usize>())
-                        .sum::<usize>()
-                })
-                .sum();
             parse_ring_texture_assignments(values, ring_count, resources)
         })?,
     })

@@ -5,7 +5,7 @@ use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel};
 
 use crate::de::build::build_model;
-use crate::de::root::RawRoot;
+use crate::de::root::parse_root;
 use crate::errors::{Error, Result};
 
 /// Adapter trait that bridges `StringStorage` with a parse-time lifetime.
@@ -72,7 +72,7 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let raw: RawRoot<'de> = serde_json::from_str(input)?;
+    let raw = parse_root(input)?;
     build_model::<SS>(raw)
 }
 

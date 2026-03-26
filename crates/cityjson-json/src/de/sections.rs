@@ -133,6 +133,7 @@ pub(crate) struct RawGeometryTemplatesSection<'a> {
 // City objects
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 #[serde(bound(deserialize = "'de: 'a, 'a: 'de"))]
 pub(crate) struct RawCityObject<'a> {

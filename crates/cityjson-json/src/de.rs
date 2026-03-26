@@ -1,5 +1,6 @@
 mod attributes;
 mod build;
+mod cityobjects;
 mod geometry;
 mod parse;
 mod root;
@@ -11,7 +12,6 @@ pub(crate) use parse::{from_str as from_str_generic, from_str_borrowed, from_str
 
 #[cfg(test)]
 mod perf_probe {
-    use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
     use std::time::Instant;
@@ -19,8 +19,7 @@ mod perf_probe {
     use cityjson::prelude::OwnedStringStorage;
 
     use super::build::build_model;
-    use super::root::RawRoot;
-    use super::sections::RawCityObject;
+    use super::root::parse_root;
 
     fn data_path(name: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -58,15 +57,9 @@ mod perf_probe {
         measure("serde_json::Value", || {
             serde_json::from_str::<serde_json::Value>(&input).unwrap()
         });
-        let raw: RawRoot<'_> = serde_json::from_str(&input).unwrap();
-        measure("RawRoot", || {
-            serde_json::from_str::<RawRoot<'_>>(&input).unwrap()
-        });
-        measure("CityObjects", || {
-            serde_json::from_str::<HashMap<&str, RawCityObject<'_>>>(raw.cityobjects.get()).unwrap()
-        });
+        measure("parse_root", || parse_root(&input).unwrap());
         measure("build_model", || {
-            let raw: RawRoot<'_> = serde_json::from_str(&input).unwrap();
+            let raw = parse_root(&input).unwrap();
             build_model::<OwnedStringStorage>(raw).unwrap()
         });
         measure("from_str_owned", || super::from_str_owned(&input).unwrap());
@@ -84,15 +77,9 @@ mod perf_probe {
         measure("serde_json::Value", || {
             serde_json::from_str::<serde_json::Value>(&input).unwrap()
         });
-        let raw: RawRoot<'_> = serde_json::from_str(&input).unwrap();
-        measure("RawRoot", || {
-            serde_json::from_str::<RawRoot<'_>>(&input).unwrap()
-        });
-        measure("CityObjects", || {
-            serde_json::from_str::<HashMap<&str, RawCityObject<'_>>>(raw.cityobjects.get()).unwrap()
-        });
+        measure("parse_root", || parse_root(&input).unwrap());
         measure("build_model", || {
-            let raw: RawRoot<'_> = serde_json::from_str(&input).unwrap();
+            let raw = parse_root(&input).unwrap();
             build_model::<OwnedStringStorage>(raw).unwrap()
         });
         measure("from_str_owned", || super::from_str_owned(&input).unwrap());

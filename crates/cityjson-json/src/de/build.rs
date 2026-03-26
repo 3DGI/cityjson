@@ -1,35 +1,32 @@
 use std::collections::HashMap;
 
-use cityjson::resources::handles::CityObjectHandle;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::appearance::material::Material;
 use cityjson::v2_0::appearance::texture::Texture;
 use cityjson::v2_0::{
-    BBox, CityModel, CityModelIdentifier, CityObject, CityObjectIdentifier, Contact, Date,
-    Extension, Extensions, Metadata, RealWorldCoordinate, ThemeName, Transform, UVCoordinate, CRS,
-    RGB, RGBA,
+    BBox, CityModel, CityModelIdentifier, Contact, Date, Extension, Extensions, Metadata,
+    RealWorldCoordinate, ThemeName, Transform, UVCoordinate, CRS, RGB, RGBA,
 };
-use serde_json::value::RawValue;
 
 use crate::de::attributes::attribute_map;
-use crate::de::geometry::{import_geometry, import_template_geometry, GeometryResources};
+use crate::de::cityobjects::import_buffered_cityobjects;
+use crate::de::geometry::{import_template_geometry, GeometryResources};
 use crate::de::parse::ParseStringStorage;
-use crate::de::root::{RawRoot, RawTransform};
+use crate::de::root::{ParsedRoot, RawTransform};
 use crate::de::sections::{
-    RawAppearanceSection, RawCityObject, RawExtension, RawGeometryTemplatesSection,
-    RawMetadataSection,
+    RawAppearanceSection, RawExtension, RawGeometryTemplatesSection, RawMetadataSection,
 };
 use crate::de::validation::{
-    parse_cityobject_type, parse_contact_role, parse_contact_type, parse_image_type,
-    parse_root_header, parse_texture_type, parse_wrap_mode,
+    parse_contact_role, parse_contact_type, parse_image_type, parse_root_header,
+    parse_texture_type, parse_wrap_mode,
 };
-use crate::errors::{Error, Result};
+use crate::errors::Result;
 
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
-pub(crate) fn build_model<'de, SS>(raw: RawRoot<'de>) -> Result<CityModel<u32, SS>>
+pub(crate) fn build_model<'de, SS>(raw: ParsedRoot<'de>) -> Result<CityModel<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
@@ -39,28 +36,25 @@ where
     let transform = apply_transform(raw.transform, &mut model);
     let mut resources = GeometryResources::default();
 
-    if let Some(appearance_raw) = raw.appearance {
-        import_appearance::<SS>(appearance_raw, &mut model, &mut resources)?;
+    if let Some(appearance) = raw.appearance {
+        import_appearance::<SS>(appearance, &mut model, &mut resources)?;
     }
-    if let Some(templates_raw) = raw.geometry_templates {
-        import_geometry_templates::<SS>(templates_raw, &mut model, &mut resources)?;
+    if let Some(templates) = raw.geometry_templates {
+        import_geometry_templates::<SS>(templates, &mut model, &mut resources)?;
     }
     import_vertices(&raw.vertices, transform.as_ref(), &mut model)?;
 
-    if let Some(metadata_raw) = raw.metadata {
-        let meta: RawMetadataSection<'de> = serde_json::from_str(metadata_raw.get())?;
-        *model.metadata_mut() = build_metadata::<SS>(meta)?;
+    if let Some(metadata) = raw.metadata {
+        *model.metadata_mut() = build_metadata::<SS>(metadata)?;
     }
-    if let Some(extensions_raw) = raw.extensions {
-        let exts: HashMap<&'de str, RawExtension<'de>> =
-            serde_json::from_str(extensions_raw.get())?;
-        *model.extensions_mut() = build_extensions::<SS>(exts);
+    if let Some(extensions) = raw.extensions {
+        *model.extensions_mut() = build_extensions::<SS>(extensions);
     }
     if !raw.extra.is_empty() {
         *model.extra_mut() = attribute_map::<SS>(raw.extra, "root extra properties")?;
     }
 
-    import_cityobjects::<SS>(raw.cityobjects, &mut model, &resources)?;
+    import_buffered_cityobjects::<SS>(raw.cityobjects, &mut model, &resources)?;
 
     debug_assert_eq!(model.version(), Some(header.version));
     Ok(model)
@@ -110,15 +104,13 @@ fn import_vertices<SS: StringStorage>(
 // ---------------------------------------------------------------------------
 
 fn import_appearance<'de, SS>(
-    raw: &'de RawValue,
+    section: RawAppearanceSection<'de>,
     model: &mut CityModel<u32, SS>,
     resources: &mut GeometryResources,
 ) -> Result<()>
 where
     SS: ParseStringStorage<'de>,
 {
-    let section: RawAppearanceSection<'de> = serde_json::from_str(raw.get())?;
-
     for material in section.materials {
         let mut mat = Material::<SS>::new(SS::store(material.name));
         mat.set_ambient_intensity(material.ambient_intensity);
@@ -161,7 +153,7 @@ where
 // ---------------------------------------------------------------------------
 
 fn import_geometry_templates<'de, SS>(
-    raw: &'de RawValue,
+    section: RawGeometryTemplatesSection<'de>,
     model: &mut CityModel<u32, SS>,
     resources: &mut GeometryResources,
 ) -> Result<()>
@@ -169,8 +161,6 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let section: RawGeometryTemplatesSection<'de> = serde_json::from_str(raw.get())?;
-
     for vertex in section.vertices_templates {
         model.add_template_vertex(RealWorldCoordinate::new(vertex[0], vertex[1], vertex[2]))?;
     }
@@ -228,16 +218,16 @@ where
     let mut contact = Contact::new();
 
     if let Some(value) = raw.contact_name {
-        contact.set_contact_name(SS::store(value));
+        contact.set_contact_name(SS::store(value).to_string());
     }
     if let Some(value) = raw.email_address {
-        contact.set_email_address(SS::store(value));
+        contact.set_email_address(SS::store(value).to_string());
     }
     if let Some(value) = raw.role {
         contact.set_role(Some(parse_contact_role(value)?));
     }
     if let Some(value) = raw.website {
-        contact.set_website(Some(SS::store(value)));
+        contact.set_website(Some(SS::store(value).to_string()));
     }
     if let Some(value) = raw.contact_type {
         contact.set_contact_type(Some(parse_contact_type(value)?));
@@ -246,10 +236,10 @@ where
         contact.set_address(Some(attribute_map::<SS>(value, "pointOfContact.address")?));
     }
     if let Some(value) = raw.phone {
-        contact.set_phone(Some(SS::store(value)));
+        contact.set_phone(Some(SS::store(value).to_string()));
     }
     if let Some(value) = raw.organization {
-        contact.set_organization(Some(SS::store(value)));
+        contact.set_organization(Some(SS::store(value).to_string()));
     }
 
     Ok(contact)
@@ -272,115 +262,6 @@ where
         ));
     }
     extensions
-}
-
-// ---------------------------------------------------------------------------
-// City objects
-// ---------------------------------------------------------------------------
-
-struct PendingRelations<'de> {
-    source_id: &'de str,
-    source_handle: CityObjectHandle,
-    parents: Vec<&'de str>,
-    children: Vec<&'de str>,
-}
-
-fn import_cityobjects<'de, SS>(
-    raw: &'de RawValue,
-    model: &mut CityModel<u32, SS>,
-    resources: &GeometryResources,
-) -> Result<()>
-where
-    SS: ParseStringStorage<'de>,
-    SS::String: From<&'de str>,
-{
-    let city_objects: HashMap<&'de str, RawCityObject<'de>> = serde_json::from_str(raw.get())?;
-
-    let mut handle_by_id = HashMap::with_capacity(city_objects.len());
-    let mut pending = Vec::with_capacity(city_objects.len());
-
-    for (id, raw_object) in city_objects {
-        let type_cityobject = parse_cityobject_type::<SS>(raw_object.type_name)?;
-        let mut cityobject =
-            CityObject::new(CityObjectIdentifier::new(SS::store(id)), type_cityobject);
-
-        if let Some(extent) = raw_object.geographical_extent {
-            cityobject.set_geographical_extent(Some(BBox::from(extent)));
-        }
-        if let Some(attributes) = raw_object.attributes {
-            *cityobject.attributes_mut() =
-                attribute_map::<SS>(attributes, "CityObject.attributes")?;
-        }
-        if !raw_object.extra.is_empty() {
-            *cityobject.extra_mut() = attribute_map::<SS>(raw_object.extra, "CityObject extra")?;
-        }
-        if let Some(raw_geometry) = raw_object.geometry {
-            if raw_geometry.is_empty() {
-                cityobject.clear_geometry();
-            } else {
-                for geom in raw_geometry {
-                    let handle = import_geometry::<SS>(geom, model, resources)?;
-                    cityobject.add_geometry(handle);
-                }
-            }
-        }
-
-        let handle = model.cityobjects_mut().add(cityobject)?;
-        handle_by_id.insert(id, handle);
-        pending.push(PendingRelations {
-            source_id: id,
-            source_handle: handle,
-            parents: raw_object.parents,
-            children: raw_object.children,
-        });
-    }
-
-    resolve_relations(pending, &handle_by_id, model)
-}
-
-fn resolve_relations<'de, SS>(
-    pending: Vec<PendingRelations<'de>>,
-    handle_by_id: &HashMap<&'de str, CityObjectHandle>,
-    model: &mut CityModel<u32, SS>,
-) -> Result<()>
-where
-    SS: StringStorage,
-{
-    for relation in pending {
-        let cityobject = model
-            .cityobjects_mut()
-            .get_mut(relation.source_handle)
-            .ok_or_else(|| {
-                Error::InvalidValue(format!(
-                    "missing inserted CityObject for '{}'",
-                    relation.source_id
-                ))
-            })?;
-
-        for parent in relation.parents {
-            let handle = handle_by_id.get(parent).copied().ok_or_else(|| {
-                Error::UnresolvedCityObjectReference {
-                    source_id: relation.source_id.to_owned(),
-                    target_id: parent.to_owned(),
-                    relation: "parent",
-                }
-            })?;
-            cityobject.add_parent(handle);
-        }
-
-        for child in relation.children {
-            let handle = handle_by_id.get(child).copied().ok_or_else(|| {
-                Error::UnresolvedCityObjectReference {
-                    source_id: relation.source_id.to_owned(),
-                    target_id: child.to_owned(),
-                    relation: "child",
-                }
-            })?;
-            cityobject.add_child(handle);
-        }
-    }
-
-    Ok(())
 }
 
 // Private re-export to avoid repeating the long path in build_contact.
