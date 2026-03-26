@@ -1,4 +1,8 @@
 """Generate plots of relative performance differences for the 'speed' and 'datasize' benchmarks."""
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["matplotlib"]
+# ///
 import json
 import re
 import subprocess
@@ -25,12 +29,13 @@ MARKERSIZE = 60
 def compare_criterion():
     # The serde_json::Value in the baseline for comparison that we compare serde_cityjson to
     benchmark_id_baseline = "serde_json::Value"
-    benchmark_ids = ("serde_cityjson",)
+    benchmark_ids = ("serde_cityjson/owned", "serde_cityjson/borrowed")
     criterion_dir = cargo_target_directory().joinpath("criterion")
     # Contains the benchmark results. Note that the schema of this file is not stable.
     estimates_filename = "estimates.json"
 
-    relative_speeds = []
+    # {bench_id: [(group, relative_speed), ...]}
+    results: dict[str, list[tuple[str, float]]] = {}
     for group in GROUPS:
         group_dir = criterion_dir.joinpath(group)
         # Get the latest run of the baseline benchmark (serde_json::Value)
@@ -40,25 +45,31 @@ def compare_criterion():
             estimates_baseline = json.load(fo)
         for bench_id in benchmark_ids:
             bench_dir_name = re.sub(r'[^a-zA-Z0-9 \n.]', '_', bench_id)
-            # The latest benchmark run of serde_cityjson
+            # The latest benchmark run
             bench_new_estimates_file = group_dir.joinpath(bench_dir_name, "new", estimates_filename)
-            with bench_new_estimates_file.joinpath().open("r") as fo:
+            # borrowed mode is absent for datasets with JSON-escaped strings
+            if not bench_new_estimates_file.exists():
+                continue
+            with bench_new_estimates_file.open("r") as fo:
                 estimates = json.load(fo)
             speed_compared_to_baseline = estimates["mean"]["point_estimate"] / estimates_baseline["mean"][
                 "point_estimate"]
-            relative_speeds.append(speed_compared_to_baseline)
+            results.setdefault(bench_id, []).append((group, speed_compared_to_baseline))
 
     plt.style.use('seaborn-v0_8-muted')
     fig, ax = plt.subplots(figsize=(10, 3))
-    ax.scatter(relative_speeds, GROUPS, marker=MARKER, s=MARKERSIZE)
+    for bench_id, points in results.items():
+        groups, speeds = zip(*points)
+        ax.scatter(speeds, groups, marker=MARKER, s=MARKERSIZE, label=bench_id)
     ax.vlines(x=1, ymin=0, ymax=1, transform=ax.get_xaxis_transform(), colors="r")
     red_line = mlines.Line2D([], [], color='red', label="serde_json::Value")
-    ax.legend(handles=[red_line])
-    ax.set_xlim(left=0.0, right=2.0)
+    series_handles, _ = ax.get_legend_handles_labels()
+    ax.legend(handles=[red_line] + series_handles)
+    ax.set_xlim(left=0.0)
     ax.grid(visible=True, which="major", axis="x")
     ax.set_title(f"Relative execution time of serde_cityjson compared to {benchmark_id_baseline}")
-    ax.set_xlabel("Factor of execution time relative to serde_json::Value")
-    plt.subplots_adjust(left=0.2, bottom=0.2)
+    ax.set_xlabel("Factor of execution time relative to serde_json::Value (>1 = slower)")
+    plt.tight_layout()
     filepath = OUTPUT_FIGS_DIR.joinpath("speed_relative.png")
     plt.savefig(filepath)
     print(f"Saved {filepath}")

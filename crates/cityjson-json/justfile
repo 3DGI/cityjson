@@ -65,7 +65,7 @@ bench-size:
     cargo bench --features datasize --bench datasize --
 
 bench-plot:
-    resources/compare_benchmarks/.venv/bin/python resources/compare_benchmarks/compare_benchmarks.py
+    uv run resources/compare_benchmarks/compare_benchmarks.py
 
 check:
     cargo check --all-targets --all-features
