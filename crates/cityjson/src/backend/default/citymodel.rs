@@ -438,6 +438,18 @@ where
         self.geometries.reserve(additional)
     }
 
+    pub(crate) fn reserve_semantic_capacity(&mut self, additional: usize) -> Result<()> {
+        self.semantics.reserve(additional)
+    }
+
+    pub(crate) fn reserve_material_capacity(&mut self, additional: usize) -> Result<()> {
+        self.materials.reserve(additional)
+    }
+
+    pub(crate) fn reserve_texture_capacity(&mut self, additional: usize) -> Result<()> {
+        self.textures.reserve(additional)
+    }
+
     // Vertex methods
     pub fn vertices(&self) -> &Vertices<VR, RealWorldCoordinate> {
         &self.vertices

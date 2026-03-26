@@ -125,6 +125,11 @@ impl<VR: VertexRef> TextureMap<VR> {
     }
 
     #[allow(dead_code)]
+    pub(crate) fn into_raw(self) -> TextureMapCore<VR, ResourceId32> {
+        self.inner
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn to_raw(&self) -> &TextureMapCore<VR, ResourceId32> {
         &self.inner
     }

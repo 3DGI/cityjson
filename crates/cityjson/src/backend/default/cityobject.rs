@@ -38,6 +38,11 @@ impl<SS: StringStorage, RR: ResourceId, CO> CityObjectsCore<SS, RR, CO> {
         }
     }
 
+    /// Reserve capacity for additional city objects.
+    pub(crate) fn reserve(&mut self, additional: usize) -> Result<()> {
+        self.inner.reserve(additional)
+    }
+
     /// Add a city object and return its resource reference.
     ///
     /// # Errors

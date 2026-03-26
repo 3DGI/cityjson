@@ -128,6 +128,16 @@ macro_rules! define_typed_resource_map {
             }
 
             #[allow(dead_code)]
+            pub(crate) fn into_raw(
+                self,
+            ) -> crate::resources::mapping::SemanticOrMaterialMap<
+                VR,
+                crate::resources::id::ResourceId32,
+            > {
+                self.inner
+            }
+
+            #[allow(dead_code)]
             pub(crate) fn to_raw(
                 &self,
             ) -> &crate::resources::mapping::SemanticOrMaterialMap<

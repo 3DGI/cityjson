@@ -67,8 +67,8 @@ use crate::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
 use crate::resources::id::ResourceId32;
-use crate::resources::mapping::SemanticOrMaterialMap;
 use crate::resources::mapping::textures::TextureMapCore;
+use crate::resources::mapping::{MaterialMap, SemanticMap, SemanticOrMaterialMap, TextureMap};
 use crate::resources::storage::StringStorage;
 use crate::v2_0::boundary::Boundary;
 use crate::v2_0::vertex::{VertexIndex, VertexRef};
@@ -90,6 +90,30 @@ pub use crate::cityjson::core::geometry::{GeometryType, LoD};
 #[derive(Clone, Debug)]
 pub struct Geometry<VR: VertexRef, SS: StringStorage> {
     inner: GeometryCore<VR, ResourceId32, SS>,
+}
+
+/// Public flat parts for constructing a stored [`Geometry`].
+///
+/// This is the raw write-layer input: callers provide the final flat topology and resource
+/// maps directly, and [`Geometry::from_stored_parts`] packages them into the internal storage
+/// layout without additional validation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoredGeometryParts<VR: VertexRef, SS: StringStorage> {
+    pub type_geometry: GeometryType,
+    pub lod: Option<LoD>,
+    pub boundaries: Option<Boundary<VR>>,
+    pub semantics: Option<SemanticMap<VR>>,
+    pub materials: Option<Vec<(ThemeName<SS>, MaterialMap<VR>)>>,
+    pub textures: Option<Vec<(ThemeName<SS>, TextureMap<VR>)>>,
+    pub instance: Option<StoredGeometryInstance<VR>>,
+}
+
+/// Public stored `GeometryInstance` payload used by [`StoredGeometryParts`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StoredGeometryInstance<VR: VertexRef> {
+    pub template: GeometryTemplateHandle,
+    pub reference_point: VertexIndex<VR>,
+    pub transformation: AffineTransform3D,
 }
 
 /// Read view over the `GeometryInstance` fields of a geometry.
@@ -362,6 +386,40 @@ impl<'a, VR: VertexRef, SS: StringStorage> TextureThemesView<'a, VR, SS> {
 }
 
 impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
+    #[must_use]
+    pub fn from_stored_parts(parts: StoredGeometryParts<VR, SS>) -> Self {
+        let semantics = parts.semantics.map(SemanticMap::into_raw);
+        let materials = parts.materials.map(|items| {
+            items
+                .into_iter()
+                .map(|(theme, map)| (theme, map.into_raw()))
+                .collect()
+        });
+        let textures = parts.textures.map(|items| {
+            items
+                .into_iter()
+                .map(|(theme, map)| (theme, map.into_raw()))
+                .collect()
+        });
+        let instance = parts.instance.map(|instance| {
+            GeometryInstanceData::new(
+                instance.template.to_raw(),
+                instance.reference_point,
+                instance.transformation,
+            )
+        });
+
+        Self::from_raw_parts(
+            parts.type_geometry,
+            parts.lod,
+            parts.boundaries,
+            semantics,
+            materials,
+            textures,
+            instance,
+        )
+    }
+
     pub(crate) fn from_raw_parts(
         type_geometry: GeometryType,
         lod: Option<LoD>,

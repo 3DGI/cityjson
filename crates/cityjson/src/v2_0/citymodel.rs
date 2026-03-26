@@ -407,6 +407,20 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
     /// cannot store additional entries for `ResourceId32`.
     pub fn add_geometry(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryHandle> {
         validate_stored_geometry(geometry.raw(), self)?;
+        self.add_geometry_unchecked(geometry)
+    }
+
+    /// Add a geometry without validating stored-geometry invariants.
+    ///
+    /// Callers must ensure that `geometry` satisfies the same invariants currently enforced by
+    /// [`CityModel::add_geometry`]. In particular, boundary vertex indices must reference the
+    /// correct vertex pool and the geometry must be valid for regular geometry insertion.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the geometry pool cannot store
+    /// additional entries for `ResourceId32`.
+    pub fn add_geometry_unchecked(&mut self, geometry: Geometry<VR, SS>) -> Result<GeometryHandle> {
         self.inner
             .add_geometry(geometry)
             .map(GeometryHandle::from_raw)
@@ -569,6 +583,23 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
             self,
             BoundaryVertexSource::Template,
         )?;
+        self.add_geometry_template_unchecked(geometry)
+    }
+
+    /// Add a template geometry without validating stored-geometry invariants.
+    ///
+    /// Callers must ensure that `geometry` satisfies the same invariants currently enforced by
+    /// [`CityModel::add_geometry_template`], and that it is not a `GeometryInstance`.
+    /// Boundary vertex indices must reference the template vertex pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when the template-geometry pool cannot
+    /// store additional entries for `ResourceId32`.
+    pub fn add_geometry_template_unchecked(
+        &mut self,
+        geometry: Geometry<VR, SS>,
+    ) -> Result<GeometryTemplateHandle> {
         self.inner
             .add_template_geometry(geometry)
             .map(GeometryTemplateHandle::from_raw)
@@ -594,23 +625,52 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.version()
     }
 
+    /// Reserve capacity for bulk import workloads.
+    ///
+    /// This reserves all pools that can be expanded after construction. `cityobjects` uses the
+    /// same runtime reserve path as the other pools, while the remaining fields reserve vertices,
+    /// geometries, templates, and appearance resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when any pool would exceed the
+    /// representable size for `ResourceId32`.
+    pub fn reserve_import(&mut self, capacities: CityModelCapacities) -> Result<()> {
+        self.cityobjects_mut().reserve(capacities.cityobjects)?;
+        self.inner.reserve_vertex_capacity(capacities.vertices)?;
+        self.inner
+            .reserve_geometry_capacity(capacities.geometries)?;
+        self.inner
+            .reserve_template_vertex_capacity(capacities.template_vertices)?;
+        self.inner
+            .reserve_template_geometry_capacity(capacities.template_geometries)?;
+        self.inner.reserve_semantic_capacity(capacities.semantics)?;
+        self.inner.reserve_material_capacity(capacities.materials)?;
+        self.inner.reserve_texture_capacity(capacities.textures)?;
+        self.inner.reserve_uv_capacity(capacities.uv_coordinates)
+    }
+
     pub(crate) fn reserve_draft_insert(
         &mut self,
         mode: super::geometry_draft::DraftInsertMode,
         new_vertices: usize,
         new_uvs: usize,
     ) -> Result<()> {
-        match mode {
-            super::geometry_draft::DraftInsertMode::Regular => {
-                self.inner.reserve_geometry_capacity(1)?;
-                self.inner.reserve_vertex_capacity(new_vertices)?;
-            }
-            super::geometry_draft::DraftInsertMode::Template => {
-                self.inner.reserve_template_geometry_capacity(1)?;
-                self.inner.reserve_template_vertex_capacity(new_vertices)?;
-            }
-        }
-        self.inner.reserve_uv_capacity(new_uvs)
+        let capacities = match mode {
+            super::geometry_draft::DraftInsertMode::Regular => CityModelCapacities {
+                geometries: 1,
+                vertices: new_vertices,
+                uv_coordinates: new_uvs,
+                ..CityModelCapacities::default()
+            },
+            super::geometry_draft::DraftInsertMode::Template => CityModelCapacities {
+                template_geometries: 1,
+                template_vertices: new_vertices,
+                uv_coordinates: new_uvs,
+                ..CityModelCapacities::default()
+            },
+        };
+        self.reserve_import(capacities)
     }
 
     pub fn default_material_theme(&self) -> Option<&ThemeName<SS>> {
@@ -865,7 +925,7 @@ mod tests {
     use crate::v2_0::appearance::material::Material;
     use crate::v2_0::appearance::texture::Texture;
     use crate::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
-    use crate::v2_0::geometry::{AffineTransform3D, LoD};
+    use crate::v2_0::geometry::{AffineTransform3D, LoD, StoredGeometryParts};
     use crate::v2_0::{GeometryDraft, RingDraft, SurfaceDraft};
 
     fn multi_point_geometry(
@@ -880,6 +940,20 @@ mod tests {
             None,
             None,
         )
+    }
+
+    fn stored_multi_point_geometry(
+        vertices: BoundaryNestedMultiPoint32,
+    ) -> Geometry<u32, OwnedStringStorage> {
+        Geometry::from_stored_parts(StoredGeometryParts {
+            type_geometry: GeometryType::MultiPoint,
+            lod: Some(LoD::LoD1),
+            boundaries: Some(vertices.into()),
+            semantics: None,
+            materials: None,
+            textures: None,
+            instance: None,
+        })
     }
 
     #[test]
@@ -909,6 +983,40 @@ mod tests {
             .unwrap_err();
 
         assert!(format!("{err}").contains("missing template vertex"));
+    }
+
+    #[test]
+    fn add_geometry_unchecked_accepts_valid_stored_geometry() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model
+            .add_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+
+        let geometry = stored_multi_point_geometry(vec![0u32]);
+        let handle = model.add_geometry_unchecked(geometry).unwrap();
+
+        assert_eq!(model.geometry_count(), 1);
+        assert_eq!(
+            model.get_geometry(handle).unwrap().type_geometry(),
+            &GeometryType::MultiPoint
+        );
+    }
+
+    #[test]
+    fn add_geometry_template_unchecked_accepts_valid_stored_geometry() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model
+            .add_template_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+
+        let geometry = stored_multi_point_geometry(vec![0u32]);
+        let handle = model.add_geometry_template_unchecked(geometry).unwrap();
+
+        assert_eq!(model.geometry_template_count(), 1);
+        assert_eq!(
+            model.get_geometry_template(handle).unwrap().type_geometry(),
+            &GeometryType::MultiPoint
+        );
     }
 
     #[test]

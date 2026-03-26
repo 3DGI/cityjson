@@ -55,9 +55,6 @@
 //! ```
 
 use crate::backend::default::geometry::GeometryInstanceData;
-use crate::backend::default::geometry_validation::{
-    BoundaryVertexSource, validate_stored_geometry_for_boundary_source,
-};
 use crate::cityjson::core::appearance::ThemeName;
 use crate::error::{Error, Result};
 use crate::resources::handles::{
@@ -511,11 +508,10 @@ impl<VR: VertexRef, SS: StringStorage> GeometryDraft<VR, SS> {
     /// # Errors
     ///
     /// Returns an error if the draft is invalid, references missing resources,
-    /// cannot reserve required capacity, or fails final stored-geometry
-    /// validation.
+    /// or cannot reserve required capacity.
     pub fn insert_into(self, model: &mut CityModel<VR, SS>) -> Result<GeometryHandle> {
         let geometry = self.build_stored(model, DraftInsertMode::Regular)?;
-        model.add_geometry(geometry)
+        model.add_geometry_unchecked(geometry)
     }
 
     /// Inserts this draft into the template geometry pool after validation.
@@ -523,14 +519,13 @@ impl<VR: VertexRef, SS: StringStorage> GeometryDraft<VR, SS> {
     /// # Errors
     ///
     /// Returns an error if the draft is invalid, references missing resources,
-    /// cannot reserve required capacity, or fails final stored-geometry
-    /// validation.
+    /// or cannot reserve required capacity.
     pub fn insert_template_into(
         self,
         model: &mut CityModel<VR, SS>,
     ) -> Result<GeometryTemplateHandle> {
         let geometry = self.build_stored(model, DraftInsertMode::Template)?;
-        model.add_geometry_template(geometry)
+        model.add_geometry_template_unchecked(geometry)
     }
 
     fn build_stored(
@@ -567,15 +562,6 @@ impl<VR: VertexRef, SS: StringStorage> GeometryDraft<VR, SS> {
             draft => draft.build_regular_geometry(&mut resolver)?,
         };
 
-        let boundary_vertex_source = match mode {
-            DraftInsertMode::Regular => BoundaryVertexSource::Regular,
-            DraftInsertMode::Template => BoundaryVertexSource::Template,
-        };
-        validate_stored_geometry_for_boundary_source(
-            geometry.raw(),
-            &*resolver.model,
-            boundary_vertex_source,
-        )?;
         Ok(geometry)
     }
 

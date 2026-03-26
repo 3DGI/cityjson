@@ -24,8 +24,10 @@
 //! - **Resources live in model-level pools.** Semantics, materials, and textures are stored
 //!   once on [`CityModel`] and referenced by typed handles ([`SemanticHandle`],
 //!   [`MaterialHandle`], [`TextureHandle`]).
-//! - **Geometry authoring uses a draft.** [`GeometryDraft`] accepts raw coordinates,
-//!   deduplicates vertices, validates the geometry, and inserts it into the model in one step.
+//! - **Geometry authoring has a checked draft layer and a raw stored layer.**
+//!   [`GeometryDraft`] accepts raw coordinates, deduplicates vertices, validates the geometry,
+//!   and then inserts through the unchecked raw path. For trusted flat input, use
+//!   [`geometry::StoredGeometryParts`] with [`Geometry::from_stored_parts`].
 //!
 //! ## Imports
 //!
@@ -39,6 +41,7 @@
 //! [`TextureHandle`]: crate::resources::handles::TextureHandle
 //! [`MaterialMap`]: crate::resources::mapping::materials::MaterialMap
 //! [`TextureMap`]: crate::resources::mapping::textures::TextureMap
+pub use crate::resources::mapping::{MaterialMap, SemanticMap, TextureMap};
 pub use crate::{CityJSONVersion, CityModelType};
 
 pub mod appearance;
@@ -109,6 +112,7 @@ pub use coordinate::{Coordinate, RealWorldCoordinate, UVCoordinate};
 pub use extension::{Extension, Extensions};
 pub use geometry::{
     AffineTransform3D, Geometry, GeometryInstanceView, GeometryType, GeometryView, LoD,
+    StoredGeometryInstance, StoredGeometryParts,
     semantic::{BorrowedSemantic, OwnedSemantic, Semantic, SemanticType},
 };
 pub use geometry_draft::{

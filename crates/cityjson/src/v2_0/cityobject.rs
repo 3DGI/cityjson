@@ -70,6 +70,16 @@ impl<SS: StringStorage> CityObjects<SS> {
         }
     }
 
+    /// Reserve capacity for additional city objects.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::ResourcePoolFull`] when reserving the requested capacity
+    /// would exceed the representable pool size.
+    pub fn reserve(&mut self, additional: usize) -> Result<()> {
+        self.inner.reserve(additional)
+    }
+
     /// Add a city object and return its handle.
     ///
     /// # Errors
