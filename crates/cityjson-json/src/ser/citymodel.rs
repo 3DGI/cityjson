@@ -116,7 +116,7 @@ where
         if let Some(website) = contact.website().as_ref() {
             contact_value.insert(
                 "website".to_owned(),
-                Value::String(website.as_ref().to_owned()),
+                Value::String(website.to_string()),
             );
         }
         if let Some(kind) = contact.contact_type() {
@@ -132,12 +132,12 @@ where
             );
         }
         if let Some(phone) = contact.phone().as_ref() {
-            contact_value.insert("phone".to_owned(), Value::String(phone.as_ref().to_owned()));
+            contact_value.insert("phone".to_owned(), Value::String(phone.to_string()));
         }
         if let Some(organization) = contact.organization().as_ref() {
             contact_value.insert(
                 "organization".to_owned(),
-                Value::String(organization.as_ref().to_owned()),
+                Value::String(organization.to_string()),
             );
         }
         value.insert("pointOfContact".to_owned(), Value::Object(contact_value));

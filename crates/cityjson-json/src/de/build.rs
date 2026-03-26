@@ -218,16 +218,16 @@ where
     let mut contact = Contact::new();
 
     if let Some(value) = raw.contact_name {
-        contact.set_contact_name(SS::store(value).to_string());
+        contact.set_contact_name(SS::store(value));
     }
     if let Some(value) = raw.email_address {
-        contact.set_email_address(SS::store(value).to_string());
+        contact.set_email_address(SS::store(value));
     }
     if let Some(value) = raw.role {
         contact.set_role(Some(parse_contact_role(value)?));
     }
     if let Some(value) = raw.website {
-        contact.set_website(Some(SS::store(value).to_string()));
+        contact.set_website(Some(SS::store(value)));
     }
     if let Some(value) = raw.contact_type {
         contact.set_contact_type(Some(parse_contact_type(value)?));
@@ -236,10 +236,10 @@ where
         contact.set_address(Some(attribute_map::<SS>(value, "pointOfContact.address")?));
     }
     if let Some(value) = raw.phone {
-        contact.set_phone(Some(SS::store(value).to_string()));
+        contact.set_phone(Some(SS::store(value)));
     }
     if let Some(value) = raw.organization {
-        contact.set_organization(Some(SS::store(value).to_string()));
+        contact.set_organization(Some(SS::store(value)));
     }
 
     Ok(contact)
