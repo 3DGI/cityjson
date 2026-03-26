@@ -176,7 +176,7 @@ where
     }
 
     for template in section.templates {
-        let handle = import_template_geometry::<SS>(template, model)?;
+        let handle = import_template_geometry::<SS>(template, model, resources)?;
         resources.templates.push(handle);
     }
 

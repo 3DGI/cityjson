@@ -13,8 +13,9 @@ use cityjson::resources::handles::{
 };
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
-    AffineTransform3D, CityModel, GeometryDraft, LineStringDraft, PointDraft, RingDraft, Semantic,
-    SemanticType, ShellDraft, SolidDraft, SurfaceDraft, ThemeName, VertexIndex,
+    AffineTransform3D, Boundary, CityModel, Geometry, GeometryType, LoD, MaterialMap, Semantic,
+    SemanticMap, SemanticType, StoredGeometryInstance, StoredGeometryParts, ThemeName, TextureMap,
+    VertexIndex,
 };
 
 // ---------------------------------------------------------------------------
@@ -58,137 +59,8 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    match raw {
-        RawGeometry::MultiPoint {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_point(
-            lod,
-            boundaries,
-            semantics.as_ref(),
-            material.as_ref(),
-            texture.as_ref(),
-            model,
-            resources,
-        ),
-
-        RawGeometry::MultiLineString {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_line_string(
-            lod,
-            boundaries,
-            semantics.as_ref(),
-            material.as_ref(),
-            texture.as_ref(),
-            model,
-            resources,
-        ),
-
-        RawGeometry::MultiSurface {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_surface(
-            lod,
-            boundaries,
-            false,
-            semantics.as_ref(),
-            material,
-            texture,
-            model,
-            resources,
-        ),
-
-        RawGeometry::CompositeSurface {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_surface(
-            lod,
-            boundaries,
-            true,
-            semantics.as_ref(),
-            material,
-            texture,
-            model,
-            resources,
-        ),
-
-        RawGeometry::Solid {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_solid(
-            lod,
-            boundaries,
-            semantics.as_ref(),
-            material,
-            texture,
-            model,
-            resources,
-        ),
-
-        RawGeometry::MultiSolid {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_solid(
-            lod,
-            boundaries,
-            false,
-            semantics.as_ref(),
-            material,
-            texture,
-            model,
-            resources,
-        ),
-
-        RawGeometry::CompositeSolid {
-            lod,
-            boundaries,
-            semantics,
-            material,
-            texture,
-        } => import_multi_solid(
-            lod,
-            boundaries,
-            true,
-            semantics.as_ref(),
-            material,
-            texture,
-            model,
-            resources,
-        ),
-
-        RawGeometry::GeometryInstance {
-            lod,
-            template,
-            boundaries,
-            transformation_matrix,
-        } => import_geometry_instance(
-            lod,
-            template,
-            boundaries.as_deref(),
-            transformation_matrix,
-            model,
-            resources,
-        ),
-    }
+    let geometry = build_geometry(raw, model, resources)?;
+    model.add_geometry_unchecked(geometry).map_err(Error::from)
 }
 
 /// Import a geometry as a template (not a regular city object geometry).
@@ -197,101 +69,69 @@ where
 pub(crate) fn import_template_geometry<'de, SS>(
     raw: RawGeometry<'de>,
     model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
 ) -> Result<GeometryTemplateHandle>
 where
     SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
+{
+    if matches!(raw, RawGeometry::GeometryInstance { .. }) {
+        return Err(Error::UnsupportedFeature(
+            "GeometryInstance cannot be used as a geometry template",
+        ));
+    }
+
+    let geometry = build_geometry(raw, model, resources)?;
+    model
+        .add_geometry_template_unchecked(geometry)
+        .map_err(Error::from)
+}
+
+fn build_geometry<'de, SS>(
+    raw: RawGeometry<'de>,
+    model: &mut CityModel<u32, SS>,
+    resources: &GeometryResources,
+) -> Result<Geometry<u32, SS>>
+where
+    SS: ParseStringStorage<'de>,
+    SS::String: From<&'de str>,
 {
     match raw {
-        RawGeometry::GeometryInstance { .. } => Err(Error::UnsupportedFeature(
-            "GeometryInstance cannot be used as a geometry template",
-        )),
-        RawGeometry::MultiPoint {
-            lod, boundaries, ..
-        } => GeometryDraft::multi_point(parse_lod(lod)?, boundaries.into_iter().map(point_draft))
-            .insert_template_into(model)
-            .map_err(Error::from),
-        RawGeometry::MultiLineString {
-            lod, boundaries, ..
-        } => {
-            let linestrings = boundaries
-                .into_iter()
-                .map(|ls| LineStringDraft::new(ls.into_iter().map(VertexIndex::new)));
-            GeometryDraft::multi_line_string(parse_lod(lod)?, linestrings)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::MultiPoint { lod, boundaries, semantics, material, texture } => {
+            build_multi_point_geometry(lod, boundaries, semantics.as_ref(), material.as_ref(), texture.as_ref(), model)
         }
-        RawGeometry::MultiSurface {
-            lod, boundaries, ..
-        } => {
-            let surfaces = boundaries
-                .into_iter()
-                .map(surface_draft::<SS>)
-                .collect::<Result<Vec<_>>>()?;
-            GeometryDraft::multi_surface(parse_lod(lod)?, surfaces)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::MultiLineString { lod, boundaries, semantics, material, texture } => {
+            build_multi_line_string_geometry(lod, boundaries, semantics.as_ref(), material.as_ref(), texture.as_ref(), model)
         }
-        RawGeometry::CompositeSurface {
-            lod, boundaries, ..
-        } => {
-            let surfaces = boundaries
-                .into_iter()
-                .map(surface_draft::<SS>)
-                .collect::<Result<Vec<_>>>()?;
-            GeometryDraft::composite_surface(parse_lod(lod)?, surfaces)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::MultiSurface { lod, boundaries, semantics, material, texture } => {
+            build_multi_surface_geometry(lod, boundaries, false, semantics.as_ref(), material, texture, model, resources)
         }
-        RawGeometry::Solid {
-            lod, boundaries, ..
-        } => {
-            let mut shells = boundaries.into_iter().map(shell_draft::<SS>);
-            let outer = shells.next().transpose()?.ok_or_else(|| {
-                Error::InvalidValue("Solid geometry requires at least one shell".to_owned())
-            })?;
-            let inners = shells.collect::<Result<Vec<_>>>()?;
-            GeometryDraft::solid(parse_lod(lod)?, outer, inners)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::CompositeSurface { lod, boundaries, semantics, material, texture } => {
+            build_multi_surface_geometry(lod, boundaries, true, semantics.as_ref(), material, texture, model, resources)
         }
-        RawGeometry::MultiSolid {
-            lod, boundaries, ..
-        } => {
-            let solids = boundaries
-                .into_iter()
-                .map(solid_draft::<SS>)
-                .collect::<Result<Vec<_>>>()?;
-            GeometryDraft::multi_solid(parse_lod(lod)?, solids)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::Solid { lod, boundaries, semantics, material, texture } => {
+            build_solid_geometry(lod, boundaries, semantics.as_ref(), material, texture, model, resources)
         }
-        RawGeometry::CompositeSolid {
-            lod, boundaries, ..
-        } => {
-            let solids = boundaries
-                .into_iter()
-                .map(solid_draft::<SS>)
-                .collect::<Result<Vec<_>>>()?;
-            GeometryDraft::composite_solid(parse_lod(lod)?, solids)
-                .insert_template_into(model)
-                .map_err(Error::from)
+        RawGeometry::MultiSolid { lod, boundaries, semantics, material, texture } => {
+            build_multi_solid_geometry(lod, boundaries, false, semantics.as_ref(), material, texture, model, resources)
+        }
+        RawGeometry::CompositeSolid { lod, boundaries, semantics, material, texture } => {
+            build_multi_solid_geometry(lod, boundaries, true, semantics.as_ref(), material, texture, model, resources)
+        }
+        RawGeometry::GeometryInstance { template, boundaries, transformation_matrix } => {
+            build_geometry_instance(template, boundaries.as_deref(), transformation_matrix, resources)
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Geometry type importers
-// ---------------------------------------------------------------------------
-
-fn import_multi_point<'de, SS>(
+fn build_multi_point_geometry<'de, SS>(
     lod: Option<&'de str>,
     boundaries: MultiPointBoundary,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<&HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<&HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
     model: &mut CityModel<u32, SS>,
-    _resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
@@ -309,30 +149,33 @@ where
 
     let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
     let assignments = parse_point_assignments(semantics, &semantic_handles, boundaries.len());
-
-    let points = boundaries.into_iter().enumerate().map(|(i, idx)| {
-        let pt = PointDraft::new(VertexIndex::new(idx));
-        if let Some(Some(sem)) = assignments.get(i) {
-            pt.with_semantic(*sem)
-        } else {
-            pt
+    let semantic_map = semantics.map(|_| {
+        let mut map = SemanticMap::<u32>::new();
+        for assignment in assignments {
+            map.add_point(assignment);
         }
+        map
     });
 
-    GeometryDraft::multi_point(parse_lod(lod)?, points)
-        .insert_into(model)
-        .map_err(Error::from)
+    Ok(Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: GeometryType::MultiPoint,
+        lod: parse_lod(lod)?,
+        boundaries: Some(boundaries.into()),
+        semantics: semantic_map,
+        materials: None,
+        textures: None,
+        instance: None,
+    }))
 }
 
-fn import_multi_line_string<'de, SS>(
+fn build_multi_line_string_geometry<'de, SS>(
     lod: Option<&'de str>,
     boundaries: MultiLineStringBoundary,
     semantics: Option<&RawSemantics<'de>>,
     material: Option<&HashMap<&'de str, RawMaterialTheme>>,
     texture: Option<&HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
     model: &mut CityModel<u32, SS>,
-    _resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
@@ -350,23 +193,28 @@ where
 
     let semantic_handles = import_geometry_semantics::<SS>(semantics, model)?;
     let assignments = parse_linestring_assignments(semantics, &semantic_handles, boundaries.len());
-
-    let linestrings = boundaries.into_iter().enumerate().map(|(i, ls)| {
-        let ld = LineStringDraft::new(ls.into_iter().map(VertexIndex::new));
-        if let Some(Some(sem)) = assignments.get(i) {
-            ld.with_semantic(*sem)
-        } else {
-            ld
+    let semantic_map = semantics.map(|_| {
+        let mut map = SemanticMap::<u32>::new();
+        for assignment in assignments {
+            map.add_linestring(assignment);
         }
+        map
     });
 
-    GeometryDraft::multi_line_string(parse_lod(lod)?, linestrings)
-        .insert_into(model)
-        .map_err(Error::from)
+    let boundaries: Boundary<u32> = boundaries.try_into()?;
+    Ok(Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: GeometryType::MultiLineString,
+        lod: parse_lod(lod)?,
+        boundaries: Some(boundaries),
+        semantics: semantic_map,
+        materials: None,
+        textures: None,
+        instance: None,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
-fn import_multi_surface<'de, SS>(
+fn build_multi_surface_geometry<'de, SS>(
     lod: Option<&'de str>,
     boundaries: MultiSurfaceBoundary,
     is_composite: bool,
@@ -375,30 +223,33 @@ fn import_multi_surface<'de, SS>(
     texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let has_semantics = semantics.is_some();
+    let has_material = material.is_some();
+    let has_texture = texture.is_some();
     let mappings =
         parse_multi_surface_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let mut surface_index = 0;
-    let mut ring_index = 0;
-    let surfaces = boundaries
-        .into_iter()
-        .map(|surface| {
-            mapped_surface_draft::<SS>(surface, &mappings, &mut surface_index, &mut ring_index)
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let draft = if is_composite {
-        GeometryDraft::composite_surface(parse_lod(lod)?, surfaces)
-    } else {
-        GeometryDraft::multi_surface(parse_lod(lod)?, surfaces)
-    };
-    draft.insert_into(model).map_err(Error::from)
+    let boundaries: Boundary<u32> = boundaries.try_into()?;
+    Ok(build_surface_geometry_parts(
+        if is_composite {
+            GeometryType::CompositeSurface
+        } else {
+            GeometryType::MultiSurface
+        },
+        parse_lod(lod)?,
+        boundaries,
+        mappings,
+        has_semantics,
+        has_material,
+        has_texture,
+    ))
 }
 
-fn import_solid<'de, SS>(
+fn build_solid_geometry<'de, SS>(
     lod: Option<&'de str>,
     boundaries: SolidBoundary,
     semantics: Option<&RawSemantics<'de>>,
@@ -406,29 +257,29 @@ fn import_solid<'de, SS>(
     texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
-    let mappings =
-        parse_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let mut surface_index = 0;
-    let mut ring_index = 0;
-    let mut shells = boundaries.into_iter().map(|shell| {
-        mapped_shell_draft::<SS>(shell, &mappings, &mut surface_index, &mut ring_index)
-    });
-    let outer = shells.next().transpose()?.ok_or_else(|| {
-        Error::InvalidValue("Solid geometry requires at least one shell".to_owned())
-    })?;
-    let inners = shells.collect::<Result<Vec<_>>>()?;
-    GeometryDraft::solid(parse_lod(lod)?, outer, inners)
-        .insert_into(model)
-        .map_err(Error::from)
+    let has_semantics = semantics.is_some();
+    let has_material = material.is_some();
+    let has_texture = texture.is_some();
+    let mappings = parse_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
+    let boundaries: Boundary<u32> = boundaries.try_into()?;
+    Ok(build_surface_geometry_parts(
+        GeometryType::Solid,
+        parse_lod(lod)?,
+        boundaries,
+        mappings,
+        has_semantics,
+        has_material,
+        has_texture,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
-fn import_multi_solid<'de, SS>(
+fn build_multi_solid_geometry<'de, SS>(
     lod: Option<&'de str>,
     boundaries: MultiSolidBoundary,
     is_composite: bool,
@@ -437,39 +288,40 @@ fn import_multi_solid<'de, SS>(
     texture: Option<HashMap<&'de str, crate::de::sections::RawTextureTheme>>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let has_semantics = semantics.is_some();
+    let has_material = material.is_some();
+    let has_texture = texture.is_some();
     let mappings =
         parse_multi_solid_mappings(semantics, material, texture, &boundaries, model, resources)?;
-    let mut surface_index = 0;
-    let mut ring_index = 0;
-    let solids = boundaries
-        .into_iter()
-        .map(|solid| {
-            mapped_solid_draft::<SS>(solid, &mappings, &mut surface_index, &mut ring_index)
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let draft = if is_composite {
-        GeometryDraft::composite_solid(parse_lod(lod)?, solids)
-    } else {
-        GeometryDraft::multi_solid(parse_lod(lod)?, solids)
-    };
-    draft.insert_into(model).map_err(Error::from)
+    let boundaries: Boundary<u32> = boundaries.try_into()?;
+    Ok(build_surface_geometry_parts(
+        if is_composite {
+            GeometryType::CompositeSolid
+        } else {
+            GeometryType::MultiSolid
+        },
+        parse_lod(lod)?,
+        boundaries,
+        mappings,
+        has_semantics,
+        has_material,
+        has_texture,
+    ))
 }
 
-fn import_geometry_instance<'de, SS>(
-    _lod: Option<&'de str>,
+fn build_geometry_instance<SS>(
     template: Option<u32>,
     boundaries: Option<&[u32]>,
     transformation_matrix: Option<[f64; 16]>,
-    model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
-) -> Result<GeometryHandle>
+) -> Result<Geometry<u32, SS>>
 where
-    SS: ParseStringStorage<'de>,
+    SS: StringStorage,
 {
     let template_idx = template.ok_or_else(|| {
         Error::InvalidValue("GeometryInstance is missing a template index".to_owned())
@@ -492,15 +344,114 @@ where
             )
         })?;
 
-    GeometryDraft::instance(
-        template_handle,
-        VertexIndex::new(reference_point),
-        transformation_matrix
-            .map(AffineTransform3D::from)
-            .unwrap_or_default(),
-    )
-    .insert_into(model)
-    .map_err(Error::from)
+    Ok(Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: GeometryType::GeometryInstance,
+        lod: None,
+        boundaries: None,
+        semantics: None,
+        materials: None,
+        textures: None,
+        instance: Some(StoredGeometryInstance {
+            template: template_handle,
+            reference_point: VertexIndex::new(reference_point),
+            transformation: transformation_matrix
+                .map(AffineTransform3D::from)
+                .unwrap_or_default(),
+        }),
+    }))
+}
+
+fn build_surface_geometry_parts<'de, SS>(
+    type_geometry: GeometryType,
+    lod: Option<LoD>,
+    boundaries: Boundary<u32>,
+    mappings: SurfaceMappings<'de>,
+    has_semantics: bool,
+    has_materials: bool,
+    has_textures: bool,
+) -> Geometry<u32, SS>
+where
+    SS: ParseStringStorage<'de>,
+{
+    let SurfaceMappings {
+        semantics: surface_semantics,
+        materials: surface_materials,
+        textures: surface_textures,
+    } = mappings;
+
+    let semantics = has_semantics.then(|| {
+        let mut map = SemanticMap::<u32>::new();
+        for assignment in surface_semantics {
+            map.add_surface(assignment);
+        }
+        map
+    });
+    let materials = has_materials.then(|| {
+        surface_materials
+            .into_iter()
+            .map(|(theme, assignments)| {
+                let mut map = MaterialMap::<u32>::new();
+                for assignment in assignments {
+                    map.add_surface(assignment);
+                }
+                (ThemeName::<SS>::new(SS::store(theme)), map)
+            })
+            .collect::<Vec<_>>()
+    });
+    let textures = has_textures.then(|| {
+        surface_textures
+            .into_iter()
+            .map(|(theme, assignments)| {
+                (
+                    ThemeName::<SS>::new(SS::store(theme)),
+                    build_texture_map(&boundaries, &assignments),
+                )
+            })
+            .collect::<Vec<_>>()
+    });
+
+    Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry,
+        lod,
+        boundaries: Some(boundaries),
+        semantics,
+        materials,
+        textures,
+        instance: None,
+    })
+}
+
+fn build_texture_map(
+    boundary: &Boundary<u32>,
+    assignments: &[Option<RingTextureAssignment>],
+) -> TextureMap<u32> {
+    let mut map = TextureMap::<u32>::new();
+    for (ring_index, &ring_start) in boundary.rings().iter().enumerate() {
+        let ring_end = boundary
+            .rings()
+            .get(ring_index + 1)
+            .map_or(boundary.vertices().len(), VertexIndex::to_usize);
+        let ring_vertices = ring_end.saturating_sub(ring_start.to_usize());
+        let assignment = assignments.get(ring_index).and_then(|assignment| assignment.as_ref());
+
+        map.add_ring(ring_start);
+        map.add_ring_texture(assignment.map(|assignment| assignment.texture));
+
+        if let Some(assignment) = assignment {
+            for uv in assignment.uvs.iter().copied().take(ring_vertices) {
+                map.add_vertex(Some(uv));
+            }
+            for _ in assignment.uvs.len().min(ring_vertices)..ring_vertices {
+                map.add_vertex(None);
+            }
+        } else {
+            for _ in 0..ring_vertices {
+                map.add_vertex(None);
+            }
+        }
+    }
+
+    map
 }
 
 // ---------------------------------------------------------------------------
@@ -910,137 +861,4 @@ fn parse_ring_texture_assignment(
         })?));
     }
     Ok(Some(RingTextureAssignment { texture, uvs }))
-}
-
-// ---------------------------------------------------------------------------
-// Mapped draft builders (geometry with semantic / material / texture)
-// ---------------------------------------------------------------------------
-
-fn mapped_ring_draft<'de, SS>(
-    vertices: MultiPointBoundary,
-    mappings: &SurfaceMappings<'de>,
-    ring_index: &mut usize,
-) -> RingDraft<u32, SS>
-where
-    SS: ParseStringStorage<'de>,
-{
-    let current = *ring_index;
-    let mut ring = RingDraft::new(vertices.into_iter().map(VertexIndex::new));
-    for (theme, assignments) in &mappings.textures {
-        if let Some(Some(tex)) = assignments.get(current) {
-            ring = ring.with_texture(
-                ThemeName::<SS>::new(SS::store(theme)),
-                tex.texture,
-                tex.uvs.iter().copied(),
-            );
-        }
-    }
-    *ring_index += 1;
-    ring
-}
-
-fn mapped_surface_draft<'de, SS>(
-    rings: MultiLineStringBoundary,
-    mappings: &SurfaceMappings<'de>,
-    surface_index: &mut usize,
-    ring_index: &mut usize,
-) -> Result<SurfaceDraft<u32, SS>>
-where
-    SS: ParseStringStorage<'de>,
-{
-    let current = *surface_index;
-    let mut rings_iter = rings.into_iter();
-    let outer_verts = rings_iter.next().ok_or_else(|| {
-        Error::InvalidValue("surface boundary requires at least one ring".to_owned())
-    })?;
-    let outer = mapped_ring_draft::<SS>(outer_verts, mappings, ring_index);
-    let inners = rings_iter
-        .map(|r| mapped_ring_draft::<SS>(r, mappings, ring_index))
-        .collect::<Vec<_>>();
-    let mut surface = SurfaceDraft::new(outer, inners);
-    if let Some(Some(sem)) = mappings.semantics.get(current) {
-        surface = surface.with_semantic(*sem);
-    }
-    for (theme, assignments) in &mappings.materials {
-        if let Some(Some(mat)) = assignments.get(current) {
-            surface = surface.with_material(ThemeName::<SS>::new(SS::store(theme)), *mat);
-        }
-    }
-    *surface_index += 1;
-    Ok(surface)
-}
-
-fn mapped_shell_draft<'de, SS>(
-    surfaces: MultiSurfaceBoundary,
-    mappings: &SurfaceMappings<'de>,
-    surface_index: &mut usize,
-    ring_index: &mut usize,
-) -> Result<ShellDraft<u32, SS>>
-where
-    SS: ParseStringStorage<'de>,
-{
-    let surfaces = surfaces
-        .into_iter()
-        .map(|s| mapped_surface_draft::<SS>(s, mappings, surface_index, ring_index))
-        .collect::<Result<Vec<_>>>()?;
-    Ok(ShellDraft::new(surfaces))
-}
-
-fn mapped_solid_draft<'de, SS>(
-    shells: SolidBoundary,
-    mappings: &SurfaceMappings<'de>,
-    surface_index: &mut usize,
-    ring_index: &mut usize,
-) -> Result<SolidDraft<u32, SS>>
-where
-    SS: ParseStringStorage<'de>,
-{
-    let mut shells_iter = shells
-        .into_iter()
-        .map(|sh| mapped_shell_draft::<SS>(sh, mappings, surface_index, ring_index));
-    let outer = shells_iter.next().transpose()?.ok_or_else(|| {
-        Error::InvalidValue("solid boundary requires at least one shell".to_owned())
-    })?;
-    let inners = shells_iter.collect::<Result<Vec<_>>>()?;
-    Ok(SolidDraft::new(outer, inners))
-}
-
-// ---------------------------------------------------------------------------
-// Generic (unmapped) geometry draft helpers
-// ---------------------------------------------------------------------------
-
-fn point_draft(index: u32) -> PointDraft<u32> {
-    PointDraft::new(VertexIndex::new(index))
-}
-
-fn ring_draft<SS: StringStorage>(vertices: MultiPointBoundary) -> RingDraft<u32, SS> {
-    RingDraft::new(vertices.into_iter().map(VertexIndex::new))
-}
-
-fn surface_draft<SS: StringStorage>(
-    rings: MultiLineStringBoundary,
-) -> Result<SurfaceDraft<u32, SS>> {
-    let mut rings_iter = rings.into_iter();
-    let outer = rings_iter.next().map(ring_draft::<SS>).ok_or_else(|| {
-        Error::InvalidValue("surface boundary requires at least one ring".to_owned())
-    })?;
-    let inners: Vec<_> = rings_iter.map(ring_draft::<SS>).collect();
-    Ok(SurfaceDraft::new(outer, inners))
-}
-
-fn shell_draft<SS: StringStorage>(surfaces: MultiSurfaceBoundary) -> Result<ShellDraft<u32, SS>> {
-    let surfaces = surfaces
-        .into_iter()
-        .map(surface_draft::<SS>)
-        .collect::<Result<Vec<_>>>()?;
-    Ok(ShellDraft::new(surfaces))
-}
-
-fn solid_draft<SS: StringStorage>(shells: SolidBoundary) -> Result<SolidDraft<u32, SS>> {
-    let mut shells_iter = shells.into_iter().map(shell_draft::<SS>);
-    let outer = shells_iter.next().transpose()?.ok_or_else(|| {
-        Error::InvalidValue("solid boundary requires at least one shell".to_owned())
-    })?;
-    let inners = shells_iter.collect::<Result<Vec<_>>>()?;
-    Ok(SolidDraft::new(outer, inners))
 }

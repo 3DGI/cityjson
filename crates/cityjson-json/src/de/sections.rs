@@ -244,8 +244,6 @@ pub(crate) enum RawGeometry<'a> {
         texture: Option<HashMap<&'a str, RawTextureTheme>>,
     },
     GeometryInstance {
-        #[serde(default, borrow)]
-        lod: Option<&'a str>,
         #[serde(default)]
         template: Option<u32>,
         #[serde(default)]
