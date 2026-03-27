@@ -99,20 +99,21 @@ Arrow and Parquet integration should be feature-gated and explicit.
 
 ```rust
 #[cfg(feature = "arrow")]
-let model = cjlib::arrow::from_file("tiles.cjarrow") ?;
+let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 
 #[cfg(feature = "arrow")]
-cjlib::arrow::to_file("tiles-out.cjarrow", &model) ?;
+cjlib::arrow::to_file("tiles-out.cjarrow", &model)?;
 
 #[cfg(feature = "parquet")]
-let model = cjlib::parquet::from_file("tiles.cjparquet") ?;
+let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 
 #[cfg(feature = "parquet")]
-cjlib::parquet::to_file("tiles-out.cjparquet", &model) ?;
+cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
 # Ok::<(), cjlib::Error>(())
 ```
 
 Those modules are part of the intended public shape even if their
-implementation lands later than the JSON path.
+implementation lands later than the JSON path. The current code only exposes
+explicit `to_file` placeholders for them.
 Where those backends expose stream-oriented APIs later, the item type should
 still be `cjlib::CityModel`.

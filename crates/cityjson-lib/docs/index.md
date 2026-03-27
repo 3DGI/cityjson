@@ -61,7 +61,7 @@ For JSON, that explicit boundary module should own:
 - document parsing
 - feature parsing
 - model-stream reading
-- strict stream aggregation when a larger document must be rebuilt
+- feature-stream writing and reading
 - serialization
 - future raw/staged access
 

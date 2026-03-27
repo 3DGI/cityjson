@@ -89,8 +89,9 @@ The module should stay function-oriented.
 It does not need reader or writer builder types, extension-sniffing helpers, or
 a second public serde model.
 
-If a compatibility `CityModel::from_stream` is kept during migration, it should
-stay transitional and should not be the architectural center of the facade.
+There is no `CityModel::from_stream` compatibility alias in the current API.
+Callers should use `read_feature_stream` explicitly when they want a JSONL
+feature stream.
 
 ## Probe Instead Of Ad Hoc Helpers
 

@@ -83,9 +83,9 @@ cjlib::json::write_feature_stream(&mut writer, models)?;
 # Ok::<(), cjlib::Error>(())
 ```
 
-`CityModel::from_stream` may continue to exist as a transitional compatibility
-alias, but it should not be the primary way callers think about the JSON
-boundary.
+There is no `CityModel::from_stream` compatibility alias in the current API.
+When callers want JSONL, they should use `cjlib::json::read_feature_stream`
+and `cjlib::json::write_feature_stream` directly.
 
 ## Use Explicit Format Modules When You Need Boundary Control
 
@@ -98,15 +98,14 @@ File-oriented helpers are fine, but the semantic rule should remain the same:
 
 ```rust
 # fn main() -> cjlib::Result<()> {
+let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 #[cfg(feature = "arrow")]
 {
-    let model = cjlib::arrow::from_file("tiles.cjarrow")?;
     cjlib::arrow::to_file("tiles-out.cjarrow", &model)?;
 }
 
 #[cfg(feature = "parquet")]
 {
-    let model = cjlib::parquet::from_file("tiles.cjparquet")?;
     cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
 }
 # Ok(())
@@ -190,11 +189,12 @@ The intended API for non-JSON formats is explicit and feature-gated.
 
 ```rust
 # fn main() -> cjlib::Result<()> {
+let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 #[cfg(feature = "arrow")]
-let arrow_model = cjlib::arrow::from_file("buildings.cjarrow")?;
+let _ = cjlib::arrow::to_file("buildings.cjarrow", &model);
 
 #[cfg(feature = "parquet")]
-let parquet_model = cjlib::parquet::from_file("buildings.cjparquet")?;
+let _ = cjlib::parquet::to_file("buildings.cjparquet", &model);
 # Ok(())
 # }
 ```
