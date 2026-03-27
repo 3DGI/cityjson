@@ -45,6 +45,31 @@ pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
     }
 }
 
+/// Parse a standalone `CityJSONFeature` object using the non-feature root state
+/// from a companion `CityJSON` document.
+///
+/// This mirrors [`read_feature_stream`] for deployments where the metadata
+/// document and feature files live separately on disk.
+///
+/// # Errors
+///
+/// Returns an error if the base document is not valid `CityJSON`, the feature is
+/// not valid `CityJSONFeature`, or the combined document cannot be parsed.
+pub fn from_feature_str_owned_with_base(
+    feature_input: &str,
+    base_document_input: &str,
+) -> Result<OwnedCityModel> {
+    let aggregate_root = into_object(serde_json::from_str(base_document_input)?)?;
+    let version = ensure_document_root(&aggregate_root)?;
+    let base_root = build_feature_base_root(&aggregate_root);
+    let feature = into_object(serde_json::from_str(feature_input)?)?;
+    ensure_feature_root(&feature, version)?;
+    let input = serde_json::to_string(&Value::Object(materialize_feature_document(
+        &base_root, feature,
+    )))?;
+    from_feature_str_owned(&input)
+}
+
 /// Parse a `CityJSON` document into a [`BorrowedCityModel`].
 ///
 /// # Errors
