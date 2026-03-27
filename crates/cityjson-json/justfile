@@ -103,6 +103,20 @@ bench-size:
 bench-plot:
     uv run resources/compare_benchmarks/compare_benchmarks.py
 
+synthetic-bench-specs:
+    @printf '%s\n' \
+      'Synthetic benchmark specs:' \
+      '  README: tests/data/generated/README.md' \
+      '  manifest: tests/data/generated/manifest.json' \
+      '' \
+      'These are specification-only fixtures. No generator is included.'
+
+synthetic-bench-manifest:
+    cat tests/data/generated/manifest.json
+
+synthetic-bench-readme:
+    cat tests/data/generated/README.md
+
 check:
     cargo check --all-targets --all-features
 
