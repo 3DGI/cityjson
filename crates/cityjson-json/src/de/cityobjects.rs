@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::marker::PhantomData;
 
 use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde::Deserialize;
@@ -7,32 +8,122 @@ use serde_json::value::RawValue;
 
 use cityjson::resources::handles::CityObjectHandle;
 use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{BBox, CityModel, CityObject, CityObjectIdentifier};
+use cityjson::v2_0::{Attributes, BBox, CityModel, CityObject, CityObjectIdentifier};
 
-use crate::de::attributes::{attribute_map, RawAttribute};
+use crate::de::attributes::{AttributeValueSeed, OptionalAttributesSeed};
 use crate::de::geometry::{import_stream_geometry, GeometryResources, StreamingGeometry};
 use crate::de::parse::ParseStringStorage;
 use crate::de::profiling::timed;
 use crate::de::validation::parse_cityobject_type;
 use crate::errors::{Error, Result};
 
-#[derive(Deserialize)]
-#[serde(bound(deserialize = "'de: 'a, 'a: 'de"))]
-pub(crate) struct StreamingCityObject<'a> {
-    #[serde(rename = "type", borrow)]
-    pub(crate) type_name: &'a str,
-    #[serde(rename = "geographicalExtent", default)]
+pub(crate) struct StreamingCityObject<'de, SS: StringStorage> {
+    pub(crate) type_name: &'de str,
     pub(crate) geographical_extent: Option<[f64; 6]>,
-    #[serde(default, borrow)]
-    pub(crate) attributes: Option<HashMap<&'a str, RawAttribute<'a>>>,
-    #[serde(default, borrow)]
-    pub(crate) parents: Vec<&'a str>,
-    #[serde(default, borrow)]
-    pub(crate) children: Vec<&'a str>,
-    #[serde(default, borrow)]
-    pub(crate) geometry: Option<Vec<StreamingGeometry<'a>>>,
-    #[serde(flatten, borrow)]
-    pub(crate) extra: HashMap<&'a str, RawAttribute<'a>>,
+    pub(crate) attributes: Option<Attributes<SS>>,
+    pub(crate) parents: Vec<&'de str>,
+    pub(crate) children: Vec<&'de str>,
+    pub(crate) geometry: Option<Vec<StreamingGeometry<'de>>>,
+    pub(crate) extra: Attributes<SS>,
+}
+
+impl<'de, SS> Deserialize<'de> for StreamingCityObject<'de, SS>
+where
+    SS: ParseStringStorage<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(StreamingCityObjectVisitor::<SS>(PhantomData))
+    }
+}
+
+struct StreamingCityObjectVisitor<SS>(PhantomData<SS>);
+
+impl<'de, SS> Visitor<'de> for StreamingCityObjectVisitor<SS>
+where
+    SS: ParseStringStorage<'de>,
+{
+    type Value = StreamingCityObject<'de, SS>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a CityObject")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut type_name = None;
+        let mut geographical_extent = None;
+        let mut attributes = None;
+        let mut parents = None;
+        let mut children = None;
+        let mut geometry = None;
+        let mut extra = Attributes::<SS>::with_capacity(map.size_hint().unwrap_or(0));
+
+        while let Some(key) = map.next_key::<&'de str>()? {
+            match key {
+                "type" => {
+                    if type_name.is_some() {
+                        return Err(de::Error::duplicate_field("type"));
+                    }
+                    type_name = Some(map.next_value()?);
+                }
+                "geographicalExtent" => {
+                    if geographical_extent.is_some() {
+                        return Err(de::Error::duplicate_field("geographicalExtent"));
+                    }
+                    geographical_extent = Some(map.next_value()?);
+                }
+                "attributes" => {
+                    if attributes.is_some() {
+                        return Err(de::Error::duplicate_field("attributes"));
+                    }
+                    attributes = Some(timed("cityobjects.attributes", || {
+                        map.next_value_seed(OptionalAttributesSeed::<SS>::new())
+                            .map_err(de::Error::custom)
+                    })?);
+                }
+                "parents" => {
+                    if parents.is_some() {
+                        return Err(de::Error::duplicate_field("parents"));
+                    }
+                    parents = Some(map.next_value()?);
+                }
+                "children" => {
+                    if children.is_some() {
+                        return Err(de::Error::duplicate_field("children"));
+                    }
+                    children = Some(map.next_value()?);
+                }
+                "geometry" => {
+                    if geometry.is_some() {
+                        return Err(de::Error::duplicate_field("geometry"));
+                    }
+                    geometry = Some(map.next_value()?);
+                }
+                _ => {
+                    let value = timed("cityobjects.extra", || {
+                        map.next_value_seed(AttributeValueSeed::<SS>::new())
+                            .map_err(de::Error::custom)
+                    })?;
+                    extra.insert(SS::store(key), value);
+                }
+            }
+        }
+
+        Ok(StreamingCityObject {
+            type_name: type_name.ok_or_else(|| de::Error::missing_field("type"))?,
+            geographical_extent: geographical_extent.flatten(),
+            attributes: attributes.flatten(),
+            parents: parents.unwrap_or_default(),
+            children: children.unwrap_or_default(),
+            geometry: geometry.flatten(),
+            extra,
+        })
+    }
 }
 
 struct PendingRelations<'de> {
@@ -132,7 +223,7 @@ where
 
 fn import_cityobject<'de, SS>(
     id: &'de str,
-    raw_object: StreamingCityObject<'de>,
+    raw_object: StreamingCityObject<'de, SS>,
     model: &mut CityModel<u32, SS>,
     resources: &GeometryResources,
 ) -> Result<PendingRelations<'de>>
@@ -149,14 +240,10 @@ where
         cityobject.set_geographical_extent(Some(BBox::from(extent)));
     }
     if let Some(attributes) = raw_object.attributes {
-        *cityobject.attributes_mut() = timed("cityobjects.attributes", || {
-            attribute_map::<SS>(attributes, "CityObject.attributes")
-        })?;
+        *cityobject.attributes_mut() = attributes;
     }
     if !raw_object.extra.is_empty() {
-        *cityobject.extra_mut() = timed("cityobjects.extra", || {
-            attribute_map::<SS>(raw_object.extra, "CityObject extra")
-        })?;
+        *cityobject.extra_mut() = raw_object.extra;
     }
     if let Some(geometries) = raw_object.geometry {
         if geometries.is_empty() {
@@ -225,4 +312,45 @@ where
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use cityjson::prelude::OwnedStringStorage;
+    use cityjson::v2_0::AttributeValue;
+
+    use super::StreamingCityObject;
+
+    #[test]
+    fn streaming_cityobject_deserializes_attributes_and_extra() {
+        let json = r#"{
+            "type": "Building",
+            "attributes": {"name": "Main", "height": 12.5},
+            "custom:flag": true,
+            "custom:tags": ["a", "b"]
+        }"#;
+
+        let cityobject: StreamingCityObject<'_, OwnedStringStorage> =
+            serde_json::from_str(json).expect("cityobject should deserialize");
+
+        assert_eq!(cityobject.type_name, "Building");
+        assert_eq!(
+            cityobject
+                .attributes
+                .as_ref()
+                .and_then(|attributes| attributes.get("name")),
+            Some(&AttributeValue::String("Main".to_owned()))
+        );
+        assert_eq!(
+            cityobject.extra.get("custom:flag"),
+            Some(&AttributeValue::Bool(true))
+        );
+        assert_eq!(
+            cityobject.extra.get("custom:tags"),
+            Some(&AttributeValue::Vec(vec![
+                AttributeValue::String("a".to_owned()),
+                AttributeValue::String("b".to_owned()),
+            ]))
+        );
+    }
 }
