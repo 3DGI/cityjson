@@ -83,8 +83,6 @@ fn custom_builders() {
     assert_eq!(textures.len(), 1);
     let (_, first_texture) = textures[0];
     assert!(!first_texture.image().is_empty());
-
-    assert!(cm.default_material_theme().is_some());
 }
 
 /// City objects can carry multiple geometries when configured to do so.

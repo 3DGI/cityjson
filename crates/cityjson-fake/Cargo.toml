@@ -23,12 +23,12 @@ path = "src/lib.rs"
 
 [features]
 default = ["serialize"]
-serialize = ["dep:serde_cityjson", "dep:serde"]
+serialize = ["dep:cjlib", "dep:serde"]
 
 [dependencies]
 cityjson = { path = "../cityjson-rs" }
+cjlib = { path = "../cjlib", optional = true }
 serde = { version = "1.0", optional = true }
-serde_cityjson = { path = "../serde_cityjson", optional = true }
 fake = { version = "4.4.0", features = ["uuid", "chrono"] }
 serde_json = "1.0.145"
 rand = { version = "0.9.2", features = ["small_rng"] }
@@ -37,7 +37,7 @@ clap = { version = "4.5.51", features = ["derive"] }
 [dev-dependencies]
 cjval = "0.8.3"
 proptest = "1.9.0"
-serde_cityjson = { path = "../serde_cityjson" }
+cjlib = { path = "../cjlib" }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

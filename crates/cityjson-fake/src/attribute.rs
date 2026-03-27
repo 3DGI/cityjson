@@ -1,3 +1,12 @@
+//! Attribute generation helpers.
+//!
+//! ```rust
+//! use cjfake::attribute::AttributesBuilder;
+//!
+//! let attributes = AttributesBuilder::new().build();
+//! assert!(attributes.is_empty());
+//! ```
+
 use cityjson::prelude::*;
 use cityjson::v2_0::{AttributeValue, Attributes};
 use fake::faker::lorem::raw::Word;
@@ -6,7 +15,16 @@ use fake::Fake;
 use rand::Rng;
 use std::collections::HashMap;
 
-/// Builder for creating Attributes with random values
+/// Builder for creating `Attributes` with random values.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::attribute::AttributesBuilder;
+///
+/// let attributes = AttributesBuilder::new().build();
+/// assert!(attributes.is_empty());
+/// ```
 pub struct AttributesBuilder {
     attributes: Attributes<OwnedStringStorage>,
 }
@@ -46,7 +64,19 @@ impl AttributesBuilder {
     }
 }
 
-/// Faker for generating random attributes
+/// Faker for generating random attributes.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::attribute::AttributesFaker;
+/// use rand::SeedableRng;
+///
+/// let faker = AttributesFaker::default();
+/// let mut rng = rand::prelude::SmallRng::seed_from_u64(1);
+/// let attributes = faker.generate(&mut rng);
+/// assert!(!attributes.is_empty());
+/// ```
 pub struct AttributesFaker {
     pub random_keys: bool,
     pub random_values: bool,
@@ -130,7 +160,7 @@ impl AttributesFaker {
                 let len = rng.random_range(1..=3usize);
                 AttributeValue::Vec(
                     (0..len)
-                        .map(|_| Box::new(self.generate_value(rng, depth + 1)))
+                        .map(|_| self.generate_value(rng, depth + 1))
                         .collect(),
                 )
             }
@@ -143,7 +173,7 @@ impl AttributesFaker {
                     } else {
                         format!("attr_{depth}_{idx}")
                     };
-                    map.insert(key, Box::new(self.generate_value(rng, depth + 1)));
+                    map.insert(key, self.generate_value(rng, depth + 1));
                 }
                 AttributeValue::Map(map)
             }

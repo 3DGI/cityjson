@@ -1,10 +1,32 @@
+//! Material generation helpers.
+//!
+//! ```rust
+//! use cjfake::material::MaterialBuilder;
+//! use cityjson::prelude::OwnedStringStorage;
+//!
+//! let material: cityjson::v2_0::Material<OwnedStringStorage> =
+//!     MaterialBuilder::default().build();
+//! let _ = material;
+//! ```
+
 use cityjson::prelude::StringStorage;
 use cityjson::v2_0::{Material, RGB};
 use fake::Dummy;
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
-/// Faker for RGB color values [0.0..1.0]
+/// Faker for RGB color values in the `0.0..=1.0` range.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::material::RgbFaker;
+/// use fake::Dummy;
+/// use rand::SeedableRng;
+///
+/// let mut rng = rand::rngs::SmallRng::seed_from_u64(2);
+/// let _rgb: cityjson::v2_0::RGB = Dummy::dummy_with_rng(&RgbFaker, &mut rng);
+/// ```
 pub struct RgbFaker;
 
 impl Dummy<RgbFaker> for RGB {

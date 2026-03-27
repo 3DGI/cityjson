@@ -3,6 +3,7 @@ mod common_lib;
 
 use cjfake::prelude::*;
 use cjfake::vertex::VerticesFaker;
+use cjlib::json;
 use fake::Fake;
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -11,8 +12,8 @@ use proptest::test_runner::FileFailurePersistence;
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
-fn city_object_type_strategy() -> impl Strategy<Value = Option<Vec<CityObjectType<OwnedStringStorage>>>>
-{
+fn city_object_type_strategy(
+) -> impl Strategy<Value = Option<Vec<CityObjectType<OwnedStringStorage>>>> {
     let types = vec![
         CityObjectType::Bridge,
         CityObjectType::Building,
@@ -47,10 +48,7 @@ fn geometry_type_strategy() -> impl Strategy<Value = Option<Vec<GeometryType>>> 
         GeometryType::GeometryInstance,
     ];
     let nr_types = types.len();
-    prop_oneof![
-        Just(None),
-        vec(select(types), 1..=nr_types).prop_map(Some),
-    ]
+    prop_oneof![Just(None), vec(select(types), 1..=nr_types).prop_map(Some),]
 }
 
 fn lod_strategy() -> impl Strategy<Value = Option<Vec<LoD>>> {
@@ -80,7 +78,8 @@ fn lod_strategy() -> impl Strategy<Value = Option<Vec<LoD>>> {
     prop_oneof![Just(None), vec(select(lods), 1..=nr_lods).prop_map(Some),]
 }
 
-fn semantic_type_strategy() -> impl Strategy<Value = Option<Vec<SemanticType<OwnedStringStorage>>>> {
+fn semantic_type_strategy() -> impl Strategy<Value = Option<Vec<SemanticType<OwnedStringStorage>>>>
+{
     let types = vec![
         SemanticType::RoofSurface,
         SemanticType::GroundSurface,
@@ -102,10 +101,7 @@ fn semantic_type_strategy() -> impl Strategy<Value = Option<Vec<SemanticType<Own
         SemanticType::TransportationHole,
     ];
     let nr_types = types.len();
-    prop_oneof![
-        Just(None),
-        vec(select(types), 1..=nr_types).prop_map(Some),
-    ]
+    prop_oneof![Just(None), vec(select(types), 1..=nr_types).prop_map(Some),]
 }
 
 fn option_bool_strategy() -> impl Strategy<Value = Option<bool>> {
@@ -115,18 +111,10 @@ fn option_bool_strategy() -> impl Strategy<Value = Option<bool>> {
 fn attribute_depth(value: &OwnedAttributeValue) -> usize {
     match value {
         OwnedAttributeValue::Vec(values) => {
-            1 + values
-                .iter()
-                .map(|value| attribute_depth(value))
-                .max()
-                .unwrap_or(0)
+            1 + values.iter().map(attribute_depth).max().unwrap_or(0)
         }
         OwnedAttributeValue::Map(values) => {
-            1 + values
-                .values()
-                .map(|value| attribute_depth(value))
-                .max()
-                .unwrap_or(0)
+            1 + values.values().map(attribute_depth).max().unwrap_or(0)
         }
         _ => 0,
     }
@@ -302,7 +290,7 @@ proptest! {
 
         common_lib::validate(&json, "fuzz_config");
 
-        let cm: CityModel = serde_cityjson::from_str_owned(&json).expect("deserialization failed");
+        let cm = json::from_slice(json.as_bytes()).expect("deserialization failed");
 
         if cityobject_hierarchy {
             assert!(cm.cityobjects().len() >= cityobject_count as usize);

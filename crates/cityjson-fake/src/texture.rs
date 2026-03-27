@@ -1,3 +1,12 @@
+//! Texture generation helpers.
+//!
+//! ```rust
+//! use cjfake::texture::TextureBuilder;
+//!
+//! let texture = TextureBuilder::default().build();
+//! assert!(!texture.image().is_empty());
+//! ```
+
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{ImageType, Texture};
 use fake::Fake;

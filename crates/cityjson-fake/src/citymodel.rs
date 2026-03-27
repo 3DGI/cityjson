@@ -1,3 +1,21 @@
+//! City model assembly helpers.
+//!
+//! ```rust
+//! use cjfake::cli::CJFakeConfig;
+//! use cjfake::citymodel::CityModelBuilder;
+//! use cjfake::prelude::*;
+//!
+//! let model = CityModelBuilder::<u32, OwnedStringStorage>::new(CJFakeConfig::default(), Some(6))
+//!     .metadata(None)
+//!     .vertices()
+//!     .materials(None)
+//!     .textures(None)
+//!     .attributes(None)
+//!     .cityobjects()
+//!     .build();
+//! assert_eq!(model.cityobjects().len(), 1);
+//! ```
+
 use crate::attribute::AttributesFaker;
 use crate::cli::CJFakeConfig;
 use crate::material::MaterialBuilder;
@@ -14,6 +32,8 @@ use cityjson::v2_0::{
     SemanticType, ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft,
     VertexDraft, VertexIndex, VertexRef, RGB,
 };
+#[cfg(feature = "serialize")]
+use cjlib::{json as cjjson, CityModel as FacadeCityModel};
 use fake::Fake;
 use rand::prelude::SmallRng;
 use rand::seq::{IndexedRandom, SliceRandom};
@@ -142,17 +162,52 @@ fn make_surfaces<VR: VertexRef>(
     ctx: &GeometryCtx<'_>,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Vec<SurfaceDraft<VR, OwnedStringStorage>>
 where
     OwnedSemantic: PartialEq,
 {
     let mut texture_vertices_used = 0usize;
+    let mut material_seeded = !used_material_themes.is_empty();
+    let mut texture_seeded = !used_texture_themes.is_empty();
     (0..count)
         .map(|_| {
             let sem = make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx);
-            let mat = ctx.app.pick_material(rng);
+            let mut mat = ctx.app.pick_material(rng);
+            if mat.is_none()
+                && !material_seeded
+                && !ctx.app.mat_themes.is_empty()
+                && !ctx.app.mat_handles.is_empty()
+            {
+                mat = Some((ctx.app.mat_themes[0].clone(), ctx.app.mat_handles[0]));
+            }
+            if mat.is_some() {
+                material_seeded = true;
+            }
+            if let Some((theme, _)) = &mat {
+                if !used_material_themes.contains(theme) {
+                    used_material_themes.push(theme.clone());
+                }
+            }
             let n = rng.random_range(3..=8usize);
-            let tex = ctx.app.pick_texture(rng, n, texture_vertices_used);
+            let mut tex = ctx.app.pick_texture(rng, n, texture_vertices_used);
+            if tex.is_none()
+                && !texture_seeded
+                && !ctx.app.tex_themes.is_empty()
+                && !ctx.app.tex_handles.is_empty()
+                && texture_vertices_used.saturating_add(n) <= ctx.app.max_vertices_texture
+            {
+                tex = Some((ctx.app.tex_themes[0].clone(), ctx.app.tex_handles[0]));
+            }
+            if tex.is_some() {
+                texture_seeded = true;
+            }
+            if let Some((theme, _)) = &tex {
+                if !used_texture_themes.contains(theme) {
+                    used_texture_themes.push(theme.clone());
+                }
+            }
             if tex.is_some() {
                 texture_vertices_used += n;
             }
@@ -182,6 +237,8 @@ fn gen_multisurface<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -190,7 +247,14 @@ where
         ctx.config.geometry.min_members_multisurface..=ctx.config.geometry.max_members_multisurface,
         rng,
     );
-    let surfaces = make_surfaces(n, ctx, rng, model);
+    let surfaces = make_surfaces(
+        n,
+        ctx,
+        rng,
+        model,
+        used_material_themes,
+        used_texture_themes,
+    );
     GeometryDraft::multi_surface(Some(lod), surfaces).insert_into(model)
 }
 
@@ -199,6 +263,8 @@ fn gen_multipoint<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    _used_material_themes: &mut Vec<String>,
+    _used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -230,6 +296,8 @@ fn gen_multilinestring<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    _used_material_themes: &mut Vec<String>,
+    _used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -267,6 +335,8 @@ fn gen_composite_surface<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -276,7 +346,14 @@ where
             ..=ctx.config.geometry.max_members_compositesurface,
         rng,
     );
-    let surfaces = make_surfaces(n, ctx, rng, model);
+    let surfaces = make_surfaces(
+        n,
+        ctx,
+        rng,
+        model,
+        used_material_themes,
+        used_texture_themes,
+    );
     GeometryDraft::composite_surface(Some(lod), surfaces).insert_into(model)
 }
 
@@ -285,6 +362,8 @@ fn gen_composite_solid<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -301,7 +380,14 @@ where
                     ..=ctx.config.geometry.max_members_compositesurface,
                 rng,
             );
-            let surfaces = make_surfaces(n, ctx, rng, model);
+            let surfaces = make_surfaces(
+                n,
+                ctx,
+                rng,
+                model,
+                used_material_themes,
+                used_texture_themes,
+            );
             SolidDraft::new(ShellDraft::new(surfaces), [])
         })
         .collect();
@@ -313,6 +399,8 @@ fn gen_solid<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -321,7 +409,14 @@ where
         ctx.config.geometry.min_members_solid..=ctx.config.geometry.max_members_solid,
         rng,
     );
-    let surfaces = make_surfaces(n, ctx, rng, model);
+    let surfaces = make_surfaces(
+        n,
+        ctx,
+        rng,
+        model,
+        used_material_themes,
+        used_texture_themes,
+    );
     let outer = ShellDraft::new(surfaces);
     GeometryDraft::solid(Some(lod), outer, []).insert_into(model)
 }
@@ -331,6 +426,8 @@ fn gen_multisolid<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
@@ -345,7 +442,14 @@ where
                 ctx.config.geometry.min_members_solid..=ctx.config.geometry.max_members_solid,
                 rng,
             );
-            let surfaces = make_surfaces(n, ctx, rng, model);
+            let surfaces = make_surfaces(
+                n,
+                ctx,
+                rng,
+                model,
+                used_material_themes,
+                used_texture_themes,
+            );
             SolidDraft::new(ShellDraft::new(surfaces), [])
         })
         .collect();
@@ -541,18 +645,69 @@ fn generate_geometry<VR: VertexRef>(
     lod: LoD,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
+    used_material_themes: &mut Vec<String>,
+    used_texture_themes: &mut Vec<String>,
 ) -> Result<GeometryHandle>
 where
     OwnedSemantic: PartialEq,
 {
     match geom_type {
-        GeometryType::MultiPoint => gen_multipoint(ctx, lod, rng, model),
-        GeometryType::MultiLineString => gen_multilinestring(ctx, lod, rng, model),
-        GeometryType::Solid => gen_solid(ctx, lod, rng, model),
-        GeometryType::CompositeSolid => gen_composite_solid(ctx, lod, rng, model),
-        GeometryType::MultiSolid => gen_multisolid(ctx, lod, rng, model),
-        GeometryType::CompositeSurface => gen_composite_surface(ctx, lod, rng, model),
-        _ => gen_multisurface(ctx, lod, rng, model),
+        GeometryType::MultiPoint => gen_multipoint(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        GeometryType::MultiLineString => gen_multilinestring(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        GeometryType::Solid => gen_solid(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        GeometryType::CompositeSolid => gen_composite_solid(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        GeometryType::MultiSolid => gen_multisolid(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        GeometryType::CompositeSurface => gen_composite_surface(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
+        _ => gen_multisurface(
+            ctx,
+            lod,
+            rng,
+            model,
+            used_material_themes,
+            used_texture_themes,
+        ),
     }
 }
 
@@ -611,6 +766,25 @@ fn bbox_from_vertex_range<VR: VertexRef, SS: StringStorage>(
 ///     .cityobjects()
 ///     .build();
 /// ```
+/// Builder for assembling a complete `CityModel`.
+///
+/// # Examples
+///
+/// ```rust
+/// use cjfake::citymodel::CityModelBuilder;
+/// use cjfake::cli::CJFakeConfig;
+/// use cjfake::prelude::*;
+///
+/// let model = CityModelBuilder::<u32, OwnedStringStorage>::new(CJFakeConfig::default(), Some(6))
+///     .metadata(None)
+///     .vertices()
+///     .materials(None)
+///     .textures(None)
+///     .attributes(None)
+///     .cityobjects()
+///     .build();
+/// assert_eq!(model.cityobjects().len(), 1);
+/// ```
 pub struct CityModelBuilder<VR: VertexRef, SS: StringStorage> {
     model: CityModel<VR, SS>,
     rng: SmallRng,
@@ -620,6 +794,8 @@ pub struct CityModelBuilder<VR: VertexRef, SS: StringStorage> {
     themes_texture: Vec<String>,
     material_handles: Vec<MaterialHandle>,
     texture_handles: Vec<TextureHandle>,
+    used_material_themes: Vec<String>,
+    used_texture_themes: Vec<String>,
     /// Generated `CityObject` attributes (`OwnedStringStorage`; applied at object creation).
     attributes_cityobject: Option<OwnedAttributes>,
 
@@ -667,6 +843,8 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
             themes_texture: Vec::new(),
             material_handles: Vec::new(),
             texture_handles: Vec::new(),
+            used_material_themes: Vec::new(),
+            used_texture_themes: Vec::new(),
             attributes_cityobject: None,
             progress_done_metadata: false,
             progress_done_transform: false,
@@ -785,10 +963,6 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
             }
         }
 
-        if nr_materials > 0 && !themes.is_empty() {
-            self.model
-                .set_default_material_theme(Some(ThemeName::new(themes[0].clone())));
-        }
         self
     }
 
@@ -825,10 +999,6 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
             }
         }
 
-        if nr_textures > 0 && !themes.is_empty() {
-            self.model
-                .set_default_texture_theme(Some(ThemeName::new(themes[0].clone())));
-        }
         self
     }
 
@@ -861,19 +1031,18 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
     pub fn build(self) -> CityModel<VR, SS> {
         self.model
     }
+}
 
+#[cfg(feature = "serialize")]
+impl CityModelBuilder<u32, OwnedStringStorage> {
     /// Serializes the built model to a `CityJSON` string.
     ///
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    #[cfg(feature = "serialize")]
-    pub fn build_string(self) -> serde_cityjson::Result<String>
-    where
-        VR: serde::Serialize,
-    {
-        let model = self.build();
-        serde_cityjson::to_string(&model)
+    pub fn build_string(self) -> cjlib::Result<String> {
+        let model = FacadeCityModel::from(self.build());
+        cjjson::to_string(&model)
     }
 
     /// Serializes the built model to a UTF-8 encoded `CityJSON` byte vector.
@@ -881,12 +1050,9 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    #[cfg(feature = "serialize")]
-    pub fn build_vec(self) -> serde_cityjson::Result<Vec<u8>>
-    where
-        VR: serde::Serialize,
-    {
-        self.build_string().map(String::into_bytes)
+    pub fn build_vec(self) -> cjlib::Result<Vec<u8>> {
+        let model = FacadeCityModel::from(self.build());
+        cjjson::to_vec(&model)
     }
 }
 
@@ -947,7 +1113,15 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
                 }
                 .fake_with_rng(&mut self.rng);
                 let gt = pick_geometry_type(&self.config, city_obj_type, &mut self.rng);
-                generate_geometry::<VR>(&geometry_ctx, gt, lod, &mut self.rng, &mut self.model)
+                generate_geometry::<VR>(
+                    &geometry_ctx,
+                    gt,
+                    lod,
+                    &mut self.rng,
+                    &mut self.model,
+                    &mut self.used_material_themes,
+                    &mut self.used_texture_themes,
+                )
             };
 
             if let Ok(h) = geom_result {
@@ -1023,10 +1197,7 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
                 group.extra_mut().insert(
                     "children_roles".to_string(),
                     OwnedAttributeValue::Vec(
-                        roles
-                            .into_iter()
-                            .map(|role| Box::new(OwnedAttributeValue::String(role)))
-                            .collect(),
+                        roles.into_iter().map(OwnedAttributeValue::String).collect(),
                     ),
                 );
             }
@@ -1347,6 +1518,15 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
             .collect();
         if !group_handles.is_empty() {
             self.wire_cityobject_groups(&group_handles);
+        }
+
+        if let Some(theme) = self.used_material_themes.first().cloned() {
+            self.model
+                .set_default_material_theme(Some(ThemeName::new(theme)));
+        }
+        if let Some(theme) = self.used_texture_themes.first().cloned() {
+            self.model
+                .set_default_texture_theme(Some(ThemeName::new(theme)));
         }
 
         self
