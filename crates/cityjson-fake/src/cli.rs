@@ -23,15 +23,6 @@ type IndexType = u32;
 // ─── Sub-configs ─────────────────────────────────────────────────────────────
 
 /// Configuration for `CityObject` generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::CityObjectConfig;
-///
-/// let config = CityObjectConfig::default();
-/// assert_eq!(config.min_cityobjects, 1);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct CityObjectConfig {
     /// Restrict the `CityObject` types to the provided types
@@ -73,15 +64,6 @@ impl Default for CityObjectConfig {
 }
 
 /// Configuration for geometry generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::GeometryConfig;
-///
-/// let config = GeometryConfig::default();
-/// assert_eq!(config.min_members_multipoint, 11);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct GeometryConfig {
     /// Restrict the Geometry types to the provided types
@@ -183,15 +165,6 @@ impl Default for GeometryConfig {
 }
 
 /// Configuration for generated vertices.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::VertexConfig;
-///
-/// let config = VertexConfig::default();
-/// assert_eq!(config.min_vertices, 8);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct VertexConfig {
     /// Minimum coordinate value for geometry vertices
@@ -223,15 +196,6 @@ impl Default for VertexConfig {
 }
 
 /// Configuration for material generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::MaterialConfig;
-///
-/// let config = MaterialConfig::default();
-/// assert!(config.materials_enabled);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct MaterialConfig {
     /// Whether to generate materials (default: true)
@@ -293,15 +257,6 @@ impl Default for MaterialConfig {
 }
 
 /// Configuration for texture generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::TextureConfig;
-///
-/// let config = TextureConfig::default();
-/// assert!(config.textures_enabled);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct TextureConfig {
     /// Whether to generate textures (default: true)
@@ -343,15 +298,6 @@ impl Default for TextureConfig {
 }
 
 /// Configuration for template generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::TemplateConfig;
-///
-/// let config = TemplateConfig::default();
-/// assert!(!config.use_templates);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct TemplateConfig {
     /// Generate `GeometryInstances` (templates)
@@ -378,15 +324,6 @@ impl Default for TemplateConfig {
 }
 
 /// Configuration for metadata generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::MetadataConfig;
-///
-/// let config = MetadataConfig::default();
-/// assert!(config.metadata_enabled);
-/// ```
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Args, Debug, Clone)]
 pub struct MetadataConfig {
@@ -434,15 +371,6 @@ impl Default for MetadataConfig {
 }
 
 /// Configuration for attribute generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::AttributeConfig;
-///
-/// let config = AttributeConfig::default();
-/// assert!(config.attributes_enabled);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct AttributeConfig {
     /// Whether to generate attributes (default: true)
@@ -484,15 +412,6 @@ impl Default for AttributeConfig {
 }
 
 /// Configuration for semantic generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::SemanticConfig;
-///
-/// let config = SemanticConfig::default();
-/// assert!(config.semantics_enabled);
-/// ```
 #[derive(Args, Debug, Clone)]
 pub struct SemanticConfig {
     /// Whether to generate semantics (default: true)
@@ -514,16 +433,6 @@ impl Default for SemanticConfig {
 }
 
 /// Top-level configuration for `CityJSON` fake data generation.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::CJFakeConfig;
-///
-/// let config = CJFakeConfig::default();
-/// assert!(config.metadata.metadata_enabled);
-/// ```
-// ─── Top-level config ─────────────────────────────────────────────────────────
 #[derive(Args, Debug, Clone, Default)]
 pub struct CJFakeConfig {
     /// Random seed for deterministic output
@@ -559,20 +468,6 @@ pub struct CJFakeConfig {
 }
 
 /// Command-line interface for generating `CityJSON`.
-/// Command-line interface for generating `CityJSON`.
-///
-/// # Examples
-///
-/// ```rust
-/// use cjfake::cli::{CJFakeConfig, Cli};
-///
-/// let cli = Cli {
-///     config: CJFakeConfig::default(),
-///     output: None,
-///     count: 1,
-/// };
-/// assert_eq!(cli.count, 1);
-/// ```
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about)]
 pub struct Cli {

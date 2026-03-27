@@ -7,7 +7,7 @@ Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 3D city models are commonly encoded with CityJSON. Applications that process these models need test data, but real-world datasets have several limitations:
 
 - Files are often large and slow to download/process during testing
-- Models contain much irrelevant information for specific test cases  
+- Models contain much irrelevant information for specific test cases
 - Certain CityObject types (e.g. Tunnels, CityFurniture) are rare or nonexistent
 - Advanced features like Appearances or Geometry-templates are rarely modeled
 
@@ -52,11 +52,11 @@ cargo install cjfake
 use cjfake::prelude::*;
 
 // Create a basic CityJSON model
-let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default().build();
+let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default ().build();
 assert_eq!(model.cityobjects().len(), 1);
 
 // Generate a serialized CityJSON document
-let json = cjfake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
+let json = cjfake::generate_string(CJFakeConfig::default (), Some(42)).unwrap();
 assert!(json.starts_with('{'));
 ```
 
@@ -64,36 +64,44 @@ See the [API documentation](https://docs.rs/cjfake) for more details.
 
 ### Command Line Interface
 
-The CLI provides fine-grained control over the generated content:
+The CLI exposes the same generation controls as the library API. The top-level command is:
 
 ```bash
-# Generate a basic CityJSON model
+cjfake [OPTIONS]
+```
+
+Common examples:
+
+```bash
+# Write a single document to stdout
 cjfake > output.city.json
 
-# Generate model with specific CityObject types
+# Restrict the generated CityObject types
 cjfake --allowed-types-cityobject Building,Bridge > output.city.json
 
-# Write directly to a file
+# Write a single document to a file
 cjfake --output output.city.json
 
-# Generate multiple CityJSON files into a directory
+# Write multiple documents into a directory
 cjfake --count 3 --output out/
 ```
 
-Key configuration options:
+The available options are grouped below.
 
-- `--allowed-types-cityobject` - Restrict to specific CityObject types
-- `--allowed-types-geometry` - Restrict to specific geometry types  
-- `--min/max-cityobjects` - Control number of CityObjects
-- `--cityobject-hierarchy` - Enable/disable parent-child relationships
-- `--min/max-members-*` - Control geometry component counts
-- `--min/max-materials` and `--min/max-textures` - Control appearance resources
-- `--use-templates` - Enable geometry templates
-- `--texture-allow-none` - Allow null values in texture coordinates
-- `--output` - Write to a file or directory instead of stdout
-- `--count` - Generate multiple documents
+| Group       | Flags                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| General     | `--seed`, `--output`, `--count`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| CityObjects | `--allowed-types-cityobject`, `--min-cityobjects`, `--max-cityobjects`, `--cityobject-hierarchy`, `--min-children`, `--max-children`                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Geometry    | `--allowed-types-geometry`, `--allowed-lods`, `--min-members-multipoint`, `--max-members-multipoint`, `--min-members-multilinestring`, `--max-members-multilinestring`, `--min-members-multisurface`, `--max-members-multisurface`, `--min-members-solid`, `--max-members-solid`, `--min-members-multisolid`, `--max-members-multisolid`, `--min-members-compositesurface`, `--max-members-compositesurface`, `--min-members-compositesolid`, `--max-members-compositesolid`, `--min-members-cityobject-geometries`, `--max-members-cityobject-geometries` |
+| Vertices    | `--min-coordinate`, `--max-coordinate`, `--min-vertices`, `--max-vertices`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Materials   | `--materials-enabled`, `--min-materials`, `--max-materials`, `--nr-themes-materials`, `--generate-ambient-intensity`, `--generate-diffuse-color`, `--generate-emissive-color`, `--generate-specular-color`, `--generate-shininess`, `--generate-transparency`                                                                                                                                                                                                                                                                                              |
+| Textures    | `--textures-enabled`, `--min-textures`, `--max-textures`, `--nr-themes-textures`, `--max-vertices-texture`, `--texture-allow-none`                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Templates   | `--use-templates`, `--min-templates`, `--max-templates`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Metadata    | `--metadata-enabled`, `--metadata-geographical-extent`, `--metadata-identifier`, `--metadata-reference-date`, `--metadata-reference-system`, `--metadata-title`, `--metadata-point-of-contact`                                                                                                                                                                                                                                                                                                                                                             |
+| Attributes  | `--attributes-enabled`, `--min-attributes`, `--max-attributes`, `--attributes-max-depth`, `--attributes-random-keys`, `--attributes-random-values`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Semantics   | `--semantics-enabled`, `--allowed-types-semantic`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
-Run `cjfake --help` to see all available options.
+Use `cjfake --help` for the exact defaults and the full clap-generated help text.
 
 ## API Shape
 
