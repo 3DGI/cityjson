@@ -1,6 +1,7 @@
 set dotenv-load := true
 datadir := "tests" / "data" / "downloaded"
 
+# Show the available recipes.
 _default:
     just --list
 
@@ -55,21 +56,26 @@ download: _download-3dbag _download-3dbasisvoorziening _upgrade
 clean:
     rm -rf {{datadir}}
 
-# Run all benchmarks and generate the comparison plots. Requires a python virtualenv in "resources/compare_benchmarks/.venv"
+# Run all benchmarks and generate the comparison plots.
 bench: bench-read bench-write bench-plot
 
+# Run the read benchmark suite.
 bench-read:
     cargo bench --bench read --
 
+# Run the write benchmark suite.
 bench-write:
     cargo bench --bench write --
 
+# Generate benchmark plots.
 bench-plot:
     uv run resources/compare_benchmarks/compare_benchmarks.py
 
+# Generate the markdown benchmark summary.
 bench-report:
     uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
 
+# Describe the synthetic benchmark profiles.
 synthetic-bench-specs:
     @printf '%s\n' \
       'Synthetic benchmark profiles:' \
@@ -78,26 +84,34 @@ synthetic-bench-specs:
       '' \
       'These are benchmark profiles. cjfake generates the inputs at benchmark time.'
 
+# Print the synthetic benchmark manifest.
 synthetic-bench-manifest:
     cat tests/data/generated/manifest.json
 
+# Print the synthetic benchmark README.
 synthetic-bench-readme:
     cat tests/data/generated/README.md
 
+# Run cargo check across the workspace.
 check:
     cargo check --all-targets --all-features
 
+# Build the workspace.
 build *args:
     cargo build --all-targets --all-features {{args}}
 
+# Run clippy across the workspace.
 lint:
     cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Format the workspace.
 fmt:
     cargo fmt --all
 
+# Run the test suite.
 test:
     cargo test --lib --tests --all-features
 
+# Build the documentation.
 doc:
     cargo doc --all-features --no-deps --open
