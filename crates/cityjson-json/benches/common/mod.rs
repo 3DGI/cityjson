@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -15,10 +16,21 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use serde_cityjson::{from_str_owned, to_string, OwnedCityModel};
+use serde_cityjson::{as_json, from_str_owned, to_string, to_string_validated, OwnedCityModel};
 
 const REAL_DATA_DIR: &str = "tests/data/downloaded";
 const MANIFEST_PATH: &str = "tests/data/generated/manifest.json";
+
+pub(crate) const READ_BENCH_SERDE_CITYJSON_OWNED: &str = "serde_cityjson/owned";
+pub(crate) const READ_BENCH_SERDE_CITYJSON_BORROWED: &str = "serde_cityjson/borrowed";
+pub(crate) const READ_BENCH_SERDE_JSON_VALUE: &str = "serde_json::Value";
+
+pub(crate) const WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE: &str =
+    "serde_cityjson/as_json_to_value";
+pub(crate) const WRITE_BENCH_SERDE_CITYJSON_TO_STRING: &str = "serde_cityjson/to_string";
+pub(crate) const WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED: &str =
+    "serde_cityjson/to_string_validated";
+pub(crate) const WRITE_BENCH_SERDE_JSON_TO_STRING: &str = "serde_json::to_string";
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -48,25 +60,25 @@ pub(crate) struct PreparedWriteCase {
     pub(crate) description: String,
     pub(crate) borrowed: bool,
     pub(crate) model: OwnedCityModel,
-    pub(crate) value: Value,
-    pub(crate) output_bytes: u64,
+    pub(crate) canonical_value: Value,
+    pub(crate) benchmark_bytes: BTreeMap<String, u64>,
 }
 
 #[derive(Serialize)]
-struct SuiteMetadata<'a> {
-    suite: &'a str,
-    cases: Vec<CaseMetadata<'a>>,
+struct SuiteMetadata {
+    suite: String,
+    cases: Vec<CaseMetadata>,
 }
 
 #[derive(Serialize)]
-struct CaseMetadata<'a> {
-    id: &'a str,
-    description: &'a str,
+struct CaseMetadata {
+    id: String,
+    description: String,
     borrowed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     input_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    output_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    benchmark_bytes: BTreeMap<String, u64>,
 }
 
 #[derive(Deserialize)]
@@ -570,50 +582,29 @@ impl CaseSpec {
     }
 
     pub(crate) fn prepare_write(&self) -> PreparedWriteCase {
-        match &self.source {
+        let model = match &self.source {
             CaseSource::Real { path } => {
                 let input_json = read_file(path);
-                let model = from_str_owned(&input_json).unwrap();
-                let value = serde_json::from_str(&input_json).unwrap();
-                let output_bytes = to_string(&model).unwrap().len() as u64;
-                PreparedWriteCase {
-                    name: self.name.clone(),
-                    description: self.description.clone(),
-                    borrowed: self.borrowed,
-                    model,
-                    value,
-                    output_bytes,
-                }
+                from_str_owned(&input_json).unwrap()
             }
-            CaseSource::Synthetic { config, seed } => {
-                let model = generate_model(config.clone(), Some(*seed));
-                let output_json = to_string(&model).unwrap();
-                let value = serde_json::from_str(&output_json).unwrap();
-                let output_bytes = output_json.len() as u64;
-                PreparedWriteCase {
-                    name: self.name.clone(),
-                    description: self.description.clone(),
-                    borrowed: self.borrowed,
-                    model,
-                    value,
-                    output_bytes,
-                }
-            }
-        }
+            CaseSource::Synthetic { config, seed } => generate_model(config.clone(), Some(*seed)),
+        };
+
+        prepare_write_case(self, model)
     }
 }
 
 pub(crate) fn write_read_suite_metadata(prepared: &[PreparedReadCase]) {
     let metadata = SuiteMetadata {
-        suite: "read",
+        suite: "read".to_owned(),
         cases: prepared
             .iter()
             .map(|case| CaseMetadata {
-                id: &case.name,
-                description: &case.description,
+                id: case.name.clone(),
+                description: case.description.clone(),
                 borrowed: case.borrowed,
                 input_bytes: Some(case.input_bytes),
-                output_bytes: None,
+                benchmark_bytes: BTreeMap::new(),
             })
             .collect(),
     };
@@ -622,22 +613,22 @@ pub(crate) fn write_read_suite_metadata(prepared: &[PreparedReadCase]) {
 
 pub(crate) fn write_write_suite_metadata(prepared: &[PreparedWriteCase]) {
     let metadata = SuiteMetadata {
-        suite: "write",
+        suite: "write".to_owned(),
         cases: prepared
             .iter()
             .map(|case| CaseMetadata {
-                id: &case.name,
-                description: &case.description,
+                id: case.name.clone(),
+                description: case.description.clone(),
                 borrowed: case.borrowed,
                 input_bytes: None,
-                output_bytes: Some(case.output_bytes),
+                benchmark_bytes: case.benchmark_bytes.clone(),
             })
             .collect(),
     };
     write_suite_metadata("write", &metadata);
 }
 
-fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata<'_>) {
+fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata) {
     let output = serde_json::to_string_pretty(metadata).unwrap();
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("benches")
@@ -727,11 +718,85 @@ fn parse_lod(value: &str) -> LoD {
     }
 }
 
+fn prepare_write_case(case: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCase {
+    let canonical_value = serde_json::to_value(as_json(&model)).unwrap();
+    let serde_json_output = serde_json::to_string(&canonical_value).unwrap();
+    let serde_cityjson_output = to_string(&model).unwrap();
+    let serde_cityjson_validated_output = to_string_validated(&model).unwrap();
+
+    let benchmark_bytes = BTreeMap::from([
+        (
+            WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE.to_owned(),
+            serde_json_output.len() as u64,
+        ),
+        (
+            WRITE_BENCH_SERDE_CITYJSON_TO_STRING.to_owned(),
+            serde_cityjson_output.len() as u64,
+        ),
+        (
+            WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED.to_owned(),
+            serde_cityjson_validated_output.len() as u64,
+        ),
+        (
+            WRITE_BENCH_SERDE_JSON_TO_STRING.to_owned(),
+            serde_json_output.len() as u64,
+        ),
+    ]);
+
+    PreparedWriteCase {
+        name: case.name.clone(),
+        description: case.description.clone(),
+        borrowed: case.borrowed,
+        model,
+        canonical_value,
+        benchmark_bytes,
+    }
+}
+
+impl PreparedWriteCase {
+    pub(crate) fn benchmark_bytes(&self, bench_id: &str) -> u64 {
+        *self
+            .benchmark_bytes
+            .get(bench_id)
+            .unwrap_or_else(|| panic!("missing benchmark byte count for '{bench_id}'"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn manifest_profiles_load_for_both_suites() {
         assert_eq!(super::read_cases().len(), 8);
         assert_eq!(super::write_cases().len(), 9);
+    }
+
+    #[test]
+    fn write_baseline_is_canonicalized_from_the_typed_model() {
+        let case = super::CaseSpec {
+            name: "synthetic".to_owned(),
+            description: "synthetic".to_owned(),
+            borrowed: true,
+            source: super::CaseSource::Synthetic {
+                config: cjfake::cli::CJFakeConfig::default(),
+                seed: 7,
+            },
+        };
+        let prepared = super::prepare_write_case(
+            &case,
+            cjfake::generate_model(cjfake::cli::CJFakeConfig::default(), Some(7)),
+        );
+
+        let serde_json_output = serde_json::to_string(&prepared.canonical_value).unwrap();
+        let serde_cityjson_output = super::to_string(&prepared.model).unwrap();
+
+        assert_eq!(serde_json_output, serde_cityjson_output);
+        assert_eq!(
+            prepared.benchmark_bytes(super::WRITE_BENCH_SERDE_JSON_TO_STRING),
+            serde_json_output.len() as u64
+        );
+        assert_eq!(
+            prepared.benchmark_bytes(super::WRITE_BENCH_SERDE_CITYJSON_TO_STRING),
+            serde_cityjson_output.len() as u64
+        );
     }
 }

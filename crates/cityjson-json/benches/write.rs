@@ -5,7 +5,11 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
 
-use common::{write_cases, write_write_suite_metadata};
+use common::{
+    write_cases, write_write_suite_metadata, WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE,
+    WRITE_BENCH_SERDE_CITYJSON_TO_STRING, WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED,
+    WRITE_BENCH_SERDE_JSON_TO_STRING,
+};
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
     group.sample_size(10);
@@ -23,23 +27,42 @@ fn bench_write(c: &mut Criterion) {
 
     for prepared in &prepared_cases {
         let mut group = c.benchmark_group(prepared.name.as_str());
-        group.throughput(Throughput::Bytes(prepared.output_bytes));
         configure_group(&mut group);
 
-        group.bench_function("serde_cityjson/to_string", |b| {
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE),
+        ));
+        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE, |b| {
+            b.iter_with_large_drop(|| {
+                serde_json::to_value(serde_cityjson::as_json(black_box(&prepared.model))).unwrap()
+            });
+        });
+
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_TO_STRING),
+        ));
+        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_TO_STRING, |b| {
             b.iter_with_large_drop(|| {
                 serde_cityjson::to_string(black_box(&prepared.model)).unwrap()
             });
         });
 
-        group.bench_function("serde_cityjson/to_string_validated", |b| {
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED),
+        ));
+        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED, |b| {
             b.iter_with_large_drop(|| {
                 serde_cityjson::to_string_validated(black_box(&prepared.model)).unwrap()
             });
         });
 
-        group.bench_function("serde_json::to_string", |b| {
-            b.iter_with_large_drop(|| serde_json::to_string(black_box(&prepared.value)).unwrap());
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_SERDE_JSON_TO_STRING),
+        ));
+        group.bench_function(WRITE_BENCH_SERDE_JSON_TO_STRING, |b| {
+            b.iter_with_large_drop(|| {
+                serde_json::to_string(black_box(&prepared.canonical_value)).unwrap()
+            });
         });
 
         group.finish();

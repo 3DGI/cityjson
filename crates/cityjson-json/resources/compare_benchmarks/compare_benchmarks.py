@@ -23,6 +23,7 @@ BENCHMARK_IDS = {
         "serde_json::Value",
     ),
     "write": (
+        "serde_cityjson/as_json_to_value",
         "serde_cityjson/to_string",
         "serde_cityjson/to_string_validated",
         "serde_json::to_string",
@@ -32,6 +33,11 @@ BENCHMARK_IDS = {
 BASELINE_IDS = {
     "read": "serde_json::Value",
     "write": "serde_json::to_string",
+}
+
+MAIN_BENCH_IDS = {
+    "read": "serde_cityjson/owned",
+    "write": "serde_cityjson/to_string",
 }
 
 OUTPUT_DIR = Path("benches") / "results"
@@ -46,7 +52,7 @@ class CaseMeta:
     description: str
     borrowed: bool
     input_bytes: int
-    output_bytes: int
+    benchmark_bytes: dict[str, int]
 
 
 def cargo_target_directory() -> Path:
@@ -71,12 +77,24 @@ def load_suite_metadata(suite: str) -> dict[str, CaseMeta]:
         payload = json.load(handle)
     result: dict[str, CaseMeta] = {}
     for case in payload.get("cases", []):
+        benchmark_bytes = {
+            bench_id: int(bytes_count)
+            for bench_id, bytes_count in case.get("benchmark_bytes", {}).items()
+        }
+        legacy_output_bytes = case.get("output_bytes")
+        if suite == "write" and not benchmark_bytes and legacy_output_bytes is not None:
+            output_bytes = int(legacy_output_bytes)
+            benchmark_bytes = {
+                "serde_cityjson/to_string": output_bytes,
+                "serde_cityjson/to_string_validated": output_bytes,
+                "serde_json::to_string": output_bytes,
+            }
         result[case["id"]] = CaseMeta(
             case_id=case["id"],
             description=case.get("description", ""),
             borrowed=case.get("borrowed", False),
             input_bytes=int(case.get("input_bytes", 0)),
-            output_bytes=int(case.get("output_bytes", 0)),
+            benchmark_bytes=benchmark_bytes,
         )
     return result
 
@@ -129,6 +147,16 @@ def case_order(results: dict[str, dict[str, float]]) -> list[str]:
     return sorted(results.keys())
 
 
+def benchmark_bytes_for(suite: str, meta: CaseMeta, bench_id: str) -> int:
+    if suite == "read":
+        return meta.input_bytes
+    return meta.benchmark_bytes.get(bench_id, 0)
+
+
+def bench_display_name(bench_id: str) -> str:
+    return bench_id.split("/")[-1]
+
+
 def plot_suite(suite: str, results: dict[str, dict[str, float]]) -> None:
     if not results:
         return
@@ -137,7 +165,10 @@ def plot_suite(suite: str, results: dict[str, dict[str, float]]) -> None:
     order = case_order(results)
     y_positions = list(range(len(order)))
 
+    baseline_label = BASELINE_IDS[suite]
     for bench_id in BENCHMARK_IDS[suite]:
+        if bench_id == baseline_label:
+            continue
         points = []
         for idx, case_id in enumerate(order):
             suite_case = results[case_id]
@@ -151,14 +182,14 @@ def plot_suite(suite: str, results: dict[str, dict[str, float]]) -> None:
             ax.scatter(xs, ys, marker=MARKER, s=MARKERSIZE, label=bench_id)
 
     ax.vlines(x=1, ymin=0, ymax=1, transform=ax.get_xaxis_transform(), colors="red")
-    red_line = mlines.Line2D([], [], color="red", label="serde_json::Value")
+    red_line = mlines.Line2D([], [], color="red", label=baseline_label)
     series_handles, _ = ax.get_legend_handles_labels()
     ax.legend(handles=[red_line] + series_handles)
     ax.set_yticks(y_positions, order)
     ax.set_xlim(left=0.0)
     ax.grid(visible=True, which="major", axis="x")
-    ax.set_title(f"Relative execution time of serde_cityjson compared to serde_json::Value ({suite})")
-    ax.set_xlabel("Factor of execution time relative to serde_json::Value (>1 = slower)")
+    ax.set_title(f"Relative execution time compared to {baseline_label} ({suite})")
+    ax.set_xlabel(f"Factor of execution time relative to {baseline_label} (>1 = slower)")
     plt.tight_layout()
     filepath = OUTPUT_DIR / f"speed_relative_{suite}.png"
     plt.savefig(filepath)
@@ -169,38 +200,43 @@ def plot_suite(suite: str, results: dict[str, dict[str, float]]) -> None:
 def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]) -> str:
     if not results:
         return ""
+    baseline_bench = BASELINE_IDS[suite]
     rows = [
         f"### {suite.capitalize()} Benchmarks",
         "",
-        "| Case | Description | serde_cityjson | serde_json::Value | Factor |",
+        f"| Case | Description | serde_cityjson | {baseline_bench} | Factor |",
         "| --- | --- | --- | --- | --- |",
     ]
-    main_bench = "serde_cityjson/owned" if suite == "read" else "serde_cityjson/to_string"
-    extra_bench = "serde_cityjson/borrowed" if suite == "read" else "serde_cityjson/to_string_validated"
-    baseline_bench = BASELINE_IDS[suite]
+    main_bench = MAIN_BENCH_IDS[suite]
 
     for case_id in case_order(results):
         suite_case = results[case_id]
-        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, 0))
+        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
         baseline = suite_case.get(baseline_bench)
         main = suite_case.get(main_bench)
         if baseline is None or main is None:
             continue
         factor = main / baseline
-        size_bytes = meta.input_bytes if suite == "read" else meta.output_bytes
-        summary = (
-            f"{main_bench.split('/')[-1]} {format_duration(main)} "
-            f"({format_throughput(size_bytes, main)})"
-        )
-        if extra_bench in suite_case:
-            extra = suite_case[extra_bench]
-            summary += f"; {extra_bench.split('/')[-1]} {format_duration(extra)} ({format_throughput(size_bytes, extra)})"
+        summaries: list[str] = []
+        for bench_id in BENCHMARK_IDS[suite]:
+            if bench_id == baseline_bench:
+                continue
+            estimate = suite_case.get(bench_id)
+            if estimate is None:
+                continue
+            summaries.append(
+                f"{bench_display_name(bench_id)} {format_duration(estimate)} "
+                f"({format_throughput(benchmark_bytes_for(suite, meta, bench_id), estimate)})"
+            )
         rows.append(
             "| {case} | {desc} | {main} | {base} | {factor:.2f}x |".format(
                 case=meta.case_id,
                 desc=meta.description or "",
-                main=summary,
-                base=f"{format_duration(baseline)} ({format_throughput(size_bytes, baseline)})",
+                main="; ".join(summaries),
+                base=(
+                    f"{format_duration(baseline)} "
+                    f"({format_throughput(benchmark_bytes_for(suite, meta, baseline_bench), baseline)})"
+                ),
                 factor=factor,
             )
         )
