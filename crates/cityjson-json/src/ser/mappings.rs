@@ -7,175 +7,778 @@ use cityjson::v2_0::{
     geometry::{SemanticMapView, TextureMapView},
     CityModel, Geometry, GeometryType, Semantic, SemanticType, VertexRef,
 };
-use serde_json::{Map, Number, Value};
+use serde::ser::{Error as _, SerializeMap, SerializeSeq};
+use serde::Serialize;
 
-use crate::errors::{Error, Result};
-use crate::ser::attributes::attributes_to_json_map;
+use crate::errors::Error;
+use crate::ser::attributes::serialize_attributes_entries;
+use crate::ser::context::WriteContext;
+use crate::ser::geometry::{
+    ring_range_for_surface, shell_range_for_solid, surface_range_for_shell,
+};
 
-pub(crate) fn semantics_to_json_value<VR, SS>(
-    model: &CityModel<VR, SS>,
-    geometry: &Geometry<VR, SS>,
-) -> Result<Option<Value>>
+pub(crate) fn has_semantics<VR, SS>(geometry: &Geometry<VR, SS>) -> bool
 where
     VR: VertexRef,
     SS: StringStorage,
 {
-    let Some(semantics) = geometry.semantics() else {
-        return Ok(None);
-    };
+    geometry.semantics().is_some_and(|semantics| {
+        !collect_referenced_semantic_handles(geometry, semantics).is_empty()
+    })
+}
 
-    let handles = collect_geometry_semantic_handles(model, geometry, semantics);
-    if handles.is_empty() {
-        return Ok(None);
+pub(crate) fn has_materials<VR, SS>(geometry: &Geometry<VR, SS>) -> bool
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    geometry.materials().is_some()
+}
+
+pub(crate) fn has_textures<VR, SS>(geometry: &Geometry<VR, SS>) -> bool
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    geometry.textures().is_some()
+}
+
+pub(crate) struct SemanticsSerializer<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    pub(crate) model: &'a CityModel<VR, SS>,
+    pub(crate) geometry: &'a Geometry<VR, SS>,
+}
+
+impl<VR, SS> Serialize for SemanticsSerializer<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let semantics = self.geometry.semantics().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue("missing geometry semantics".to_owned()))
+        })?;
+        let handles = collect_geometry_semantic_handles(self.model, self.geometry, semantics);
+        if handles.is_empty() {
+            let map = serializer.serialize_map(Some(0))?;
+            return map.end();
+        }
+
+        let handle_to_local = handles
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, handle)| (handle, index))
+            .collect::<HashMap<_, _>>();
+
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry(
+            "surfaces",
+            &SemanticSurfacesSerializer {
+                model: self.model,
+                handles: &handles,
+                handle_to_local: &handle_to_local,
+            },
+        )?;
+        map.serialize_entry(
+            "values",
+            &SemanticValuesSerializer {
+                geometry: self.geometry,
+                handle_to_local: &handle_to_local,
+            },
+        )?;
+        map.end()
     }
+}
 
-    let handle_to_local = handles
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(index, handle)| (handle, index))
-        .collect::<HashMap<_, _>>();
+pub(crate) struct MaterialsSerializer<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    pub(crate) geometry: &'a Geometry<VR, SS>,
+    pub(crate) context: &'a WriteContext,
+}
 
-    let surfaces = handles
-        .iter()
-        .map(|handle| {
-            let semantic = model.get_semantic(*handle).ok_or_else(|| {
-                Error::InvalidValue(format!("missing semantic for handle {handle}"))
-            })?;
-            semantic_to_json_value(semantic, &handle_to_local)
-        })
-        .collect::<Result<Vec<_>>>()?;
+impl<VR, SS> Serialize for MaterialsSerializer<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let materials = self.geometry.materials().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue("missing geometry materials".to_owned()))
+        })?;
+        let boundary = self.geometry.boundaries().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue(format!(
+                "geometry '{}' is missing boundaries",
+                self.geometry.type_geometry()
+            )))
+        })?;
 
-    let values = match geometry.type_geometry() {
-        GeometryType::MultiPoint => {
-            serialize_flat_semantics(semantics.points().iter(), &handle_to_local)
-        }
-        GeometryType::MultiLineString => {
-            serialize_flat_semantics(semantics.linestrings().iter(), &handle_to_local)
-        }
-        GeometryType::MultiSurface | GeometryType::CompositeSurface => {
-            serialize_flat_semantics(semantics.surfaces().iter(), &handle_to_local)
-        }
-        GeometryType::Solid | GeometryType::MultiSolid | GeometryType::CompositeSolid => {
-            let boundary = geometry.boundaries().ok_or_else(|| {
-                Error::InvalidValue(format!(
-                    "geometry '{}' is missing boundaries",
-                    geometry.type_geometry()
-                ))
-            })?;
-            let assignments = semantics
+        let mut map = serializer.serialize_map(Some(materials.len()))?;
+        for (theme, assignments) in materials.iter() {
+            let surfaces = assignments
                 .surfaces()
                 .iter()
-                .map(|handle| {
-                    handle
-                        .as_ref()
-                        .and_then(|handle| handle_to_local.get(handle).copied())
+                .map(|material| {
+                    (*material)
+                        .and_then(|handle| self.context.material_indices.get(&handle).copied())
                 })
                 .collect::<Vec<_>>();
-            serialize_surface_usize_options(boundary, *geometry.type_geometry(), &assignments)
+
+            if is_uniform_non_null(&surfaces) {
+                map.serialize_entry(
+                    theme.as_ref(),
+                    &UniformMaterialSerializer(surfaces.first().copied().flatten()),
+                )?;
+            } else {
+                map.serialize_entry(
+                    theme.as_ref(),
+                    &MaterialValuesSerializer {
+                        boundary,
+                        geometry_type: *self.geometry.type_geometry(),
+                        assignments: &surfaces,
+                    },
+                )?;
+            }
         }
-        _ => {
-            return Err(Error::InvalidValue(format!(
-                "geometry semantics export is not supported for geometry type '{}'",
-                geometry.type_geometry()
+        map.end()
+    }
+}
+
+pub(crate) struct TexturesSerializer<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    pub(crate) geometry: &'a Geometry<VR, SS>,
+    pub(crate) context: &'a WriteContext,
+}
+
+impl<VR, SS> Serialize for TexturesSerializer<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let textures = self.geometry.textures().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue("missing geometry textures".to_owned()))
+        })?;
+        let boundary = self.geometry.boundaries().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue(format!(
+                "geometry '{}' is missing boundaries",
+                self.geometry.type_geometry()
             )))
-        }
-    };
+        })?;
 
-    Ok(Some(serde_json::json!({
-        "surfaces": surfaces,
-        "values": values,
-    })))
-}
-
-pub(crate) fn materials_to_json_value<VR, SS>(
-    model: &CityModel<VR, SS>,
-    geometry: &Geometry<VR, SS>,
-) -> Result<Option<Value>>
-where
-    VR: VertexRef,
-    SS: StringStorage,
-{
-    let Some(materials) = geometry.materials() else {
-        return Ok(None);
-    };
-    let boundary = geometry.boundaries().ok_or_else(|| {
-        Error::InvalidValue(format!(
-            "geometry '{}' is missing boundaries",
-            geometry.type_geometry()
-        ))
-    })?;
-    let dense_indices = model
-        .iter_materials()
-        .enumerate()
-        .map(|(index, (handle, _))| (handle, index))
-        .collect::<HashMap<_, _>>();
-
-    let mut value = Map::new();
-    for (theme, assignments) in materials.iter() {
-        let surfaces = assignments
-            .surfaces()
-            .iter()
-            .map(|material| (*material).and_then(|handle| dense_indices.get(&handle).copied()))
-            .collect::<Vec<_>>();
-
-        let theme_value = if is_uniform_non_null(&surfaces) {
-            Value::Object(Map::from_iter([(
-                "value".to_owned(),
-                optional_index_to_json(surfaces.first().copied().flatten()),
-            )]))
-        } else {
-            Value::Object(Map::from_iter([(
-                "values".to_owned(),
-                serialize_surface_usize_options(boundary, *geometry.type_geometry(), &surfaces),
-            )]))
-        };
-        value.insert(theme.as_ref().to_owned(), theme_value);
-    }
-
-    Ok(Some(Value::Object(value)))
-}
-
-pub(crate) fn textures_to_json_value<VR, SS>(
-    model: &CityModel<VR, SS>,
-    geometry: &Geometry<VR, SS>,
-) -> Result<Option<Value>>
-where
-    VR: VertexRef,
-    SS: StringStorage,
-{
-    let Some(textures) = geometry.textures() else {
-        return Ok(None);
-    };
-    let boundary = geometry.boundaries().ok_or_else(|| {
-        Error::InvalidValue(format!(
-            "geometry '{}' is missing boundaries",
-            geometry.type_geometry()
-        ))
-    })?;
-    let dense_indices = model
-        .iter_textures()
-        .enumerate()
-        .map(|(index, (handle, _))| (handle, index))
-        .collect::<HashMap<_, _>>();
-
-    let mut value = Map::new();
-    for (theme, texture_map) in textures.iter() {
-        value.insert(
-            theme.as_ref().to_owned(),
-            Value::Object(Map::from_iter([(
-                "values".to_owned(),
-                serialize_texture_values(
+        let mut map = serializer.serialize_map(Some(textures.len()))?;
+        for (theme, texture_map) in textures.iter() {
+            map.serialize_entry(
+                theme.as_ref(),
+                &TextureThemeSerializer {
                     boundary,
-                    *geometry.type_geometry(),
+                    geometry_type: *self.geometry.type_geometry(),
                     texture_map,
-                    &dense_indices,
-                )?,
-            )])),
-        );
+                    dense_indices: &self.context.texture_indices,
+                },
+            )?;
+        }
+        map.end()
     }
+}
 
-    Ok(Some(Value::Object(value)))
+struct SemanticSurfacesSerializer<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    model: &'a CityModel<VR, SS>,
+    handles: &'a [SemanticHandle],
+    handle_to_local: &'a HashMap<SemanticHandle, usize>,
+}
+
+impl<VR, SS> Serialize for SemanticSurfacesSerializer<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.handles.len()))?;
+        for handle in self.handles {
+            let semantic = self.model.get_semantic(*handle).ok_or_else(|| {
+                S::Error::custom(Error::InvalidValue(format!(
+                    "missing semantic for handle {handle}"
+                )))
+            })?;
+            seq.serialize_element(&SemanticSerializer {
+                semantic,
+                handle_to_local: self.handle_to_local,
+            })?;
+        }
+        seq.end()
+    }
+}
+
+struct SemanticSerializer<'a, SS>
+where
+    SS: StringStorage,
+{
+    semantic: &'a Semantic<SS>,
+    handle_to_local: &'a HashMap<SemanticHandle, usize>,
+}
+
+impl<SS> Serialize for SemanticSerializer<'_, SS>
+where
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("type", semantic_type_to_str(self.semantic.type_semantic()))?;
+        if let Some(children) = self.semantic.children() {
+            let local_children = children
+                .iter()
+                .filter_map(|handle| self.handle_to_local.get(handle).copied())
+                .collect::<Vec<_>>();
+            if !local_children.is_empty() {
+                map.serialize_entry("children", &local_children)?;
+            }
+        }
+        if let Some(parent) = self.semantic.parent() {
+            if let Some(index) = self.handle_to_local.get(&parent).copied() {
+                map.serialize_entry("parent", &index)?;
+            }
+        }
+        if let Some(attributes) = self.semantic.attributes() {
+            serialize_attributes_entries(&mut map, attributes)?;
+        }
+        map.end()
+    }
+}
+
+struct SemanticValuesSerializer<'a, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    geometry: &'a Geometry<VR, SS>,
+    handle_to_local: &'a HashMap<SemanticHandle, usize>,
+}
+
+impl<VR, SS> Serialize for SemanticValuesSerializer<'_, VR, SS>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let semantics = self.geometry.semantics().ok_or_else(|| {
+            S::Error::custom(Error::InvalidValue("missing geometry semantics".to_owned()))
+        })?;
+        match self.geometry.type_geometry() {
+            GeometryType::MultiPoint => FlatHandleSerializer {
+                values: semantics.points().iter().collect(),
+                handle_to_local: self.handle_to_local,
+            }
+            .serialize(serializer),
+            GeometryType::MultiLineString => FlatHandleSerializer {
+                values: semantics.linestrings().iter().collect(),
+                handle_to_local: self.handle_to_local,
+            }
+            .serialize(serializer),
+            GeometryType::MultiSurface | GeometryType::CompositeSurface => FlatHandleSerializer {
+                values: semantics.surfaces().iter().collect(),
+                handle_to_local: self.handle_to_local,
+            }
+            .serialize(serializer),
+            GeometryType::Solid | GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                let boundary = self.geometry.boundaries().ok_or_else(|| {
+                    S::Error::custom(Error::InvalidValue(format!(
+                        "geometry '{}' is missing boundaries",
+                        self.geometry.type_geometry()
+                    )))
+                })?;
+                let assignments = semantics
+                    .surfaces()
+                    .iter()
+                    .map(|handle| {
+                        handle
+                            .as_ref()
+                            .and_then(|handle| self.handle_to_local.get(handle).copied())
+                    })
+                    .collect::<Vec<_>>();
+                NestedOptionalIndexSerializer {
+                    boundary,
+                    geometry_type: *self.geometry.type_geometry(),
+                    assignments: &assignments,
+                }
+                .serialize(serializer)
+            }
+            _ => Err(S::Error::custom(Error::InvalidValue(format!(
+                "geometry semantics export is not supported for geometry type '{}'",
+                self.geometry.type_geometry()
+            )))),
+        }
+    }
+}
+
+struct FlatHandleSerializer<'a> {
+    values: Vec<&'a Option<SemanticHandle>>,
+    handle_to_local: &'a HashMap<SemanticHandle, usize>,
+}
+
+impl Serialize for FlatHandleSerializer<'_> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.values.len()))?;
+        for handle in &self.values {
+            seq.serialize_element(&OptionalIndex(
+                handle
+                    .as_ref()
+                    .and_then(|handle| self.handle_to_local.get(handle).copied()),
+            ))?;
+        }
+        seq.end()
+    }
+}
+
+struct UniformMaterialSerializer(Option<usize>);
+
+impl Serialize for UniformMaterialSerializer {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry("value", &OptionalIndex(self.0))?;
+        map.end()
+    }
+}
+
+struct MaterialValuesSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    geometry_type: GeometryType,
+    assignments: &'a [Option<usize>],
+}
+
+impl<VR> Serialize for MaterialValuesSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(
+            "values",
+            &NestedOptionalIndexSerializer {
+                boundary: self.boundary,
+                geometry_type: self.geometry_type,
+                assignments: self.assignments,
+            },
+        )?;
+        map.end()
+    }
+}
+
+struct NestedOptionalIndexSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    geometry_type: GeometryType,
+    assignments: &'a [Option<usize>],
+}
+
+impl<VR> Serialize for NestedOptionalIndexSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self.geometry_type {
+            GeometryType::Solid => {
+                let mut seq = serializer.serialize_seq(Some(self.boundary.shells().len()))?;
+                for shell_index in 0..self.boundary.shells().len() {
+                    let (start, end) = surface_range_for_shell(self.boundary, shell_index);
+                    seq.serialize_element(&OptionalIndexSlice(&self.assignments[start..end]))?;
+                }
+                seq.end()
+            }
+            GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                let mut seq = serializer.serialize_seq(Some(self.boundary.solids().len()))?;
+                for solid_index in 0..self.boundary.solids().len() {
+                    let (shell_start, shell_end) =
+                        shell_range_for_solid(self.boundary, solid_index);
+                    seq.serialize_element(&ShellAssignmentsSerializer {
+                        boundary: self.boundary,
+                        assignments: self.assignments,
+                        shell_start,
+                        shell_end,
+                    })?;
+                }
+                seq.end()
+            }
+            _ => serialize_optional_index_seq(serializer, self.assignments),
+        }
+    }
+}
+
+struct OptionalIndexSlice<'a>(&'a [Option<usize>]);
+
+impl Serialize for OptionalIndexSlice<'_> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
+        for value in self.0 {
+            seq.serialize_element(&OptionalIndex(*value))?;
+        }
+        seq.end()
+    }
+}
+
+struct ShellAssignmentsSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    assignments: &'a [Option<usize>],
+    shell_start: usize,
+    shell_end: usize,
+}
+
+impl<VR> Serialize for ShellAssignmentsSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq =
+            serializer.serialize_seq(Some(self.shell_end.saturating_sub(self.shell_start)))?;
+        for shell_index in self.shell_start..self.shell_end {
+            let (surface_start, surface_end) = surface_range_for_shell(self.boundary, shell_index);
+            seq.serialize_element(&OptionalIndexSlice(
+                &self.assignments[surface_start..surface_end],
+            ))?;
+        }
+        seq.end()
+    }
+}
+
+struct TextureThemeSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    geometry_type: GeometryType,
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+}
+
+impl<VR> Serialize for TextureThemeSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(
+            "values",
+            &TextureValuesSerializer {
+                boundary: self.boundary,
+                geometry_type: self.geometry_type,
+                texture_map: self.texture_map,
+                dense_indices: self.dense_indices,
+            },
+        )?;
+        map.end()
+    }
+}
+
+struct TextureValuesSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    geometry_type: GeometryType,
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+}
+
+impl<VR> Serialize for TextureValuesSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self.geometry_type {
+            GeometryType::MultiSurface | GeometryType::CompositeSurface => {
+                let mut seq = serializer.serialize_seq(Some(self.boundary.surfaces().len()))?;
+                for surface_index in 0..self.boundary.surfaces().len() {
+                    let (ring_start, ring_end) =
+                        ring_range_for_surface(self.boundary, surface_index);
+                    seq.serialize_element(&TextureRingRangeSerializer {
+                        texture_map: self.texture_map,
+                        dense_indices: self.dense_indices,
+                        ring_start,
+                        ring_end,
+                    })?;
+                }
+                seq.end()
+            }
+            GeometryType::Solid => {
+                let mut seq = serializer.serialize_seq(Some(self.boundary.shells().len()))?;
+                for shell_index in 0..self.boundary.shells().len() {
+                    let (surface_start, surface_end) =
+                        surface_range_for_shell(self.boundary, shell_index);
+                    seq.serialize_element(&TextureSurfaceRangeSerializer {
+                        boundary: self.boundary,
+                        texture_map: self.texture_map,
+                        dense_indices: self.dense_indices,
+                        surface_start,
+                        surface_end,
+                    })?;
+                }
+                seq.end()
+            }
+            GeometryType::MultiSolid | GeometryType::CompositeSolid => {
+                let mut seq = serializer.serialize_seq(Some(self.boundary.solids().len()))?;
+                for solid_index in 0..self.boundary.solids().len() {
+                    let (shell_start, shell_end) =
+                        shell_range_for_solid(self.boundary, solid_index);
+                    seq.serialize_element(&TextureShellRangeSerializer {
+                        boundary: self.boundary,
+                        texture_map: self.texture_map,
+                        dense_indices: self.dense_indices,
+                        shell_start,
+                        shell_end,
+                    })?;
+                }
+                seq.end()
+            }
+            _ => Err(S::Error::custom(Error::InvalidValue(format!(
+                "geometry texture export is not supported for geometry type '{}'",
+                self.geometry_type
+            )))),
+        }
+    }
+}
+
+struct TextureShellRangeSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+    shell_start: usize,
+    shell_end: usize,
+}
+
+impl<VR> Serialize for TextureShellRangeSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq =
+            serializer.serialize_seq(Some(self.shell_end.saturating_sub(self.shell_start)))?;
+        for shell_index in self.shell_start..self.shell_end {
+            let (surface_start, surface_end) = surface_range_for_shell(self.boundary, shell_index);
+            seq.serialize_element(&TextureSurfaceRangeSerializer {
+                boundary: self.boundary,
+                texture_map: self.texture_map,
+                dense_indices: self.dense_indices,
+                surface_start,
+                surface_end,
+            })?;
+        }
+        seq.end()
+    }
+}
+
+struct TextureSurfaceRangeSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    boundary: &'a Boundary<VR>,
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+    surface_start: usize,
+    surface_end: usize,
+}
+
+impl<VR> Serialize for TextureSurfaceRangeSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq =
+            serializer.serialize_seq(Some(self.surface_end.saturating_sub(self.surface_start)))?;
+        for surface_index in self.surface_start..self.surface_end {
+            let (ring_start, ring_end) = ring_range_for_surface(self.boundary, surface_index);
+            seq.serialize_element(&TextureRingRangeSerializer {
+                texture_map: self.texture_map,
+                dense_indices: self.dense_indices,
+                ring_start,
+                ring_end,
+            })?;
+        }
+        seq.end()
+    }
+}
+
+struct TextureRingRangeSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+    ring_start: usize,
+    ring_end: usize,
+}
+
+impl<VR> Serialize for TextureRingRangeSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq =
+            serializer.serialize_seq(Some(self.ring_end.saturating_sub(self.ring_start)))?;
+        for ring_index in self.ring_start..self.ring_end {
+            seq.serialize_element(&TextureRingSerializer {
+                texture_map: self.texture_map,
+                dense_indices: self.dense_indices,
+                ring_index,
+            })?;
+        }
+        seq.end()
+    }
+}
+
+struct TextureRingSerializer<'a, VR>
+where
+    VR: VertexRef,
+{
+    texture_map: TextureMapView<'a, VR>,
+    dense_indices: &'a HashMap<TextureHandle, usize>,
+    ring_index: usize,
+}
+
+impl<VR> Serialize for TextureRingSerializer<'_, VR>
+where
+    VR: VertexRef,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let texture = self
+            .texture_map
+            .ring_textures()
+            .get(self.ring_index)
+            .copied()
+            .flatten()
+            .and_then(|handle| self.dense_indices.get(&handle).copied());
+        let Some(texture_index) = texture else {
+            let mut seq = serializer.serialize_seq(Some(1))?;
+            seq.serialize_element(&OptionalIndex(None))?;
+            return seq.end();
+        };
+
+        let vertex_start = self
+            .texture_map
+            .rings()
+            .get(self.ring_index)
+            .map_or(0, cityjson::v2_0::VertexIndex::to_usize);
+        let vertex_end = self.texture_map.rings().get(self.ring_index + 1).map_or(
+            self.texture_map.vertices().len(),
+            cityjson::v2_0::VertexIndex::to_usize,
+        );
+
+        let mut seq =
+            serializer.serialize_seq(Some(vertex_end.saturating_sub(vertex_start) + 1))?;
+        seq.serialize_element(&texture_index)?;
+        for uv_index in &self.texture_map.vertices()[vertex_start..vertex_end] {
+            seq.serialize_element(&OptionalIndex(uv_index.map(|uv_index| uv_index.to_usize())))?;
+        }
+        seq.end()
+    }
+}
+
+struct OptionalIndex(Option<usize>);
+
+impl Serialize for OptionalIndex {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self.0 {
+            Some(value) => serializer.serialize_u64(value as u64),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+fn collect_referenced_semantic_handles<VR, SS>(
+    geometry: &Geometry<VR, SS>,
+    semantics: SemanticMapView<'_, VR>,
+) -> Vec<SemanticHandle>
+where
+    VR: VertexRef,
+    SS: StringStorage,
+{
+    match geometry.type_geometry() {
+        GeometryType::MultiPoint => semantics.points().iter().flatten().copied().collect(),
+        GeometryType::MultiLineString => {
+            semantics.linestrings().iter().flatten().copied().collect()
+        }
+        _ => semantics.surfaces().iter().flatten().copied().collect(),
+    }
 }
 
 fn collect_geometry_semantic_handles<VR, SS>(
@@ -236,283 +839,6 @@ where
     ordered
 }
 
-fn semantic_to_json_value<SS>(
-    semantic: &Semantic<SS>,
-    handle_to_local: &HashMap<SemanticHandle, usize>,
-) -> Result<Value>
-where
-    SS: StringStorage,
-{
-    let mut value = Map::new();
-    value.insert(
-        "type".to_owned(),
-        Value::String(semantic_type_to_str(semantic.type_semantic()).to_owned()),
-    );
-
-    if let Some(children) = semantic.children() {
-        let local_children = children
-            .iter()
-            .filter_map(|handle| handle_to_local.get(handle).copied())
-            .map(|index| Value::Number(Number::from(index)))
-            .collect::<Vec<_>>();
-        if !local_children.is_empty() {
-            value.insert("children".to_owned(), Value::Array(local_children));
-        }
-    }
-
-    if let Some(parent) = semantic.parent() {
-        if let Some(index) = handle_to_local.get(&parent).copied() {
-            value.insert("parent".to_owned(), Value::Number(Number::from(index)));
-        }
-    }
-
-    if let Some(attributes) = semantic.attributes() {
-        value.extend(attributes_to_json_map(attributes)?);
-    }
-
-    Ok(Value::Object(value))
-}
-
-fn serialize_flat_semantics<'a>(
-    handles: impl IntoIterator<Item = &'a Option<SemanticHandle>>,
-    handle_to_local: &HashMap<SemanticHandle, usize>,
-) -> Value {
-    Value::Array(
-        handles
-            .into_iter()
-            .map(|handle| {
-                optional_index_to_json(
-                    handle
-                        .as_ref()
-                        .and_then(|handle| handle_to_local.get(handle).copied()),
-                )
-            })
-            .collect(),
-    )
-}
-
-fn serialize_surface_usize_options<VR>(
-    boundary: &Boundary<VR>,
-    geometry_type: GeometryType,
-    assignments: &[Option<usize>],
-) -> Value
-where
-    VR: VertexRef,
-{
-    match geometry_type {
-        GeometryType::MultiSurface | GeometryType::CompositeSurface => Value::Array(
-            assignments
-                .iter()
-                .map(|value| optional_index_to_json(*value))
-                .collect(),
-        ),
-        GeometryType::Solid => Value::Array(
-            (0..boundary.shells().len())
-                .map(|shell_index| {
-                    let (start, end) = surface_range_for_shell(boundary, shell_index);
-                    Value::Array(
-                        assignments[start..end]
-                            .iter()
-                            .map(|value| optional_index_to_json(*value))
-                            .collect(),
-                    )
-                })
-                .collect(),
-        ),
-        GeometryType::MultiSolid | GeometryType::CompositeSolid => Value::Array(
-            (0..boundary.solids().len())
-                .map(|solid_index| {
-                    let (shell_start, shell_end) = shell_range_for_solid(boundary, solid_index);
-                    Value::Array(
-                        (shell_start..shell_end)
-                            .map(|shell_index| {
-                                let (surface_start, surface_end) =
-                                    surface_range_for_shell(boundary, shell_index);
-                                Value::Array(
-                                    assignments[surface_start..surface_end]
-                                        .iter()
-                                        .map(|value| optional_index_to_json(*value))
-                                        .collect(),
-                                )
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-        ),
-        _ => Value::Array(
-            assignments
-                .iter()
-                .map(|value| optional_index_to_json(*value))
-                .collect(),
-        ),
-    }
-}
-
-fn serialize_texture_values<VR>(
-    boundary: &Boundary<VR>,
-    geometry_type: GeometryType,
-    texture_map: TextureMapView<'_, VR>,
-    dense_indices: &HashMap<TextureHandle, usize>,
-) -> Result<Value>
-where
-    VR: VertexRef,
-{
-    Ok(match geometry_type {
-        GeometryType::MultiSurface | GeometryType::CompositeSurface => Value::Array(
-            (0..boundary.surfaces().len())
-                .map(|surface_index| {
-                    let (ring_start, ring_end) = ring_range_for_surface(boundary, surface_index);
-                    Value::Array(
-                        (ring_start..ring_end)
-                            .map(|ring_index| {
-                                serialize_ring_texture_value(texture_map, ring_index, dense_indices)
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .collect(),
-        ),
-        GeometryType::Solid => Value::Array(
-            (0..boundary.shells().len())
-                .map(|shell_index| {
-                    let (surface_start, surface_end) =
-                        surface_range_for_shell(boundary, shell_index);
-                    Value::Array(
-                        (surface_start..surface_end)
-                            .map(|surface_index| {
-                                let (ring_start, ring_end) =
-                                    ring_range_for_surface(boundary, surface_index);
-                                Value::Array(
-                                    (ring_start..ring_end)
-                                        .map(|ring_index| {
-                                            serialize_ring_texture_value(
-                                                texture_map,
-                                                ring_index,
-                                                dense_indices,
-                                            )
-                                        })
-                                        .collect::<Vec<_>>(),
-                                )
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .collect(),
-        ),
-        GeometryType::MultiSolid | GeometryType::CompositeSolid => Value::Array(
-            (0..boundary.solids().len())
-                .map(|solid_index| {
-                    let (shell_start, shell_end) = shell_range_for_solid(boundary, solid_index);
-                    Value::Array(
-                        (shell_start..shell_end)
-                            .map(|shell_index| {
-                                let (surface_start, surface_end) =
-                                    surface_range_for_shell(boundary, shell_index);
-                                Value::Array(
-                                    (surface_start..surface_end)
-                                        .map(|surface_index| {
-                                            let (ring_start, ring_end) =
-                                                ring_range_for_surface(boundary, surface_index);
-                                            Value::Array(
-                                                (ring_start..ring_end)
-                                                    .map(|ring_index| {
-                                                        serialize_ring_texture_value(
-                                                            texture_map,
-                                                            ring_index,
-                                                            dense_indices,
-                                                        )
-                                                    })
-                                                    .collect::<Vec<_>>(),
-                                            )
-                                        })
-                                        .collect::<Vec<_>>(),
-                                )
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .collect(),
-        ),
-        _ => {
-            return Err(Error::InvalidValue(format!(
-                "geometry texture export is not supported for geometry type '{geometry_type}'"
-            )))
-        }
-    })
-}
-
-fn serialize_ring_texture_value<VR>(
-    texture_map: TextureMapView<'_, VR>,
-    ring_index: usize,
-    dense_indices: &HashMap<TextureHandle, usize>,
-) -> Value
-where
-    VR: VertexRef,
-{
-    let texture = texture_map
-        .ring_textures()
-        .get(ring_index)
-        .copied()
-        .flatten()
-        .and_then(|handle| dense_indices.get(&handle).copied());
-    let Some(texture_index) = texture else {
-        return Value::Array(vec![Value::Null]);
-    };
-
-    let vertex_start = texture_map
-        .rings()
-        .get(ring_index)
-        .map_or(0, cityjson::v2_0::VertexIndex::to_usize);
-    let vertex_end = texture_map.rings().get(ring_index + 1).map_or(
-        texture_map.vertices().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
-    );
-
-    let mut values = Vec::with_capacity(vertex_end.saturating_sub(vertex_start) + 1);
-    values.push(Value::Number(Number::from(texture_index)));
-    for uv_index in &texture_map.vertices()[vertex_start..vertex_end] {
-        values.push(optional_index_to_json(uv_index.map(|uv| uv.to_usize())));
-    }
-    Value::Array(values)
-}
-
-fn ring_range_for_surface<VR>(boundary: &Boundary<VR>, surface_index: usize) -> (usize, usize)
-where
-    VR: VertexRef,
-{
-    let start = boundary.surfaces()[surface_index].to_usize();
-    let end = boundary.surfaces().get(surface_index + 1).map_or(
-        boundary.rings().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
-    );
-    (start, end)
-}
-
-fn surface_range_for_shell<VR>(boundary: &Boundary<VR>, shell_index: usize) -> (usize, usize)
-where
-    VR: VertexRef,
-{
-    let start = boundary.shells()[shell_index].to_usize();
-    let end = boundary.shells().get(shell_index + 1).map_or(
-        boundary.surfaces().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
-    );
-    (start, end)
-}
-
-fn shell_range_for_solid<VR>(boundary: &Boundary<VR>, solid_index: usize) -> (usize, usize)
-where
-    VR: VertexRef,
-{
-    let start = boundary.solids()[solid_index].to_usize();
-    let end = boundary.solids().get(solid_index + 1).map_or(
-        boundary.shells().len(),
-        cityjson::v2_0::VertexIndex::to_usize,
-    );
-    (start, end)
-}
-
 fn semantic_type_to_str<SS>(semantic_type: &SemanticType<SS>) -> &str
 where
     SS: StringStorage,
@@ -541,13 +867,23 @@ where
     }
 }
 
-fn optional_index_to_json(value: Option<usize>) -> Value {
-    value.map_or(Value::Null, |value| Value::Number(Number::from(value)))
-}
-
 fn is_uniform_non_null(values: &[Option<usize>]) -> bool {
     let Some(first) = values.first().copied().flatten() else {
         return false;
     };
     values.iter().all(|value| *value == Some(first))
+}
+
+fn serialize_optional_index_seq<S>(
+    serializer: S,
+    values: &[Option<usize>],
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(values.len()))?;
+    for value in values {
+        seq.serialize_element(&OptionalIndex(*value))?;
+    }
+    seq.end()
 }

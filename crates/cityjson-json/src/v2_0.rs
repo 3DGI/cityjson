@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::io::BufRead;
+use std::io::Write;
 
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
@@ -150,6 +151,62 @@ where
     Ok(serde_json::to_string(&as_json(model))?)
 }
 
+/// Serialize a [`CityModel`] to a `CityJSON` byte vector.
+///
+/// # Errors
+///
+/// Returns an error if the model cannot be serialized.
+pub fn to_vec<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    Ok(serde_json::to_vec(&as_json(model))?)
+}
+
+/// Serialize a [`CityModel`] to a `CityJSON` byte vector, validating default themes.
+///
+/// # Errors
+///
+/// Returns an error if the model fails validation or cannot be serialized.
+pub fn to_vec_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    model.validate_default_themes()?;
+    Ok(serde_json::to_vec(&as_json(model))?)
+}
+
+/// Serialize a [`CityModel`] to a `CityJSON` writer.
+///
+/// # Errors
+///
+/// Returns an error if the model cannot be serialized.
+pub fn to_writer<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
+where
+    W: Write,
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    Ok(serde_json::to_writer(writer, &as_json(model))?)
+}
+
+/// Serialize a [`CityModel`] to a `CityJSON` writer, validating default themes.
+///
+/// # Errors
+///
+/// Returns an error if the model fails validation or cannot be serialized.
+pub fn to_writer_validated<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
+where
+    W: Write,
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    model.validate_default_themes()?;
+    Ok(serde_json::to_writer(writer, &as_json(model))?)
+}
+
 /// Serialize a [`CityModel`] as a `CityJSONFeature` string.
 ///
 /// # Errors
@@ -191,9 +248,7 @@ where
     where
         S: serde::Serializer,
     {
-        crate::ser::citymodel_to_json_value(self.model)
-            .map_err(serde::ser::Error::custom)?
-            .serialize(serializer)
+        crate::ser::serialize_citymodel(serializer, self.model)
     }
 }
 

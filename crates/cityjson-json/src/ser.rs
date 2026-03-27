@@ -1,7 +1,8 @@
 mod appearance;
 mod attributes;
 mod citymodel;
+mod context;
 mod geometry;
 mod mappings;
 
-pub(crate) use citymodel::citymodel_to_json_value;
+pub(crate) use citymodel::serialize_citymodel;
