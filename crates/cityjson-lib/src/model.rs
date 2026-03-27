@@ -1,5 +1,3 @@
-use std::io::BufRead;
-use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use crate::{Result, json};
@@ -20,13 +18,6 @@ impl CityModel {
         json::from_file(path)
     }
 
-    pub fn from_stream<R>(reader: R) -> Result<Self>
-    where
-        R: BufRead,
-    {
-        json::from_stream(reader)
-    }
-
     pub fn into_inner(self) -> cityjson::v2_0::OwnedCityModel {
         self.0
     }
@@ -37,20 +28,6 @@ impl CityModel {
 
     pub fn as_inner_mut(&mut self) -> &mut cityjson::v2_0::OwnedCityModel {
         &mut self.0
-    }
-}
-
-impl Deref for CityModel {
-    type Target = cityjson::v2_0::OwnedCityModel;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_inner()
-    }
-}
-
-impl DerefMut for CityModel {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_inner_mut()
     }
 }
 

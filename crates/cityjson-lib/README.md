@@ -2,7 +2,7 @@
 
 `cjlib` is the user-facing facade for the CityJSON crates in this repository.
 
-The intended shape is deliberately small:
+The current rewrite keeps the implemented surface deliberately small:
 
 - `cityjson-rs` owns the one semantic model
 - `serde_cityjson` owns the CityJSON JSON and JSONL boundary
@@ -26,8 +26,9 @@ The future public API is centered on:
 - `cjlib::Error`
 - `cjlib::ErrorKind`
 - `cjlib::json`
-- `cjlib::ops`
-- feature-gated format modules such as `cjlib::arrow` and `cjlib::parquet`
+- `cjlib::ops`, currently one illustrative `todo!()` function
+- `cjlib::arrow`, currently one illustrative `todo!()` function
+- `cjlib::parquet`, currently one illustrative `todo!()` function
 - `cjlib::cityjson` for advanced model access
 
 ## Default Path
@@ -85,35 +86,16 @@ Within `cjlib::json`, the intended surface is:
 - `to_writer`
 - `to_feature_string`
 
-`CityModel::from_stream` remains a transitional compatibility alias for now,
-but it is not the architectural center of the JSON boundary.
-
-For non-JSON transport modules, file-oriented helpers are fine, but the public
-semantic unit should still stay `CityModel`:
-
-- `from_file`
-- `to_file`
-
-Where a backend naturally supports streams, those stream APIs should also trade
-in `CityModel` values rather than format-specific semantic objects.
+`json::from_file` is document-oriented.
+Feature streams should be handled explicitly through
+`json::read_feature_stream`.
 
 ## Higher-level Operations
 
 Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cjlib::ops`.
-
-The intended home for those includes:
-
-- merge and subset
-- LoD filtering
-- version upgrade
-- vertex cleanup
-- texture-path relocation
-- geometry measurements
-- feature-gated CRS helpers
-
-The design rule is to keep these out of `CityModel` itself.
-`CityModel` stays the loading and wrapper boundary; `cjlib::ops` becomes the reusable workflow layer.
-Core extraction and merge semantics should still be owned by `cityjson-rs`.
+Right now that namespace is intentionally reduced to one unimplemented
+illustrative function so the intended boundary is visible without hiding the
+missing work behind no-op behavior.
 
 ## Relationship To `cjfake`
 
@@ -155,4 +137,5 @@ The MkDocs site is intended to be the main documentation home for the Rust facad
 ## Status
 
 This repository is currently being rewritten in a docs-first, tests-first style.
-The documents and integration tests describe the target API, even when the implementation is still catching up.
+Unimplemented areas are intentionally marked with `todo!()` and covered by
+failing tests so the remaining work stays visible.

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, Write};
 use std::path::Path;
 
 use serde::Deserialize;
@@ -91,7 +91,12 @@ pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
     let path = path.as_ref();
     match path.extension().and_then(|ext| ext.to_str()) {
-        Some("jsonl") => from_stream(BufReader::new(File::open(path)?)),
+        Some("jsonl") => {
+            let _ = File::open(path)?;
+            Err(Error::UnsupportedFeature(
+                "CityJSONFeature streams must be read with json::read_feature_stream".into(),
+            ))
+        }
         _ => from_slice(&std::fs::read(path)?),
     }
 }
@@ -114,15 +119,6 @@ pub fn from_feature_slice(bytes: &[u8]) -> Result<CityModel> {
     }
 }
 
-pub fn merge_feature_stream<R>(reader: R) -> Result<CityModel>
-where
-    R: BufRead,
-{
-    Ok(CityModel(serde_cityjson::v2_0::merge_feature_stream(
-        reader,
-    )?))
-}
-
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
 where
     R: BufRead,
@@ -141,13 +137,6 @@ where
         writer.write_all(b"\n")?;
     }
     Ok(())
-}
-
-pub fn from_stream<R>(reader: R) -> Result<CityModel>
-where
-    R: BufRead,
-{
-    merge_feature_stream(reader)
 }
 
 pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {

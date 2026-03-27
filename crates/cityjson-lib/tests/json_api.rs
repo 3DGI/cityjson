@@ -1,5 +1,4 @@
 //! Public API contract for the explicit `cjlib::json` boundary layer.
-//! This test file defines the intended surface for the stream-first JSON path.
 
 use std::io::Cursor;
 
@@ -41,17 +40,6 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
 }
 
 #[test]
-fn explicit_json_module_keeps_from_stream_as_a_compatibility_alias() -> cjlib::Result<()> {
-    let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
-"#;
-
-    let _ = json::from_stream(Cursor::new(stream))?;
-
-    Ok(())
-}
-
-#[test]
 fn citymodel_constructors_are_aliases_for_the_default_json_path() {
     let citymodel_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> =
         cjlib::CityModel::from_slice;
@@ -76,4 +64,10 @@ fn explicit_json_module_owns_serialization() -> cjlib::Result<()> {
     assert!(!writer.is_empty());
 
     Ok(())
+}
+
+#[test]
+fn document_loading_rejects_jsonl_streams() {
+    let error = json::from_file("tests/data/v1_1/fake.city.jsonl").unwrap_err();
+    assert_eq!(error.kind(), cjlib::ErrorKind::Unsupported);
 }
