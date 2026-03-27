@@ -1,0 +1,68 @@
+{
+  "suite": "write",
+  "cases": [
+    {
+      "id": "3DBAG",
+      "description": "Real-world medium-size dataset with two geometries per object and parent-child links",
+      "borrowed": true,
+      "input_bytes": 7622086,
+      "output_bytes": 7354602
+    },
+    {
+      "id": "3D Basisvoorziening",
+      "description": "Large real-world dataset dominated by geometry flattening and vertex import",
+      "borrowed": false,
+      "input_bytes": 391204623,
+      "output_bytes": 390914053
+    },
+    {
+      "id": "geometry_flattening_best_case",
+      "description": "Large MultiSurface payload with no relation graph or attribute tree",
+      "borrowed": true,
+      "input_bytes": 13935257,
+      "output_bytes": 13935257
+    },
+    {
+      "id": "vertex_transform_stress",
+      "description": "Large vertex pool with very little object-level normalization",
+      "borrowed": true,
+      "input_bytes": 749073,
+      "output_bytes": 749073
+    },
+    {
+      "id": "attribute_tree_worst_case",
+      "description": "Deep nested attributes with minimal geometry work",
+      "borrowed": true,
+      "input_bytes": 5839716,
+      "output_bytes": 5839716
+    },
+    {
+      "id": "relation_graph_worst_case",
+      "description": "Dense parent-child graph with small geometry payloads",
+      "borrowed": true,
+      "input_bytes": 2278339,
+      "output_bytes": 2278339
+    },
+    {
+      "id": "deep_boundary_stress",
+      "description": "Solid-heavy geometry that exercises nested boundary flattening",
+      "borrowed": true,
+      "input_bytes": 2772867,
+      "output_bytes": 2772867
+    },
+    {
+      "id": "composite_value_favorable_worst_case",
+      "description": "Mixed geometry and normalization workload that is smaller but denser",
+      "borrowed": true,
+      "input_bytes": 3640295,
+      "output_bytes": 3640295
+    },
+    {
+      "id": "appearance_and_validation_stress",
+      "description": "Serializer-heavy case with materials, textures, templates, and semantics",
+      "borrowed": true,
+      "input_bytes": 1653911,
+      "output_bytes": 1653911
+    }
+  ]
+}

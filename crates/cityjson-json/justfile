@@ -1,6 +1,5 @@
 set dotenv-load := true
 datadir := "tests" / "data" / "downloaded"
-datadir_legacy := "tests" / "data" / "downloaded_legacy"
 
 _default:
     just --list
@@ -52,64 +51,32 @@ _upgrade:
 # Download test data for the benchmarks
 download: _download-3dbag _download-3dbasisvoorziening _upgrade
 
-# Download v1.1 test data for the v0.4.5 legacy benchmarks (no upgrade)
-_download-legacy-3dbag:
-    #!/usr/bin/env bash
-    set -euxo pipefail
-    mkdir -p {{datadir_legacy}}
-    version="v20231008"
-    tiles=( "10-356-724" )
-    download_url="https://data.3dbag.nl/"$version"/tiles"
-    for tile_id in "${tiles[@]}" ;
-    do
-      tile_path=${tile_id//[-]//}
-      tile_filename=$tile_id".city.json.gz"
-      wget $download_url"/"$tile_path"/"$tile_filename -O {{datadir_legacy}}"/"$tile_filename
-      gunzip {{datadir_legacy}}"/"$tile_filename
-    done
-
-_download-legacy-3dbasisvoorziening:
-    #!/usr/bin/env bash
-    set -euxo pipefail
-    mkdir -p {{datadir_legacy}}
-    version="2020"
-    tiles=( "30gz1" )
-    download_url="https://download.pdok.nl/kadaster/basisvoorziening-3d/v1_0//"$version"/volledig"
-    for tile_id in "${tiles[@]}" ;
-    do
-      tile_filename=$tile_id"_"$version"_volledig.zip"
-      wget $download_url"/"$tile_filename -O {{datadir_legacy}}"/"$tile_filename
-      unzip {{datadir_legacy}}"/"$tile_filename -d {{datadir_legacy}}
-      rm {{datadir_legacy}}"/"$tile_filename
-      uvx cjio@0.8.2 {{datadir_legacy}}"/"$tile_id"_04.json" upgrade save {{datadir_legacy}}"/"$tile_id"_04.city.json"
-    done
-
-# Download v1.1 test data for the legacy benchmarks (no v2.0 upgrade)
-download-legacy: _download-legacy-3dbag _download-legacy-3dbasisvoorziening
-
 # Delete all downloaded files
 clean:
     rm -rf {{datadir}}
 
 # Run all benchmarks and generate the comparison plots. Requires a python virtualenv in "resources/compare_benchmarks/.venv"
-bench: bench-speed bench-size bench-plot
+bench: bench-read bench-write bench-plot
 
-bench-speed:
-    cargo bench --bench speed --
+bench-read:
+    cargo bench --bench read --
 
-bench-size:
-    cargo bench --features datasize --bench datasize --
+bench-write:
+    cargo bench --bench write --
 
 bench-plot:
     uv run resources/compare_benchmarks/compare_benchmarks.py
 
+bench-report:
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
+
 synthetic-bench-specs:
     @printf '%s\n' \
-      'Synthetic benchmark specs:' \
+      'Synthetic benchmark profiles:' \
       '  README: tests/data/generated/README.md' \
       '  manifest: tests/data/generated/manifest.json' \
       '' \
-      'These are specification-only fixtures. No generator is included.'
+      'These are benchmark profiles. cjfake generates the inputs at benchmark time.'
 
 synthetic-bench-manifest:
     cat tests/data/generated/manifest.json

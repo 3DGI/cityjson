@@ -21,13 +21,15 @@ ahash = { version = "0.8.11", features = ["serde"] }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports"]}
-once_cell = "1.21.3"
+cjfake = { path = "../cjfake" }
 pretty_assertions = "1.4.1"
-# git worktree serde_citjson at tag v0.4.5
-serde_cityjson_legacy = { path = "../serde_cityjson_legacy", package = "serde_cityjson" }
 
 [[bench]]
-name = "speed"
+name = "read"
+harness = false
+
+[[bench]]
+name = "write"
 harness = false
 
 [package.metadata.docs.rs]

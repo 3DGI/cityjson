@@ -1,172 +1,96 @@
 {
-  "version": 1,
-  "purpose": "Specification-only synthetic benchmark shapes for serde_cityjson versus serde_json::Value",
-  "datasets": [
+  "version": 2,
+  "purpose": "Benchmark profile catalog for the cjfake-backed read and write suites",
+  "cases": [
     {
-      "id": "best_case_geometry_stream",
-      "intent": "Favor serde_cityjson by maximizing geometry flattening and minimizing object-level normalization",
-      "expected_relative_outcome": "serde_cityjson faster than serde_json::Value",
-      "size_class": "large",
-      "target_shape": {
-        "cityobjects": 100000,
-        "vertices": 7200000,
-        "geometries_total": 100000,
-        "geometries_per_object": 1,
-        "geometry_types": {
-          "MultiSurface": 100000
-        },
-        "average_surfaces_per_geometry": 12,
-        "average_rings_per_surface": 1,
-        "average_vertices_per_ring": 6,
-        "attributes_per_object": 2,
-        "attribute_shape": "flat scalar keys only",
-        "extra_properties_per_object": 0,
-        "parents_per_object": 0,
-        "children_per_object": 0,
-        "geographical_extent_per_object": false,
-        "materials": false,
-        "textures": false,
-        "semantics": false,
-        "geometry_templates": false,
-        "extensions": false,
-        "metadata": "minimal",
-        "string_profile": "ASCII, mostly repeated identifiers, no escapes"
-      },
-      "cityjson_shape": {
-        "root_fields": [
-          "type",
-          "version",
-          "transform",
-          "CityObjects",
-          "vertices"
-        ],
-        "cityobject_template": {
-          "type": "BuildingPart",
-          "attributes": {
-            "name": "part-{i}",
-            "class": "residential"
-          },
-          "geometry": [
-            {
-              "type": "MultiSurface",
-              "lod": "2.2",
-              "boundaries": "[[[v0,v1,v2,v3,v4,v5]], ... repeated 12 surfaces]"
-            }
-          ]
-        }
-      },
-      "why_it_is_pure": [
-        "Geometry dominates the byte volume and the runtime.",
-        "There is one geometry per object and no relation graph.",
-        "There are no optional geometry resources that would add unrelated work."
-      ],
-      "hotspots_it_should_exercise": [
-        "geometry.parse_boundary",
-        "geometry.build_stream_geometry",
-        "build.import_vertices"
-      ]
+      "id": "3DBAG",
+      "kind": "real",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "description": "Real-world medium-size dataset with two geometries per object and parent-child links",
+      "source": {
+        "path": "tests/data/downloaded/10-356-724.city.json"
+      }
     },
     {
-      "id": "worst_case_object_normalization",
-      "intent": "Disfavor serde_cityjson by maximizing object-level normalization and minimizing large contiguous geometry payloads",
-      "expected_relative_outcome": "serde_cityjson slower than serde_json::Value",
-      "size_class": "small_to_medium",
-      "target_shape": {
-        "cityobjects": 12000,
-        "vertices": 480000,
-        "geometries_total": 24000,
-        "geometries_per_object": 2,
-        "geometry_types": {
-          "Solid": 24000
-        },
-        "average_shells_per_geometry": 1,
-        "average_surfaces_per_shell": 6,
-        "average_rings_per_surface": 1,
-        "average_vertices_per_ring": 4,
-        "attributes_per_object": 32,
-        "attribute_shape": "nested maps and arrays with short strings and numbers",
-        "extra_properties_per_object": 4,
-        "parents_per_object": 1,
-        "children_per_object": 1,
-        "geographical_extent_per_object": true,
-        "materials": false,
-        "textures": false,
-        "semantics": false,
-        "geometry_templates": false,
-        "extensions": false,
-        "metadata": "minimal",
-        "string_profile": "mixture of ASCII and escaped UTF-8 strings"
-      },
-      "cityjson_shape": {
-        "root_fields": [
-          "type",
-          "version",
-          "transform",
-          "CityObjects",
-          "vertices"
-        ],
-        "cityobject_template": {
-          "type": "Building",
-          "geographicalExtent": "[xmin, ymin, zmin, xmax, ymax, zmax]",
-          "attributes": {
-            "bag_id": "id-{i}",
-            "status": "Pand in gebruik",
-            "labels": [
-              "a",
-              "b",
-              "c"
-            ],
-            "metrics": {
-              "height": 12.3,
-              "floors": 3,
-              "quality": "goed"
-            },
-            "owners": [
-              {
-                "name": "Naam {i}",
-                "kind": "persoon"
-              }
-            ],
-            "...": "additional nested keys up to 32 total"
-          },
-          "parents": [
-            "parent-{i}"
-          ],
-          "children": [
-            "child-{i}"
-          ],
-          "geometry": [
-            {
-              "type": "Solid",
-              "lod": "2.2",
-              "boundaries": "[[[[v0,v1,v2,v3]], ... repeated 6 surfaces]]"
-            },
-            {
-              "type": "Solid",
-              "lod": "1.2",
-              "boundaries": "[[[[v4,v5,v6,v7]], ... repeated 6 surfaces]]"
-            }
-          ],
-          "extra_1": "custom",
-          "extra_2": true,
-          "extra_3": 5,
-          "extra_4": {
-            "nested": "value"
-          }
-        }
-      },
-      "why_it_is_pure": [
-        "Per-object semantic work dominates the byte volume.",
-        "The relation graph is dense enough to force the post-pass resolver.",
-        "Geometry exists, but is intentionally too small to amortize normalization cost."
-      ],
-      "hotspots_it_should_exercise": [
-        "cityobjects.attributes",
-        "cityobjects.import_object",
-        "cityobjects.resolve_relations",
-        "build.import_vertices",
-        "geometry.parse_boundary"
-      ]
+      "id": "3D Basisvoorziening",
+      "kind": "real",
+      "suites": ["read", "write"],
+      "borrowed": false,
+      "description": "Large real-world dataset dominated by geometry flattening and vertex import",
+      "source": {
+        "path": "tests/data/downloaded/30gz1_04.city.json"
+      }
+    },
+    {
+      "id": "geometry_flattening_best_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 11,
+      "generator": "geometry_flattening_best_case",
+      "description": "Large MultiSurface payload with no relation graph or attribute tree",
+      "intent": "Favor serde_cityjson by maximizing geometry flattening and minimizing object normalization"
+    },
+    {
+      "id": "vertex_transform_stress",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 19,
+      "generator": "vertex_transform_stress",
+      "description": "Large vertex pool with very little object-level normalization",
+      "intent": "Isolate root vertex transform and import cost"
+    },
+    {
+      "id": "attribute_tree_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 23,
+      "generator": "attribute_tree_worst_case",
+      "description": "Deep nested attributes with minimal geometry work",
+      "intent": "Stress recursive attribute conversion and backend boxing"
+    },
+    {
+      "id": "relation_graph_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 29,
+      "generator": "relation_graph_worst_case",
+      "description": "Dense parent-child graph with small geometry payloads",
+      "intent": "Stress relation resolution after CityObjects import"
+    },
+    {
+      "id": "deep_boundary_stress",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 31,
+      "generator": "deep_boundary_stress",
+      "description": "Solid-heavy geometry that exercises nested boundary flattening",
+      "intent": "Stress the flat boundary parser and stored geometry construction"
+    },
+    {
+      "id": "composite_value_favorable_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 37,
+      "generator": "composite_value_favorable_worst_case",
+      "description": "Mixed geometry and normalization workload that is smaller but denser",
+      "intent": "Show a case where the generic DOM baseline remains competitive"
+    },
+    {
+      "id": "appearance_and_validation_stress",
+      "kind": "synthetic",
+      "suites": ["write"],
+      "borrowed": true,
+      "seed": 41,
+      "generator": "appearance_and_validation_stress",
+      "description": "Serializer-heavy case with materials, textures, templates, and semantics",
+      "intent": "Exercise serializer validation and appearance/theme output"
     }
   ]
 }

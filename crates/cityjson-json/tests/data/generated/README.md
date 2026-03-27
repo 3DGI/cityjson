@@ -1,91 +1,44 @@
-# Synthetic Benchmark Dataset Specs
+# Generated Benchmark Profiles
 
-This directory holds specification-only benchmark fixtures for `serde_cityjson`.
-It does not contain a generator or committed generated datasets.
+This directory does not store generated fixtures. It stores the benchmark
+profile catalog used by the `cjfake`-backed read and write suites.
 
-The goal is to define two deliberately "pure" dataset shapes so it is obvious
-which parts of the current deserializer architecture help and which parts hurt
-when compared to `serde_json::Value`.
+The benchmark inputs are generated deterministically at benchmark time from the
+profiles in [`manifest.json`](/home/balazs/Development/serde_cityjson/tests/data/generated/manifest.json)
+and the Rust case definitions in
+[`benches/common/mod.rs`](/home/balazs/Development/serde_cityjson/benches/common/mod.rs).
 
-The machine-readable definitions live in
-[`manifest.json`](/home/balazs/Development/serde_cityjson/tests/data/generated/manifest.json).
+## Purpose
 
-## Best Case
+The profiles are designed around the current deserializer and serializer hot
+paths rather than around the shape of any single real dataset.
 
-`best_case_geometry_stream`
+The main isolates are:
 
-This dataset is designed to favor the current `serde_cityjson` import path as
-strongly as possible.
+- geometry flattening
+- root vertex transform and import
+- recursive attribute conversion
+- relation resolution
+- deep boundary parsing
+- serializer validation and appearance output
 
-It isolates:
+## Case Set
 
-- very large numeric boundary payloads
-- one geometry per object
-- mostly `MultiSurface`
-- almost no per-object normalization work outside geometry
+- `3DBAG` and `3D Basisvoorziening` are real-world regression datasets.
+- `geometry_flattening_best_case` is the best-case geometry stream.
+- `vertex_transform_stress` isolates vertex import and transform work.
+- `attribute_tree_worst_case` stresses recursive attribute conversion.
+- `relation_graph_worst_case` stresses parent/child resolution.
+- `deep_boundary_stress` stresses boundary parsing and stored geometry.
+- `composite_value_favorable_worst_case` mixes the normalization costs.
+- `appearance_and_validation_stress` is the write-only serializer stress case.
 
-It intentionally avoids:
+## Benchmark Workflow
 
-- parent and child relation resolution
-- dense attribute trees
-- object extra properties
-- materials, textures, semantics, and templates
-- multiple geometries per object
+1. `just bench-read`
+2. `just bench-write`
+3. `just bench-report`
+4. Paste the generated summary into the main README benchmark section
 
-Why this should be fast:
-
-- the boundary parser in `src/de/geometry.rs` can flatten large nested arrays
-  directly into `Boundary<u32>`
-- geometry construction goes straight into stored geometry parts instead of a
-  generic JSON DOM
-- `serde_json::Value` still has to allocate the entire nested JSON tree
-
-## Worst Case
-
-`worst_case_object_normalization`
-
-This dataset is designed to expose the parts of `serde_cityjson` that still
-perform semantic normalization work that `serde_json::Value` does not.
-
-It isolates:
-
-- small-to-medium total file size
-- many objects relative to the total geometry payload
-- multiple geometries per object
-- mostly `Solid`
-- dense nested attributes
-- dense parent and child relations
-
-It intentionally minimizes:
-
-- large contiguous numeric boundary payloads that would favor boundary
-  flattening
-- any geometry simplicity that would allow the backend layout to dominate
-
-Why this should be slow:
-
-- `serde_cityjson` still builds backend `Attributes`
-- relations still need a second resolution step
-- vertices still become backend coordinates
-- `Solid` boundaries are deeper than `MultiSurface`
-- `serde_json::Value` can stop after building a generic DOM
-
-## How To Use The Specs
-
-Read the manifest as the contract for a future generator or hand-built fixture.
-
-The key comparison is not exact byte size. It is whether the dataset keeps the
-runtime concentrated in:
-
-- boundary flattening and stored geometry construction, or
-- object normalization, attributes, and relation resolution
-
-## Intended Outcome
-
-If the current architectural understanding is correct, the likely result is:
-
-- `best_case_geometry_stream` should beat `serde_json::Value`
-- `worst_case_object_normalization` should trail `serde_json::Value`
-
-That makes the benchmark pair useful as a regression guard for future
-optimization work.
+The benchmark binaries also emit suite metadata into `benches/results/` so the
+reporting script can compute throughput from the measured timing data.
