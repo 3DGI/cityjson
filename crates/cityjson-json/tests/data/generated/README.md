@@ -5,8 +5,8 @@ profile catalog used by the `cjfake`-backed read and write suites.
 
 The benchmark inputs are generated deterministically at benchmark time from the
 profiles in [`manifest.json`](/home/balazs/Development/serde_cityjson/tests/data/generated/manifest.json)
-and the Rust case definitions in
-[`benches/common/mod.rs`](/home/balazs/Development/serde_cityjson/benches/common/mod.rs).
+and the per-case profile files in
+[`profiles/`](/home/balazs/Development/serde_cityjson/tests/data/generated/profiles).
 
 ## Purpose
 

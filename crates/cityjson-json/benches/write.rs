@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
 
-use common::{write_cases, write_suite_metadata};
+use common::{write_cases, write_write_suite_metadata};
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
     group.sample_size(10);
@@ -17,12 +17,12 @@ fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurem
 fn bench_write(c: &mut Criterion) {
     let prepared_cases: Vec<_> = write_cases()
         .into_iter()
-        .map(|case| case.prepare())
+        .map(|case| case.prepare_write())
         .collect();
-    write_suite_metadata("write", &prepared_cases);
+    write_write_suite_metadata(&prepared_cases);
 
     for prepared in &prepared_cases {
-        let mut group = c.benchmark_group(prepared.name);
+        let mut group = c.benchmark_group(prepared.name.as_str());
         group.throughput(Throughput::Bytes(prepared.output_bytes));
         configure_group(&mut group);
 

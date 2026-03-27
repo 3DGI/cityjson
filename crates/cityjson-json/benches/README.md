@@ -13,7 +13,8 @@ crate.
 ## Data
 
 - real-world regression inputs live in `tests/data/downloaded/`
-- synthetic benchmark profiles live in `tests/data/generated/`
+- synthetic benchmark cases are cataloged in `tests/data/generated/manifest.json`
+- synthetic benchmark profiles live in `tests/data/generated/profiles/`
 - `cjfake` generates the synthetic inputs deterministically at benchmark time
 
 ## Workflow

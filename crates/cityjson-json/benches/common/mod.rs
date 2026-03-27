@@ -1,45 +1,54 @@
 #![allow(dead_code)]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use cityjson::v2_0::{GeometryType, LoD};
+use cityjson::prelude::OwnedStringStorage;
+use cityjson::v2_0::{CityObjectType, GeometryType, LoD};
 use cjfake::cli::{
     AttributeConfig, CJFakeConfig, CityObjectConfig, GeometryConfig, MaterialConfig,
     MetadataConfig, SemanticConfig, TemplateConfig, TextureConfig, VertexConfig,
 };
-use cjfake::generate_model;
-use cjfake::generate_string;
+use cjfake::{generate_model, generate_string};
+use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
 use serde_cityjson::{from_str_owned, to_string, OwnedCityModel};
 
 const REAL_DATA_DIR: &str = "tests/data/downloaded";
+const MANIFEST_PATH: &str = "tests/data/generated/manifest.json";
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum CaseSource {
-    Real { filename: &'static str },
+    Real { path: PathBuf },
     Synthetic { config: CJFakeConfig, seed: u64 },
 }
 
 #[derive(Clone)]
 pub(crate) struct CaseSpec {
-    pub(crate) name: &'static str,
-    pub(crate) description: &'static str,
+    pub(crate) name: String,
+    pub(crate) description: String,
     pub(crate) borrowed: bool,
     pub(crate) source: CaseSource,
 }
 
-pub(crate) struct PreparedCase {
-    pub(crate) name: &'static str,
-    pub(crate) description: &'static str,
+pub(crate) struct PreparedReadCase {
+    pub(crate) name: String,
+    pub(crate) description: String,
     pub(crate) borrowed: bool,
     pub(crate) input_json: String,
+    pub(crate) input_bytes: u64,
+}
+
+pub(crate) struct PreparedWriteCase {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) borrowed: bool,
     pub(crate) model: OwnedCityModel,
     pub(crate) value: Value,
-    pub(crate) input_bytes: u64,
     pub(crate) output_bytes: u64,
 }
 
@@ -54,53 +63,582 @@ struct CaseMetadata<'a> {
     id: &'a str,
     description: &'a str,
     borrowed: bool,
-    input_bytes: u64,
-    output_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_bytes: Option<u64>,
 }
 
-impl CaseSpec {
-    pub(crate) fn prepare(&self) -> PreparedCase {
-        let input_json = match &self.source {
-            CaseSource::Real { filename } => read_file(filename),
-            CaseSource::Synthetic { config, seed } => {
-                generate_string(config.clone(), Some(*seed)).unwrap()
-            }
-        };
-        let model = match &self.source {
-            CaseSource::Real { .. } => from_str_owned(&input_json).unwrap(),
-            CaseSource::Synthetic { config, seed } => generate_model(config.clone(), Some(*seed)),
-        };
-        let value = serde_json::from_str(&input_json).unwrap();
-        let output_bytes = to_string(&model).unwrap().len() as u64;
+#[derive(Deserialize)]
+struct Manifest {
+    cases: Vec<ManifestCase>,
+}
 
-        PreparedCase {
-            name: self.name,
-            description: self.description,
-            borrowed: self.borrowed,
-            input_bytes: input_json.len() as u64,
-            output_bytes,
-            input_json,
-            model,
-            value,
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum CaseKind {
+    Real,
+    Synthetic,
+}
+
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum SuiteKind {
+    Read,
+    Write,
+}
+
+#[derive(Deserialize)]
+struct ManifestCase {
+    id: String,
+    kind: CaseKind,
+    suites: Vec<SuiteKind>,
+    borrowed: bool,
+    description: String,
+    #[serde(default)]
+    source: Option<ManifestSource>,
+    #[serde(default)]
+    profile_path: Option<PathBuf>,
+    #[serde(default)]
+    seed: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct ManifestSource {
+    path: PathBuf,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct SyntheticProfile {
+    cityobjects: CityObjectProfile,
+    geometry: GeometryProfile,
+    vertices: VertexProfile,
+    materials: MaterialProfile,
+    textures: TextureProfile,
+    templates: TemplateGenerationProfile,
+    metadata: MetadataProfile,
+    attributes: AttributeProfile,
+    semantics: SemanticProfile,
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct CityObjectProfile {
+    allowed_types_cityobject: Option<Vec<String>>,
+    min_cityobjects: u32,
+    max_cityobjects: u32,
+    cityobject_hierarchy: bool,
+    min_children: u32,
+    max_children: u32,
+}
+
+impl Default for CityObjectProfile {
+    fn default() -> Self {
+        Self {
+            allowed_types_cityobject: None,
+            min_cityobjects: 1,
+            max_cityobjects: 1,
+            cityobject_hierarchy: false,
+            min_children: 1,
+            max_children: 3,
         }
     }
 }
 
-pub(crate) fn write_suite_metadata(suite: &str, prepared: &[PreparedCase]) {
+#[derive(Deserialize)]
+#[serde(default)]
+struct GeometryProfile {
+    allowed_types_geometry: Option<Vec<String>>,
+    allowed_lods: Option<Vec<String>>,
+    min_members_multipoint: u32,
+    max_members_multipoint: u32,
+    min_members_multilinestring: u32,
+    max_members_multilinestring: u32,
+    min_members_multisurface: u32,
+    max_members_multisurface: u32,
+    min_members_solid: u32,
+    max_members_solid: u32,
+    min_members_multisolid: u32,
+    max_members_multisolid: u32,
+    min_members_compositesurface: u32,
+    max_members_compositesurface: u32,
+    min_members_compositesolid: u32,
+    max_members_compositesolid: u32,
+    min_members_cityobject_geometries: u32,
+    max_members_cityobject_geometries: u32,
+}
+
+impl Default for GeometryProfile {
+    fn default() -> Self {
+        Self {
+            allowed_types_geometry: None,
+            allowed_lods: None,
+            min_members_multipoint: 11,
+            max_members_multipoint: 11,
+            min_members_multilinestring: 1,
+            max_members_multilinestring: 1,
+            min_members_multisurface: 1,
+            max_members_multisurface: 1,
+            min_members_solid: 1,
+            max_members_solid: 3,
+            min_members_multisolid: 1,
+            max_members_multisolid: 3,
+            min_members_compositesurface: 1,
+            max_members_compositesurface: 3,
+            min_members_compositesolid: 1,
+            max_members_compositesolid: 3,
+            min_members_cityobject_geometries: 1,
+            max_members_cityobject_geometries: 1,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct VertexProfile {
+    min_coordinate: f64,
+    max_coordinate: f64,
+    min_vertices: u32,
+    max_vertices: u32,
+}
+
+impl Default for VertexProfile {
+    fn default() -> Self {
+        Self {
+            min_coordinate: -1000.0,
+            max_coordinate: 1000.0,
+            min_vertices: 8,
+            max_vertices: 8,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct MaterialProfile {
+    materials_enabled: bool,
+    min_materials: u32,
+    max_materials: u32,
+    nr_themes_materials: u32,
+    generate_ambient_intensity: Option<bool>,
+    generate_diffuse_color: Option<bool>,
+    generate_emissive_color: Option<bool>,
+    generate_specular_color: Option<bool>,
+    generate_shininess: Option<bool>,
+    generate_transparency: Option<bool>,
+}
+
+impl Default for MaterialProfile {
+    fn default() -> Self {
+        Self {
+            materials_enabled: true,
+            min_materials: 1,
+            max_materials: 3,
+            nr_themes_materials: 3,
+            generate_ambient_intensity: None,
+            generate_diffuse_color: None,
+            generate_emissive_color: None,
+            generate_specular_color: None,
+            generate_shininess: None,
+            generate_transparency: None,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct TextureProfile {
+    textures_enabled: bool,
+    min_textures: u32,
+    max_textures: u32,
+    nr_themes_textures: u32,
+    max_vertices_texture: u32,
+    texture_allow_none: bool,
+}
+
+impl Default for TextureProfile {
+    fn default() -> Self {
+        Self {
+            textures_enabled: true,
+            min_textures: 2,
+            max_textures: 2,
+            nr_themes_textures: 3,
+            max_vertices_texture: 10,
+            texture_allow_none: false,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct TemplateGenerationProfile {
+    #[serde(alias = "use_templates")]
+    enabled: bool,
+    #[serde(alias = "min_templates")]
+    min_count: u32,
+    #[serde(alias = "max_templates")]
+    max_count: u32,
+}
+
+impl Default for TemplateGenerationProfile {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_count: 1,
+            max_count: 10,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+#[allow(clippy::struct_excessive_bools)]
+struct MetadataProfile {
+    metadata_enabled: bool,
+    metadata_geographical_extent: bool,
+    metadata_identifier: bool,
+    metadata_reference_date: bool,
+    metadata_reference_system: bool,
+    metadata_title: bool,
+    metadata_point_of_contact: bool,
+}
+
+impl Default for MetadataProfile {
+    fn default() -> Self {
+        Self {
+            metadata_enabled: true,
+            metadata_geographical_extent: true,
+            metadata_identifier: true,
+            metadata_reference_date: true,
+            metadata_reference_system: true,
+            metadata_title: true,
+            metadata_point_of_contact: true,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct AttributeProfile {
+    attributes_enabled: bool,
+    min_attributes: u32,
+    max_attributes: u32,
+    attributes_max_depth: u8,
+    attributes_random_keys: bool,
+    attributes_random_values: bool,
+}
+
+impl Default for AttributeProfile {
+    fn default() -> Self {
+        Self {
+            attributes_enabled: true,
+            min_attributes: 3,
+            max_attributes: 8,
+            attributes_max_depth: 2,
+            attributes_random_keys: true,
+            attributes_random_values: true,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct SemanticProfile {
+    semantics_enabled: bool,
+}
+
+impl Default for SemanticProfile {
+    fn default() -> Self {
+        Self {
+            semantics_enabled: true,
+        }
+    }
+}
+
+impl SyntheticProfile {
+    fn into_config(self) -> CJFakeConfig {
+        CJFakeConfig {
+            cityobjects: self.cityobjects.into_config(),
+            geometry: self.geometry.into_config(),
+            vertices: self.vertices.into_config(),
+            materials: self.materials.into_config(),
+            textures: self.textures.into_config(),
+            templates: self.templates.into_config(),
+            metadata: self.metadata.into_config(),
+            attributes: self.attributes.into_config(),
+            semantics: self.semantics.into_config(),
+            ..CJFakeConfig::default()
+        }
+    }
+}
+
+impl CityObjectProfile {
+    fn into_config(self) -> CityObjectConfig {
+        CityObjectConfig {
+            allowed_types_cityobject: self.allowed_types_cityobject.map(|types| {
+                types
+                    .into_iter()
+                    .map(|ty| {
+                        CityObjectType::<OwnedStringStorage>::from_str(&ty).unwrap_or_else(|err| {
+                            panic!("failed to parse city object type '{ty}': {err}")
+                        })
+                    })
+                    .collect()
+            }),
+            min_cityobjects: self.min_cityobjects,
+            max_cityobjects: self.max_cityobjects,
+            cityobject_hierarchy: self.cityobject_hierarchy,
+            min_children: self.min_children,
+            max_children: self.max_children,
+        }
+    }
+}
+
+impl GeometryProfile {
+    fn into_config(self) -> GeometryConfig {
+        GeometryConfig {
+            allowed_types_geometry: self.allowed_types_geometry.map(|types| {
+                types
+                    .into_iter()
+                    .map(|ty| {
+                        GeometryType::from_str(&ty).unwrap_or_else(|err| {
+                            panic!("failed to parse geometry type '{ty}': {err}")
+                        })
+                    })
+                    .collect()
+            }),
+            allowed_lods: self
+                .allowed_lods
+                .map(|lods| lods.into_iter().map(|lod| parse_lod(&lod)).collect()),
+            min_members_multipoint: self.min_members_multipoint,
+            max_members_multipoint: self.max_members_multipoint,
+            min_members_multilinestring: self.min_members_multilinestring,
+            max_members_multilinestring: self.max_members_multilinestring,
+            min_members_multisurface: self.min_members_multisurface,
+            max_members_multisurface: self.max_members_multisurface,
+            min_members_solid: self.min_members_solid,
+            max_members_solid: self.max_members_solid,
+            min_members_multisolid: self.min_members_multisolid,
+            max_members_multisolid: self.max_members_multisolid,
+            min_members_compositesurface: self.min_members_compositesurface,
+            max_members_compositesurface: self.max_members_compositesurface,
+            min_members_compositesolid: self.min_members_compositesolid,
+            max_members_compositesolid: self.max_members_compositesolid,
+            min_members_cityobject_geometries: self.min_members_cityobject_geometries,
+            max_members_cityobject_geometries: self.max_members_cityobject_geometries,
+        }
+    }
+}
+
+impl VertexProfile {
+    fn into_config(self) -> VertexConfig {
+        VertexConfig {
+            min_coordinate: self.min_coordinate,
+            max_coordinate: self.max_coordinate,
+            min_vertices: self.min_vertices,
+            max_vertices: self.max_vertices,
+        }
+    }
+}
+
+impl MaterialProfile {
+    fn into_config(self) -> MaterialConfig {
+        MaterialConfig {
+            materials_enabled: self.materials_enabled,
+            min_materials: self.min_materials,
+            max_materials: self.max_materials,
+            nr_themes_materials: self.nr_themes_materials,
+            generate_ambient_intensity: self.generate_ambient_intensity,
+            generate_diffuse_color: self.generate_diffuse_color,
+            generate_emissive_color: self.generate_emissive_color,
+            generate_specular_color: self.generate_specular_color,
+            generate_shininess: self.generate_shininess,
+            generate_transparency: self.generate_transparency,
+        }
+    }
+}
+
+impl TextureProfile {
+    fn into_config(self) -> TextureConfig {
+        TextureConfig {
+            textures_enabled: self.textures_enabled,
+            min_textures: self.min_textures,
+            max_textures: self.max_textures,
+            nr_themes_textures: self.nr_themes_textures,
+            max_vertices_texture: self.max_vertices_texture,
+            texture_allow_none: self.texture_allow_none,
+        }
+    }
+}
+
+impl TemplateGenerationProfile {
+    fn into_config(self) -> TemplateConfig {
+        TemplateConfig {
+            use_templates: self.enabled,
+            min_templates: self.min_count,
+            max_templates: self.max_count,
+        }
+    }
+}
+
+impl MetadataProfile {
+    fn into_config(self) -> MetadataConfig {
+        MetadataConfig {
+            metadata_enabled: self.metadata_enabled,
+            metadata_geographical_extent: self.metadata_geographical_extent,
+            metadata_identifier: self.metadata_identifier,
+            metadata_reference_date: self.metadata_reference_date,
+            metadata_reference_system: self.metadata_reference_system,
+            metadata_title: self.metadata_title,
+            metadata_point_of_contact: self.metadata_point_of_contact,
+        }
+    }
+}
+
+impl AttributeProfile {
+    fn into_config(self) -> AttributeConfig {
+        AttributeConfig {
+            attributes_enabled: self.attributes_enabled,
+            min_attributes: self.min_attributes,
+            max_attributes: self.max_attributes,
+            attributes_max_depth: self.attributes_max_depth,
+            attributes_random_keys: self.attributes_random_keys,
+            attributes_random_values: self.attributes_random_values,
+        }
+    }
+}
+
+impl SemanticProfile {
+    fn into_config(self) -> SemanticConfig {
+        SemanticConfig {
+            semantics_enabled: self.semantics_enabled,
+            allowed_types_semantic: None,
+        }
+    }
+}
+
+impl ManifestCase {
+    fn into_case_spec(self) -> CaseSpec {
+        let source = match self.kind {
+            CaseKind::Real => {
+                let real = self
+                    .source
+                    .unwrap_or_else(|| panic!("real case '{}' is missing a source path", self.id));
+                CaseSource::Real { path: real.path }
+            }
+            CaseKind::Synthetic => {
+                let profile_path = self.profile_path.unwrap_or_else(|| {
+                    panic!("synthetic case '{}' is missing a profile path", self.id)
+                });
+                let seed = self
+                    .seed
+                    .unwrap_or_else(|| panic!("synthetic case '{}' is missing a seed", self.id));
+                let profile = load_synthetic_profile(&profile_path);
+                CaseSource::Synthetic {
+                    config: profile.into_config(),
+                    seed,
+                }
+            }
+        };
+
+        CaseSpec {
+            name: self.id,
+            description: self.description,
+            borrowed: self.borrowed,
+            source,
+        }
+    }
+}
+
+impl CaseSpec {
+    pub(crate) fn prepare_read(&self) -> PreparedReadCase {
+        let input_json = match &self.source {
+            CaseSource::Real { path } => read_file(path),
+            CaseSource::Synthetic { config, seed } => {
+                generate_string(config.clone(), Some(*seed)).unwrap()
+            }
+        };
+
+        PreparedReadCase {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            borrowed: self.borrowed,
+            input_bytes: input_json.len() as u64,
+            input_json,
+        }
+    }
+
+    pub(crate) fn prepare_write(&self) -> PreparedWriteCase {
+        match &self.source {
+            CaseSource::Real { path } => {
+                let input_json = read_file(path);
+                let model = from_str_owned(&input_json).unwrap();
+                let value = serde_json::from_str(&input_json).unwrap();
+                let output_bytes = to_string(&model).unwrap().len() as u64;
+                PreparedWriteCase {
+                    name: self.name.clone(),
+                    description: self.description.clone(),
+                    borrowed: self.borrowed,
+                    model,
+                    value,
+                    output_bytes,
+                }
+            }
+            CaseSource::Synthetic { config, seed } => {
+                let model = generate_model(config.clone(), Some(*seed));
+                let output_json = to_string(&model).unwrap();
+                let value = serde_json::from_str(&output_json).unwrap();
+                let output_bytes = output_json.len() as u64;
+                PreparedWriteCase {
+                    name: self.name.clone(),
+                    description: self.description.clone(),
+                    borrowed: self.borrowed,
+                    model,
+                    value,
+                    output_bytes,
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn write_read_suite_metadata(prepared: &[PreparedReadCase]) {
     let metadata = SuiteMetadata {
-        suite,
+        suite: "read",
         cases: prepared
             .iter()
             .map(|case| CaseMetadata {
-                id: case.name,
-                description: case.description,
+                id: &case.name,
+                description: &case.description,
                 borrowed: case.borrowed,
-                input_bytes: case.input_bytes,
-                output_bytes: case.output_bytes,
+                input_bytes: Some(case.input_bytes),
+                output_bytes: None,
             })
             .collect(),
     };
-    let output = serde_json::to_string_pretty(&metadata).unwrap();
+    write_suite_metadata("read", &metadata);
+}
+
+pub(crate) fn write_write_suite_metadata(prepared: &[PreparedWriteCase]) {
+    let metadata = SuiteMetadata {
+        suite: "write",
+        cases: prepared
+            .iter()
+            .map(|case| CaseMetadata {
+                id: &case.name,
+                description: &case.description,
+                borrowed: case.borrowed,
+                input_bytes: None,
+                output_bytes: Some(case.output_bytes),
+            })
+            .collect(),
+    };
+    write_suite_metadata("write", &metadata);
+}
+
+fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata<'_>) {
+    let output = serde_json::to_string_pretty(metadata).unwrap();
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("benches")
         .join("results")
@@ -110,309 +648,90 @@ pub(crate) fn write_suite_metadata(suite: &str, prepared: &[PreparedCase]) {
 }
 
 pub(crate) fn read_cases() -> Vec<CaseSpec> {
-    let mut cases = vec![real_3dbag(), real_3dbasis()];
-    cases.extend(synthetic_read_cases());
-    cases
+    load_manifest()
+        .cases
+        .into_iter()
+        .filter(|case| case.suites.contains(&SuiteKind::Read))
+        .map(ManifestCase::into_case_spec)
+        .collect()
 }
 
 pub(crate) fn write_cases() -> Vec<CaseSpec> {
-    let mut cases = vec![real_3dbag(), real_3dbasis()];
-    cases.extend(synthetic_write_cases());
-    cases
+    load_manifest()
+        .cases
+        .into_iter()
+        .filter(|case| case.suites.contains(&SuiteKind::Write))
+        .map(ManifestCase::into_case_spec)
+        .collect()
+}
+
+fn load_manifest() -> Manifest {
+    let path = repo_path(MANIFEST_PATH);
+    let manifest = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read manifest {}: {err}", path.display()));
+    serde_json::from_str(&manifest)
+        .unwrap_or_else(|err| panic!("failed to parse manifest {}: {err}", path.display()))
+}
+
+fn load_synthetic_profile(path: &Path) -> SyntheticProfile {
+    let path = repo_path(path);
+    let profile = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read profile {}: {err}", path.display()));
+    serde_json::from_str(&profile)
+        .unwrap_or_else(|err| panic!("failed to parse profile {}: {err}", path.display()))
+}
+
+fn repo_path(path: impl AsRef<Path>) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path.as_ref())
 }
 
 pub(crate) fn real_data_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("data")
-        .join("downloaded")
+    repo_path(REAL_DATA_DIR)
 }
 
-fn read_file(filename: &str) -> String {
-    fs::read_to_string(real_data_dir().join(filename)).unwrap()
+fn read_file(path: &Path) -> String {
+    fs::read_to_string(resolve_real_path(path)).unwrap()
 }
 
-fn base_config() -> CJFakeConfig {
-    CJFakeConfig {
-        cityobjects: CityObjectConfig::default(),
-        geometry: GeometryConfig::default(),
-        vertices: VertexConfig::default(),
-        materials: MaterialConfig::default(),
-        textures: TextureConfig::default(),
-        templates: TemplateConfig::default(),
-        metadata: MetadataConfig::default(),
-        attributes: AttributeConfig::default(),
-        semantics: SemanticConfig::default(),
-        seed: None,
+fn resolve_real_path(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        repo_path(path)
     }
 }
 
-fn disable_optional_surfaces(mut config: CJFakeConfig) -> CJFakeConfig {
-    config.materials.materials_enabled = false;
-    config.textures.textures_enabled = false;
-    config.templates.use_templates = false;
-    config.metadata.metadata_enabled = false;
-    config.attributes.attributes_enabled = false;
-    config.semantics.semantics_enabled = false;
-    config
-}
-
-fn synthetic_read_cases() -> Vec<CaseSpec> {
-    vec![
-        CaseSpec {
-            name: "geometry_flattening_best_case",
-            description: "Large MultiSurface payload with no relation graph or attribute tree",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: geometry_flattening_best_case(),
-                seed: 11,
-            },
-        },
-        CaseSpec {
-            name: "vertex_transform_stress",
-            description: "Large vertex pool with very little object-level normalization",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: vertex_transform_stress(),
-                seed: 19,
-            },
-        },
-        CaseSpec {
-            name: "attribute_tree_worst_case",
-            description: "Deep nested attributes with minimal geometry work",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: attribute_tree_worst_case(),
-                seed: 23,
-            },
-        },
-        CaseSpec {
-            name: "relation_graph_worst_case",
-            description: "Dense parent-child graph with small geometry payloads",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: relation_graph_worst_case(),
-                seed: 29,
-            },
-        },
-        CaseSpec {
-            name: "deep_boundary_stress",
-            description: "Solid-heavy geometry that exercises nested boundary flattening",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: deep_boundary_stress(),
-                seed: 31,
-            },
-        },
-        CaseSpec {
-            name: "composite_value_favorable_worst_case",
-            description: "Mixed geometry and normalization workload that is smaller but denser",
-            borrowed: true,
-            source: CaseSource::Synthetic {
-                config: composite_value_favorable_worst_case(),
-                seed: 37,
-            },
-        },
-    ]
-}
-
-fn synthetic_write_cases() -> Vec<CaseSpec> {
-    let mut cases = synthetic_read_cases();
-    cases.push(CaseSpec {
-        name: "appearance_and_validation_stress",
-        description: "Serializer-heavy case with materials, textures, templates, and semantics",
-        borrowed: true,
-        source: CaseSource::Synthetic {
-            config: appearance_and_validation_stress(),
-            seed: 41,
-        },
-    });
-    cases
-}
-
-fn real_3dbag() -> CaseSpec {
-    CaseSpec {
-        name: "3DBAG",
-        description:
-            "Real-world medium-size dataset with two geometries per object and parent-child links",
-        borrowed: true,
-        source: CaseSource::Real {
-            filename: "10-356-724.city.json",
-        },
+fn parse_lod(value: &str) -> LoD {
+    match value {
+        "0" => LoD::LoD0,
+        "0.0" => LoD::LoD0_0,
+        "0.1" => LoD::LoD0_1,
+        "0.2" => LoD::LoD0_2,
+        "0.3" => LoD::LoD0_3,
+        "1" => LoD::LoD1,
+        "1.0" => LoD::LoD1_0,
+        "1.1" => LoD::LoD1_1,
+        "1.2" => LoD::LoD1_2,
+        "1.3" => LoD::LoD1_3,
+        "2" => LoD::LoD2,
+        "2.0" => LoD::LoD2_0,
+        "2.1" => LoD::LoD2_1,
+        "2.2" => LoD::LoD2_2,
+        "2.3" => LoD::LoD2_3,
+        "3" => LoD::LoD3,
+        "3.0" => LoD::LoD3_0,
+        "3.1" => LoD::LoD3_1,
+        "3.2" => LoD::LoD3_2,
+        "3.3" => LoD::LoD3_3,
+        other => panic!("failed to parse LoD '{other}' from synthetic profile"),
     }
 }
 
-fn real_3dbasis() -> CaseSpec {
-    CaseSpec {
-        name: "3D Basisvoorziening",
-        description: "Large real-world dataset dominated by geometry flattening and vertex import",
-        borrowed: false,
-        source: CaseSource::Real {
-            filename: "30gz1_04.city.json",
-        },
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn manifest_profiles_load_for_both_suites() {
+        assert_eq!(super::read_cases().len(), 8);
+        assert_eq!(super::write_cases().len(), 9);
     }
-}
-
-fn geometry_flattening_best_case() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 8_000;
-    config.cityobjects.max_cityobjects = 8_000;
-    config.geometry.allowed_types_geometry = Some(vec![GeometryType::MultiSurface]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 1;
-    config.geometry.max_members_cityobject_geometries = 1;
-    config.geometry.min_members_multisurface = 12;
-    config.geometry.max_members_multisurface = 12;
-    config.vertices.min_vertices = 8;
-    config.vertices.max_vertices = 8;
-    config
-}
-
-fn vertex_transform_stress() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 2_000;
-    config.cityobjects.max_cityobjects = 2_000;
-    config.geometry.allowed_types_geometry = Some(vec![GeometryType::MultiSurface]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 1;
-    config.geometry.max_members_cityobject_geometries = 1;
-    config.geometry.min_members_multisurface = 1;
-    config.geometry.max_members_multisurface = 1;
-    config.vertices.min_vertices = 250_000;
-    config.vertices.max_vertices = 250_000;
-    config.vertices.min_coordinate = -5_000.0;
-    config.vertices.max_coordinate = 5_000.0;
-    config
-}
-
-fn attribute_tree_worst_case() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 6_000;
-    config.cityobjects.max_cityobjects = 6_000;
-    config.geometry.allowed_types_geometry = Some(vec![GeometryType::MultiSurface]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 1;
-    config.geometry.max_members_cityobject_geometries = 1;
-    config.geometry.min_members_multisurface = 1;
-    config.geometry.max_members_multisurface = 1;
-    config.attributes.attributes_enabled = true;
-    config.attributes.min_attributes = 24;
-    config.attributes.max_attributes = 24;
-    config.attributes.attributes_max_depth = 4;
-    config.attributes.attributes_random_keys = true;
-    config.attributes.attributes_random_values = true;
-    config.vertices.min_vertices = 32;
-    config.vertices.max_vertices = 32;
-    config
-}
-
-fn relation_graph_worst_case() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 6_000;
-    config.cityobjects.max_cityobjects = 6_000;
-    config.cityobjects.cityobject_hierarchy = true;
-    config.cityobjects.min_children = 4;
-    config.cityobjects.max_children = 4;
-    config.geometry.allowed_types_geometry = Some(vec![GeometryType::MultiSurface]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 1;
-    config.geometry.max_members_cityobject_geometries = 1;
-    config.geometry.min_members_multisurface = 1;
-    config.geometry.max_members_multisurface = 1;
-    config.vertices.min_vertices = 32;
-    config.vertices.max_vertices = 32;
-    config
-}
-
-fn deep_boundary_stress() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 2_500;
-    config.cityobjects.max_cityobjects = 2_500;
-    config.geometry.allowed_types_geometry = Some(vec![
-        GeometryType::Solid,
-        GeometryType::MultiSolid,
-        GeometryType::CompositeSolid,
-    ]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 1;
-    config.geometry.max_members_cityobject_geometries = 1;
-    config.geometry.min_members_solid = 5;
-    config.geometry.max_members_solid = 5;
-    config.geometry.min_members_multisolid = 2;
-    config.geometry.max_members_multisolid = 2;
-    config.geometry.min_members_compositesolid = 2;
-    config.geometry.max_members_compositesolid = 2;
-    config.geometry.min_members_compositesurface = 4;
-    config.geometry.max_members_compositesurface = 4;
-    config.vertices.min_vertices = 64;
-    config.vertices.max_vertices = 64;
-    config
-}
-
-fn composite_value_favorable_worst_case() -> CJFakeConfig {
-    let mut config = disable_optional_surfaces(base_config());
-    config.cityobjects.min_cityobjects = 3_000;
-    config.cityobjects.max_cityobjects = 3_000;
-    config.cityobjects.cityobject_hierarchy = true;
-    config.cityobjects.min_children = 2;
-    config.cityobjects.max_children = 2;
-    config.geometry.allowed_types_geometry = Some(vec![
-        GeometryType::MultiSurface,
-        GeometryType::Solid,
-        GeometryType::CompositeSolid,
-    ]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 2;
-    config.geometry.max_members_cityobject_geometries = 2;
-    config.geometry.min_members_multisurface = 2;
-    config.geometry.max_members_multisurface = 3;
-    config.geometry.min_members_solid = 2;
-    config.geometry.max_members_solid = 3;
-    config.geometry.min_members_compositesolid = 1;
-    config.geometry.max_members_compositesolid = 2;
-    config.attributes.attributes_enabled = true;
-    config.attributes.min_attributes = 16;
-    config.attributes.max_attributes = 16;
-    config.attributes.attributes_max_depth = 3;
-    config.vertices.min_vertices = 128;
-    config.vertices.max_vertices = 128;
-    config
-}
-
-fn appearance_and_validation_stress() -> CJFakeConfig {
-    let mut config = base_config();
-    config.cityobjects.min_cityobjects = 2_000;
-    config.cityobjects.max_cityobjects = 2_000;
-    config.geometry.allowed_types_geometry =
-        Some(vec![GeometryType::MultiSurface, GeometryType::Solid]);
-    config.geometry.allowed_lods = Some(vec![LoD::LoD2_2]);
-    config.geometry.min_members_cityobject_geometries = 2;
-    config.geometry.max_members_cityobject_geometries = 3;
-    config.geometry.min_members_multisurface = 3;
-    config.geometry.max_members_multisurface = 4;
-    config.geometry.min_members_solid = 3;
-    config.geometry.max_members_solid = 4;
-    config.materials.materials_enabled = true;
-    config.materials.min_materials = 2;
-    config.materials.max_materials = 2;
-    config.materials.nr_themes_materials = 2;
-    config.textures.textures_enabled = true;
-    config.textures.min_textures = 2;
-    config.textures.max_textures = 2;
-    config.textures.nr_themes_textures = 2;
-    config.textures.max_vertices_texture = 8;
-    config.templates.use_templates = true;
-    config.templates.min_templates = 4;
-    config.templates.max_templates = 4;
-    config.metadata.metadata_enabled = true;
-    config.attributes.attributes_enabled = true;
-    config.attributes.min_attributes = 8;
-    config.attributes.max_attributes = 8;
-    config.attributes.attributes_max_depth = 2;
-    config.attributes.attributes_random_keys = false;
-    config.attributes.attributes_random_values = true;
-    config.semantics.semantics_enabled = true;
-    config.vertices.min_vertices = 128;
-    config.vertices.max_vertices = 128;
-    config
 }

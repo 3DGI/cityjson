@@ -1,0 +1,46 @@
+{
+  "cityobjects": {
+    "min_cityobjects": 3000,
+    "max_cityobjects": 3000,
+    "cityobject_hierarchy": true,
+    "min_children": 2,
+    "max_children": 2
+  },
+  "geometry": {
+    "allowed_types_geometry": ["MultiSurface", "Solid", "CompositeSolid"],
+    "allowed_lods": ["2.2"],
+    "min_members_cityobject_geometries": 2,
+    "max_members_cityobject_geometries": 2,
+    "min_members_multisurface": 2,
+    "max_members_multisurface": 3,
+    "min_members_solid": 2,
+    "max_members_solid": 3,
+    "min_members_compositesolid": 1,
+    "max_members_compositesolid": 2
+  },
+  "vertices": {
+    "min_vertices": 128,
+    "max_vertices": 128
+  },
+  "materials": {
+    "materials_enabled": false
+  },
+  "textures": {
+    "textures_enabled": false
+  },
+  "templates": {
+    "use_templates": false
+  },
+  "metadata": {
+    "metadata_enabled": false
+  },
+  "attributes": {
+    "attributes_enabled": true,
+    "min_attributes": 16,
+    "max_attributes": 16,
+    "attributes_max_depth": 3
+  },
+  "semantics": {
+    "semantics_enabled": false
+  }
+}

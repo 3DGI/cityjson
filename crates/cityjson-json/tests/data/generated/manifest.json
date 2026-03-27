@@ -28,7 +28,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 11,
-      "generator": "geometry_flattening_best_case",
+      "profile_path": "tests/data/generated/profiles/geometry_flattening_best_case.json",
       "description": "Large MultiSurface payload with no relation graph or attribute tree",
       "intent": "Favor serde_cityjson by maximizing geometry flattening and minimizing object normalization"
     },
@@ -38,7 +38,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 19,
-      "generator": "vertex_transform_stress",
+      "profile_path": "tests/data/generated/profiles/vertex_transform_stress.json",
       "description": "Large vertex pool with very little object-level normalization",
       "intent": "Isolate root vertex transform and import cost"
     },
@@ -48,7 +48,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 23,
-      "generator": "attribute_tree_worst_case",
+      "profile_path": "tests/data/generated/profiles/attribute_tree_worst_case.json",
       "description": "Deep nested attributes with minimal geometry work",
       "intent": "Stress recursive attribute conversion and backend boxing"
     },
@@ -58,7 +58,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 29,
-      "generator": "relation_graph_worst_case",
+      "profile_path": "tests/data/generated/profiles/relation_graph_worst_case.json",
       "description": "Dense parent-child graph with small geometry payloads",
       "intent": "Stress relation resolution after CityObjects import"
     },
@@ -68,7 +68,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 31,
-      "generator": "deep_boundary_stress",
+      "profile_path": "tests/data/generated/profiles/deep_boundary_stress.json",
       "description": "Solid-heavy geometry that exercises nested boundary flattening",
       "intent": "Stress the flat boundary parser and stored geometry construction"
     },
@@ -78,7 +78,7 @@
       "suites": ["read", "write"],
       "borrowed": true,
       "seed": 37,
-      "generator": "composite_value_favorable_worst_case",
+      "profile_path": "tests/data/generated/profiles/composite_value_favorable_worst_case.json",
       "description": "Mixed geometry and normalization workload that is smaller but denser",
       "intent": "Show a case where the generic DOM baseline remains competitive"
     },
@@ -88,7 +88,7 @@
       "suites": ["write"],
       "borrowed": true,
       "seed": 41,
-      "generator": "appearance_and_validation_stress",
+      "profile_path": "tests/data/generated/profiles/appearance_and_validation_stress.json",
       "description": "Serializer-heavy case with materials, textures, templates, and semantics",
       "intent": "Exercise serializer validation and appearance/theme output"
     }
