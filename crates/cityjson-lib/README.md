@@ -138,4 +138,4 @@ The MkDocs site is intended to be the main documentation home for the Rust facad
 
 This repository is currently being rewritten in a docs-first, tests-first style.
 Unimplemented areas are intentionally marked with `todo!()` and covered by
-failing tests so the remaining work stays visible.
+tests that assert the explicit panic so the remaining work stays visible.
