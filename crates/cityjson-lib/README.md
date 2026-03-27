@@ -44,6 +44,13 @@ let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityOb
 # Ok::<(), cjlib::Error>(())
 ```
 
+Current practical status:
+
+- `cjlib` is usable today for ordinary `CityJSON` document files
+- the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
+- explicit feature and feature-stream helpers exist under `cjlib::json`
+- higher-level workflows such as `ops::merge` and non-JSON backends are still intentionally unimplemented
+
 ## Explicit Format Modules
 
 The top-level constructors are only the convenience path for CityJSON JSON.
@@ -79,6 +86,9 @@ Within `cjlib::json`, the intended surface is:
 - `from_slice`
 - `from_file`
 - `from_feature_slice`
+- `from_feature_file`
+- `from_feature_slice_with_base`
+- `from_feature_file_with_base`
 - `read_feature_stream`
 - `write_feature_stream`
 - `to_vec`

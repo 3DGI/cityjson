@@ -20,6 +20,7 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
     let _ = json::from_slice(document)?;
     let _ = json::from_feature_slice(feature)?;
     let _ = json::from_file("tests/data/v2_0/minimal.city.json")?;
+    let _ = json::from_feature_file("tests/data/v2_0/minimal.city.jsonl")?;
     let models =
         json::read_feature_stream(Cursor::new(stream))?.collect::<cjlib::Result<Vec<_>>>()?;
     assert_eq!(models.len(), 2);
@@ -35,6 +36,33 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
         .join("\n")
         + "\n";
     assert_eq!(output, expected);
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_can_materialize_standalone_features_with_a_base_document()
+-> cjlib::Result<()> {
+    let document = br#"{
+        "type":"CityJSON",
+        "version":"2.0",
+        "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
+        "CityObjects":{},
+        "vertices":[]
+    }"#;
+    let feature = br#"{
+        "type":"CityJSONFeature",
+        "CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiSurface","boundaries":[[[0,1,2]]]}]}},
+        "vertices":[[0,0,0],[2,0,0],[2,4,5]]
+    }"#;
+
+    let model = json::from_feature_slice_with_base(feature, document)?;
+    let vertices = model.as_inner().vertices();
+    let v0 = vertices.as_slice()[0].to_array();
+    let v2 = vertices.as_slice()[2].to_array();
+
+    assert_eq!(v0, [10.0, 20.0, 30.0]);
+    assert_eq!(v2, [11.0, 22.0, 35.0]);
 
     Ok(())
 }

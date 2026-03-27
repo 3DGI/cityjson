@@ -119,6 +119,44 @@ pub fn from_feature_slice(bytes: &[u8]) -> Result<CityModel> {
     }
 }
 
+pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
+    from_feature_slice(&std::fs::read(path)?)
+}
+
+pub fn from_feature_slice_with_base(
+    feature_bytes: &[u8],
+    base_document_bytes: &[u8],
+) -> Result<CityModel> {
+    let probe = probe(feature_bytes)?;
+    match probe.kind {
+        RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind.to_string())),
+        RootKind::CityJSONFeature => {
+            let feature_input = std::str::from_utf8(feature_bytes).map_err(|error| {
+                Error::Json(serde_json::Error::io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    error,
+                )))
+            })?;
+            let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
+                Error::Json(serde_json::Error::io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    error,
+                )))
+            })?;
+            Ok(CityModel(
+                serde_cityjson::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
+            ))
+        }
+    }
+}
+
+pub fn from_feature_file_with_base<P: AsRef<Path>>(
+    path: P,
+    base_document_bytes: &[u8],
+) -> Result<CityModel> {
+    from_feature_slice_with_base(&std::fs::read(path)?, base_document_bytes)
+}
+
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
 where
     R: BufRead,

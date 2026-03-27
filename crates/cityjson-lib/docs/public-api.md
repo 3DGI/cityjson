@@ -29,6 +29,13 @@ The implemented core surface is:
 `cityjson::v2_0::OwnedCityModel`.
 The wrapper boundary stays explicit and does not use `Deref`.
 
+Current practical status:
+
+- `cjlib` is usable today for ordinary `CityJSON` document files
+- the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
+- explicit feature and feature-stream helpers exist under `cjlib::json`
+- higher-level workflows and non-JSON backends remain intentionally unfinished
+
 ```rust
 use cjlib::CityModel;
 
