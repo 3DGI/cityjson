@@ -2,10 +2,15 @@ use std::path::PathBuf;
 
 use serde_json::{json, Map, Value};
 
+use cityjson::v2_0::{
+    AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
+    GeometryDraft, ImageType, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture,
+    UVCoordinate,
+};
 use common::*;
 use serde_cityjson::{
     from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
-    read_feature_stream,
+    read_feature_stream, to_string,
 };
 
 mod common;
@@ -346,6 +351,156 @@ fn extract_semantic_extended(value: &Value) -> Value {
 
 fn extract_vertices(value: &Value) -> Value {
     value.get("vertices").cloned().unwrap()
+}
+
+#[test]
+fn serialize_quantizes_root_vertices_only() {
+    let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+    model.transform_mut();
+    model
+        .metadata_mut()
+        .set_geographical_extent(BBox::new(1.1, 2.2, 3.3, 4.4, 5.5, 6.6));
+    model
+        .add_vertex(RealWorldCoordinate::new(1.25, 2.5, 3.75))
+        .unwrap();
+    model
+        .add_template_vertex(RealWorldCoordinate::new(4.125, 5.25, 6.875))
+        .unwrap();
+    model
+        .add_uv_coordinate(UVCoordinate::new(0.125, 0.875))
+        .unwrap();
+    model
+        .add_texture(Texture::new("texture.png".to_string(), ImageType::Png))
+        .unwrap();
+
+    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+
+    let root_vertices = json
+        .get("vertices")
+        .and_then(Value::as_array)
+        .expect("root vertices should be present");
+    assert_eq!(root_vertices.len(), 1);
+    assert!(root_vertices[0]
+        .as_array()
+        .expect("vertex should be an array")
+        .iter()
+        .all(|coordinate| coordinate.is_i64() || coordinate.is_u64()));
+
+    let template_vertices = json
+        .get("geometry-templates")
+        .and_then(Value::as_object)
+        .and_then(|templates| templates.get("vertices-templates"))
+        .and_then(Value::as_array)
+        .expect("template vertices should be present");
+    assert_eq!(template_vertices.len(), 1);
+    assert!(template_vertices[0]
+        .as_array()
+        .expect("template vertex should be an array")
+        .iter()
+        .all(Value::is_f64));
+
+    let texture_vertices = json
+        .get("appearance")
+        .and_then(Value::as_object)
+        .and_then(|appearance| appearance.get("vertices-texture"))
+        .and_then(Value::as_array)
+        .expect("texture vertices should be present");
+    assert_eq!(texture_vertices.len(), 1);
+    assert!(texture_vertices[0]
+        .as_array()
+        .expect("texture vertex should be an array")
+        .iter()
+        .all(Value::is_f64));
+
+    let extent = json
+        .get("metadata")
+        .and_then(Value::as_object)
+        .and_then(|metadata| metadata.get("geographicalExtent"))
+        .and_then(Value::as_array)
+        .expect("geographical extent should be present");
+    assert_eq!(extent.len(), 6);
+    assert!(extent.iter().all(Value::is_f64));
+}
+
+#[test]
+fn serialize_geometry_instance_keeps_float_sections() {
+    let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+
+    let template = GeometryDraft::multi_point(
+        Some(LoD::LoD1),
+        [PointDraft::new(RealWorldCoordinate::new(0.25, 0.5, 0.75))],
+    )
+    .insert_template_into(&mut model)
+    .unwrap();
+
+    let geometry = GeometryDraft::instance(
+        template,
+        RealWorldCoordinate::new(1.25, 2.5, 3.75),
+        AffineTransform3D::default(),
+    )
+    .insert_into(&mut model)
+    .unwrap();
+
+    let mut cityobject = CityObject::new(
+        CityObjectIdentifier::new("instance-1".to_string()),
+        CityObjectType::Building,
+    );
+    cityobject.add_geometry(geometry);
+    model.cityobjects_mut().add(cityobject).unwrap();
+
+    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let root_vertices = json
+        .get("vertices")
+        .and_then(Value::as_array)
+        .expect("root vertices should be present");
+    assert_eq!(root_vertices.len(), 1);
+    assert!(root_vertices[0]
+        .as_array()
+        .expect("root vertex should be an array")
+        .iter()
+        .all(|coordinate| coordinate.is_i64() || coordinate.is_u64()));
+
+    let geometry = json
+        .get("CityObjects")
+        .and_then(Value::as_object)
+        .and_then(|cityobjects| cityobjects.get("instance-1"))
+        .and_then(|object| object.get("geometry"))
+        .and_then(Value::as_array)
+        .and_then(|geometry| geometry.first())
+        .cloned()
+        .expect("geometry instance should be serialized");
+
+    let template = geometry
+        .get("template")
+        .expect("template index should be serialized");
+    assert!(template.is_i64() || template.is_u64());
+
+    let boundary = geometry
+        .get("boundaries")
+        .and_then(Value::as_array)
+        .and_then(|boundaries| boundaries.first())
+        .expect("instance boundary should be serialized");
+    assert!(boundary.is_i64() || boundary.is_u64());
+
+    let transform = geometry
+        .get("transformationMatrix")
+        .and_then(Value::as_array)
+        .expect("instance transform should be serialized");
+    assert_eq!(transform.len(), 16);
+    assert!(transform.iter().all(Value::is_f64));
+
+    let template_vertices = json
+        .get("geometry-templates")
+        .and_then(Value::as_object)
+        .and_then(|templates| templates.get("vertices-templates"))
+        .and_then(Value::as_array)
+        .expect("template vertices should be present");
+    assert_eq!(template_vertices.len(), 1);
+    assert!(template_vertices[0]
+        .as_array()
+        .expect("template vertex should be an array")
+        .iter()
+        .all(Value::is_f64));
 }
 
 fn extract_metadata(value: &Value) -> Value {

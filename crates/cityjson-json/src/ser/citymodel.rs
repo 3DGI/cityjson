@@ -284,15 +284,15 @@ where
                 let scale = transform.scale();
                 let translate = transform.translate();
                 vec![
-                    number_value((vertex.x() - translate[0]) / scale[0])?,
-                    number_value((vertex.y() - translate[1]) / scale[1])?,
-                    number_value((vertex.z() - translate[2]) / scale[2])?,
+                    quantized_number_value((vertex.x() - translate[0]) / scale[0])?,
+                    quantized_number_value((vertex.y() - translate[1]) / scale[1])?,
+                    quantized_number_value((vertex.z() - translate[2]) / scale[2])?,
                 ]
             }
             None => vec![
-                number_value(vertex.x())?,
-                number_value(vertex.y())?,
-                number_value(vertex.z())?,
+                quantized_number_value(vertex.x())?,
+                quantized_number_value(vertex.y())?,
+                quantized_number_value(vertex.z())?,
             ],
         };
         vertices.push(Value::Array(values));
@@ -360,14 +360,20 @@ fn contact_type_to_str(kind: ContactType) -> &'static str {
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn number_value(value: f64) -> Result<Value> {
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+fn quantized_number_value(value: f64) -> Result<Value> {
     let rounded = value.round();
-    if (value - rounded).abs() < 1e-9 && rounded >= i64::MIN as f64 && rounded <= i64::MAX as f64 {
+    if rounded >= i64::MIN as f64 && rounded <= i64::MAX as f64 {
         Ok(Value::Number(Number::from(rounded as i64)))
+    } else if rounded >= 0.0 && rounded <= u64::MAX as f64 {
+        Ok(Value::Number(Number::from(rounded as u64)))
     } else {
-        Ok(Value::Number(Number::from_f64(value).ok_or_else(|| {
-            Error::InvalidValue(format!("cannot serialize float '{value}'"))
-        })?))
+        Err(Error::InvalidValue(format!(
+            "cannot serialize quantized coordinate '{value}'"
+        )))
     }
 }
