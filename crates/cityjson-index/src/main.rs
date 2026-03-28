@@ -1,11 +1,15 @@
 use std::env;
 use std::path::PathBuf;
 
-use cjindex::fixtures::{
+use cjlib::{Error, Result};
+
+#[path = "../tests/common/data_prep.rs"]
+mod data_prep;
+
+use data_prep::{
     DEFAULT_INPUT_ROOT, DEFAULT_OUTPUT_ROOT, prepare_cityjson_only, prepare_feature_files_only,
     prepare_ndjson_only, prepare_test_sets,
 };
-use cjlib::{Error, Result};
 
 fn main() -> Result<()> {
     let mut args = env::args_os().skip(1).collect::<Vec<_>>();

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+pub mod data_prep;
+
 pub fn data_root() -> PathBuf {
     PathBuf::from("/home/balazs/Data/3DBAG_3dtiles_test/cjindex")
 }

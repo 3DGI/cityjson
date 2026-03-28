@@ -7,8 +7,6 @@ use globset::GlobMatcher;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 
-pub mod fixtures;
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct BBox {
     pub min_x: f64,

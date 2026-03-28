@@ -14,9 +14,9 @@ pub const DEFAULT_OUTPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/cjin
 
 #[derive(Debug, Clone)]
 pub struct PreparedDatasets {
-    pub feature_files_root: PathBuf,
-    pub cityjson_root: PathBuf,
-    pub ndjson_root: PathBuf,
+    pub feature_files: PathBuf,
+    pub cityjson: PathBuf,
+    pub ndjson: PathBuf,
 }
 
 /// Prepares the feature-files fixture tree.
@@ -110,9 +110,9 @@ pub fn prepare_test_sets(input_root: &Path, output_root: &Path) -> Result<Prepar
     write_ndjson_tiles(&cityjson_root, &ndjson_root)?;
 
     Ok(PreparedDatasets {
-        feature_files_root,
-        cityjson_root,
-        ndjson_root,
+        feature_files: feature_files_root,
+        cityjson: cityjson_root,
+        ndjson: ndjson_root,
     })
 }
 
