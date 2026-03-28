@@ -21,6 +21,23 @@ The responsibility split is:
 
 For the full cross-crate synthesis, see [Architecture](architecture.md).
 
+## Current Status
+
+The current release line is already being dogfooded in `tyler` 0.4.0.
+`cjlib` is usable today for ordinary `CityJSON` document files, and the
+feature-file path is explicit through `cjlib::json`.
+
+The practical integration pattern is:
+
+```rust
+let base = std::fs::read("metadata.city.json")?;
+let model = cjlib::json::from_feature_file_with_base("feature.city.jsonl", &base)?;
+# Ok::<(), cjlib::Error>(())
+```
+
+That is enough for the current `tyler` migration path and keeps feature
+loading explicit when the base document is needed to normalize coordinates.
+
 ## Public API Shape
 
 The future public API is intentionally small.
@@ -60,6 +77,7 @@ For JSON, that explicit boundary module should own:
 - probing
 - document parsing
 - feature parsing
+- feature-file helpers
 - model-stream reading
 - feature-stream writing and reading
 - serialization

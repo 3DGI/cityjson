@@ -49,6 +49,7 @@ Current practical status:
 - `cjlib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cjlib::json`
+- `tyler` 0.4.0 now dogfoods `cjlib` for CityJSON reading
 - higher-level workflows such as `ops::merge` and non-JSON backends are still intentionally unimplemented
 
 ## Explicit Format Modules

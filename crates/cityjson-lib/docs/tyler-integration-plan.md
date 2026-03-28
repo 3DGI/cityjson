@@ -22,6 +22,37 @@ path:
 - features are separate `.city.jsonl` files under a directory tree
 - there are about `227045` feature files in the test tree
 
+## Integration Snapshot
+
+The migration now has a concrete shape in Tyler.
+
+```rust
+let base_document = std::fs::read(&path_metadata)?;
+let metadata = cjlib::json::from_slice(&base_document)?;
+let crs = Crs::from_model(metadata.as_inner())?;
+
+let model = cjlib::json::from_feature_file_with_base(feature_path, &base_document)?;
+let stats = selected_geometry_stats(model.as_inner(), self.cityobject_types.as_ref());
+```
+
+That keeps CityJSON parsing in `cjlib` and keeps Tyler focused on tiling and
+feature placement.
+
+The higher-level indexing loop now looks like this:
+
+```text
+for feature_path in feature_tree:
+    model = cjlib::json::from_feature_file_with_base(feature_path, base_document)
+    stats = selected_geometry_stats(model.as_inner(), filter)
+    if stats has no bbox:
+        skip feature
+    cell_scores = score_feature_against_grid(model.as_inner(), stats, grid)
+    attach feature metadata and cell ownership
+```
+
+No Tyler-specific view layer was introduced. The dogfood pass was used to
+surface the friction in the real `cjlib` API instead.
+
 ## What Tyler Actually Needs
 
 Today `tyler` does not need a general-purpose CityJSON API.
@@ -195,6 +226,19 @@ pub fn from_feature_file(path: impl AsRef<Path>) -> Result<CityModel>;
 
 This should be a thin convenience wrapper over `from_feature_slice`.
 
+Tyler also uses the base-aware form:
+
+```rust
+pub fn from_feature_file_with_base(
+    path: impl AsRef<Path>,
+    base_document_bytes: &[u8],
+) -> Result<CityModel>;
+```
+
+That is the practical shape for `CityJSONFeature` files in the 3DBAG test
+tree, because the feature needs the metadata document to normalize its
+coordinates.
+
 ### 2. Generic Model Ergonomics
 
 `tyler` should use the actual `cjlib` model surface, not a second API.
@@ -235,6 +279,25 @@ Those are still one API, not a second projection layer.
 
 The key design rule is that `cjlib` should expose the actual model cleanly
 enough that `tyler` can delete its quantized-coordinate shadow model.
+
+### Example Usage In Tyler
+
+```rust
+let base_document = std::fs::read(&path_metadata)?;
+let model = cjlib::json::from_feature_file_with_base(&feature_path, &base_document)?;
+
+let selected = selected_geometry_stats(model.as_inner(), cityobject_types.as_ref());
+let bbox = selected.bbox.ok_or("feature has no matching geometry")?;
+let ownership = count_vertices_in_grid(
+    model.as_inner(),
+    selected.selected_cityobjects_with_geometry,
+    &grid,
+    &bbox,
+);
+```
+
+This is intentionally boring. The integration is successful when Tyler can
+stay on the normal `cjlib` API and does not need a second model projection.
 
 ### 4. Benchmarks For Tyler Workloads
 

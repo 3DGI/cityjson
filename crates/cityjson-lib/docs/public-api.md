@@ -34,6 +34,7 @@ Current practical status:
 - `cjlib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cjlib::json`
+- `tyler` 0.4.0 dogfoods the feature-file path through `from_feature_file_with_base`
 - higher-level workflows and non-JSON backends remain intentionally unfinished
 
 ```rust
@@ -75,6 +76,18 @@ assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 let model = json::from_slice(&bytes)?;
 let text = json::to_string(&model)?;
 assert!(!text.is_empty());
+# Ok::<(), cjlib::Error>(())
+```
+
+For feature files that need the base metadata document to normalize vertices,
+use the explicit helper:
+
+```rust
+use cjlib::json;
+
+let base = std::fs::read("metadata.city.json")?;
+let feature = json::from_feature_file_with_base("feature.city.jsonl", &base)?;
+let _ = feature.as_inner();
 # Ok::<(), cjlib::Error>(())
 ```
 

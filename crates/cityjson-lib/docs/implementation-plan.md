@@ -1,78 +1,67 @@
 # Implementation Plan
 
-This plan covers the next two concrete cleanup steps for the `cjlib` rewrite.
+This document now tracks the post-`tyler` dogfood phase of the rewrite.
+The facade boundary work and JSON boundary work are complete, and the
+`tyler` migration has been committed and released as `tyler` 0.4.0.
 
-## Step 1: Align The Facade Boundary
+## Completed
 
-### Goal
+### Facade Boundary
 
-Make `cjlib` behave like a thin facade instead of a blurred proxy for
-`cityjson-rs`.
+- `CityModel` is a thin owned wrapper over `cityjson::v2_0::OwnedCityModel`
+- `as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, and `AsMut` are the
+  explicit boundary helpers
+- `Deref` and `DerefMut` are not used to blur the facade boundary
+- the crate root stays small and explicit
 
-### Required Changes
+### JSON Boundary
 
-1. Remove implicit boundary leakage from `CityModel`.
-
-- keep `as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, and `AsMut`
-- remove `Deref` and `DerefMut`
-- avoid re-exporting extra `cityjson` items at the crate root when
-  `cjlib::cityjson::...` is the intended advanced path
-
-2. Keep unfinished workflow modules obviously unfinished.
-
-- do not return cloned models, zero measurements, or empty reports
-- replace placeholder behavior with explicit `todo!()` markers
-- keep only one illustrative function in `ops` until there is a real semantic
-  backend to delegate to
-
-### Success Criteria
-
-- `CityModel` is explicit at the type boundary
-- the crate root is smaller and less misleading
-- unfinished workflow areas fail loudly instead of pretending to work
-
-## Step 2: Clean Up The JSON Boundary
-
-### Goal
-
-Keep `cjlib::json` focused on explicit JSON document and feature handling
-without presenting stream aggregation as a stable API.
-
-### Required Changes
-
-1. Keep the document path simple.
-
-- `CityModel::from_slice` and `CityModel::from_file` stay as the ergonomic
-  single-document path
+- `cjlib::json` owns document parsing, feature parsing, feature-stream reading,
+  feature-stream writing, and serialization
 - `json::from_file` stays document-oriented
+- `.jsonl` files are not silently treated as documents
+- unsupported or unfinished branches fail loudly
 
-2. Keep streams explicit.
+### Tyler Dogfood
 
-- `json::read_feature_stream` and `json::write_feature_stream` remain the
-  stream APIs
-- remove public aggregation helpers such as `json::merge_feature_stream`
-- remove compatibility aliases such as `CityModel::from_stream` and
-  `json::from_stream`
+- `tyler` now reads CityJSON through `cjlib`
+- feature loading uses the base-aware `json::from_feature_file_with_base`
+- Tyler no longer owns its own CityJSON serde structs
+- ownership scoring parity with the legacy implementation has been restored
+- the migration was released as `tyler` 0.4.0
 
-3. Make unsupported paths explicit.
+## Remaining `cjlib` Work
 
-- do not silently aggregate `.jsonl` files in `json::from_file`
-- return a structured error that points callers to `json::read_feature_stream`
-- leave legacy version import branches as explicit `todo!()` until real import
-  support exists
+The remaining work is about turning the current façade into a stable production
+surface, not about resurrecting legacy CityJSON parsing.
 
-### Success Criteria
+### 1. Replace Placeholder Workflow Modules
 
-- JSON documents and JSON feature streams have separate, explicit entry points
-- there is no public API that implies hidden semantic aggregation
-- unsupported or unfinished branches are obvious in code and tests
+`ops`, `arrow`, and `parquet` still contain obvious placeholders.
+Those modules should either grow real implementations or remain explicit
+`todo!()` markers until they do.
 
-## Testing Policy During The Rewrite
+### 2. Add Workload Benchmarks
 
-Tests should distinguish three states clearly:
+The Tyler dogfood run showed that the release build is usable and memory
+efficient. The next step is to make those workloads measurable inside the
+`cjlib` repository itself.
 
-- implemented behavior: tests pass
-- intentionally unimplemented behavior: tests fail because they hit `todo!()`
-- unsupported behavior: tests pass by asserting a structured error
+Benchmark targets:
 
-That keeps the suite honest while the facade surface is still being reduced.
+- metadata load
+- single feature parse
+- feature scan used for cell ownership
+- directory-tree feature walk
+
+### 3. Stabilize The FFI Boundary
+
+Once the Rust surface stops moving, add the narrow FFI layer on top of the
+proven API instead of speculating about a broader foreign-language surface.
+
+## Current Guidance
+
+- do not reintroduce a second CityJSON model
+- do not add Tyler-specific view layers
+- improve the main `cjlib` API when dogfooding exposes real friction
+- keep the implementation honest with tests and benchmarks
