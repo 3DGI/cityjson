@@ -7,8 +7,8 @@ use cjlib::{CityModel, arrow, parquet};
 fn arrow_boundary_writes_a_non_empty_transport_file() {
     let path = "tests/output/minimal.cjarrow";
     let _ = std::fs::remove_file(path);
-    let model = CityModel::from_file("tests/data/v2_0/minimal.city.json")
-        .expect("fixture should parse");
+    let model =
+        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
 
     arrow::to_file(path, &model).expect("arrow::to_file is intentionally unimplemented");
 
@@ -21,8 +21,8 @@ fn arrow_boundary_writes_a_non_empty_transport_file() {
 fn parquet_boundary_writes_a_non_empty_transport_file() {
     let path = "tests/output/minimal.cjparquet";
     let _ = std::fs::remove_file(path);
-    let model = CityModel::from_file("tests/data/v2_0/minimal.city.json")
-        .expect("fixture should parse");
+    let model =
+        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
 
     parquet::to_file(path, &model).expect("parquet::to_file is intentionally unimplemented");
 
