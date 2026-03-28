@@ -7,6 +7,8 @@ use globset::GlobMatcher;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 
+pub mod fixtures;
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct BBox {
     pub min_x: f64,
@@ -21,8 +23,12 @@ pub struct CityIndex {
 }
 
 pub enum StorageLayout {
-    Ndjson { paths: Vec<PathBuf> },
-    CityJson { paths: Vec<PathBuf> },
+    Ndjson {
+        paths: Vec<PathBuf>,
+    },
+    CityJson {
+        paths: Vec<PathBuf>,
+    },
     FeatureFiles {
         root: PathBuf,
         metadata_glob: String,
@@ -31,6 +37,12 @@ pub enum StorageLayout {
 }
 
 impl CityIndex {
+    /// Opens an index for the given storage layout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index backend cannot be created or the index
+    /// store cannot be opened.
     pub fn open(layout: StorageLayout, index_path: &Path) -> Result<Self> {
         let backend: Box<dyn StorageBackend> = match layout {
             StorageLayout::Ndjson { paths } => Box::new(NdjsonBackend { paths }),
@@ -39,32 +51,61 @@ impl CityIndex {
                 root,
                 metadata_glob,
                 feature_glob,
-            } => Box::new(FeatureFilesBackend::new(root, metadata_glob, feature_glob)),
+            } => Box::new(FeatureFilesBackend::new(
+                root,
+                metadata_glob.as_str(),
+                feature_glob.as_str(),
+            )),
         };
 
         Ok(Self {
-            index: Index::open(index_path)?,
+            index: Index::open(index_path),
             backend,
         })
     }
 
+    /// Rebuilds the index from the configured backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if backend scanning or index population fails.
     pub fn reindex(&mut self) -> Result<()> {
         let _ = self.backend.scan()?;
         todo!("index population is not scaffolded yet")
     }
 
+    /// Returns a `CityJSON` feature by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if lookup fails.
     pub fn get(&self, _id: &str) -> Result<Option<CityModel>> {
         todo!("id lookup is not scaffolded yet")
     }
 
+    /// Returns every feature intersecting the given bounding box.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query fails.
     pub fn query(&self, _bbox: &BBox) -> Result<Vec<CityModel>> {
         todo!("bbox query is not scaffolded yet")
     }
 
+    /// Returns an iterator over features intersecting the given bounding box.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
     pub fn query_iter(&self, _bbox: &BBox) -> Result<impl Iterator<Item = Result<CityModel>> + '_> {
         Ok(std::iter::empty())
     }
 
+    /// Returns cached metadata entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if metadata lookup fails.
     pub fn metadata(&self) -> Result<Vec<Arc<Meta>>> {
         todo!("metadata lookup is not scaffolded yet")
     }
@@ -95,12 +136,12 @@ struct FeatureIndexEntry {
 }
 
 impl Index {
-    fn open(path: &Path) -> Result<Self> {
+    fn open(path: &Path) -> Self {
         let _ = path;
-        Ok(Self {
+        Self {
             _conn: None,
             metadata_cache: HashMap::new(),
-        })
+        }
     }
 
     fn lookup_id(&self, _id: &str) -> Result<Option<FeatureLocation>> {
@@ -123,9 +164,8 @@ impl Index {
         todo!("metadata cache lookup is not scaffolded yet")
     }
 
-    fn clear(&mut self) -> Result<()> {
+    fn clear(&mut self) {
         self.metadata_cache.clear();
-        Ok(())
     }
 }
 
@@ -198,11 +238,11 @@ struct FeatureFilesBackend {
 }
 
 impl FeatureFilesBackend {
-    fn new(root: PathBuf, metadata_glob: String, feature_glob: String) -> Self {
-        let metadata_glob = globset::Glob::new(&metadata_glob)
+    fn new(root: PathBuf, metadata_glob: &str, feature_glob: &str) -> Self {
+        let metadata_glob = globset::Glob::new(metadata_glob)
             .expect("metadata glob must be valid")
             .compile_matcher();
-        let feature_glob = globset::Glob::new(&feature_glob)
+        let feature_glob = globset::Glob::new(feature_glob)
             .expect("feature glob must be valid")
             .compile_matcher();
         Self {
