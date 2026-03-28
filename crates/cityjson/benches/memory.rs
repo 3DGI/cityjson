@@ -102,14 +102,14 @@ mod benches {
         attrs.insert(
             "attr_vec".to_string(),
             AttributeValue::Vec(vec![
-                Box::new(AttributeValue::Integer(index_i64)),
-                Box::new(AttributeValue::Float(height)),
+                AttributeValue::Integer(index_i64),
+                AttributeValue::Float(height),
             ]),
         );
         let mut attr_map = HashMap::new();
         attr_map.insert(
             "key".to_string(),
-            Box::new(AttributeValue::String("value".to_string())),
+            AttributeValue::String("value".to_string()),
         );
         attrs.insert("attr_map".to_string(), AttributeValue::Map(attr_map));
     }

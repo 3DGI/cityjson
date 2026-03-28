@@ -225,7 +225,7 @@ fn unique_coordinates_deduplicates_vertex_references() {
         boundary
             .unique_vertex_indices(&mut scratch)
             .iter()
-            .map(|index| index.to_usize())
+            .map(VertexIndex::to_usize)
             .collect::<Vec<_>>(),
         vec![0, 1, 2]
     );

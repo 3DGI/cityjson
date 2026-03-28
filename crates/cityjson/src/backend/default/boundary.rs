@@ -278,6 +278,8 @@ impl<VR: VertexRef> Boundary<VR> {
 
     /// Creates a boundary from owned flat parts.
     ///
+    /// # Errors
+    ///
     /// Returns an error when the offset buffers are inconsistent with the child buffers.
     pub fn from_parts(
         vertices: Vec<VertexIndex<VR>>,
