@@ -56,10 +56,12 @@
 
 pub mod nested;
 
+use super::vertices::Vertices;
 use crate::cityjson::core::boundary::nested::{
     BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
 };
+use crate::cityjson::core::coordinate::Coordinate;
 use crate::cityjson::core::vertex::VertexRef;
 use crate::cityjson::core::vertex::{RawVertexView, VertexIndex};
 use crate::error;
@@ -127,6 +129,49 @@ pub struct BoundaryColumnar<'a, VR: VertexRef> {
     pub surface_offsets: &'a [VertexIndex<VR>],
     pub shell_offsets: &'a [VertexIndex<VR>],
     pub solid_offsets: &'a [VertexIndex<VR>],
+}
+
+/// Iterator over the coordinates referenced by a [`Boundary`].
+///
+/// Coordinates are yielded in boundary order. Repeated vertex references are preserved.
+pub struct BoundaryCoordinates<'a, VR: VertexRef, V: Coordinate> {
+    indices: std::slice::Iter<'a, VertexIndex<VR>>,
+    vertices: &'a Vertices<VR, V>,
+}
+
+impl<'a, VR: VertexRef, V: Coordinate> Iterator for BoundaryCoordinates<'a, VR, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let index = *self.indices.next()?;
+            if let Some(coordinate) = self.vertices.get(index) {
+                return Some(coordinate);
+            }
+        }
+    }
+}
+
+/// Iterator over the unique coordinates referenced by a [`Boundary`].
+///
+/// Coordinates are yielded in vertex-index order after deduplicating the boundary's vertex
+/// references into the provided scratch buffer.
+pub struct BoundaryUniqueCoordinates<'a, VR: VertexRef, V: Coordinate> {
+    indices: std::slice::Iter<'a, VertexIndex<VR>>,
+    vertices: &'a Vertices<VR, V>,
+}
+
+impl<'a, VR: VertexRef, V: Coordinate> Iterator for BoundaryUniqueCoordinates<'a, VR, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let index = *self.indices.next()?;
+            if let Some(coordinate) = self.vertices.get(index) {
+                return Some(coordinate);
+            }
+        }
+    }
 }
 
 impl<VR: VertexRef> Boundary<VR> {
@@ -300,6 +345,54 @@ impl<VR: VertexRef> Boundary<VR> {
     #[must_use]
     pub fn vertices(&self) -> &[VertexIndex<VR>] {
         &self.vertices
+    }
+
+    /// Iterates the coordinates referenced by this boundary in boundary order.
+    ///
+    /// This is the fast topology-to-coordinate join primitive: it uses the boundary's vertex
+    /// references directly against the provided vertex pool and performs no allocation.
+    #[inline]
+    #[must_use]
+    pub fn coordinates<'a, V: Coordinate>(
+        &'a self,
+        vertices: &'a Vertices<VR, V>,
+    ) -> BoundaryCoordinates<'a, VR, V> {
+        BoundaryCoordinates {
+            indices: self.vertices.iter(),
+            vertices,
+        }
+    }
+
+    /// Deduplicates this boundary's vertex references into the provided scratch buffer.
+    ///
+    /// The returned slice references `scratch`, sorted by vertex index.
+    #[inline]
+    pub fn unique_vertex_indices<'a>(
+        &self,
+        scratch: &'a mut Vec<VertexIndex<VR>>,
+    ) -> &'a [VertexIndex<VR>] {
+        scratch.clear();
+        scratch.extend_from_slice(&self.vertices);
+        scratch.sort_unstable();
+        scratch.dedup();
+        scratch.as_slice()
+    }
+
+    /// Iterates the unique coordinates referenced by this boundary.
+    ///
+    /// The caller provides a scratch buffer used to deduplicate the boundary's vertex references.
+    #[inline]
+    #[must_use]
+    pub fn unique_coordinates<'a, V: Coordinate>(
+        &'a self,
+        vertices: &'a Vertices<VR, V>,
+        scratch: &'a mut Vec<VertexIndex<VR>>,
+    ) -> BoundaryUniqueCoordinates<'a, VR, V> {
+        let indices = self.unique_vertex_indices(scratch);
+        BoundaryUniqueCoordinates {
+            indices: indices.iter(),
+            vertices,
+        }
     }
 
     /// Replaces items of the container with elements from the given iterator

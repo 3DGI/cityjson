@@ -28,11 +28,11 @@ fn main() -> Result<()> {
     let mut address = HashMap::new();
     address.insert(
         "city".to_string(),
-        Box::new(OwnedAttributeValue::String("Amsterdam".to_string())),
+        OwnedAttributeValue::String("Amsterdam".to_string()),
     );
     address.insert(
         "country".to_string(),
-        Box::new(OwnedAttributeValue::String("Netherlands".to_string())),
+        OwnedAttributeValue::String("Netherlands".to_string()),
     );
     building
         .extra_mut()

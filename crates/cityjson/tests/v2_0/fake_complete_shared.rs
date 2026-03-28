@@ -316,11 +316,11 @@ where
     .insert_into(model)?;
     address.insert(
         SS::store("location"),
-        Box::new(AttributeValue::Geometry(location_geometry)),
+        AttributeValue::Geometry(location_geometry),
     );
     building_part.extra_mut().insert(
         SS::store("address"),
-        AttributeValue::Vec(vec![Box::new(AttributeValue::Map(address))]),
+        AttributeValue::Vec(vec![AttributeValue::Map(address)]),
     );
     Ok(())
 }
@@ -780,7 +780,7 @@ fn assert_building_part_address<SS: StringStorage>(
         other => panic!("expected address vector, got {other:?}"),
     };
     assert_eq!(address_values.len(), 1);
-    let address_map = match &*address_values[0] {
+    let address_map = match &address_values[0] {
         AttributeValue::Map(values) => values,
         other => panic!("expected address map, got {other:?}"),
     };
@@ -791,8 +791,7 @@ fn assert_building_part_address<SS: StringStorage>(
         assert_attribute_matches_json(
             address_map
                 .get(key.as_str())
-                .expect("address key should exist")
-                .as_ref(),
+                .expect("address key should exist"),
             value,
         );
     }
@@ -800,7 +799,6 @@ fn assert_building_part_address<SS: StringStorage>(
     let location_handle = match address_map
         .get("location")
         .expect("address location should exist")
-        .as_ref()
     {
         AttributeValue::Geometry(handle) => *handle,
         other => panic!("expected address location geometry, got {other:?}"),
@@ -1053,18 +1051,13 @@ where
         Value::Array(values) => AttributeValue::Vec(
             values
                 .iter()
-                .map(|value| Box::new(attribute_value_from_fixture::<SS>(value)))
+                .map(|value| attribute_value_from_fixture::<SS>(value))
                 .collect(),
         ),
         Value::Object(values) => AttributeValue::Map(
             values
                 .iter()
-                .map(|(key, value)| {
-                    (
-                        SS::store(key),
-                        Box::new(attribute_value_from_fixture::<SS>(value)),
-                    )
-                })
+                .map(|(key, value)| (SS::store(key), attribute_value_from_fixture::<SS>(value)))
                 .collect::<HashMap<_, _>>(),
         ),
     }
@@ -1091,19 +1084,14 @@ where
 fn map_from_object<'a, SS>(
     value: &'a Value,
     skip_key: Option<&str>,
-) -> HashMap<SS::String, Box<AttributeValue<SS>>>
+) -> HashMap<SS::String, AttributeValue<SS>>
 where
     SS: FixtureStorage<'a>,
 {
     object(value)
         .iter()
         .filter(|(key, _)| Some(key.as_str()) != skip_key)
-        .map(|(key, value)| {
-            (
-                SS::store(key),
-                Box::new(attribute_value_from_fixture::<SS>(value)),
-            )
-        })
+        .map(|(key, value)| (SS::store(key), attribute_value_from_fixture::<SS>(value)))
         .collect()
 }
 

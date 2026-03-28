@@ -32,8 +32,8 @@ pub enum AttributeValue<SS: StringStorage> {
     Integer(i64),
     Float(f64),
     String(SS::String),
-    Vec(Vec<Box<AttributeValue<SS>>>),
-    Map(HashMap<SS::String, Box<AttributeValue<SS>>>),
+    Vec(Vec<AttributeValue<SS>>),
+    Map(HashMap<SS::String, AttributeValue<SS>>),
     /// Geometry reference. Used for `address.location`, which must be a `MultiPoint`.
     Geometry(GeometryHandle),
 }
@@ -90,6 +90,14 @@ impl<SS: StringStorage> Attributes<SS> {
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
+        }
+    }
+
+    /// Creates a new attributes container with space for at least `capacity` entries.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            values: HashMap::with_capacity(capacity),
         }
     }
 
@@ -167,6 +175,12 @@ impl<SS: StringStorage> Attributes<SS> {
 impl<SS: StringStorage> Default for Attributes<SS> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<SS: StringStorage> From<HashMap<SS::String, AttributeValue<SS>>> for Attributes<SS> {
+    fn from(values: HashMap<SS::String, AttributeValue<SS>>) -> Self {
+        Self { values }
     }
 }
 

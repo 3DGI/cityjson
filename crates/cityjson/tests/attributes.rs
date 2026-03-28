@@ -82,19 +82,16 @@ mod value_types {
         let mut address_map = HashMap::new();
         address_map.insert(
             "street".to_string(),
-            Box::new(OwnedAttributeValue::String("Main St".to_string())),
+            OwnedAttributeValue::String("Main St".to_string()),
         );
-        address_map.insert(
-            "number".to_string(),
-            Box::new(OwnedAttributeValue::Integer(123)),
-        );
+        address_map.insert("number".to_string(), OwnedAttributeValue::Integer(123));
 
         attrs.insert("address".to_string(), OwnedAttributeValue::Map(address_map));
 
         // Verify nested access
         if let Some(OwnedAttributeValue::Map(addr)) = attrs.get("address")
             && let Some(street_val) = addr.get("street")
-            && let OwnedAttributeValue::String(s) = street_val.as_ref()
+            && let OwnedAttributeValue::String(s) = street_val
         {
             assert_eq!(s, "Main St");
         }
@@ -108,9 +105,9 @@ mod value_types {
 
         // Create a vector of Box<AttributeValue> to store the value array
         let materials = vec![
-            Box::new(OwnedAttributeValue::String("concrete".to_string())),
-            Box::new(OwnedAttributeValue::Integer(1)),
-            Box::new(OwnedAttributeValue::Null),
+            OwnedAttributeValue::String("concrete".to_string()),
+            OwnedAttributeValue::Integer(1),
+            OwnedAttributeValue::Null,
         ];
         // Add the vector to the attributes
         attrs.insert("materials".to_string(), OwnedAttributeValue::Vec(materials));
@@ -119,16 +116,13 @@ mod value_types {
         if let Some(OwnedAttributeValue::Vec(mats)) = attrs.get("materials") {
             assert_eq!(mats.len(), 3);
 
-            if let OwnedAttributeValue::String(first) = mats[0].as_ref() {
+            if let OwnedAttributeValue::String(first) = &mats[0] {
                 assert_eq!(first, "concrete");
             }
-            if let OwnedAttributeValue::Integer(first) = mats[1].as_ref() {
+            if let OwnedAttributeValue::Integer(first) = &mats[1] {
                 assert_eq!(*first, 1);
             }
-            assert!(
-                &OwnedAttributeValue::Null == mats[2].as_ref(),
-                "Expected null value"
-            );
+            assert!(OwnedAttributeValue::Null == mats[2], "Expected null value");
         }
     }
 }
@@ -163,9 +157,9 @@ mod operations {
             (
                 "vec",
                 AttributeValue::Vec(vec![
-                    Box::new(AttributeValue::String("a".to_string())),
-                    Box::new(AttributeValue::Integer(1)),
-                    Box::new(AttributeValue::Null),
+                    AttributeValue::String("a".to_string()),
+                    AttributeValue::Integer(1),
+                    AttributeValue::Null,
                 ]),
                 "[\"a\", 1, null]",
             ),
@@ -173,7 +167,7 @@ mod operations {
                 "map",
                 AttributeValue::Map(HashMap::from([(
                     "inner".to_string(),
-                    Box::new(AttributeValue::Unsigned(7)),
+                    AttributeValue::Unsigned(7),
                 )])),
                 "{\"inner\": 7}",
             ),
@@ -379,12 +373,9 @@ mod containers {
         let mut address_map = HashMap::new();
         address_map.insert(
             "street".to_string(),
-            Box::new(OwnedAttributeValue::String("Main St".to_string())),
+            OwnedAttributeValue::String("Main St".to_string()),
         );
-        address_map.insert(
-            "number".to_string(),
-            Box::new(OwnedAttributeValue::Integer(123)),
-        );
+        address_map.insert("number".to_string(), OwnedAttributeValue::Integer(123));
         contact
             .address_mut()
             .insert("address".to_string(), OwnedAttributeValue::Map(address_map));
@@ -403,10 +394,10 @@ mod containers {
             && let Some(contact_address) = contact.address()
             && let Some(OwnedAttributeValue::Map(addr)) = contact_address.get("address")
         {
-            if let Some(OwnedAttributeValue::String(s)) = addr.get("street").map(AsRef::as_ref) {
+            if let Some(OwnedAttributeValue::String(s)) = addr.get("street") {
                 assert_eq!(s, "Main St");
             }
-            if let Some(OwnedAttributeValue::Integer(n)) = addr.get("number").map(AsRef::as_ref) {
+            if let Some(OwnedAttributeValue::Integer(n)) = addr.get("number") {
                 assert_eq!(*n, 123);
             }
         }

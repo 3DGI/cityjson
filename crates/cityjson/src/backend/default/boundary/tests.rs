@@ -4,6 +4,7 @@ use crate::cityjson::core::boundary::nested::{
     BoundaryNestedMultiOrCompositeSurface32, BoundaryNestedMultiPoint32, BoundaryNestedSolid32,
 };
 use crate::cityjson::core::vertex::VertexIndex;
+use crate::v2_0::{GeometryVertices32, RealWorldCoordinate};
 
 // Helper function to create vertex indices
 fn vi<T: VertexRef>(value: T) -> VertexIndex<T> {
@@ -185,6 +186,49 @@ fn multi_linestring_conversion() {
     let mut multi_point_boundary: Boundary<u32> = Boundary::new();
     multi_point_boundary.vertices = vec![vi(0), vi(1), vi(2)];
     assert!(multi_point_boundary.to_nested_multi_linestring().is_err());
+}
+
+#[test]
+fn coordinates_iterates_boundary_order() {
+    let boundary: Boundary<u32> = vec![vec![0, 1, 0, 2]].try_into().unwrap();
+    let vertices = GeometryVertices32::from(vec![
+        RealWorldCoordinate::new(10.0, 0.0, 0.0),
+        RealWorldCoordinate::new(20.0, 0.0, 0.0),
+        RealWorldCoordinate::new(30.0, 0.0, 0.0),
+    ]);
+
+    let xs: Vec<f64> = boundary
+        .coordinates(&vertices)
+        .map(RealWorldCoordinate::x)
+        .collect();
+
+    assert_eq!(xs, vec![10.0, 20.0, 10.0, 30.0]);
+}
+
+#[test]
+fn unique_coordinates_deduplicates_vertex_references() {
+    let boundary: Boundary<u32> = vec![vec![0, 1, 0, 2], vec![2, 1, 0]].try_into().unwrap();
+    let vertices = GeometryVertices32::from(vec![
+        RealWorldCoordinate::new(10.0, 0.0, 0.0),
+        RealWorldCoordinate::new(20.0, 0.0, 0.0),
+        RealWorldCoordinate::new(30.0, 0.0, 0.0),
+    ]);
+    let mut scratch = Vec::new();
+
+    let xs: Vec<f64> = boundary
+        .unique_coordinates(&vertices, &mut scratch)
+        .map(RealWorldCoordinate::x)
+        .collect();
+
+    assert_eq!(xs, vec![10.0, 20.0, 30.0]);
+    assert_eq!(
+        boundary
+            .unique_vertex_indices(&mut scratch)
+            .iter()
+            .map(|index| index.to_usize())
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
 }
 
 #[test]

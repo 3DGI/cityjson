@@ -63,6 +63,7 @@ use crate::backend::default::geometry::{
     GeometryCore, GeometryInstanceData, ThemedMaterials, ThemedTextures,
 };
 use crate::cityjson::core::appearance::ThemeName;
+use crate::cityjson::core::coordinate::Coordinate;
 use crate::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
@@ -70,7 +71,9 @@ use crate::resources::id::ResourceId32;
 use crate::resources::mapping::textures::TextureMapCore;
 use crate::resources::mapping::{MaterialMap, SemanticMap, SemanticOrMaterialMap, TextureMap};
 use crate::resources::storage::StringStorage;
+use crate::v2_0::Vertices;
 use crate::v2_0::boundary::Boundary;
+use crate::v2_0::boundary::{BoundaryCoordinates, BoundaryUniqueCoordinates};
 use crate::v2_0::vertex::{VertexIndex, VertexRef};
 use std::marker::PhantomData;
 use std::ops::{Deref, Index};
@@ -456,6 +459,33 @@ impl<VR: VertexRef, SS: StringStorage> Geometry<VR, SS> {
 
     pub fn boundaries(&self) -> Option<&Boundary<VR>> {
         self.inner.boundaries()
+    }
+
+    #[must_use]
+    pub fn coordinates<'a, V: Coordinate>(
+        &'a self,
+        vertices: &'a Vertices<VR, V>,
+    ) -> Option<BoundaryCoordinates<'a, VR, V>> {
+        self.boundaries()
+            .map(|boundary| boundary.coordinates(vertices))
+    }
+
+    pub fn unique_vertex_indices<'a>(
+        &'a self,
+        scratch: &'a mut Vec<VertexIndex<VR>>,
+    ) -> Option<&'a [VertexIndex<VR>]> {
+        self.boundaries()
+            .map(|boundary| boundary.unique_vertex_indices(scratch))
+    }
+
+    #[must_use]
+    pub fn unique_coordinates<'a, V: Coordinate>(
+        &'a self,
+        vertices: &'a Vertices<VR, V>,
+        scratch: &'a mut Vec<VertexIndex<VR>>,
+    ) -> Option<BoundaryUniqueCoordinates<'a, VR, V>> {
+        self.boundaries()
+            .map(|boundary| boundary.unique_coordinates(vertices, scratch))
     }
 
     pub fn semantics(&self) -> Option<SemanticMapView<'_, VR>> {
