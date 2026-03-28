@@ -1,106 +1,152 @@
-use std::env;
 use std::path::PathBuf;
 
+use cjindex::{CityIndex, StorageLayout};
 use cjlib::{Error, Result};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
-#[path = "../tests/common/data_prep.rs"]
-mod data_prep;
+#[derive(Debug, Parser)]
+#[command(
+    name = "cjindex",
+    version,
+    about = "Query CityJSON datasets through a persistent index"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
 
-use data_prep::{
-    DEFAULT_INPUT_ROOT, DEFAULT_OUTPUT_ROOT, prepare_cityjson_only, prepare_feature_files_only,
-    prepare_ndjson_only, prepare_test_sets,
-};
+#[derive(Debug, Subcommand)]
+enum Command {
+    Reindex(IndexCommand),
+    Get(FeatureCommand),
+    Query(QueryCommand),
+    Metadata(IndexCommand),
+}
+
+#[derive(Debug, Args)]
+struct IndexCommand {
+    #[command(flatten)]
+    storage: StorageArgs,
+
+    #[arg(long)]
+    index: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct FeatureCommand {
+    #[command(flatten)]
+    storage: StorageArgs,
+
+    #[arg(long)]
+    index: PathBuf,
+
+    #[arg(long)]
+    id: String,
+}
+
+#[derive(Debug, Args)]
+struct QueryCommand {
+    #[command(flatten)]
+    storage: StorageArgs,
+
+    #[arg(long)]
+    index: PathBuf,
+
+    #[arg(long)]
+    min_x: f64,
+
+    #[arg(long)]
+    max_x: f64,
+
+    #[arg(long)]
+    min_y: f64,
+
+    #[arg(long)]
+    max_y: f64,
+}
+
+#[derive(Debug, Args, Clone)]
+struct StorageArgs {
+    #[arg(long, value_enum)]
+    layout: LayoutKind,
+
+    #[arg(long, value_name = "PATH", num_args = 1..)]
+    paths: Vec<PathBuf>,
+
+    #[arg(long)]
+    root: Option<PathBuf>,
+
+    #[arg(long, default_value = "**/metadata.city.json")]
+    metadata_glob: String,
+
+    #[arg(long, default_value = "**/*.city.jsonl")]
+    feature_glob: String,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum LayoutKind {
+    Ndjson,
+    Cityjson,
+    FeatureFiles,
+}
+
+impl StorageArgs {
+    fn into_layout(self) -> Result<StorageLayout> {
+        match self.layout {
+            LayoutKind::Ndjson => Ok(StorageLayout::Ndjson { paths: self.paths }),
+            LayoutKind::Cityjson => Ok(StorageLayout::CityJson { paths: self.paths }),
+            LayoutKind::FeatureFiles => {
+                let root = self.root.ok_or_else(|| {
+                    Error::Import("feature-files layout requires --root".to_string())
+                })?;
+                Ok(StorageLayout::FeatureFiles {
+                    root,
+                    metadata_glob: self.metadata_glob,
+                    feature_glob: self.feature_glob,
+                })
+            }
+        }
+    }
+}
 
 fn main() -> Result<()> {
-    let mut args = env::args_os().skip(1).collect::<Vec<_>>();
-    if args.is_empty() {
-        print_usage();
-        return Ok(());
-    }
-
-    let command = args.remove(0);
-    match command.to_string_lossy().as_ref() {
-        "prep-test-data" => {
-            let options = PrepOptions::from_args(&args);
-            match options.layout.as_deref() {
-                None | Some("all") => {
-                    prepare_test_sets(&options.input, &options.output)?;
-                }
-                Some("feature-files") => {
-                    prepare_feature_files_only(
-                        &options.input,
-                        &options.output.join("feature-files"),
-                    )?;
-                }
-                Some("cityjson") => {
-                    prepare_cityjson_only(&options.input, &options.output.join("cityjson"))?;
-                }
-                Some("ndjson") => {
-                    prepare_ndjson_only(&options.input, &options.output)?;
-                }
-                Some(layout) => {
-                    return Err(Error::Import(format!(
-                        "unknown layout '{layout}' (expected: all|feature-files|cityjson|ndjson)"
-                    )));
-                }
-            }
-            Ok(())
-        }
-        "index" => Err(Error::Import(
-            "index CLI is scaffolded but the indexing pipeline is not implemented yet".to_string(),
-        )),
-        _ => {
-            print_usage();
-            Ok(())
-        }
+    let cli = Cli::parse();
+    match cli.command {
+        Command::Reindex(args) => run_reindex(args),
+        Command::Get(args) => run_get(args),
+        Command::Query(args) => run_query(args),
+        Command::Metadata(args) => run_metadata(args),
     }
 }
 
-struct PrepOptions {
-    input: PathBuf,
-    output: PathBuf,
-    layout: Option<String>,
+fn run_reindex(args: IndexCommand) -> Result<()> {
+    let storage = args.storage.into_layout()?;
+    let _index = CityIndex::open(storage, &args.index)?;
+    Err(not_implemented("reindex"))
 }
 
-impl PrepOptions {
-    fn from_args(args: &[std::ffi::OsString]) -> Self {
-        let mut input = PathBuf::from(DEFAULT_INPUT_ROOT);
-        let mut output = PathBuf::from(DEFAULT_OUTPUT_ROOT);
-        let mut layout = None;
-        let mut iter = args.iter();
-
-        while let Some(arg) = iter.next() {
-            match arg.to_string_lossy().as_ref() {
-                "--input" => {
-                    if let Some(value) = iter.next() {
-                        input = PathBuf::from(value);
-                    }
-                }
-                "--output" => {
-                    if let Some(value) = iter.next() {
-                        output = PathBuf::from(value);
-                    }
-                }
-                "--layout" => {
-                    if let Some(value) = iter.next() {
-                        layout = Some(value.to_string_lossy().to_string());
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        Self {
-            input,
-            output,
-            layout,
-        }
-    }
+fn run_get(args: FeatureCommand) -> Result<()> {
+    let storage = args.storage.into_layout()?;
+    let _index = CityIndex::open(storage, &args.index)?;
+    let _ = args.id;
+    Err(not_implemented("get"))
 }
 
-fn print_usage() {
-    eprintln!(
-        "usage: cjindex prep-test-data [--input PATH] [--output PATH] [--layout all|feature-files|cityjson|ndjson]"
-    );
-    eprintln!("       cjindex index");
+fn run_query(args: QueryCommand) -> Result<()> {
+    let storage = args.storage.into_layout()?;
+    let _index = CityIndex::open(storage, &args.index)?;
+    let _ = (args.min_x, args.max_x, args.min_y, args.max_y);
+    Err(not_implemented("query"))
+}
+
+fn run_metadata(args: IndexCommand) -> Result<()> {
+    let storage = args.storage.into_layout()?;
+    let _index = CityIndex::open(storage, &args.index)?;
+    Err(not_implemented("metadata"))
+}
+
+fn not_implemented(command: &str) -> Error {
+    Error::Import(format!(
+        "cjindex {command} is scaffolded but not implemented yet"
+    ))
 }

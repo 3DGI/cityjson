@@ -4,16 +4,16 @@ default:
     just --list
 
 prep-test-data:
-    cargo run -- prep-test-data
+    cargo run --bin prep-test-data --
 
 prep-feature-files:
-    cargo run -- prep-test-data --layout feature-files
+    cargo run --bin prep-test-data -- --layout feature-files
 
 prep-cityjson:
-    cargo run -- prep-test-data --layout cityjson
+    cargo run --bin prep-test-data -- --layout cityjson
 
 prep-ndjson:
-    cargo run -- prep-test-data --layout ndjson
+    cargo run --bin prep-test-data -- --layout ndjson
 
 check:
     cargo check --all-targets --all-features

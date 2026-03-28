@@ -9,6 +9,7 @@ repository = "https://github.com/3DGI/cjindex"
 
 [dependencies]
 cjlib = { path = "/home/balazs/Development/cjlib" }
+clap = { version = "4.6.0", features = ["derive"] }
 globset = "0.4"
 ignore = "0.4"
 lru = "0.12"
