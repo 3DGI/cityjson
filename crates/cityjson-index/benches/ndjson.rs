@@ -7,5 +7,9 @@ fn bench_ndjson(c: &mut Criterion) {
     bench_layout(c, LayoutKind::Ndjson);
 }
 
-criterion_group!(benches, bench_ndjson);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().sample_size(10);
+    targets = bench_ndjson
+}
 criterion_main!(benches);

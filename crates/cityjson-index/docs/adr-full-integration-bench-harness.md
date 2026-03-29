@@ -16,36 +16,39 @@ Accepted
 - regular `CityJSON`
 - `NDJSON` / `CityJSONSeq`
 
-Before this change, the benchmark story was inconsistent:
+The first integration benchmark harness fixed an earlier apples-to-oranges
+problem by benchmarking the same `CityIndex` API across all three layouts.
+That part was correct.
 
-- [benches/ndjson.rs](/home/balazs/Development/cjindex/benches/ndjson.rs)
-  benchmarked the real `CityIndex` API
-- [benches/cityjson.rs](/home/balazs/Development/cjindex/benches/cityjson.rs)
-  only benchmarked raw JSON parsing
-- [benches/feature_files.rs](/home/balazs/Development/cjindex/benches/feature_files.rs)
-  only benchmarked raw JSON parsing
+What was not correct enough was the dataset shape. The first version still used
+a tiny 9-feature subset. That made the benchmark suite easy to run, but it
+understated the real differences between layouts so badly that the numbers were
+misleading.
 
-That meant the project did not have one answer to the question "how fast is
-`cjindex`?" Different layouts were measuring different things.
+For realistic performance work, we need the harness to answer:
 
-This also made performance interpretation weak:
-
-- NDJSON numbers included indexing and lookup behavior
-- CityJSON and feature-files numbers mostly reflected `serde_json` costs
-- fixture shapes were not aligned, so the results were not directly comparable
-
-We needed one integration benchmark suite that exercised the same public API
-operations across all three layouts in release mode.
+- how does each layout behave on the real prepared corpus?
+- how does `query` behave when it returns on the order of 1,000 features rather
+  than single-digit toy results?
+- which layout actually scales better under dense tile-local read workloads?
 
 ## Decision
 
-We added a shared integration benchmark harness in
-[benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs)
-and converted all three benchmark entry points to thin wrappers around that
-shared harness.
+We kept the shared integration benchmark harness, but changed its workload
+contract from a tiny subset to the full prepared dataset.
 
-The benchmark suite now measures the same five public operations for each
-layout:
+The harness now benchmarks against the canonical prepared roots under:
+
+- `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+
+The measured corpus in this environment is:
+
+- 227,045 features total
+- feature-files: 227,045 individual feature files
+- CityJSON: 191 tile files
+- NDJSON: 191 sequence files
+
+The operation contract remains the same:
 
 - `reindex`
 - `get`
@@ -53,138 +56,151 @@ layout:
 - `query_iter`
 - `metadata`
 
-The benchmark harness derives all three storage layouts from the same small
-raw-input subset, so the layouts are measured against comparable data rather
-than unrelated fixture shapes.
+The workload contract changed:
+
+- `get` remains a single-object lookup
+- `query` and `query_iter` now use a deterministic 1,000-feature spatial
+  workload
+- those 1,000 features are selected from one real tile, not scattered across
+  the corpus
+- the first qualifying tile in the current dataset is `10/256/588`
+- that tile contains 1,027 feature files total
+
+We also made the Criterion configuration explicit with `sample_size(10)`,
+because full-corpus `reindex` and full-corpus dense spatial queries are far too
+expensive for Criterion's implicit 100-sample default.
 
 ## Implementation
 
-### 1. Shared harness
+### 1. Shared harness retained
 
-The main implementation lives in
+The main implementation still lives in
 [benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs).
 
-It introduces:
+It still exposes:
 
 - `LayoutKind`
 - `bench_layout(c: &mut Criterion, kind: LayoutKind)`
 
-That helper owns the common Criterion logic for all five operations. The
-per-layout bench files only select the storage layout.
-
-### 2. Fixture preparation
-
-The harness materializes one benchmark subset from the raw input dataset under:
-
-- `/home/balazs/Data/3DBAG_3dtiles_test/input`
-
-It then derives all three benchmark layouts from that same subset by reusing
-the existing fixture-prep logic in
-[tests/common/data_prep.rs](/home/balazs/Development/cjindex/tests/common/data_prep.rs).
-
-The final fixture contract is:
-
-- 3 tiles
-- 3 feature files per tile
-- 9 features total
-
-Per storage layout, that materializes to:
-
-- feature-files: 9 files, 9 features total
-- CityJSON: 3 files, 9 features total
-- NDJSON: 3 files, 9 features total
-
-This was an important correction during implementation. The first harness
-version selected only one feature per tile, which made the derived CityJSON and
-NDJSON files degenerate single-feature tiles. That would have under-measured
-the real cost of tiled one-object extraction. The harness was corrected to keep
-multiple features per tile.
-
-### 3. Shared operation timing
-
-For each layout, the harness:
-
-1. prepares the derived layout root
-2. builds a fully indexed `CityIndex` for warm steady-state benches
-3. chooses one stable feature id from the subset
-4. computes one stable bbox that covers the selected features
-5. benchmarks the five operations using identical timing structure
-
-The `reindex` bench uses a fresh empty SQLite index per iteration so it
-measures actual rebuild cost. The read-path benches reuse a populated index so
-they measure steady-state lookup behavior rather than setup.
-
-### 4. Thin per-layout entry points
-
-The three bench files are now intentionally small:
+The per-layout bench files remain thin wrappers:
 
 - [benches/feature_files.rs](/home/balazs/Development/cjindex/benches/feature_files.rs)
 - [benches/cityjson.rs](/home/balazs/Development/cjindex/benches/cityjson.rs)
 - [benches/ndjson.rs](/home/balazs/Development/cjindex/benches/ndjson.rs)
 
-Each one just imports `mod support;` and calls `bench_layout(...)` with the
-appropriate `LayoutKind`.
+### 2. Full prepared corpus instead of a subset
 
-This removes duplicated timing code and avoids benchmark drift between layouts.
+The harness no longer materializes a synthetic benchmark subset into `/tmp`.
+
+Instead, it reuses the canonical prepared dataset under
+`/home/balazs/Data/3DBAG_3dtiles_test/cjindex`. If the prepared roots are
+missing, the harness can still fall back to `prepare_test_sets(...)`, but the
+intended steady-state path is to benchmark the already prepared full dataset.
+
+This removes the biggest source of benchmark distortion from the earlier
+version.
+
+### 3. Deterministic 1,000-feature spatial workload
+
+The selector in
+[benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs)
+now groups feature files by tile and picks the first lexicographically ordered
+tile that contains at least 1,000 feature files.
+
+For the current corpus, that is:
+
+- `10/256/588`
+
+The harness then:
+
+1. takes the first 1,000 features from that tile
+2. uses the first selected ID as the stable `get` target
+3. computes one bbox by unioning the selected 1,000 models
+4. uses that bbox for both `query` and `query_iter`
+
+This keeps the query workload large enough to be realistic while avoiding the
+earlier mistake of spreading one benchmark bbox across multiple tiles.
+
+### 4. Explicit Criterion sizing
+
+Each bench entry point now uses:
+
+- `Criterion::default().sample_size(10)`
+
+This is not a cosmetic change. On the full corpus:
+
+- `reindex` takes seconds to tens of seconds per sample
+- CityJSON dense spatial reads take tens of seconds per sample
+
+Without an explicit smaller sample size, the suite becomes effectively
+unrunnable.
 
 ## Consequences
 
 ### Positive
 
-- `cjindex` now has one consistent release-mode integration benchmark suite.
-- The three layouts are measured through the same public API surface.
-- Benchmark output is directly comparable across layouts.
-- The harness is small enough to run routinely during development.
-- The results are much more useful for design decisions than the old parse-only
-  CityJSON and feature-files benches.
+- The suite now measures the real prepared corpus instead of a toy subset.
+- `query` and `query_iter` now exercise a dense, tile-local workload of about
+  1,000 features.
+- The benchmark results are now realistic enough to drive backend priorities.
+- The relative differences between layouts are much clearer than before.
 
 ### Negative
 
-- The benchmark harness now depends on an external local dataset path.
-- Benchmarks do more setup work than the previous micro-benches.
-- The shared support module duplicates a small amount of test-helper logic,
-  especially around model-to-bbox derivation and fixture selection.
+- The full benchmark suite is much slower than the earlier subset-based suite.
+- Criterion had to be configured more conservatively just to keep the suite
+  runnable.
+- Full-corpus results are now dominated by real backend costs, so regressions
+  are more expensive to measure.
 
 ### Neutral tradeoff
 
-We chose realistic, comparable integration benchmarks over pure parsing
-micro-benchmarks. If raw parse benchmarks are still useful later, they should
-be added back explicitly as a separate benchmark class, not mixed into the main
-integration suite.
+We intentionally traded convenience for realism. The earlier subset suite was
+faster, but it answered the wrong question. The current suite is slower, but it
+measures the workload that actually matters.
 
 ## Results and Interpretation
 
 The benchmark run and exact numbers are recorded in
 [docs/cjindex-full-integration-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-full-integration-benches-results.md).
 
-In simple terms, the implementation showed:
+The most important result is that the tiny-subset conclusion was wrong.
 
-- indexing is in the same range across all three layouts
-- feature-files and NDJSON are very close on warm reads
-- CityJSON is the clear steady-state read-path outlier
+On the full corpus:
 
-Observed release-mode timings on the shared subset:
+- feature-files is the fastest steady-state read layout
+- NDJSON is the fastest reindex layout and a reasonable second-place read
+  layout
+- CityJSON is the clear outlier on dense read workloads
 
-- `feature_files_reindex`: `4.3400 ms` to `4.4566 ms`
-- `cityjson_reindex`: `4.5582 ms` to `4.6971 ms`
-- `ndjson_reindex`: `4.2319 ms` to `4.3517 ms`
-- `feature_files_get`: `72.957 us` to `73.153 us`
-- `cityjson_get`: `95.515 us` to `95.737 us`
-- `ndjson_get`: `72.189 us` to `72.293 us`
-- `feature_files_query`: `915.04 us` to `916.08 us`
-- `cityjson_query`: `2.8397 ms` to `2.8438 ms`
-- `ndjson_query`: `904.48 us` to `906.02 us`
+Observed release-mode timings:
 
-The likely explanation is architectural:
+- `feature_files_reindex`: `9.2951 s` to `9.3231 s`
+- `feature_files_get`: `73.094 us` to `73.394 us`
+- `feature_files_query`: `88.030 ms` to `88.460 ms`
+- `feature_files_query_iter`: `87.634 ms` to `87.786 ms`
+- `cityjson_reindex`: `23.056 s` to `23.136 s`
+- `cityjson_get`: `27.105 ms` to `27.191 ms`
+- `cityjson_query`: `73.774 s` to `73.925 s`
+- `cityjson_query_iter`: `73.859 s` to `74.234 s`
+- `ndjson_reindex`: `7.7962 s` to `7.8153 s`
+- `ndjson_get`: `163.97 us` to `164.21 us`
+- `ndjson_query`: `188.56 ms` to `189.30 ms`
+- `ndjson_query_iter`: `193.11 ms` to `195.09 ms`
 
-- feature-files and NDJSON start from feature-shaped payloads
-- CityJSON has to extract one object out of a multi-feature tile and rebuild a
-  one-object feature package on reads
+The practical conclusion is not subtle:
 
-That makes CityJSON the next obvious optimization target.
+- CityJSON read/query performance is now the dominant problem
+- feature-files is better than NDJSON on steady-state reads
+- NDJSON is better than feature-files on rebuild cost
 
 ## Follow-up
 
-The next performance work should focus on the CityJSON read path, not on
-benchmark coverage. The benchmark harness now provides a reliable baseline for
-measuring those future improvements.
+The next performance work should focus on regular `CityJSON`, especially:
+
+- one-object extraction cost
+- repeated reads from the same larger tile
+- repeated feature-package reconstruction during dense queries
+
+Benchmark coverage is no longer the main issue. The full-corpus harness now
+makes the backend priority obvious.

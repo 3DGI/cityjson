@@ -8,36 +8,32 @@ Commands:
 
 ```bash
 cargo test --release --tests
-rm -rf target/criterion
 cargo bench --bench feature_files --bench cityjson --bench ndjson
 ```
 
-The `target/criterion` directory was cleared before the benchmark run so the
-results below are absolute timings for the current harness rather than
-Criterion change reports against an older, differently shaped benchmark.
+The benchmark entry points now carry an explicit Criterion configuration with
+`sample_size(10)`. That is necessary because full-corpus `reindex` and
+full-corpus spatial reads are too expensive for Criterion's implicit
+100-sample default.
 
-## Fixture Shape
+## Corpus Shape
 
-The benchmark harness now materializes one shared raw-input subset and derives
-all three storage layouts from it. The subset currently contains:
+The benchmark harness now uses the canonical prepared full dataset rooted at:
 
-- 3 tiles
-- 3 feature files per tile
-- 9 features total
+- `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
 
-Selected raw-input tiles:
+The measured corpus in this environment contains:
 
-- `10/256/588`
-- `10/256/590`
-- `10/256/596`
+- 227,045 features total
+- feature-files: 227,045 individual feature files
+- CityJSON: 191 tile files
+- NDJSON: 191 sequence files
 
-This means:
+This is the real prepared corpus, not a synthetic subset.
 
-- feature-files benchmarks operate on 9 individual feature files
-- CityJSON benchmarks operate on 3 tile files with 3 features each
-- NDJSON benchmarks operate on 3 sequence files with 3 features each
+## Workload Shape
 
-The benchmarked operations are identical across layouts:
+The benchmarked operations are still identical across layouts:
 
 - `reindex`
 - `get`
@@ -45,58 +41,92 @@ The benchmarked operations are identical across layouts:
 - `query_iter`
 - `metadata`
 
+The read workload is now defined like this:
+
+- `get` uses one stable feature ID from the full prepared corpus
+- `query` and `query_iter` use a deterministic spatial workload built from
+  1,000 selected features
+- those 1,000 features are taken from the first lexicographically selected tile
+  that has at least 1,000 feature files
+- in the current corpus, that tile is `10/256/588`
+- that tile contains 1,027 feature files total
+
+The query bbox is built from the union of the 1,000 selected feature models, so
+the spatial workload stays localized to one real tile-scale region instead of
+accidentally spanning large parts of the corpus.
+
 ## Results
 
 | Benchmark | Time |
 | --- | --- |
-| `feature_files_reindex` | 4.3400 ms to 4.4566 ms |
-| `feature_files_get` | 72.957 us to 73.153 us |
-| `feature_files_query` | 915.04 us to 916.08 us |
-| `feature_files_query_iter` | 915.05 us to 915.85 us |
-| `feature_files_metadata` | 2.3149 us to 2.3163 us |
-| `cityjson_reindex` | 4.5582 ms to 4.6971 ms |
-| `cityjson_get` | 95.515 us to 95.737 us |
-| `cityjson_query` | 2.8397 ms to 2.8438 ms |
-| `cityjson_query_iter` | 2.8060 ms to 2.8110 ms |
-| `cityjson_metadata` | 2.4150 us to 2.4172 us |
-| `ndjson_reindex` | 4.2319 ms to 4.3517 ms |
-| `ndjson_get` | 72.189 us to 72.293 us |
-| `ndjson_query` | 904.48 us to 906.02 us |
-| `ndjson_query_iter` | 902.55 us to 905.11 us |
-| `ndjson_metadata` | 2.4074 us to 2.4091 us |
+| `feature_files_reindex` | 9.2951 s to 9.3231 s |
+| `feature_files_get` | 73.094 us to 73.394 us |
+| `feature_files_query` | 88.030 ms to 88.460 ms |
+| `feature_files_query_iter` | 87.634 ms to 87.786 ms |
+| `feature_files_metadata` | 2.3212 us to 2.3312 us |
+| `cityjson_reindex` | 23.056 s to 23.136 s |
+| `cityjson_get` | 27.105 ms to 27.191 ms |
+| `cityjson_query` | 73.774 s to 73.925 s |
+| `cityjson_query_iter` | 73.859 s to 74.234 s |
+| `cityjson_metadata` | 11.014 us to 11.026 us |
+| `ndjson_reindex` | 7.7962 s to 7.8153 s |
+| `ndjson_get` | 163.97 us to 164.21 us |
+| `ndjson_query` | 188.56 ms to 189.30 ms |
+| `ndjson_query_iter` | 193.11 ms to 195.09 ms |
+| `ndjson_metadata` | 10.893 us to 10.949 us |
 
 ## Interpretation
 
-The main result is that the three layouts now have directly comparable
-integration benchmarks. We are no longer comparing NDJSON API timings against
-CityJSON or feature-files parse micro-benchmarks.
+The earlier 9-feature subset understated the real differences between layouts.
+On the full corpus, the storage formats no longer look close.
 
-Observed behavior on this subset:
+Observed behavior on the full benchmark set:
 
-- `reindex` is tightly clustered across all three layouts at roughly
-  `4.2 ms` to `4.7 ms`.
-- `get` is essentially tied for feature-files and NDJSON at roughly `72 us`,
-  while CityJSON is slower at roughly `96 us`.
-- `query` and `query_iter` are also essentially tied for feature-files and
-  NDJSON at roughly `0.9 ms`, while CityJSON is about `2.8 ms`.
-- `metadata` is effectively identical across layouts at about `2.3 us` to
-  `2.4 us`.
+- `reindex` is no longer "basically the same" across layouts.
+- NDJSON is fastest at roughly `7.8 s`.
+- feature-files follows at roughly `9.3 s`.
+- CityJSON is slowest at roughly `23.1 s`.
+- `get` is strongest for feature-files at roughly `73 us`.
+- NDJSON `get` is about `164 us`, around `2.2x` slower than feature-files.
+- CityJSON `get` is about `27.1 ms`, roughly `165x` slower than NDJSON and
+  roughly `370x` slower than feature-files.
+- `query` and `query_iter` on the 1,000-feature tile-local workload are
+  roughly `88 ms` for feature-files.
+- NDJSON is roughly `189 ms` to `195 ms`, about `2.1x` to `2.2x` slower than
+  feature-files.
+- CityJSON is roughly `74 s`, which is about `390x` slower than NDJSON and
+  about `840x` slower than feature-files on this workload.
 
-The likely reason CityJSON is slower on `get`, `query`, and `query_iter` is
-that it has to extract a single object out of a multi-feature tile and rebuild
-the one-object feature payload from the shared root document on each read. The
-feature-files and NDJSON layouts both start from feature-shaped payloads, so
-their steady-state read path is cheaper.
+The relative shape is now clear:
 
-The gap between feature-files and NDJSON is small on this subset. NDJSON is
-slightly faster on `get`, `query`, and `query_iter`, while feature-files is
-slightly faster on `metadata`. At this scale, those differences are minor
-compared to the CityJSON read-path gap.
+- feature-files is the best steady-state read layout
+- NDJSON is the best reindex layout and a reasonable second-place read layout
+- CityJSON is the dominant outlier on steady-state reads and also the slowest
+  layout to rebuild
+
+## Likely Causes
+
+The full-corpus results line up with the backend designs:
+
+- feature-files reads are cheap because each lookup starts from a
+  single-feature payload that is already isolated on disk
+- NDJSON reads still work with feature-shaped payloads, but they pay extra
+  sequence-file handling and parsing cost
+- CityJSON reads are much more expensive because each returned feature must be
+  extracted from a multi-feature tile and rebuilt as a one-object package
+
+The CityJSON query numbers are especially severe because the query workload is
+tile-local and feature-dense. That means `cjindex` is repeatedly pulling many
+single-object packages back out of the same larger CityJSON tile. The current
+read path does not yet make that access pattern cheap enough.
 
 ## Conclusions
 
-- The full integration benchmark suite is now in place for all three layouts.
-- The results are coherent and align with the current backend designs.
-- The next performance question is not benchmark coverage anymore. It is
-  whether the CityJSON one-object extraction path should be optimized further,
-  since that is now the clear steady-state outlier.
+- The benchmark suite now reflects the real prepared corpus rather than a tiny
+  subset.
+- The read-path ranking on realistic data is now clear:
+  feature-files first, NDJSON second, CityJSON far behind.
+- The earlier subset benchmark understated how expensive the CityJSON read path
+  is under dense tile-local workloads.
+- The next performance target is unambiguous: regular `CityJSON` read/query
+  behavior.

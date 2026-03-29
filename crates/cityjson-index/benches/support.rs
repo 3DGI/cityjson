@@ -15,9 +15,7 @@ use walkdir::WalkDir;
 #[path = "../tests/common/data_prep.rs"]
 mod data_prep;
 
-const RAW_INPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/input";
-const SUBSET_TILE_COUNT: usize = 3;
-const SUBSET_FILES_PER_TILE: usize = 3;
+const WORKLOAD_FEATURE_COUNT: usize = 1_000;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -31,11 +29,7 @@ pub fn bench_layout(c: &mut Criterion, kind: LayoutKind) {
     let fixtures = fixtures();
     let layout_root = fixtures.layout_root(kind).to_path_buf();
     let populated_index = build_index(kind, &layout_root);
-    let feature_id = fixtures
-        .feature_ids
-        .first()
-        .expect("benchmark fixture must contain at least one feature id")
-        .clone();
+    let feature_id = fixtures.get_feature_id.as_str();
     let query_bbox = fixtures.query_bbox;
     let label = kind.label();
 
@@ -54,7 +48,7 @@ pub fn bench_layout(c: &mut Criterion, kind: LayoutKind) {
     c.bench_function(&format!("{label}_get"), |b| {
         b.iter(|| {
             let model = populated_index
-                .get(black_box(feature_id.as_str()))
+                .get(black_box(feature_id))
                 .expect("get should succeed")
                 .expect("feature should exist");
             black_box(model);
@@ -117,7 +111,7 @@ impl LayoutKind {
 
 struct BenchFixtures {
     datasets: data_prep::PreparedDatasets,
-    feature_ids: Vec<String>,
+    get_feature_id: String,
     query_bbox: BBox,
 }
 
@@ -137,21 +131,39 @@ fn fixtures() -> &'static BenchFixtures {
 }
 
 fn prepare_bench_fixtures() -> Result<BenchFixtures> {
-    let raw_subset_root = materialize_raw_subset()?;
-    let prepared_root = unique_temp_dir("cjindex-bench-prepared");
-    let datasets = data_prep::prepare_test_sets(&raw_subset_root, &prepared_root)?;
-    let selected_files = selected_feature_files()?;
+    let datasets = prepared_datasets()?;
+    let selected_files = selected_feature_files(&datasets.feature_files, WORKLOAD_FEATURE_COUNT)?;
     let feature_ids = selected_files
         .iter()
         .map(|path| feature_id_from_file(path))
         .collect::<Result<Vec<_>>>()?;
+    let get_feature_id = feature_ids.first().cloned().ok_or_else(|| {
+        Error::Import("benchmark workload must contain at least one feature".into())
+    })?;
     let query_bbox = build_query_bbox(&datasets.feature_files, &feature_ids)?;
 
     Ok(BenchFixtures {
         datasets,
-        feature_ids,
+        get_feature_id,
         query_bbox,
     })
+}
+
+fn prepared_datasets() -> Result<data_prep::PreparedDatasets> {
+    let output_root = Path::new(data_prep::DEFAULT_OUTPUT_ROOT);
+    let feature_files_root = output_root.join("feature-files");
+    let cityjson_root = output_root.join("cityjson");
+    let ndjson_root = output_root.join("ndjson");
+
+    if feature_files_root.exists() && cityjson_root.exists() && ndjson_root.exists() {
+        return Ok(data_prep::PreparedDatasets {
+            feature_files: feature_files_root,
+            cityjson: cityjson_root,
+            ndjson: ndjson_root,
+        });
+    }
+
+    data_prep::prepare_test_sets(Path::new(data_prep::DEFAULT_INPUT_ROOT), output_root)
 }
 
 fn build_index(kind: LayoutKind, root: &Path) -> CityIndex {
@@ -265,11 +277,11 @@ fn value_as_f64(value: &Value) -> Result<f64> {
         .ok_or_else(|| Error::Import("expected a numeric value".into()))
 }
 
-fn selected_feature_files() -> Result<Vec<PathBuf>> {
+fn selected_feature_files(layout_root: &Path, limit: usize) -> Result<Vec<PathBuf>> {
+    let feature_root = layout_root.join("features");
     let mut by_tile: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
-    let feature_root = Path::new(RAW_INPUT_ROOT).join("features");
 
-    for entry in WalkDir::new(&feature_root) {
+    for entry in WalkDir::new(&feature_root).sort_by_file_name() {
         let entry = entry.map_err(|error| Error::Import(error.to_string()))?;
         if !entry.file_type().is_file() {
             continue;
@@ -286,44 +298,47 @@ fn selected_feature_files() -> Result<Vec<PathBuf>> {
         }
         let tile = path
             .strip_prefix(&feature_root)
-            .map_err(|_| Error::Import("feature path is outside the raw input root".into()))?
+            .map_err(|_| {
+                Error::Import("feature path is outside the prepared feature-files root".into())
+            })?
             .parent()
             .ok_or_else(|| Error::Import("feature file is missing a tile directory".into()))?
             .to_path_buf();
         by_tile.entry(tile).or_default().push(path);
     }
 
-    let mut selected = Vec::new();
-    for (_, mut files) in by_tile.into_iter().take(SUBSET_TILE_COUNT) {
-        files.sort();
-        selected.extend(files.into_iter().take(SUBSET_FILES_PER_TILE));
+    for files in by_tile.values() {
+        if files.len() >= limit {
+            return Ok(files.iter().take(limit).cloned().collect());
+        }
     }
 
-    Ok(selected)
+    let mut selected = Vec::with_capacity(limit);
+    for files in by_tile.into_values() {
+        for path in files {
+            selected.push(path);
+            if selected.len() == limit {
+                return Ok(selected);
+            }
+        }
+    }
+
+    Err(Error::Import(format!(
+        "prepared feature-files root only yielded {} readable features, expected at least {limit}",
+        selected.len()
+    )))
 }
 
-fn materialize_raw_subset() -> Result<PathBuf> {
-    let input_root = Path::new(RAW_INPUT_ROOT);
-    let subset_root = unique_temp_dir("cjindex-bench-input");
-    fs::create_dir_all(&subset_root).map_err(|error| Error::Import(error.to_string()))?;
-    fs::copy(
-        input_root.join("metadata.json"),
-        subset_root.join("metadata.json"),
-    )
-    .map_err(|error| Error::Import(error.to_string()))?;
-
-    for source in selected_feature_files()? {
-        let relative = source
-            .strip_prefix(input_root)
-            .map_err(|_| Error::Import("feature path is outside the raw input root".into()))?;
-        let destination = subset_root.join(relative);
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|error| Error::Import(error.to_string()))?;
-        }
-        fs::copy(&source, &destination).map_err(|error| Error::Import(error.to_string()))?;
+fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time must be after the unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("cjindex-{label}-{unique}.{suffix}"));
+    if path.exists() {
+        fs::remove_file(&path).expect("benchmark temp file should be removable");
     }
-
-    Ok(subset_root)
+    path
 }
 
 fn feature_id_from_file(path: &Path) -> Result<String> {
@@ -352,28 +367,4 @@ fn feature_id_from_value(feature: &Value, label: &str) -> Result<String> {
     Err(Error::Import(format!(
         "{label} is missing a top-level id and contains multiple CityObjects"
     )))
-}
-
-fn unique_temp_dir(label: &str) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time must be after the unix epoch")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("cjindex-{label}-{unique}"));
-    if path.exists() {
-        fs::remove_dir_all(&path).expect("benchmark temp dir should be removable");
-    }
-    path
-}
-
-fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time must be after the unix epoch")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("cjindex-{label}-{unique}.{suffix}"));
-    if path.exists() {
-        fs::remove_file(&path).expect("benchmark temp file should be removable");
-    }
-    path
 }
