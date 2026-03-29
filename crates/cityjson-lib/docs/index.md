@@ -1,165 +1,77 @@
 # cjlib
 
-`cjlib` is the integration crate for the CityJSON ecosystem in this repository.
+`cjlib` is the integration layer for the CityJSON crates in this repository.
+It keeps one semantic core in Rust, adds a small user-facing facade, and
+provides the place where format modules, higher-level operations, and foreign
+language bindings meet.
 
-It is not a second CityJSON domain model.
-The intended architecture is:
+It is not a second CityJSON model.
 
-- one semantic model: `cityjson::v2_0::OwnedCityModel`
-- one facade wrapper: `cjlib::CityModel`
-- many format boundaries: `serde_cityjson`, future Arrow and Parquet crates,
-  and explicit raw/staged boundary APIs where needed
+## Responsibility Split
 
-The responsibility split is:
+- `cityjson-rs`
+  Semantic model family, invariants, validated mutation, extraction, and merge.
+- `serde_cityjson`
+  CityJSON JSON and JSONL parsing, probing, feature handling, and
+  serialization.
+- `cjlib`
+  Rust facade, explicit format modules, reusable operations above the model,
+  and the shared low-level FFI core used by bindings.
+- `cjfake`
+  Test-data and generator crate above `cjlib`.
 
-- `cityjson-rs`: normalized in-memory model, invariants, extraction, and merge
-- `serde_cityjson`: CityJSON JSON and JSONL parsing, feature handling,
-  staged/raw JSON boundary work, and serialization
-- `cjlib`: user-facing convenience API, explicit format modules, version
-  dispatch, and future FFI boundary
-- `cjfake`: generator crate above `cjlib`, not part of the facade
+## Public Shape
 
-For the full cross-crate synthesis, see [Architecture](architecture.md).
+The Rust-facing surface stays intentionally small:
 
-## Current Status
+- `cjlib::CityModel` as the owned default wrapper
+- `cjlib::CityJSONVersion`, `cjlib::Error`, and `cjlib::ErrorKind`
+- `cjlib::json` for explicit JSON and JSONL boundary work
+- optional sibling format modules such as `cjlib::arrow` and `cjlib::parquet`
+- `cjlib::ops` for higher-level reusable workflows
+- `cjlib::cityjson` as the explicit drop-down path to the model crate
 
-The current release line is already being dogfooded in `tyler` 0.4.0.
-`cjlib` is usable today for ordinary `CityJSON` document files, and the
-feature-file path is explicit through `cjlib::json`.
+The common path is:
 
-The practical integration pattern is:
+1. load one document through `CityModel::from_*`
+2. switch to `cjlib::json` or another explicit module when boundary control,
+   streams, or backend-specific options matter
+3. work with the underlying model through `cjlib::cityjson`
+4. use `cjlib::ops` for reusable workflow helpers that do not belong in the
+   semantic model crate
 
-```rust
-let base = std::fs::read("metadata.city.json")?;
-let model = cjlib::json::from_feature_file_with_base("feature.city.jsonl", &base)?;
-# Ok::<(), cjlib::Error>(())
-```
+## FFI Direction
 
-That is enough for the current `tyler` migration path and keeps feature
-loading explicit when the base document is needed to normalize coordinates.
+Bindings are organized around one shared low-level core, not around three
+independent foreign APIs.
 
-## Public API Shape
+The common concepts live under [FFI and Bindings](ffi/index.md):
 
-The future public API is intentionally small.
+- one Rust-owned semantic core
+- one shared low-level ownership and bulk-operation story
+- target-specific public wrappers for C++, Python, and wasm
 
-### Primary entry points
+That keeps the low-level contract unified while still allowing each binding to
+be idiomatic in its host environment.
 
-- `cjlib::CityModel`
-- `cjlib::CityJSONVersion`
-- `cjlib::Error`
-- `cjlib::ErrorKind`
-- `cjlib::ops`
-- `cjlib::cityjson`
+## Documentation Map
 
-### Default JSON path
-
-These stay as the ergonomic default for loading one CityJSON document:
-
-- `CityModel::from_slice`
-- `CityModel::from_file`
-
-### Explicit format modules
-
-Formats beyond the default single-document CityJSON path should be explicit:
-
-- `cjlib::json`
-- `cjlib::arrow`
-- `cjlib::parquet`
-
-The design goal is:
-
-- top-level methods for the common single-document CityJSON path
-- module-qualified methods for format-specific behavior, model-stream APIs, and
-  future raw/lazy access
-
-For JSON, that explicit boundary module should own:
-
-- probing
-- document parsing
-- feature parsing
-- feature-file helpers
-- model-stream reading
-- feature-stream writing and reading
-- serialization
-- future raw/staged access
-
-For Arrow and Parquet, file-oriented helpers are fine, but the semantic rule
-stays the same:
-
-- read or write one `CityModel`
-- or read or write streams of `CityModel` values
-
-`cjlib` should not surface Arrow batches or Parquet row groups as semantic
-application types.
-
-## Higher-level Operations
-
-Application-level workflows that do not belong in the `cityjson-rs` core model
-should live under `cjlib::ops`.
-
-That namespace is the intended home for:
-
-- LoD filtering
-- version upgrade helpers
-- vertex cleanup
-- texture path updates
-- geometry measurements such as surface area and volume
-- feature-gated CRS helpers
-
-Core submodel extraction and merge semantics should stay owned by
-`cityjson-rs`.
-`cjlib::ops` may wrap those capabilities, but it should not redefine them.
-
-## Working Model
-
-`cjlib::CityModel` should remain a thin owned wrapper over
-`cityjson::v2_0::OwnedCityModel`.
-That wrapper may represent a full document or a smaller self-contained package.
-The facade should add only:
-
-- constructor convenience
-- version classification
-- a small error surface
-- feature-gated format integration
-
-Everything else should come from `cityjson-rs`, accessed explicitly through
-`cjlib::cityjson`.
-The wrapper boundary should stay explicit with `as_inner`, `as_inner_mut`,
-`into_inner`, `AsRef`, and `AsMut`.
-It should not rely on `Deref` to blur the boundary.
-
-## User Experience
-
-For most users, the expected workflow should be:
-
-1. read a CityJSON document with `CityModel::from_*`
-2. drop down to `cjlib::json`, `cjlib::arrow`, or `cjlib::parquet` when
-   explicit boundary control or model streams are needed
-3. access the inner model explicitly, then work with `cjlib::cityjson`
-4. use `cjlib::ops` for higher-level reusable workflows
-
-## Documentation Structure
-
-The docs site should work for more than just the Rust crate surface.
-`cjlib` is intended to become a multi-language entry point through FFI, so the
-documentation should stay split by responsibility:
-
-- overview and guides for the common `cjlib` entry points
-- architecture and API design pages for the facade itself
-- FFI and bindings pages for language-neutral concepts and future bindings
-- engineering notes for implementation plans and internal decisions
-
-That is why the project uses MkDocs for the main site rather than relying on
-Rust-only generated docs.
+- [Architecture](architecture.md)
+  Cross-crate responsibility split and long-term layering rules.
+- [Guide](guide.md)
+  How the Rust facade is meant to be used.
+- [Public API](public-api.md)
+  Overview of the stable Rust-facing surface.
+- [FFI and Bindings](ffi/index.md)
+  Shared foreign-language concepts plus target plans.
 
 ## Non-goals
 
-The future `cjlib` API should not:
+`cjlib` should not:
 
 - reintroduce a second in-memory CityJSON model
-- expose indexed JSON internals as the normal user-facing API
-- duplicate parsing or conversion logic that belongs in `serde_cityjson`
+- make format-specific transport details look like semantic application types
+- hide format choice behind one generic dispatcher
+- duplicate JSON parsing logic that belongs in `serde_cityjson`
 - absorb storage invariants that belong in `cityjson-rs`
-- absorb `cjfake` into the root facade API
-- hide format choice behind a generic registry or extension-sniffing dispatcher
-- require callers to match on error strings for normal control flow
+- force C++, Python, and wasm to share one identical high-level public API

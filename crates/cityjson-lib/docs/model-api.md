@@ -1,21 +1,21 @@
 # Model Boundary API
 
-This document pins down the intended boundary between `cjlib::CityModel` and
+This document pins down the boundary between `cjlib::CityModel` and
 `cjlib::cityjson`.
 
-The goal is to keep `cjlib` small and explicit.
-`CityModel` should be a thin owned wrapper, not a shadow copy of the full
-`cityjson-rs` API.
+`CityModel` should stay small and explicit.
+It is a wrapper, not a shadow copy of the whole `cityjson-rs` API.
 
-`CityModel` is also the one semantic wrapper type for all semantic scopes:
+## Stable Shape
 
-- a full document
-- a grouped subset
-- a single-feature-sized self-contained model
+The stable contract is:
 
-## Intended Surface
+- `CityModel` is owned by default
+- document-oriented constructors live on the type itself
+- the underlying model is available through explicit accessors
+- stream APIs do not appear as inherent methods
 
-The intended wrapper surface is:
+The current Rust shape is intentionally simple:
 
 ```rust
 impl CityModel {
@@ -26,54 +26,53 @@ impl CityModel {
     pub fn as_inner_mut(&mut self) -> &mut crate::cityjson::v2_0::OwnedCityModel;
     pub fn into_inner(self) -> crate::cityjson::v2_0::OwnedCityModel;
 }
-
-impl AsRef<crate::cityjson::v2_0::OwnedCityModel> for CityModel;
-impl AsMut<crate::cityjson::v2_0::OwnedCityModel> for CityModel;
-impl From<crate::cityjson::v2_0::OwnedCityModel> for CityModel;
 ```
 
-That is enough for the facade.
+The exact `cityjson-rs` instantiation behind the wrapper is an implementation
+choice. The durable boundary is the owned wrapper plus the explicit conversion
+points.
 
-Stream-oriented APIs do not belong as inherent `CityModel` methods.
-Streaming is a format-boundary concern and should stay in explicit modules such
-as `cjlib::json` or `cjlib::arrow`.
+`CityModel` is also the same wrapper type for:
+
+- a full document
+- a grouped subset
+- a feature-sized self-contained model
 
 ## Why No `Deref`
 
-The wrapper should not rely on `Deref` or `DerefMut`.
+`Deref` and `DerefMut` blur the boundary in the wrong direction:
 
-`Deref` makes the boundary blurry:
-
-- it makes `cjlib` look like it owns far more of the model API than it really
-  should
-- it encourages root-level API sprawl
-- it makes it harder to evolve the wrapper without surprising users
+- they make `cjlib` look larger than it is
+- they encourage root-level method sprawl
+- they make later wrapper changes harder to reason about
 
 Explicit access is clearer:
 
 ```rust
 let mut model = cjlib::CityModel::from_file("amsterdam.city.json")?;
 let inner = model.as_inner();
-let _ = inner;
 let inner_mut = model.as_inner_mut();
-# let _ = inner_mut;
+# let _ = (inner, inner_mut);
 ```
 
-## Why Re-export The Crate, Not Lots Of Items
+## Why Re-export `cityjson-rs`
 
-The advanced access path should be:
+The advanced path should be:
 
 ```rust
 use cjlib::cityjson;
 ```
 
-That is cleaner than re-exporting many `cityjson-rs` items individually at the
-`cjlib` root.
-It keeps the `cjlib` namespace small and avoids a long-term maintenance burden
-around selective re-exports.
+That is cleaner than re-exporting a long list of model items at the crate root.
 
-## Why Owned By Default
+## What Does Not Belong Here
 
-The default facade should stay owned and normalized.
-Borrowed lifetimes, raw backends, or staged views may exist later, but they
-should be explicit advanced APIs rather than part of `CityModel` itself.
+The following do not belong as inherent `CityModel` methods:
+
+- stream-oriented loaders
+- raw or staged JSON readers
+- backend-specific transport helpers
+- large workflow method bags
+
+Those belong in explicit modules such as `cjlib::json`, sibling format modules,
+or `cjlib::ops`.

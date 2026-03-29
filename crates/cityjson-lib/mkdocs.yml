@@ -8,7 +8,6 @@ nav:
       - Architecture: architecture.md
       - Guide: guide.md
       - Examples: examples.md
-      - FAQ: faq.md
   - API Design:
       - Public API: public-api.md
       - Model Boundary: model-api.md
@@ -17,13 +16,11 @@ nav:
       - Operations: operations-api.md
   - FFI & Bindings:
       - Overview: ffi/index.md
+      - Shared Low-level Core: ffi/shared-core.md
       - Conventions: ffi/conventions.md
-  - Integration:
-      - serde_cityjson Integration Plan: serde-cityjson-integration-plan.md
-      - Template and Instance Note: template-instance-import-note.md
-  - Engineering:
-      - Engineering choices: engineering.md
-      - Refactor plan: refactor-plan.md
+      - C++ Plan: ffi/cpp-ffi-plan.md
+      - Python Plan: ffi/python-ffi-plan.md
+      - Wasm Plan: ffi/wasm-ffi-plan.md
 theme:
   name: material
   features:

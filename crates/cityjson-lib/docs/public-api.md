@@ -1,41 +1,38 @@
-# cjlib
+# Public API Overview
 
-`cjlib` is the user-facing facade for the CityJSON crates in this repository.
+This page summarizes the stable Rust-facing shape that `cjlib` is trying to
+preserve.
 
-The current rewrite is deliberately narrow:
+## Root Surface
 
-- `cityjson-rs` owns the semantic model
-- `serde_cityjson` owns the JSON boundary
-- `cjlib` owns the thin facade, explicit JSON helpers, version dispatch, and a
-  small public error surface
-
-Unfinished areas are intentionally explicit.
-Illustrative modules such as `ops`, `arrow`, and `parquet` expose one
-unimplemented function each so the intended boundary is visible without
-pretending the implementation exists.
-
-## Core Surface
-
-The implemented core surface is:
+The crate root should stay small:
 
 - `CityModel`
 - `CityJSONVersion`
 - `Error`
 - `ErrorKind`
 - `json`
+- `ops`
+- optional sibling modules such as `arrow` and `parquet`
 - `cityjson`
 
-`CityModel` is a thin owned wrapper around
-`cityjson::v2_0::OwnedCityModel`.
-The wrapper boundary stays explicit and does not use `Deref`.
+The public rule is:
 
-Current practical status:
+- common document loading lives on `CityModel`
+- explicit boundary work lives in explicit modules
+- advanced model work happens through `cjlib::cityjson`
 
-- `cjlib` is usable today for ordinary `CityJSON` document files
-- the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
-- explicit feature and feature-stream helpers exist under `cjlib::json`
-- `tyler` 0.4.0 dogfoods the feature-file path through `from_feature_file_with_base`
-- higher-level workflows and non-JSON backends remain intentionally unfinished
+## `CityModel`
+
+`CityModel` is the owned default wrapper at the Rust boundary.
+The concrete `cityjson-rs` model instantiation behind it may evolve where that
+helps implementation, but the facade contract stays the same:
+
+- owned by default
+- explicit boundary accessors
+- no `Deref`-based API blur
+- one wrapper type regardless of whether the model is a whole document, a
+  subset, or a feature-sized package
 
 ```rust
 use cjlib::CityModel;
@@ -47,93 +44,54 @@ let from_slice = CityModel::from_slice(
 
 let borrowed = from_file.as_inner();
 let _owned = from_slice.into_inner();
-let _ = borrowed;
+# let _ = borrowed;
 # Ok::<(), cjlib::Error>(())
 ```
 
-## JSON Boundary
+## Explicit Boundary Modules
 
-`cjlib::json` is the only implemented explicit format module.
-
-It owns:
+`cjlib::json` owns explicit JSON and JSONL work:
 
 - probing
 - document parsing
 - feature parsing
 - feature-stream reading
-- document serialization
-- feature serialization
+- document and feature serialization
 - feature-stream writing
 
-```rust
-use cjlib::{json, CityJSONVersion};
+Sibling format modules follow the same rule: explicit module, explicit format,
+semantic item type still `CityModel`.
 
-let bytes = std::fs::read("tests/data/v2_0/minimal.city.json")?;
-let probe = json::probe(&bytes)?;
-assert_eq!(probe.kind(), json::RootKind::CityJSON);
-assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
+## `cjlib::ops`
 
-let model = json::from_slice(&bytes)?;
-let text = json::to_string(&model)?;
-assert!(!text.is_empty());
-# Ok::<(), cjlib::Error>(())
-```
+`ops` is the home for reusable workflows above the semantic model:
 
-For feature files that need the base metadata document to normalize vertices,
-use the explicit helper:
+- selection and subset helpers
+- merge and upgrade workflows
+- cleanup and maintenance helpers
+- geometry measurements
+- feature-gated CRS helpers
 
-```rust
-use cjlib::json;
+Those operations should build on `cityjson-rs` semantics rather than redefine
+them.
 
-let base = std::fs::read("metadata.city.json")?;
-let feature = json::from_feature_file_with_base("feature.city.jsonl", &base)?;
-let _ = feature.as_inner();
-# Ok::<(), cjlib::Error>(())
-```
+## `cjlib::cityjson`
 
-`json::from_file` is document-oriented.
-`CityJSONFeature` streams must go through `json::read_feature_stream`.
-The rewrite no longer treats stream aggregation as part of the stable default
-surface.
-
-## Illustrative Modules
-
-These modules exist to show intended responsibility boundaries, not to provide
-working behavior yet:
-
-- `cjlib::ops::merge`
-- `cjlib::arrow::to_file`
-- `cjlib::parquet::to_file`
-
-Each of those functions is intentionally `todo!()` so unfinished work is
-visible in both the code and the test suite.
-
-That way `cjfake` can generate `cityjson-rs` data and then emit any supported
-format by calling the explicit `cjlib` format modules.
-`cjlib` stays focused on facade and format integration instead of absorbing
-test-data generation concerns.
-
-## Alternative Format Modules
-
-Arrow and Parquet integration should be feature-gated and explicit.
+The advanced escape hatch is the re-exported model crate:
 
 ```rust
-#[cfg(feature = "arrow")]
-let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
-
-#[cfg(feature = "arrow")]
-cjlib::arrow::to_file("tiles-out.cjarrow", &model)?;
-
-#[cfg(feature = "parquet")]
-let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
-
-#[cfg(feature = "parquet")]
-cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
-# Ok::<(), cjlib::Error>(())
+use cjlib::cityjson;
 ```
 
-Those modules are part of the intended public shape even if their
-implementation lands later than the JSON path. The current code only exposes
-explicit `to_file` placeholders for them.
-Where those backends expose stream-oriented APIs later, the item type should
-still be `cjlib::CityModel`.
+That keeps the facade teachable without pretending that `cjlib` owns the whole
+semantic surface.
+
+## Relationship To FFI
+
+The Rust facade and the FFI work are parallel layers, not competing ones:
+
+- Rust users call `cjlib` directly.
+- Foreign bindings share one low-level core documented under
+  [FFI and Bindings](ffi/index.md).
+- Binding-specific APIs are free to be more C++-like, Python-like, or
+  wasm-friendly than the Rust facade.

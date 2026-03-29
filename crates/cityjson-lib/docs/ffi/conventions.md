@@ -1,57 +1,61 @@
 # FFI Documentation Conventions
 
-These conventions keep the future `cjlib` FFI documentation small, consistent, and maintainable.
+These conventions keep the FFI documentation small, consistent, and centered on
+the shared low-level story.
 
 ## Document Shared Concepts Once
 
-Language-neutral concepts should be documented in one place:
+Language-neutral concepts belong in the shared core docs:
 
-- `CityModel` lifecycle and ownership
+- model ownership and lifecycle
 - version handling
 - error categories
-- input and output formats
-- stream versus whole-document loading
+- parse and serialize entry points
+- collection access and bulk buffer access
+- transform and quantization policy
 
-Binding pages should link back to those shared concepts instead of re-explaining them.
+Target pages should link back to the shared core instead of re-explaining it.
 
 ## Split By Layer
 
-The intended documentation layers are:
+The documentation layers are:
 
-- Rust facade docs for the native Rust API
-- FFI docs for the stable cross-language boundary
-- binding docs for target-language ergonomics
+- Rust facade docs for native Rust users
+- shared FFI docs for the low-level cross-language core
+- binding docs for target-specific ergonomics
 
-That prevents the Rust API docs from turning into mixed Rust/C/Python prose.
+That prevents the Rust docs from turning into mixed Rust/C++/Python/JS prose.
 
-## Prefer Stable Concepts Over Raw Implementation Details
+## Prefer Stable Concepts Over Temporary Internals
 
-The FFI docs should describe stable concepts first:
+The shared docs should emphasize durable ideas:
 
 - opaque handles
 - ownership transfer
-- borrowed versus owned data
-- error reporting
-- version compatibility
+- immutable and mutable access patterns
+- bulk operations over chatty crossings
+- error and version reporting
 
-They should avoid baking temporary internal implementation details into the public documentation.
+Avoid baking temporary crate layouts or one-off implementation experiments into
+the long-term binding docs.
 
-## Keep Examples Parallel Across Languages
+## Keep Examples Parallel Where Possible
 
-When bindings arrive, the same small example should ideally exist in parallel forms:
+When examples are added, prefer parallel views of the same workflow:
 
-- Rust
-- low-level FFI
-- target-language binding
+- Rust facade
+- shared low-level FFI core
+- target-specific binding
 
-That makes the relationship between the APIs obvious without multiplying conceptual surface area.
+That makes the mapping between layers obvious without multiplying conceptual
+surface area.
 
-## Keep The Site Language-Neutral At The Top
+## Keep The Top Level Language-Neutral
 
-The main MkDocs navigation should stay broad enough to hold:
+The main docs navigation should stay broad enough to hold:
 
 - Rust guides
-- FFI reference and conventions
-- language-specific binding guides
+- shared FFI concepts
+- target-specific binding guides
 
-That is the main reason the documentation site should stay MkDocs-driven rather than Rustdoc-driven.
+That is the main reason the site stays MkDocs-driven rather than Rustdoc-only.

@@ -1,49 +1,41 @@
 # Architecture
 
-This document synthesizes the current architecture direction across
-`cityjson-rs`, `serde_cityjson`, `cjlib`, and `cjfake`.
+This document describes the intended split between `cityjson-rs`,
+`serde_cityjson`, `cjlib`, and future bindings.
 
-The goal is to keep the ecosystem clean, explicit, and maintainable as more
-formats land.
+The aim is to keep one semantic core, explicit boundary crates, and one shared
+low-level story for foreign languages.
 
-## Core Decisions
+## Core Rules
 
-The architecture is built on five rules:
-
-1. There is exactly one semantic model: `cityjson::v2_0::OwnedCityModel`.
-2. There is exactly one semantic interchange unit: a self-contained
-   `OwnedCityModel`.
-3. `cjlib::CityModel` is the stable owned facade over that one semantic model.
-4. JSON, JSONL, Arrow, Parquet, and future transports are format boundaries,
-   not semantic model families.
-5. Raw, staged, or lazy read paths are explicit advanced APIs and must not
+1. `cityjson-rs` owns the semantic CityJSON model family and its invariants.
+2. `cjlib` owns the stable facade and chooses how that model family is exposed
+   as an owned default wrapper.
+3. JSON, JSONL, Arrow, Parquet, and future transports are explicit format
+   boundaries, not separate semantic model families.
+4. C++, Python, and wasm share one low-level FFI core, but they are free to
+   expose different public APIs on top of it.
+5. Raw, staged, lazy, or performance-oriented paths stay explicit. They do not
    distort the default owned facade.
 
-## One Semantic Model
+## One Semantic Core
 
-The same semantic type should represent all of these cases:
+The same semantic model family must be able to represent:
 
 - a full CityJSON document
-- a tile or grouped subset
-- a single feature-sized package
+- a grouped subset or tile
+- a single feature-sized self-contained package
 
-The difference between those values is only:
+Those are scope differences, not separate semantic kinds.
 
-- scope
-- size
-- provenance
+Implementation details such as string storage, vertex index width, or the exact
+`cityjson-rs` instantiation can vary where it materially helps a workload, but
+that choice should stay behind the crate boundary. The architecture is about
+one semantic core, not one frozen internal typedef.
 
-It is not a type-level semantic distinction.
+## Self-contained Models
 
-That means the ecosystem should not introduce:
-
-- a separate object-package model
-- a separate partial-model semantic type
-- a format-specific semantic unit in `cjlib`
-
-## Self-contained Does Not Mean Inline
-
-A self-contained model must carry everything needed for independent processing:
+A self-contained model must carry everything needed for independent use:
 
 - cityobjects
 - referenced vertices
@@ -51,22 +43,14 @@ A self-contained model must carry everything needed for independent processing:
 - appearance resources
 - semantics
 - metadata and extras
-- enough provenance to merge or trace later
 
-It does not need to inline everything into every geometry.
-
-The preferred compromise is:
-
-- keep pooled storage
-- keep indexed references
-- scope the pools to the current `OwnedCityModel`
-
-That lets the ecosystem support split, merge, stream, and regroup workflows
-without abandoning the storage discipline of the semantic model.
+It does not need to inline all shared data into every geometry. Pooled storage
+and indexed references remain the right default as long as the model is
+self-contained at its own scope.
 
 ## Layering
 
-The intended dependency and responsibility flow is:
+The dependency direction is:
 
 ```text
 cjfake
@@ -75,113 +59,115 @@ cjfake
   -> cityjson-rs
 ```
 
-With responsibilities split like this:
+With FFI layered like this:
+
+```text
+Rust crates
+  -> shared low-level FFI core
+  -> { C++ wrapper, Python binding, wasm adapter }
+```
+
+Responsibilities split as follows:
 
 - `cityjson-rs`
-  - owns the one semantic model
-  - owns invariants, validation, and semantic operations
-  - owns extraction, localization, remapping, and merge of self-contained
-    submodels
+  - semantic model family
+  - invariants, validation, and correctness-critical mutation
+  - extraction, localization, remapping, and merge semantics
 - `serde_cityjson`
-  - owns the CityJSON JSON and JSONL wire format
-  - owns document parsing, feature parsing, stream parsing, and serialization
-  - owns staged and raw JSON boundary work
-- `cityarrow` / `cityparquet`
-  - own Arrow and Parquet boundary representations
-  - convert between transport-native representations and `OwnedCityModel`
+  - CityJSON JSON and JSONL wire format
+  - document parsing, feature parsing, stream parsing, and serialization
+  - raw or staged JSON boundary work
 - `cjlib`
-  - owns the stable user-facing facade
-  - owns convenience constructors, error shaping, and explicit format modules
-  - stays format-neutral at the semantic level
-- `cjfake`
-  - stays above the facade as a generator and test-data producer
-  - emits models and formats by using `cjlib`
+  - stable Rust facade
+  - explicit format modules
+  - higher-level reusable operations above the semantic model
+  - shared low-level FFI surface for bindings
+- bindings
+  - host-language ergonomics
+  - host-native value types, views, iterators, and convenience helpers
 
 ## API Consequences For `cjlib`
 
-`cjlib` should expose one semantic wrapper type:
+`cjlib` should expose one owned default wrapper:
 
 - `cjlib::CityModel`
 
-That wrapper should work for any valid semantic scope:
-
-- whole document
-- grouped subset
-- single-feature package
-
-The top-level convenience path should stay small and single-model oriented:
+The root remains small:
 
 - `CityModel::from_slice`
 - `CityModel::from_file`
-
-Everything format-specific should live in explicit modules such as:
-
 - `cjlib::json`
-- `cjlib::arrow`
-- `cjlib::parquet`
+- optional transport modules such as `cjlib::arrow` and `cjlib::parquet`
+- `cjlib::ops`
+- `cjlib::cityjson`
 
-Those modules should speak in terms of:
+Format modules speak in terms of:
 
 - one `CityModel`
-- or a stream of `CityModel` values
+- or streams of `CityModel` values
 
-They should not surface format-specific semantic types such as:
-
-- `CityJSONFeature`
-- Arrow batches as conceptual application objects
-- Parquet row groups as semantic units
-
-Those are wire-format details, not the semantic architecture.
+They should not promote transport-native units such as JSON feature wrappers,
+Arrow batches, or Parquet row groups into the semantic API surface.
 
 ## JSON Boundary Direction
 
-The JSON boundary should support both:
+`cjlib::json` should own the explicit JSON boundary:
 
-- full-document materialization into one `CityModel`
-- feature-sized materialization into one `CityModel`
-- stream reading as a sequence of `CityModel` values
-- strict stream aggregation as an explicit helper when the caller wants to
-  rebuild one larger model
+- probing
+- document parsing
+- feature parsing
+- feature-stream reading
+- document and feature serialization
+- feature-stream writing
+- future raw or staged JSON access
 
-That keeps `CityJSONFeature` in its correct place:
+`CityJSONFeature` remains a wire-format concern. The semantic unit returned to
+callers is still `CityModel`.
 
-- a JSON wire-format construct
-- not the conceptual unit of the whole ecosystem
+## Shared FFI Direction
 
-## Raw And Staged Paths
+The shared low-level FFI core should be wide enough for all three target
+families:
 
-The default `cjlib::CityModel` path should remain:
+- C++ needs model construction, inspection, and controlled writing.
+- Python needs model handles, collection access, bulk geometry access, and bulk
+  mutation primitives.
+- wasm needs only a subset, but it should reuse the same core concepts for
+  probing, parsing, serialization, and bulk extraction.
 
-- owned
-- normalized
-- stable
-- manipulation-friendly
+What should stay shared:
 
-If higher-performance read paths become important, they should be added
-explicitly, for example under `cjlib::json`, as raw or staged APIs.
+- ownership and lifecycle rules
+- parse, probe, and serialize entry points
+- collection and resource access
+- bulk geometry and boundary access
+- bulk remap, import, extract, and cleanup operations
+- explicit transform and quantization policy
+- version and error concepts
 
-The architecture should not leak borrowed lifetimes or raw-backend concerns
-into the default `CityModel` facade.
+What should stay target-specific:
+
+- C++ RAII wrappers and value builders
+- Python classes, mappings, iterators, and convenience algorithms
+- JS-friendly wasm exports, typed arrays, and one-shot task-oriented APIs
 
 ## What Belongs In `cityjson-rs`
 
-The semantic model crate should eventually own the core operations needed for
-package-based processing:
+`cityjson-rs` should own semantic operations such as:
 
-- extract a self-contained submodel
-- localize shared resources into a submodel
-- merge a self-contained submodel back into a larger model
-- assemble a larger model from many smaller models
+- extracting a self-contained submodel
+- localizing shared resources
+- merging submodels back together
+- validating edits that affect model invariants
 
-Those are semantic model concerns.
-They should not be reinvented in format crates or hidden as ad hoc logic in
-`cjlib`.
+Those are not JSON concerns and they should not be reimplemented separately in
+`cjlib` or in bindings.
 
 ## What Belongs In `cjlib::ops`
 
-`cjlib::ops` should stay above the semantic core.
-It can provide workflow-oriented helpers, but it should delegate correctness and
-merge semantics to `cityjson-rs`.
+`cjlib::ops` lives above the semantic core.
+It can offer workflow helpers, but it should delegate correctness-critical
+semantics to `cityjson-rs`.
 
 Good candidates include:
 
@@ -194,16 +180,10 @@ Good candidates include:
 
 ## Non-goals
 
-The intended architecture should not:
+The architecture should not:
 
-- reintroduce a second in-memory CityJSON model in `cjlib`
-- define a separate semantic package type beside `OwnedCityModel`
-- make borrowed-string storage the main architectural axis
+- reintroduce a second semantic model in `cjlib`
+- treat storage-generic implementation choices as the main public abstraction
 - hide format choice behind a generic registry
-- force every format to share one universal read representation
-
-The right abstraction is:
-
-- one semantic model
-- many format boundaries
-- explicit conversions between them
+- force C++, Python, and wasm to share one identical host-language API
+- duplicate JSON parsing or semantic validation logic across crates

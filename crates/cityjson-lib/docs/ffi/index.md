@@ -1,34 +1,44 @@
 # FFI and Bindings
 
-`cjlib` is intended to become the stable, user-facing integration layer for more than just Rust.
-As FFI crates and language bindings are added, the documentation site needs to describe:
+These pages describe how `cjlib` should serve non-Rust targets.
 
-- the Rust facade
-- the stable FFI boundary
-- binding-specific guidance for higher-level languages
+The key architectural decision is:
+
+- one shared low-level FFI core
+- separate target-specific public bindings on top
+
+That means the low-level ownership, parse, serialize, and bulk-operation story
+should be shared, while C++, Python, and wasm remain free to expose different
+host-language APIs.
 
 ## Why This Lives In MkDocs
 
-Rustdoc is still useful for Rust APIs, but it is not the right home for the whole project documentation.
-`cjlib` needs one documentation site that can cover:
+Rustdoc is useful for Rust APIs, but it is not the right home for the whole
+cross-language story.
+The documentation site needs one place that can cover:
 
 - Rust usage
-- C ABI or low-level FFI concepts
-- higher-level bindings such as Python or other host languages
-- shared concepts such as ownership, versioning, error categories, and format support
+- low-level FFI concepts
+- target-specific bindings
+- shared concepts such as ownership, versioning, transforms, and error mapping
 
-MkDocs is the better top-level documentation generator for that job because it is language-neutral.
+MkDocs is the right top-level tool because it is language-neutral.
 
 ## Documentation Split
 
-The intended split is:
+The FFI section is split into:
 
-- API design pages define the Rust facade contract
-- FFI pages define language-neutral conventions and ABI-level expectations
-- future binding pages explain how each target language maps onto the shared FFI concepts
+- [Shared low-level core](shared-core.md)
+  The common substrate used by all non-Rust targets.
+- [Conventions](conventions.md)
+  Documentation rules for keeping the shared concepts and target wrappers
+  aligned.
+- [C++ plan](cpp-ffi-plan.md)
+  C++ wrapper direction over the shared core.
+- [Python plan](python-ffi-plan.md)
+  Python binding direction over the shared core.
+- [Wasm plan](wasm-ffi-plan.md)
+  Narrow browser-facing adapter over the shared core.
 
-This keeps the long-term docs shape clean:
-
-- shared concepts are written once
-- Rust-specific details stay in the Rust-facing sections
-- language-specific differences are documented where they belong
+The target plan pages should not redefine the shared core. They should explain
+how each target projects that core into an idiomatic public API.

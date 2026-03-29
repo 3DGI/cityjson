@@ -2,18 +2,19 @@
 
 This document pins down how `cjlib` should expose sibling format crates.
 
-The design goal is to keep the facade explicit and unsurprising:
+## Core Rule
 
-- `CityModel::from_*` stays reserved for the default single-document CityJSON
-  path
+The facade should stay explicit:
+
+- `CityModel::from_*` is reserved for the default single-document CityJSON path
 - explicit modules own explicit formats
-- `cjlib` does not grow a generic format registry
 - every format boundary speaks in terms of `CityModel` or streams of
   `CityModel`
+- `cjlib` does not grow a generic format registry
 
 ## Intended Modules
 
-The intended module layout is:
+The public layout is:
 
 ```rust
 pub mod json;
@@ -25,42 +26,29 @@ pub mod arrow;
 pub mod parquet;
 ```
 
-Those names are the public `cjlib` facade.
-Their implementations should delegate to sibling backend crates such as
-`serde_cityjson`, `cityarrow`, and `cityparquet`.
+Those modules delegate to backend crates such as `serde_cityjson`, `cityarrow`,
+and `cityparquet`.
 
-## JSON Is Richer Than The Others
+## JSON Is Richer
 
-`cjlib::json` should be the richest explicit format module because:
+`cjlib::json` is the richest boundary module because it has to cover:
 
-- it is the default and most common path
-- it needs probing
-- it needs document and feature entry points
-- it needs model-stream reading and writing helpers
-- it needs text serialization helpers
-- it is the most likely home for explicit raw/staged read APIs
+- probing
+- document parsing
+- feature parsing
+- feature-stream reading and writing
+- document and feature serialization
+- future raw or staged JSON access
 
-That is why `cjlib::json` owns:
+Sibling transport modules can stay smaller as long as they follow the same
+semantic rule.
 
-- `probe`
-- `from_slice`
-- `from_file`
-- `from_feature_slice`
-- `read_feature_stream`
-- `write_feature_stream`
-- `to_vec`
-- `to_string`
-- `to_writer`
-- `to_feature_string`
+## One Semantic Unit Across Formats
 
-The other transport modules can stay smaller.
-
-## Transport Modules Must Preserve The Same Semantic Unit
-
-Arrow and Parquet should not invent new semantic units at the `cjlib`
+Arrow and Parquet must not invent separate semantic units at the `cjlib`
 boundary.
-Even when the backend uses batches, row groups, or columnar chunks internally,
-the public facade should still trade in:
+Even if the backend format uses batches, row groups, or other transport-native
+chunks internally, the public facade still trades in:
 
 - one `CityModel`
 - or streams of `CityModel` values
@@ -76,37 +64,21 @@ pub mod arrow {
         model: &crate::CityModel,
     ) -> crate::Result<()>;
 }
-
-#[cfg(feature = "parquet")]
-pub mod parquet {
-    pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<crate::CityModel>;
-    pub fn to_file(
-        path: impl AsRef<std::path::Path>,
-        model: &crate::CityModel,
-    ) -> crate::Result<()>;
-}
 ```
 
-But the architecture should also leave room for explicit model-stream APIs where
-the backend format makes that natural.
-The public contract should not expose Arrow batches or Parquet row groups as if
-they were semantic application objects.
+The same idea applies to Parquet and future backends.
 
 ## No Generic `read` / `write`
 
-The public surface should avoid APIs like:
+Avoid APIs such as:
 
 - `cjlib::read(path)`
 - `cjlib::write(path, &model)`
 - `cjlib::Format`
 - `cjlib::Codec`
 
-Those look compact at first, but they push format detection, extension policy,
-feature interactions, and backend-specific options into one place.
-That is exactly the kind of convenience layer that becomes hard to keep
-elegant.
-
-The explicit-module rule is cleaner:
+Those compact interfaces push format detection and backend-specific policy into
+one place. The explicit-module rule is clearer:
 
 - if you mean JSON, write `cjlib::json`
 - if you mean Arrow, write `cjlib::arrow`
@@ -114,30 +86,11 @@ The explicit-module rule is cleaner:
 
 ## Relationship To `cjfake`
 
-`cjfake` should sit above `cjlib`, not inside it.
-
-The preferred dependency direction is:
+`cjfake` should remain above `cjlib`.
 
 ```text
 cjfake -> cjlib -> { serde_cityjson, cityarrow, cityparquet, cityjson-rs }
 ```
 
-That gives `cjfake` automatic access to every output format that `cjlib`
-exposes, without making `cjlib` responsible for fake-data generation.
-
-A `cjfake`-style workflow should look like this:
-
-```rust
-let model = cjfake::small_city()?;
-cjlib::json::to_writer(&mut std::io::stdout(), &model)?;
-
-#[cfg(feature = "arrow")]
-cjlib::arrow::to_file("small-city.cjarrow", &model)?;
-
-#[cfg(feature = "parquet")]
-cjlib::parquet::to_file("small-city.cjparquet", &model)?;
-# Ok::<(), cjlib::Error>(())
-```
-
-The important design point is that `cjfake` uses `cjlib`.
-`cjlib` should not absorb `cjfake`.
+That lets `cjfake` reuse every format that `cjlib` exposes without making fake
+data generation part of the facade itself.
