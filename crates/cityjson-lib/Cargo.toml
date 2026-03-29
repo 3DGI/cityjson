@@ -16,6 +16,6 @@ path = "src/lib.rs"
 cityjson = { path = "/home/balazs/Development/cityjson-rs" }
 serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["raw_value"] }
 
 [dev-dependencies]

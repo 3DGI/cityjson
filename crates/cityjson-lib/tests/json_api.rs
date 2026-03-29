@@ -2,6 +2,8 @@
 
 use std::io::Cursor;
 
+use serde_json::value::RawValue;
+
 use cjlib::{CityJSONVersion, json};
 
 #[test]
@@ -63,6 +65,48 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
 
     assert_eq!(v0, [10.0, 20.0, 30.0]);
     assert_eq!(v2, [11.0, 22.0, 35.0]);
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_can_materialize_feature_parts_with_a_base_document() -> cjlib::Result<()> {
+    let document = br#"{
+        "type":"CityJSON",
+        "version":"2.0",
+        "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
+        "metadata":{"title":"base-root"},
+        "CityObjects":{},
+        "vertices":[]
+    }"#;
+    let object = RawValue::from_string(
+        r#"{"type":"Building","geometry":[{"type":"MultiSurface","boundaries":[[[0,2,1]]]}]}"#
+            .to_owned(),
+    )
+    .expect("raw feature object");
+    let cityobjects = [json::FeatureObject {
+        id: "feature-1",
+        object: object.as_ref(),
+    }];
+    let vertices = [[0, 0, 0], [2, 0, 0], [1, 0, 0]];
+    let parts = json::FeatureParts {
+        id: "feature-1",
+        cityobjects: &cityobjects,
+        vertices: &vertices,
+    };
+
+    let model = json::from_feature_parts_with_base(parts, document)?;
+    let vertices = model.as_inner().vertices();
+    let text = json::to_string(&model)?;
+    let output: serde_json::Value = serde_json::from_str(&text)?;
+
+    assert_eq!(output["metadata"]["title"], "base-root");
+    assert_eq!(
+        output["vertices"],
+        serde_json::json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]])
+    );
+    assert_eq!(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
+    assert_eq!(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
 
     Ok(())
 }

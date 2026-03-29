@@ -6,6 +6,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
+pub use serde_cityjson::{FeatureObject, FeatureParts};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootKind {
@@ -148,6 +149,21 @@ pub fn from_feature_slice_with_base(
             ))
         }
     }
+}
+
+pub fn from_feature_parts_with_base(
+    parts: FeatureParts<'_>,
+    base_document_bytes: &[u8],
+) -> Result<CityModel> {
+    let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
+        Error::Json(serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            error,
+        )))
+    })?;
+    Ok(CityModel(
+        serde_cityjson::from_feature_parts_owned_with_base(parts, base_input)?,
+    ))
 }
 
 pub fn from_feature_file_with_base<P: AsRef<Path>>(
