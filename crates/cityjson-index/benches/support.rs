@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cjindex::{BBox, CityIndex, StorageLayout};
-use cjlib::{CityModel, Error, Result};
+use cjlib::{Error, Result};
 use criterion::{BatchSize, Criterion};
 use serde_json::Value;
 use walkdir::WalkDir;
@@ -15,7 +15,11 @@ use walkdir::WalkDir;
 #[path = "../tests/common/data_prep.rs"]
 mod data_prep;
 
-const WORKLOAD_FEATURE_COUNT: usize = 1_000;
+const GET_WORKLOAD_COUNT: usize = 1_000;
+const QUERY_WORKLOAD_COUNT: usize = 10;
+const QUERY_TILE_MIN_FEATURES: usize = 100;
+const QUERY_TILE_SAMPLE_SIZE: usize = 128;
+const WORKLOAD_SHUFFLE_SEED: u64 = 0x6a09e667f3bcc909;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -29,8 +33,6 @@ pub fn bench_layout(c: &mut Criterion, kind: LayoutKind) {
     let fixtures = fixtures();
     let layout_root = fixtures.layout_root(kind).to_path_buf();
     let populated_index = build_index(kind, &layout_root);
-    let feature_id = fixtures.get_feature_id.as_str();
-    let query_bbox = fixtures.query_bbox;
     let label = kind.label();
 
     c.bench_function(&format!("{label}_reindex"), |b| {
@@ -47,31 +49,37 @@ pub fn bench_layout(c: &mut Criterion, kind: LayoutKind) {
 
     c.bench_function(&format!("{label}_get"), |b| {
         b.iter(|| {
-            let model = populated_index
-                .get(black_box(feature_id))
-                .expect("get should succeed")
-                .expect("feature should exist");
-            black_box(model);
+            for feature_id in fixtures.get_ids.iter() {
+                let model = populated_index
+                    .get(black_box(feature_id.as_str()))
+                    .expect("get should succeed")
+                    .expect("feature should exist");
+                black_box(model);
+            }
         });
     });
 
     c.bench_function(&format!("{label}_query"), |b| {
         b.iter(|| {
-            let models = populated_index
-                .query(black_box(&query_bbox))
-                .expect("query should succeed");
-            black_box(models);
+            for bbox in fixtures.query_bboxes.iter() {
+                let models = populated_index
+                    .query(black_box(bbox))
+                    .expect("query should succeed");
+                black_box(models);
+            }
         });
     });
 
     c.bench_function(&format!("{label}_query_iter"), |b| {
         b.iter(|| {
-            let models = populated_index
-                .query_iter(black_box(&query_bbox))
-                .expect("query_iter should build")
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .expect("query_iter should succeed");
-            black_box(models);
+            for bbox in fixtures.query_bboxes.iter() {
+                let models = populated_index
+                    .query_iter(black_box(bbox))
+                    .expect("query_iter should build")
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .expect("query_iter should succeed");
+                black_box(models);
+            }
         });
     });
 
@@ -111,8 +119,8 @@ impl LayoutKind {
 
 struct BenchFixtures {
     datasets: data_prep::PreparedDatasets,
-    get_feature_id: String,
-    query_bbox: BBox,
+    get_ids: Vec<String>,
+    query_bboxes: Vec<BBox>,
 }
 
 impl BenchFixtures {
@@ -132,20 +140,16 @@ fn fixtures() -> &'static BenchFixtures {
 
 fn prepare_bench_fixtures() -> Result<BenchFixtures> {
     let datasets = prepared_datasets()?;
-    let selected_files = selected_feature_files(&datasets.feature_files, WORKLOAD_FEATURE_COUNT)?;
-    let feature_ids = selected_files
-        .iter()
-        .map(|path| feature_id_from_file(path))
-        .collect::<Result<Vec<_>>>()?;
-    let get_feature_id = feature_ids.first().cloned().ok_or_else(|| {
-        Error::Import("benchmark workload must contain at least one feature".into())
-    })?;
-    let query_bbox = build_query_bbox(&datasets.feature_files, &feature_ids)?;
+    let feature_records = collect_feature_records(&datasets.feature_files)?;
+    let get_ids = build_get_workload(&feature_records)?;
+    let query_bboxes = build_query_workload(&feature_records)?;
+
+    validate_workloads(&datasets, &get_ids, &query_bboxes)?;
 
     Ok(BenchFixtures {
         datasets,
-        get_feature_id,
-        query_bbox,
+        get_ids,
+        query_bboxes,
     })
 }
 
@@ -179,22 +183,207 @@ fn empty_index(kind: LayoutKind, root: &Path) -> CityIndex {
     CityIndex::open(kind.storage_layout(root), &index_path).expect("benchmark index should open")
 }
 
-fn build_query_bbox(root: &Path, feature_ids: &[String]) -> Result<BBox> {
-    let index = build_index(LayoutKind::FeatureFiles, root);
-    let mut bbox = None;
+fn validate_workloads(
+    datasets: &data_prep::PreparedDatasets,
+    get_ids: &[String],
+    query_bboxes: &[BBox],
+) -> Result<()> {
+    let layouts = [
+        (
+            LayoutKind::FeatureFiles,
+            datasets.feature_files.as_path().to_path_buf(),
+        ),
+        (
+            LayoutKind::CityJson,
+            datasets.cityjson.as_path().to_path_buf(),
+        ),
+        (LayoutKind::Ndjson, datasets.ndjson.as_path().to_path_buf()),
+    ];
 
-    for id in feature_ids {
-        let model = index
-            .get(id)?
-            .ok_or_else(|| Error::Import(format!("feature {id} should be indexed")))?;
-        let model_bbox = bbox_for_model(&model)?;
-        bbox = Some(match bbox {
-            Some(current) => union_bbox(current, model_bbox),
-            None => model_bbox,
-        });
+    for (kind, root) in layouts {
+        let index = build_index(kind, &root);
+
+        for id in get_ids {
+            let model = index
+                .get(id)?
+                .ok_or_else(|| Error::Import(format!("feature {id} should be indexed")))?;
+            black_box(model);
+        }
+
+        for bbox in query_bboxes {
+            let query_hits = index.query(bbox)?;
+            if query_hits.is_empty() {
+                return Err(Error::Import(format!(
+                    "query workload bbox produced no hits for {}",
+                    kind.label()
+                )));
+            }
+
+            let iter_hits = index
+                .query_iter(bbox)?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            if iter_hits.is_empty() {
+                return Err(Error::Import(format!(
+                    "query_iter workload bbox produced no hits for {}",
+                    kind.label()
+                )));
+            }
+        }
     }
 
-    bbox.ok_or_else(|| Error::Import("benchmark subset produced no bbox".into()))
+    Ok(())
+}
+
+fn build_get_workload(feature_records: &[FeatureRecord]) -> Result<Vec<String>> {
+    let mut ids = feature_records
+        .iter()
+        .map(|record| record.id.clone())
+        .collect::<Vec<_>>();
+    ids.sort();
+    seeded_shuffle(&mut ids, WORKLOAD_SHUFFLE_SEED);
+
+    if ids.len() < GET_WORKLOAD_COUNT {
+        return Err(Error::Import(format!(
+            "benchmark corpus only yielded {} feature ids, expected at least {}",
+            ids.len(),
+            GET_WORKLOAD_COUNT
+        )));
+    }
+
+    ids.truncate(GET_WORKLOAD_COUNT);
+    Ok(ids)
+}
+
+fn build_query_workload(feature_records: &[FeatureRecord]) -> Result<Vec<BBox>> {
+    let mut by_tile: BTreeMap<PathBuf, Vec<&FeatureRecord>> = BTreeMap::new();
+    for record in feature_records {
+        by_tile.entry(record.tile.clone()).or_default().push(record);
+    }
+
+    let mut qualifying_tiles = by_tile
+        .into_iter()
+        .filter(|(_, records)| records.len() >= QUERY_TILE_MIN_FEATURES)
+        .collect::<Vec<_>>();
+    seeded_shuffle(
+        &mut qualifying_tiles,
+        WORKLOAD_SHUFFLE_SEED ^ 0x9e3779b97f4a7c15,
+    );
+
+    let mut bboxes = Vec::with_capacity(QUERY_WORKLOAD_COUNT);
+    for (_tile, records) in qualifying_tiles.into_iter().take(QUERY_WORKLOAD_COUNT) {
+        let mut selected_records = records;
+        seeded_shuffle(
+            &mut selected_records,
+            WORKLOAD_SHUFFLE_SEED ^ 0xbf58476d1ce4e5b9,
+        );
+
+        let bbox = selected_records
+            .into_iter()
+            .take(QUERY_TILE_SAMPLE_SIZE)
+            .map(|record| record.bbox)
+            .reduce(union_bbox)
+            .ok_or_else(|| Error::Import("query tile selection produced no bbox".into()))?;
+        bboxes.push(bbox);
+    }
+
+    if bboxes.len() < QUERY_WORKLOAD_COUNT {
+        return Err(Error::Import(format!(
+            "benchmark corpus only yielded {} qualifying tiles, expected {}",
+            bboxes.len(),
+            QUERY_WORKLOAD_COUNT
+        )));
+    }
+
+    Ok(bboxes)
+}
+
+fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
+    let feature_root = layout_root.join("features");
+    let mut metadata_files = Vec::new();
+    let mut feature_files = Vec::new();
+
+    for entry in WalkDir::new(&feature_root).sort_by_file_name() {
+        let entry = entry.map_err(|error| Error::Import(error.to_string()))?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.into_path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+            continue;
+        }
+        if fs::metadata(&path)
+            .map(|meta| meta.len() == 0)
+            .unwrap_or(true)
+        {
+            continue;
+        }
+
+        if path.file_name().and_then(|name| name.to_str()) == Some("metadata.json") {
+            metadata_files.push(path);
+            continue;
+        }
+
+        feature_files.push(path);
+    }
+
+    metadata_files.sort();
+    feature_files.sort();
+
+    if metadata_files.is_empty() {
+        return Err(Error::Import(format!(
+            "prepared feature-files root {} did not yield any metadata files",
+            feature_root.display()
+        )));
+    }
+
+    let mut metadata_by_dir = BTreeMap::new();
+    let mut metadata_cache = BTreeMap::new();
+    for metadata_path in metadata_files {
+        let parent = metadata_path.parent().unwrap_or(&feature_root).to_path_buf();
+        metadata_by_dir.insert(parent, metadata_path.clone());
+        metadata_cache.insert(metadata_path.clone(), read_json(&metadata_path)?);
+    }
+
+    let mut records = Vec::new();
+    for path in feature_files {
+        let tile = path
+            .strip_prefix(&feature_root)
+            .map_err(|_| {
+                Error::Import("feature path is outside the prepared feature-files root".into())
+            })?
+            .parent()
+            .ok_or_else(|| Error::Import("feature file is missing a tile directory".into()))?
+            .to_path_buf();
+        let metadata_path = resolve_feature_metadata_path(&feature_root, &path, &metadata_by_dir)
+            .ok_or_else(|| {
+                Error::Import(format!(
+                    "no ancestor metadata file found for feature {}",
+                    path.display()
+                ))
+            })?;
+        let metadata = metadata_cache
+            .get(&metadata_path)
+            .ok_or_else(|| {
+                Error::Import(format!(
+                    "metadata {} was not cached for feature {}",
+                    metadata_path.display(),
+                    path.display()
+                ))
+            })?;
+        let value: Value = read_json(&path)?;
+        let id = feature_id_from_value(&value, &format!("feature file {}", path.display()))?;
+        let bbox = feature_bbox(&value, metadata)?;
+        records.push(FeatureRecord { id, tile, bbox });
+    }
+
+    if records.is_empty() {
+        return Err(Error::Import(format!(
+            "prepared feature-files root {} did not yield any features",
+            feature_root.display()
+        )));
+    }
+
+    Ok(records)
 }
 
 fn union_bbox(a: BBox, b: BBox) -> BBox {
@@ -206,16 +395,34 @@ fn union_bbox(a: BBox, b: BBox) -> BBox {
     }
 }
 
-fn bbox_for_model(model: &CityModel) -> Result<BBox> {
-    let value: Value = serde_json::from_str(&cjlib::json::to_string(model)?)?;
-    let vertices = value
+fn seeded_shuffle<T>(items: &mut [T], seed: u64) {
+    if items.len() < 2 {
+        return;
+    }
+
+    let mut state = seed;
+    for index in (1..items.len()).rev() {
+        state = state.wrapping_add(0x9e3779b97f4a7c15);
+        let mut value = state;
+        value ^= value >> 30;
+        value = value.wrapping_mul(0xbf58476d1ce4e5b9);
+        value ^= value >> 27;
+        value = value.wrapping_mul(0x94d049bb133111eb);
+        value ^= value >> 31;
+        let swap_with = (value as usize) % (index + 1);
+        items.swap(index, swap_with);
+    }
+}
+
+fn feature_bbox(feature: &Value, metadata: &Value) -> Result<BBox> {
+    let vertices = feature
         .get("vertices")
         .and_then(Value::as_array)
-        .ok_or_else(|| Error::Import("model JSON is missing vertices".into()))?;
-    let transform = value
+        .ok_or_else(|| Error::Import("feature JSON is missing vertices".into()))?;
+    let transform = metadata
         .get("transform")
         .and_then(Value::as_object)
-        .ok_or_else(|| Error::Import("model JSON is missing transform".into()))?;
+        .ok_or_else(|| Error::Import("feature metadata is missing transform".into()))?;
     let scale = parse_vector3_f64(transform, "scale")?;
     let translate = parse_vector3_f64(transform, "translate")?;
 
@@ -231,6 +438,7 @@ fn bbox_for_model(model: &CityModel) -> Result<BBox> {
         if coords.len() != 3 {
             return Err(Error::Import("vertex must have three coordinates".into()));
         }
+
         let x = translate[0] + scale[0] * value_as_f64(&coords[0])?;
         let y = translate[1] + scale[1] * value_as_f64(&coords[1])?;
         min_x = min_x.min(x);
@@ -241,7 +449,7 @@ fn bbox_for_model(model: &CityModel) -> Result<BBox> {
 
     if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
         return Err(Error::Import(
-            "could not compute a finite bbox from the model".into(),
+            "could not compute a finite bbox from the feature".into(),
         ));
     }
 
@@ -277,56 +485,27 @@ fn value_as_f64(value: &Value) -> Result<f64> {
         .ok_or_else(|| Error::Import("expected a numeric value".into()))
 }
 
-fn selected_feature_files(layout_root: &Path, limit: usize) -> Result<Vec<PathBuf>> {
-    let feature_root = layout_root.join("features");
-    let mut by_tile: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
+fn read_json(path: &Path) -> Result<Value> {
+    let bytes = fs::read(path).map_err(|error| Error::Import(error.to_string()))?;
+    Ok(serde_json::from_slice(&bytes)?)
+}
 
-    for entry in WalkDir::new(&feature_root).sort_by_file_name() {
-        let entry = entry.map_err(|error| Error::Import(error.to_string()))?;
-        if !entry.file_type().is_file() {
-            continue;
+fn resolve_feature_metadata_path(
+    root: &Path,
+    feature_path: &Path,
+    metadata_by_dir: &BTreeMap<PathBuf, PathBuf>,
+) -> Option<PathBuf> {
+    let mut current = feature_path.parent();
+    while let Some(dir) = current {
+        if let Some(metadata_path) = metadata_by_dir.get(dir) {
+            return Some(metadata_path.clone());
         }
-        let path = entry.into_path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
-            continue;
+        if dir == root {
+            break;
         }
-        if fs::metadata(&path)
-            .map(|meta| meta.len() == 0)
-            .unwrap_or(true)
-        {
-            continue;
-        }
-        let tile = path
-            .strip_prefix(&feature_root)
-            .map_err(|_| {
-                Error::Import("feature path is outside the prepared feature-files root".into())
-            })?
-            .parent()
-            .ok_or_else(|| Error::Import("feature file is missing a tile directory".into()))?
-            .to_path_buf();
-        by_tile.entry(tile).or_default().push(path);
+        current = dir.parent();
     }
-
-    for files in by_tile.values() {
-        if files.len() >= limit {
-            return Ok(files.iter().take(limit).cloned().collect());
-        }
-    }
-
-    let mut selected = Vec::with_capacity(limit);
-    for files in by_tile.into_values() {
-        for path in files {
-            selected.push(path);
-            if selected.len() == limit {
-                return Ok(selected);
-            }
-        }
-    }
-
-    Err(Error::Import(format!(
-        "prepared feature-files root only yielded {} readable features, expected at least {limit}",
-        selected.len()
-    )))
+    None
 }
 
 fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
@@ -339,12 +518,6 @@ fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
         fs::remove_file(&path).expect("benchmark temp file should be removable");
     }
     path
-}
-
-fn feature_id_from_file(path: &Path) -> Result<String> {
-    let bytes = fs::read(path).map_err(|error| Error::Import(error.to_string()))?;
-    let value: Value = serde_json::from_slice(&bytes)?;
-    feature_id_from_value(&value, &format!("feature file {}", path.display()))
 }
 
 fn feature_id_from_value(feature: &Value, label: &str) -> Result<String> {
@@ -367,4 +540,10 @@ fn feature_id_from_value(feature: &Value, label: &str) -> Result<String> {
     Err(Error::Import(format!(
         "{label} is missing a top-level id and contains multiple CityObjects"
     )))
+}
+
+struct FeatureRecord {
+    id: String,
+    tile: PathBuf,
+    bbox: BBox,
 }
