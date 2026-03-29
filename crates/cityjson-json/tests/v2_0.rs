@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use serde_json::value::RawValue;
 use serde_json::{json, Map, Value};
 
 use cityjson::v2_0::{
@@ -11,6 +12,7 @@ use common::*;
 use serde_cityjson::{
     from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
     read_feature_stream, to_string,
+    v2_0::{from_feature_parts_owned_with_base, FeatureObject, FeatureParts},
 };
 
 mod common;
@@ -72,6 +74,90 @@ fn wrap_transform(value: Value) -> Value {
     let mut root = base_citymodel();
     root.insert("transform".to_owned(), value);
     Value::Object(root)
+}
+
+#[test]
+fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
+    let base = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "transform": {
+            "scale": [0.5, 0.5, 1.0],
+            "translate": [10.0, 20.0, 30.0]
+        },
+        "metadata": {
+            "title": "base-root"
+        },
+        "CityObjects": {},
+        "vertices": []
+    });
+    let object = RawValue::from_string(
+        json!({
+            "type": "Building",
+            "geometry": [{
+                "type": "MultiSurface",
+                "lod": "0",
+                "boundaries": [[[0, 2, 1]]]
+            }]
+        })
+        .to_string(),
+    )
+    .expect("raw CityObject");
+    let cityobjects = [FeatureObject {
+        id: "feature-1",
+        object: object.as_ref(),
+    }];
+    let vertices = [[0, 0, 0], [2, 0, 0], [1, 0, 0]];
+    let parts = FeatureParts {
+        id: "feature-1",
+        cityobjects: &cityobjects,
+        vertices: &vertices,
+    };
+
+    let model = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap();
+    let vertices = model.vertices();
+    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+
+    assert_eq!(json["metadata"]["title"], "base-root");
+    assert_eq!(json["transform"], base["transform"]);
+    assert_eq!(json["vertices"], json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]]));
+    assert_eq!(
+        json["CityObjects"]["feature-1"]["geometry"][0]["boundaries"],
+        json!([[[0, 2, 1]]])
+    );
+    assert_eq!(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
+    assert_eq!(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
+}
+
+#[test]
+fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
+    let base = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "CityObjects": {},
+        "vertices": []
+    });
+    let object = RawValue::from_string(json!({ "type": "Building" }).to_string()).unwrap();
+    let cityobjects = [
+        FeatureObject {
+            id: "feature-1",
+            object: object.as_ref(),
+        },
+        FeatureObject {
+            id: "feature-1",
+            object: object.as_ref(),
+        },
+    ];
+    let parts = FeatureParts {
+        id: "feature-1",
+        cityobjects: &cityobjects,
+        vertices: &[],
+    };
+
+    let error = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("duplicate CityObject id in feature parts"));
 }
 
 #[allow(clippy::needless_pass_by_value)]

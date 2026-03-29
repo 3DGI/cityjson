@@ -5,11 +5,26 @@ use std::io::Write;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
 use cityjson::{CityJSONVersion, CityModelType};
+use serde::ser::SerializeMap;
 use serde::Serialize;
+use serde_json::value::RawValue;
 use serde_json::{Map, Value};
 
 pub use crate::de::ParseStringStorage;
 use crate::errors::{Error, Result};
+
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureObject<'a> {
+    pub id: &'a str,
+    pub object: &'a RawValue,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureParts<'a> {
+    pub id: &'a str,
+    pub cityobjects: &'a [FeatureObject<'a>],
+    pub vertices: &'a [[i64; 3]],
+}
 
 /// Parse a `CityJSON` document into a [`CityModel`].
 ///
@@ -68,6 +83,28 @@ pub fn from_feature_str_owned_with_base(
     let input = serde_json::to_string(&Value::Object(materialize_feature_document(
         &base_root, feature,
     )))?;
+    from_feature_str_owned(&input)
+}
+
+/// Parse a standalone `CityJSONFeature` assembled from typed feature parts and
+/// the non-feature root state of a companion `CityJSON` document.
+///
+/// # Errors
+///
+/// Returns an error if the base document is not valid `CityJSON`, the feature
+/// parts are inconsistent, or the combined document cannot be parsed.
+pub fn from_feature_parts_owned_with_base(
+    parts: FeatureParts<'_>,
+    base_document_input: &str,
+) -> Result<OwnedCityModel> {
+    validate_feature_parts(parts)?;
+    let aggregate_root = into_object(serde_json::from_str(base_document_input)?)?;
+    ensure_document_root(&aggregate_root)?;
+    let base_root = build_feature_base_root(&aggregate_root);
+    let input = serde_json::to_string(&MaterializedFeaturePartsDocument {
+        base_root: &base_root,
+        parts,
+    })?;
     from_feature_str_owned(&input)
 }
 
@@ -252,6 +289,46 @@ where
     }
 }
 
+struct MaterializedFeaturePartsDocument<'a> {
+    base_root: &'a Map<String, Value>,
+    parts: FeatureParts<'a>,
+}
+
+impl Serialize for MaterializedFeaturePartsDocument<'_> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.base_root.len() + 4))?;
+        map.serialize_entry("type", "CityJSONFeature")?;
+        for (key, value) in self.base_root {
+            map.serialize_entry(key, value)?;
+        }
+        map.serialize_entry("id", self.parts.id)?;
+        map.serialize_entry(
+            "CityObjects",
+            &SerializableFeatureObjects(self.parts.cityobjects),
+        )?;
+        map.serialize_entry("vertices", self.parts.vertices)?;
+        map.end()
+    }
+}
+
+struct SerializableFeatureObjects<'a>(&'a [FeatureObject<'a>]);
+
+impl Serialize for SerializableFeatureObjects<'_> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for object in self.0 {
+            map.serialize_entry(object.id, object.object)?;
+        }
+        map.end()
+    }
+}
+
 struct ParsedFeatureStream {
     base_root: Map<String, Value>,
     aggregate_root: Map<String, Value>,
@@ -285,6 +362,20 @@ where
         aggregate_root,
         features,
     })
+}
+
+fn validate_feature_parts(parts: FeatureParts<'_>) -> Result<()> {
+    let mut seen_ids = HashSet::with_capacity(parts.cityobjects.len());
+    for object in parts.cityobjects {
+        if !seen_ids.insert(object.id) {
+            return Err(Error::InvalidValue(format!(
+                "duplicate CityObject id in feature parts: {}",
+                object.id
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 fn into_object(value: Value) -> Result<Map<String, Value>> {
