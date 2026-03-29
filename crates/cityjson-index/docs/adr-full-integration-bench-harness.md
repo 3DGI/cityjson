@@ -70,6 +70,11 @@ We also made the Criterion configuration explicit with `sample_size(10)`,
 because full-corpus `reindex` and full-corpus dense spatial queries are far too
 expensive for Criterion's implicit 100-sample default.
 
+One caveat is intentional: the current `get` benchmark is a hot, repeated
+lookup of one stable feature ID against an already populated index. That makes
+the `get` numbers useful for steady-state latency, but not for broad
+cache-cold or many-ID lookup claims.
+
 ## Implementation
 
 ### 1. Shared harness retained
@@ -135,6 +140,24 @@ This is not a cosmetic change. On the full corpus:
 Without an explicit smaller sample size, the suite becomes effectively
 unrunnable.
 
+### 5. Interpretation anchored in the current read implementations
+
+The benchmark results need to be read together with the current backend read
+paths in [src/lib.rs](/home/balazs/Development/cjindex/src/lib.rs).
+
+For steady-state reads:
+
+- feature-files reads exactly one small feature file per hit
+- NDJSON currently rereads the entire `.jsonl` source file per hit and then
+  slices out the indexed feature span
+- CityJSON currently rereads the entire `.city.json` tile per hit, slices out
+  one `CityObject`, localizes vertices, remaps boundaries, and rebuilds a
+  one-object feature package before handing it to `cjlib`
+
+This means the benchmark is not just measuring abstract storage-layout
+properties. It is also measuring the current implementation strategy for each
+backend.
+
 ## Consequences
 
 ### Positive
@@ -152,6 +175,8 @@ unrunnable.
   runnable.
 - Full-corpus results are now dominated by real backend costs, so regressions
   are more expensive to measure.
+- The current `get` benchmark is intentionally cache-friendly, so it should not
+  be read as a general random-lookup number for the full corpus.
 
 ### Neutral tradeoff
 
@@ -194,6 +219,15 @@ The practical conclusion is not subtle:
 - feature-files is better than NDJSON on steady-state reads
 - NDJSON is better than feature-files on rebuild cost
 
+The implementation finding behind those numbers is also clear:
+
+- NDJSON does not currently exploit its smaller file count on reads, because
+  each hit rereads a whole sequence file
+- CityJSON suffers from the same whole-file reread pattern and adds significant
+  per-hit object extraction and reconstruction work on top
+- feature-files wins on steady-state reads because each hit already maps to one
+  small self-contained payload
+
 ## Follow-up
 
 The next performance work should focus on regular `CityJSON`, especially:
@@ -201,6 +235,14 @@ The next performance work should focus on regular `CityJSON`, especially:
 - one-object extraction cost
 - repeated reads from the same larger tile
 - repeated feature-package reconstruction during dense queries
+
+After that, `NDJSON` should be optimized to use indexed byte-range reads or
+equivalent whole-file reuse rather than rereading the entire sequence file for
+each hit.
+
+If we want more representative `get` results, the harness should also grow a
+second benchmark that cycles through a deterministic set of many IDs instead of
+repeating the same hot object.
 
 Benchmark coverage is no longer the main issue. The full-corpus harness now
 makes the backend priority obvious.
