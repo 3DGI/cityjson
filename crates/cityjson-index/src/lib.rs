@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -477,10 +478,9 @@ impl StorageBackend for NdjsonBackend {
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
-        let bytes = fs::read(&loc.source_path)?;
+        let bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
-        let feature_bytes = slice_range(&bytes, loc.offset, loc.length, "NDJSON feature")?;
-        cjlib::json::from_feature_slice_with_base(feature_bytes, &metadata_bytes)
+        cjlib::json::from_feature_slice_with_base(&bytes, &metadata_bytes)
     }
 }
 
@@ -500,7 +500,7 @@ impl CityJsonBackend {
     fn load_shared_vertices(
         &self,
         source_path: &Path,
-        base_document_bytes: &[u8],
+        source_file: &mut fs::File,
         offset: u64,
         length: u64,
     ) -> Result<Arc<Vec<[i64; 3]>>> {
@@ -512,12 +512,8 @@ impl CityJsonBackend {
             return Ok(Arc::clone(vertices));
         }
 
-        let vertices = Arc::new(parse_vertices_fragment(slice_range(
-            base_document_bytes,
-            offset,
-            length,
-            "shared vertices",
-        )?)?);
+        let vertices_bytes = read_exact_range_from_file(source_file, source_path, offset, length)?;
+        let vertices = Arc::new(parse_vertices_fragment(&vertices_bytes)?);
         cache.put(source_path.to_path_buf(), Arc::clone(&vertices));
         Ok(vertices)
     }
@@ -532,7 +528,7 @@ impl StorageBackend for CityJsonBackend {
             .collect()
     }
 
-    fn read_one(&self, loc: &FeatureLocation, _metadata: Arc<Meta>) -> Result<CityModel> {
+    fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
         let vertices_offset = loc.vertices_offset.ok_or_else(|| {
             Error::UnsupportedFeature(
                 "regular CityJSON reads require an indexed shared vertices range".into(),
@@ -544,17 +540,14 @@ impl StorageBackend for CityJsonBackend {
             )
         })?;
 
-        let base_document_bytes = fs::read(&loc.source_path)?;
-        let object_fragment = slice_range(
-            &base_document_bytes,
-            loc.offset,
-            loc.length,
-            "CityObject entry",
-        )?;
-        let (object_id, object_value) = parse_cityobject_entry(object_fragment)?;
+        let base_document_bytes = serde_json::to_vec(metadata.as_ref())?;
+        let mut source_file = fs::File::open(&loc.source_path)?;
+        let object_fragment =
+            read_exact_range_from_file(&mut source_file, &loc.source_path, loc.offset, loc.length)?;
+        let (object_id, object_value) = parse_cityobject_entry(&object_fragment)?;
         let shared_vertices = self.load_shared_vertices(
             &loc.source_path,
-            &base_document_bytes,
+            &mut source_file,
             vertices_offset,
             vertices_length,
         )?;
@@ -602,7 +595,7 @@ impl StorageBackend for FeatureFilesBackend {
     }
 
     fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
-        let feature_bytes = fs::read(&loc.source_path)?;
+        let feature_bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
         cjlib::json::from_feature_slice_with_base(&feature_bytes, &metadata_bytes)
     }
@@ -730,19 +723,6 @@ fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, 
     let (scale, translate) = parse_ndjson_transform(metadata)?;
     let bbox = bbox_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
     Ok((id, bbox))
-}
-
-fn slice_range<'a>(bytes: &'a [u8], offset: u64, length: u64, label: &str) -> Result<&'a [u8]> {
-    let start = usize::try_from(offset)
-        .map_err(|_| import_error(format!("{label} offset does not fit in memory")))?;
-    let len = usize::try_from(length)
-        .map_err(|_| import_error(format!("{label} length does not fit in memory")))?;
-    let end = start
-        .checked_add(len)
-        .ok_or_else(|| import_error(format!("{label} range overflows")))?;
-    bytes
-        .get(start..end)
-        .ok_or_else(|| import_error(format!("{label} range is outside the source document")))
 }
 
 fn trim_fragment_delimiters(bytes: &[u8]) -> &[u8] {
@@ -955,6 +935,64 @@ fn value_kind(value: &Value) -> &'static str {
 
 fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
+}
+
+fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>> {
+    let mut file = fs::File::open(path)
+        .map_err(|error| import_error(format!("failed to open {}: {error}", path.display())))?;
+    read_exact_range_from_file(&mut file, path, offset, length)
+}
+
+fn read_exact_range_from_file(
+    file: &mut fs::File,
+    path: &Path,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>> {
+    let length = usize::try_from(length).map_err(|_| {
+        import_error(format!(
+            "requested read of {length} bytes from {} exceeds the supported buffer size",
+            path.display()
+        ))
+    })?;
+    if length > isize::MAX as usize {
+        return Err(import_error(format!(
+            "requested read of {length} bytes from {} exceeds the supported buffer size",
+            path.display()
+        )));
+    }
+
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(length).map_err(|error| {
+        import_error(format!(
+            "failed to allocate buffer for {} bytes from {}: {error}",
+            length,
+            path.display()
+        ))
+    })?;
+    bytes.resize(length, 0);
+
+    file.seek(SeekFrom::Start(offset)).map_err(|error| {
+        import_error(format!(
+            "failed to seek to byte offset {offset} in {}: {error}",
+            path.display()
+        ))
+    })?;
+    file.read_exact(&mut bytes).map_err(|error| {
+        if error.kind() == ErrorKind::UnexpectedEof {
+            import_error(format!(
+                "short read while reading {length} bytes at offset {offset} from {}",
+                path.display()
+            ))
+        } else {
+            import_error(format!(
+                "failed to read {length} bytes at offset {offset} from {}: {error}",
+                path.display()
+            ))
+        }
+    })?;
+
+    Ok(bytes)
 }
 
 fn read_json(path: impl AsRef<Path>) -> Result<Value> {
@@ -1535,6 +1573,7 @@ mod tests {
             "vertices": vertices.clone()
         });
         let document_bytes = serde_json::to_vec(&document).expect("fixture JSON");
+        let base_document = cityjson_base_metadata(&document).expect("base CityJSON metadata");
         let object_fragment = object_entry_fragment(selected_id, &selected_object);
         let vertices_fragment = serde_json::to_vec(&vertices).expect("vertices fragment");
         let loc = FeatureLocation {
@@ -1551,7 +1590,7 @@ mod tests {
 
         let backend = CityJsonBackend::new(vec![loc.source_path.clone()]);
         let model = backend
-            .read_one(&loc, Arc::new(document["metadata"].clone()))
+            .read_one(&loc, Arc::new(base_document))
             .expect("CityJSON read should succeed");
         let output: Value =
             serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
@@ -1677,6 +1716,37 @@ mod tests {
     }
 
     #[test]
+    fn read_exact_range_reads_only_the_requested_span() {
+        let path = write_temp_bytes(b"abcdefghij");
+
+        let bytes = read_exact_range(&path, 3, 4).expect("range read should succeed");
+
+        assert_eq!(bytes, b"defg");
+    }
+
+    #[test]
+    fn read_exact_range_rejects_short_reads() {
+        let path = write_temp_bytes(b"abc");
+
+        let error = read_exact_range(&path, 2, 4).expect_err("range read should fail");
+
+        assert!(error.to_string().contains("short read"));
+    }
+
+    #[test]
+    fn read_exact_range_rejects_oversized_lengths() {
+        let path = write_temp_bytes(b"abc");
+
+        let error = read_exact_range(&path, 0, u64::MAX).expect_err("range read should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("exceeds the supported buffer size")
+        );
+    }
+
+    #[test]
     fn feature_files_metadata_resolution_prefers_nearest_ancestor() {
         let root = PathBuf::from("/data/root");
         let mut metadata_by_dir = BTreeMap::new();
@@ -1740,6 +1810,16 @@ mod tests {
         if path.exists() {
             fs::remove_file(&path).expect("remove temp sqlite");
         }
+        path
+    }
+
+    fn write_temp_bytes(bytes: &[u8]) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cjindex-range-read-{unique}.bin"));
+        fs::write(&path, bytes).expect("write temp bytes");
         path
     }
 }
