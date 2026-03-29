@@ -302,12 +302,17 @@ fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
     let mut metadata_files = Vec::new();
     let mut feature_files = Vec::new();
 
-    for entry in WalkDir::new(&feature_root).sort_by_file_name() {
+    for entry in WalkDir::new(layout_root).sort_by_file_name() {
         let entry = entry.map_err(|error| Error::Import(error.to_string()))?;
         if !entry.file_type().is_file() {
             continue;
         }
         let path = entry.into_path();
+        if path.file_name().and_then(|name| name.to_str()) == Some("metadata.json") {
+            metadata_files.push(path);
+            continue;
+        }
+
         if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
             continue;
         }
@@ -315,11 +320,6 @@ fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
             .map(|meta| meta.len() == 0)
             .unwrap_or(true)
         {
-            continue;
-        }
-
-        if path.file_name().and_then(|name| name.to_str()) == Some("metadata.json") {
-            metadata_files.push(path);
             continue;
         }
 
@@ -339,7 +339,10 @@ fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
     let mut metadata_by_dir = BTreeMap::new();
     let mut metadata_cache = BTreeMap::new();
     for metadata_path in metadata_files {
-        let parent = metadata_path.parent().unwrap_or(&feature_root).to_path_buf();
+        let parent = metadata_path
+            .parent()
+            .unwrap_or(&feature_root)
+            .to_path_buf();
         metadata_by_dir.insert(parent, metadata_path.clone());
         metadata_cache.insert(metadata_path.clone(), read_json(&metadata_path)?);
     }
@@ -354,22 +357,20 @@ fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
             .parent()
             .ok_or_else(|| Error::Import("feature file is missing a tile directory".into()))?
             .to_path_buf();
-        let metadata_path = resolve_feature_metadata_path(&feature_root, &path, &metadata_by_dir)
+        let metadata_path = resolve_feature_metadata_path(layout_root, &path, &metadata_by_dir)
             .ok_or_else(|| {
                 Error::Import(format!(
                     "no ancestor metadata file found for feature {}",
                     path.display()
                 ))
             })?;
-        let metadata = metadata_cache
-            .get(&metadata_path)
-            .ok_or_else(|| {
-                Error::Import(format!(
-                    "metadata {} was not cached for feature {}",
-                    metadata_path.display(),
-                    path.display()
-                ))
-            })?;
+        let metadata = metadata_cache.get(&metadata_path).ok_or_else(|| {
+            Error::Import(format!(
+                "metadata {} was not cached for feature {}",
+                metadata_path.display(),
+                path.display()
+            ))
+        })?;
         let value: Value = read_json(&path)?;
         let id = feature_id_from_value(&value, &format!("feature file {}", path.display()))?;
         let bbox = feature_bbox(&value, metadata)?;
