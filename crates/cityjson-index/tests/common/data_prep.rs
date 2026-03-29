@@ -12,6 +12,7 @@ const FEATURE_DIR: &str = "features";
 pub const DEFAULT_INPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/input";
 pub const DEFAULT_OUTPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/cjindex";
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct PreparedDatasets {
     pub feature_files: PathBuf,

@@ -2,40 +2,81 @@ mod common;
 
 use std::fs;
 
-use common::feature_files_root;
+use cjindex::{CityIndex, StorageLayout};
+use common::{
+    bbox_for_model, feature_files_root, find_first, materialize_subset, model_contains_id,
+    temp_index_path,
+};
 use serde_json::Value;
 
 #[test]
-fn feature_files_layout_exists_and_contains_cityjsonfeatures() {
-    let root = feature_files_root();
-    assert!(root.exists(), "feature-files fixture set must exist");
-    assert!(
-        root.join("metadata.json").exists(),
-        "missing root metadata.json"
+fn feature_files_cityindex_supports_end_to_end_queries() {
+    let source_root = feature_files_root();
+    let sample = find_first(&source_root.join("features"), "city.jsonl", true);
+    let root = materialize_subset(
+        "feature-files-data",
+        &source_root,
+        &[source_root.join("metadata.json"), sample.clone()],
     );
-
-    let sample = find_first_nonempty(&root.join("features"), "city.jsonl");
     let bytes = fs::read(&sample).expect("sample feature file must be readable");
     let value: Value = serde_json::from_slice(&bytes).expect("valid JSON feature");
+    let feature_id = value
+        .get("id")
+        .and_then(Value::as_str)
+        .expect("feature file must carry a top-level id")
+        .to_owned();
 
-    assert_eq!(value["type"], "CityJSONFeature");
+    let index_path = temp_index_path("feature-files");
+    let mut index = CityIndex::open(
+        StorageLayout::FeatureFiles {
+            root: root.clone(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+        &index_path,
+    )
+    .expect("feature-files index should open");
+
+    index
+        .reindex()
+        .expect("feature-files reindex should succeed");
+
+    let model = index
+        .get(&feature_id)
+        .expect("feature-files get should succeed")
+        .expect("feature id should be indexed");
+    assert!(model_contains_id(&model, &feature_id));
+
+    let bbox = bbox_for_model(&model).expect("bbox should be computable from indexed model");
+    let query_hits = index
+        .query(&bbox)
+        .expect("feature-files query should succeed");
     assert!(
-        value
-            .get("CityObjects")
-            .and_then(Value::as_object)
-            .is_some()
+        query_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &feature_id)),
+        "query should return the selected feature"
     );
-}
 
-fn find_first_nonempty(root: &std::path::Path, suffix: &str) -> std::path::PathBuf {
-    for entry in walkdir::WalkDir::new(root) {
-        let entry = entry.expect("directory entry");
-        if entry.file_type().is_file()
-            && entry.path().to_string_lossy().ends_with(suffix)
-            && entry.metadata().map(|meta| meta.len() > 0).unwrap_or(false)
-        {
-            return entry.path().to_path_buf();
-        }
-    }
-    panic!("no {suffix} file found in {}", root.display());
+    let iter_hits = index
+        .query_iter(&bbox)
+        .expect("feature-files query_iter should succeed")
+        .collect::<cjlib::Result<Vec<_>>>()
+        .expect("feature-files query_iter items should succeed");
+    assert!(
+        iter_hits
+            .iter()
+            .any(|candidate| model_contains_id(candidate, &feature_id)),
+        "query_iter should return the selected feature"
+    );
+
+    let metadata = index
+        .metadata()
+        .expect("feature-files metadata should succeed");
+    assert!(
+        metadata
+            .iter()
+            .any(|entry| entry.get("transform").is_some()),
+        "feature-files metadata should include at least one transform"
+    );
 }
