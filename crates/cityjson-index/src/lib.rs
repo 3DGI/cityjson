@@ -197,15 +197,19 @@ struct BBoxLocationIter<'a> {
     index: &'a Index,
     bbox: BBox,
     last_feature_id: Option<String>,
+    page: std::vec::IntoIter<FeatureLocation>,
     finished: bool,
 }
 
 impl<'a> BBoxLocationIter<'a> {
+    const PAGE_SIZE: usize = 512;
+
     fn new(index: &'a Index, bbox: BBox) -> Self {
         Self {
             index,
             bbox,
             last_feature_id: None,
+            page: Vec::new().into_iter(),
             finished: false,
         }
     }
@@ -215,16 +219,28 @@ impl<'a> BBoxLocationIter<'a> {
             return Ok(None);
         }
 
-        let feature = self
-            .index
-            .lookup_bbox_next(&self.bbox, self.last_feature_id.as_deref())?;
-        if let Some(feature) = feature.as_ref() {
+        if let Some(feature) = self.page.next() {
             self.last_feature_id = Some(feature.feature_id.clone());
-        } else {
-            self.finished = true;
+            return Ok(Some(feature));
         }
 
-        Ok(feature)
+        let page = self.index.lookup_bbox_page(
+            &self.bbox,
+            self.last_feature_id.as_deref(),
+            Self::PAGE_SIZE,
+        )?;
+        if page.is_empty() {
+            self.finished = true;
+            return Ok(None);
+        }
+
+        self.page = page.into_iter();
+        let feature = self
+            .page
+            .next()
+            .expect("non-empty page should yield at least one feature");
+        self.last_feature_id = Some(feature.feature_id.clone());
+        Ok(Some(feature))
     }
 }
 
@@ -366,47 +382,48 @@ impl Index {
         BBoxLocationIter::new(self, bbox)
     }
 
-    fn lookup_bbox_next(
+    fn lookup_bbox_page(
         &self,
         bbox: &BBox,
         after_feature_id: Option<&str>,
-    ) -> Result<Option<FeatureLocation>> {
-        sqlite_result(
-            self.conn
-                .query_row(
-                    r"
-                    SELECT DISTINCT
-                        f.feature_id,
-                        s.id,
-                        f.path,
-                        f.offset,
-                        f.length,
-                        s.vertices_offset,
-                        s.vertices_length,
-                        f.member_ranges
-                    FROM feature_bbox AS fb
-                    JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
-                    JOIN features AS f ON f.feature_id = bm.feature_id
-                    JOIN sources AS s ON s.id = f.source_id
-                    WHERE fb.min_x <= ?2
-                      AND fb.max_x >= ?1
-                      AND fb.min_y <= ?4
-                      AND fb.max_y >= ?3
-                      AND (?5 IS NULL OR bm.feature_id > ?5)
-                    ORDER BY bm.feature_id
-                    LIMIT 1
-                    ",
-                    params![
-                        bbox.min_x,
-                        bbox.max_x,
-                        bbox.min_y,
-                        bbox.max_y,
-                        after_feature_id
-                    ],
-                    Self::feature_location_from_row,
-                )
-                .optional(),
-        )
+        limit: usize,
+    ) -> Result<Vec<FeatureLocation>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT DISTINCT
+                f.feature_id,
+                s.id,
+                f.path,
+                f.offset,
+                f.length,
+                s.vertices_offset,
+                s.vertices_length,
+                f.member_ranges
+            FROM feature_bbox AS fb
+            JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
+            JOIN features AS f ON f.feature_id = bm.feature_id
+            JOIN sources AS s ON s.id = f.source_id
+            WHERE fb.min_x <= ?2
+              AND fb.max_x >= ?1
+              AND fb.min_y <= ?4
+              AND fb.max_y >= ?3
+              AND (?5 IS NULL OR bm.feature_id > ?5)
+            ORDER BY bm.feature_id
+            LIMIT ?6
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map(
+            params![
+                bbox.min_x,
+                bbox.max_x,
+                bbox.min_y,
+                bbox.max_y,
+                after_feature_id,
+                limit
+            ],
+            Self::feature_location_from_row,
+        ))?;
+        sqlite_result(rows.collect())
     }
 
     fn get_metadata(&self, source_id: i64) -> Result<Arc<Meta>> {

@@ -41,3 +41,8 @@ bench-cityjson:
 
 bench-ndjson:
     cargo bench --bench ndjson
+
+bench-release:
+    cargo run --release --bin investigate-read-performance
+    cargo bench --bench cityjson
+    cargo bench --bench feature_files --bench ndjson

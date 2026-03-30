@@ -133,6 +133,8 @@ Key points:
   child object
 - `CityJSON read_one` now reads every member fragment for the selected feature
   package
+- bbox iteration now streams ordered SQLite results in pages instead of
+  materializing the full hit set up front
 - member relationships are filtered to local package references only
 - shared vertices are still cached per source file
 - tests now cover:
@@ -150,15 +152,15 @@ The investigation report is in
 
 The key release-mode benchmark numbers are now:
 
-- `feature_files_get`: `88.732 ms` to `88.870 ms` per 1,000-lookups batch
-- `cityjson_get`: `91.345 ms` to `91.497 ms` per 1,000-lookups batch
-- `ndjson_get`: `86.807 ms` to `87.165 ms` per 1,000-lookups batch
-- `feature_files_query`: `738.46 ms` to `742.19 ms` per 10-bbox batch
-- `cityjson_query`: `767.98 ms` to `769.88 ms` per 10-bbox batch
-- `ndjson_query`: `712.94 ms` to `715.09 ms` per 10-bbox batch
-- `feature_files_reindex`: `9.3700 s` to `9.3988 s`
-- `cityjson_reindex`: `17.859 s` to `17.928 s`
-- `ndjson_reindex`: `7.8998 s` to `7.9170 s`
+- `feature_files_get`: `87.759 ms` to `88.336 ms` per 1,000-lookups batch
+- `cityjson_get`: `92.092 ms` to `92.581 ms` per 1,000-lookups batch
+- `ndjson_get`: `87.349 ms` to `87.774 ms` per 1,000-lookups batch
+- `feature_files_query`: `751.62 ms` to `755.50 ms` per 10-bbox batch
+- `cityjson_query`: `796.16 ms` to `799.79 ms` per 10-bbox batch
+- `ndjson_query`: `734.70 ms` to `737.69 ms` per 10-bbox batch
+- `feature_files_reindex`: `9.3796 s` to `9.4389 s`
+- `cityjson_reindex`: `17.862 s` to `18.045 s`
+- `ndjson_reindex`: `7.9518 s` to `7.9843 s`
 
 The most important updated conclusion is simple:
 

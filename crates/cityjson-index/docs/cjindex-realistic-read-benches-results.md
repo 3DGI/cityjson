@@ -19,6 +19,12 @@ cargo bench --bench cityjson
 cargo bench --bench feature_files --bench ndjson
 ```
 
+Convenience recipe:
+
+```bash
+just bench-release
+```
+
 The benchmark run was intentionally split only so the long `cityjson` bench
 could complete independently. The code and build outputs were unchanged between
 the two commands.
@@ -89,21 +95,21 @@ That mismatch is now fixed:
 
 | Benchmark | Time |
 | --- | --- |
-| `feature_files_reindex` | `9.3700 s` to `9.3988 s` |
-| `feature_files_get` | `88.732 ms` to `88.870 ms` |
-| `feature_files_query` | `738.46 ms` to `742.19 ms` |
-| `feature_files_query_iter` | `742.00 ms` to `744.91 ms` |
-| `feature_files_metadata` | `2.3329 us` to `2.3448 us` |
-| `cityjson_reindex` | `17.859 s` to `17.928 s` |
-| `cityjson_get` | `91.345 ms` to `91.497 ms` |
-| `cityjson_query` | `767.98 ms` to `769.88 ms` |
-| `cityjson_query_iter` | `769.75 ms` to `771.41 ms` |
-| `cityjson_metadata` | `11.230 us` to `11.244 us` |
-| `ndjson_reindex` | `7.8998 s` to `7.9170 s` |
-| `ndjson_get` | `86.807 ms` to `87.165 ms` |
-| `ndjson_query` | `712.94 ms` to `715.09 ms` |
-| `ndjson_query_iter` | `712.00 ms` to `713.31 ms` |
-| `ndjson_metadata` | `11.027 us` to `11.038 us` |
+| `feature_files_reindex` | `9.3796 s` to `9.4389 s` |
+| `feature_files_get` | `87.759 ms` to `88.336 ms` |
+| `feature_files_query` | `751.62 ms` to `755.50 ms` |
+| `feature_files_query_iter` | `753.62 ms` to `756.84 ms` |
+| `feature_files_metadata` | `2.3406 us` to `2.3492 us` |
+| `cityjson_reindex` | `17.862 s` to `18.045 s` |
+| `cityjson_get` | `92.092 ms` to `92.581 ms` |
+| `cityjson_query` | `796.16 ms` to `799.79 ms` |
+| `cityjson_query_iter` | `794.37 ms` to `797.59 ms` |
+| `cityjson_metadata` | `11.260 us` to `11.317 us` |
+| `ndjson_reindex` | `7.9518 s` to `7.9843 s` |
+| `ndjson_get` | `87.349 ms` to `87.774 ms` |
+| `ndjson_query` | `734.70 ms` to `737.69 ms` |
+| `ndjson_query_iter` | `728.16 ms` to `733.10 ms` |
+| `ndjson_metadata` | `11.228 us` to `11.269 us` |
 
 ## Normalized Read View
 
@@ -113,9 +119,9 @@ looks like this:
 
 | Layout | `get` per lookup | `query` per bbox | `query_iter` per bbox |
 | --- | --- | --- | --- |
-| feature-files | about `88.8 us` | about `74.0 ms` | about `74.3 ms` |
-| `CityJSON` | about `91.4 us` | about `76.9 ms` | about `77.0 ms` |
-| `NDJSON` | about `87.0 us` | about `71.4 ms` | about `71.3 ms` |
+| feature-files | about `88.0 us` | about `75.4 ms` | about `75.5 ms` |
+| `CityJSON` | about `92.3 us` | about `79.8 ms` | about `79.6 ms` |
+| `NDJSON` | about `87.6 us` | about `73.6 ms` | about `73.1 ms` |
 
 ## Interpretation
 

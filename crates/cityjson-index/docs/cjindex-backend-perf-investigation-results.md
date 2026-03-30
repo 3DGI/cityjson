@@ -90,17 +90,17 @@ cost on only 43 first touches in this batch.
 
 | Backend | Lookup Only | Read Only | Full | Estimated Remaining |
 | --- | ---: | ---: | ---: | ---: |
-| feature-files | `2.638 ms` | `1.199 ms` | `85.318 ms` | `81.481 ms` |
-| `CityJSON` | `2.905 ms` | `1.824 ms` | `88.416 ms` | `83.686 ms` |
-| `NDJSON` | `2.670 ms` | `992.478 us` | `84.448 ms` | `80.786 ms` |
+| feature-files | `2.650 ms` | `1.203 ms` | `85.670 ms` | `81.817 ms` |
+| `CityJSON` | `2.934 ms` | `1.860 ms` | `89.007 ms` | `84.213 ms` |
+| `NDJSON` | `2.668 ms` | `985.456 us` | `84.625 ms` | `80.972 ms` |
 
 ### 10-bbox benchmark batch
 
 | Backend | Lookup Only | Read Only | Full | Estimated Remaining |
 | --- | ---: | ---: | ---: | ---: |
-| feature-files | `11.592 ms` | `11.159 ms` | `707.188 ms` | `684.437 ms` |
-| `CityJSON` | `14.068 ms` | `14.861 ms` | `747.442 ms` | `718.513 ms` |
-| `NDJSON` | `10.836 ms` | `8.237 ms` | `693.624 ms` | `674.550 ms` |
+| feature-files | `11.579 ms` | `11.368 ms` | `723.417 ms` | `700.470 ms` |
+| `CityJSON` | `14.230 ms` | `14.596 ms` | `767.566 ms` | `738.740 ms` |
+| `NDJSON` | `10.941 ms` | `8.252 ms` | `715.331 ms` | `696.138 ms` |
 
 The "estimated remaining" column is `full - lookup - read_only`. It is not
 pure parser time, but it is a good approximation for the work that remains once

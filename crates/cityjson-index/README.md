@@ -58,9 +58,9 @@ Reading pulls the indexed member object fragments and the shared vertices range,
 
 ```text
 features/
-├── metadata.city.json
+├── metadata.json
 ├── 0566/
-│   ├── metadata.city.json
+│   ├── metadata.json
 │   ├── NL.IMBAG.Pand.0566100000032571.city.jsonl
 │   └── NL.IMBAG.Pand.0566100000032572.city.jsonl
 └── 0599/
@@ -122,4 +122,4 @@ Current read ranking in the benchmark docs:
 
 ## Status
 
-`cjindex` is currently a working indexing and read library with a matching CLI surface under active cleanup. The remaining work is mostly in polish, CLI ergonomics, and performance tuning rather than in the core retrieval model.
+`cjindex` is currently a working indexing and read library with a matching CLI surface. The remaining work is mostly in polish, CLI ergonomics, and performance tuning rather than in the core retrieval model.
