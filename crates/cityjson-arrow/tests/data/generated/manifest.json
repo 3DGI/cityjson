@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "purpose": "Benchmark profile catalog for the cjfake-backed read and write suites",
+  "cases": [
+    {
+      "id": "3DBAG",
+      "kind": "real",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "description": "Real-world medium-size dataset with two geometries per object and parent-child links",
+      "source": {
+        "path": "tests/data/downloaded/10-356-724.city.json"
+      }
+    },
+    {
+      "id": "3D Basisvoorziening",
+      "kind": "real",
+      "suites": ["read", "write"],
+      "borrowed": false,
+      "description": "Large real-world dataset dominated by geometry flattening and vertex import",
+      "source": {
+        "path": "tests/data/downloaded/30gz1_04.city.json"
+      }
+    },
+    {
+      "id": "geometry_flattening_best_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 11,
+      "profile_path": "tests/data/generated/profiles/geometry_flattening_best_case.json",
+      "description": "Large MultiSurface payload with no relation graph or attribute tree",
+      "intent": "Favor serde_cityjson by maximizing geometry flattening and minimizing object normalization"
+    },
+    {
+      "id": "vertex_transform_stress",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 19,
+      "profile_path": "tests/data/generated/profiles/vertex_transform_stress.json",
+      "description": "Large vertex pool with very little object-level normalization",
+      "intent": "Isolate root vertex transform and import cost"
+    },
+    {
+      "id": "attribute_tree_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 23,
+      "profile_path": "tests/data/generated/profiles/attribute_tree_worst_case.json",
+      "description": "Deep nested attributes with minimal geometry work",
+      "intent": "Stress recursive attribute conversion and backend boxing"
+    },
+    {
+      "id": "relation_graph_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 29,
+      "profile_path": "tests/data/generated/profiles/relation_graph_worst_case.json",
+      "description": "Dense parent-child graph with small geometry payloads",
+      "intent": "Stress relation resolution after CityObjects import"
+    },
+    {
+      "id": "deep_boundary_stress",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 31,
+      "profile_path": "tests/data/generated/profiles/deep_boundary_stress.json",
+      "description": "Solid-heavy geometry that exercises nested boundary flattening",
+      "intent": "Stress the flat boundary parser and stored geometry construction"
+    },
+    {
+      "id": "composite_value_favorable_worst_case",
+      "kind": "synthetic",
+      "suites": ["read", "write"],
+      "borrowed": true,
+      "seed": 37,
+      "profile_path": "tests/data/generated/profiles/composite_value_favorable_worst_case.json",
+      "description": "Mixed geometry and normalization workload that is smaller but denser",
+      "intent": "Show a case where the generic DOM baseline remains competitive"
+    },
+    {
+      "id": "appearance_and_validation_stress",
+      "kind": "synthetic",
+      "suites": ["write"],
+      "borrowed": true,
+      "seed": 41,
+      "profile_path": "tests/data/generated/profiles/appearance_and_validation_stress.json",
+      "description": "Serializer-heavy case with materials, textures, templates, and semantics",
+      "intent": "Exercise serializer validation and appearance/theme output"
+    }
+  ]
+}

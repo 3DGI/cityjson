@@ -12,6 +12,9 @@ check:
 clippy:
     cargo clippy --all-targets --all-features -- -D warnings
 
+acceptance:
+    cargo test --test manifest_roundtrip -- --ignored --nocapture
+
 # Build and open the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
