@@ -10,3 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 cjlib-ffi-core = { path = "../core" }
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
