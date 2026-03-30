@@ -12,6 +12,7 @@ pub enum Error {
     Arrow(ArrowError),
     Parquet(ParquetError),
     CityJSON(cityjson::error::Error),
+    Json(serde_json::Error),
     Conversion(String),
     Unsupported(String),
     SchemaMismatch { expected: String, found: String },
@@ -25,6 +26,7 @@ impl Display for Error {
             Error::Arrow(e) => write!(f, "Arrow error: {}", e),
             Error::Parquet(e) => write!(f, "Parquet error: {}", e),
             Error::CityJSON(e) => write!(f, "CityJSON error: {}", e),
+            Error::Json(e) => write!(f, "JSON error: {}", e),
             Error::Conversion(s) => write!(f, "could not convert due to {}", s),
             Error::Unsupported(s) => write!(f, "feature {} is not supported", s),
             Error::SchemaMismatch { expected, found } => {
@@ -51,6 +53,12 @@ impl From<ParquetError> for Error {
 impl From<cityjson::error::Error> for Error {
     fn from(value: cityjson::error::Error) -> Self {
         Self::CityJSON(value)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Json(value)
     }
 }
 
