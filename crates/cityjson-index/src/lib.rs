@@ -25,6 +25,28 @@ pub struct BBox {
     pub max_y: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FeatureBounds {
+    pub min_x: f64,
+    pub max_x: f64,
+    pub min_y: f64,
+    pub max_y: f64,
+    pub min_z: f64,
+    pub max_z: f64,
+}
+
+impl FeatureBounds {
+    #[must_use]
+    pub fn bbox_2d(self) -> BBox {
+        BBox {
+            min_x: self.min_x,
+            max_x: self.max_x,
+            min_y: self.min_y,
+            max_y: self.max_y,
+        }
+    }
+}
+
 pub struct CityIndex {
     index: Index,
     backend: Box<dyn StorageBackend>,
@@ -40,7 +62,7 @@ pub struct IndexedFeatureRef {
     pub vertices_offset: Option<u64>,
     pub vertices_length: Option<u64>,
     pub member_ranges_json: Option<String>,
-    pub bbox: BBox,
+    pub bounds: FeatureBounds,
 }
 
 impl IndexedFeatureRef {
@@ -226,6 +248,12 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
         status.indexed_source_count = Some(index.source_count()?);
         status.indexed_feature_count = Some(index.feature_count()?);
         status.indexed_cityobject_count = Some(index.cityobject_count()?);
+        if !index.feature_bounds_complete()? {
+            status.needs_reindex = true;
+            status
+                .issues
+                .push("index is missing persisted z bounds; run cjindex reindex".to_owned());
+        }
 
         let indexed_sources = index.indexed_sources()?;
         let current_sources = collect_current_file_statuses(&resolved.source_paths)?;
@@ -869,7 +897,7 @@ struct FeatureIndexEntry {
     file_mtime_ns: i64,
     offset: u64,
     length: u64,
-    bbox: BBox,
+    bounds: FeatureBounds,
     cityobject_count: u64,
     member_ranges_json: Option<String>,
 }
@@ -1106,6 +1134,8 @@ impl Index {
                 file_mtime_ns INTEGER,
                 offset INTEGER NOT NULL,
                 length INTEGER NOT NULL,
+                min_z REAL,
+                max_z REAL,
                 cityobject_count INTEGER,
                 member_ranges TEXT
             );
@@ -1128,6 +1158,7 @@ impl Index {
         Self::ensure_member_ranges_column(&conn)?;
         Self::ensure_source_status_columns(&conn)?;
         Self::ensure_feature_status_columns(&conn)?;
+        Self::ensure_feature_bounds_columns(&conn)?;
 
         Ok(Self {
             conn,
@@ -1159,7 +1190,7 @@ impl Index {
                     file_mtime_ns: feature.file_mtime_ns,
                     offset: feature.offset,
                     length: feature.length,
-                    bbox: feature.bbox,
+                    bounds: feature.bounds,
                     cityobject_count: feature.cityobject_count,
                     member_ranges_json: feature
                         .member_ranges
@@ -1311,7 +1342,9 @@ impl Index {
                 fb.min_x,
                 fb.max_x,
                 fb.min_y,
-                fb.max_y
+                fb.max_y,
+                f.min_z,
+                f.max_z
             FROM features AS f
             JOIN sources AS s ON s.id = f.source_id
             JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
@@ -1469,6 +1502,28 @@ impl Index {
         Ok(())
     }
 
+    fn ensure_feature_bounds_columns(conn: &rusqlite::Connection) -> Result<()> {
+        let mut stmt = sqlite_result(conn.prepare("PRAGMA table_info(features)"))?;
+        let rows = sqlite_result(stmt.query_map([], |row| row.get::<_, String>(1)))?;
+        let columns = sqlite_result(rows.collect::<rusqlite::Result<Vec<_>>>())?;
+        if !columns.iter().any(|column| column == "min_z") {
+            sqlite_result(conn.execute("ALTER TABLE features ADD COLUMN min_z REAL", []))?;
+        }
+        if !columns.iter().any(|column| column == "max_z") {
+            sqlite_result(conn.execute("ALTER TABLE features ADD COLUMN max_z REAL", []))?;
+        }
+        Ok(())
+    }
+
+    fn feature_bounds_complete(&self) -> Result<bool> {
+        let missing = sqlite_result(self.conn.query_row(
+            "SELECT COUNT(*) FROM features WHERE min_z IS NULL OR max_z IS NULL",
+            [],
+            |row| row.get::<_, i64>(0),
+        ))?;
+        Ok(missing == 0)
+    }
+
     fn clear_tables(tx: &rusqlite::Transaction<'_>) -> Result<()> {
         sqlite_result(tx.execute_batch(
             r"
@@ -1532,10 +1587,12 @@ impl Index {
                 file_mtime_ns,
                 offset,
                 length,
+                min_z,
+                max_z,
                 cityobject_count,
                 member_ranges
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             ",
         ))?;
         let mut bbox_stmt = sqlite_result(tx.prepare(
@@ -1563,16 +1620,18 @@ impl Index {
                 entry.file_mtime_ns,
                 offset,
                 length,
+                entry.bounds.min_z,
+                entry.bounds.max_z,
                 cityobject_count,
                 &entry.member_ranges_json,
             ]))?;
             let feature_rowid = tx.last_insert_rowid();
             sqlite_result(bbox_stmt.execute(params![
                 feature_rowid,
-                entry.bbox.min_x,
-                entry.bbox.max_x,
-                entry.bbox.min_y,
-                entry.bbox.max_y,
+                entry.bounds.min_x,
+                entry.bounds.max_x,
+                entry.bounds.min_y,
+                entry.bounds.max_y,
             ]))?;
             sqlite_result(map_stmt.execute(params![feature_rowid, &entry.id]))?;
         }
@@ -1641,11 +1700,13 @@ impl Index {
             None => None,
         };
         let member_ranges_json = row.get::<_, Option<String>>(8)?;
-        let bbox = BBox {
+        let bounds = FeatureBounds {
             min_x: row.get::<_, f64>(9)?,
             max_x: row.get::<_, f64>(10)?,
             min_y: row.get::<_, f64>(11)?,
             max_y: row.get::<_, f64>(12)?,
+            min_z: row.get::<_, f64>(13)?,
+            max_z: row.get::<_, f64>(14)?,
         };
 
         Ok(IndexedFeatureRefLocation {
@@ -1659,7 +1720,7 @@ impl Index {
                 vertices_offset,
                 vertices_length,
                 member_ranges_json,
-                bbox,
+                bounds,
             },
         })
     }
@@ -1687,7 +1748,7 @@ struct ScannedFeature {
     file_mtime_ns: i64,
     offset: u64,
     length: u64,
-    bbox: BBox,
+    bounds: FeatureBounds,
     cityobject_count: u64,
     member_ranges: Option<Vec<IndexedObjectRange>>,
 }
@@ -1957,7 +2018,7 @@ fn scan_feature_files_root(
             ))
         })?;
         let feature: Value = read_json(&feature_path)?;
-        let (id, bbox, cityobject_count) = parse_feature_file_bbox(&feature, &source.metadata)?;
+        let (id, bounds, cityobject_count) = parse_feature_file_bounds(&feature, &source.metadata)?;
         let (file_size, file_mtime_ns) = file_status(&feature_path)?;
         source.features.push(ScannedFeature {
             id,
@@ -1966,7 +2027,7 @@ fn scan_feature_files_root(
             file_mtime_ns,
             offset: 0,
             length: file_size,
-            bbox,
+            bounds,
             cityobject_count,
             member_ranges: None,
         });
@@ -1993,7 +2054,10 @@ fn resolve_feature_metadata_path(
     None
 }
 
-fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, BBox, u64)> {
+fn parse_feature_file_bounds(
+    feature: &Value,
+    metadata: &Meta,
+) -> Result<(String, FeatureBounds, u64)> {
     let id = feature_identifier(feature, "feature file")?;
     let vertices = feature
         .get("vertices")
@@ -2003,9 +2067,9 @@ fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, 
 
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
     let (scale, translate) = parse_ndjson_transform(metadata)?;
-    let bbox = bbox_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
+    let bounds = feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
     let cityobject_count = feature_cityobject_count(feature, "feature file")?;
-    Ok((id, bbox, cityobject_count))
+    Ok((id, bounds, cityobject_count))
 }
 
 fn trim_fragment_delimiters(bytes: &[u8]) -> &[u8] {
@@ -2350,7 +2414,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
         }
 
         let feature: Value = serde_json::from_slice(line_bytes)?;
-        let (id, bbox) = parse_ndjson_feature_bbox(&feature, scale, translate)?;
+        let (id, bounds) = parse_ndjson_feature_bounds(&feature, scale, translate)?;
         let cityobject_count = feature_cityobject_count(&feature, "ndjson feature")?;
         features.push(ScannedFeature {
             id,
@@ -2360,7 +2424,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
             offset,
             length: u64::try_from(line_bytes.len())
                 .map_err(|_| import_error("NDJSON feature line length does not fit in u64"))?,
-            bbox,
+            bounds,
             cityobject_count,
             member_ranges: None,
         });
@@ -2479,7 +2543,8 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
                 path.display()
             )));
         }
-        let bbox = bbox_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
+        let bounds =
+            feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
         features.push(ScannedFeature {
             id: id.clone(),
             path: path.to_path_buf(),
@@ -2487,7 +2552,7 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
             file_mtime_ns: source_mtime_ns,
             offset,
             length,
-            bbox,
+            bounds,
             cityobject_count: u64::try_from(member_ranges.len())
                 .map_err(|_| import_error("CityObject count does not fit in u64"))?,
             member_ranges: Some(member_ranges),
@@ -2861,32 +2926,34 @@ fn parse_vector3_f64(object: &Map<String, Value>, key: &str) -> Result<[f64; 3]>
     ])
 }
 
-fn parse_ndjson_feature_bbox(
+fn parse_ndjson_feature_bounds(
     feature: &Value,
     scale: [f64; 3],
     translate: [f64; 3],
-) -> Result<(String, BBox)> {
+) -> Result<(String, FeatureBounds)> {
     let id = feature_identifier(feature, "NDJSON feature")?;
     let vertices = feature
         .get("vertices")
         .ok_or_else(|| import_error("NDJSON feature is missing vertices"))?;
     let vertices: Vec<[i64; 3]> = serde_json::from_value(vertices.clone())?;
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
-    let bbox = bbox_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
-    Ok((id, bbox))
+    let bounds = feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
+    Ok((id, bounds))
 }
 
 #[allow(clippy::cast_precision_loss)]
-fn bbox_from_vertices(
+fn feature_bounds_from_vertices(
     vertices: &[[i64; 3]],
     referenced_vertices: &BTreeSet<usize>,
     scale: [f64; 3],
     translate: [f64; 3],
-) -> Result<BBox> {
+) -> Result<FeatureBounds> {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_y = f64::NEG_INFINITY;
+    let mut min_z = f64::INFINITY;
+    let mut max_z = f64::NEG_INFINITY;
 
     for &index in referenced_vertices {
         let vertex = vertices.get(index).copied().ok_or_else(|| {
@@ -2896,21 +2963,32 @@ fn bbox_from_vertices(
         })?;
         let x = translate[0] + scale[0] * vertex[0] as f64;
         let y = translate[1] + scale[1] * vertex[1] as f64;
+        let z = translate[2] + scale[2] * vertex[2] as f64;
         min_x = min_x.min(x);
         max_x = max_x.max(x);
         min_y = min_y.min(y);
         max_y = max_y.max(y);
+        min_z = min_z.min(z);
+        max_z = max_z.max(z);
     }
 
-    if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+    if !min_x.is_finite()
+        || !min_y.is_finite()
+        || !min_z.is_finite()
+        || !max_x.is_finite()
+        || !max_y.is_finite()
+        || !max_z.is_finite()
+    {
         return Err(import_error("NDJSON feature bbox could not be computed"));
     }
 
-    Ok(BBox {
+    Ok(FeatureBounds {
         min_x,
         max_x,
         min_y,
         max_y,
+        min_z,
+        max_z,
     })
 }
 
@@ -3342,8 +3420,8 @@ mod tests {
                     .expect("feature should reconstruct");
                 assert!(model_contains_id(&model, &feature.feature_id));
                 assert_eq!(
-                    bbox_for_model(&model).expect("bbox should be computable"),
-                    feature.bbox
+                    feature_bounds_for_model(&model).expect("bounds should be computable"),
+                    feature.bounds
                 );
             }
         }
@@ -3665,8 +3743,8 @@ mod tests {
                     .expect("feature should reconstruct");
                 assert!(model_contains_id(&model, &feature.feature_id));
                 assert_eq!(
-                    bbox_for_model(&model).expect("bbox should be computable"),
-                    feature.bbox
+                    feature_bounds_for_model(&model).expect("bounds should be computable"),
+                    feature.bounds
                 );
             }
         }
@@ -3681,7 +3759,7 @@ mod tests {
             .is_some_and(|cityobjects| cityobjects.contains_key(id))
     }
 
-    fn bbox_for_model(model: &CityModel) -> Result<BBox> {
+    fn feature_bounds_for_model(model: &CityModel) -> Result<FeatureBounds> {
         let value: Value =
             serde_json::from_str(&cjlib::json::to_string(model).expect("serialize model"))
                 .expect("model JSON");
@@ -3700,6 +3778,8 @@ mod tests {
         let mut max_x = f64::NEG_INFINITY;
         let mut min_y = f64::INFINITY;
         let mut max_y = f64::NEG_INFINITY;
+        let mut min_z = f64::INFINITY;
+        let mut max_z = f64::NEG_INFINITY;
 
         for vertex in vertices {
             let coords = vertex
@@ -3710,23 +3790,34 @@ mod tests {
             }
             let x = translate[0] + scale[0] * value_as_f64(&coords[0])?;
             let y = translate[1] + scale[1] * value_as_f64(&coords[1])?;
+            let z = translate[2] + scale[2] * value_as_f64(&coords[2])?;
             min_x = min_x.min(x);
             max_x = max_x.max(x);
             min_y = min_y.min(y);
             max_y = max_y.max(y);
+            min_z = min_z.min(z);
+            max_z = max_z.max(z);
         }
 
-        if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
+        if !min_x.is_finite()
+            || !max_x.is_finite()
+            || !min_y.is_finite()
+            || !max_y.is_finite()
+            || !min_z.is_finite()
+            || !max_z.is_finite()
+        {
             return Err(import_error(
                 "could not compute a finite bbox from the model",
             ));
         }
 
-        Ok(BBox {
+        Ok(FeatureBounds {
             min_x,
             max_x,
             min_y,
             max_y,
+            min_z,
+            max_z,
         })
     }
 
