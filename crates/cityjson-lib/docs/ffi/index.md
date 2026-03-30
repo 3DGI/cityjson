@@ -49,6 +49,10 @@ The FFI section is split into:
 - [Wasm32 blocker and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
   Follow-up design note for the current wasm32 portability blocker in
   `cityjson-rs` and the later wasm64 evaluation path.
+- [FFI performance analysis](ffi-performance-analysis.md)
+  Analysis of why the current end-to-end wrapper benchmarks are much slower
+  than the direct Rust baseline and which costs come from wrapper design rather
+  than the raw ABI crossing.
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.
