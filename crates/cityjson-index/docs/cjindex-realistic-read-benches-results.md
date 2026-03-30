@@ -64,6 +64,13 @@ Two details matter for interpreting the current numbers:
    Criterion samples, the suite sweeps the whole 191-tile corpus instead of
    hammering one fixed spatial window.
 
+On the current canonical workload shape, those measured iterations correspond
+to:
+
+- `get`: 1,000 feature-package reads returning 2,003 `CityObject`s
+- `query`: 10 bbox reads returning 7,927 feature packages and 15,886
+  `CityObject`s in the canonical batch used by the investigation binary
+
 This means Criterion's historical `change:` percentages on `get`, `query`, and
 `query_iter` are not apples-to-apples versus the previous report. Those
 percentages now reflect:
@@ -123,6 +130,21 @@ looks like this:
 | `CityJSON` | about `92.3 us` | about `79.8 ms` | about `79.6 ms` |
 | `NDJSON` | about `87.6 us` | about `73.6 ms` | about `73.1 ms` |
 
+Because the corrected benchmark semantics now return full feature packages
+again, it is also useful to normalize by returned `CityObject`. Combining the
+Criterion timings above with the measured workload shape from
+`investigate-read-performance` gives this approximate view:
+
+| Layout | `get` per returned `CityObject` | `query` per returned `CityObject` |
+| --- | --- | --- |
+| feature-files | about `44.0 us` | about `47.4 us` |
+| `CityJSON` | about `46.1 us` | about `50.2 us` |
+| `NDJSON` | about `43.7 us` | about `46.3 us` |
+
+That per-`CityObject` view is the cleanest cross-backend comparison for the
+current workload, because the average feature package in the benchmark contains
+about two `CityObject`s.
+
 ## Interpretation
 
 The corrected benchmark story is much cleaner than the previous one.
@@ -133,6 +155,8 @@ The corrected benchmark story is much cleaner than the previous one.
 - regular `CityJSON` is no longer catastrophically slow, but it is also no
   longer the surprising `get` winner once full feature-package semantics are
   restored.
+- The same backend ordering still holds after normalizing by returned
+  `CityObject`: `NDJSON` first, feature-files second, `CityJSON` third.
 - `CityJSON reindex` improved materially from the earlier report because the
   feature count is no longer inflated by indexing every child object.
 

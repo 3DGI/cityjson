@@ -45,6 +45,7 @@ After fixing that:
 `get` batch shape:
 
 - 1,000 reads
+- 2,003 returned `CityObject`s
 - all 191 `CityJSON` / `NDJSON` source tiles touched
 - exactly 191 first-touch shared-vertices cache misses for `CityJSON`
 - 809 later shared-vertices cache hits for `CityJSON`
@@ -58,6 +59,7 @@ Rotating bbox ring shape:
 The first 10-bbox benchmark batch from that ring touches:
 
 - 7,927 feature hits
+- 15,886 returned `CityObject`s
 - 43 `CityJSON` / `NDJSON` source tiles
 
 ## Byte Volume
@@ -88,19 +90,19 @@ cost on only 43 first touches in this batch.
 
 ### `get`
 
-| Backend | Lookup Only | Read Only | Full | Estimated Remaining |
-| --- | ---: | ---: | ---: | ---: |
-| feature-files | `2.650 ms` | `1.203 ms` | `85.670 ms` | `81.817 ms` |
-| `CityJSON` | `2.934 ms` | `1.860 ms` | `89.007 ms` | `84.213 ms` |
-| `NDJSON` | `2.668 ms` | `985.456 us` | `84.625 ms` | `80.972 ms` |
+| Backend | Lookup Only | Read Only | Full | Estimated Remaining | Full Per Feature | Full Per `CityObject` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| feature-files | `2.660 ms` | `1.192 ms` | `86.114 ms` | `82.262 ms` | `86.114 us` | `42.992 us` |
+| `CityJSON` | `2.904 ms` | `1.882 ms` | `89.734 ms` | `84.948 ms` | `89.734 us` | `44.799 us` |
+| `NDJSON` | `2.629 ms` | `1.002 ms` | `84.131 ms` | `80.500 ms` | `84.131 us` | `42.002 us` |
 
 ### 10-bbox benchmark batch
 
-| Backend | Lookup Only | Read Only | Full | Estimated Remaining |
-| --- | ---: | ---: | ---: | ---: |
-| feature-files | `11.579 ms` | `11.368 ms` | `723.417 ms` | `700.470 ms` |
-| `CityJSON` | `14.230 ms` | `14.596 ms` | `767.566 ms` | `738.740 ms` |
-| `NDJSON` | `10.941 ms` | `8.252 ms` | `715.331 ms` | `696.138 ms` |
+| Backend | Lookup Only | Read Only | Full | Estimated Remaining | Full Per Feature | Full Per `CityObject` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| feature-files | `11.710 ms` | `11.354 ms` | `719.768 ms` | `696.704 ms` | `90.799 us` | `45.308 us` |
+| `CityJSON` | `14.235 ms` | `15.096 ms` | `768.581 ms` | `739.250 ms` | `96.957 us` | `48.381 us` |
+| `NDJSON` | `10.833 ms` | `8.305 ms` | `707.893 ms` | `688.755 ms` | `89.301 us` | `44.560 us` |
 
 The "estimated remaining" column is `full - lookup - read_only`. It is not
 pure parser time, but it is a good approximation for the work that remains once
@@ -125,11 +127,16 @@ bucket is dominated by metadata handling, JSON decode, vertex localization, and
    Once the easy parts are removed, `CityJSON` still carries the largest
    remaining batch cost on both `get` and bbox reads.
 
-5. `CityJSON` still benefits from shared-state reuse.
+5. The same ranking survives per-`CityObject` normalization.
+   The current medians are `get`: feature-files `42.992 us`, `CityJSON`
+   `44.799 us`, `NDJSON` `42.002 us`; `query`: feature-files `45.308 us`,
+   `CityJSON` `48.381 us`, `NDJSON` `44.560 us`.
+
+6. `CityJSON` still benefits from shared-state reuse.
    The `get` batch hits all 191 tiles but still converts 809 of 1,000 reads into
    shared-vertices cache hits after the first touch per tile.
 
-6. The benchmark now has meaningful corpus spread.
+7. The benchmark now has meaningful corpus spread.
    `get` covers all 191 tiles in one batch, and `query` / `query_iter` sweep the
    full 191-tile bbox ring over time instead of hammering a single hot tile.
 
@@ -141,5 +148,7 @@ In simple terms:
 - feature-files is very close to `NDJSON`
 - `CityJSON` is no longer broken, but it still pays more reconstruction cost
   than the other two layouts
+- that remains true even when normalized by returned `CityObject`, not just by
+  feature package or by bbox
 - the next optimization target is no longer raw indexed I/O
 - the next optimization target is `CityJSON` feature-package reconstruction

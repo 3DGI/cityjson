@@ -158,6 +158,8 @@ struct MemberRange {
 #[derive(Default)]
 struct WorkloadShape {
     result_count: usize,
+    cityobject_count: usize,
+    average_cityobjects_per_result: f64,
     unique_sources: usize,
     total_primary_bytes: u64,
     average_primary_bytes: f64,
@@ -167,6 +169,7 @@ struct WorkloadShape {
     cache_misses: usize,
     total_secondary_bytes_on_miss: u64,
     per_query_hits: Vec<usize>,
+    per_query_cityobjects: Vec<usize>,
 }
 
 struct StageTimings {
@@ -228,15 +231,27 @@ fn prepare_layout(
         .iter()
         .map(|bbox| lookup_locations_by_bbox(&conn, bbox))
         .collect::<Result<Vec<_>>>()?;
-    let get_shape = summarize_workload(&get_locations);
+    let index = CityIndex::open(kind.storage_layout(&root), &index_path)?;
+    let get_cityobject_count = count_get_cityobjects(&index, get_ids)?;
+    let query_cityobject_counts = query_bboxes
+        .iter()
+        .map(|bbox| count_query_cityobjects(&index, bbox))
+        .collect::<Result<Vec<_>>>()?;
+    drop(index);
+
+    let get_shape = summarize_workload(&get_locations, get_cityobject_count);
     let query_sweep_shape = summarize_workload(
         &query_locations
             .iter()
             .flatten()
             .cloned()
             .collect::<Vec<_>>(),
+        query_cityobject_counts.iter().sum(),
     )
-    .with_query_hits(query_locations.iter().map(Vec::len).collect());
+    .with_query_breakdown(
+        query_locations.iter().map(Vec::len).collect(),
+        query_cityobject_counts.clone(),
+    );
     let query_batch_shape = summarize_workload(
         &query_locations
             .iter()
@@ -244,6 +259,10 @@ fn prepare_layout(
             .flatten()
             .cloned()
             .collect::<Vec<_>>(),
+        query_cityobject_counts
+            .iter()
+            .take(QUERY_BATCH_COUNT.min(query_cityobject_counts.len()))
+            .sum(),
     );
 
     Ok(PreparedLayout {
@@ -263,13 +282,18 @@ fn prepare_layout(
 }
 
 impl WorkloadShape {
-    fn with_query_hits(mut self, per_query_hits: Vec<usize>) -> Self {
+    fn with_query_breakdown(
+        mut self,
+        per_query_hits: Vec<usize>,
+        per_query_cityobjects: Vec<usize>,
+    ) -> Self {
         self.per_query_hits = per_query_hits;
+        self.per_query_cityobjects = per_query_cityobjects;
         self
     }
 }
 
-fn summarize_workload(locations: &[LocationSpec]) -> WorkloadShape {
+fn summarize_workload(locations: &[LocationSpec], cityobject_count: usize) -> WorkloadShape {
     let mut primary_lengths = locations
         .iter()
         .map(total_primary_bytes_for_location)
@@ -299,6 +323,8 @@ fn summarize_workload(locations: &[LocationSpec]) -> WorkloadShape {
 
     WorkloadShape {
         result_count: locations.len(),
+        cityobject_count,
+        average_cityobjects_per_result: cityobject_count as f64 / locations.len().max(1) as f64,
         unique_sources,
         total_primary_bytes,
         average_primary_bytes: total_primary_bytes as f64 / locations.len().max(1) as f64,
@@ -308,6 +334,7 @@ fn summarize_workload(locations: &[LocationSpec]) -> WorkloadShape {
         cache_misses,
         total_secondary_bytes_on_miss,
         per_query_hits: Vec::new(),
+        per_query_cityobjects: Vec::new(),
     }
 }
 
@@ -543,6 +570,25 @@ fn measure_query_full(index: &CityIndex, query_bboxes: &[BBox]) -> Result<usize>
     Ok(checksum)
 }
 
+fn count_get_cityobjects(index: &CityIndex, get_ids: &[String]) -> Result<usize> {
+    let mut cityobject_count = 0usize;
+    for feature_id in get_ids {
+        let model = index.get(feature_id)?.ok_or_else(|| {
+            Error::Import(format!("cityobject count is missing model {feature_id}"))
+        })?;
+        cityobject_count += model.as_inner().cityobjects().len();
+    }
+    Ok(cityobject_count)
+}
+
+fn count_query_cityobjects(index: &CityIndex, bbox: &BBox) -> Result<usize> {
+    Ok(index
+        .query(bbox)?
+        .iter()
+        .map(|model| model.as_inner().cityobjects().len())
+        .sum())
+}
+
 fn lookup_location_by_id(conn: &Connection, id: &str) -> Result<Option<LocationSpec>> {
     conn.query_row(
         r#"
@@ -686,15 +732,19 @@ fn print_workload_shape(
     println!("## {title}");
     println!();
     println!(
-        "| Backend | Reads | Unique Sources | Total Primary Bytes | Avg Primary Bytes | P50 Span | P95 Span | CityJSON Cache Misses | CityJSON Cache Hits | CityJSON Shared Vertices Bytes On First Touch |"
+        "| Backend | Feature Packages | CityObjects | Avg CityObjects / Feature | Unique Sources | Total Primary Bytes | Avg Primary Bytes | P50 Span | P95 Span | CityJSON Cache Misses | CityJSON Cache Hits | CityJSON Shared Vertices Bytes On First Touch |"
     );
-    println!("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+    println!(
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+    );
     for layout in layouts {
         let shape = shape(layout);
         println!(
-            "| `{}` | {} | {} | {} | {:.1} | {} | {} | {} | {} | {} |",
+            "| `{}` | {} | {} | {:.3} | {} | {} | {:.1} | {} | {} | {} | {} | {} |",
             layout.kind.label(),
             shape.result_count,
+            shape.cityobject_count,
+            shape.average_cityobjects_per_result,
             shape.unique_sources,
             shape.total_primary_bytes,
             shape.average_primary_bytes,
@@ -723,9 +773,26 @@ fn print_workload_shape(
                 .unwrap_or(0);
             let avg_hits = feature_files_shape.per_query_hits.iter().sum::<usize>() as f64
                 / feature_files_shape.per_query_hits.len() as f64;
+            let min_cityobjects = feature_files_shape
+                .per_query_cityobjects
+                .iter()
+                .min()
+                .copied()
+                .unwrap_or(0);
+            let max_cityobjects = feature_files_shape
+                .per_query_cityobjects
+                .iter()
+                .max()
+                .copied()
+                .unwrap_or(0);
+            let avg_cityobjects = feature_files_shape
+                .per_query_cityobjects
+                .iter()
+                .sum::<usize>() as f64
+                / feature_files_shape.per_query_cityobjects.len().max(1) as f64;
             println!(
-                "BBox result counts from the canonical workload: min {}, avg {:.1}, max {}.",
-                min_hits, avg_hits, max_hits
+                "BBox result counts from the canonical workload: min {}, avg {:.1}, max {} feature packages per bbox; min {}, avg {:.1}, max {} CityObjects per bbox.",
+                min_hits, avg_hits, max_hits, min_cityobjects, avg_cityobjects, max_cityobjects
             );
             println!();
         }
@@ -740,13 +807,15 @@ fn print_stage_timings(
     println!("## {title}");
     println!();
     println!(
-        "| Backend | Lookup Only | Read Only | Full | Estimated Remaining | Full Per Read | Full Sample Range |"
+        "| Backend | Lookup Only | Read Only | Full | Estimated Remaining | Full Per Feature | Full Per CityObject | Full Sample Range |"
     );
-    println!("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+    println!("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
     for (layout, timing) in timings {
-        let reads = shape(layout).result_count.max(1);
+        let workload_shape = shape(layout);
+        let reads = workload_shape.result_count.max(1);
+        let cityobjects = workload_shape.cityobject_count.max(1);
         println!(
-            "| `{}` | {} | {} | {} | {} | {} | {} to {} |",
+            "| `{}` | {} | {} | {} | {} | {} | {} | {} to {} |",
             layout.kind.label(),
             format_duration(timing.lookup_only.median),
             format_duration(timing.read_only.median),
@@ -757,6 +826,7 @@ fn print_stage_timings(
                 timing.read_only.median
             )),
             format_duration(per_unit_duration(timing.full.median, reads)),
+            format_duration(per_unit_duration(timing.full.median, cityobjects)),
             format_duration(timing.full.min),
             format_duration(timing.full.max),
         );
@@ -771,8 +841,10 @@ fn print_findings(
     get_timings: &[(&PreparedLayout, StageTimings)],
     query_timings: &[(&PreparedLayout, StageTimings)],
 ) {
+    let feature_files_get = timing_for(get_timings, LayoutKind::FeatureFiles);
     let cityjson_get = timing_for(get_timings, LayoutKind::CityJson);
     let ndjson_get = timing_for(get_timings, LayoutKind::Ndjson);
+    let feature_files_query = timing_for(query_timings, LayoutKind::FeatureFiles);
     let cityjson_query = timing_for(query_timings, LayoutKind::CityJson);
     let ndjson_query = timing_for(query_timings, LayoutKind::Ndjson);
 
@@ -807,13 +879,41 @@ fn print_findings(
         format_duration(ndjson_get.full.median)
     );
     println!(
-        "- The realistic bbox workload returns {} features over 10 bboxes, so per-result query cost remains in the tens of microseconds even though per-bbox latency is in the hundred-millisecond range.",
-        feature_files.query_batch_shape.result_count
+        "- The realistic bbox workload returns {} feature packages and {} CityObjects over 10 bboxes, so per-CityObject query cost remains in the tens of microseconds even though per-bbox latency is in the hundred-millisecond range.",
+        feature_files.query_batch_shape.result_count,
+        feature_files.query_batch_shape.cityobject_count
     );
     println!(
         "- The full rotating bbox sweep covers {} tile-local windows and all {} `CityJSON` / `NDJSON` source files, while each measured Criterion batch still stays at 10 queries.",
         feature_files.query_bboxes.len(),
         cityjson.query_sweep_shape.unique_sources
+    );
+    println!(
+        "- Normalized by returned `CityObject`, the current medians are: `get` feature-files {}, `CityJSON` {}, `NDJSON` {}; `query` feature-files {}, `CityJSON` {}, `NDJSON` {}.",
+        format_duration(per_unit_duration(
+            feature_files_get.full.median,
+            feature_files.get_shape.cityobject_count
+        )),
+        format_duration(per_unit_duration(
+            cityjson_get.full.median,
+            cityjson.get_shape.cityobject_count
+        )),
+        format_duration(per_unit_duration(
+            ndjson_get.full.median,
+            ndjson.get_shape.cityobject_count
+        )),
+        format_duration(per_unit_duration(
+            feature_files_query.full.median,
+            feature_files.query_batch_shape.cityobject_count
+        )),
+        format_duration(per_unit_duration(
+            cityjson_query.full.median,
+            cityjson.query_batch_shape.cityobject_count
+        )),
+        format_duration(per_unit_duration(
+            ndjson_query.full.median,
+            ndjson.query_batch_shape.cityobject_count
+        ))
     );
     println!();
 }
