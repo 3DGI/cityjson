@@ -5,6 +5,7 @@ import unittest
 
 from cjlib import (
     CityModel,
+    GeometryBoundary,
     GeometryType,
     ModelCapacities,
     ModelType,
@@ -48,6 +49,44 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertEqual(
             model.geometry_types(),
             [GeometryType.MULTI_SURFACE, GeometryType.MULTI_POINT],
+        )
+        self.assertEqual(
+            model.geometry_boundary(0),
+            GeometryBoundary(
+                geometry_type=GeometryType.MULTI_SURFACE,
+                has_boundaries=True,
+                vertex_indices=[0, 1, 2, 3, 0],
+                ring_offsets=[0],
+                surface_offsets=[0],
+                shell_offsets=[],
+                solid_offsets=[],
+            ),
+        )
+        self.assertEqual(
+            model.geometry_boundary_coordinates(0),
+            [
+                Vertex(10.0, 20.0, 0.0),
+                Vertex(11.0, 20.0, 0.0),
+                Vertex(11.0, 21.0, 0.0),
+                Vertex(10.0, 21.0, 0.0),
+                Vertex(10.0, 20.0, 0.0),
+            ],
+        )
+        self.assertEqual(
+            model.geometry_boundary(1),
+            GeometryBoundary(
+                geometry_type=GeometryType.MULTI_POINT,
+                has_boundaries=True,
+                vertex_indices=[4],
+                ring_offsets=[],
+                surface_offsets=[],
+                shell_offsets=[],
+                solid_offsets=[],
+            ),
+        )
+        self.assertEqual(
+            model.geometry_boundary_coordinates(1),
+            [Vertex(12.0, 22.0, 0.0)],
         )
         self.assertEqual(len(model.vertices()), 5)
         self.assertEqual(model.vertices()[0].x, 10.0)

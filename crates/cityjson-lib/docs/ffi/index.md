@@ -38,7 +38,8 @@ The FFI section is split into:
   wasm bindings on top in parallel workstreams.
 - [Architecture decisions](../adr/0001-shared-c-abi-foundation.md)
   Decision records that freeze the cross-cutting ABI and header workflow
-  choices.
+  choices, including the copied coordinate-buffer and columnar boundary
+  layouts.
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.

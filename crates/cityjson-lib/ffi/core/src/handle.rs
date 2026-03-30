@@ -1,6 +1,9 @@
 use std::ptr;
 
-use crate::abi::{cj_bytes_t, cj_model_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t};
+use crate::abi::{
+    cj_bytes_t, cj_geometry_boundary_t, cj_indices_t, cj_model_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
+    cj_vertices_t,
+};
 
 pub fn model_into_handle(model: cjlib::CityModel) -> *mut cj_model_t {
     Box::into_raw(Box::new(model)).cast::<cj_model_t>()
@@ -51,6 +54,13 @@ pub fn uvs_from_vec(uvs: Vec<cj_uv_t>) -> cj_uvs_t {
     cj_uvs_t { data, len }
 }
 
+pub fn indices_from_vec(indices: Vec<usize>) -> cj_indices_t {
+    let boxed = indices.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<usize>();
+    cj_indices_t { data, len }
+}
+
 pub unsafe fn bytes_free(bytes: cj_bytes_t) {
     if bytes.data.is_null() {
         return;
@@ -81,5 +91,26 @@ pub unsafe fn uvs_free(uvs: cj_uvs_t) {
     let slice = ptr::slice_from_raw_parts_mut(uvs.data, uvs.len);
     unsafe {
         drop(Box::from_raw(slice));
+    }
+}
+
+pub unsafe fn indices_free(indices: cj_indices_t) {
+    if indices.data.is_null() {
+        return;
+    }
+
+    let slice = ptr::slice_from_raw_parts_mut(indices.data, indices.len);
+    unsafe {
+        drop(Box::from_raw(slice));
+    }
+}
+
+pub unsafe fn geometry_boundary_free(boundary: cj_geometry_boundary_t) {
+    unsafe {
+        indices_free(boundary.vertex_indices);
+        indices_free(boundary.ring_offsets);
+        indices_free(boundary.surface_offsets);
+        indices_free(boundary.shell_offsets);
+        indices_free(boundary.solid_offsets);
     }
 }

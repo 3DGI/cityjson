@@ -3,8 +3,8 @@
 //! Narrow wasm-oriented adapter over the shared `cjlib-ffi-core` substrate.
 //!
 //! The public surface here stays task-oriented: probe input, summarize parsed
-//! models, and extract flat coordinate buffers. Deep editable model handles stay
-//! internal to this crate for now.
+//! models, and extract flat coordinate and boundary buffers. Deep editable
+//! model handles stay internal to this crate for now.
 
 use std::ptr;
 use std::slice;
@@ -12,15 +12,17 @@ use std::slice;
 pub use cjlib_ffi_core as core;
 
 use cjlib_ffi_core::exports::{
-    cj_bytes_free, cj_last_error_message_copy, cj_last_error_message_len,
-    cj_model_add_uv_coordinate, cj_model_add_vertex, cj_model_copy_template_vertices,
-    cj_model_copy_uv_coordinates, cj_model_copy_vertices, cj_model_create, cj_model_free,
-    cj_model_get_cityobject_id, cj_model_get_geometry_type, cj_model_get_summary,
-    cj_model_parse_document_bytes, cj_probe_bytes, cj_uvs_free, cj_vertices_free,
+    cj_bytes_free, cj_geometry_boundary_free, cj_last_error_message_copy,
+    cj_last_error_message_len, cj_model_add_uv_coordinate, cj_model_add_vertex,
+    cj_model_copy_geometry_boundary, cj_model_copy_geometry_boundary_coordinates,
+    cj_model_copy_template_vertices, cj_model_copy_uv_coordinates, cj_model_copy_vertices,
+    cj_model_create, cj_model_free, cj_model_get_cityobject_id, cj_model_get_geometry_type,
+    cj_model_get_summary, cj_model_parse_document_bytes, cj_probe_bytes, cj_uvs_free,
+    cj_vertices_free,
 };
 use cjlib_ffi_core::{
-    cj_bytes_t, cj_geometry_type_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_bytes_t, cj_geometry_boundary_t, cj_geometry_type_t, cj_model_summary_t, cj_model_t,
+    cj_model_type_t, cj_probe_t, cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +50,23 @@ pub struct CoordinateBuffers {
     pub vertices: Vec<cj_vertex_t>,
     pub template_vertices: Vec<cj_vertex_t>,
     pub uv_coordinates: Vec<cj_uv_t>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeometryBoundary {
+    pub geometry_type: cj_geometry_type_t,
+    pub has_boundaries: bool,
+    pub vertex_indices: Vec<usize>,
+    pub ring_offsets: Vec<usize>,
+    pub surface_offsets: Vec<usize>,
+    pub shell_offsets: Vec<usize>,
+    pub solid_offsets: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeometryBoundaryCoordinates {
+    pub geometry_type: cj_geometry_type_t,
+    pub coordinates: Vec<cj_vertex_t>,
 }
 
 fn last_error_message() -> String {
@@ -125,6 +144,82 @@ fn take_uvs(uvs: cj_uvs_t) -> Result<Vec<cj_uv_t>, WasmError> {
     Ok(values)
 }
 
+fn take_boundary(boundary: cj_geometry_boundary_t) -> Result<GeometryBoundary, WasmError> {
+    let vertex_indices = if boundary.vertex_indices.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable indices.
+        unsafe {
+            slice::from_raw_parts(
+                boundary.vertex_indices.data.cast_const(),
+                boundary.vertex_indices.len,
+            )
+        }
+        .to_vec()
+    };
+    let ring_offsets = if boundary.ring_offsets.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable indices.
+        unsafe {
+            slice::from_raw_parts(
+                boundary.ring_offsets.data.cast_const(),
+                boundary.ring_offsets.len,
+            )
+        }
+        .to_vec()
+    };
+    let surface_offsets = if boundary.surface_offsets.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable indices.
+        unsafe {
+            slice::from_raw_parts(
+                boundary.surface_offsets.data.cast_const(),
+                boundary.surface_offsets.len,
+            )
+        }
+        .to_vec()
+    };
+    let shell_offsets = if boundary.shell_offsets.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable indices.
+        unsafe {
+            slice::from_raw_parts(
+                boundary.shell_offsets.data.cast_const(),
+                boundary.shell_offsets.len,
+            )
+        }
+        .to_vec()
+    };
+    let solid_offsets = if boundary.solid_offsets.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable indices.
+        unsafe {
+            slice::from_raw_parts(
+                boundary.solid_offsets.data.cast_const(),
+                boundary.solid_offsets.len,
+            )
+        }
+        .to_vec()
+    };
+
+    let payload = GeometryBoundary {
+        geometry_type: boundary.geometry_type,
+        has_boundaries: boundary.has_boundaries,
+        vertex_indices,
+        ring_offsets,
+        surface_offsets,
+        shell_offsets,
+        solid_offsets,
+    };
+
+    status_result(cj_geometry_boundary_free(boundary))?;
+    Ok(payload)
+}
+
 pub fn probe_bytes(bytes: &[u8]) -> Result<ProbeSummary, WasmError> {
     let mut probe = cj_probe_t::default();
     status_result(cj_probe_bytes(bytes.as_ptr(), bytes.len(), &raw mut probe))?;
@@ -199,6 +294,48 @@ pub fn extract_coordinate_buffers(bytes: &[u8]) -> Result<CoordinateBuffers, Was
         vertices: take_vertices(vertices)?,
         template_vertices: take_vertices(template_vertices)?,
         uv_coordinates: take_uvs(uvs)?,
+    })
+}
+
+pub fn extract_geometry_boundary(
+    bytes: &[u8],
+    geometry_index: usize,
+) -> Result<GeometryBoundary, WasmError> {
+    let model = parse_document(bytes)?;
+
+    let mut boundary = cj_geometry_boundary_t::default();
+    status_result(cj_model_copy_geometry_boundary(
+        model.raw(),
+        geometry_index,
+        &raw mut boundary,
+    ))?;
+    take_boundary(boundary)
+}
+
+pub fn extract_geometry_boundary_coordinates(
+    bytes: &[u8],
+    geometry_index: usize,
+) -> Result<GeometryBoundaryCoordinates, WasmError> {
+    let model = parse_document(bytes)?;
+
+    let mut coordinates = cj_vertices_t::default();
+    status_result(cj_model_copy_geometry_boundary_coordinates(
+        model.raw(),
+        geometry_index,
+        &raw mut coordinates,
+    ))?;
+    let coordinates = take_vertices(coordinates)?;
+
+    let mut geometry_type = cj_geometry_type_t::default();
+    status_result(cj_model_get_geometry_type(
+        model.raw(),
+        geometry_index,
+        &raw mut geometry_type,
+    ))?;
+
+    Ok(GeometryBoundaryCoordinates {
+        geometry_type,
+        coordinates,
     })
 }
 
@@ -286,5 +423,60 @@ mod tests {
         );
         assert_eq!(summary.vertex_count, 1);
         assert_eq!(summary.uv_coordinate_count, 1);
+    }
+
+    #[test]
+    fn geometry_boundary_extraction_matches_fixture_topology() {
+        let boundary = extract_geometry_boundary(fixture_bytes(), 0)
+            .expect("geometry boundary extraction should work");
+        assert_eq!(
+            boundary,
+            GeometryBoundary {
+                geometry_type: cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+                has_boundaries: true,
+                vertex_indices: vec![0, 1, 2, 3, 0],
+                ring_offsets: vec![0],
+                surface_offsets: vec![0],
+                shell_offsets: vec![],
+                solid_offsets: vec![],
+            }
+        );
+
+        let coordinates = extract_geometry_boundary_coordinates(fixture_bytes(), 0)
+            .expect("geometry boundary coordinates should work");
+        assert_eq!(
+            coordinates.geometry_type,
+            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE
+        );
+        assert_eq!(
+            coordinates.coordinates,
+            vec![
+                cj_vertex_t {
+                    x: 10.0,
+                    y: 20.0,
+                    z: 0.0,
+                },
+                cj_vertex_t {
+                    x: 11.0,
+                    y: 20.0,
+                    z: 0.0,
+                },
+                cj_vertex_t {
+                    x: 11.0,
+                    y: 21.0,
+                    z: 0.0,
+                },
+                cj_vertex_t {
+                    x: 10.0,
+                    y: 21.0,
+                    z: 0.0,
+                },
+                cj_vertex_t {
+                    x: 10.0,
+                    y: 20.0,
+                    z: 0.0,
+                },
+            ]
+        );
     }
 }

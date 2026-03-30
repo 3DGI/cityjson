@@ -51,6 +51,36 @@ int main() {
   assert(geometry_types[0] == CJ_GEOMETRY_TYPE_MULTI_SURFACE);
   assert(geometry_types[1] == CJ_GEOMETRY_TYPE_MULTI_POINT);
 
+  const auto boundary0 = model.geometry_boundary(0U);
+  assert(boundary0.geometry_type == CJ_GEOMETRY_TYPE_MULTI_SURFACE);
+  assert(boundary0.has_boundaries);
+  assert((boundary0.vertex_indices == std::vector<std::size_t>{0U, 1U, 2U, 3U, 0U}));
+  assert((boundary0.ring_offsets == std::vector<std::size_t>{0U}));
+  assert((boundary0.surface_offsets == std::vector<std::size_t>{0U}));
+  assert(boundary0.shell_offsets.empty());
+  assert(boundary0.solid_offsets.empty());
+
+  const auto boundary0_coordinates = model.geometry_boundary_coordinates(0U);
+  assert(boundary0_coordinates.size() == 5U);
+  assert(boundary0_coordinates[0].x == 10.0);
+  assert(boundary0_coordinates[0].y == 20.0);
+  assert(boundary0_coordinates[2].x == 11.0);
+  assert(boundary0_coordinates[2].y == 21.0);
+
+  const auto boundary1 = model.geometry_boundary(1U);
+  assert(boundary1.geometry_type == CJ_GEOMETRY_TYPE_MULTI_POINT);
+  assert(boundary1.has_boundaries);
+  assert((boundary1.vertex_indices == std::vector<std::size_t>{4U}));
+  assert(boundary1.ring_offsets.empty());
+  assert(boundary1.surface_offsets.empty());
+  assert(boundary1.shell_offsets.empty());
+  assert(boundary1.solid_offsets.empty());
+
+  const auto boundary1_coordinates = model.geometry_boundary_coordinates(1U);
+  assert(boundary1_coordinates.size() == 1U);
+  assert(boundary1_coordinates[0].x == 12.0);
+  assert(boundary1_coordinates[0].y == 22.0);
+
   const auto vertices = model.vertices();
   assert(vertices.size() == 5U);
   assert(vertices[0].x == 10.0);

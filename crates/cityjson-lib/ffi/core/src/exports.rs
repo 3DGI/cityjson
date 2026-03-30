@@ -7,19 +7,23 @@ use std::slice;
 use cjlib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_bytes_t, cj_error_kind_t, cj_geometry_type_t, cj_model_capacities_t, cj_model_summary_t,
-    cj_model_t, cj_model_type_t, cj_probe_t, cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
-    cj_vertices_t,
+    cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_type_t, cj_indices_t,
+    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
+    cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
     run_ffi,
 };
 use crate::handle::{
-    bytes_free as free_bytes, bytes_from_vec, model_as_mut, model_as_ref, model_free,
+    bytes_free as free_bytes, bytes_from_vec, geometry_boundary_free as free_geometry_boundary,
+    indices_free as free_indices, indices_from_vec, model_as_mut, model_as_ref, model_free,
     model_into_handle, uvs_free as free_uvs, uvs_from_vec, vertices_free as free_vertices,
     vertices_from_vec,
 };
+
+type OwnedGeometry =
+    cjlib::cityjson::v2_0::Geometry<u32, cjlib::cityjson::resources::storage::OwnedStringStorage>;
 
 fn invalid_argument(message: impl Into<String>) -> AbiError {
     AbiError::invalid_argument(message)
@@ -70,27 +74,128 @@ fn write_value<T>(out: *mut T, name: &'static str, value: T) -> Result<(), AbiEr
     Ok(())
 }
 
+fn required_out<T>(out: *mut T, name: &'static str) -> Result<NonNull<T>, AbiError> {
+    NonNull::new(out).ok_or_else(|| invalid_argument(format!("{name} must not be null")))
+}
+
 fn write_model_handle(out_model: *mut *mut cj_model_t, model: CityModel) -> Result<(), AbiError> {
-    write_value(out_model, "out_model", model_into_handle(model))
+    let out = required_out(out_model, "out_model")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), model_into_handle(model));
+    }
+
+    Ok(())
 }
 
 fn write_bytes(out_bytes: *mut cj_bytes_t, bytes: Vec<u8>) -> Result<(), AbiError> {
-    write_value(out_bytes, "out_bytes", bytes_from_vec(bytes))
+    let out = required_out(out_bytes, "out_bytes")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), bytes_from_vec(bytes));
+    }
+
+    Ok(())
 }
 
 fn write_vertices(
     out_vertices: *mut cj_vertices_t,
     vertices: Vec<cj_vertex_t>,
 ) -> Result<(), AbiError> {
-    write_value(out_vertices, "out_vertices", vertices_from_vec(vertices))
+    let out = required_out(out_vertices, "out_vertices")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), vertices_from_vec(vertices));
+    }
+
+    Ok(())
 }
 
 fn write_uvs(out_uvs: *mut cj_uvs_t, uvs: Vec<cj_uv_t>) -> Result<(), AbiError> {
-    write_value(out_uvs, "out_uvs", uvs_from_vec(uvs))
+    let out = required_out(out_uvs, "out_uvs")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), uvs_from_vec(uvs));
+    }
+
+    Ok(())
+}
+
+fn write_boundary(
+    out_boundary: *mut cj_geometry_boundary_t,
+    boundary: cj_geometry_boundary_t,
+) -> Result<(), AbiError> {
+    let out = required_out(out_boundary, "out_boundary")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), boundary);
+    }
+
+    Ok(())
 }
 
 fn copy_string_bytes(value: Option<&str>) -> Vec<u8> {
     value.unwrap_or_default().as_bytes().to_vec()
+}
+
+fn index_values(indices: &[cjlib::cityjson::v2_0::VertexIndex<u32>]) -> Vec<usize> {
+    indices.iter().map(|index| index.to_usize()).collect()
+}
+
+fn empty_boundary(geometry: &OwnedGeometry) -> cj_geometry_boundary_t {
+    cj_geometry_boundary_t {
+        geometry_type: (*geometry.type_geometry()).into(),
+        has_boundaries: false,
+        vertex_indices: cj_indices_t::null(),
+        ring_offsets: cj_indices_t::null(),
+        surface_offsets: cj_indices_t::null(),
+        shell_offsets: cj_indices_t::null(),
+        solid_offsets: cj_indices_t::null(),
+    }
+}
+
+fn boundary_from_geometry(geometry: &OwnedGeometry) -> cj_geometry_boundary_t {
+    let Some(boundary) = geometry.boundaries() else {
+        return empty_boundary(geometry);
+    };
+
+    let columnar = boundary.to_columnar();
+    cj_geometry_boundary_t {
+        geometry_type: (*geometry.type_geometry()).into(),
+        has_boundaries: true,
+        vertex_indices: indices_from_vec(index_values(columnar.vertices)),
+        ring_offsets: indices_from_vec(index_values(columnar.ring_offsets)),
+        surface_offsets: indices_from_vec(index_values(columnar.surface_offsets)),
+        shell_offsets: indices_from_vec(index_values(columnar.shell_offsets)),
+        solid_offsets: indices_from_vec(index_values(columnar.solid_offsets)),
+    }
+}
+
+fn geometry_at(model: &CityModel, index: usize) -> Result<&OwnedGeometry, AbiError> {
+    model
+        .as_inner()
+        .iter_geometries()
+        .nth(index)
+        .map(|(_, geometry)| geometry)
+        .ok_or_else(|| invalid_argument(format!("geometry index {index} is out of range")))
+}
+
+fn geometry_boundary_coordinates(
+    model: &CityModel,
+    index: usize,
+) -> Result<Vec<cj_vertex_t>, AbiError> {
+    let geometry = geometry_at(model, index)?;
+
+    Ok(geometry
+        .coordinates(model.as_inner().vertices())
+        .map_or_else(Vec::new, |coordinates| {
+            coordinates.copied().map(Into::into).collect()
+        }))
 }
 
 fn reject_unsupported_document_version(version: Option<CityJSONVersion>) -> Result<(), AbiError> {
@@ -230,6 +335,40 @@ pub extern "C" fn cj_uvs_free(uvs: cj_uvs_t) -> cj_status_t {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_indices_free(indices: cj_indices_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if indices.data.is_null() {
+            if indices.len == 0 {
+                return Ok(());
+            }
+
+            return Err(invalid_argument(
+                "indices data must not be null when len is non-zero",
+            ));
+        }
+
+        // SAFETY: the ABI only frees buffers allocated by `indices_from_vec`.
+        unsafe {
+            free_indices(indices);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_boundary_free(boundary: cj_geometry_boundary_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        // SAFETY: the ABI only frees boundary payloads allocated by `boundary_from_geometry`.
+        unsafe {
+            free_geometry_boundary(boundary);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_last_error_kind() -> cj_error_kind_t {
     last_error_kind()
 }
@@ -339,7 +478,7 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
         }
 
         reject_unsupported_document_version(base_probe.version())?;
-        let model = cjlib::json::from_feature_slice_with_base(feature, base)?;
+        let model = cjlib::json::staged::from_feature_slice_with_base(feature, base)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -449,6 +588,32 @@ pub extern "C" fn cj_model_get_geometry_type(
             .map(|(_, geometry)| *geometry.type_geometry())
             .ok_or_else(|| invalid_argument(format!("geometry index {index} is out of range")))?;
         write_value(out_type, "out_type", geometry_type.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_copy_geometry_boundary(
+    model: *const cj_model_t,
+    index: usize,
+    out_boundary: *mut cj_geometry_boundary_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let geometry = geometry_at(model, index)?;
+        write_boundary(out_boundary, boundary_from_geometry(geometry))
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_copy_geometry_boundary_coordinates(
+    model: *const cj_model_t,
+    index: usize,
+    out_vertices: *mut cj_vertices_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let vertices = geometry_boundary_coordinates(model, index)?;
+        write_vertices(out_vertices, vertices)
     }))
 }
 

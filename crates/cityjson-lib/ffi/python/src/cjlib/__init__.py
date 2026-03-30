@@ -52,6 +52,17 @@ class UV:
 
 
 @dataclass(frozen=True)
+class GeometryBoundary:
+    geometry_type: GeometryType
+    has_boundaries: bool
+    vertex_indices: list[int]
+    ring_offsets: list[int]
+    surface_offsets: list[int]
+    shell_offsets: list[int]
+    solid_offsets: list[int]
+
+
+@dataclass(frozen=True)
 class ModelCapacities:
     cityobjects: int = 0
     vertices: int = 0
@@ -172,6 +183,24 @@ class CityModel:
     def geometry_types(self) -> list[GeometryType]:
         count = self.summary().geometry_count
         return [_ffi.geometry_type(self._handle, index) for index in range(count)]
+
+    def geometry_boundary(self, index: int) -> GeometryBoundary:
+        payload = _ffi.geometry_boundary(self._handle, index)
+        return GeometryBoundary(
+            geometry_type=payload.geometry_type,
+            has_boundaries=payload.has_boundaries,
+            vertex_indices=payload.vertex_indices,
+            ring_offsets=payload.ring_offsets,
+            surface_offsets=payload.surface_offsets,
+            shell_offsets=payload.shell_offsets,
+            solid_offsets=payload.solid_offsets,
+        )
+
+    def geometry_boundary_coordinates(self, index: int) -> list[Vertex]:
+        return [
+            Vertex(x=item.x, y=item.y, z=item.z)
+            for item in _ffi.geometry_boundary_coordinates(self._handle, index)
+        ]
 
     def vertices(self) -> list[Vertex]:
         return [Vertex(x=item.x, y=item.y, z=item.z) for item in _ffi.vertices(self._handle)]

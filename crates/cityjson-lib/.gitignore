@@ -16,6 +16,8 @@ site
 
 # Virtual environment
 /venv/
+__pycache__/
+*.pyc
 
 # Notes
 experiments/notes.md
@@ -26,4 +28,3 @@ notes.md
 /tests/output/*.jsonl
 experiments/data/*
 experiments/geometry-enum/benches/data/*
-

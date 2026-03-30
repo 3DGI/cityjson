@@ -211,6 +211,42 @@ impl cj_uvs_t {
     }
 }
 
+/// Owned index buffer returned across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_indices_t {
+    pub data: *mut usize,
+    pub len: usize,
+}
+
+impl cj_indices_t {
+    pub const fn null() -> Self {
+        Self {
+            data: core::ptr::null_mut(),
+            len: 0,
+        }
+    }
+
+    pub const fn is_null(self) -> bool {
+        self.data.is_null()
+    }
+}
+
+/// Owned flat boundary payload returned across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_boundary_t {
+    pub geometry_type: cj_geometry_type_t,
+    pub has_boundaries: bool,
+    pub vertex_indices: cj_indices_t,
+    pub ring_offsets: cj_indices_t,
+    pub surface_offsets: cj_indices_t,
+    pub shell_offsets: cj_indices_t,
+    pub solid_offsets: cj_indices_t,
+}
+
 /// Probe result returned by the low-level ABI.
 #[allow(non_camel_case_types)]
 #[repr(C)]

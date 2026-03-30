@@ -26,6 +26,20 @@ typedef enum cj_status_t {
 } cj_status_t;
 
 /**
+ * Stable geometry type discriminant for stored `CityJSON` geometries.
+ */
+typedef enum cj_geometry_type_t {
+  CJ_GEOMETRY_TYPE_MULTI_POINT = 0,
+  CJ_GEOMETRY_TYPE_MULTI_LINE_STRING = 1,
+  CJ_GEOMETRY_TYPE_MULTI_SURFACE = 2,
+  CJ_GEOMETRY_TYPE_COMPOSITE_SURFACE = 3,
+  CJ_GEOMETRY_TYPE_SOLID = 4,
+  CJ_GEOMETRY_TYPE_MULTI_SOLID = 5,
+  CJ_GEOMETRY_TYPE_COMPOSITE_SOLID = 6,
+  CJ_GEOMETRY_TYPE_GEOMETRY_INSTANCE = 7,
+} cj_geometry_type_t;
+
+/**
  * Stable error categories for the shared C ABI.
  */
 typedef enum cj_error_kind_t {
@@ -65,20 +79,6 @@ typedef enum cj_model_type_t {
   CJ_MODEL_TYPE_CITY_JSON = 0,
   CJ_MODEL_TYPE_CITY_JSON_FEATURE = 1,
 } cj_model_type_t;
-
-/**
- * Stable geometry type discriminant for stored `CityJSON` geometries.
- */
-typedef enum cj_geometry_type_t {
-  CJ_GEOMETRY_TYPE_MULTI_POINT = 0,
-  CJ_GEOMETRY_TYPE_MULTI_LINE_STRING = 1,
-  CJ_GEOMETRY_TYPE_MULTI_SURFACE = 2,
-  CJ_GEOMETRY_TYPE_COMPOSITE_SURFACE = 3,
-  CJ_GEOMETRY_TYPE_SOLID = 4,
-  CJ_GEOMETRY_TYPE_MULTI_SOLID = 5,
-  CJ_GEOMETRY_TYPE_COMPOSITE_SOLID = 6,
-  CJ_GEOMETRY_TYPE_GEOMETRY_INSTANCE = 7,
-} cj_geometry_type_t;
 
 /**
  * Opaque model handle type.
@@ -130,6 +130,27 @@ typedef struct cj_uvs_t {
   struct cj_uv_t *data;
   uintptr_t len;
 } cj_uvs_t;
+
+/**
+ * Owned index buffer returned across the ABI.
+ */
+typedef struct cj_indices_t {
+  uintptr_t *data;
+  uintptr_t len;
+} cj_indices_t;
+
+/**
+ * Owned flat boundary payload returned across the ABI.
+ */
+typedef struct cj_geometry_boundary_t {
+  enum cj_geometry_type_t geometry_type;
+  bool has_boundaries;
+  struct cj_indices_t vertex_indices;
+  struct cj_indices_t ring_offsets;
+  struct cj_indices_t surface_offsets;
+  struct cj_indices_t shell_offsets;
+  struct cj_indices_t solid_offsets;
+} cj_geometry_boundary_t;
 
 /**
  * Probe result returned by the low-level ABI.
@@ -189,6 +210,10 @@ enum cj_status_t cj_vertices_free(struct cj_vertices_t vertices);
 
 enum cj_status_t cj_uvs_free(struct cj_uvs_t uvs);
 
+enum cj_status_t cj_indices_free(struct cj_indices_t indices);
+
+enum cj_status_t cj_geometry_boundary_free(struct cj_geometry_boundary_t boundary);
+
 enum cj_error_kind_t cj_last_error_kind(void);
 
 uintptr_t cj_last_error_message_len(void);
@@ -237,6 +262,14 @@ enum cj_status_t cj_model_get_cityobject_id(const struct cj_model_t *model,
 enum cj_status_t cj_model_get_geometry_type(const struct cj_model_t *model,
                                             uintptr_t index,
                                             enum cj_geometry_type_t *out_type);
+
+enum cj_status_t cj_model_copy_geometry_boundary(const struct cj_model_t *model,
+                                                 uintptr_t index,
+                                                 struct cj_geometry_boundary_t *out_boundary);
+
+enum cj_status_t cj_model_copy_geometry_boundary_coordinates(const struct cj_model_t *model,
+                                                             uintptr_t index,
+                                                             struct cj_vertices_t *out_vertices);
 
 enum cj_status_t cj_model_copy_vertices(const struct cj_model_t *model,
                                         struct cj_vertices_t *out_vertices);

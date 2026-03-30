@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -23,6 +24,16 @@ using ModelSummary = cj_model_summary_t;
 using ModelCapacities = cj_model_capacities_t;
 using Vertex = cj_vertex_t;
 using UV = cj_uv_t;
+
+struct GeometryBoundary final {
+  GeometryType geometry_type;
+  bool has_boundaries;
+  std::vector<std::size_t> vertex_indices;
+  std::vector<std::size_t> ring_offsets;
+  std::vector<std::size_t> surface_offsets;
+  std::vector<std::size_t> shell_offsets;
+  std::vector<std::size_t> solid_offsets;
+};
 
 class StatusError final : public std::runtime_error {
  public:
@@ -101,6 +112,31 @@ inline std::vector<UV> take_uvs(cj_uvs_t uvs) {
   }
   check_status(cj_uvs_free(uvs));
   return value;
+}
+
+inline std::vector<std::size_t> copy_indices(cj_indices_t indices) {
+  std::vector<std::size_t> value;
+  if (indices.len > 0U) {
+    value.assign(indices.data, indices.data + indices.len);
+  }
+  return value;
+}
+
+inline GeometryBoundary take_geometry_boundary(cj_geometry_boundary_t boundary) {
+  struct FreeGuard {
+    cj_geometry_boundary_t boundary;
+    ~FreeGuard() { static_cast<void>(cj_geometry_boundary_free(boundary)); }
+  } guard{boundary};
+
+  return GeometryBoundary{
+      .geometry_type = boundary.geometry_type,
+      .has_boundaries = boundary.has_boundaries,
+      .vertex_indices = copy_indices(boundary.vertex_indices),
+      .ring_offsets = copy_indices(boundary.ring_offsets),
+      .surface_offsets = copy_indices(boundary.surface_offsets),
+      .shell_offsets = copy_indices(boundary.shell_offsets),
+      .solid_offsets = copy_indices(boundary.solid_offsets),
+  };
 }
 
 class Model final {
@@ -229,6 +265,18 @@ class Model final {
     cj_uvs_t uvs{};
     check_status(cj_model_copy_uv_coordinates(handle_, &uvs));
     return take_uvs(uvs);
+  }
+
+  [[nodiscard]] GeometryBoundary geometry_boundary(std::size_t index) const {
+    cj_geometry_boundary_t boundary{};
+    check_status(cj_model_copy_geometry_boundary(handle_, index, &boundary));
+    return take_geometry_boundary(boundary);
+  }
+
+  [[nodiscard]] std::vector<Vertex> geometry_boundary_coordinates(std::size_t index) const {
+    cj_vertices_t vertices{};
+    check_status(cj_model_copy_geometry_boundary_coordinates(handle_, index, &vertices));
+    return take_vertices(vertices);
   }
 
   [[nodiscard]] std::string serialize_document() const {

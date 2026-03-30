@@ -3,9 +3,10 @@ use std::slice;
 
 use cjlib_ffi_core::exports::*;
 use cjlib_ffi_core::{
-    AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_type_t, cj_model_capacities_t,
-    cj_model_summary_t, cj_model_type_t, cj_probe_t, cj_root_kind_t, cj_status_t, cj_uv_t,
-    cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
+    AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_type_t,
+    cj_indices_t, cj_model_capacities_t, cj_model_summary_t, cj_model_type_t, cj_probe_t,
+    cj_root_kind_t, cj_status_t, cj_uv_t, cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t,
+    run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -60,6 +61,41 @@ fn uvs_to_vec(uvs: cj_uvs_t) -> Vec<cj_uv_t> {
     values
 }
 
+fn indices_to_vec(indices: cj_indices_t) -> Vec<usize> {
+    if indices.len == 0 {
+        let _ = cj_indices_free(indices);
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable indices.
+    let values = unsafe { slice::from_raw_parts(indices.data.cast_const(), indices.len) }.to_vec();
+    assert_eq!(cj_indices_free(indices), cj_status_t::CJ_STATUS_SUCCESS);
+    values
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BoundaryPayload {
+    geometry_type: cj_geometry_type_t,
+    has_boundaries: bool,
+    vertex_indices: Vec<usize>,
+    ring_offsets: Vec<usize>,
+    surface_offsets: Vec<usize>,
+    shell_offsets: Vec<usize>,
+    solid_offsets: Vec<usize>,
+}
+
+fn boundary_to_payload(boundary: cj_geometry_boundary_t) -> BoundaryPayload {
+    BoundaryPayload {
+        geometry_type: boundary.geometry_type,
+        has_boundaries: boundary.has_boundaries,
+        vertex_indices: indices_to_vec(boundary.vertex_indices),
+        ring_offsets: indices_to_vec(boundary.ring_offsets),
+        surface_offsets: indices_to_vec(boundary.surface_offsets),
+        shell_offsets: indices_to_vec(boundary.shell_offsets),
+        solid_offsets: indices_to_vec(boundary.solid_offsets),
+    }
+}
+
 #[test]
 fn free_functions_accept_null_handles_and_buffers() {
     assert_eq!(
@@ -76,6 +112,14 @@ fn free_functions_accept_null_handles_and_buffers() {
     );
     assert_eq!(
         cj_uvs_free(cj_uvs_t::default()),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_indices_free(cj_indices_t::default()),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_geometry_boundary_free(cj_geometry_boundary_t::default()),
         cj_status_t::CJ_STATUS_SUCCESS
     );
 }
@@ -290,6 +334,102 @@ fn copied_vertex_and_uv_buffers_are_owned_and_readable() {
 }
 
 #[test]
+fn geometry_boundary_and_coordinate_extraction_are_columnar_and_owned() {
+    let mut handle = ptr::null_mut();
+    let status =
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+
+    let mut boundary = cj_geometry_boundary_t::default();
+    assert_eq!(
+        cj_model_copy_geometry_boundary(handle, 0, &raw mut boundary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        boundary_to_payload(boundary),
+        BoundaryPayload {
+            geometry_type: cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+            has_boundaries: true,
+            vertex_indices: vec![0, 1, 2, 3, 0],
+            ring_offsets: vec![0],
+            surface_offsets: vec![0],
+            shell_offsets: Vec::new(),
+            solid_offsets: Vec::new(),
+        }
+    );
+
+    let mut surface_vertices = cj_vertices_t::default();
+    assert_eq!(
+        cj_model_copy_geometry_boundary_coordinates(handle, 0, &raw mut surface_vertices),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        vertices_to_vec(surface_vertices),
+        vec![
+            cj_vertex_t {
+                x: 10.0,
+                y: 20.0,
+                z: 0.0,
+            },
+            cj_vertex_t {
+                x: 11.0,
+                y: 20.0,
+                z: 0.0,
+            },
+            cj_vertex_t {
+                x: 11.0,
+                y: 21.0,
+                z: 0.0,
+            },
+            cj_vertex_t {
+                x: 10.0,
+                y: 21.0,
+                z: 0.0,
+            },
+            cj_vertex_t {
+                x: 10.0,
+                y: 20.0,
+                z: 0.0,
+            },
+        ]
+    );
+
+    let mut point_boundary = cj_geometry_boundary_t::default();
+    assert_eq!(
+        cj_model_copy_geometry_boundary(handle, 1, &raw mut point_boundary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        boundary_to_payload(point_boundary),
+        BoundaryPayload {
+            geometry_type: cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT,
+            has_boundaries: true,
+            vertex_indices: vec![4],
+            ring_offsets: Vec::new(),
+            surface_offsets: Vec::new(),
+            shell_offsets: Vec::new(),
+            solid_offsets: Vec::new(),
+        }
+    );
+
+    let mut point_vertices = cj_vertices_t::default();
+    assert_eq!(
+        cj_model_copy_geometry_boundary_coordinates(handle, 1, &raw mut point_vertices),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        vertices_to_vec(point_vertices),
+        vec![cj_vertex_t {
+            x: 12.0,
+            y: 22.0,
+            z: 0.0,
+        }]
+    );
+
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
 fn model_creation_reserve_and_vertex_insertion_work() {
     let mut handle = ptr::null_mut();
     assert_eq!(
@@ -449,6 +589,28 @@ fn null_arguments_are_rejected_and_reported() {
     let mut summary = cj_model_summary_t::default();
     let status = cj_model_get_summary(ptr::null(), &raw mut summary);
     assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let mut handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut boundary = cj_geometry_boundary_t::default();
+    let status = cj_model_copy_geometry_boundary(ptr::null(), 0, &raw mut boundary);
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let status = cj_model_copy_geometry_boundary(handle, 0, ptr::null_mut());
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let mut vertices = cj_vertices_t::default();
+    let status = cj_model_copy_geometry_boundary_coordinates(ptr::null(), 0, &raw mut vertices);
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let status = cj_model_copy_geometry_boundary_coordinates(handle, 0, ptr::null_mut());
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
 #[test]

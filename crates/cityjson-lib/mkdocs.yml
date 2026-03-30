@@ -28,6 +28,7 @@ nav:
       - FFI Header Workflow: adr/0002-ffi-header-workflow.md
       - FFI Inspection And Coordinate Buffers: adr/0003-shared-ffi-inspection-and-coordinate-buffers.md
       - Wrapper Milestone One Shape: adr/0004-wrapper-milestone-one-shape.md
+      - Columnar Geometry Boundary ABI: adr/0005-columnar-geometry-boundary-abi.md
 theme:
   name: material
   features:

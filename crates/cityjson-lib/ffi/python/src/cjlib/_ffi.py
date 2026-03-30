@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from ctypes import (
     CDLL,
     POINTER,
@@ -99,6 +100,22 @@ class UVsStruct(Structure):
     _fields_ = [("data", POINTER(UVStruct)), ("len", c_size_t)]
 
 
+class IndicesStruct(Structure):
+    _fields_ = [("data", POINTER(c_size_t)), ("len", c_size_t)]
+
+
+class GeometryBoundaryStruct(Structure):
+    _fields_ = [
+        ("geometry_type", c_int),
+        ("has_boundaries", c_bool),
+        ("vertex_indices", IndicesStruct),
+        ("ring_offsets", IndicesStruct),
+        ("surface_offsets", IndicesStruct),
+        ("shell_offsets", IndicesStruct),
+        ("solid_offsets", IndicesStruct),
+    ]
+
+
 class ProbeStruct(Structure):
     _fields_ = [("root_kind", c_int), ("version", c_int), ("has_version", c_bool)]
 
@@ -136,6 +153,17 @@ class ModelCapacitiesStruct(Structure):
         ("template_geometries", c_size_t),
         ("uv_coordinates", c_size_t),
     ]
+
+
+@dataclass(frozen=True)
+class GeometryBoundaryPayload:
+    geometry_type: GeometryType
+    has_boundaries: bool
+    vertex_indices: list[int]
+    ring_offsets: list[int]
+    surface_offsets: list[int]
+    shell_offsets: list[int]
+    solid_offsets: list[int]
 
 
 def _candidate_library_paths() -> list[Path]:
@@ -225,6 +253,19 @@ class FfiLibrary:
         self._lib.cj_model_get_geometry_type.argtypes = [c_void_p, c_size_t, POINTER(c_int)]
         self._lib.cj_model_get_geometry_type.restype = c_int
 
+        self._lib.cj_model_copy_geometry_boundary.argtypes = [
+            c_void_p,
+            c_size_t,
+            POINTER(GeometryBoundaryStruct),
+        ]
+        self._lib.cj_model_copy_geometry_boundary.restype = c_int
+        self._lib.cj_model_copy_geometry_boundary_coordinates.argtypes = [
+            c_void_p,
+            c_size_t,
+            POINTER(VerticesStruct),
+        ]
+        self._lib.cj_model_copy_geometry_boundary_coordinates.restype = c_int
+
         self._lib.cj_model_copy_vertices.argtypes = [c_void_p, POINTER(VerticesStruct)]
         self._lib.cj_model_copy_vertices.restype = c_int
         self._lib.cj_model_copy_template_vertices.argtypes = [c_void_p, POINTER(VerticesStruct)]
@@ -236,6 +277,11 @@ class FfiLibrary:
         self._lib.cj_model_copy_uv_coordinates.restype = c_int
         self._lib.cj_uvs_free.argtypes = [UVsStruct]
         self._lib.cj_uvs_free.restype = c_int
+
+        self._lib.cj_indices_free.argtypes = [IndicesStruct]
+        self._lib.cj_indices_free.restype = c_int
+        self._lib.cj_geometry_boundary_free.argtypes = [GeometryBoundaryStruct]
+        self._lib.cj_geometry_boundary_free.restype = c_int
 
         self._lib.cj_model_reserve_import.argtypes = [c_void_p, ModelCapacitiesStruct]
         self._lib.cj_model_reserve_import.restype = c_int
@@ -308,6 +354,23 @@ class FfiLibrary:
         ]
         self._raise_if_error(self._lib.cj_uvs_free(payload))
         return values
+
+    def _copy_indices(self, payload: IndicesStruct) -> list[int]:
+        values = [payload.data[index] for index in range(payload.len)]
+        return values
+
+    def _take_geometry_boundary(self, payload: GeometryBoundaryStruct) -> GeometryBoundaryPayload:
+        boundary = GeometryBoundaryPayload(
+            geometry_type=GeometryType(payload.geometry_type),
+            has_boundaries=bool(payload.has_boundaries),
+            vertex_indices=self._copy_indices(payload.vertex_indices),
+            ring_offsets=self._copy_indices(payload.ring_offsets),
+            surface_offsets=self._copy_indices(payload.surface_offsets),
+            shell_offsets=self._copy_indices(payload.shell_offsets),
+            solid_offsets=self._copy_indices(payload.solid_offsets),
+        )
+        self._raise_if_error(self._lib.cj_geometry_boundary_free(payload))
+        return boundary
 
     def probe(self, data: bytes) -> ProbeStruct:
         probe = ProbeStruct()
@@ -394,6 +457,22 @@ class FfiLibrary:
             self._lib.cj_model_get_geometry_type(c_void_p(handle), index, pointer(geometry_type))
         )
         return GeometryType(geometry_type.value)
+
+    def geometry_boundary(self, handle: int, index: int) -> dict[str, object]:
+        payload = GeometryBoundaryStruct()
+        self._raise_if_error(
+            self._lib.cj_model_copy_geometry_boundary(c_void_p(handle), index, pointer(payload))
+        )
+        return self._take_geometry_boundary(payload)
+
+    def geometry_boundary_coordinates(self, handle: int, index: int) -> list[VertexStruct]:
+        payload = VerticesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_copy_geometry_boundary_coordinates(
+                c_void_p(handle), index, pointer(payload)
+            )
+        )
+        return self._take_vertices(payload)
 
     def vertices(self, handle: int) -> list[VertexStruct]:
         payload = VerticesStruct()
