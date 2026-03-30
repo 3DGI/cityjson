@@ -664,6 +664,26 @@ impl CityIndex {
     }
 
     /// Returns an iterator over features intersecting the given bounding box
+    /// together with their feature identifiers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn query_iter_with_ids(
+        &self,
+        bbox: &BBox,
+    ) -> Result<impl Iterator<Item = Result<(String, CityModel)>> + '_> {
+        let locations = self.index.lookup_bbox_iter(*bbox);
+        Ok(locations.map(move |loc| {
+            let loc = loc?;
+            let feature_id = loc.feature_id.clone();
+            let metadata = self.index.get_metadata(loc.source_id)?;
+            let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
+            Ok((feature_id, model))
+        }))
+    }
+
+    /// Returns an iterator over features intersecting the given bounding box
     /// together with the source metadata used to reconstruct them.
     ///
     /// # Errors
@@ -678,6 +698,56 @@ impl CityIndex {
             let loc = loc?;
             let metadata = self.index.get_metadata(loc.source_id)?;
             let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
+            Ok((metadata, model))
+        }))
+    }
+
+    /// Returns every feature in the index.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn iter_all(&self) -> Result<impl Iterator<Item = Result<CityModel>> + '_> {
+        let iter = self.iter_all_with_metadata()?;
+        Ok(iter.map(|item| item.map(|(_, model)| model)))
+    }
+
+    /// Returns every feature in the index together with its feature identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn iter_all_with_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(String, CityModel)>> + '_> {
+        let iter = self.index.lookup_all_iter();
+        Ok(iter.map(move |loc| {
+            let loc = loc?;
+            let feature_id = loc.location.feature_id.clone();
+            let metadata = self.index.get_metadata(loc.location.source_id)?;
+            let model = self
+                .backend
+                .read_one(&loc.location, Arc::clone(&metadata))?;
+            Ok((feature_id, model))
+        }))
+    }
+
+    /// Returns every feature in the index together with the source metadata used
+    /// to reconstruct it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn iter_all_with_metadata(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(Arc<Meta>, CityModel)>> + '_> {
+        let iter = self.index.lookup_all_iter();
+        Ok(iter.map(move |loc| {
+            let loc = loc?;
+            let metadata = self.index.get_metadata(loc.location.source_id)?;
+            let model = self
+                .backend
+                .read_one(&loc.location, Arc::clone(&metadata))?;
             Ok((metadata, model))
         }))
     }
@@ -710,6 +780,11 @@ struct FeatureLocation {
     member_ranges_json: Option<String>,
 }
 
+struct IndexedFeatureLocation {
+    row_id: i64,
+    location: FeatureLocation,
+}
+
 struct FeatureIndexEntry {
     id: String,
     source_id: i64,
@@ -740,6 +815,13 @@ struct BBoxLocationIter<'a> {
     bbox: BBox,
     last_feature_id: Option<String>,
     page: std::vec::IntoIter<FeatureLocation>,
+    finished: bool,
+}
+
+struct AllLocationIter<'a> {
+    index: &'a Index,
+    last_row_id: Option<i64>,
+    page: std::vec::IntoIter<IndexedFeatureLocation>,
     finished: bool,
 }
 
@@ -786,8 +868,63 @@ impl<'a> BBoxLocationIter<'a> {
     }
 }
 
+impl<'a> AllLocationIter<'a> {
+    const PAGE_SIZE: usize = 512;
+
+    fn new(index: &'a Index) -> Self {
+        Self {
+            index,
+            last_row_id: None,
+            page: Vec::new().into_iter(),
+            finished: false,
+        }
+    }
+
+    fn next_location(&mut self) -> Result<Option<IndexedFeatureLocation>> {
+        if self.finished {
+            return Ok(None);
+        }
+
+        if let Some(feature) = self.page.next() {
+            self.last_row_id = Some(feature.row_id);
+            return Ok(Some(feature));
+        }
+
+        let page = self
+            .index
+            .lookup_all_page(self.last_row_id, Self::PAGE_SIZE)?;
+        if page.is_empty() {
+            self.finished = true;
+            return Ok(None);
+        }
+
+        self.page = page.into_iter();
+        let feature = self
+            .page
+            .next()
+            .expect("non-empty page should yield at least one feature");
+        self.last_row_id = Some(feature.row_id);
+        Ok(Some(feature))
+    }
+}
+
 impl Iterator for BBoxLocationIter<'_> {
     type Item = Result<FeatureLocation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_location() {
+            Ok(Some(feature)) => Some(Ok(feature)),
+            Ok(None) => None,
+            Err(error) => {
+                self.finished = true;
+                Some(Err(error))
+            }
+        }
+    }
+}
+
+impl Iterator for AllLocationIter<'_> {
+    type Item = Result<IndexedFeatureLocation>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_location() {
@@ -936,6 +1073,10 @@ impl Index {
         BBoxLocationIter::new(self, bbox)
     }
 
+    fn lookup_all_iter(&self) -> AllLocationIter<'_> {
+        AllLocationIter::new(self)
+    }
+
     fn lookup_bbox_page(
         &self,
         bbox: &BBox,
@@ -976,6 +1117,37 @@ impl Index {
                 limit
             ],
             Self::feature_location_from_row,
+        ))?;
+        sqlite_result(rows.collect())
+    }
+
+    fn lookup_all_page(
+        &self,
+        after_row_id: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<IndexedFeatureLocation>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT
+                f.id,
+                f.feature_id,
+                s.id,
+                f.path,
+                f.offset,
+                f.length,
+                s.vertices_offset,
+                s.vertices_length,
+                f.member_ranges
+            FROM features AS f
+            JOIN sources AS s ON s.id = f.source_id
+            WHERE (?1 IS NULL OR f.id > ?1)
+            ORDER BY f.id
+            LIMIT ?2
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map(
+            params![after_row_id, limit],
+            Self::indexed_feature_location_from_row,
         ))?;
         sqlite_result(rows.collect())
     }
@@ -1234,20 +1406,27 @@ impl Index {
     }
 
     fn feature_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FeatureLocation> {
-        let feature_id = row.get::<_, String>(0)?;
-        let source_id = row.get::<_, i64>(1)?;
-        let source_path = PathBuf::from(row.get::<_, String>(2)?);
-        let offset = i64_to_u64(row.get::<_, i64>(3)?)?;
-        let length = i64_to_u64(row.get::<_, i64>(4)?)?;
-        let vertices_offset = match row.get::<_, Option<i64>>(5)? {
+        Self::feature_location_from_row_offset(row, 0)
+    }
+
+    fn feature_location_from_row_offset(
+        row: &rusqlite::Row<'_>,
+        col: usize,
+    ) -> rusqlite::Result<FeatureLocation> {
+        let feature_id = row.get::<_, String>(col)?;
+        let source_id = row.get::<_, i64>(col + 1)?;
+        let source_path = PathBuf::from(row.get::<_, String>(col + 2)?);
+        let offset = i64_to_u64(row.get::<_, i64>(col + 3)?)?;
+        let length = i64_to_u64(row.get::<_, i64>(col + 4)?)?;
+        let vertices_offset = match row.get::<_, Option<i64>>(col + 5)? {
             Some(value) => Some(i64_to_u64(value)?),
             None => None,
         };
-        let vertices_length = match row.get::<_, Option<i64>>(6)? {
+        let vertices_length = match row.get::<_, Option<i64>>(col + 6)? {
             Some(value) => Some(i64_to_u64(value)?),
             None => None,
         };
-        let member_ranges_json = row.get::<_, Option<String>>(7)?;
+        let member_ranges_json = row.get::<_, Option<String>>(col + 7)?;
 
         Ok(FeatureLocation {
             feature_id,
@@ -1259,6 +1438,14 @@ impl Index {
             vertices_length,
             member_ranges_json,
         })
+    }
+
+    fn indexed_feature_location_from_row(
+        row: &rusqlite::Row<'_>,
+    ) -> rusqlite::Result<IndexedFeatureLocation> {
+        let row_id = row.get::<_, i64>(0)?;
+        let location = Self::feature_location_from_row_offset(row, 1)?;
+        Ok(IndexedFeatureLocation { row_id, location })
     }
 }
 
@@ -2844,6 +3031,78 @@ mod tests {
     }
 
     #[test]
+    fn iter_all_scans_each_supported_layout_in_deterministic_order() {
+        let expected_ids = vec!["alpha", "beta", "gamma"];
+        let feature_files_root = write_temp_feature_files_root(&expected_ids);
+        let feature_files_index_path = write_temp_index_path_with_prefix("feature-files");
+        let mut feature_files_index = CityIndex::open(
+            StorageLayout::FeatureFiles {
+                root: feature_files_root,
+                metadata_glob: "**/metadata.json".to_owned(),
+                feature_glob: "**/*.city.jsonl".to_owned(),
+            },
+            &feature_files_index_path,
+        )
+        .expect("feature-files index should open");
+        feature_files_index
+            .reindex()
+            .expect("feature-files dataset should index");
+        assert_full_scan_order(&feature_files_index, &expected_ids);
+
+        let cityjson_root = write_temp_cityjson_root(&expected_ids);
+        let cityjson_index_path = write_temp_index_path_with_prefix("cityjson");
+        let mut cityjson_index = CityIndex::open(
+            StorageLayout::CityJson {
+                paths: vec![cityjson_root],
+            },
+            &cityjson_index_path,
+        )
+        .expect("cityjson index should open");
+        cityjson_index
+            .reindex()
+            .expect("cityjson dataset should index");
+        assert_full_scan_order(&cityjson_index, &expected_ids);
+
+        let ndjson_root = write_temp_ndjson_root(&expected_ids);
+        let ndjson_index_path = write_temp_index_path_with_prefix("ndjson");
+        let mut ndjson_index = CityIndex::open(
+            StorageLayout::Ndjson {
+                paths: vec![ndjson_root],
+            },
+            &ndjson_index_path,
+        )
+        .expect("ndjson index should open");
+        ndjson_index.reindex().expect("ndjson dataset should index");
+        assert_full_scan_order(&ndjson_index, &expected_ids);
+    }
+
+    #[test]
+    fn iter_all_paginates_across_multiple_pages() {
+        let ids = (0..600)
+            .map(|idx| format!("feature-{idx:03}"))
+            .collect::<Vec<_>>();
+        let id_refs = ids.iter().map(String::as_str).collect::<Vec<_>>();
+        let root = write_temp_ndjson_root(&id_refs);
+        let index_path = write_temp_index_path_with_prefix("iter-all-pages");
+        let layout = StorageLayout::Ndjson {
+            paths: vec![root.clone()],
+        };
+        let mut index = CityIndex::open(layout, &index_path).expect("index should open");
+        index.reindex().expect("dataset should index");
+
+        let scanned_ids = index
+            .iter_all_with_ids()
+            .expect("iter_all_with_ids should build")
+            .map(|result| result.map(|(id, _)| id))
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_with_ids should collect");
+
+        assert_eq!(scanned_ids.len(), 600);
+        assert_eq!(scanned_ids.first().expect("first id"), "feature-000");
+        assert_eq!(scanned_ids.last().expect("last id"), "feature-599");
+    }
+
+    #[test]
     fn read_exact_range_reads_only_the_requested_span() {
         let path = write_temp_bytes(b"abcdefghij");
 
@@ -2939,6 +3198,163 @@ mod tests {
             fs::remove_file(&path).expect("remove temp sqlite");
         }
         path
+    }
+
+    fn write_temp_index_path_with_prefix(prefix: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cjindex-{prefix}-{unique}.sqlite"));
+        if path.exists() {
+            fs::remove_file(&path).expect("remove temp sqlite");
+        }
+        path
+    }
+
+    fn write_temp_feature_files_root(ids: &[&str]) -> PathBuf {
+        let root = write_temp_dir("cjindex-feature-files");
+        fs::write(
+            root.join("metadata.json"),
+            serde_json::to_vec(&base_document()).expect("metadata JSON"),
+        )
+        .expect("write metadata");
+        for (idx, id) in ids.iter().enumerate() {
+            let feature_path = root.join(format!("features/{idx:03}.city.jsonl"));
+            if let Some(parent) = feature_path.parent() {
+                fs::create_dir_all(parent).expect("create feature directory");
+            }
+            fs::write(
+                &feature_path,
+                serde_json::to_vec(&feature_feature_document(id, idx as i64))
+                    .expect("feature JSON"),
+            )
+            .expect("write feature file");
+        }
+        root
+    }
+
+    fn write_temp_cityjson_root(ids: &[&str]) -> PathBuf {
+        let root = write_temp_dir("cjindex-cityjson");
+        let mut cityobjects = Map::new();
+        for id in ids {
+            cityobjects.insert((*id).to_owned(), feature_object(0));
+        }
+        let document = serde_json::json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "metadata": {
+                "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/7415"
+            },
+            "CityObjects": cityobjects,
+            "vertices": [
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0]
+            ]
+        });
+        fs::write(
+            root.join("dataset.city.json"),
+            serde_json::to_vec(&document).expect("cityjson JSON"),
+        )
+        .expect("write cityjson");
+        root
+    }
+
+    fn write_temp_ndjson_root(ids: &[&str]) -> PathBuf {
+        let root = write_temp_dir("cjindex-ndjson-root");
+        let mut contents = serde_json::to_string(&base_document()).expect("metadata JSON");
+        contents.push('\n');
+        for (idx, id) in ids.iter().enumerate() {
+            contents.push_str(
+                &serde_json::to_string(&feature_feature_document(id, idx as i64))
+                    .expect("feature JSON"),
+            );
+            contents.push('\n');
+        }
+        fs::write(root.join("dataset.city.jsonl"), contents).expect("write ndjson");
+        root
+    }
+
+    fn write_temp_dir(prefix: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("{prefix}-{unique}"));
+        fs::create_dir_all(&path).expect("create temp dir");
+        path
+    }
+
+    fn base_document() -> Value {
+        serde_json::json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "metadata": {
+                "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/7415"
+            }
+        })
+    }
+
+    fn feature_feature_document(id: &str, offset: i64) -> Value {
+        let object = feature_object(offset);
+        serde_json::json!({
+            "type": "CityJSONFeature",
+            "id": id,
+            "CityObjects": {
+                id: object
+            },
+            "vertices": [
+                [offset, 0, 0],
+                [offset + 1, 0, 0],
+                [offset, 1, 0]
+            ]
+        })
+    }
+
+    fn feature_object(_offset: i64) -> Value {
+        serde_json::json!({
+            "type": "Building",
+            "geometry": [{
+                "type": "MultiSurface",
+                "lod": "1.0",
+                "boundaries": [[[0, 1, 2]]]
+            }]
+        })
+    }
+
+    fn assert_full_scan_order(index: &CityIndex, expected_ids: &[&str]) {
+        let ids = index
+            .iter_all_with_ids()
+            .expect("iter_all_with_ids should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_with_ids should collect");
+        assert_eq!(
+            ids.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            expected_ids
+        );
+
+        let models = index
+            .iter_all()
+            .expect("iter_all should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all should collect");
+        assert_eq!(models.len(), expected_ids.len());
+
+        let models_with_metadata = index
+            .iter_all_with_metadata()
+            .expect("iter_all_with_metadata should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_with_metadata should collect");
+        assert_eq!(models_with_metadata.len(), expected_ids.len());
     }
 
     fn write_temp_bytes(bytes: &[u8]) -> PathBuf {

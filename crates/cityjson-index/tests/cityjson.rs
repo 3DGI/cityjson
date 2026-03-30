@@ -84,6 +84,19 @@ fn cityjson_cityindex_supports_end_to_end_queries() {
         "query_iter should return the selected feature"
     );
 
+    let iter_hits_with_ids = index
+        .query_iter_with_ids(&bbox)
+        .expect("cityjson query_iter_with_ids should succeed")
+        .collect::<cjlib::Result<Vec<_>>>()
+        .expect("cityjson query_iter_with_ids items should succeed");
+    assert!(
+        iter_hits_with_ids
+            .iter()
+            .any(|(candidate_id, candidate)| candidate_id == &feature_id
+                && model_contains_id(candidate, &feature_id)),
+        "query_iter_with_ids should return the selected feature id and model"
+    );
+
     let metadata = index.metadata().expect("cityjson metadata should succeed");
     assert!(
         metadata

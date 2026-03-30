@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use cjindex::{BBox, CityIndex, resolve_dataset, realistic_workload};
+use cjindex::{BBox, CityIndex, realistic_workload, resolve_dataset};
 use cjlib::Result;
 use rusqlite::Connection;
 
@@ -35,21 +35,26 @@ fn main() -> Result<()> {
     // Build test workload
     println!("\nBuilding test workload...");
 
-    let workload = match realistic_workload::build_realistic_workload(dataset.dataset_root.as_path()) {
-        Ok(wl) => {
-            println!("Using realistic workload from feature-files layout");
-            wl
-        }
-        Err(_) => {
-            println!("Sampling IDs and bboxes from SQLite index...");
-            sample_ids_and_bboxes(&dataset.index_path)?
-        }
-    };
+    let workload =
+        match realistic_workload::build_realistic_workload(dataset.dataset_root.as_path()) {
+            Ok(wl) => {
+                println!("Using realistic workload from feature-files layout");
+                wl
+            }
+            Err(_) => {
+                println!("Sampling IDs and bboxes from SQLite index...");
+                sample_ids_and_bboxes(&dataset.index_path)?
+            }
+        };
 
     let test_ids = &workload.get_ids;
     let test_bboxes = &workload.query_bboxes;
 
-    println!("Test workload has {} get IDs and {} bbox queries", test_ids.len(), test_bboxes.len());
+    println!(
+        "Test workload has {} get IDs and {} bbox queries",
+        test_ids.len(),
+        test_bboxes.len()
+    );
 
     if test_ids.is_empty() || test_bboxes.is_empty() {
         eprintln!("No features found in dataset!");
@@ -64,9 +69,11 @@ fn main() -> Result<()> {
         let _ = index.get(id)?;
     }
     let warmup_duration = warmup_start.elapsed();
-    println!("Warmup (10 ops): {:.4}s ({:.4}ms/op)",
+    println!(
+        "Warmup (10 ops): {:.4}s ({:.4}ms/op)",
         warmup_duration.as_secs_f64(),
-        warmup_duration.as_secs_f64() / 10.0 * 1000.0);
+        warmup_duration.as_secs_f64() / 10.0 * 1000.0
+    );
 
     let get_start = Instant::now();
     let mut get_count = 0;
@@ -76,10 +83,20 @@ fn main() -> Result<()> {
     }
     let get_duration = get_start.elapsed();
 
-    println!("Measured ({} ops): {:.4}s", get_count, get_duration.as_secs_f64());
+    println!(
+        "Measured ({} ops): {:.4}s",
+        get_count,
+        get_duration.as_secs_f64()
+    );
     println!("  - Total: {:.2}s", get_duration.as_secs_f64());
-    println!("  - Per operation: {:.4}ms", get_duration.as_secs_f64() / get_count as f64 * 1000.0);
-    println!("  - Throughput: {:.0} ops/sec", get_count as f64 / get_duration.as_secs_f64());
+    println!(
+        "  - Per operation: {:.4}ms",
+        get_duration.as_secs_f64() / get_count as f64 * 1000.0
+    );
+    println!(
+        "  - Throughput: {:.0} ops/sec",
+        get_count as f64 / get_duration.as_secs_f64()
+    );
 
     println!("\n--- QUERY (BBox) Performance Test ---");
     println!("Testing {} query operations...", test_bboxes.len());
@@ -90,9 +107,11 @@ fn main() -> Result<()> {
         let _ = results.len();
     }
     let query_warmup_duration = query_warmup_start.elapsed();
-    println!("Warmup (3 ops): {:.4}s ({:.4}ms/op)",
+    println!(
+        "Warmup (3 ops): {:.4}s ({:.4}ms/op)",
         query_warmup_duration.as_secs_f64(),
-        query_warmup_duration.as_secs_f64() / 3.0 * 1000.0);
+        query_warmup_duration.as_secs_f64() / 3.0 * 1000.0
+    );
 
     let query_start = Instant::now();
     let mut query_count = 0;
@@ -104,20 +123,37 @@ fn main() -> Result<()> {
     }
     let query_duration = query_start.elapsed();
 
-    println!("Measured ({} ops): {:.4}s", query_count, query_duration.as_secs_f64());
+    println!(
+        "Measured ({} ops): {:.4}s",
+        query_count,
+        query_duration.as_secs_f64()
+    );
     println!("  - Total: {:.2}s", query_duration.as_secs_f64());
-    println!("  - Per operation: {:.4}ms", query_duration.as_secs_f64() / query_count as f64 * 1000.0);
-    println!("  - Throughput: {:.0} ops/sec", query_count as f64 / query_duration.as_secs_f64());
+    println!(
+        "  - Per operation: {:.4}ms",
+        query_duration.as_secs_f64() / query_count as f64 * 1000.0
+    );
+    println!(
+        "  - Throughput: {:.0} ops/sec",
+        query_count as f64 / query_duration.as_secs_f64()
+    );
     println!("  - Total results returned: {}", total_results);
-    println!("  - Avg results per query: {:.1}", total_results as f64 / query_count as f64);
+    println!(
+        "  - Avg results per query: {:.1}",
+        total_results as f64 / query_count as f64
+    );
 
     println!("\n--- Summary ---");
-    println!("GET:   {:.4}ms/op ({:.0} ops/sec)",
+    println!(
+        "GET:   {:.4}ms/op ({:.0} ops/sec)",
         get_duration.as_secs_f64() / get_count as f64 * 1000.0,
-        get_count as f64 / get_duration.as_secs_f64());
-    println!("QUERY: {:.4}ms/op ({:.0} ops/sec)",
+        get_count as f64 / get_duration.as_secs_f64()
+    );
+    println!(
+        "QUERY: {:.4}ms/op ({:.0} ops/sec)",
         query_duration.as_secs_f64() / query_count as f64 * 1000.0,
-        query_count as f64 / query_duration.as_secs_f64());
+        query_count as f64 / query_duration.as_secs_f64()
+    );
 
     Ok(())
 }
@@ -134,17 +170,28 @@ fn sample_ids_and_bboxes(index_path: &PathBuf) -> Result<realistic_workload::Rea
     let mut ids = Vec::new();
     let mut bboxes = Vec::new();
 
-    let rows = stmt.query_map([], |row| {
-        let id: String = row.get(0)?;
-        let min_x: f64 = row.get(1)?;
-        let max_x: f64 = row.get(2)?;
-        let min_y: f64 = row.get(3)?;
-        let max_y: f64 = row.get(4)?;
-        Ok((id, BBox { min_x, max_x, min_y, max_y }))
-    }).map_err(|e| cjlib::Error::Import(format!("Failed to query rows: {}", e)))?;
+    let rows = stmt
+        .query_map([], |row| {
+            let id: String = row.get(0)?;
+            let min_x: f64 = row.get(1)?;
+            let max_x: f64 = row.get(2)?;
+            let min_y: f64 = row.get(3)?;
+            let max_y: f64 = row.get(4)?;
+            Ok((
+                id,
+                BBox {
+                    min_x,
+                    max_x,
+                    min_y,
+                    max_y,
+                },
+            ))
+        })
+        .map_err(|e| cjlib::Error::Import(format!("Failed to query rows: {}", e)))?;
 
     for row in rows {
-        let (id, bbox) = row.map_err(|e| cjlib::Error::Import(format!("Failed to read row: {}", e)))?;
+        let (id, bbox) =
+            row.map_err(|e| cjlib::Error::Import(format!("Failed to read row: {}", e)))?;
         ids.push(id);
         bboxes.push(bbox);
     }
