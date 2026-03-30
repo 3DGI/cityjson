@@ -7,3 +7,6 @@ name = "cjlib"
 version = "0.1.0"
 description = "Python bindings for cjlib"
 requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]

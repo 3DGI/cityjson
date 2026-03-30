@@ -33,6 +33,9 @@ The FFI section is split into:
 - [Shared C ABI foundation plan](shared-c-abi-foundation-plan.md)
   The first implementation slice for the shared core: lifecycle, errors, and
   probe/parse/serialize exports.
+- [Shared FFI expansion plan](shared-ffi-expansion-plan.md)
+  The execution plan for widening the shared ABI and layering C++, Python, and
+  wasm bindings on top in parallel workstreams.
 - [Architecture decisions](../adr/0001-shared-c-abi-foundation.md)
   Decision records that freeze the cross-cutting ABI and header workflow
   choices.

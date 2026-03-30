@@ -1,15 +1,290 @@
 #![allow(clippy::all, clippy::pedantic)]
 
-//! wasm adapter over the shared `cjlib-ffi-core` substrate.
+//! Narrow wasm-oriented adapter over the shared `cjlib-ffi-core` substrate.
 //!
-//! The public browser-facing exports will stay task-oriented and narrower than
-//! the shared core. This crate is scaffolded so the adapter can grow without
-//! reshaping the root `cjlib` crate.
+//! The public surface here stays task-oriented: probe input, summarize parsed
+//! models, and extract flat coordinate buffers. Deep editable model handles stay
+//! internal to this crate for now.
+
+use std::ptr;
+use std::slice;
 
 pub use cjlib_ffi_core as core;
 
-/// Marker for the future wasm-facing task API.
+use cjlib_ffi_core::exports::{
+    cj_bytes_free, cj_last_error_message_copy, cj_last_error_message_len,
+    cj_model_add_uv_coordinate, cj_model_add_vertex, cj_model_copy_template_vertices,
+    cj_model_copy_uv_coordinates, cj_model_copy_vertices, cj_model_create, cj_model_free,
+    cj_model_get_cityobject_id, cj_model_get_geometry_type, cj_model_get_summary,
+    cj_model_parse_document_bytes, cj_probe_bytes, cj_uvs_free, cj_vertices_free,
+};
+use cjlib_ffi_core::{
+    cj_bytes_t, cj_geometry_type_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
+    cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WasmError {
+    pub status: cj_status_t,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WasmStatus {
-    Placeholder,
+pub struct ProbeSummary {
+    pub root_kind: core::cj_root_kind_t,
+    pub version: core::cj_version_t,
+    pub has_version: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentSummary {
+    pub summary: cj_model_summary_t,
+    pub cityobject_ids: Vec<String>,
+    pub geometry_types: Vec<cj_geometry_type_t>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CoordinateBuffers {
+    pub vertices: Vec<cj_vertex_t>,
+    pub template_vertices: Vec<cj_vertex_t>,
+    pub uv_coordinates: Vec<cj_uv_t>,
+}
+
+fn last_error_message() -> String {
+    let len = cj_last_error_message_len();
+    if len == 0 {
+        return String::new();
+    }
+
+    let mut buffer = vec![0u8; len + 1];
+    let mut copied = 0usize;
+    let status = cj_last_error_message_copy(buffer.as_mut_ptr(), buffer.len(), &raw mut copied);
+    if status != cj_status_t::CJ_STATUS_SUCCESS {
+        return "failed to retrieve cjlib last-error message".to_string();
+    }
+
+    String::from_utf8_lossy(&buffer[..copied]).into_owned()
+}
+
+fn status_result(status: cj_status_t) -> Result<(), WasmError> {
+    if status == cj_status_t::CJ_STATUS_SUCCESS {
+        return Ok(());
+    }
+
+    Err(WasmError {
+        status,
+        message: last_error_message(),
+    })
+}
+
+struct ModelHandle(*mut cj_model_t);
+
+impl ModelHandle {
+    fn raw(&self) -> *mut cj_model_t {
+        self.0
+    }
+}
+
+impl Drop for ModelHandle {
+    fn drop(&mut self) {
+        let _ = cj_model_free(self.0);
+    }
+}
+
+fn take_string(bytes: cj_bytes_t) -> Result<String, WasmError> {
+    let text = if bytes.len == 0 {
+        String::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable bytes.
+        let data = unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) };
+        String::from_utf8_lossy(data).into_owned()
+    };
+    status_result(cj_bytes_free(bytes))?;
+    Ok(text)
+}
+
+fn take_vertices(vertices: cj_vertices_t) -> Result<Vec<cj_vertex_t>, WasmError> {
+    let values = if vertices.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable vertices.
+        unsafe { slice::from_raw_parts(vertices.data.cast_const(), vertices.len) }.to_vec()
+    };
+    status_result(cj_vertices_free(vertices))?;
+    Ok(values)
+}
+
+fn take_uvs(uvs: cj_uvs_t) -> Result<Vec<cj_uv_t>, WasmError> {
+    let values = if uvs.len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the ABI returned `len` readable UV coordinates.
+        unsafe { slice::from_raw_parts(uvs.data.cast_const(), uvs.len) }.to_vec()
+    };
+    status_result(cj_uvs_free(uvs))?;
+    Ok(values)
+}
+
+pub fn probe_bytes(bytes: &[u8]) -> Result<ProbeSummary, WasmError> {
+    let mut probe = cj_probe_t::default();
+    status_result(cj_probe_bytes(bytes.as_ptr(), bytes.len(), &raw mut probe))?;
+    Ok(ProbeSummary {
+        root_kind: probe.root_kind,
+        version: probe.version,
+        has_version: probe.has_version,
+    })
+}
+
+fn parse_document(bytes: &[u8]) -> Result<ModelHandle, WasmError> {
+    let mut handle = ptr::null_mut();
+    status_result(cj_model_parse_document_bytes(
+        bytes.as_ptr(),
+        bytes.len(),
+        &raw mut handle,
+    ))?;
+    Ok(ModelHandle(handle))
+}
+
+pub fn parse_document_summary(bytes: &[u8]) -> Result<DocumentSummary, WasmError> {
+    let model = parse_document(bytes)?;
+
+    let mut summary = cj_model_summary_t::default();
+    status_result(cj_model_get_summary(model.raw(), &raw mut summary))?;
+
+    let mut cityobject_ids = Vec::with_capacity(summary.cityobject_count);
+    for index in 0..summary.cityobject_count {
+        let mut bytes = cj_bytes_t::default();
+        status_result(cj_model_get_cityobject_id(
+            model.raw(),
+            index,
+            &raw mut bytes,
+        ))?;
+        cityobject_ids.push(take_string(bytes)?);
+    }
+
+    let mut geometry_types = Vec::with_capacity(summary.geometry_count);
+    for index in 0..summary.geometry_count {
+        let mut geometry_type = cj_geometry_type_t::default();
+        status_result(cj_model_get_geometry_type(
+            model.raw(),
+            index,
+            &raw mut geometry_type,
+        ))?;
+        geometry_types.push(geometry_type);
+    }
+
+    Ok(DocumentSummary {
+        summary,
+        cityobject_ids,
+        geometry_types,
+    })
+}
+
+pub fn extract_coordinate_buffers(bytes: &[u8]) -> Result<CoordinateBuffers, WasmError> {
+    let model = parse_document(bytes)?;
+
+    let mut vertices = cj_vertices_t::default();
+    status_result(cj_model_copy_vertices(model.raw(), &raw mut vertices))?;
+
+    let mut template_vertices = cj_vertices_t::default();
+    status_result(cj_model_copy_template_vertices(
+        model.raw(),
+        &raw mut template_vertices,
+    ))?;
+
+    let mut uvs = cj_uvs_t::default();
+    status_result(cj_model_copy_uv_coordinates(model.raw(), &raw mut uvs))?;
+
+    Ok(CoordinateBuffers {
+        vertices: take_vertices(vertices)?,
+        template_vertices: take_vertices(template_vertices)?,
+        uv_coordinates: take_uvs(uvs)?,
+    })
+}
+
+pub fn create_feature_summary_with_vertices() -> Result<cj_model_summary_t, WasmError> {
+    let mut handle = ptr::null_mut();
+    status_result(cj_model_create(
+        cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON_FEATURE,
+        &raw mut handle,
+    ))?;
+    let model = ModelHandle(handle);
+
+    let mut vertex_index = 0usize;
+    status_result(cj_model_add_vertex(
+        model.raw(),
+        cj_vertex_t {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        &raw mut vertex_index,
+    ))?;
+
+    let mut uv_index = 0usize;
+    status_result(cj_model_add_uv_coordinate(
+        model.raw(),
+        cj_uv_t { u: 0.25, v: 0.75 },
+        &raw mut uv_index,
+    ))?;
+
+    let mut summary = cj_model_summary_t::default();
+    status_result(cj_model_get_summary(model.raw(), &raw mut summary))?;
+    Ok(summary)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_bytes() -> &'static [u8] {
+        include_bytes!("../../../tests/data/v2_0/minimal.city.json")
+    }
+
+    #[test]
+    fn probe_and_summary_are_available_for_browser_facing_tasks() {
+        let probe = probe_bytes(fixture_bytes()).expect("probe should succeed");
+        assert_eq!(
+            probe.root_kind,
+            core::cj_root_kind_t::CJ_ROOT_KIND_CITY_JSON
+        );
+        assert_eq!(probe.version, core::cj_version_t::CJ_VERSION_V2_0);
+        assert!(probe.has_version);
+
+        let summary = parse_document_summary(fixture_bytes()).expect("summary should succeed");
+        assert_eq!(summary.summary.cityobject_count, 2);
+        assert_eq!(summary.summary.geometry_count, 2);
+        assert_eq!(
+            summary.cityobject_ids,
+            vec!["building-1", "building-part-1"]
+        );
+        assert_eq!(
+            summary.geometry_types,
+            vec![
+                cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+                cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT,
+            ]
+        );
+    }
+
+    #[test]
+    fn coordinate_extraction_and_minimal_creation_work() {
+        let buffers =
+            extract_coordinate_buffers(fixture_bytes()).expect("coordinate extraction should work");
+        assert_eq!(buffers.vertices.len(), 5);
+        assert_eq!(buffers.vertices[0].x, 10.0);
+        assert_eq!(buffers.vertices[4].y, 22.0);
+        assert!(buffers.template_vertices.is_empty());
+        assert_eq!(buffers.uv_coordinates.len(), 4);
+        assert_eq!(buffers.uv_coordinates[2].u, 1.0);
+
+        let summary =
+            create_feature_summary_with_vertices().expect("feature creation summary should work");
+        assert_eq!(
+            summary.model_type,
+            cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON_FEATURE
+        );
+        assert_eq!(summary.vertex_count, 1);
+        assert_eq!(summary.uv_coordinate_count, 1);
+    }
 }

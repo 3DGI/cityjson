@@ -23,12 +23,17 @@ doc:
 
 ffi-check:
     cargo check -p cjlib-ffi-core -p cjlib-wasm --all-targets
+    python3 -m compileall -q ffi/python/src
 
 ffi-build *args:
     cargo build -p cjlib-ffi-core -p cjlib-wasm --all-targets {{args}}
 
 ffi-test:
     cargo test -p cjlib-ffi-core -p cjlib-wasm
+    PYTHONPATH=ffi/python/src python3 -m unittest ffi/python/tests/test_api.py
+    cmake -S ffi/cpp -B target/ffi-cpp-build
+    cmake --build target/ffi-cpp-build
+    ctest --test-dir target/ffi-cpp-build --output-on-failure
 
 ffi-doc:
     cargo doc -p cjlib-ffi-core -p cjlib-wasm --no-deps

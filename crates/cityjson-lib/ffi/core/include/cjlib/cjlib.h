@@ -59,6 +59,28 @@ typedef enum cj_version_t {
 } cj_version_t;
 
 /**
+ * Stable model type discriminant for `CityJSON` documents and features.
+ */
+typedef enum cj_model_type_t {
+  CJ_MODEL_TYPE_CITY_JSON = 0,
+  CJ_MODEL_TYPE_CITY_JSON_FEATURE = 1,
+} cj_model_type_t;
+
+/**
+ * Stable geometry type discriminant for stored `CityJSON` geometries.
+ */
+typedef enum cj_geometry_type_t {
+  CJ_GEOMETRY_TYPE_MULTI_POINT = 0,
+  CJ_GEOMETRY_TYPE_MULTI_LINE_STRING = 1,
+  CJ_GEOMETRY_TYPE_MULTI_SURFACE = 2,
+  CJ_GEOMETRY_TYPE_COMPOSITE_SURFACE = 3,
+  CJ_GEOMETRY_TYPE_SOLID = 4,
+  CJ_GEOMETRY_TYPE_MULTI_SOLID = 5,
+  CJ_GEOMETRY_TYPE_COMPOSITE_SOLID = 6,
+  CJ_GEOMETRY_TYPE_GEOMETRY_INSTANCE = 7,
+} cj_geometry_type_t;
+
+/**
  * Opaque model handle type.
  *
  * The ABI only ever passes pointers to this marker type. The actual storage is
@@ -77,6 +99,39 @@ typedef struct cj_bytes_t {
 } cj_bytes_t;
 
 /**
+ * Packed 3D coordinate copied across the ABI.
+ */
+typedef struct cj_vertex_t {
+  double x;
+  double y;
+  double z;
+} cj_vertex_t;
+
+/**
+ * Owned vertex buffer returned across the ABI.
+ */
+typedef struct cj_vertices_t {
+  struct cj_vertex_t *data;
+  uintptr_t len;
+} cj_vertices_t;
+
+/**
+ * Packed UV coordinate copied across the ABI.
+ */
+typedef struct cj_uv_t {
+  float u;
+  float v;
+} cj_uv_t;
+
+/**
+ * Owned UV buffer returned across the ABI.
+ */
+typedef struct cj_uvs_t {
+  struct cj_uv_t *data;
+  uintptr_t len;
+} cj_uvs_t;
+
+/**
  * Probe result returned by the low-level ABI.
  */
 typedef struct cj_probe_t {
@@ -85,6 +140,43 @@ typedef struct cj_probe_t {
   bool has_version;
 } cj_probe_t;
 
+/**
+ * Aggregate model inspection summary returned across the ABI.
+ */
+typedef struct cj_model_summary_t {
+  enum cj_model_type_t model_type;
+  enum cj_version_t version;
+  uintptr_t cityobject_count;
+  uintptr_t geometry_count;
+  uintptr_t geometry_template_count;
+  uintptr_t vertex_count;
+  uintptr_t template_vertex_count;
+  uintptr_t uv_coordinate_count;
+  uintptr_t semantic_count;
+  uintptr_t material_count;
+  uintptr_t texture_count;
+  uintptr_t extension_count;
+  bool has_metadata;
+  bool has_transform;
+  bool has_templates;
+  bool has_appearance;
+} cj_model_summary_t;
+
+/**
+ * Capacity hints for bulk import and model-building paths.
+ */
+typedef struct cj_model_capacities_t {
+  uintptr_t cityobjects;
+  uintptr_t vertices;
+  uintptr_t semantics;
+  uintptr_t materials;
+  uintptr_t textures;
+  uintptr_t geometries;
+  uintptr_t template_vertices;
+  uintptr_t template_geometries;
+  uintptr_t uv_coordinates;
+} cj_model_capacities_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -92,6 +184,10 @@ extern "C" {
 enum cj_status_t cj_model_free(struct cj_model_t *handle);
 
 enum cj_status_t cj_bytes_free(struct cj_bytes_t bytes);
+
+enum cj_status_t cj_vertices_free(struct cj_vertices_t vertices);
+
+enum cj_status_t cj_uvs_free(struct cj_uvs_t uvs);
 
 enum cj_error_kind_t cj_last_error_kind(void);
 
@@ -124,6 +220,49 @@ enum cj_status_t cj_model_serialize_document(const struct cj_model_t *model,
 
 enum cj_status_t cj_model_serialize_feature(const struct cj_model_t *model,
                                             struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_get_summary(const struct cj_model_t *model,
+                                      struct cj_model_summary_t *out_summary);
+
+enum cj_status_t cj_model_get_metadata_title(const struct cj_model_t *model,
+                                             struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_get_metadata_identifier(const struct cj_model_t *model,
+                                                  struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_get_cityobject_id(const struct cj_model_t *model,
+                                            uintptr_t index,
+                                            struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_get_geometry_type(const struct cj_model_t *model,
+                                            uintptr_t index,
+                                            enum cj_geometry_type_t *out_type);
+
+enum cj_status_t cj_model_copy_vertices(const struct cj_model_t *model,
+                                        struct cj_vertices_t *out_vertices);
+
+enum cj_status_t cj_model_copy_template_vertices(const struct cj_model_t *model,
+                                                 struct cj_vertices_t *out_vertices);
+
+enum cj_status_t cj_model_copy_uv_coordinates(const struct cj_model_t *model,
+                                              struct cj_uvs_t *out_uvs);
+
+enum cj_status_t cj_model_create(enum cj_model_type_t model_type, struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_reserve_import(struct cj_model_t *model,
+                                         struct cj_model_capacities_t capacities);
+
+enum cj_status_t cj_model_add_vertex(struct cj_model_t *model,
+                                     struct cj_vertex_t vertex,
+                                     uintptr_t *out_index);
+
+enum cj_status_t cj_model_add_template_vertex(struct cj_model_t *model,
+                                              struct cj_vertex_t vertex,
+                                              uintptr_t *out_index);
+
+enum cj_status_t cj_model_add_uv_coordinate(struct cj_model_t *model,
+                                            struct cj_uv_t uv,
+                                            uintptr_t *out_index);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -1,16 +1,23 @@
 # C++ Binding Layout
 
-This directory will hold the public C++ wrapper over the shared low-level
+This directory holds the first public C++ wrapper over the shared low-level
 `cjlib` FFI core.
 
-Planned layout:
+Current layout:
 
 - `include/`: public headers
-- `src/`: wrapper implementation
 - `tests/`: C++ smoke and integration tests
 
-The C++ layer should stay RAII-oriented and STL-friendly while compiling down
-to the shared low-level core.
+The current wrapper is intentionally small:
+
+- RAII ownership for `cj_model_t`
+- probe, parse, serialize, and create helpers
+- model summary queries
+- metadata, cityobject ID, geometry-type, and coordinate access
+- a CMake smoke test linked against the shared FFI library
+
+The C++ layer stays RAII-oriented and STL-friendly while compiling down to the
+shared low-level core.
 
 The shared C ABI header is generated into `../core/include/cjlib/cjlib.h` via
 `just ffi-header`. The C++ wrapper should treat that header as its canonical
