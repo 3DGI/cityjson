@@ -25,7 +25,7 @@ full-corpus spatial reads are too expensive for Criterion's implicit
 
 The benchmark harness now uses the prepared full dataset under the bench root:
 
-- `CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+- `CJINDEX_BENCH_ROOT` or the default root `./tests/data`
 
 The prepared corpus is produced by the reproducible 3DBAG prep pipeline against
 the pinned `v20250903` tile index. The prep manifest under the output root

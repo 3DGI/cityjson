@@ -3,7 +3,9 @@ use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use cjindex::{BBox, CityIndex, StorageLayout};
+use cjindex::{
+    BBox, CityIndex, DatasetInspection, StorageLayout, ValidationReport, resolve_dataset,
+};
 use cjlib::{CityModel, Error, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::{Map, Value};
@@ -26,24 +28,20 @@ enum Command {
     Get(FeatureCommand),
     Query(QueryCommand),
     Metadata(IndexCommand),
+    Inspect(StatusCommand),
+    Validate(StatusCommand),
 }
 
 #[derive(Debug, Args)]
 struct IndexCommand {
     #[command(flatten)]
-    storage: StorageArgs,
-
-    #[arg(long)]
-    index: PathBuf,
+    input: DatasetInputArgs,
 }
 
 #[derive(Debug, Args)]
 struct FeatureCommand {
     #[command(flatten)]
-    storage: StorageArgs,
-
-    #[arg(long)]
-    index: PathBuf,
+    input: DatasetInputArgs,
 
     #[arg(long)]
     id: String,
@@ -55,10 +53,7 @@ struct FeatureCommand {
 #[derive(Debug, Args)]
 struct QueryCommand {
     #[command(flatten)]
-    storage: StorageArgs,
-
-    #[arg(long)]
-    index: PathBuf,
+    input: DatasetInputArgs,
 
     #[arg(long)]
     min_x: f64,
@@ -76,10 +71,34 @@ struct QueryCommand {
     output: Option<PathBuf>,
 }
 
+#[derive(Debug, Args)]
+struct StatusCommand {
+    #[arg(value_name = "DATASET_DIR")]
+    dataset_dir: PathBuf,
+
+    #[arg(long)]
+    index: Option<PathBuf>,
+
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args, Clone)]
+struct DatasetInputArgs {
+    #[arg(value_name = "DATASET_DIR")]
+    dataset_dir: Option<PathBuf>,
+
+    #[command(flatten)]
+    storage: StorageArgs,
+
+    #[arg(long)]
+    index: Option<PathBuf>,
+}
+
 #[derive(Debug, Args, Clone)]
 struct StorageArgs {
     #[arg(long, value_enum)]
-    layout: LayoutKind,
+    layout: Option<LayoutKind>,
 
     #[arg(long, value_name = "PATH", num_args = 1..)]
     paths: Vec<PathBuf>,
@@ -103,7 +122,10 @@ enum LayoutKind {
 
 impl StorageArgs {
     fn into_layout(self) -> Result<StorageLayout> {
-        match self.layout {
+        let layout = self
+            .layout
+            .ok_or_else(|| Error::Import("explicit layout mode requires --layout".to_owned()))?;
+        match layout {
             LayoutKind::Ndjson => Ok(StorageLayout::Ndjson { paths: self.paths }),
             LayoutKind::Cityjson => Ok(StorageLayout::CityJson { paths: self.paths }),
             LayoutKind::FeatureFiles => {
@@ -127,18 +149,20 @@ fn main() -> Result<()> {
         Command::Get(args) => run_get(args),
         Command::Query(args) => run_query(args),
         Command::Metadata(args) => run_metadata(args),
+        Command::Inspect(args) => run_inspect(args),
+        Command::Validate(args) => run_validate(args),
     }
 }
 
 fn run_reindex(args: IndexCommand) -> Result<()> {
-    let storage = args.storage.into_layout()?;
-    let mut index = CityIndex::open(storage, &args.index)?;
+    let (storage, index_path) = resolve_operational_input(args.input)?;
+    let mut index = CityIndex::open(storage, &index_path)?;
     index.reindex()
 }
 
 fn run_get(args: FeatureCommand) -> Result<()> {
-    let storage = args.storage.into_layout()?;
-    let index = CityIndex::open(storage, &args.index)?;
+    let (storage, index_path) = resolve_operational_input(args.input)?;
+    let index = CityIndex::open(storage, &index_path)?;
     let (metadata, model) = index
         .get_with_metadata(&args.id)?
         .ok_or_else(|| Error::Import(format!("feature {} was not found", args.id)))?;
@@ -150,8 +174,8 @@ fn run_get(args: FeatureCommand) -> Result<()> {
 }
 
 fn run_query(args: QueryCommand) -> Result<()> {
-    let storage = args.storage.into_layout()?;
-    let index = CityIndex::open(storage, &args.index)?;
+    let (storage, index_path) = resolve_operational_input(args.input)?;
+    let index = CityIndex::open(storage, &index_path)?;
     let bbox = BBox {
         min_x: args.min_x,
         max_x: args.max_x,
@@ -167,8 +191,8 @@ fn run_query(args: QueryCommand) -> Result<()> {
 }
 
 fn run_metadata(args: IndexCommand) -> Result<()> {
-    let storage = args.storage.into_layout()?;
-    let index = CityIndex::open(storage, &args.index)?;
+    let (storage, index_path) = resolve_operational_input(args.input)?;
+    let index = CityIndex::open(storage, &index_path)?;
     let metadata = index.metadata()?;
     let borrowed_metadata = metadata
         .iter()
@@ -179,6 +203,144 @@ fn run_metadata(args: IndexCommand) -> Result<()> {
     writer.write_all(b"\n")?;
     writer.flush()?;
     Ok(())
+}
+
+fn run_inspect(args: StatusCommand) -> Result<()> {
+    let resolved = resolve_dataset(&args.dataset_dir, args.index)?;
+    let inspection = resolved.inspect()?;
+    if args.json {
+        print_json(&inspection)?;
+    } else {
+        print_dataset_inspection(&inspection)?;
+    }
+    Ok(())
+}
+
+fn run_validate(args: StatusCommand) -> Result<()> {
+    let resolved = resolve_dataset(&args.dataset_dir, args.index)?;
+    let report = resolved.validate()?;
+    if args.json {
+        print_json(&report)?;
+    } else {
+        print_validation_report(&report)?;
+    }
+    if report.ok {
+        Ok(())
+    } else {
+        Err(Error::Import(report.inspection.index.issues.join("; ")))
+    }
+}
+
+fn resolve_operational_input(args: DatasetInputArgs) -> Result<(StorageLayout, PathBuf)> {
+    if args.dataset_dir.is_some() && args.storage.layout.is_some() {
+        return Err(Error::Import(
+            "specify either DATASET_DIR or explicit layout flags, not both".to_owned(),
+        ));
+    }
+
+    if let Some(dataset_dir) = args.dataset_dir {
+        let resolved = resolve_dataset(&dataset_dir, args.index)?;
+        return Ok((resolved.storage_layout(), resolved.index_path));
+    }
+
+    let storage = args.storage.into_layout()?;
+    let index_path = args
+        .index
+        .ok_or_else(|| Error::Import("explicit layout mode requires --index".to_owned()))?;
+    Ok((storage, index_path))
+}
+
+fn print_dataset_inspection(report: &DatasetInspection) -> Result<()> {
+    let mut writer = BufWriter::new(io::stdout());
+    writeln!(writer, "dataset: {}", report.dataset_root.display())?;
+    writeln!(writer, "layout: {}", report.layout.as_str())?;
+    writeln!(writer, "index: {}", report.index.path.display())?;
+    writeln!(
+        writer,
+        "index status: {}",
+        if report.index.exists {
+            "present"
+        } else {
+            "missing"
+        }
+    )?;
+    if let Some(manifest) = &report.manifest {
+        writeln!(writer, "manifest: {}", manifest.path.display())?;
+    } else {
+        writeln!(writer, "manifest: none")?;
+    }
+    writeln!(writer, "detected sources: {}", report.detected_source_count)?;
+    if report.detected_feature_file_count > 0 {
+        writeln!(
+            writer,
+            "detected feature files: {}",
+            report.detected_feature_file_count
+        )?;
+    }
+    if let Some(indexed_source_count) = report.index.indexed_source_count {
+        writeln!(writer, "indexed sources: {indexed_source_count}")?;
+    }
+    if let Some(indexed_feature_count) = report.index.indexed_feature_count {
+        writeln!(writer, "indexed feature packages: {indexed_feature_count}")?;
+    }
+    if let Some(indexed_cityobject_count) = report.index.indexed_cityobject_count {
+        writeln!(writer, "indexed CityObjects: {indexed_cityobject_count}")?;
+    }
+    writeln!(
+        writer,
+        "freshness: {}",
+        option_status(report.index.fresh, "fresh", "stale")
+    )?;
+    writeln!(
+        writer,
+        "coverage: {}",
+        option_status(report.index.covered, "covered", "uncovered")
+    )?;
+    writeln!(
+        writer,
+        "needs reindex: {}",
+        if report.index.needs_reindex {
+            "yes"
+        } else {
+            "no"
+        }
+    )?;
+    if !report.index.issues.is_empty() {
+        writeln!(writer, "issues:")?;
+        for issue in &report.index.issues {
+            writeln!(writer, "- {issue}")?;
+        }
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+fn print_validation_report(report: &ValidationReport) -> Result<()> {
+    print_dataset_inspection(&report.inspection)?;
+    let mut writer = BufWriter::new(io::stdout());
+    writeln!(
+        writer,
+        "validation: {}",
+        if report.ok { "ok" } else { "failed" }
+    )?;
+    writer.flush()?;
+    Ok(())
+}
+
+fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
+    let mut writer = BufWriter::new(io::stdout());
+    serde_json::to_writer_pretty(&mut writer, value)?;
+    writer.write_all(b"\n")?;
+    writer.flush()?;
+    Ok(())
+}
+
+fn option_status<'a>(value: Option<bool>, yes: &'a str, no: &'a str) -> &'a str {
+    match value {
+        Some(true) => yes,
+        Some(false) => no,
+        None => "unknown",
+    }
 }
 
 fn open_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {

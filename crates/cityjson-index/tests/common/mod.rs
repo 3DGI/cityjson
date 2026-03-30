@@ -1,16 +1,20 @@
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{fs, path::Path};
 
 use cjindex::BBox;
 use cjlib::{CityModel, Result};
 use serde_json::Value;
 use walkdir::WalkDir;
 
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
 pub fn data_root() -> PathBuf {
-    PathBuf::from("/home/balazs/Data/3DBAG_3dtiles_test/cjindex")
+    repo_root().join("tests/data")
 }
 
 pub fn feature_files_root() -> PathBuf {
@@ -19,6 +23,10 @@ pub fn feature_files_root() -> PathBuf {
 
 pub fn ndjson_root() -> PathBuf {
     data_root().join("ndjson")
+}
+
+pub fn cityjson_root() -> PathBuf {
+    data_root().join("cityjson")
 }
 
 pub fn temp_index_path(label: &str) -> PathBuf {

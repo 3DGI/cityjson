@@ -12,7 +12,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use cjindex::{CityIndex, StorageLayout};
-use common::{bbox_for_model, feature_files_root, find_first, materialize_subset, temp_index_path};
+use common::{
+    bbox_for_model, cityjson_root, feature_files_root, find_first, materialize_subset, ndjson_root,
+    temp_index_path,
+};
 use serde_json::Value;
 use walkdir::WalkDir;
 
@@ -272,6 +275,147 @@ fn cli_query_rejects_incompatible_metadata_roots() {
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("incompatible metadata roots"),
         "query should explain the metadata mismatch"
+    );
+}
+
+#[test]
+fn cli_dataset_mode_get_query_and_metadata_work() {
+    let source_root = feature_files_root();
+    let sample = find_first(&source_root.join("features"), "city.jsonl", true);
+    let root = materialize_subset(
+        "cli-dataset-mode",
+        &source_root,
+        &[source_root.join("metadata.json"), sample.clone()],
+    );
+    let feature_id = feature_id_from_feature_file(&sample);
+
+    run_cli(["index", root.to_str().expect("root path must be utf-8")]);
+
+    let index_path = root.join(".cjindex.sqlite");
+    assert!(
+        index_path.exists(),
+        "dataset-mode index should use sidecar path"
+    );
+
+    let model = load_model(&root, &index_path, &feature_id);
+    let bbox = bbox_for_model(&model).expect("bbox should be computable");
+
+    let get_stdout = run_cli([
+        "get",
+        root.to_str().expect("root path must be utf-8"),
+        "--id",
+        &feature_id,
+    ]);
+    let get_lines = parse_json_lines(&get_stdout);
+    assert_eq!(get_lines[0]["type"], "CityJSON");
+    assert_eq!(get_lines[1]["id"], feature_id);
+
+    let query_stdout = run_cli([
+        "query",
+        root.to_str().expect("root path must be utf-8"),
+        "--min-x",
+        &bbox.min_x.to_string(),
+        "--max-x",
+        &bbox.max_x.to_string(),
+        "--min-y",
+        &bbox.min_y.to_string(),
+        "--max-y",
+        &bbox.max_y.to_string(),
+    ]);
+    let query_lines = parse_json_lines(&query_stdout);
+    assert_eq!(query_lines[0]["type"], "CityJSON");
+    assert_eq!(query_lines[1]["id"], feature_id);
+
+    let metadata_stdout = run_cli(["metadata", root.to_str().expect("utf-8 path")]);
+    let metadata: Value =
+        serde_json::from_str(&metadata_stdout).expect("metadata output should be valid JSON");
+    assert!(
+        metadata.as_array().is_some_and(|items| !items.is_empty()),
+        "metadata command should return cached metadata entries"
+    );
+}
+
+#[test]
+fn cli_inspect_autodetects_all_supported_layouts() {
+    for (root, expected_layout) in [
+        (feature_files_root(), "feature-files"),
+        (ndjson_root(), "ndjson"),
+        (cityjson_root(), "cityjson"),
+    ] {
+        let output = run_cli([
+            "inspect",
+            root.to_str().expect("root path must be utf-8"),
+            "--json",
+        ]);
+        let report: Value =
+            serde_json::from_str(&output).expect("inspect output should be valid JSON");
+        assert_eq!(report["layout"], expected_layout);
+        let canonical_root =
+            fs::canonicalize(&root).expect("dataset root should canonicalize for inspect");
+        assert_eq!(
+            report["dataset_root"].as_str(),
+            Some(canonical_root.to_str().expect("root path must be utf-8"))
+        );
+    }
+}
+
+#[test]
+fn cli_inspect_and_validate_report_missing_and_stale_indexes() {
+    let source_root = feature_files_root();
+    let sample = find_first(&source_root.join("features"), "city.jsonl", true);
+    let root = materialize_subset(
+        "cli-status",
+        &source_root,
+        &[source_root.join("metadata.json"), sample.clone()],
+    );
+
+    let inspect_missing = run_cli([
+        "inspect",
+        root.to_str().expect("root path must be utf-8"),
+        "--json",
+    ]);
+    let missing_report: Value =
+        serde_json::from_str(&inspect_missing).expect("inspect output should be valid JSON");
+    assert_eq!(missing_report["index"]["exists"], false);
+
+    run_cli(["index", root.to_str().expect("root path must be utf-8")]);
+
+    let inspect_present = run_cli([
+        "inspect",
+        root.to_str().expect("root path must be utf-8"),
+        "--json",
+    ]);
+    let present_report: Value =
+        serde_json::from_str(&inspect_present).expect("inspect output should be valid JSON");
+    assert_eq!(present_report["index"]["exists"], true);
+    assert_eq!(present_report["index"]["covered"], true);
+
+    let copied_feature = root.join(
+        sample
+            .strip_prefix(&source_root)
+            .expect("copied feature should live under the dataset root"),
+    );
+    let mut bytes = fs::read(&copied_feature).expect("feature file should be readable");
+    bytes.push(b'\n');
+    fs::write(&copied_feature, bytes).expect("feature file should be writable");
+
+    let output = run_cli_output([
+        "validate",
+        root.to_str().expect("root path must be utf-8"),
+        "--json",
+    ]);
+    assert!(
+        !output.status.success(),
+        "validate should fail for stale data"
+    );
+    let report: Value =
+        serde_json::from_slice(&output.stdout).expect("validate json output should parse");
+    assert_eq!(report["ok"], false);
+    assert!(
+        report["inspection"]["index"]["changed_feature_paths"]
+            .as_array()
+            .is_some_and(|paths| !paths.is_empty()),
+        "validate should report the changed feature path"
     );
 }
 

@@ -5,6 +5,7 @@ use std::fs;
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::UNIX_EPOCH;
 
 use cjlib::json::staged;
 use cjlib::{CityModel, Error, Result};
@@ -29,6 +30,83 @@ pub struct CityIndex {
     backend: Box<dyn StorageBackend>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DatasetLayoutKind {
+    #[serde(rename = "ndjson")]
+    Ndjson,
+    #[serde(rename = "cityjson")]
+    CityJson,
+    #[serde(rename = "feature-files")]
+    FeatureFiles,
+}
+
+impl DatasetLayoutKind {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ndjson => "ndjson",
+            Self::CityJson => "cityjson",
+            Self::FeatureFiles => "feature-files",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestSummary {
+    pub path: PathBuf,
+    pub selected_tile_count: Option<usize>,
+    pub total_features: Option<usize>,
+    pub total_cityobjects: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedDataset {
+    pub dataset_root: PathBuf,
+    pub index_path: PathBuf,
+    pub layout: DatasetLayoutKind,
+    pub manifest: Option<ManifestSummary>,
+    storage_layout: StorageLayout,
+    source_paths: Vec<PathBuf>,
+    feature_file_paths: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexStatus {
+    pub path: PathBuf,
+    pub exists: bool,
+    pub index_mtime_ns: Option<i64>,
+    pub indexed_source_count: Option<usize>,
+    pub indexed_feature_count: Option<usize>,
+    pub indexed_cityobject_count: Option<usize>,
+    pub fresh: Option<bool>,
+    pub covered: Option<bool>,
+    pub needs_reindex: bool,
+    pub missing_source_paths: Vec<PathBuf>,
+    pub unindexed_source_paths: Vec<PathBuf>,
+    pub changed_source_paths: Vec<PathBuf>,
+    pub missing_feature_paths: Vec<PathBuf>,
+    pub unindexed_feature_paths: Vec<PathBuf>,
+    pub changed_feature_paths: Vec<PathBuf>,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetInspection {
+    pub dataset_root: PathBuf,
+    pub layout: DatasetLayoutKind,
+    pub manifest: Option<ManifestSummary>,
+    pub detected_source_count: usize,
+    pub detected_feature_file_count: usize,
+    pub index: IndexStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationReport {
+    pub ok: bool,
+    pub inspection: DatasetInspection,
+}
+
+#[derive(Debug, Clone)]
 pub enum StorageLayout {
     Ndjson {
         paths: Vec<PathBuf>,
@@ -41,6 +119,454 @@ pub enum StorageLayout {
         metadata_glob: String,
         feature_glob: String,
     },
+}
+
+impl StorageLayout {
+    #[must_use]
+    pub fn layout_kind(&self) -> DatasetLayoutKind {
+        match self {
+            Self::Ndjson { .. } => DatasetLayoutKind::Ndjson,
+            Self::CityJson { .. } => DatasetLayoutKind::CityJson,
+            Self::FeatureFiles { .. } => DatasetLayoutKind::FeatureFiles,
+        }
+    }
+}
+
+impl ResolvedDataset {
+    #[must_use]
+    pub fn storage_layout(&self) -> StorageLayout {
+        self.storage_layout.clone()
+    }
+
+    #[must_use]
+    pub fn source_paths(&self) -> &[PathBuf] {
+        &self.source_paths
+    }
+
+    #[must_use]
+    pub fn feature_file_paths(&self) -> &[PathBuf] {
+        &self.feature_file_paths
+    }
+
+    /// Inspects the resolved dataset and its current index sidecar.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the dataset or index cannot be inspected.
+    pub fn inspect(&self) -> Result<DatasetInspection> {
+        inspect_resolved_dataset(self)
+    }
+
+    /// Validates the resolved dataset and returns a structured report.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the dataset or index cannot be inspected.
+    pub fn validate(&self) -> Result<ValidationReport> {
+        let inspection = self.inspect()?;
+        let ok = inspection.index.issues.is_empty();
+        Ok(ValidationReport { ok, inspection })
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspection> {
+    let mut status = IndexStatus {
+        path: resolved.index_path.clone(),
+        exists: resolved.index_path.exists(),
+        index_mtime_ns: None,
+        indexed_source_count: None,
+        indexed_feature_count: None,
+        indexed_cityobject_count: None,
+        fresh: None,
+        covered: None,
+        needs_reindex: false,
+        missing_source_paths: Vec::new(),
+        unindexed_source_paths: Vec::new(),
+        changed_source_paths: Vec::new(),
+        missing_feature_paths: Vec::new(),
+        unindexed_feature_paths: Vec::new(),
+        changed_feature_paths: Vec::new(),
+        issues: Vec::new(),
+    };
+
+    if status.exists {
+        let (_, mtime_ns) = file_status(&resolved.index_path)?;
+        status.index_mtime_ns = Some(mtime_ns);
+
+        let index = Index::open(&resolved.index_path)?;
+        status.indexed_source_count = Some(index.source_count()?);
+        status.indexed_feature_count = Some(index.feature_count()?);
+        status.indexed_cityobject_count = Some(index.cityobject_count()?);
+
+        let indexed_sources = index.indexed_sources()?;
+        let current_sources = collect_current_file_statuses(&resolved.source_paths)?;
+        compare_path_statuses(
+            &current_sources,
+            &indexed_sources,
+            &mut status.missing_source_paths,
+            &mut status.unindexed_source_paths,
+            &mut status.changed_source_paths,
+            &mut status.needs_reindex,
+        );
+
+        if resolved.layout == DatasetLayoutKind::FeatureFiles {
+            let indexed_features = index.indexed_feature_paths()?;
+            let current_features = collect_current_file_statuses(&resolved.feature_file_paths)?;
+            compare_feature_statuses(
+                &current_features,
+                &indexed_features,
+                &mut status.missing_feature_paths,
+                &mut status.unindexed_feature_paths,
+                &mut status.changed_feature_paths,
+                &mut status.needs_reindex,
+            );
+        }
+
+        if let Some(manifest) = &resolved.manifest {
+            if let Some(expected_features) = manifest.total_features
+                && status.indexed_feature_count != Some(expected_features)
+            {
+                status.issues.push(format!(
+                    "indexed feature count {} does not match manifest count {}",
+                    status.indexed_feature_count.unwrap_or(0),
+                    expected_features
+                ));
+            }
+            if let Some(expected_cityobjects) = manifest.total_cityobjects
+                && status.indexed_cityobject_count != Some(expected_cityobjects)
+            {
+                status.issues.push(format!(
+                    "indexed CityObject count {} does not match manifest count {}",
+                    status.indexed_cityobject_count.unwrap_or(0),
+                    expected_cityobjects
+                ));
+            }
+            if let Some(expected_sources) = manifest.selected_tile_count
+                && resolved.layout != DatasetLayoutKind::FeatureFiles
+                && status.indexed_source_count != Some(expected_sources)
+            {
+                status.issues.push(format!(
+                    "indexed source count {} does not match manifest tile count {}",
+                    status.indexed_source_count.unwrap_or(0),
+                    expected_sources
+                ));
+            }
+        }
+
+        if let Some(source_count) = status.indexed_source_count
+            && source_count != resolved.source_paths.len()
+        {
+            status.issues.push(format!(
+                "indexed source count {} does not match detected source count {}",
+                source_count,
+                resolved.source_paths.len()
+            ));
+        }
+
+        if !status.missing_source_paths.is_empty() {
+            status.issues.push(format!(
+                "{} indexed source files are missing on disk",
+                status.missing_source_paths.len()
+            ));
+        }
+        if !status.unindexed_source_paths.is_empty() {
+            status.issues.push(format!(
+                "{} detected source files are missing from the index",
+                status.unindexed_source_paths.len()
+            ));
+        }
+        if !status.changed_source_paths.is_empty() {
+            status.issues.push(format!(
+                "{} indexed source files changed size or mtime",
+                status.changed_source_paths.len()
+            ));
+        }
+        if !status.missing_feature_paths.is_empty() {
+            status.issues.push(format!(
+                "{} indexed feature files are missing on disk",
+                status.missing_feature_paths.len()
+            ));
+        }
+        if !status.unindexed_feature_paths.is_empty() {
+            status.issues.push(format!(
+                "{} detected feature files are missing from the index",
+                status.unindexed_feature_paths.len()
+            ));
+        }
+        if !status.changed_feature_paths.is_empty() {
+            status.issues.push(format!(
+                "{} indexed feature files changed size or mtime",
+                status.changed_feature_paths.len()
+            ));
+        }
+        if status.needs_reindex {
+            status.issues.push(
+                "index is missing persisted freshness metadata; run cjindex reindex".to_owned(),
+            );
+        }
+
+        status.covered = Some(
+            status.missing_source_paths.is_empty()
+                && status.unindexed_source_paths.is_empty()
+                && status.missing_feature_paths.is_empty()
+                && status.unindexed_feature_paths.is_empty(),
+        );
+        status.fresh = Some(
+            status.covered == Some(true)
+                && status.changed_source_paths.is_empty()
+                && status.changed_feature_paths.is_empty()
+                && !status.needs_reindex,
+        );
+    } else {
+        status.issues.push(format!(
+            "index {} does not exist",
+            resolved.index_path.display()
+        ));
+    }
+
+    Ok(DatasetInspection {
+        dataset_root: resolved.dataset_root.clone(),
+        layout: resolved.layout,
+        manifest: resolved.manifest.clone(),
+        detected_source_count: resolved.source_paths.len(),
+        detected_feature_file_count: resolved.feature_file_paths.len(),
+        index: status,
+    })
+}
+
+fn resolve_manifest_summary(dataset_root: &Path) -> Result<Option<ManifestSummary>> {
+    let candidates = [
+        dataset_root.join("manifest.json"),
+        dataset_root.parent().map_or_else(
+            || dataset_root.join("manifest.json"),
+            |parent| parent.join("manifest.json"),
+        ),
+    ];
+    for candidate in candidates {
+        if !candidate.exists() {
+            continue;
+        }
+        let manifest: Value = read_json(&candidate)?;
+        let selected_tile_count = manifest
+            .get("selected_tiles")
+            .and_then(Value::as_array)
+            .map(Vec::len);
+        let total_features = manifest
+            .get("total_features")
+            .and_then(Value::as_u64)
+            .map(usize::try_from)
+            .transpose()
+            .map_err(|_| import_error("manifest total_features does not fit in usize"))?;
+        let total_cityobjects = manifest
+            .get("total_cityobjects")
+            .and_then(Value::as_u64)
+            .map(usize::try_from)
+            .transpose()
+            .map_err(|_| import_error("manifest total_cityobjects does not fit in usize"))?;
+        return Ok(Some(ManifestSummary {
+            path: candidate,
+            selected_tile_count,
+            total_features,
+            total_cityobjects,
+        }));
+    }
+    Ok(None)
+}
+
+fn collect_current_file_statuses(paths: &[PathBuf]) -> Result<BTreeMap<PathBuf, (u64, i64)>> {
+    paths
+        .iter()
+        .map(|path| file_status(path).map(|status| (path.clone(), status)))
+        .collect()
+}
+
+fn compare_path_statuses(
+    current: &BTreeMap<PathBuf, (u64, i64)>,
+    indexed: &[IndexedSourceRecord],
+    missing_on_disk: &mut Vec<PathBuf>,
+    missing_from_index: &mut Vec<PathBuf>,
+    changed: &mut Vec<PathBuf>,
+    needs_reindex: &mut bool,
+) {
+    let indexed_by_path = indexed
+        .iter()
+        .map(|record| {
+            (
+                record.path.clone(),
+                (record.source_size, record.source_mtime_ns),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    for path in current.keys() {
+        if !indexed_by_path.contains_key(path) {
+            missing_from_index.push(path.clone());
+        }
+    }
+
+    for (path, (expected_size, expected_mtime_ns)) in indexed_by_path {
+        let Some((current_size, current_mtime_ns)) = current.get(&path) else {
+            missing_on_disk.push(path);
+            continue;
+        };
+        let Some(expected_size) = expected_size else {
+            *needs_reindex = true;
+            continue;
+        };
+        let Some(expected_mtime_ns) = expected_mtime_ns else {
+            *needs_reindex = true;
+            continue;
+        };
+        if expected_size != *current_size || expected_mtime_ns != *current_mtime_ns {
+            changed.push(path);
+        }
+    }
+}
+
+fn compare_feature_statuses(
+    current: &BTreeMap<PathBuf, (u64, i64)>,
+    indexed: &[IndexedFeaturePathRecord],
+    missing_on_disk: &mut Vec<PathBuf>,
+    missing_from_index: &mut Vec<PathBuf>,
+    changed: &mut Vec<PathBuf>,
+    needs_reindex: &mut bool,
+) {
+    let indexed_by_path = indexed
+        .iter()
+        .map(|record| {
+            (
+                record.path.clone(),
+                (record.file_size, record.file_mtime_ns),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    for path in current.keys() {
+        if !indexed_by_path.contains_key(path) {
+            missing_from_index.push(path.clone());
+        }
+    }
+
+    for (path, (expected_size, expected_mtime_ns)) in indexed_by_path {
+        let Some((current_size, current_mtime_ns)) = current.get(&path) else {
+            missing_on_disk.push(path);
+            continue;
+        };
+        let Some(expected_size) = expected_size else {
+            *needs_reindex = true;
+            continue;
+        };
+        let Some(expected_mtime_ns) = expected_mtime_ns else {
+            *needs_reindex = true;
+            continue;
+        };
+        if expected_size != *current_size || expected_mtime_ns != *current_mtime_ns {
+            changed.push(path);
+        }
+    }
+}
+
+/// Resolves a dataset directory into one concrete storage layout plus the
+/// effective sidecar index location.
+///
+/// # Errors
+///
+/// Returns an error if the directory does not exist, no known layout matches,
+/// or multiple layouts match.
+pub fn resolve_dataset(
+    dataset_dir: &Path,
+    index_override: Option<PathBuf>,
+) -> Result<ResolvedDataset> {
+    let dataset_root = fs::canonicalize(dataset_dir).map_err(|error| {
+        import_error(format!(
+            "failed to resolve dataset directory {}: {error}",
+            dataset_dir.display()
+        ))
+    })?;
+    if !dataset_root.is_dir() {
+        return Err(import_error(format!(
+            "dataset path {} is not a directory",
+            dataset_root.display()
+        )));
+    }
+
+    let roots = vec![dataset_root.clone()];
+    let ndjson_paths = collect_layout_files(&roots, ".city.jsonl")?;
+    let cityjson_paths = collect_layout_files(&roots, ".city.json")?;
+    let metadata_paths = collect_layout_files(&roots, "metadata.json")?;
+    let feature_file_paths = if metadata_paths.is_empty() {
+        Vec::new()
+    } else {
+        ndjson_paths.clone()
+    };
+
+    let feature_files_match = !metadata_paths.is_empty() && !feature_file_paths.is_empty();
+    let ndjson_match = !ndjson_paths.is_empty() && !feature_files_match;
+    let cityjson_match = !cityjson_paths.is_empty();
+
+    let mut matches = Vec::new();
+    if ndjson_match {
+        matches.push(DatasetLayoutKind::Ndjson);
+    }
+    if cityjson_match {
+        matches.push(DatasetLayoutKind::CityJson);
+    }
+    if feature_files_match {
+        matches.push(DatasetLayoutKind::FeatureFiles);
+    }
+
+    if matches.is_empty() {
+        return Err(import_error(format!(
+            "dataset directory {} does not match ndjson, cityjson, or feature-files layouts",
+            dataset_root.display()
+        )));
+    }
+    if matches.len() > 1 {
+        let matched_layouts = matches
+            .into_iter()
+            .map(DatasetLayoutKind::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(import_error(format!(
+            "dataset directory {} matches multiple layouts ({matched_layouts}); use explicit CLI flags instead",
+            dataset_root.display(),
+        )));
+    }
+
+    let layout = matches[0];
+    let storage_layout = match layout {
+        DatasetLayoutKind::Ndjson => StorageLayout::Ndjson {
+            paths: vec![dataset_root.clone()],
+        },
+        DatasetLayoutKind::CityJson => StorageLayout::CityJson {
+            paths: vec![dataset_root.clone()],
+        },
+        DatasetLayoutKind::FeatureFiles => StorageLayout::FeatureFiles {
+            root: dataset_root.clone(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+    };
+    let source_paths = match layout {
+        DatasetLayoutKind::Ndjson => ndjson_paths,
+        DatasetLayoutKind::CityJson => cityjson_paths,
+        DatasetLayoutKind::FeatureFiles => metadata_paths,
+    };
+    let feature_file_paths = match layout {
+        DatasetLayoutKind::FeatureFiles => feature_file_paths,
+        _ => Vec::new(),
+    };
+
+    Ok(ResolvedDataset {
+        dataset_root: dataset_root.clone(),
+        index_path: index_override.unwrap_or_else(|| dataset_root.join(".cjindex.sqlite")),
+        layout,
+        manifest: resolve_manifest_summary(&dataset_root)?,
+        storage_layout,
+        source_paths,
+        feature_file_paths,
+    })
 }
 
 impl CityIndex {
@@ -188,10 +714,25 @@ struct FeatureIndexEntry {
     id: String,
     source_id: i64,
     path: PathBuf,
+    file_size: u64,
+    file_mtime_ns: i64,
     offset: u64,
     length: u64,
     bbox: BBox,
+    cityobject_count: u64,
     member_ranges_json: Option<String>,
+}
+
+struct IndexedSourceRecord {
+    path: PathBuf,
+    source_size: Option<u64>,
+    source_mtime_ns: Option<i64>,
+}
+
+struct IndexedFeaturePathRecord {
+    path: PathBuf,
+    file_size: Option<u64>,
+    file_mtime_ns: Option<i64>,
 }
 
 struct BBoxLocationIter<'a> {
@@ -279,7 +820,9 @@ impl Index {
                 path TEXT NOT NULL UNIQUE,
                 metadata TEXT NOT NULL,
                 vertices_offset INTEGER,
-                vertices_length INTEGER
+                vertices_length INTEGER,
+                source_size INTEGER,
+                source_mtime_ns INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS features (
@@ -287,8 +830,11 @@ impl Index {
                 feature_id TEXT NOT NULL UNIQUE,
                 source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
                 path TEXT NOT NULL,
+                file_size INTEGER,
+                file_mtime_ns INTEGER,
                 offset INTEGER NOT NULL,
                 length INTEGER NOT NULL,
+                cityobject_count INTEGER,
                 member_ranges TEXT
             );
 
@@ -308,6 +854,8 @@ impl Index {
             ",
         ))?;
         Self::ensure_member_ranges_column(&conn)?;
+        Self::ensure_source_status_columns(&conn)?;
+        Self::ensure_feature_status_columns(&conn)?;
 
         Ok(Self {
             conn,
@@ -327,15 +875,20 @@ impl Index {
                 &scan.metadata,
                 scan.vertices_offset,
                 scan.vertices_length,
+                scan.source_size,
+                scan.source_mtime_ns,
             )?;
             for feature in &scan.features {
                 feature_entries.push(FeatureIndexEntry {
                     id: feature.id.clone(),
                     source_id,
                     path: feature.path.clone(),
+                    file_size: feature.file_size,
+                    file_mtime_ns: feature.file_mtime_ns,
                     offset: feature.offset,
                     length: feature.length,
                     bbox: feature.bbox,
+                    cityobject_count: feature.cityobject_count,
                     member_ranges_json: feature
                         .member_ranges
                         .as_ref()
@@ -464,12 +1017,107 @@ impl Index {
             .collect()
     }
 
+    fn source_count(&self) -> Result<usize> {
+        self.query_count("SELECT COUNT(*) FROM sources")
+    }
+
+    fn feature_count(&self) -> Result<usize> {
+        self.query_count("SELECT COUNT(*) FROM features")
+    }
+
+    fn cityobject_count(&self) -> Result<usize> {
+        let total = sqlite_result(self.conn.query_row(
+            "SELECT COALESCE(SUM(cityobject_count), 0) FROM features",
+            [],
+            |row| row.get::<_, i64>(0),
+        ))?;
+        usize::try_from(total)
+            .map_err(|_| import_error("indexed CityObject count does not fit in usize"))
+    }
+
+    fn query_count(&self, sql: &str) -> Result<usize> {
+        let count = sqlite_result(self.conn.query_row(sql, [], |row| row.get::<_, i64>(0)))?;
+        usize::try_from(count).map_err(|_| import_error("count does not fit in usize"))
+    }
+
+    fn indexed_sources(&self) -> Result<Vec<IndexedSourceRecord>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT path, source_size, source_mtime_ns
+            FROM sources
+            ORDER BY path
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map([], |row| {
+            Ok(IndexedSourceRecord {
+                path: PathBuf::from(row.get::<_, String>(0)?),
+                source_size: row.get::<_, Option<i64>>(1)?.map(i64_to_u64).transpose()?,
+                source_mtime_ns: row.get::<_, Option<i64>>(2)?,
+            })
+        }))?;
+        sqlite_result(rows.collect())
+    }
+
+    fn indexed_feature_paths(&self) -> Result<Vec<IndexedFeaturePathRecord>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT DISTINCT path, file_size, file_mtime_ns
+            FROM features
+            ORDER BY path
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map([], |row| {
+            Ok(IndexedFeaturePathRecord {
+                path: PathBuf::from(row.get::<_, String>(0)?),
+                file_size: row.get::<_, Option<i64>>(1)?.map(i64_to_u64).transpose()?,
+                file_mtime_ns: row.get::<_, Option<i64>>(2)?,
+            })
+        }))?;
+        sqlite_result(rows.collect())
+    }
+
     fn ensure_member_ranges_column(conn: &rusqlite::Connection) -> Result<()> {
         let mut stmt = sqlite_result(conn.prepare("PRAGMA table_info(features)"))?;
         let rows = sqlite_result(stmt.query_map([], |row| row.get::<_, String>(1)))?;
         let columns = sqlite_result(rows.collect::<rusqlite::Result<Vec<_>>>())?;
         if !columns.iter().any(|column| column == "member_ranges") {
             sqlite_result(conn.execute("ALTER TABLE features ADD COLUMN member_ranges TEXT", []))?;
+        }
+        Ok(())
+    }
+
+    fn ensure_source_status_columns(conn: &rusqlite::Connection) -> Result<()> {
+        let mut stmt = sqlite_result(conn.prepare("PRAGMA table_info(sources)"))?;
+        let rows = sqlite_result(stmt.query_map([], |row| row.get::<_, String>(1)))?;
+        let columns = sqlite_result(rows.collect::<rusqlite::Result<Vec<_>>>())?;
+        if !columns.iter().any(|column| column == "source_size") {
+            sqlite_result(conn.execute("ALTER TABLE sources ADD COLUMN source_size INTEGER", []))?;
+        }
+        if !columns.iter().any(|column| column == "source_mtime_ns") {
+            sqlite_result(
+                conn.execute("ALTER TABLE sources ADD COLUMN source_mtime_ns INTEGER", []),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn ensure_feature_status_columns(conn: &rusqlite::Connection) -> Result<()> {
+        let mut stmt = sqlite_result(conn.prepare("PRAGMA table_info(features)"))?;
+        let rows = sqlite_result(stmt.query_map([], |row| row.get::<_, String>(1)))?;
+        let columns = sqlite_result(rows.collect::<rusqlite::Result<Vec<_>>>())?;
+        if !columns.iter().any(|column| column == "file_size") {
+            sqlite_result(conn.execute("ALTER TABLE features ADD COLUMN file_size INTEGER", []))?;
+        }
+        if !columns.iter().any(|column| column == "file_mtime_ns") {
+            sqlite_result(
+                conn.execute("ALTER TABLE features ADD COLUMN file_mtime_ns INTEGER", []),
+            )?;
+        }
+        if !columns.iter().any(|column| column == "cityobject_count") {
+            sqlite_result(conn.execute(
+                "ALTER TABLE features ADD COLUMN cityobject_count INTEGER",
+                [],
+            ))?;
         }
         Ok(())
     }
@@ -492,20 +1140,32 @@ impl Index {
         meta: &Meta,
         vertices_offset: Option<u64>,
         vertices_length: Option<u64>,
+        source_size: u64,
+        source_mtime_ns: i64,
     ) -> Result<i64> {
         let metadata_json = serde_json::to_string(meta)?;
         let vertices_offset = sqlite_result(vertices_offset.map(u64_to_i64).transpose())?;
         let vertices_length = sqlite_result(vertices_length.map(u64_to_i64).transpose())?;
+        let source_size = sqlite_result(u64_to_i64(source_size))?;
         sqlite_result(tx.execute(
             r"
-            INSERT INTO sources (path, metadata, vertices_offset, vertices_length)
-            VALUES (?1, ?2, ?3, ?4)
+            INSERT INTO sources (
+                path,
+                metadata,
+                vertices_offset,
+                vertices_length,
+                source_size,
+                source_mtime_ns
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             ",
             params![
                 path.to_string_lossy(),
                 metadata_json,
                 vertices_offset,
-                vertices_length
+                vertices_length,
+                source_size,
+                source_mtime_ns,
             ],
         ))?;
         Ok(tx.last_insert_rowid())
@@ -517,8 +1177,18 @@ impl Index {
     ) -> Result<()> {
         let mut feature_stmt = sqlite_result(tx.prepare(
             r"
-            INSERT INTO features (feature_id, source_id, path, offset, length, member_ranges)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            INSERT INTO features (
+                feature_id,
+                source_id,
+                path,
+                file_size,
+                file_mtime_ns,
+                offset,
+                length,
+                cityobject_count,
+                member_ranges
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             ",
         ))?;
         let mut bbox_stmt = sqlite_result(tx.prepare(
@@ -534,14 +1204,19 @@ impl Index {
             ",
         ))?;
         for entry in entries {
+            let file_size = sqlite_result(u64_to_i64(entry.file_size))?;
             let offset = sqlite_result(u64_to_i64(entry.offset))?;
             let length = sqlite_result(u64_to_i64(entry.length))?;
+            let cityobject_count = sqlite_result(u64_to_i64(entry.cityobject_count))?;
             sqlite_result(feature_stmt.execute(params![
                 &entry.id,
                 entry.source_id,
                 entry.path.to_string_lossy(),
+                file_size,
+                entry.file_mtime_ns,
                 offset,
                 length,
+                cityobject_count,
                 &entry.member_ranges_json,
             ]))?;
             let feature_rowid = tx.last_insert_rowid();
@@ -597,15 +1272,20 @@ struct SourceScan {
     metadata: Meta,
     vertices_offset: Option<u64>,
     vertices_length: Option<u64>,
+    source_size: u64,
+    source_mtime_ns: i64,
     features: Vec<ScannedFeature>,
 }
 
 struct ScannedFeature {
     id: String,
     path: PathBuf,
+    file_size: u64,
+    file_mtime_ns: i64,
     offset: u64,
     length: u64,
     bbox: BBox,
+    cityobject_count: u64,
     member_ranges: Option<Vec<IndexedObjectRange>>,
 }
 
@@ -841,6 +1521,7 @@ fn scan_feature_files_root(
 
     for metadata_path in metadata_files {
         let metadata: Meta = read_json(&metadata_path)?;
+        let (source_size, source_mtime_ns) = file_status(&metadata_path)?;
         let parent = metadata_path.parent().unwrap_or(root).to_path_buf();
         metadata_by_dir.insert(parent, metadata_path.clone());
         sources.insert(
@@ -850,6 +1531,8 @@ fn scan_feature_files_root(
                 metadata,
                 vertices_offset: None,
                 vertices_length: None,
+                source_size,
+                source_mtime_ns,
                 features: Vec::new(),
             },
         );
@@ -871,14 +1554,17 @@ fn scan_feature_files_root(
             ))
         })?;
         let feature: Value = read_json(&feature_path)?;
-        let (id, bbox) = parse_feature_file_bbox(&feature, &source.metadata)?;
-        let length = fs::metadata(&feature_path)?.len();
+        let (id, bbox, cityobject_count) = parse_feature_file_bbox(&feature, &source.metadata)?;
+        let (file_size, file_mtime_ns) = file_status(&feature_path)?;
         source.features.push(ScannedFeature {
             id,
             path: feature_path.clone(),
+            file_size,
+            file_mtime_ns,
             offset: 0,
-            length,
+            length: file_size,
             bbox,
+            cityobject_count,
             member_ranges: None,
         });
     }
@@ -904,7 +1590,7 @@ fn resolve_feature_metadata_path(
     None
 }
 
-fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, BBox)> {
+fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, BBox, u64)> {
     let id = feature_identifier(feature, "feature file")?;
     let vertices = feature
         .get("vertices")
@@ -915,7 +1601,8 @@ fn parse_feature_file_bbox(feature: &Value, metadata: &Meta) -> Result<(String, 
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
     let (scale, translate) = parse_ndjson_transform(metadata)?;
     let bbox = bbox_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
-    Ok((id, bbox))
+    let cityobject_count = feature_cityobject_count(feature, "feature file")?;
+    Ok((id, bbox, cityobject_count))
 }
 
 fn trim_fragment_delimiters(bytes: &[u8]) -> &[u8] {
@@ -1211,8 +1898,37 @@ fn read_json(path: impl AsRef<Path>) -> Result<Value> {
     Ok(serde_json::from_slice(&bytes)?)
 }
 
+fn file_status(path: &Path) -> Result<(u64, i64)> {
+    let metadata = fs::metadata(path)?;
+    let modified = metadata.modified().map_err(|error| {
+        import_error(format!(
+            "failed to read modified time for {}: {error}",
+            path.display()
+        ))
+    })?;
+    let since_epoch = modified.duration_since(UNIX_EPOCH).map_err(|error| {
+        import_error(format!(
+            "modified time for {} is before the unix epoch: {error}",
+            path.display()
+        ))
+    })?;
+    let nanos = i64::try_from(since_epoch.as_nanos())
+        .map_err(|_| import_error("modified time does not fit in i64 nanoseconds"))?;
+    Ok((metadata.len(), nanos))
+}
+
+fn feature_cityobject_count(feature: &Value, context: &str) -> Result<u64> {
+    let cityobjects = feature
+        .get("CityObjects")
+        .and_then(Value::as_object)
+        .ok_or_else(|| import_error(format!("{context} is missing CityObjects")))?;
+    u64::try_from(cityobjects.len())
+        .map_err(|_| import_error("CityObject count does not fit in u64"))
+}
+
 fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
     let bytes = fs::read(path)?;
+    let (source_size, source_mtime_ns) = file_status(path)?;
     let line_spans = line_spans(&bytes);
     let Some((_, metadata_bytes)) = line_spans.first() else {
         return Err(import_error(format!(
@@ -1232,13 +1948,17 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
 
         let feature: Value = serde_json::from_slice(line_bytes)?;
         let (id, bbox) = parse_ndjson_feature_bbox(&feature, scale, translate)?;
+        let cityobject_count = feature_cityobject_count(&feature, "ndjson feature")?;
         features.push(ScannedFeature {
             id,
             path: path.to_path_buf(),
+            file_size: source_size,
+            file_mtime_ns: source_mtime_ns,
             offset,
             length: u64::try_from(line_bytes.len())
                 .map_err(|_| import_error("NDJSON feature line length does not fit in u64"))?,
             bbox,
+            cityobject_count,
             member_ranges: None,
         });
     }
@@ -1248,6 +1968,8 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
         metadata,
         vertices_offset: None,
         vertices_length: None,
+        source_size,
+        source_mtime_ns,
         features,
     })
 }
@@ -1286,6 +2008,7 @@ fn collect_layout_files(paths: &[PathBuf], suffix: &str) -> Result<Vec<PathBuf>>
 
 fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
     let bytes = fs::read(path)?;
+    let (source_size, source_mtime_ns) = file_status(path)?;
     let document: Value = serde_json::from_slice(&bytes)?;
     let metadata = cityjson_base_metadata(&document)?;
     let (scale, translate) = parse_ndjson_transform(&metadata)?;
@@ -1357,9 +2080,13 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
         features.push(ScannedFeature {
             id: id.clone(),
             path: path.to_path_buf(),
+            file_size: source_size,
+            file_mtime_ns: source_mtime_ns,
             offset,
             length,
             bbox,
+            cityobject_count: u64::try_from(member_ranges.len())
+                .map_err(|_| import_error("CityObject count does not fit in u64"))?,
             member_ranges: Some(member_ranges),
         });
     }
@@ -1369,6 +2096,8 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
         metadata,
         vertices_offset: Some(vertices_offset),
         vertices_length: Some(vertices_length),
+        source_size,
+        source_mtime_ns,
         features,
     })
 }

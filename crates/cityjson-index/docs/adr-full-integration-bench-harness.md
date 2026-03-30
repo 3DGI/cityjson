@@ -45,7 +45,7 @@ contract from a tiny subset to the full prepared dataset.
 
 The harness now benchmarks against the canonical prepared roots under:
 
-- `CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+- `CJINDEX_BENCH_ROOT` or the default root `./tests/data`
 
 The prepared corpus is produced by the reproducible 3DBAG prep pipeline against
 the pinned `v20250903` tile index. The prep manifest under the output root
@@ -108,7 +108,7 @@ The per-layout bench files remain thin wrappers:
 The harness no longer materializes a synthetic benchmark subset into `/tmp`.
 
 Instead, it reuses the canonical prepared dataset under
-`CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`. If
+`CJINDEX_BENCH_ROOT` or the default root `./tests/data`. If
 the prepared roots are missing, the harness now fails with a clear error
 instead of auto-preparing data. The intended steady-state path is to benchmark
 the already prepared full dataset.

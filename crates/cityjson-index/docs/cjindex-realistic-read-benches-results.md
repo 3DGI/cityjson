@@ -33,7 +33,7 @@ the two commands.
 
 The harness benchmarks the prepared corpus under the bench root:
 
-- `CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+- `CJINDEX_BENCH_ROOT` or the default root `./tests/data`
 
 The prepared corpus is now produced by the reproducible 3DBAG prep pipeline
 against the pinned `v20250903` tile index. The prep manifest under the output

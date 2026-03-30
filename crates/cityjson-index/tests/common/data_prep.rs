@@ -15,8 +15,7 @@ use sha2::{Digest, Sha256};
 
 const FEATURE_DIR: &str = "features";
 
-pub const DEFAULT_INPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/input";
-pub const DEFAULT_OUTPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/cjindex";
+pub const DEFAULT_OUTPUT_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 pub const DEFAULT_TILE_INDEX_URL: &str = "https://data.3dbag.nl/v20250903/tile_index.fgb";
 pub const DEFAULT_TARGET_CITYOBJECTS: usize = 270_000;
 pub const DEFAULT_TARGET_CITYOBJECTS_MIN: usize = 265_000;

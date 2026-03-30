@@ -12,17 +12,39 @@ The library returns `cjlib::CityModel` values for reads. For `get` and `query`, 
 
 ## CLI
 
-The CLI surface is centered on the same operations as the library:
+The CLI now has a dataset-oriented mode as the default workflow:
 
-- `index`
-- `reindex`
-- `get`
-- `query`
-- `metadata`
+- `inspect DATASET_DIR`
+- `index DATASET_DIR`
+- `reindex DATASET_DIR`
+- `validate DATASET_DIR`
+- `get DATASET_DIR --id ...`
+- `query DATASET_DIR --min-x ... --max-x ... --min-y ... --max-y ...`
+- `metadata DATASET_DIR`
 
-`get` and `query` are read operations. They emit the line-oriented CityJSON stream described above. `query_iter()` is the streaming library path behind bbox reads, so query execution can stay lazy instead of buffering every match up front.
+Dataset mode auto-detects one of the supported layouts under `DATASET_DIR` and
+uses `<DATASET_DIR>/.cjindex.sqlite` as the default index sidecar. `inspect`
+reports layout, counts, index presence, freshness, and coverage. `validate`
+performs the same checks but exits non-zero when the index is missing, stale,
+or no longer matches the dataset.
 
-`reindex` rebuilds the SQLite sidecar index from the configured source layout. `metadata` exposes the cached source metadata entries.
+`get` and `query` are read operations. They emit the line-oriented CityJSON
+stream described above. `query_iter()` is the streaming library path behind
+bbox reads, so query execution can stay lazy instead of buffering every match
+up front.
+
+The explicit low-level mode still exists as an escape hatch:
+
+```text
+cjindex get \
+  --layout feature-files \
+  --root /data/feature-files \
+  --index /data/feature-files/.cjindex.sqlite \
+  --id NL.IMBAG.Pand.0503100000012869-0
+```
+
+In explicit mode, `--layout` and `--index` are required. `feature-files` also
+requires `--root`; `ndjson` and `cityjson` use `--paths`.
 
 ## Storage Layouts
 
@@ -96,11 +118,18 @@ During indexing, metadata is parsed once and cached in SQLite. Read paths attach
 ## Benchmark Data
 
 The benchmark corpus is produced by `just prep-test-data` against the pinned
-`v20250903` 3DBAG tile index. The output root defaults to
-`/home/balazs/Data/3DBAG_3dtiles_test/cjindex` and can be overridden via
-`CJINDEX_BENCH_ROOT`. The prep tool writes a manifest under the output root
-that records the exact tile list, counts, and checksums for the prepared
-corpus.
+`v20250903` 3DBAG tile index. The output root defaults to `./tests/data`
+(relative to the repository root) and can be overridden via `CJINDEX_BENCH_ROOT`.
+The prep tool writes a manifest under the output root that records the exact
+tile list, counts, and checksums for the prepared corpus.
+
+The prep pipeline downloads `tile_index.fgb` from `https://data.3dbag.nl/v20250903/`
+and parses every tile entry for the `cj_download` URL. It downloads tiles in
+lexicographic order, validates each CityJSON with `cjval`, and converts it via
+`cjseq cat` into NDJSON/CityJSONSeq plus the per-tile feature files that power
+the `feature-files` layout. Once the cumulative CityObject count is between
+265k and 275k (target ~270k), it writes checksums, counts, and tool versions
+into `manifest.json` and swaps the staging tree into `tests/data` atomically.
 
 Target size: about 270,000 `CityObject`s in total.
 
@@ -123,4 +152,7 @@ Current read ranking in the benchmark docs:
 
 ## Status
 
-`cjindex` is currently a working indexing and read library with a matching CLI surface. The remaining work is mostly in polish, CLI ergonomics, and performance tuning rather than in the core retrieval model.
+`cjindex` now has a working indexing and read library plus a dataset-first CLI
+with inspect/validate support. The remaining work is mostly incremental index
+maintenance and further read-path performance work rather than missing core
+functionality.
