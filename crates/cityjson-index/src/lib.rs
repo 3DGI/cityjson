@@ -1,3 +1,5 @@
+pub mod realistic_workload;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
@@ -138,12 +140,14 @@ struct Index {
 }
 
 struct FeatureLocation {
+    feature_id: String,
     source_id: i64,
     source_path: PathBuf,
     offset: u64,
     length: u64,
     vertices_offset: Option<u64>,
     vertices_length: Option<u64>,
+    member_ranges_json: Option<String>,
 }
 
 struct FeatureIndexEntry {
@@ -153,6 +157,7 @@ struct FeatureIndexEntry {
     offset: u64,
     length: u64,
     bbox: BBox,
+    member_ranges_json: Option<String>,
 }
 
 impl Index {
@@ -183,7 +188,8 @@ impl Index {
                 source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
                 path TEXT NOT NULL,
                 offset INTEGER NOT NULL,
-                length INTEGER NOT NULL
+                length INTEGER NOT NULL,
+                member_ranges TEXT
             );
 
             CREATE VIRTUAL TABLE IF NOT EXISTS feature_bbox
@@ -201,6 +207,7 @@ impl Index {
             );
             "#,
         ))?;
+        Self::ensure_member_ranges_column(&conn)?;
 
         Ok(Self {
             conn,
@@ -229,6 +236,11 @@ impl Index {
                     offset: feature.offset,
                     length: feature.length,
                     bbox: feature.bbox,
+                    member_ranges_json: feature
+                        .member_ranges
+                        .as_ref()
+                        .map(serde_json::to_string)
+                        .transpose()?,
                 });
             }
         }
@@ -248,12 +260,14 @@ impl Index {
                 .query_row(
                     r#"
                 SELECT
+                    f.feature_id,
                     s.id,
                     f.path,
                     f.offset,
                     f.length,
                     s.vertices_offset,
-                    s.vertices_length
+                    s.vertices_length,
+                    f.member_ranges
                 FROM features AS f
                 JOIN sources AS s ON s.id = f.source_id
                 WHERE f.feature_id = ?1
@@ -269,12 +283,14 @@ impl Index {
         let mut stmt = sqlite_result(self.conn.prepare(
             r#"
             SELECT DISTINCT
+                f.feature_id,
                 s.id,
                 f.path,
                 f.offset,
                 f.length,
                 s.vertices_offset,
-                s.vertices_length
+                s.vertices_length,
+                f.member_ranges
             FROM feature_bbox AS fb
             JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
             JOIN features AS f ON f.feature_id = bm.feature_id
@@ -330,6 +346,16 @@ impl Index {
             .collect()
     }
 
+    fn ensure_member_ranges_column(conn: &rusqlite::Connection) -> Result<()> {
+        let mut stmt = sqlite_result(conn.prepare("PRAGMA table_info(features)"))?;
+        let rows = sqlite_result(stmt.query_map([], |row| row.get::<_, String>(1)))?;
+        let columns = sqlite_result(rows.collect::<rusqlite::Result<Vec<_>>>())?;
+        if !columns.iter().any(|column| column == "member_ranges") {
+            sqlite_result(conn.execute("ALTER TABLE features ADD COLUMN member_ranges TEXT", []))?;
+        }
+        Ok(())
+    }
+
     fn clear_tables(tx: &rusqlite::Transaction<'_>) -> Result<()> {
         sqlite_result(tx.execute_batch(
             r#"
@@ -373,8 +399,8 @@ impl Index {
     ) -> Result<()> {
         let mut feature_stmt = sqlite_result(tx.prepare(
             r#"
-            INSERT INTO features (feature_id, source_id, path, offset, length)
-            VALUES (?1, ?2, ?3, ?4, ?5)
+            INSERT INTO features (feature_id, source_id, path, offset, length, member_ranges)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             "#,
         ))?;
         let mut bbox_stmt = sqlite_result(tx.prepare(
@@ -398,6 +424,7 @@ impl Index {
                 entry.path.to_string_lossy(),
                 offset,
                 length,
+                &entry.member_ranges_json,
             ]))?;
             let feature_rowid = tx.last_insert_rowid();
             sqlite_result(bbox_stmt.execute(params![
@@ -414,26 +441,30 @@ impl Index {
     }
 
     fn feature_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FeatureLocation> {
-        let source_id = row.get::<_, i64>(0)?;
-        let source_path = PathBuf::from(row.get::<_, String>(1)?);
-        let offset = i64_to_u64(row.get::<_, i64>(2)?)?;
-        let length = i64_to_u64(row.get::<_, i64>(3)?)?;
-        let vertices_offset = match row.get::<_, Option<i64>>(4)? {
+        let feature_id = row.get::<_, String>(0)?;
+        let source_id = row.get::<_, i64>(1)?;
+        let source_path = PathBuf::from(row.get::<_, String>(2)?);
+        let offset = i64_to_u64(row.get::<_, i64>(3)?)?;
+        let length = i64_to_u64(row.get::<_, i64>(4)?)?;
+        let vertices_offset = match row.get::<_, Option<i64>>(5)? {
             Some(value) => Some(i64_to_u64(value)?),
             None => None,
         };
-        let vertices_length = match row.get::<_, Option<i64>>(5)? {
+        let vertices_length = match row.get::<_, Option<i64>>(6)? {
             Some(value) => Some(i64_to_u64(value)?),
             None => None,
         };
+        let member_ranges_json = row.get::<_, Option<String>>(7)?;
 
         Ok(FeatureLocation {
+            feature_id,
             source_id,
             source_path,
             offset,
             length,
             vertices_offset,
             vertices_length,
+            member_ranges_json,
         })
     }
 }
@@ -457,12 +488,25 @@ struct ScannedFeature {
     offset: u64,
     length: u64,
     bbox: BBox,
+    member_ranges: Option<Vec<IndexedObjectRange>>,
 }
 
-struct SingleObjectFeatureParts {
-    object_id: String,
-    object_json: Box<RawValue>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct IndexedObjectRange {
+    id: String,
+    offset: u64,
+    length: u64,
+}
+
+struct LocalizedFeatureParts {
+    feature_id: String,
+    cityobjects: Vec<LocalizedFeatureObject>,
     vertices: Vec<[i64; 3]>,
+}
+
+struct LocalizedFeatureObject {
+    id: String,
+    object_json: Box<RawValue>,
 }
 
 struct NdjsonBackend {
@@ -542,9 +586,35 @@ impl StorageBackend for CityJsonBackend {
 
         let base_document_bytes = serde_json::to_vec(metadata.as_ref())?;
         let mut source_file = fs::File::open(&loc.source_path)?;
-        let object_fragment =
-            read_exact_range_from_file(&mut source_file, &loc.source_path, loc.offset, loc.length)?;
-        let (object_id, object_value) = parse_cityobject_entry(&object_fragment)?;
+        let member_ranges = loc
+            .member_ranges_json
+            .as_deref()
+            .map(serde_json::from_str::<Vec<IndexedObjectRange>>)
+            .transpose()?
+            .unwrap_or_else(|| {
+                vec![IndexedObjectRange {
+                    id: loc.feature_id.clone(),
+                    offset: loc.offset,
+                    length: loc.length,
+                }]
+            });
+        let mut object_entries = Vec::with_capacity(member_ranges.len());
+        for member_range in &member_ranges {
+            let object_fragment = read_exact_range_from_file(
+                &mut source_file,
+                &loc.source_path,
+                member_range.offset,
+                member_range.length,
+            )?;
+            let (object_id, object_value) = parse_cityobject_entry(&object_fragment)?;
+            if object_id != member_range.id {
+                return Err(import_error(format!(
+                    "indexed CityJSON member {} resolved to fragment for {}",
+                    member_range.id, object_id
+                )));
+            }
+            object_entries.push((object_id, object_value));
+        }
         let shared_vertices = self.load_shared_vertices(
             &loc.source_path,
             &mut source_file,
@@ -552,13 +622,17 @@ impl StorageBackend for CityJsonBackend {
             vertices_length,
         )?;
         let feature_parts =
-            build_single_object_feature_parts(&object_id, object_value, shared_vertices.as_ref())?;
-        let cityobjects = [cjlib::json::FeatureObject {
-            id: feature_parts.object_id.as_str(),
-            object: feature_parts.object_json.as_ref(),
-        }];
+            build_feature_parts(&loc.feature_id, object_entries, shared_vertices.as_ref())?;
+        let cityobjects = feature_parts
+            .cityobjects
+            .iter()
+            .map(|cityobject| cjlib::json::FeatureObject {
+                id: cityobject.id.as_str(),
+                object: cityobject.object_json.as_ref(),
+            })
+            .collect::<Vec<_>>();
         let parts = cjlib::json::FeatureParts {
-            id: feature_parts.object_id.as_str(),
+            id: feature_parts.feature_id.as_str(),
             cityobjects: &cityobjects,
             vertices: &feature_parts.vertices,
         };
@@ -687,6 +761,7 @@ fn scan_feature_files_root(
             offset: 0,
             length,
             bbox,
+            member_ranges: None,
         });
     }
 
@@ -776,24 +851,23 @@ fn parse_vertices_fragment(fragment: &[u8]) -> Result<Vec<[i64; 3]>> {
     Ok(serde_json::from_slice(fragment)?)
 }
 
-fn build_single_object_feature_parts(
-    object_id: &str,
-    mut object_value: Value,
+fn build_feature_parts(
+    feature_id: &str,
+    mut object_entries: Vec<(String, Value)>,
     shared_vertices: &[[i64; 3]],
-) -> Result<SingleObjectFeatureParts> {
-    filter_local_relationships(&mut object_value, object_id)?;
+) -> Result<LocalizedFeatureParts> {
+    let retained_ids = object_entries
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<BTreeSet<_>>();
+
+    for (_, object_value) in &mut object_entries {
+        filter_local_relationships(object_value, &retained_ids)?;
+    }
 
     let mut referenced_vertices = BTreeSet::new();
-    if let Some(geometries) = object_value
-        .as_object()
-        .and_then(|object| object.get("geometry"))
-        .and_then(Value::as_array)
-    {
-        for geometry in geometries {
-            if let Some(boundaries) = geometry.get("boundaries") {
-                collect_vertex_indices(boundaries, &mut referenced_vertices)?;
-            }
-        }
+    for (_, object_value) in &object_entries {
+        collect_object_vertex_indices(object_value, &mut referenced_vertices)?;
     }
 
     let local_vertices = build_local_vertices(shared_vertices, &referenced_vertices)?;
@@ -803,26 +877,41 @@ fn build_single_object_feature_parts(
         .map(|(new_index, old_index)| (*old_index, new_index))
         .collect::<HashMap<_, _>>();
 
-    if let Some(geometries) = object_value
-        .as_object_mut()
-        .and_then(|object| object.get_mut("geometry"))
-        .and_then(Value::as_array_mut)
-    {
-        for geometry in geometries {
-            if let Some(boundaries) = geometry.get_mut("boundaries") {
-                remap_vertex_indices(boundaries, &remap)?;
+    for (_, object_value) in &mut object_entries {
+        if let Some(geometries) = object_value
+            .as_object_mut()
+            .and_then(|object| object.get_mut("geometry"))
+            .and_then(Value::as_array_mut)
+        {
+            for geometry in geometries {
+                if let Some(boundaries) = geometry.get_mut("boundaries") {
+                    remap_vertex_indices(boundaries, &remap)?;
+                }
             }
         }
     }
 
-    Ok(SingleObjectFeatureParts {
-        object_id: object_id.to_owned(),
-        object_json: RawValue::from_string(serde_json::to_string(&object_value)?)?,
+    let cityobjects = object_entries
+        .into_iter()
+        .map(|(id, object_value)| {
+            Ok(LocalizedFeatureObject {
+                id,
+                object_json: RawValue::from_string(serde_json::to_string(&object_value)?)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(LocalizedFeatureParts {
+        feature_id: feature_id.to_owned(),
+        cityobjects,
         vertices: local_vertices,
     })
 }
 
-fn filter_local_relationships(object_value: &mut Value, object_id: &str) -> Result<()> {
+fn filter_local_relationships(
+    object_value: &mut Value,
+    retained_ids: &BTreeSet<String>,
+) -> Result<()> {
     let object = object_value
         .as_object_mut()
         .ok_or_else(|| import_error("CityObject value must be a JSON object"))?;
@@ -833,7 +922,11 @@ fn filter_local_relationships(object_value: &mut Value, object_id: &str) -> Resu
                 let refs = value
                     .as_array_mut()
                     .ok_or_else(|| import_error(format!("{key} must be an array")))?;
-                refs.retain(|entry| entry.as_str() == Some(object_id));
+                refs.retain(|entry| {
+                    entry
+                        .as_str()
+                        .is_some_and(|object_id| retained_ids.contains(object_id))
+                });
                 refs.is_empty()
             }
             None => false,
@@ -1028,6 +1121,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
             length: u64::try_from(line_bytes.len())
                 .map_err(|_| import_error("NDJSON feature line length does not fit in u64"))?,
             bbox,
+            member_ranges: None,
         });
     }
 
@@ -1100,14 +1194,33 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
         .map(|(id, offset, length)| (id, (offset, length)))
         .collect::<HashMap<_, _>>();
 
-    let mut features = Vec::with_capacity(cityobjects.len());
-    for (id, _object) in cityobjects {
+    let root_ids = root_cityobject_ids(cityobjects);
+    let mut features = Vec::with_capacity(root_ids.len());
+    for id in root_ids {
         let (offset, length) = cityobject_ranges.get(id).copied().ok_or_else(|| {
             import_error(format!(
                 "CityObject fragment for {id} could not be located in {}",
                 path.display()
             ))
         })?;
+        let member_ids = collect_cityjson_feature_members(id, cityobjects)?;
+        let member_ranges = member_ids
+            .iter()
+            .map(|member_id| {
+                let (member_offset, member_length) =
+                    cityobject_ranges.get(member_id).copied().ok_or_else(|| {
+                        import_error(format!(
+                            "CityObject fragment for {member_id} could not be located in {}",
+                            path.display()
+                        ))
+                    })?;
+                Ok(IndexedObjectRange {
+                    id: member_id.clone(),
+                    offset: member_offset,
+                    length: member_length,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         let mut referenced_vertices = BTreeSet::new();
         let mut visited = BTreeSet::new();
         collect_cityjson_object_vertex_indices(
@@ -1129,6 +1242,7 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
             offset,
             length,
             bbox,
+            member_ranges: Some(member_ranges),
         });
     }
 
@@ -1149,6 +1263,81 @@ fn cityjson_base_metadata(document: &Value) -> Result<Meta> {
     root.insert("CityObjects".to_owned(), Value::Object(Map::new()));
     root.insert("vertices".to_owned(), Value::Array(Vec::new()));
     Ok(metadata)
+}
+
+fn root_cityobject_ids(cityobjects: &Map<String, Value>) -> Vec<&String> {
+    let mut child_ids = BTreeSet::new();
+    let mut ids = cityobjects.keys().collect::<Vec<_>>();
+
+    for object in cityobjects.values() {
+        if let Some(children) = object.get("children").and_then(Value::as_array) {
+            for child in children {
+                if let Some(child_id) = child.as_str() {
+                    child_ids.insert(child_id.to_owned());
+                }
+            }
+        }
+    }
+
+    ids.sort();
+    ids.into_iter()
+        .filter(|id| {
+            !cityobjects
+                .get(*id)
+                .and_then(|object| object.get("parents"))
+                .and_then(Value::as_array)
+                .is_some_and(|parents| !parents.is_empty())
+                && !child_ids.contains(id.as_str())
+        })
+        .collect()
+}
+
+fn collect_cityjson_feature_members(
+    root_id: &str,
+    cityobjects: &Map<String, Value>,
+) -> Result<Vec<String>> {
+    let mut members = Vec::new();
+    let mut visited = BTreeSet::new();
+    collect_cityjson_feature_members_recursive(root_id, cityobjects, &mut members, &mut visited)?;
+    Ok(members)
+}
+
+fn collect_cityjson_feature_members_recursive(
+    object_id: &str,
+    cityobjects: &Map<String, Value>,
+    members: &mut Vec<String>,
+    visited: &mut BTreeSet<String>,
+) -> Result<()> {
+    if !visited.insert(object_id.to_owned()) {
+        return Ok(());
+    }
+
+    let object = cityobjects.get(object_id).ok_or_else(|| {
+        import_error(format!(
+            "CityJSON source is missing referenced CityObject {object_id}"
+        ))
+    })?;
+    members.push(object_id.to_owned());
+
+    if let Some(children) = object.get("children").and_then(Value::as_array) {
+        for child in children {
+            let Some(child_id) = child.as_str() else {
+                return Err(import_error(
+                    "CityObject children must be string identifiers",
+                ));
+            };
+            if cityobjects.contains_key(child_id) {
+                collect_cityjson_feature_members_recursive(
+                    child_id,
+                    cityobjects,
+                    members,
+                    visited,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn collect_cityjson_object_vertex_indices(
@@ -1577,6 +1766,7 @@ mod tests {
         let object_fragment = object_entry_fragment(selected_id, &selected_object);
         let vertices_fragment = serde_json::to_vec(&vertices).expect("vertices fragment");
         let loc = FeatureLocation {
+            feature_id: selected_id.to_owned(),
             source_id: 0,
             source_path: write_temp_cityjson(&document_bytes),
             offset: find_subslice(&document_bytes, &object_fragment)
@@ -1586,6 +1776,7 @@ mod tests {
                 find_subslice(&document_bytes, &vertices_fragment).expect("vertices offset") as u64,
             ),
             vertices_length: Some(vertices_fragment.len() as u64),
+            member_ranges_json: None,
         };
 
         let backend = CityJsonBackend::new(vec![loc.source_path.clone()]);
@@ -1615,18 +1806,109 @@ mod tests {
     }
 
     #[test]
+    fn cityjson_scan_and_read_one_group_root_objects_with_children() {
+        let document = serde_json::json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [1.0, 1.0, 1.0],
+                "translate": [0.0, 0.0, 0.0]
+            },
+            "CityObjects": {
+                "building-1": {
+                    "type": "Building",
+                    "children": ["building-1-part"],
+                    "geometry": [{
+                        "type": "MultiSurface",
+                        "lod": "1.0",
+                        "boundaries": [[[0, 1, 2]]]
+                    }]
+                },
+                "building-1-part": {
+                    "type": "BuildingPart",
+                    "parents": ["building-1"],
+                    "geometry": [{
+                        "type": "MultiSurface",
+                        "lod": "1.0",
+                        "boundaries": [[[3, 4, 5]]]
+                    }]
+                }
+            },
+            "vertices": [
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0],
+                [2, 0, 0],
+                [3, 0, 0],
+                [2, 1, 0]
+            ]
+        });
+        let bytes = serde_json::to_vec(&document).expect("fixture JSON");
+        let path = write_temp_cityjson(&bytes);
+        let scan = scan_cityjson_source(&path).expect("scan should succeed");
+
+        assert_eq!(scan.features.len(), 1);
+        assert_eq!(scan.features[0].id, "building-1");
+        let member_ranges = scan.features[0]
+            .member_ranges
+            .as_ref()
+            .expect("root feature should carry member ranges");
+        assert_eq!(member_ranges.len(), 2);
+        assert_eq!(member_ranges[0].id, "building-1");
+        assert_eq!(member_ranges[1].id, "building-1-part");
+
+        let loc = FeatureLocation {
+            feature_id: scan.features[0].id.clone(),
+            source_id: 0,
+            source_path: path,
+            offset: scan.features[0].offset,
+            length: scan.features[0].length,
+            vertices_offset: scan.vertices_offset,
+            vertices_length: scan.vertices_length,
+            member_ranges_json: Some(
+                serde_json::to_string(member_ranges).expect("member ranges JSON"),
+            ),
+        };
+        let backend = CityJsonBackend::new(vec![loc.source_path.clone()]);
+        let model = backend
+            .read_one(&loc, Arc::new(scan.metadata))
+            .expect("CityJSON read should succeed");
+        let output: Value =
+            serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
+                .expect("valid output JSON");
+        let cityobjects = output["CityObjects"]
+            .as_object()
+            .expect("result CityObjects must be an object");
+
+        assert_eq!(cityobjects.len(), 2);
+        assert!(cityobjects.contains_key("building-1"));
+        assert!(cityobjects.contains_key("building-1-part"));
+        assert_eq!(
+            cityobjects["building-1"]["children"],
+            serde_json::json!(["building-1-part"])
+        );
+        assert_eq!(
+            cityobjects["building-1-part"]["parents"],
+            serde_json::json!(["building-1"])
+        );
+    }
+
+    #[test]
     fn feature_parts_builder_drops_dangling_parent_links() {
-        let parts = build_single_object_feature_parts(
+        let parts = build_feature_parts(
             "building-1-part",
-            serde_json::json!({
-                "type": "BuildingPart",
-                "parents": ["building-1"],
-                "geometry": [{
-                    "type": "MultiSurface",
-                    "lod": "0",
-                    "boundaries": [[[5, 9, 7]]]
-                }]
-            }),
+            vec![(
+                "building-1-part".to_owned(),
+                serde_json::json!({
+                    "type": "BuildingPart",
+                    "parents": ["building-1"],
+                    "geometry": [{
+                        "type": "MultiSurface",
+                        "lod": "0",
+                        "boundaries": [[[5, 9, 7]]]
+                    }]
+                }),
+            )],
             &[
                 [100, 0, 0],
                 [101, 0, 0],
@@ -1641,10 +1923,10 @@ mod tests {
             ],
         )
         .expect("feature parts should build");
-        let object: Value =
-            serde_json::from_str(parts.object_json.get()).expect("valid object JSON");
+        let object: Value = serde_json::from_str(parts.cityobjects[0].object_json.get())
+            .expect("valid object JSON");
 
-        assert_eq!(parts.object_id, "building-1-part");
+        assert_eq!(parts.feature_id, "building-1-part");
         assert!(object.get("parents").is_none());
         assert_eq!(parts.vertices, vec![[0, 0, 0], [2, 0, 0], [1, 0, 0]]);
         assert_eq!(
