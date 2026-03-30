@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use arrow::datatypes::DataType;
 use cityarrow::schema::{
-    CityArrowPackageVersion, PackageManifest, PackageTables, ProjectedFieldSpec,
+    CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTables, ProjectedFieldSpec,
     ProjectedValueType, ProjectionLayout, canonical_schema_set,
 };
 
@@ -34,6 +34,16 @@ fn package_manifest_roundtrips_and_keeps_schema_id() {
     let roundtrip: PackageManifest =
         serde_json::from_str(&json).expect("manifest should deserialize");
     assert_eq!(manifest, roundtrip);
+}
+
+#[test]
+fn cityarrow_header_is_derived_from_the_package_manifest() {
+    let manifest = PackageManifest::new("rotterdam-sample", "2.0");
+    let header = CityArrowHeader::from(&manifest);
+
+    assert_eq!(header.package_version, CityArrowPackageVersion::V1Alpha1);
+    assert_eq!(header.citymodel_id, "rotterdam-sample");
+    assert_eq!(header.cityjson_version, "2.0");
 }
 
 #[test]
@@ -170,7 +180,10 @@ fn canonical_schema_set_avoids_union_and_map_types() {
     for schema in all_schemas {
         for field in schema.flattened_fields() {
             assert!(
-                !matches!(field.data_type(), DataType::Union(_, _) | DataType::Map(_, _)),
+                !matches!(
+                    field.data_type(),
+                    DataType::Union(_, _) | DataType::Map(_, _)
+                ),
                 "canonical schema must not use Arrow Union or Map types"
             );
         }
