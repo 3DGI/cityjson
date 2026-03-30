@@ -1,16 +1,27 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::fs::File;
+use std::io::Read;
+use std::io::copy;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use cjlib::{Error, Result};
+use flate2::read::GzDecoder;
+use flatgeobuf::{FallibleStreamingIterator, FeatureProperties, FgbReader};
 use ignore::WalkBuilder;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 
 const FEATURE_DIR: &str = "features";
 
 pub const DEFAULT_INPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/input";
 pub const DEFAULT_OUTPUT_ROOT: &str = "/home/balazs/Data/3DBAG_3dtiles_test/cjindex";
+pub const DEFAULT_TILE_INDEX_URL: &str = "https://data.3dbag.nl/v20250903/tile_index.fgb";
+pub const DEFAULT_TARGET_CITYOBJECTS: usize = 270_000;
+pub const DEFAULT_TARGET_CITYOBJECTS_MIN: usize = 265_000;
+pub const DEFAULT_TARGET_CITYOBJECTS_MAX: usize = 275_000;
+pub const DEFAULT_STAGING_DIR_NAME: &str = ".prep-staging";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -18,6 +29,201 @@ pub struct PreparedDatasets {
     pub feature_files: PathBuf,
     pub cityjson: PathBuf,
     pub ndjson: PathBuf,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BenchmarkDataManifest {
+    pub tile_index_url: String,
+    pub tile_index_sha256: String,
+    pub target_cityobjects: usize,
+    pub accepted_cityobjects_min: usize,
+    pub accepted_cityobjects_max: usize,
+    pub total_cityobjects: usize,
+    pub total_features: usize,
+    pub selected_tiles: Vec<BenchmarkTileManifest>,
+    pub cjseq_version: String,
+    pub cjval_version: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BenchmarkTileManifest {
+    pub tile_id: String,
+    pub download_url: String,
+    pub cityobject_count: usize,
+    pub feature_package_count: usize,
+    pub cityjson_sha256: String,
+    pub ndjson_sha256: String,
+    pub feature_file_count: usize,
+}
+
+#[derive(Debug, Clone)]
+struct TileIndexRecord {
+    tile_id: String,
+    download_url: String,
+}
+
+/// Prepares the reproducible 3DBAG benchmark corpus.
+///
+/// # Errors
+///
+/// Returns an error if the tile index cannot be read, a tile download fails, or
+/// any generated layout does not validate.
+#[allow(clippy::too_many_lines)]
+pub fn prepare_3dbag_benchmark_datasets(output_root: &Path) -> Result<PreparedDatasets> {
+    let staging_root = output_root.join(DEFAULT_STAGING_DIR_NAME);
+    let cityjson_root = staging_root.join("cityjson");
+    let ndjson_root = staging_root.join("ndjson");
+    let feature_files_root = staging_root.join("feature-files");
+
+    if staging_root.exists() {
+        fs::remove_dir_all(&staging_root)?;
+    }
+    fs::create_dir_all(&cityjson_root)?;
+    fs::create_dir_all(&ndjson_root)?;
+    fs::create_dir_all(feature_files_root.join("features"))?;
+
+    let http_client = reqwest::blocking::Client::builder()
+        .user_agent("cjindex/3dbag-benchmark-prep")
+        .build()
+        .map_err(|error| import_error(error.to_string()))?;
+
+    let tile_index_path = staging_root.join("tile_index.fgb");
+    download_file(&http_client, DEFAULT_TILE_INDEX_URL, &tile_index_path)?;
+    let tile_index_sha256 = sha256_file(&tile_index_path)?;
+    let tile_records = read_tile_index_records(&tile_index_path)?;
+
+    if tile_records.is_empty() {
+        return Err(import_error(
+            "tile index did not contain any downloadable tiles",
+        ));
+    }
+
+    let mut total_cityobjects = 0usize;
+    let mut total_features = 0usize;
+    let mut manifest_tiles = Vec::new();
+    let root_metadata_path = feature_files_root.join("metadata.json");
+    let mut root_metadata_written = false;
+
+    for tile in tile_records {
+        let cityjson_path = cityjson_output_path(&cityjson_root, &tile.tile_id);
+        if let Some(parent) = cityjson_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        download_file(&http_client, &tile.download_url, &cityjson_path)?;
+        validate_cjval(&cityjson_path)?;
+
+        let cityobject_count = count_cityobjects(&cityjson_path)?;
+        let cityjson_sha256 = sha256_file(&cityjson_path)?;
+
+        let seq_output = run_cjseq_cat(&cityjson_path)?;
+        let seq_lines = split_seq_lines(&seq_output);
+        if seq_lines.is_empty() {
+            return Err(import_error(format!(
+                "cjseq cat produced no records for {}",
+                cityjson_path.display()
+            )));
+        }
+
+        let metadata_value: Value =
+            serde_json::from_slice(seq_lines[0].as_bytes()).map_err(|error| {
+                import_error(format!(
+                    "invalid CityJSONSeq metadata for {}: {error}",
+                    cityjson_path.display()
+                ))
+            })?;
+        let metadata_bytes =
+            serde_json::to_vec(&metadata_value).map_err(|error| import_error(error.to_string()))?;
+
+        if !root_metadata_written {
+            write_json(&root_metadata_path, &metadata_value)?;
+            root_metadata_written = true;
+        }
+
+        let tile_feature_dir = feature_files_root
+            .join("features")
+            .join(tile_path(&tile.tile_id));
+        fs::create_dir_all(&tile_feature_dir)?;
+        write_json(&tile_feature_dir.join("metadata.json"), &metadata_value)?;
+
+        let mut feature_file_count = 0usize;
+        for line in seq_lines.iter().skip(1) {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let feature_value: Value =
+                serde_json::from_slice(line.as_bytes()).map_err(|error| {
+                    import_error(format!(
+                        "invalid CityJSONSeq feature for {}: {error}",
+                        cityjson_path.display()
+                    ))
+                })?;
+            let feature_id = feature_id_from_value(&feature_value, "CityJSONSeq feature")?;
+            let feature_path = tile_feature_dir.join(format!("{feature_id}.city.jsonl"));
+            write_bytes(&feature_path, line.as_bytes())?;
+            validate_feature_file(&feature_path, &metadata_bytes)?;
+            feature_file_count += 1;
+        }
+
+        let ndjson_path = ndjson_output_path(&ndjson_root, &tile.tile_id);
+        if let Some(parent) = ndjson_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        write_bytes(&ndjson_path, seq_output.as_bytes())?;
+        validate_cjval(&ndjson_path)?;
+        let ndjson_sha256 = sha256_file(&ndjson_path)?;
+
+        total_cityobjects = total_cityobjects.saturating_add(cityobject_count);
+        total_features = total_features.saturating_add(feature_file_count);
+        manifest_tiles.push(BenchmarkTileManifest {
+            tile_id: tile.tile_id,
+            download_url: tile.download_url,
+            cityobject_count,
+            feature_package_count: seq_lines.len().saturating_sub(1),
+            cityjson_sha256,
+            ndjson_sha256,
+            feature_file_count,
+        });
+
+        if total_cityobjects >= DEFAULT_TARGET_CITYOBJECTS_MAX {
+            break;
+        }
+        if total_cityobjects >= DEFAULT_TARGET_CITYOBJECTS {
+            break;
+        }
+    }
+
+    if !(DEFAULT_TARGET_CITYOBJECTS_MIN..=DEFAULT_TARGET_CITYOBJECTS_MAX)
+        .contains(&total_cityobjects)
+    {
+        return Err(import_error(format!(
+            "prepared corpus has {total_cityobjects} cityobjects, expected between {DEFAULT_TARGET_CITYOBJECTS_MIN} and {DEFAULT_TARGET_CITYOBJECTS_MAX}"
+        )));
+    }
+
+    let manifest = BenchmarkDataManifest {
+        tile_index_url: DEFAULT_TILE_INDEX_URL.to_string(),
+        tile_index_sha256,
+        target_cityobjects: DEFAULT_TARGET_CITYOBJECTS,
+        accepted_cityobjects_min: DEFAULT_TARGET_CITYOBJECTS_MIN,
+        accepted_cityobjects_max: DEFAULT_TARGET_CITYOBJECTS_MAX,
+        total_cityobjects,
+        total_features,
+        selected_tiles: manifest_tiles,
+        cjseq_version: tool_version("cjseq")?,
+        cjval_version: tool_version("cjval")?,
+    };
+    write_json(
+        &staging_root.join("manifest.json"),
+        &serde_json::to_value(&manifest).map_err(|error| import_error(error.to_string()))?,
+    )?;
+
+    promote_staging_layout(output_root, &staging_root)?;
+
+    Ok(PreparedDatasets {
+        feature_files: output_root.join("feature-files"),
+        cityjson: output_root.join("cityjson"),
+        ndjson: output_root.join("ndjson"),
+    })
 }
 
 /// Prepares the feature-files fixture tree.
@@ -423,6 +629,237 @@ fn read_json(path: impl AsRef<Path>) -> Result<Value> {
 fn write_json(path: &Path, value: &Value) -> Result<()> {
     let bytes = serde_json::to_vec(value).map_err(|error| Error::Import(error.to_string()))?;
     fs::write(path, bytes)?;
+    Ok(())
+}
+
+fn write_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
+    fs::write(path, bytes)?;
+    Ok(())
+}
+
+fn validate_cjval(path: &Path) -> Result<()> {
+    let bytes = fs::read(path)?;
+    let mut child = Command::new("cjval")
+        .arg("-q")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        use std::io::Write as _;
+        stdin.write_all(&bytes)?;
+    }
+
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        return Err(import_error(format!(
+            "cjval failed for {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    Ok(())
+}
+
+fn validate_feature_file(path: &Path, metadata_bytes: &[u8]) -> Result<()> {
+    let bytes = fs::read(path)?;
+    let _feature = cjlib::json::from_feature_slice_with_base(&bytes, metadata_bytes)?;
+    Ok(())
+}
+
+fn run_cjseq_cat(cityjson_path: &Path) -> Result<String> {
+    let output = Command::new("cjseq")
+        .args(["cat", "-o", "lexicographical"])
+        .arg(cityjson_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()?;
+
+    if !output.status.success() {
+        return Err(import_error(format!(
+            "cjseq cat failed for {}: {}",
+            cityjson_path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    String::from_utf8(output.stdout).map_err(|error| import_error(error.to_string()))
+}
+
+fn split_seq_lines(seq_output: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    for line in seq_output.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        lines.push(line.to_owned());
+    }
+    lines
+}
+
+fn read_tile_index_records(index_path: &Path) -> Result<Vec<TileIndexRecord>> {
+    let mut file = File::open(index_path)?;
+    let reader = FgbReader::open(&mut file).map_err(|error| import_error(error.to_string()))?;
+    let mut features = reader
+        .select_all()
+        .map_err(|error| import_error(error.to_string()))?;
+    let mut records = Vec::new();
+
+    while let Some(feature) = features
+        .next()
+        .map_err(|error| import_error(error.to_string()))?
+    {
+        let tile_id = feature_property_string(feature, &["tile_id", "tileid", "id"])?;
+        let download_url =
+            feature_property_string(feature, &["cj_download", "cityjson_download", "download"])?;
+        records.push(TileIndexRecord {
+            tile_id,
+            download_url,
+        });
+    }
+
+    records.sort_by(|left, right| left.tile_id.cmp(&right.tile_id));
+    Ok(records)
+}
+
+fn feature_property_string(feature: &flatgeobuf::FgbFeature, keys: &[&str]) -> Result<String> {
+    for key in keys {
+        if let Ok(value) = feature.property(key) {
+            return Ok(value);
+        }
+    }
+
+    Err(import_error(format!(
+        "tile index feature is missing one of these properties: {}",
+        keys.join(", ")
+    )))
+}
+
+fn download_file(client: &reqwest::blocking::Client, url: &str, path: &Path) -> Result<()> {
+    let response = client
+        .get(url)
+        .send()
+        .map_err(|error| import_error(error.to_string()))?;
+    if !response.status().is_success() {
+        return Err(import_error(format!(
+            "download failed for {url}: {}",
+            response.status()
+        )));
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let bytes = response
+        .bytes()
+        .map_err(|error| import_error(error.to_string()))?;
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        let mut decoder = GzDecoder::new(bytes.as_ref());
+        let mut file = File::create(path)?;
+        copy(&mut decoder, &mut file)?;
+    } else {
+        fs::write(path, bytes.as_ref())?;
+    }
+    Ok(())
+}
+
+fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn count_cityobjects(path: &Path) -> Result<usize> {
+    let document = read_json(path)?;
+    let cityobjects = document
+        .get("CityObjects")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            import_error(format!(
+                "CityJSON file {} is missing CityObjects",
+                path.display()
+            ))
+        })?;
+    Ok(cityobjects.len())
+}
+
+fn feature_id_from_value(value: &Value, context: &str) -> Result<String> {
+    value
+        .get("id")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| import_error(format!("{context} is missing a string id")))
+}
+
+fn cityjson_output_path(root: &Path, tile_id: &str) -> PathBuf {
+    root.join(tile_path(tile_id)).with_extension("city.json")
+}
+
+fn ndjson_output_path(root: &Path, tile_id: &str) -> PathBuf {
+    root.join(tile_path(tile_id)).with_extension("city.jsonl")
+}
+
+fn tile_path(tile_id: &str) -> PathBuf {
+    let mut path = PathBuf::new();
+    for component in tile_id.split('/') {
+        path.push(component);
+    }
+    path
+}
+
+fn tool_version(tool: &str) -> Result<String> {
+    let output = Command::new(tool).arg("--version").output()?;
+    if !output.status.success() {
+        return Err(import_error(format!(
+            "{tool} --version failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    String::from_utf8(output.stdout)
+        .map(|text| text.trim().to_owned())
+        .map_err(|error| import_error(error.to_string()))
+}
+
+fn promote_staging_layout(output_root: &Path, staging_root: &Path) -> Result<()> {
+    let final_feature_root = output_root.join("feature-files");
+    let final_cityjson_root = output_root.join("cityjson");
+    let final_ndjson_root = output_root.join("ndjson");
+    let final_manifest = output_root.join("manifest.json");
+
+    for path in [
+        &final_feature_root,
+        &final_cityjson_root,
+        &final_ndjson_root,
+        &final_manifest,
+    ] {
+        if path.exists() {
+            if path.is_dir() {
+                fs::remove_dir_all(path)?;
+            } else {
+                fs::remove_file(path)?;
+            }
+        }
+    }
+
+    fs::create_dir_all(output_root)?;
+    fs::rename(staging_root.join("feature-files"), &final_feature_root)?;
+    fs::rename(staging_root.join("cityjson"), &final_cityjson_root)?;
+    fs::rename(staging_root.join("ndjson"), &final_ndjson_root)?;
+    fs::rename(staging_root.join("manifest.json"), &final_manifest)?;
+    fs::remove_dir_all(staging_root)?;
     Ok(())
 }
 

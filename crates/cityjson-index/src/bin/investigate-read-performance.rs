@@ -1,6 +1,7 @@
 #![allow(clippy::all, clippy::pedantic)]
 
 use std::collections::{BTreeSet, HashSet};
+use std::env;
 use std::fs;
 use std::hint::black_box;
 use std::io::{Read, Seek, SeekFrom};
@@ -30,6 +31,7 @@ fn main() -> Result<()> {
     println!("- `cargo run --release --bin investigate-read-performance`");
     println!("- realistic workload source: `cjindex::realistic_workload`");
     println!();
+    print_dataset_summary();
 
     let feature_files = prepare_layout(
         LayoutKind::FeatureFiles,
@@ -186,12 +188,16 @@ struct TimingSummary {
 }
 
 fn prepared_datasets() -> Result<data_prep::PreparedDatasets> {
-    let output_root = Path::new(data_prep::DEFAULT_OUTPUT_ROOT);
+    let output_root = bench_root();
     let feature_files_root = output_root.join("feature-files");
     let cityjson_root = output_root.join("cityjson");
     let ndjson_root = output_root.join("ndjson");
 
-    if feature_files_root.exists() && cityjson_root.exists() && ndjson_root.exists() {
+    if feature_files_root.exists()
+        && cityjson_root.exists()
+        && ndjson_root.exists()
+        && manifest_matches(&output_root)
+    {
         return Ok(data_prep::PreparedDatasets {
             feature_files: feature_files_root,
             cityjson: cityjson_root,
@@ -199,7 +205,86 @@ fn prepared_datasets() -> Result<data_prep::PreparedDatasets> {
         });
     }
 
-    data_prep::prepare_test_sets(Path::new(data_prep::DEFAULT_INPUT_ROOT), output_root)
+    Err(Error::Import(format!(
+        "benchmark dataset is missing or stale under {}; run `just prep-test-data` first",
+        output_root.display()
+    )))
+}
+
+fn manifest_matches(output_root: &Path) -> bool {
+    load_manifest(output_root)
+        .and_then(|(_, manifest)| {
+            manifest
+                .get("tile_index_url")
+                .and_then(|value| value.as_str())
+                .map(|value| value == data_prep::DEFAULT_TILE_INDEX_URL)
+        })
+        .unwrap_or(false)
+}
+
+fn bench_root() -> PathBuf {
+    env::var_os("CJINDEX_BENCH_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(data_prep::DEFAULT_OUTPUT_ROOT))
+}
+
+fn print_dataset_summary() {
+    let output_root = bench_root();
+    println!("## Dataset");
+    println!();
+    println!("- root: `{}`", output_root.display());
+    if let Some((path, manifest)) = load_manifest(&output_root) {
+        println!("- manifest: `{}`", path.display());
+        if let Some(value) = manifest
+            .get("tile_index_url")
+            .and_then(|value| value.as_str())
+        {
+            println!("- tile index: `{value}`");
+        }
+        if let Some(value) = manifest
+            .get("tile_index_sha256")
+            .and_then(|value| value.as_str())
+        {
+            println!("- tile index sha256: `{value}`");
+        }
+        if let Some(value) = manifest
+            .get("total_cityobjects")
+            .and_then(|value| value.as_u64())
+        {
+            println!("- total CityObjects: `{value}`");
+        }
+        if let Some(value) = manifest
+            .get("total_features")
+            .and_then(|value| value.as_u64())
+        {
+            println!("- total feature packages: `{value}`");
+        }
+        if let Some(value) = manifest
+            .get("selected_tiles")
+            .and_then(|value| value.as_array())
+        {
+            println!("- selected tiles: `{}`", value.len());
+        }
+    }
+    println!();
+}
+
+fn load_manifest(root: &Path) -> Option<(PathBuf, serde_json::Value)> {
+    let explicit = env::var_os("CJINDEX_BENCH_MANIFEST").map(PathBuf::from);
+    let candidates = explicit.into_iter().chain([
+        root.join("manifest.json"),
+        root.join("prep-manifest.json"),
+        root.join("dataset-manifest.json"),
+    ]);
+    for path in candidates {
+        if !path.exists() {
+            continue;
+        }
+        let bytes = fs::read(&path).ok()?;
+        let manifest: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+        return Some((path, manifest));
+    }
+    None
 }
 
 fn prepare_layout(

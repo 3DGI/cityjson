@@ -95,15 +95,14 @@ During indexing, metadata is parsed once and cached in SQLite. Read paths attach
 
 ## Benchmark Data
 
-The current benchmark docs are based on the prepared corpus rooted at:
+The benchmark corpus is produced by `just prep-test-data` against the pinned
+`v20250903` 3DBAG tile index. The output root defaults to
+`/home/balazs/Data/3DBAG_3dtiles_test/cjindex` and can be overridden via
+`CJINDEX_BENCH_ROOT`. The prep tool writes a manifest under the output root
+that records the exact tile list, counts, and checksums for the prepared
+corpus.
 
-- `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
-
-The prepared corpus shape is:
-
-- 227,044 indexed feature packages
-- 191 `CityJSON` / `NDJSON` tiles
-- 227,044 feature files for the feature-files layout
+Target size: about 270,000 `CityObject`s in total.
 
 The current steady-state read benchmarks use hot, repeated workloads rather than cold one-off reads:
 

@@ -31,11 +31,16 @@ the two commands.
 
 ## Corpus Shape
 
-The harness still benchmarks the canonical prepared corpus rooted at:
+The harness benchmarks the prepared corpus under the bench root:
 
-- `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+- `CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
 
-Prepared corpus shape:
+The prepared corpus is now produced by the reproducible 3DBAG prep pipeline
+against the pinned `v20250903` tile index. The prep manifest under the output
+root records the exact tile list, counts, and checksums. The figures below are
+the counts captured for the run date of this report.
+
+Prepared corpus shape at the time of this run:
 
 - 227,044 indexed feature packages
 - feature-files: 227,044 individual feature files under 191 tile directories

@@ -1,5 +1,6 @@
 #![allow(clippy::explicit_iter_loop, clippy::missing_panics_doc)]
 
+use std::env;
 use std::fs;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use cjindex::realistic_workload::{QUERY_BATCH_COUNT, build_realistic_workload};
 use cjindex::{BBox, CityIndex, StorageLayout};
 use cjlib::{Error, Result};
 use criterion::{BatchSize, Criterion};
+use serde_json::Value;
 
 #[allow(dead_code)]
 #[path = "../tests/common/data_prep.rs"]
@@ -154,12 +156,16 @@ fn prepare_bench_fixtures() -> Result<BenchFixtures> {
 }
 
 fn prepared_datasets() -> Result<data_prep::PreparedDatasets> {
-    let output_root = Path::new(data_prep::DEFAULT_OUTPUT_ROOT);
+    let output_root = bench_root();
     let feature_files_root = output_root.join("feature-files");
     let cityjson_root = output_root.join("cityjson");
     let ndjson_root = output_root.join("ndjson");
 
-    if feature_files_root.exists() && cityjson_root.exists() && ndjson_root.exists() {
+    if feature_files_root.exists()
+        && cityjson_root.exists()
+        && ndjson_root.exists()
+        && manifest_matches(&output_root)
+    {
         return Ok(data_prep::PreparedDatasets {
             feature_files: feature_files_root,
             cityjson: cityjson_root,
@@ -167,7 +173,32 @@ fn prepared_datasets() -> Result<data_prep::PreparedDatasets> {
         });
     }
 
-    data_prep::prepare_test_sets(Path::new(data_prep::DEFAULT_INPUT_ROOT), output_root)
+    Err(Error::Import(format!(
+        "benchmark dataset is missing or stale under {}; run `just prep-test-data` first",
+        output_root.display()
+    )))
+}
+
+fn manifest_matches(output_root: &Path) -> bool {
+    let manifest_path = output_root.join("manifest.json");
+    let Ok(bytes) = fs::read(&manifest_path) else {
+        return false;
+    };
+    let manifest: Value = match serde_json::from_slice(&bytes) {
+        Ok(manifest) => manifest,
+        Err(_) => return false,
+    };
+    manifest
+        .get("tile_index_url")
+        .and_then(|value| value.as_str())
+        == Some(data_prep::DEFAULT_TILE_INDEX_URL)
+}
+
+fn bench_root() -> PathBuf {
+    env::var_os("CJINDEX_BENCH_ROOT").map_or_else(
+        || PathBuf::from(data_prep::DEFAULT_OUTPUT_ROOT),
+        PathBuf::from,
+    )
 }
 
 fn build_index(kind: LayoutKind, root: &Path) -> CityIndex {

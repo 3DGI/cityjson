@@ -23,6 +23,17 @@ It measures three views of the workload:
 It also inspects the rebuilt SQLite indices so the report can explain byte
 volume, working-set size, and `CityJSON` shared-vertices cache reuse.
 
+## Dataset
+
+The investigation runs against the prepared corpus under the bench root:
+
+- `CJINDEX_BENCH_ROOT` or the default root `/home/balazs/Data/3DBAG_3dtiles_test/cjindex`
+
+The prepared corpus is produced by the reproducible 3DBAG prep pipeline against
+the pinned `v20250903` tile index. The prep manifest under the output root
+records the exact tile list, counts, and checksums. The figures referenced in
+this report correspond to the manifest present on the run date above.
+
 ## Corrected Comparison Basis
 
 The most important result from this investigation was not a timing number. It
