@@ -297,12 +297,18 @@ class CityModel:
         _ffi.cleanup(self._handle)
 
     def serialize_document(self, options: WriteOptions | None = None) -> str:
+        return self.serialize_document_bytes(options).decode("utf-8")
+
+    def serialize_document_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
-        return _ffi.serialize_document_with_options(self._handle, payload).decode("utf-8")
+        return _ffi.serialize_document_with_options(self._handle, payload)
 
     def serialize_feature(self, options: WriteOptions | None = None) -> str:
+        return self.serialize_feature_bytes(options).decode("utf-8")
+
+    def serialize_feature_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
-        return _ffi.serialize_feature_with_options(self._handle, payload).decode("utf-8")
+        return _ffi.serialize_feature_with_options(self._handle, payload)
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._handle, capacities.to_native())
@@ -325,6 +331,13 @@ def serialize_feature_stream(
     models: list[CityModel],
     options: WriteOptions | None = None,
 ) -> str:
+    return serialize_feature_stream_bytes(models, options).decode("utf-8")
+
+
+def serialize_feature_stream_bytes(
+    models: list[CityModel],
+    options: WriteOptions | None = None,
+) -> bytes:
     payload = options.to_native() if options is not None else WriteOptions().to_native()
     handles = [model._handle for model in models]
-    return _ffi.serialize_feature_stream(handles, payload).decode("utf-8")
+    return _ffi.serialize_feature_stream(handles, payload)

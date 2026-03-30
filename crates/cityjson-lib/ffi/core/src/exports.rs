@@ -747,7 +747,7 @@ pub extern "C" fn cj_model_parse_document_bytes(
         }
 
         reject_unsupported_document_version(probe.version())?;
-        let model = cjlib::json::from_slice(input)?;
+        let model = cjlib::json::from_slice_assume_cityjson_v2_0(input)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -768,7 +768,7 @@ pub extern "C" fn cj_model_parse_feature_bytes(
         }
 
         reject_unsupported_feature_version(probe.version())?;
-        let model = cjlib::json::from_feature_slice(input)?;
+        let model = cjlib::json::from_feature_slice_assume_cityjson_feature_v2_0(input)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -802,7 +802,9 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
         }
 
         reject_unsupported_document_version(base_probe.version())?;
-        let model = cjlib::json::staged::from_feature_slice_with_base(feature, base)?;
+        let model = cjlib::json::staged::from_feature_slice_with_base_assume_cityjson_feature_v2_0(
+            feature, base,
+        )?;
         write_model_handle(out_model, model)
     }))
 }
@@ -826,7 +828,8 @@ pub extern "C" fn cj_model_serialize_feature(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
-        let bytes = cjlib::json::to_feature_string(model)?.into_bytes();
+        let bytes =
+            cjlib::json::to_feature_vec_with_options(model, cjlib::json::WriteOptions::default())?;
         write_bytes(out_bytes, bytes)
     }))
 }

@@ -6,8 +6,8 @@ use cjlib_ffi_core::{
     AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
     cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
     cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t,
-    cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
+    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t,
+    cj_vertex_t, cj_vertices_t, run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {

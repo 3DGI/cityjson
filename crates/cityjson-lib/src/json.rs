@@ -60,6 +60,17 @@ pub mod staged {
         }
     }
 
+    pub fn from_feature_slice_with_base_assume_cityjson_feature_v2_0(
+        feature_bytes: &[u8],
+        base_document_bytes: &[u8],
+    ) -> Result<CityModel> {
+        let feature_input = super::decode_utf8_input(feature_bytes, "CityJSONFeature document")?;
+        let base_input = super::decode_utf8_input(base_document_bytes, "CityJSON document")?;
+        Ok(CityModel(
+            serde_cityjson::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
+        ))
+    }
+
     pub fn from_feature_assembly_with_base(
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],
@@ -166,10 +177,24 @@ pub fn probe(bytes: &[u8]) -> Result<Probe> {
     Ok(Probe { kind, version })
 }
 
+fn decode_utf8_input<'a>(bytes: &'a [u8], label: &str) -> Result<&'a str> {
+    std::str::from_utf8(bytes).map_err(|error| {
+        Error::Json(serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{label} is not valid UTF-8: {error}"),
+        )))
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WriteOptions {
     pub pretty: bool,
     pub validate_default_themes: bool,
+}
+
+pub fn from_slice_assume_cityjson_v2_0(bytes: &[u8]) -> Result<CityModel> {
+    let input = decode_utf8_input(bytes, "CityJSON document")?;
+    Ok(CityModel(serde_cityjson::v2_0::from_str_owned(input)?))
 }
 
 pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
@@ -177,15 +202,7 @@ pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
     match probe.kind {
         RootKind::CityJSON => match probe.version {
             None => Err(Error::MissingVersion),
-            Some(CityJSONVersion::V2_0) => {
-                let input = std::str::from_utf8(bytes).map_err(|error| {
-                    Error::Json(serde_json::Error::io(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        error,
-                    )))
-                })?;
-                Ok(CityModel(serde_cityjson::v2_0::from_str_owned(input)?))
-            }
+            Some(CityJSONVersion::V2_0) => from_slice_assume_cityjson_v2_0(bytes),
             Some(CityJSONVersion::V1_0) => todo!(),
             Some(CityJSONVersion::V1_1) => todo!(),
         },
@@ -210,22 +227,19 @@ pub fn from_feature_slice(bytes: &[u8]) -> Result<CityModel> {
     let probe = probe(bytes)?;
     match probe.kind {
         RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind.to_string())),
-        RootKind::CityJSONFeature => {
-            let input = std::str::from_utf8(bytes).map_err(|error| {
-                Error::Json(serde_json::Error::io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    error,
-                )))
-            })?;
-            Ok(CityModel(serde_cityjson::v2_0::from_feature_str_owned(
-                input,
-            )?))
-        }
+        RootKind::CityJSONFeature => from_feature_slice_assume_cityjson_feature_v2_0(bytes),
     }
 }
 
 pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
     from_feature_slice(&std::fs::read(path)?)
+}
+
+pub fn from_feature_slice_assume_cityjson_feature_v2_0(bytes: &[u8]) -> Result<CityModel> {
+    let input = decode_utf8_input(bytes, "CityJSONFeature document")?;
+    Ok(CityModel(serde_cityjson::v2_0::from_feature_str_owned(
+        input,
+    )?))
 }
 
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
@@ -363,4 +377,97 @@ pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<CityModel> {
     }
 
     crate::ops::merge(models)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        RootKind, from_feature_slice, from_feature_slice_assume_cityjson_feature_v2_0, from_slice,
+        from_slice_assume_cityjson_v2_0, probe, staged,
+    };
+
+    fn v2_document() -> &'static [u8] {
+        include_bytes!("../tests/data/v2_0/minimal.city.json")
+    }
+
+    fn feature_document() -> &'static [u8] {
+        br#"{"type":"CityJSONFeature","version":"2.0","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
+    }
+
+    #[test]
+    fn trusted_document_parse_matches_regular_parse() {
+        let regular = from_slice(v2_document()).expect("regular parse should succeed");
+        let trusted =
+            from_slice_assume_cityjson_v2_0(v2_document()).expect("trusted parse should succeed");
+
+        assert_eq!(
+            regular.as_inner().cityobjects().len(),
+            trusted.as_inner().cityobjects().len()
+        );
+        assert_eq!(
+            regular.as_inner().geometry_count(),
+            trusted.as_inner().geometry_count()
+        );
+        assert_eq!(
+            regular.as_inner().vertices().len(),
+            trusted.as_inner().vertices().len()
+        );
+    }
+
+    #[test]
+    fn trusted_feature_parse_matches_regular_parse() {
+        let regular = from_feature_slice(feature_document()).expect("regular parse should succeed");
+        let trusted = from_feature_slice_assume_cityjson_feature_v2_0(feature_document())
+            .expect("trusted feature parse should succeed");
+
+        assert_eq!(
+            regular.as_inner().cityobjects().len(),
+            trusted.as_inner().cityobjects().len()
+        );
+        assert_eq!(
+            regular.as_inner().geometry_count(),
+            trusted.as_inner().geometry_count()
+        );
+        assert_eq!(
+            regular.as_inner().vertices().len(),
+            trusted.as_inner().vertices().len()
+        );
+    }
+
+    #[test]
+    fn trusted_feature_with_base_parse_matches_regular_parse() {
+        let regular = staged::from_feature_slice_with_base(feature_document(), v2_document())
+            .expect("regular feature-with-base parse should succeed");
+        let trusted = staged::from_feature_slice_with_base_assume_cityjson_feature_v2_0(
+            feature_document(),
+            v2_document(),
+        )
+        .expect("trusted feature-with-base parse should succeed");
+
+        assert_eq!(
+            regular.as_inner().cityobjects().len(),
+            trusted.as_inner().cityobjects().len()
+        );
+        assert_eq!(
+            regular.as_inner().geometry_count(),
+            trusted.as_inner().geometry_count()
+        );
+        assert_eq!(
+            regular.as_inner().vertices().len(),
+            trusted.as_inner().vertices().len()
+        );
+    }
+
+    #[test]
+    fn trusted_document_parse_skips_root_validation() {
+        let parsed = from_slice_assume_cityjson_v2_0(feature_document())
+            .expect("trusted parse should delegate root validation to caller");
+
+        let header = probe(feature_document()).expect("probe should succeed");
+        assert_eq!(header.kind(), RootKind::CityJSONFeature);
+        assert_eq!(
+            parsed.as_inner().type_citymodel().to_string(),
+            "CityJSONFeature"
+        );
+    }
 }

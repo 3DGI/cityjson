@@ -97,6 +97,8 @@ int main() {
 
   const auto serialized = model.serialize_document();
   assert(!serialized.empty());
+  const auto serialized_bytes = model.serialize_document_bytes();
+  assert(!serialized_bytes.empty());
 
   auto created = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
   cjlib::ModelCapacities capacities{};
@@ -143,6 +145,8 @@ int main() {
   });
   assert(transformed_feature.find("Wrapper Smoke") != std::string::npos);
   assert(transformed_feature.find("\n") != std::string::npos);
+  const auto transformed_feature_bytes = created.serialize_feature_bytes();
+  assert(!transformed_feature_bytes.empty());
 
   created.clear_transform();
   const auto cleared_feature = created.serialize_feature();
@@ -193,6 +197,8 @@ int main() {
 
   const auto document_json = created.serialize_document();
   assert(!document_json.empty());
+  const auto document_bytes = created.serialize_document_bytes();
+  assert(!document_bytes.empty());
 
   return 0;
 }

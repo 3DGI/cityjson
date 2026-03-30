@@ -375,16 +375,28 @@ class Model final {
     return index;
   }
 
-  [[nodiscard]] std::string serialize_document(const WriteOptions& options = {}) const {
+  [[nodiscard]] std::vector<std::uint8_t> serialize_document_bytes(
+      const WriteOptions& options = {}) const {
     cj_bytes_t bytes{};
     check_status(cj_model_serialize_document_with_options(handle_, to_native(options), &bytes));
-    return take_string(bytes);
+    return take_bytes(bytes);
+  }
+
+  [[nodiscard]] std::string serialize_document(const WriteOptions& options = {}) const {
+    const auto bytes = serialize_document_bytes(options);
+    return std::string(bytes.begin(), bytes.end());
+  }
+
+  [[nodiscard]] std::vector<std::uint8_t> serialize_feature_bytes(
+      const WriteOptions& options = {}) const {
+    cj_bytes_t bytes{};
+    check_status(cj_model_serialize_feature_with_options(handle_, to_native(options), &bytes));
+    return take_bytes(bytes);
   }
 
   [[nodiscard]] std::string serialize_feature(const WriteOptions& options = {}) const {
-    cj_bytes_t bytes{};
-    check_status(cj_model_serialize_feature_with_options(handle_, to_native(options), &bytes));
-    return take_string(bytes);
+    const auto bytes = serialize_feature_bytes(options);
+    return std::string(bytes.begin(), bytes.end());
   }
 
   [[nodiscard]] static std::vector<std::uint8_t> serialize_feature_stream(

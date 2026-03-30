@@ -15,6 +15,7 @@ from ctypes import (
     c_ubyte,
     c_void_p,
     pointer,
+    string_at,
 )
 from enum import IntEnum
 import os
@@ -216,8 +217,8 @@ def _candidate_library_paths() -> list[Path]:
         candidates.append(Path(os.environ["CJLIB_FFI_CORE_LIB"]))
 
     for name in names:
-        candidates.append(repo_root / "target" / "debug" / name)
         candidates.append(repo_root / "target" / "release" / name)
+        candidates.append(repo_root / "target" / "debug" / name)
 
     unique_candidates: list[Path] = []
     for candidate in candidates:
@@ -473,7 +474,7 @@ class FfiLibrary:
             self._raise_if_error(self._lib.cj_bytes_free(payload))
             return b""
 
-        data = bytes(payload.data[index] for index in range(payload.len))
+        data = string_at(payload.data, payload.len)
         self._raise_if_error(self._lib.cj_bytes_free(payload))
         return data
 

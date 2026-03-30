@@ -18,6 +18,7 @@ from cjlib import (
     merge_feature_stream_bytes,
     probe_bytes,
     serialize_feature_stream,
+    serialize_feature_stream_bytes,
 )
 
 
@@ -126,6 +127,7 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertIn("Updated Facade Fixture", pretty_document)
 
         self.assertIn("fixture-1-updated", model.serialize_document())
+        self.assertIn(b"fixture-1-updated", model.serialize_document_bytes())
         self.assertEqual(len(model.vertices()), 6)
         self.assertEqual(model.vertices()[0].x, 0.0)
         self.assertEqual(model.vertices()[4].y, 4.0)
@@ -189,6 +191,7 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertEqual(summary.vertex_count, 2)
         self.assertEqual(model.cityobject_ids(), ["feature-a", "feature-b"])
         self.assertIn("feature-a", model.serialize_feature(WriteOptions(pretty=True)))
+        self.assertIn(b"feature-a", model.serialize_feature_bytes())
 
     def test_feature_stream_helpers_round_trip(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
@@ -201,8 +204,10 @@ class PythonBindingSmokeTest(unittest.TestCase):
 
         stream = serialize_feature_stream([feature_model], WriteOptions())
         self.assertIn('"type":"CityJSONFeature"', stream)
+        stream_bytes = serialize_feature_stream_bytes([feature_model], WriteOptions())
+        self.assertIn(b'"type":"CityJSONFeature"', stream_bytes)
 
-        merged = merge_feature_stream_bytes(payload + b"\n" + stream.encode("utf-8"))
+        merged = merge_feature_stream_bytes(payload + b"\n" + stream_bytes)
         self.addCleanup(merged.close)
         self.assertIn("feature-1", merged.cityobject_ids())
         self.assertEqual(merged.summary().cityobject_count, 3)
