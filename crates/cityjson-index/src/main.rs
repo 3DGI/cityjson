@@ -241,7 +241,7 @@ fn write_feature_line<W>(writer: &mut W, model: &CityModel) -> Result<()>
 where
     W: Write,
 {
-    writer.write_all(cjlib::json::to_feature_string(model)?.as_bytes())?;
+    cjlib::json::to_feature_writer(writer, model)?;
     writer.write_all(b"\n")?;
     Ok(())
 }

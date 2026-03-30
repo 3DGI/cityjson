@@ -6,6 +6,7 @@ use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use cjlib::json::staged;
 use cjlib::{CityModel, Error, Result};
 use globset::GlobMatcher;
 use ignore::WalkBuilder;
@@ -641,7 +642,7 @@ impl StorageBackend for NdjsonBackend {
     fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
         let bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
-        cjlib::json::from_feature_slice_with_base(&bytes, &metadata_bytes)
+        staged::from_feature_slice_with_base(&bytes, &metadata_bytes)
     }
 }
 
@@ -743,18 +744,18 @@ impl StorageBackend for CityJsonBackend {
         let cityobjects = feature_parts
             .cityobjects
             .iter()
-            .map(|cityobject| cjlib::json::FeatureObject {
+            .map(|cityobject| staged::FeatureObjectFragment {
                 id: cityobject.id.as_str(),
                 object: cityobject.object_json.as_ref(),
             })
             .collect::<Vec<_>>();
-        let parts = cjlib::json::FeatureParts {
+        let assembly = staged::FeatureAssembly {
             id: feature_parts.feature_id.as_str(),
             cityobjects: &cityobjects,
             vertices: &feature_parts.vertices,
         };
 
-        cjlib::json::from_feature_parts_with_base(parts, &base_document_bytes)
+        staged::from_feature_assembly_with_base(assembly, &base_document_bytes)
     }
 }
 
@@ -788,7 +789,7 @@ impl StorageBackend for FeatureFilesBackend {
     fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
         let feature_bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
         let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
-        cjlib::json::from_feature_slice_with_base(&feature_bytes, &metadata_bytes)
+        staged::from_feature_slice_with_base(&feature_bytes, &metadata_bytes)
     }
 }
 

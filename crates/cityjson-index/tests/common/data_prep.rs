@@ -666,7 +666,7 @@ fn validate_cjval(path: &Path) -> Result<()> {
 
 fn validate_feature_file(path: &Path, metadata_bytes: &[u8]) -> Result<()> {
     let bytes = fs::read(path)?;
-    let _feature = cjlib::json::from_feature_slice_with_base(&bytes, metadata_bytes)?;
+    let _feature = cjlib::json::staged::from_feature_slice_with_base(&bytes, metadata_bytes)?;
     Ok(())
 }
 
