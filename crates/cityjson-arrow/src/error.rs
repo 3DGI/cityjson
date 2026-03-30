@@ -68,4 +68,10 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Conversion(value.to_string())
+    }
+}
+
 impl std::error::Error for Error {}
