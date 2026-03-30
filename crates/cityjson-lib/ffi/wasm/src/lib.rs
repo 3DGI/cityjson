@@ -13,17 +13,29 @@ pub use cjlib_ffi_core as core;
 
 use cjlib_ffi_core::exports::{
     cj_bytes_free, cj_geometry_boundary_free, cj_last_error_message_copy,
-    cj_last_error_message_len, cj_model_add_uv_coordinate, cj_model_add_vertex,
+    cj_last_error_message_len, cj_model_add_cityobject, cj_model_add_geometry_from_boundary,
+    cj_model_add_vertex, cj_model_attach_geometry_to_cityobject, cj_model_cleanup,
     cj_model_copy_geometry_boundary, cj_model_copy_geometry_boundary_coordinates,
     cj_model_copy_template_vertices, cj_model_copy_uv_coordinates, cj_model_copy_vertices,
     cj_model_create, cj_model_free, cj_model_get_cityobject_id, cj_model_get_geometry_type,
-    cj_model_get_summary, cj_model_parse_document_bytes, cj_probe_bytes, cj_uvs_free,
+    cj_model_get_summary, cj_model_parse_document_bytes, cj_model_parse_feature_bytes,
+    cj_model_parse_feature_stream_merge_bytes, cj_model_serialize_document_with_options,
+    cj_model_serialize_feature_with_options, cj_model_set_metadata_identifier,
+    cj_model_set_metadata_title, cj_model_set_transform, cj_probe_bytes, cj_uvs_free,
     cj_vertices_free,
 };
 use cjlib_ffi_core::{
-    cj_bytes_t, cj_geometry_boundary_t, cj_geometry_type_t, cj_model_summary_t, cj_model_t,
-    cj_model_type_t, cj_probe_t, cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_bytes_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
+    cj_indices_view_t, cj_json_write_options_t, cj_model_summary_t, cj_model_t, cj_model_type_t,
+    cj_probe_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
+    cj_vertices_t,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WriteOptions {
+    pub pretty: bool,
+    pub validate_default_themes: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WasmError {
@@ -96,6 +108,53 @@ fn status_result(status: cj_status_t) -> Result<(), WasmError> {
     })
 }
 
+fn string_view(text: &str) -> cj_string_view_t {
+    if text.is_empty() {
+        cj_string_view_t::null()
+    } else {
+        cj_string_view_t {
+            data: text.as_ptr(),
+            len: text.len(),
+        }
+    }
+}
+
+fn indices_view(values: &[usize]) -> cj_indices_view_t {
+    if values.is_empty() {
+        cj_indices_view_t::null()
+    } else {
+        cj_indices_view_t {
+            data: values.as_ptr(),
+            len: values.len(),
+        }
+    }
+}
+
+fn boundary_view(
+    geometry_type: cj_geometry_type_t,
+    vertex_indices: &[usize],
+    ring_offsets: &[usize],
+    surface_offsets: &[usize],
+    shell_offsets: &[usize],
+    solid_offsets: &[usize],
+) -> cj_geometry_boundary_view_t {
+    cj_geometry_boundary_view_t {
+        geometry_type,
+        vertex_indices: indices_view(vertex_indices),
+        ring_offsets: indices_view(ring_offsets),
+        surface_offsets: indices_view(surface_offsets),
+        shell_offsets: indices_view(shell_offsets),
+        solid_offsets: indices_view(solid_offsets),
+    }
+}
+
+fn to_core_write_options(options: WriteOptions) -> cj_json_write_options_t {
+    cj_json_write_options_t {
+        pretty: options.pretty,
+        validate_default_themes: options.validate_default_themes,
+    }
+}
+
 struct ModelHandle(*mut cj_model_t);
 
 impl ModelHandle {
@@ -111,15 +170,18 @@ impl Drop for ModelHandle {
 }
 
 fn take_string(bytes: cj_bytes_t) -> Result<String, WasmError> {
-    let text = if bytes.len == 0 {
-        String::new()
+    Ok(String::from_utf8_lossy(&take_bytes(bytes)?).into_owned())
+}
+
+fn take_bytes(bytes: cj_bytes_t) -> Result<Vec<u8>, WasmError> {
+    let values = if bytes.len == 0 {
+        Vec::new()
     } else {
         // SAFETY: the ABI returned `len` readable bytes.
-        let data = unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) };
-        String::from_utf8_lossy(data).into_owned()
+        unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) }.to_vec()
     };
     status_result(cj_bytes_free(bytes))?;
-    Ok(text)
+    Ok(values)
 }
 
 fn take_vertices(vertices: cj_vertices_t) -> Result<Vec<cj_vertex_t>, WasmError> {
@@ -240,6 +302,16 @@ fn parse_document(bytes: &[u8]) -> Result<ModelHandle, WasmError> {
     Ok(ModelHandle(handle))
 }
 
+fn parse_feature(bytes: &[u8]) -> Result<ModelHandle, WasmError> {
+    let mut handle = ptr::null_mut();
+    status_result(cj_model_parse_feature_bytes(
+        bytes.as_ptr(),
+        bytes.len(),
+        &raw mut handle,
+    ))?;
+    Ok(ModelHandle(handle))
+}
+
 pub fn parse_document_summary(bytes: &[u8]) -> Result<DocumentSummary, WasmError> {
     let model = parse_document(bytes)?;
 
@@ -339,35 +411,144 @@ pub fn extract_geometry_boundary_coordinates(
     })
 }
 
-pub fn create_feature_summary_with_vertices() -> Result<cj_model_summary_t, WasmError> {
+pub fn serialize_document_with_options(
+    bytes: &[u8],
+    options: WriteOptions,
+) -> Result<Vec<u8>, WasmError> {
+    let model = parse_document(bytes)?;
+    let mut payload = cj_bytes_t::default();
+    status_result(cj_model_serialize_document_with_options(
+        model.raw(),
+        to_core_write_options(options),
+        &raw mut payload,
+    ))?;
+    take_bytes(payload)
+}
+
+pub fn serialize_feature_with_options(
+    bytes: &[u8],
+    options: WriteOptions,
+) -> Result<Vec<u8>, WasmError> {
+    let model = parse_feature(bytes)?;
+    let mut payload = cj_bytes_t::default();
+    status_result(cj_model_serialize_feature_with_options(
+        model.raw(),
+        to_core_write_options(options),
+        &raw mut payload,
+    ))?;
+    take_bytes(payload)
+}
+
+pub fn merge_feature_stream(bytes: &[u8], options: WriteOptions) -> Result<Vec<u8>, WasmError> {
     let mut handle = ptr::null_mut();
-    status_result(cj_model_create(
-        cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON_FEATURE,
+    status_result(cj_model_parse_feature_stream_merge_bytes(
+        bytes.as_ptr(),
+        bytes.len(),
         &raw mut handle,
     ))?;
     let model = ModelHandle(handle);
 
-    let mut vertex_index = 0usize;
-    status_result(cj_model_add_vertex(
+    let mut payload = cj_bytes_t::default();
+    status_result(cj_model_serialize_document_with_options(
         model.raw(),
-        cj_vertex_t {
-            x: 1.0,
-            y: 2.0,
-            z: 3.0,
+        to_core_write_options(options),
+        &raw mut payload,
+    ))?;
+    take_bytes(payload)
+}
+
+pub fn build_document_roundtrip() -> Result<Vec<u8>, WasmError> {
+    let mut handle = ptr::null_mut();
+    status_result(cj_model_create(
+        cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON,
+        &raw mut handle,
+    ))?;
+    let model = ModelHandle(handle);
+
+    status_result(cj_model_set_metadata_title(
+        model.raw(),
+        string_view("Wasm roundtrip"),
+    ))?;
+    status_result(cj_model_set_metadata_identifier(
+        model.raw(),
+        string_view("wasm-roundtrip"),
+    ))?;
+    status_result(cj_model_set_transform(
+        model.raw(),
+        cj_transform_t {
+            scale_x: 1.0,
+            scale_y: 1.0,
+            scale_z: 1.0,
+            translate_x: 0.0,
+            translate_y: 0.0,
+            translate_z: 0.0,
         },
-        &raw mut vertex_index,
     ))?;
 
-    let mut uv_index = 0usize;
-    status_result(cj_model_add_uv_coordinate(
+    for vertex in [
+        cj_vertex_t {
+            x: 10.0,
+            y: 20.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 11.0,
+            y: 20.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 11.0,
+            y: 21.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 10.0,
+            y: 21.0,
+            z: 0.0,
+        },
+    ] {
+        let mut vertex_index = 0usize;
+        status_result(cj_model_add_vertex(
+            model.raw(),
+            vertex,
+            &raw mut vertex_index,
+        ))?;
+    }
+
+    status_result(cj_model_add_cityobject(
         model.raw(),
-        cj_uv_t { u: 0.25, v: 0.75 },
-        &raw mut uv_index,
+        string_view("building-1"),
+        string_view("Building"),
     ))?;
 
-    let mut summary = cj_model_summary_t::default();
-    status_result(cj_model_get_summary(model.raw(), &raw mut summary))?;
-    Ok(summary)
+    let mut geometry_index = 0usize;
+    status_result(cj_model_add_geometry_from_boundary(
+        model.raw(),
+        boundary_view(
+            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+            &[0, 1, 2, 3, 0],
+            &[0],
+            &[0],
+            &[],
+            &[],
+        ),
+        string_view("2.2"),
+        &raw mut geometry_index,
+    ))?;
+    status_result(cj_model_attach_geometry_to_cityobject(
+        model.raw(),
+        string_view("building-1"),
+        geometry_index,
+    ))?;
+    status_result(cj_model_cleanup(model.raw()))?;
+
+    let mut payload = cj_bytes_t::default();
+    status_result(cj_model_serialize_document_with_options(
+        model.raw(),
+        to_core_write_options(WriteOptions::default()),
+        &raw mut payload,
+    ))?;
+    take_bytes(payload)
 }
 
 #[cfg(test)]
@@ -415,14 +596,70 @@ mod tests {
         assert_eq!(buffers.uv_coordinates.len(), 4);
         assert_eq!(buffers.uv_coordinates[2].u, 1.0);
 
-        let summary =
-            create_feature_summary_with_vertices().expect("feature creation summary should work");
+        let roundtrip = build_document_roundtrip().expect("document roundtrip should work");
+        let summary = parse_document_summary(&roundtrip).expect("roundtrip should parse");
         assert_eq!(
-            summary.model_type,
-            cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON_FEATURE
+            summary.summary.model_type,
+            cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON
         );
-        assert_eq!(summary.vertex_count, 1);
-        assert_eq!(summary.uv_coordinate_count, 1);
+        assert_eq!(summary.summary.cityobject_count, 1);
+        assert_eq!(summary.summary.geometry_count, 1);
+        assert_eq!(summary.cityobject_ids, vec!["building-1"]);
+        assert_eq!(
+            summary.geometry_types,
+            vec![cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE]
+        );
+    }
+
+    #[test]
+    fn serialization_options_and_feature_stream_merge_work() {
+        let compact = serialize_document_with_options(
+            fixture_bytes(),
+            WriteOptions {
+                pretty: false,
+                validate_default_themes: false,
+            },
+        )
+        .expect("compact serialize should work");
+        let pretty = serialize_document_with_options(
+            fixture_bytes(),
+            WriteOptions {
+                pretty: true,
+                validate_default_themes: false,
+            },
+        )
+        .expect("pretty serialize should work");
+        assert!(pretty.len() > compact.len());
+
+        let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+        let feature_roundtrip = serialize_feature_with_options(
+            feature,
+            WriteOptions {
+                pretty: false,
+                validate_default_themes: false,
+            },
+        )
+        .expect("feature serialize should work");
+        let feature_probe = probe_bytes(&feature_roundtrip).expect("feature probe should work");
+        assert_eq!(
+            feature_probe.root_kind,
+            core::cj_root_kind_t::CJ_ROOT_KIND_CITY_JSON_FEATURE
+        );
+
+        let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+"#;
+        let merged = merge_feature_stream(
+            stream,
+            WriteOptions {
+                pretty: false,
+                validate_default_themes: false,
+            },
+        )
+        .expect("feature stream merge should work");
+        let merged_summary = parse_document_summary(&merged).expect("merged output should parse");
+        assert_eq!(merged_summary.summary.cityobject_count, 1);
+        assert_eq!(merged_summary.cityobject_ids, vec!["feature-1"]);
     }
 
     #[test]

@@ -166,6 +166,12 @@ pub fn probe(bytes: &[u8]) -> Result<Probe> {
     Ok(Probe { kind, version })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WriteOptions {
+    pub pretty: bool,
+    pub validate_default_themes: bool,
+}
+
 pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
     let probe = probe(bytes)?;
     match probe.kind {
@@ -242,12 +248,41 @@ where
     Ok(())
 }
 
+pub fn write_feature_stream_refs<'a, I, W>(mut writer: W, models: I) -> Result<()>
+where
+    I: IntoIterator<Item = &'a CityModel>,
+    W: Write,
+{
+    for model in models {
+        staged::to_feature_writer(&mut writer, model)?;
+        writer.write_all(b"\n")?;
+    }
+    Ok(())
+}
+
 pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
     Ok(to_string(model)?.into_bytes())
 }
 
+pub fn to_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<Vec<u8>> {
+    Ok(to_string_with_options(model, options)?.into_bytes())
+}
+
 pub fn to_string(model: &CityModel) -> Result<String> {
     Ok(serde_cityjson::to_string_validated(model.as_inner())?)
+}
+
+pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
+    if options.validate_default_themes {
+        model.as_inner().validate_default_themes()?;
+    }
+
+    let value = serde_cityjson::as_json(model.as_inner());
+    if options.pretty {
+        Ok(serde_json::to_string_pretty(&value)?)
+    } else {
+        Ok(serde_json::to_string(&value)?)
+    }
 }
 
 pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
@@ -255,10 +290,77 @@ pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
     Ok(())
 }
 
+pub fn to_writer_with_options(
+    writer: &mut impl Write,
+    model: &CityModel,
+    options: WriteOptions,
+) -> Result<()> {
+    writer.write_all(to_string_with_options(model, options)?.as_bytes())?;
+    Ok(())
+}
+
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
     Ok(serde_cityjson::v2_0::to_string_feature(model.as_inner())?)
 }
 
+pub fn to_feature_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<Vec<u8>> {
+    Ok(to_feature_string_with_options(model, options)?.into_bytes())
+}
+
+pub fn to_feature_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
+    match model.as_inner().type_citymodel() {
+        cityjson::CityModelType::CityJSONFeature => {
+            if options.validate_default_themes {
+                model.as_inner().validate_default_themes()?;
+            }
+
+            let value = serde_cityjson::as_json(model.as_inner());
+            if options.pretty {
+                Ok(serde_json::to_string_pretty(&value)?)
+            } else {
+                Ok(serde_json::to_string(&value)?)
+            }
+        }
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
+}
+
 pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
     staged::to_feature_writer(writer, model)
+}
+
+pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<CityModel> {
+    let mut stream = serde_json::Deserializer::from_slice(bytes).into_iter::<serde_json::Value>();
+    let first = stream
+        .next()
+        .transpose()?
+        .ok_or_else(|| Error::Import("empty feature stream".into()))?;
+    let first = match first {
+        serde_json::Value::Object(map) => map,
+        _ => return Err(Error::Import("stream items must be JSON objects".into())),
+    };
+
+    let first_bytes = serde_json::to_vec(&serde_json::Value::Object(first.clone()))?;
+    let root_probe = probe(&first_bytes)?;
+    let mut models = Vec::new();
+    match root_probe.kind() {
+        RootKind::CityJSON => models.push(from_slice(&first_bytes)?),
+        RootKind::CityJSONFeature => models.push(from_feature_slice(&first_bytes)?),
+    }
+
+    for item in stream {
+        let item = item?;
+        let item = match item {
+            serde_json::Value::Object(map) => map,
+            _ => return Err(Error::Import("stream items must be JSON objects".into())),
+        };
+        let item_bytes = serde_json::to_vec(&serde_json::Value::Object(item))?;
+        let item_probe = probe(&item_bytes)?;
+        match item_probe.kind() {
+            RootKind::CityJSON => models.push(from_slice(&item_bytes)?),
+            RootKind::CityJSONFeature => models.push(from_feature_slice(&item_bytes)?),
+        }
+    }
+
+    crate::ops::merge(models)
 }

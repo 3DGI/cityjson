@@ -1,8 +1,10 @@
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <string_view>
 #include <vector>
 
 #include <cjlib/cjlib.hpp>
@@ -98,7 +100,9 @@ int main() {
 
   auto created = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
   cjlib::ModelCapacities capacities{};
+  capacities.cityobjects = 2U;
   capacities.vertices = 2U;
+  capacities.geometries = 2U;
   capacities.template_vertices = 1U;
   capacities.uv_coordinates = 1U;
   created.reserve_import(capacities);
@@ -110,6 +114,85 @@ int main() {
   assert(created_summary.vertex_count == 1U);
   assert(created_summary.template_vertex_count == 1U);
   assert(created_summary.uv_coordinate_count == 1U);
+
+  created.set_metadata_title("Wrapper Smoke");
+  created.set_metadata_identifier("wrapper-smoke");
+  created.set_transform(cjlib::Transform{
+      .scale = {2.0, 2.0, 1.0},
+      .translate = {1.0, 2.0, 3.0},
+  });
+  created.add_cityobject("cityobject-1", "Building");
+  created.add_cityobject("cityobject-temp", "BuildingPart");
+  created.remove_cityobject("cityobject-temp");
+
+  const auto point_boundary = cjlib::GeometryBoundary{
+      .geometry_type = CJ_GEOMETRY_TYPE_MULTI_POINT,
+      .has_boundaries = true,
+      .vertex_indices = {0U},
+      .ring_offsets = {},
+      .surface_offsets = {},
+      .shell_offsets = {},
+      .solid_offsets = {},
+  };
+  const auto point_geometry_index = created.add_geometry_from_boundary(point_boundary);
+  created.attach_geometry_to_cityobject("cityobject-1", point_geometry_index);
+
+  const auto transformed_feature = created.serialize_feature(cjlib::WriteOptions{
+      .pretty = true,
+      .validate_default_themes = false,
+  });
+  assert(transformed_feature.find("Wrapper Smoke") != std::string::npos);
+  assert(transformed_feature.find("\n") != std::string::npos);
+
+  created.clear_transform();
+  const auto cleared_feature = created.serialize_feature();
+  assert(transformed_feature != cleared_feature);
+
+  created.cleanup();
+  const auto cleaned_summary = created.summary();
+  assert(cleaned_summary.cityobject_count == 1U);
+  assert(cleaned_summary.geometry_count == 1U);
+
+  auto left = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  cjlib::ModelCapacities left_capacities{};
+  left_capacities.cityobjects = 1U;
+  left_capacities.vertices = 1U;
+  left_capacities.geometries = 1U;
+  left.reserve_import(left_capacities);
+  static_cast<void>(left.add_vertex(cjlib::Vertex{0.0, 0.0, 0.0}));
+  left.add_cityobject("left", "Building");
+  const auto left_geometry = left.add_geometry_from_boundary(point_boundary);
+  left.attach_geometry_to_cityobject("left", left_geometry);
+
+  auto right = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  cjlib::ModelCapacities right_capacities{};
+  right_capacities.cityobjects = 1U;
+  right_capacities.vertices = 1U;
+  right_capacities.geometries = 1U;
+  right.reserve_import(right_capacities);
+  static_cast<void>(right.add_vertex(cjlib::Vertex{1.0, 0.0, 0.0}));
+  right.add_cityobject("right", "BuildingPart");
+  const auto right_geometry = right.add_geometry_from_boundary(point_boundary);
+  right.attach_geometry_to_cityobject("right", right_geometry);
+
+  left.append_model(right);
+  const auto appended_summary = left.summary();
+  assert(appended_summary.cityobject_count == 2U);
+  assert(appended_summary.geometry_count == 2U);
+  assert(appended_summary.vertex_count == 2U);
+
+  const auto extracted = left.extract_cityobjects(std::array{std::string_view{"right"}});
+  const auto extracted_summary = extracted.summary();
+  assert(extracted_summary.cityobject_count == 1U);
+  assert(extracted.cityobject_ids()[0] == "right");
+
+  const std::array<const cjlib::Model* const, 2> stream_models{&created, &right};
+  const auto stream = cjlib::Model::serialize_feature_stream(stream_models);
+  assert(!stream.empty());
+  assert(stream.back() == '\n');
+
+  const auto document_json = created.serialize_document();
+  assert(!document_json.empty());
 
   return 0;
 }

@@ -116,6 +116,40 @@ class GeometryBoundaryStruct(Structure):
     ]
 
 
+class StringViewStruct(Structure):
+    _fields_ = [("data", POINTER(c_ubyte)), ("len", c_size_t)]
+
+
+class IndicesViewStruct(Structure):
+    _fields_ = [("data", POINTER(c_size_t)), ("len", c_size_t)]
+
+
+class GeometryBoundaryViewStruct(Structure):
+    _fields_ = [
+        ("geometry_type", c_int),
+        ("vertex_indices", IndicesViewStruct),
+        ("ring_offsets", IndicesViewStruct),
+        ("surface_offsets", IndicesViewStruct),
+        ("shell_offsets", IndicesViewStruct),
+        ("solid_offsets", IndicesViewStruct),
+    ]
+
+
+class WriteOptionsStruct(Structure):
+    _fields_ = [("pretty", c_bool), ("validate_default_themes", c_bool)]
+
+
+class TransformStruct(Structure):
+    _fields_ = [
+        ("scale_x", c_double),
+        ("scale_y", c_double),
+        ("scale_z", c_double),
+        ("translate_x", c_double),
+        ("translate_y", c_double),
+        ("translate_z", c_double),
+    ]
+
+
 class ProbeStruct(Structure):
     _fields_ = [("root_kind", c_int), ("version", c_int), ("has_version", c_bool)]
 
@@ -164,6 +198,12 @@ class GeometryBoundaryPayload:
     surface_offsets: list[int]
     shell_offsets: list[int]
     solid_offsets: list[int]
+
+
+@dataclass(frozen=True)
+class WriteOptionsPayload:
+    pretty: bool = False
+    validate_default_themes: bool = False
 
 
 def _candidate_library_paths() -> list[Path]:
@@ -292,6 +332,73 @@ class FfiLibrary:
         self._lib.cj_model_add_uv_coordinate.argtypes = [c_void_p, UVStruct, POINTER(c_size_t)]
         self._lib.cj_model_add_uv_coordinate.restype = c_int
 
+        self._lib.cj_model_set_metadata_title.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_metadata_title.restype = c_int
+        self._lib.cj_model_set_metadata_identifier.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_metadata_identifier.restype = c_int
+        self._lib.cj_model_set_transform.argtypes = [c_void_p, TransformStruct]
+        self._lib.cj_model_set_transform.restype = c_int
+        self._lib.cj_model_clear_transform.argtypes = [c_void_p]
+        self._lib.cj_model_clear_transform.restype = c_int
+
+        self._lib.cj_model_add_cityobject.argtypes = [c_void_p, StringViewStruct, StringViewStruct]
+        self._lib.cj_model_add_cityobject.restype = c_int
+        self._lib.cj_model_remove_cityobject.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_remove_cityobject.restype = c_int
+        self._lib.cj_model_attach_geometry_to_cityobject.argtypes = [
+            c_void_p,
+            StringViewStruct,
+            c_size_t,
+        ]
+        self._lib.cj_model_attach_geometry_to_cityobject.restype = c_int
+        self._lib.cj_model_clear_cityobject_geometry.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_clear_cityobject_geometry.restype = c_int
+
+        self._lib.cj_model_add_geometry_from_boundary.argtypes = [
+            c_void_p,
+            GeometryBoundaryViewStruct,
+            StringViewStruct,
+            POINTER(c_size_t),
+        ]
+        self._lib.cj_model_add_geometry_from_boundary.restype = c_int
+        self._lib.cj_model_cleanup.argtypes = [c_void_p]
+        self._lib.cj_model_cleanup.restype = c_int
+        self._lib.cj_model_append_model.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_model_append_model.restype = c_int
+        self._lib.cj_model_extract_cityobjects.argtypes = [
+            c_void_p,
+            POINTER(StringViewStruct),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_extract_cityobjects.restype = c_int
+
+        self._lib.cj_model_serialize_document_with_options.argtypes = [
+            c_void_p,
+            WriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_document_with_options.restype = c_int
+        self._lib.cj_model_serialize_feature_with_options.argtypes = [
+            c_void_p,
+            WriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_feature_with_options.restype = c_int
+        self._lib.cj_model_parse_feature_stream_merge_bytes.argtypes = [
+            POINTER(c_ubyte),
+            c_size_t,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_model_parse_feature_stream_merge_bytes.restype = c_int
+        self._lib.cj_model_serialize_feature_stream.argtypes = [
+            POINTER(c_void_p),
+            c_size_t,
+            WriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_feature_stream.restype = c_int
+
     def _raise_if_error(self, raw_status: int) -> None:
         status = Status(raw_status)
         if status is Status.SUCCESS:
@@ -317,6 +424,49 @@ class FfiLibrary:
         array_type = c_ubyte * len(data)
         buffer = array_type.from_buffer_copy(data)
         return buffer
+
+    def _string_view(self, data: str) -> tuple[StringViewStruct, object]:
+        encoded = data.encode("utf-8")
+        if not encoded:
+            return StringViewStruct(), b""
+
+        array_type = c_ubyte * len(encoded)
+        buffer = array_type.from_buffer_copy(encoded)
+        return StringViewStruct(buffer, len(encoded)), buffer
+
+    def _indices_view(self, values: list[int]) -> tuple[IndicesViewStruct, object]:
+        if not values:
+            return IndicesViewStruct(), ()
+
+        array_type = c_size_t * len(values)
+        buffer = array_type(*values)
+        return IndicesViewStruct(buffer, len(values)), buffer
+
+    def _geometry_boundary_view(
+        self, payload: GeometryBoundaryPayload
+    ) -> tuple[GeometryBoundaryViewStruct, list[object]]:
+        vertex_indices, vertex_buffer = self._indices_view(payload.vertex_indices)
+        ring_offsets, ring_buffer = self._indices_view(payload.ring_offsets)
+        surface_offsets, surface_buffer = self._indices_view(payload.surface_offsets)
+        shell_offsets, shell_buffer = self._indices_view(payload.shell_offsets)
+        solid_offsets, solid_buffer = self._indices_view(payload.solid_offsets)
+        return (
+            GeometryBoundaryViewStruct(
+                geometry_type=int(payload.geometry_type),
+                vertex_indices=vertex_indices,
+                ring_offsets=ring_offsets,
+                surface_offsets=surface_offsets,
+                shell_offsets=shell_offsets,
+                solid_offsets=solid_offsets,
+            ),
+            [vertex_buffer, ring_buffer, surface_buffer, shell_buffer, solid_buffer],
+        )
+
+    def _write_options(self, options: WriteOptionsPayload) -> WriteOptionsStruct:
+        return WriteOptionsStruct(
+            pretty=options.pretty,
+            validate_default_themes=options.validate_default_themes,
+        )
 
     def _take_bytes(self, payload: BytesStruct) -> bytes:
         if payload.len == 0:
@@ -520,3 +670,142 @@ class FfiLibrary:
             self._lib.cj_model_add_uv_coordinate(c_void_p(handle), UVStruct(u=u, v=v), pointer(index))
         )
         return int(index.value)
+
+    def geometry_boundary_view(
+        self, payload: GeometryBoundaryPayload
+    ) -> tuple[GeometryBoundaryViewStruct, list[object]]:
+        return self._geometry_boundary_view(payload)
+
+    def write_options(self, payload: WriteOptionsPayload) -> WriteOptionsStruct:
+        return self._write_options(payload)
+
+    def set_metadata_title(self, handle: int, title: str) -> None:
+        view, _buffer = self._string_view(title)
+        self._raise_if_error(self._lib.cj_model_set_metadata_title(c_void_p(handle), view))
+
+    def set_metadata_identifier(self, handle: int, identifier: str) -> None:
+        view, _buffer = self._string_view(identifier)
+        self._raise_if_error(self._lib.cj_model_set_metadata_identifier(c_void_p(handle), view))
+
+    def set_transform(self, handle: int, transform: TransformStruct) -> None:
+        self._raise_if_error(self._lib.cj_model_set_transform(c_void_p(handle), transform))
+
+    def clear_transform(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_model_clear_transform(c_void_p(handle)))
+
+    def add_cityobject(self, handle: int, cityobject_id: str, cityobject_type: str) -> None:
+        cityobject_view, _cityobject_buffer = self._string_view(cityobject_id)
+        type_view, _type_buffer = self._string_view(cityobject_type)
+        self._raise_if_error(
+            self._lib.cj_model_add_cityobject(c_void_p(handle), cityobject_view, type_view)
+        )
+
+    def remove_cityobject(self, handle: int, cityobject_id: str) -> None:
+        view, _buffer = self._string_view(cityobject_id)
+        self._raise_if_error(self._lib.cj_model_remove_cityobject(c_void_p(handle), view))
+
+    def attach_geometry_to_cityobject(self, handle: int, cityobject_id: str, geometry_index: int) -> None:
+        view, _buffer = self._string_view(cityobject_id)
+        self._raise_if_error(
+            self._lib.cj_model_attach_geometry_to_cityobject(
+                c_void_p(handle), view, geometry_index
+            )
+        )
+
+    def clear_cityobject_geometry(self, handle: int, cityobject_id: str) -> None:
+        view, _buffer = self._string_view(cityobject_id)
+        self._raise_if_error(
+            self._lib.cj_model_clear_cityobject_geometry(c_void_p(handle), view)
+        )
+
+    def add_geometry_from_boundary(
+        self, handle: int, boundary: GeometryBoundaryPayload, lod: str | None = None
+    ) -> int:
+        boundary_view, _buffers = self._geometry_boundary_view(boundary)
+        lod_view, _lod_buffer = self._string_view(lod) if lod is not None else (StringViewStruct(), b"")
+        index = c_size_t(0)
+        self._raise_if_error(
+            self._lib.cj_model_add_geometry_from_boundary(
+                c_void_p(handle), boundary_view, lod_view, pointer(index)
+            )
+        )
+        return int(index.value)
+
+    def cleanup(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_model_cleanup(c_void_p(handle)))
+
+    def append_model(self, target_handle: int, source_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_append_model(c_void_p(target_handle), c_void_p(source_handle))
+        )
+
+    def extract_cityobjects(self, handle: int, cityobject_ids: list[str]) -> int:
+        if not cityobject_ids:
+            raise ValueError("cityobject_ids must not be empty")
+
+        buffers: list[object] = []
+        views = []
+        for cityobject_id in cityobject_ids:
+            view, buffer = self._string_view(cityobject_id)
+            views.append(view)
+            buffers.append(buffer)
+
+        array_type = StringViewStruct * len(views)
+        array = array_type(*views)
+        extracted = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_model_extract_cityobjects(
+                c_void_p(handle), array, len(views), pointer(extracted)
+            )
+        )
+        return int(extracted.value)
+
+    def serialize_document_with_options(self, handle: int, options: WriteOptionsStruct) -> bytes:
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_document_with_options(
+                c_void_p(handle), options, pointer(payload)
+            )
+        )
+        return self._take_bytes(payload)
+
+    def serialize_feature_with_options(self, handle: int, options: WriteOptionsStruct) -> bytes:
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_feature_with_options(
+                c_void_p(handle), options, pointer(payload)
+            )
+        )
+        return self._take_bytes(payload)
+
+    def parse_feature_stream_merge(self, data: bytes) -> int:
+        handle = c_void_p()
+        pointer_data = self._data_pointer(data)
+        self._raise_if_error(
+            self._lib.cj_model_parse_feature_stream_merge_bytes(
+                pointer_data, len(data), pointer(handle)
+            )
+        )
+        return int(handle.value)
+
+    def serialize_feature_stream(
+        self, handles: list[int], options: WriteOptionsStruct
+    ) -> bytes:
+        if not handles:
+            payload = BytesStruct()
+            self._raise_if_error(
+                self._lib.cj_model_serialize_feature_stream(
+                    POINTER(c_void_p)(), 0, options, pointer(payload)
+                )
+            )
+            return self._take_bytes(payload)
+
+        array_type = c_void_p * len(handles)
+        array = array_type(*[c_void_p(handle) for handle in handles])
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_feature_stream(
+                array, len(handles), options, pointer(payload)
+            )
+        )
+        return self._take_bytes(payload)

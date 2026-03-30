@@ -2,14 +2,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <cstring>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <cjlib/cjlib.h>
+#include <cjlib/extended_c_abi.hpp>
 
 namespace cjlib {
 
@@ -24,6 +27,16 @@ using ModelSummary = cj_model_summary_t;
 using ModelCapacities = cj_model_capacities_t;
 using Vertex = cj_vertex_t;
 using UV = cj_uv_t;
+
+struct WriteOptions final {
+  bool pretty = false;
+  bool validate_default_themes = true;
+};
+
+struct Transform final {
+  std::array<double, 3> scale{1.0, 1.0, 1.0};
+  std::array<double, 3> translate{0.0, 0.0, 0.0};
+};
 
 struct GeometryBoundary final {
   GeometryType geometry_type;
@@ -76,6 +89,31 @@ inline void check_status(Status status) {
 
 inline const std::uint8_t* span_data(std::span<const std::uint8_t> bytes) noexcept {
   return bytes.empty() ? nullptr : bytes.data();
+}
+
+inline cj_string_view_t to_view(std::string_view value) noexcept {
+  return {
+      .data = reinterpret_cast<const std::uint8_t*>(value.data()),
+      .len = value.size(),
+  };
+}
+
+inline cj_json_write_options_t to_native(const WriteOptions& options) noexcept {
+  return {
+      .pretty = options.pretty,
+      .validate_default_themes = options.validate_default_themes,
+  };
+}
+
+inline cj_transform_t to_native(const Transform& transform) noexcept {
+  return {
+      .scale_x = transform.scale[0],
+      .scale_y = transform.scale[1],
+      .scale_z = transform.scale[2],
+      .translate_x = transform.translate[0],
+      .translate_y = transform.translate[1],
+      .translate_z = transform.translate[2],
+  };
 }
 
 inline std::string take_string(cj_bytes_t bytes) {
@@ -221,6 +259,22 @@ class Model final {
     return take_string(bytes);
   }
 
+  void set_metadata_title(std::string_view title) {
+    check_status(cj_model_set_metadata_title(handle_, to_view(title)));
+  }
+
+  void set_metadata_identifier(std::string_view identifier) {
+    check_status(cj_model_set_metadata_identifier(handle_, to_view(identifier)));
+  }
+
+  void set_transform(const Transform& transform) {
+    check_status(cj_model_set_transform(handle_, to_native(transform)));
+  }
+
+  void clear_transform() {
+    check_status(cj_model_clear_transform(handle_));
+  }
+
   [[nodiscard]] std::vector<std::string> cityobject_ids() const {
     const auto model_summary = summary();
     std::vector<std::string> ids;
@@ -233,6 +287,23 @@ class Model final {
     }
 
     return ids;
+  }
+
+  void add_cityobject(std::string_view id, std::string_view cityobject_type) {
+    check_status(cj_model_add_cityobject(handle_, to_view(id), to_view(cityobject_type)));
+  }
+
+  void remove_cityobject(std::string_view id) {
+    check_status(cj_model_remove_cityobject(handle_, to_view(id)));
+  }
+
+  void attach_geometry_to_cityobject(std::string_view cityobject_id, std::size_t geometry_index) {
+    check_status(cj_model_attach_geometry_to_cityobject(
+        handle_, to_view(cityobject_id), geometry_index));
+  }
+
+  void clear_cityobject_geometry(std::string_view cityobject_id) {
+    check_status(cj_model_clear_cityobject_geometry(handle_, to_view(cityobject_id)));
   }
 
   [[nodiscard]] std::vector<GeometryType> geometry_types() const {
@@ -279,16 +350,84 @@ class Model final {
     return take_vertices(vertices);
   }
 
-  [[nodiscard]] std::string serialize_document() const {
+  [[nodiscard]] std::size_t add_geometry_from_boundary(
+      const GeometryBoundary& boundary,
+      std::string_view lod = {}) {
+    const auto build_view = [](const std::vector<std::size_t>& values) {
+      return cj_indices_view_t{
+          .data = values.empty() ? nullptr : values.data(),
+          .len = values.size(),
+      };
+    };
+
+    cj_geometry_boundary_view_t view{
+        .geometry_type = boundary.geometry_type,
+        .vertex_indices = build_view(boundary.vertex_indices),
+        .ring_offsets = build_view(boundary.ring_offsets),
+        .surface_offsets = build_view(boundary.surface_offsets),
+        .shell_offsets = build_view(boundary.shell_offsets),
+        .solid_offsets = build_view(boundary.solid_offsets),
+    };
+
+    std::size_t index = 0U;
+    check_status(cj_model_add_geometry_from_boundary(
+        handle_, view, to_view(lod), &index));
+    return index;
+  }
+
+  [[nodiscard]] std::string serialize_document(const WriteOptions& options = {}) const {
     cj_bytes_t bytes{};
-    check_status(cj_model_serialize_document(handle_, &bytes));
+    check_status(cj_model_serialize_document_with_options(handle_, to_native(options), &bytes));
     return take_string(bytes);
   }
 
-  [[nodiscard]] std::string serialize_feature() const {
+  [[nodiscard]] std::string serialize_feature(const WriteOptions& options = {}) const {
     cj_bytes_t bytes{};
-    check_status(cj_model_serialize_feature(handle_, &bytes));
+    check_status(cj_model_serialize_feature_with_options(handle_, to_native(options), &bytes));
     return take_string(bytes);
+  }
+
+  [[nodiscard]] static std::vector<std::uint8_t> serialize_feature_stream(
+      std::span<const Model* const> models,
+      const WriteOptions& options = {}) {
+    std::vector<const cj_model_t*> handles;
+    handles.reserve(models.size());
+    for (const Model* model : models) {
+      handles.push_back(model->raw_handle());
+    }
+
+    cj_bytes_t bytes{};
+    check_status(cj_model_serialize_feature_stream(
+        handles.empty() ? nullptr : handles.data(), handles.size(), to_native(options), &bytes));
+    return take_bytes(bytes);
+  }
+
+  [[nodiscard]] static Model merge_feature_stream(std::span<const std::uint8_t> bytes) {
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_parse_feature_stream_merge_bytes(
+        span_data(bytes), bytes.size(), &handle));
+    return Model(handle);
+  }
+
+  [[nodiscard]] Model extract_cityobjects(std::span<const std::string_view> ids) const {
+    std::vector<cj_string_view_t> views;
+    views.reserve(ids.size());
+    for (const std::string_view id : ids) {
+      views.push_back(to_view(id));
+    }
+
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_extract_cityobjects(
+        handle_, views.empty() ? nullptr : views.data(), views.size(), &handle));
+    return Model(handle);
+  }
+
+  void append_model(const Model& source) {
+    check_status(cj_model_append_model(handle_, source.raw_handle()));
+  }
+
+  void cleanup() {
+    check_status(cj_model_cleanup(handle_));
   }
 
   void reserve_import(const ModelCapacities& capacities) {

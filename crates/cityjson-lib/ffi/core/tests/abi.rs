@@ -3,10 +3,11 @@ use std::slice;
 
 use cjlib_ffi_core::exports::*;
 use cjlib_ffi_core::{
-    AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_type_t,
-    cj_indices_t, cj_model_capacities_t, cj_model_summary_t, cj_model_type_t, cj_probe_t,
-    cj_root_kind_t, cj_status_t, cj_uv_t, cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t,
-    run_ffi,
+    AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
+    cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
+    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
+    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t,
+    cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -34,6 +35,20 @@ fn bytes_to_string(bytes: cj_bytes_t) -> String {
         .to_owned();
     assert_eq!(cj_bytes_free(bytes), cj_status_t::CJ_STATUS_SUCCESS);
     string
+}
+
+fn string_view(value: &str) -> cj_string_view_t {
+    cj_string_view_t {
+        data: value.as_ptr(),
+        len: value.len(),
+    }
+}
+
+fn indices_view(values: &[usize]) -> cj_indices_view_t {
+    cj_indices_view_t {
+        data: values.as_ptr(),
+        len: values.len(),
+    }
 }
 
 fn vertices_to_vec(vertices: cj_vertices_t) -> Vec<cj_vertex_t> {
@@ -509,6 +524,256 @@ fn model_creation_reserve_and_vertex_insertion_work() {
     assert!(summary.has_templates);
 
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+fn build_targeted_fixture() -> *mut cj_model_t {
+    let mut handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_create(cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON, &raw mut handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    assert_eq!(
+        cj_model_set_metadata_title(handle, string_view("Generated Fixture")),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_set_metadata_identifier(handle, string_view("generated-1")),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_set_transform(
+            handle,
+            cj_transform_t {
+                scale_x: 1.0,
+                scale_y: 1.0,
+                scale_z: 1.0,
+                translate_x: 10.0,
+                translate_y: 20.0,
+                translate_z: 0.0,
+            },
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    for vertex in [
+        cj_vertex_t {
+            x: 10.0,
+            y: 20.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 11.0,
+            y: 20.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 11.0,
+            y: 21.0,
+            z: 0.0,
+        },
+        cj_vertex_t {
+            x: 10.0,
+            y: 21.0,
+            z: 0.0,
+        },
+    ] {
+        let mut index = 0usize;
+        assert_eq!(
+            cj_model_add_vertex(handle, vertex, &raw mut index),
+            cj_status_t::CJ_STATUS_SUCCESS
+        );
+    }
+
+    assert_eq!(
+        cj_model_add_cityobject(handle, string_view("building-a"), string_view("Building")),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let vertex_indices = [0usize, 1, 2, 3, 0];
+    let ring_offsets = [0usize];
+    let surface_offsets = [0usize];
+    let mut geometry_index = usize::MAX;
+    assert_eq!(
+        cj_model_add_geometry_from_boundary(
+            handle,
+            cj_geometry_boundary_view_t {
+                geometry_type: cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+                vertex_indices: indices_view(&vertex_indices),
+                ring_offsets: indices_view(&ring_offsets),
+                surface_offsets: indices_view(&surface_offsets),
+                shell_offsets: indices_view(&[]),
+                solid_offsets: indices_view(&[]),
+            },
+            string_view("2.2"),
+            &raw mut geometry_index,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(geometry_index, 0);
+
+    assert_eq!(
+        cj_model_attach_geometry_to_cityobject(handle, string_view("building-a"), geometry_index),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    handle
+}
+
+#[test]
+fn targeted_mutation_and_write_options_work() {
+    let handle = build_targeted_fixture();
+
+    let mut pretty = cj_bytes_t::default();
+    assert_eq!(
+        cj_model_serialize_document_with_options(
+            handle,
+            cj_json_write_options_t {
+                pretty: true,
+                validate_default_themes: false,
+            },
+            &raw mut pretty,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let pretty = bytes_to_string(pretty);
+    assert!(pretty.contains("\"title\": \"Generated Fixture\""));
+    assert!(pretty.contains("\"identifier\": \"generated-1\""));
+    assert!(pretty.contains("\"transform\""));
+    assert!(pretty.contains("\"type\": \"MultiSurface\""));
+
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
+fn targeted_cleanup_work() {
+    let handle = build_targeted_fixture();
+
+    assert_eq!(
+        cj_model_clear_transform(handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut compact = cj_bytes_t::default();
+    assert_eq!(
+        cj_model_serialize_document(handle, &raw mut compact),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let compact = bytes_to_string(compact);
+    assert!(!compact.contains("\"transform\""));
+
+    assert_eq!(
+        cj_model_remove_cityobject(handle, string_view("building-a")),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(cj_model_cleanup(handle), cj_status_t::CJ_STATUS_SUCCESS);
+
+    let mut summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(handle, &raw mut summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(summary.cityobject_count, 0);
+
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
+fn append_extract_and_feature_stream_exports_work() {
+    let mut first = ptr::null_mut();
+    let feature_one = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+    assert_eq!(
+        cj_model_parse_feature_bytes(feature_one.as_ptr(), feature_one.len(), &raw mut first),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut second = ptr::null_mut();
+    let feature_two = br#"{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}"#;
+    assert_eq!(
+        cj_model_parse_feature_bytes(feature_two.as_ptr(), feature_two.len(), &raw mut second),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    assert_eq!(
+        cj_model_append_model(first, second),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(first, &raw mut summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(summary.cityobject_count, 2);
+
+    let ids = [string_view("feature-2")];
+    let mut extracted = ptr::null_mut();
+    assert_eq!(
+        cj_model_extract_cityobjects(first, ids.as_ptr(), ids.len(), &raw mut extracted),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut extracted_summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(extracted, &raw mut extracted_summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(extracted_summary.cityobject_count, 1);
+
+    let mut base = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut base),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut feature = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_feature_bytes(
+            feature_payload().as_ptr(),
+            feature_payload().len(),
+            &raw mut feature,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let stream_models = [base.cast_const(), feature.cast_const()];
+    let mut stream = cj_bytes_t::default();
+    assert_eq!(
+        cj_model_serialize_feature_stream(
+            stream_models.as_ptr(),
+            stream_models.len(),
+            cj_json_write_options_t::default(),
+            &raw mut stream,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let stream_text = bytes_to_string(stream);
+    assert!(stream_text.contains("\"type\":\"CityJSON\""));
+    assert!(stream_text.contains("\"type\":\"CityJSONFeature\""));
+
+    let mut merged = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_feature_stream_merge_bytes(
+            stream_text.as_ptr(),
+            stream_text.len(),
+            &raw mut merged,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    let mut merged_summary = cj_model_summary_t::default();
+    assert_eq!(
+        cj_model_get_summary(merged, &raw mut merged_summary),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        merged_summary.model_type,
+        cj_model_type_t::CJ_MODEL_TYPE_CITY_JSON
+    );
+    assert!(merged_summary.cityobject_count >= 3);
+
+    assert_eq!(cj_model_free(merged), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(feature), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(base), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(extracted), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(second), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(first), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
 #[test]

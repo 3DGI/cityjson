@@ -40,6 +40,12 @@ The FFI section is split into:
   Decision records that freeze the cross-cutting ABI and header workflow
   choices, including the copied coordinate-buffer and columnar boundary
   layouts.
+- [Model-authoritative JSON workflows](../adr/0006-model-authoritative-json-ffi-workflows.md)
+  Decision record for append, extract, and cleanup over Rust-owned models with
+  JSON roundtrips.
+- [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md)
+  Decision record for the initial pretty/validation write options and the
+  bytes-based feature-stream contract.
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.

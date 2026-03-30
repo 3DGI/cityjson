@@ -191,6 +191,15 @@ Design rules:
 - prefer batched insertion APIs over many single-element crossings
 - do not let wrapper ergonomics distort the shared semantic model
 
+Implementation choice:
+
+- the shared ABI should expose direct model edits, but the canonical model
+  semantics remain Rust-owned
+- root metadata, transform, object creation, geometry attachment, and geometry
+  insertion from boundary payloads are the supported first-wave mutation paths
+- appearance and semantic resources stay model-authoritative rather than
+  wrapper-owned
+
 Parallelization:
 
 - Stream A implements the shared calls
@@ -212,6 +221,20 @@ Design rules:
 - keep these operations explicit rather than folding them into ordinary edits
 - preserve Rust ownership of semantic invariants
 - return enough diagnostics for wrapper-level reporting
+
+Implementation choice:
+
+- import, extract, append, and cleanup are implemented as model-authoritative
+  JSON workflows
+- the shared core serializes the current Rust model, applies explicit selection
+  or merge logic to the JSON root, then parses the result back into a Rust-owned
+  model
+- append is intentionally conservative in the first cut:
+  - source and target must have the same root kind
+  - source and target must have matching root transforms
+  - appearance resources and geometry templates are not merged in this slice
+  - appended geometry is remapped by vertex offset, while extract prunes
+    child/parent links outside the selected object set
 
 Parallelization:
 
@@ -235,6 +258,16 @@ Design rules:
 - make callback ownership and reentrancy rules precise before exposing streams
 - do not mix JSON-specific options into generic wrapper APIs without clear
   naming
+
+Implementation choice:
+
+- document and feature serialization start with explicit JSON write options
+  for pretty-printing and default-theme validation
+- feature streams are handled as newline-delimited feature bytes on the Rust
+  side, with a bytes-in/bytes-out ABI first rather than callback-based stream
+  ownership
+- transform control stays a separate model mutation concern, while quantization
+  remains a later extension once a concrete serializer contract needs it
 
 Parallelization:
 

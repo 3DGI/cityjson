@@ -29,6 +29,8 @@ nav:
       - FFI Inspection And Coordinate Buffers: adr/0003-shared-ffi-inspection-and-coordinate-buffers.md
       - Wrapper Milestone One Shape: adr/0004-wrapper-milestone-one-shape.md
       - Columnar Geometry Boundary ABI: adr/0005-columnar-geometry-boundary-abi.md
+      - Model-Authoritative JSON Workflows: adr/0006-model-authoritative-json-ffi-workflows.md
+      - JSON Write Options And Feature Streams: adr/0007-json-write-options-and-feature-stream-bytes.md
 theme:
   name: material
   features:

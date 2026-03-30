@@ -10,10 +10,14 @@ from cjlib import (
     ModelCapacities,
     ModelType,
     RootKind,
+    Transform,
     UV,
+    WriteOptions,
     Version,
     Vertex,
+    merge_feature_stream_bytes,
     probe_bytes,
+    serialize_feature_stream,
 )
 
 
@@ -21,7 +25,7 @@ FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" /
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
-    def test_parse_inspect_and_serialize_document(self) -> None:
+    def test_parse_edit_extract_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 
         probe = probe_bytes(payload)
@@ -88,25 +92,117 @@ class PythonBindingSmokeTest(unittest.TestCase):
             model.geometry_boundary_coordinates(1),
             [Vertex(12.0, 22.0, 0.0)],
         )
-        self.assertEqual(len(model.vertices()), 5)
-        self.assertEqual(model.vertices()[0].x, 10.0)
-        self.assertEqual(model.vertices()[4].y, 22.0)
+
+        model.set_metadata_title("Updated Facade Fixture")
+        model.set_metadata_identifier("fixture-1-updated")
+        model.set_transform(Transform(scale=(0.5, 0.5, 1.0), translate=(10.0, 20.0, 0.0)))
+        model.clear_transform()
+        model.add_cityobject("annex-1", "Building")
+        annex_vertex = model.add_vertex(Vertex(13.0, 23.0, 0.0))
+        annex_geometry = model.add_geometry_from_boundary(
+            GeometryBoundary(
+                geometry_type=GeometryType.MULTI_POINT,
+                has_boundaries=True,
+                vertex_indices=[annex_vertex],
+                ring_offsets=[],
+                surface_offsets=[],
+                shell_offsets=[],
+                solid_offsets=[],
+            )
+        )
+        model.attach_geometry_to_cityobject("annex-1", annex_geometry)
+        model.clear_cityobject_geometry("annex-1")
+        model.attach_geometry_to_cityobject("annex-1", annex_geometry)
+
+        extracted = model.extract_cityobjects(["annex-1"])
+        self.addCleanup(extracted.close)
+
+        self.assertEqual(extracted.cityobject_ids(), ["annex-1"])
+        self.assertEqual(extracted.geometry_types(), [GeometryType.MULTI_POINT])
+        self.assertIn("Updated Facade Fixture", extracted.serialize_document(WriteOptions()))
+
+        pretty_document = extracted.serialize_document(WriteOptions(pretty=True))
+        self.assertIn("\n", pretty_document)
+        self.assertIn("Updated Facade Fixture", pretty_document)
+
+        self.assertIn("fixture-1-updated", model.serialize_document())
+        self.assertEqual(len(model.vertices()), 6)
+        self.assertEqual(model.vertices()[0].x, 0.0)
+        self.assertEqual(model.vertices()[4].y, 4.0)
         self.assertEqual(len(model.uv_coordinates()), 4)
         self.assertIn('"type":"CityJSON"', model.serialize_document())
 
-    def test_create_and_add_vertices(self) -> None:
+    def test_append_and_cleanup_workflows(self) -> None:
         model = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
         self.addCleanup(model.close)
 
-        capacities = ModelCapacities(vertices=2, template_vertices=1, uv_coordinates=1)
-        model.reserve_import(capacities)
+        other = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
+        self.addCleanup(other.close)
 
-        self.assertEqual(model.add_vertex(Vertex(1.0, 2.0, 3.0)), 0)
-        self.assertEqual(model.add_template_vertex(Vertex(4.0, 5.0, 6.0)), 0)
-        self.assertEqual(model.add_uv_coordinate(UV(0.25, 0.75)), 0)
+        removal = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
+        self.addCleanup(removal.close)
+        removal.add_cityobject("remove-me", "Building")
+        self.assertEqual(removal.summary().cityobject_count, 1)
+        removal.remove_cityobject("remove-me")
+        self.assertEqual(removal.summary().cityobject_count, 0)
+
+        model.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
+        other.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
+
+        model.add_cityobject("feature-a", "Building")
+        first_vertex = model.add_vertex(Vertex(1.0, 2.0, 3.0))
+        first_geometry = model.add_geometry_from_boundary(
+            GeometryBoundary(
+                geometry_type=GeometryType.MULTI_POINT,
+                has_boundaries=True,
+                vertex_indices=[first_vertex],
+                ring_offsets=[],
+                surface_offsets=[],
+                shell_offsets=[],
+                solid_offsets=[],
+            )
+        )
+        model.attach_geometry_to_cityobject("feature-a", first_geometry)
+
+        other.add_cityobject("feature-b", "BuildingPart")
+        second_vertex = other.add_vertex(Vertex(4.0, 5.0, 6.0))
+        second_geometry = other.add_geometry_from_boundary(
+            GeometryBoundary(
+                geometry_type=GeometryType.MULTI_POINT,
+                has_boundaries=True,
+                vertex_indices=[second_vertex],
+                ring_offsets=[],
+                surface_offsets=[],
+                shell_offsets=[],
+                solid_offsets=[],
+            )
+        )
+        other.attach_geometry_to_cityobject("feature-b", second_geometry)
+
+        model.append_model(other)
+        model.cleanup()
 
         summary = model.summary()
         self.assertEqual(summary.model_type, ModelType.CITY_JSON_FEATURE)
-        self.assertEqual(summary.vertex_count, 1)
-        self.assertEqual(summary.template_vertex_count, 1)
-        self.assertEqual(summary.uv_coordinate_count, 1)
+        self.assertEqual(summary.cityobject_count, 2)
+        self.assertEqual(summary.geometry_count, 2)
+        self.assertEqual(summary.vertex_count, 2)
+        self.assertEqual(model.cityobject_ids(), ["feature-a", "feature-b"])
+        self.assertIn("feature-a", model.serialize_feature(WriteOptions(pretty=True)))
+
+    def test_feature_stream_helpers_round_trip(self) -> None:
+        payload = FIXTURE_PATH.read_bytes()
+        feature_payload = (
+            b'{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}'
+        )
+
+        feature_model = CityModel.parse_feature_with_base_bytes(feature_payload, payload)
+        self.addCleanup(feature_model.close)
+
+        stream = serialize_feature_stream([feature_model], WriteOptions())
+        self.assertIn('"type":"CityJSONFeature"', stream)
+
+        merged = merge_feature_stream_bytes(payload + b"\n" + stream.encode("utf-8"))
+        self.addCleanup(merged.close)
+        self.assertIn("feature-1", merged.cityobject_ids())
+        self.assertEqual(merged.summary().cityobject_count, 3)

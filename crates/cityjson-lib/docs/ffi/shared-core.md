@@ -50,6 +50,12 @@ Every target should map onto the same low-level concepts:
 The shared core should expose the operations that every binding needs, even if
 some targets choose not to expose them all publicly.
 
+For the advanced workflow slice, the current direction is model-authoritative:
+append, extract, and cleanup are expressed as explicit model operations over
+Rust-owned state, with JSON roundtrips used to preserve the canonical serializer
+and validator behavior. That keeps the shared contract aligned with the Rust
+model instead of exposing a parallel foreign import format.
+
 ## Required Low-level Operations
 
 At minimum, the shared core should support:

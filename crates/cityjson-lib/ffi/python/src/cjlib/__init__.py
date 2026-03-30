@@ -9,11 +9,16 @@ from cjlib._ffi import (
     CjlibError,
     FfiLibrary,
     GeometryType,
+    GeometryBoundaryPayload,
     ModelCapacitiesStruct,
     ModelType,
     RootKind,
     Status,
+    StringViewStruct,
+    TransformStruct,
     Version,
+    WriteOptionsStruct,
+    WriteOptionsPayload,
 )
 
 __version__ = "0.1.0"
@@ -60,6 +65,47 @@ class GeometryBoundary:
     surface_offsets: list[int]
     shell_offsets: list[int]
     solid_offsets: list[int]
+
+    def to_native_payload(self) -> GeometryBoundaryPayload:
+        return GeometryBoundaryPayload(
+            geometry_type=self.geometry_type,
+            has_boundaries=self.has_boundaries,
+            vertex_indices=self.vertex_indices,
+            ring_offsets=self.ring_offsets,
+            surface_offsets=self.surface_offsets,
+            shell_offsets=self.shell_offsets,
+            solid_offsets=self.solid_offsets,
+        )
+
+
+@dataclass(frozen=True)
+class WriteOptions:
+    pretty: bool = False
+    validate_default_themes: bool = True
+
+    def to_native(self) -> WriteOptionsStruct:
+        return _ffi.write_options(
+            WriteOptionsPayload(
+                pretty=self.pretty,
+                validate_default_themes=self.validate_default_themes,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class Transform:
+    scale: tuple[float, float, float]
+    translate: tuple[float, float, float]
+
+    def to_native(self) -> TransformStruct:
+        return TransformStruct(
+            scale_x=self.scale[0],
+            scale_y=self.scale[1],
+            scale_z=self.scale[2],
+            translate_x=self.translate[0],
+            translate_y=self.translate[1],
+            translate_z=self.translate[2],
+        )
 
 
 @dataclass(frozen=True)
@@ -214,11 +260,49 @@ class CityModel:
     def uv_coordinates(self) -> list[UV]:
         return [UV(u=item.u, v=item.v) for item in _ffi.uv_coordinates(self._handle)]
 
-    def serialize_document(self) -> str:
-        return _ffi.serialize_document(self._handle).decode("utf-8")
+    def set_metadata_title(self, title: str) -> None:
+        _ffi.set_metadata_title(self._handle, title)
 
-    def serialize_feature(self) -> str:
-        return _ffi.serialize_feature(self._handle).decode("utf-8")
+    def set_metadata_identifier(self, identifier: str) -> None:
+        _ffi.set_metadata_identifier(self._handle, identifier)
+
+    def set_transform(self, transform: Transform) -> None:
+        _ffi.set_transform(self._handle, transform.to_native())
+
+    def clear_transform(self) -> None:
+        _ffi.clear_transform(self._handle)
+
+    def add_cityobject(self, cityobject_id: str, cityobject_type: str) -> None:
+        _ffi.add_cityobject(self._handle, cityobject_id, cityobject_type)
+
+    def remove_cityobject(self, cityobject_id: str) -> None:
+        _ffi.remove_cityobject(self._handle, cityobject_id)
+
+    def attach_geometry_to_cityobject(self, cityobject_id: str, geometry_index: int) -> None:
+        _ffi.attach_geometry_to_cityobject(self._handle, cityobject_id, geometry_index)
+
+    def clear_cityobject_geometry(self, cityobject_id: str) -> None:
+        _ffi.clear_cityobject_geometry(self._handle, cityobject_id)
+
+    def add_geometry_from_boundary(self, boundary: GeometryBoundary, lod: str | None = None) -> int:
+        return _ffi.add_geometry_from_boundary(self._handle, boundary.to_native_payload(), lod)
+
+    def append_model(self, other: Self) -> None:
+        _ffi.append_model(self._handle, other._handle)
+
+    def extract_cityobjects(self, cityobject_ids: list[str]) -> Self:
+        return type(self)(_ffi.extract_cityobjects(self._handle, cityobject_ids))
+
+    def cleanup(self) -> None:
+        _ffi.cleanup(self._handle)
+
+    def serialize_document(self, options: WriteOptions | None = None) -> str:
+        payload = options.to_native() if options is not None else WriteOptions().to_native()
+        return _ffi.serialize_document_with_options(self._handle, payload).decode("utf-8")
+
+    def serialize_feature(self, options: WriteOptions | None = None) -> str:
+        payload = options.to_native() if options is not None else WriteOptions().to_native()
+        return _ffi.serialize_feature_with_options(self._handle, payload).decode("utf-8")
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._handle, capacities.to_native())
@@ -231,3 +315,16 @@ class CityModel:
 
     def add_uv_coordinate(self, uv: UV) -> int:
         return _ffi.add_uv_coordinate(self._handle, uv.u, uv.v)
+
+
+def merge_feature_stream_bytes(data: bytes | bytearray | memoryview) -> CityModel:
+    return CityModel(_ffi.parse_feature_stream_merge(_as_bytes(data)))
+
+
+def serialize_feature_stream(
+    models: list[CityModel],
+    options: WriteOptions | None = None,
+) -> str:
+    payload = options.to_native() if options is not None else WriteOptions().to_native()
+    handles = [model._handle for model in models]
+    return _ffi.serialize_feature_stream(handles, payload).decode("utf-8")

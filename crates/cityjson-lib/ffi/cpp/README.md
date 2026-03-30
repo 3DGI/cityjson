@@ -13,7 +13,9 @@ The current wrapper is intentionally small:
 - RAII ownership for `cj_model_t`
 - probe, parse, serialize, and create helpers
 - model summary queries
-- metadata, cityobject ID, geometry-type, and coordinate access
+- metadata setters and getters, cityobject inspection, geometry-type, and coordinate access
+- transform write control, cityobject mutation, geometry attachment, extraction, append, and cleanup
+- boundary-backed geometry insertion and feature-stream serialization helpers
 - a CMake smoke test linked against the shared FFI library
 
 The C++ layer stays RAII-oriented and STL-friendly while compiling down to the

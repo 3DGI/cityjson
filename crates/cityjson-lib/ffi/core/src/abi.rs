@@ -233,6 +233,42 @@ impl cj_indices_t {
     }
 }
 
+/// Borrowed UTF-8 string view passed into the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_string_view_t {
+    pub data: *const u8,
+    pub len: usize,
+}
+
+impl cj_string_view_t {
+    pub const fn null() -> Self {
+        Self {
+            data: core::ptr::null(),
+            len: 0,
+        }
+    }
+}
+
+/// Borrowed index-slice view passed into the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_indices_view_t {
+    pub data: *const usize,
+    pub len: usize,
+}
+
+impl cj_indices_view_t {
+    pub const fn null() -> Self {
+        Self {
+            data: core::ptr::null(),
+            len: 0,
+        }
+    }
+}
+
 /// Owned flat boundary payload returned across the ABI.
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -245,6 +281,19 @@ pub struct cj_geometry_boundary_t {
     pub surface_offsets: cj_indices_t,
     pub shell_offsets: cj_indices_t,
     pub solid_offsets: cj_indices_t,
+}
+
+/// Borrowed flat boundary payload passed into the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_boundary_view_t {
+    pub geometry_type: cj_geometry_type_t,
+    pub vertex_indices: cj_indices_view_t,
+    pub ring_offsets: cj_indices_view_t,
+    pub surface_offsets: cj_indices_view_t,
+    pub shell_offsets: cj_indices_view_t,
+    pub solid_offsets: cj_indices_view_t,
 }
 
 /// Probe result returned by the low-level ABI.
@@ -306,6 +355,28 @@ pub struct cj_model_capacities_t {
     pub template_vertices: usize,
     pub template_geometries: usize,
     pub uv_coordinates: usize,
+}
+
+/// Explicit JSON write options for document, feature, and feature-stream output.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_json_write_options_t {
+    pub pretty: bool,
+    pub validate_default_themes: bool,
+}
+
+/// Explicit root-transform state for JSON write and edit workflows.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct cj_transform_t {
+    pub scale_x: f64,
+    pub scale_y: f64,
+    pub scale_z: f64,
+    pub translate_x: f64,
+    pub translate_y: f64,
+    pub translate_z: f64,
 }
 
 impl From<RootKind> for cj_root_kind_t {

@@ -3,13 +3,21 @@
 use std::ffi::c_char;
 use std::ptr::{self, NonNull};
 use std::slice;
+use std::str::FromStr;
 
+use cjlib::cityjson::v2_0::{
+    Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
+    BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
+    CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Geometry, GeometryType,
+    LoD, StoredGeometryParts,
+};
 use cjlib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_type_t, cj_indices_t,
+    cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
+    cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
     cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_status_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
@@ -49,6 +57,81 @@ fn required_bytes<'a>(
         .ok_or_else(|| invalid_argument(format!("{name} must not be null when len is non-zero")))?;
 
     // SAFETY: the caller promises `len` readable bytes when the pointer is non-null.
+    Ok(unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), len) })
+}
+
+fn optional_bytes<'a>(
+    data: *const u8,
+    len: usize,
+    name: &'static str,
+) -> Result<Option<&'a [u8]>, AbiError> {
+    if len == 0 {
+        return Ok(None);
+    }
+
+    required_bytes(data, len, name).map(Some)
+}
+
+fn optional_utf8(
+    data: *const u8,
+    len: usize,
+    name: &'static str,
+) -> Result<Option<String>, AbiError> {
+    optional_bytes(data, len, name)?
+        .map(|bytes| {
+            std::str::from_utf8(bytes)
+                .map(str::to_owned)
+                .map_err(|error| invalid_argument(format!("{name} must be valid UTF-8: {error}")))
+        })
+        .transpose()
+}
+
+fn required_utf8(data: *const u8, len: usize, name: &'static str) -> Result<String, AbiError> {
+    let bytes = required_bytes(data, len, name)?;
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .map_err(|error| invalid_argument(format!("{name} must be valid UTF-8: {error}")))
+}
+
+fn view_utf8(view: cj_string_view_t, name: &'static str) -> Result<String, AbiError> {
+    required_utf8(view.data, view.len, name)
+}
+
+fn optional_view_utf8(
+    view: cj_string_view_t,
+    name: &'static str,
+) -> Result<Option<String>, AbiError> {
+    optional_utf8(view.data, view.len, name)
+}
+
+fn required_indices_view(
+    view: cj_indices_view_t,
+    name: &'static str,
+) -> Result<&'static [usize], AbiError> {
+    if view.len == 0 {
+        return Ok(&[]);
+    }
+
+    let ptr = NonNull::new(view.data.cast_mut())
+        .ok_or_else(|| invalid_argument(format!("{name} must not be null when len is non-zero")))?;
+
+    // SAFETY: the caller promises `len` readable indices when the pointer is non-null.
+    Ok(unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), view.len) })
+}
+
+fn required_string_views(
+    data: *const cj_string_view_t,
+    len: usize,
+    name: &'static str,
+) -> Result<&'static [cj_string_view_t], AbiError> {
+    if len == 0 {
+        return Ok(&[]);
+    }
+
+    let ptr = NonNull::new(data.cast_mut())
+        .ok_or_else(|| invalid_argument(format!("{name} must not be null when len is non-zero")))?;
+
+    // SAFETY: the caller promises `len` readable views when the pointer is non-null.
     Ok(unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), len) })
 }
 
@@ -196,6 +279,247 @@ fn geometry_boundary_coordinates(
         .map_or_else(Vec::new, |coordinates| {
             coordinates.copied().map(Into::into).collect()
         }))
+}
+
+fn find_cityobject_mut<'a>(
+    model: &'a mut CityModel,
+    id: &str,
+) -> Result<&'a mut CityObject<cjlib::cityjson::resources::storage::OwnedStringStorage>, AbiError> {
+    model
+        .as_inner_mut()
+        .cityobjects_mut()
+        .iter_mut()
+        .find_map(|(_, cityobject)| (cityobject.id() == id).then_some(cityobject))
+        .ok_or_else(|| invalid_argument(format!("CityObject '{id}' was not found")))
+}
+
+fn find_geometry_handle(
+    model: &CityModel,
+    index: usize,
+) -> Result<cjlib::cityjson::resources::handles::GeometryHandle, AbiError> {
+    model
+        .as_inner()
+        .iter_geometries()
+        .nth(index)
+        .map(|(handle, _)| handle)
+        .ok_or_else(|| invalid_argument(format!("geometry index {index} is out of range")))
+}
+
+fn parse_lod(value: Option<String>) -> Result<Option<LoD>, AbiError> {
+    fn parse_one(lod: &str) -> Option<LoD> {
+        Some(match lod {
+            "0" => LoD::LoD0,
+            "0.0" => LoD::LoD0_0,
+            "0.1" => LoD::LoD0_1,
+            "0.2" => LoD::LoD0_2,
+            "0.3" => LoD::LoD0_3,
+            "1" => LoD::LoD1,
+            "1.0" => LoD::LoD1_0,
+            "1.1" => LoD::LoD1_1,
+            "1.2" => LoD::LoD1_2,
+            "1.3" => LoD::LoD1_3,
+            "2" => LoD::LoD2,
+            "2.0" => LoD::LoD2_0,
+            "2.1" => LoD::LoD2_1,
+            "2.2" => LoD::LoD2_2,
+            "2.3" => LoD::LoD2_3,
+            "3" => LoD::LoD3,
+            "3.0" => LoD::LoD3_0,
+            "3.1" => LoD::LoD3_1,
+            "3.2" => LoD::LoD3_2,
+            "3.3" => LoD::LoD3_3,
+            _ => return None,
+        })
+    }
+
+    value
+        .map(|lod| {
+            parse_one(&lod).ok_or_else(|| invalid_argument(format!("invalid lod value '{lod}'")))
+        })
+        .transpose()
+}
+
+fn geometry_type_from_abi(value: cj_geometry_type_t) -> GeometryType {
+    match value {
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT => GeometryType::MultiPoint,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_LINE_STRING => GeometryType::MultiLineString,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE => GeometryType::MultiSurface,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_COMPOSITE_SURFACE => GeometryType::CompositeSurface,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_SOLID => GeometryType::Solid,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SOLID => GeometryType::MultiSolid,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_COMPOSITE_SOLID => GeometryType::CompositeSolid,
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_GEOMETRY_INSTANCE => GeometryType::GeometryInstance,
+    }
+}
+
+fn convert_indices(indices: &[usize], name: &'static str) -> Result<Vec<u32>, AbiError> {
+    indices
+        .iter()
+        .map(|index| {
+            u32::try_from(*index)
+                .map_err(|_| invalid_argument(format!("{name} index {index} exceeds u32")))
+        })
+        .collect()
+}
+
+fn segment_ranges(
+    offsets: &[usize],
+    total_len: usize,
+    name: &'static str,
+) -> Result<Vec<(usize, usize)>, AbiError> {
+    if offsets.is_empty() {
+        return Ok(if total_len == 0 {
+            Vec::new()
+        } else {
+            vec![(0, total_len)]
+        });
+    }
+
+    if offsets[0] != 0 {
+        return Err(invalid_argument(format!(
+            "{name} offsets must start at zero"
+        )));
+    }
+
+    let mut ranges = Vec::with_capacity(offsets.len());
+    for (index, start) in offsets.iter().copied().enumerate() {
+        let end = offsets.get(index + 1).copied().unwrap_or(total_len);
+        if start > end || end > total_len {
+            return Err(invalid_argument(format!(
+                "{name} offsets must be monotonically increasing and within bounds"
+            )));
+        }
+        ranges.push((start, end));
+    }
+
+    Ok(ranges)
+}
+
+fn boundary_from_view(
+    view: cj_geometry_boundary_view_t,
+) -> Result<Option<Boundary<u32>>, AbiError> {
+    let vertices = required_indices_view(view.vertex_indices, "boundary.vertex_indices")?;
+    let ring_offsets = required_indices_view(view.ring_offsets, "boundary.ring_offsets")?;
+    let surface_offsets = required_indices_view(view.surface_offsets, "boundary.surface_offsets")?;
+    let shell_offsets = required_indices_view(view.shell_offsets, "boundary.shell_offsets")?;
+    let solid_offsets = required_indices_view(view.solid_offsets, "boundary.solid_offsets")?;
+
+    let vertices = convert_indices(vertices, "boundary.vertex_indices")?;
+    let ring_ranges = segment_ranges(ring_offsets, vertices.len(), "boundary.ring")?;
+    let rings = ring_ranges
+        .iter()
+        .map(|(start, end)| vertices[*start..*end].to_vec())
+        .collect::<Vec<_>>();
+
+    let boundary = match view.geometry_type {
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT => {
+            if !ring_offsets.is_empty()
+                || !surface_offsets.is_empty()
+                || !shell_offsets.is_empty()
+                || !solid_offsets.is_empty()
+            {
+                return Err(invalid_argument(
+                    "MultiPoint boundaries must not provide nested offsets",
+                ));
+            }
+            Some(BoundaryNestedMultiPoint::from(vertices).into())
+        }
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_LINE_STRING => {
+            if !surface_offsets.is_empty() || !shell_offsets.is_empty() || !solid_offsets.is_empty()
+            {
+                return Err(invalid_argument(
+                    "MultiLineString boundaries must only provide ring offsets",
+                ));
+            }
+            Some(
+                Boundary::try_from(BoundaryNestedMultiLineString::from(rings))
+                    .map_err(cjlib::Error::from)
+                    .map_err(AbiError::from)?,
+            )
+        }
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE
+        | cj_geometry_type_t::CJ_GEOMETRY_TYPE_COMPOSITE_SURFACE => {
+            if !shell_offsets.is_empty() || !solid_offsets.is_empty() {
+                return Err(invalid_argument(
+                    "surface boundaries must not provide shell or solid offsets",
+                ));
+            }
+            let surface_ranges = segment_ranges(surface_offsets, rings.len(), "boundary.surface")?;
+            let surfaces = surface_ranges
+                .iter()
+                .map(|(start, end)| rings[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            Some(
+                Boundary::try_from(BoundaryNestedMultiOrCompositeSurface::from(surfaces))
+                    .map_err(cjlib::Error::from)
+                    .map_err(AbiError::from)?,
+            )
+        }
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_SOLID => {
+            if !solid_offsets.is_empty() {
+                return Err(invalid_argument(
+                    "Solid boundaries must not provide solid offsets",
+                ));
+            }
+            let surface_ranges = segment_ranges(surface_offsets, rings.len(), "boundary.surface")?;
+            let surfaces = surface_ranges
+                .iter()
+                .map(|(start, end)| rings[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            let shell_ranges = segment_ranges(shell_offsets, surfaces.len(), "boundary.shell")?;
+            let shells = shell_ranges
+                .iter()
+                .map(|(start, end)| surfaces[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            Some(
+                Boundary::try_from(BoundaryNestedSolid::from(shells))
+                    .map_err(cjlib::Error::from)
+                    .map_err(AbiError::from)?,
+            )
+        }
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SOLID
+        | cj_geometry_type_t::CJ_GEOMETRY_TYPE_COMPOSITE_SOLID => {
+            let surface_ranges = segment_ranges(surface_offsets, rings.len(), "boundary.surface")?;
+            let surfaces = surface_ranges
+                .iter()
+                .map(|(start, end)| rings[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            let shell_ranges = segment_ranges(shell_offsets, surfaces.len(), "boundary.shell")?;
+            let shells = shell_ranges
+                .iter()
+                .map(|(start, end)| surfaces[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            let solid_ranges = segment_ranges(solid_offsets, shells.len(), "boundary.solid")?;
+            let solids = solid_ranges
+                .iter()
+                .map(|(start, end)| shells[*start..*end].to_vec())
+                .collect::<Vec<_>>();
+            Some(
+                Boundary::try_from(BoundaryNestedMultiOrCompositeSolid::from(solids))
+                    .map_err(cjlib::Error::from)
+                    .map_err(AbiError::from)?,
+            )
+        }
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_GEOMETRY_INSTANCE => None,
+    };
+
+    Ok(boundary)
+}
+
+fn geometry_from_boundary_view(
+    view: cj_geometry_boundary_view_t,
+    lod: Option<LoD>,
+) -> Result<Geometry<u32, cjlib::cityjson::resources::storage::OwnedStringStorage>, AbiError> {
+    let boundary = boundary_from_view(view)?;
+    Ok(Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: geometry_type_from_abi(view.geometry_type),
+        lod,
+        boundaries: boundary,
+        semantics: None,
+        materials: None,
+        textures: None,
+        instance: None,
+    }))
 }
 
 fn reject_unsupported_document_version(version: Option<CityJSONVersion>) -> Result<(), AbiError> {
@@ -744,5 +1068,327 @@ pub extern "C" fn cj_model_add_uv_coordinate(
             .map_err(cjlib::Error::from)?
             .to_usize();
         write_value(out_index, "out_index", index)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_title(
+    model: *mut cj_model_t,
+    title: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let title = view_utf8(title, "title")?;
+        let metadata = required_model_mut(model)?.as_inner_mut().metadata_mut();
+        metadata.set_title(title);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_identifier(
+    model: *mut cj_model_t,
+    identifier: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let identifier = view_utf8(identifier, "identifier")?;
+        let metadata = required_model_mut(model)?.as_inner_mut().metadata_mut();
+        metadata.set_identifier(CityModelIdentifier::new(identifier));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_transform(
+    model: *mut cj_model_t,
+    transform: cj_transform_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let transform_mut = required_model_mut(model)?.as_inner_mut().transform_mut();
+        transform_mut.set_scale([transform.scale_x, transform.scale_y, transform.scale_z]);
+        transform_mut.set_translate([
+            transform.translate_x,
+            transform.translate_y,
+            transform.translate_z,
+        ]);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model_ref = required_model_ref(model)?;
+        let bytes = cjlib::json::to_vec_with_options(
+            model_ref,
+            cjlib::json::WriteOptions {
+                pretty: false,
+                validate_default_themes: false,
+            },
+        )?;
+        let mut root = match serde_json::from_slice::<serde_json::Value>(&bytes)
+            .map_err(Error::from)
+            .map_err(AbiError::from)?
+        {
+            serde_json::Value::Object(root) => root,
+            _ => {
+                return Err(AbiError::from(Error::Import(
+                    "serialized CityJSON root is not an object".into(),
+                )));
+            }
+        };
+        root.remove("transform");
+        let bytes = serde_json::to_vec(&serde_json::Value::Object(root))
+            .map_err(Error::from)
+            .map_err(AbiError::from)?;
+        let replacement = match model_ref.as_inner().type_citymodel() {
+            CityModelType::CityJSON => cjlib::json::from_slice(&bytes)?,
+            CityModelType::CityJSONFeature => cjlib::json::from_feature_slice(&bytes)?,
+            other => return Err(AbiError::from(Error::UnsupportedType(other.to_string()))),
+        };
+        *required_model_mut(model)? = replacement;
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_cityobject(
+    model: *mut cj_model_t,
+    id: cj_string_view_t,
+    cityobject_type: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let id = view_utf8(id, "id")?;
+        let cityobject_type = view_utf8(cityobject_type, "cityobject_type")?;
+        let cityobject_type =
+            CityObjectType::from_str(&cityobject_type).map_err(cjlib::Error::from)?;
+        let cityobject = CityObject::new(CityObjectIdentifier::new(id), cityobject_type);
+        required_model_mut(model)?
+            .as_inner_mut()
+            .cityobjects_mut()
+            .add(cityobject)
+            .map_err(cjlib::Error::from)?;
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_remove_cityobject(
+    model: *mut cj_model_t,
+    id: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let id = view_utf8(id, "id")?;
+        let cityobjects = required_model_mut(model)?.as_inner_mut().cityobjects_mut();
+        let Some(handle) = cityobjects
+            .iter()
+            .find_map(|(handle, cityobject)| (cityobject.id() == id).then_some(handle))
+        else {
+            return Err(invalid_argument(format!("CityObject '{id}' was not found")));
+        };
+        cityobjects.remove(handle);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_attach_geometry_to_cityobject(
+    model: *mut cj_model_t,
+    cityobject_id: cj_string_view_t,
+    geometry_index: usize,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let cityobject_id = view_utf8(cityobject_id, "cityobject_id")?;
+        let geometry_handle = find_geometry_handle(required_model_ref(model)?, geometry_index)?;
+        find_cityobject_mut(required_model_mut(model)?, &cityobject_id)?
+            .add_geometry(geometry_handle);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_clear_cityobject_geometry(
+    model: *mut cj_model_t,
+    cityobject_id: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let cityobject_id = view_utf8(cityobject_id, "cityobject_id")?;
+        find_cityobject_mut(required_model_mut(model)?, &cityobject_id)?.clear_geometry();
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_geometry_from_boundary(
+    model: *mut cj_model_t,
+    boundary: cj_geometry_boundary_view_t,
+    lod: cj_string_view_t,
+    out_index: *mut usize,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let lod = parse_lod(optional_view_utf8(lod, "lod")?)?;
+        let geometry = geometry_from_boundary_view(boundary, lod)?;
+        let model = required_model_mut(model)?;
+        let index = model.as_inner().geometry_count();
+        model
+            .as_inner_mut()
+            .add_geometry(geometry)
+            .map_err(cjlib::Error::from)?;
+        write_value(out_index, "out_index", index)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_cleanup(model: *mut cj_model_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let cleaned = cjlib::ops::cleanup(required_model_ref(model)?)?;
+        *required_model_mut(model)? = cleaned;
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_append_model(
+    target_model: *mut cj_model_t,
+    source_model: *const cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let source = required_model_ref(source_model)?.clone();
+        cjlib::ops::append(required_model_mut(target_model)?, &source)?;
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_extract_cityobjects(
+    model: *const cj_model_t,
+    cityobject_ids: *const cj_string_view_t,
+    cityobject_count: usize,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let views = required_string_views(cityobject_ids, cityobject_count, "cityobject_ids")?;
+        let ids = views
+            .iter()
+            .map(|view| view_utf8(*view, "cityobject_ids[]"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let borrowed = ids.iter().map(String::as_str).collect::<Vec<_>>();
+        let extracted = cjlib::ops::extract(required_model_ref(model)?, borrowed)?;
+        write_model_handle(out_model, extracted)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_document_with_options(
+    model: *const cj_model_t,
+    options: cj_json_write_options_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let bytes = cjlib::json::to_vec_with_options(
+            required_model_ref(model)?,
+            cjlib::json::WriteOptions {
+                pretty: options.pretty,
+                validate_default_themes: options.validate_default_themes,
+            },
+        )?;
+        write_bytes(out_bytes, bytes)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_feature_with_options(
+    model: *const cj_model_t,
+    options: cj_json_write_options_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let bytes = cjlib::json::to_feature_vec_with_options(
+            required_model_ref(model)?,
+            cjlib::json::WriteOptions {
+                pretty: options.pretty,
+                validate_default_themes: options.validate_default_themes,
+            },
+        )?;
+        write_bytes(out_bytes, bytes)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_parse_feature_stream_merge_bytes(
+    data: *const u8,
+    len: usize,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let input = required_bytes(data, len, "data")?;
+        let model = cjlib::json::merge_feature_stream_slice(input)?;
+        write_model_handle(out_model, model)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_feature_stream(
+    models: *const *const cj_model_t,
+    model_count: usize,
+    options: cj_json_write_options_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if options.pretty {
+            return Err(AbiError::from(Error::UnsupportedFeature(
+                "pretty output is not supported for JSONL feature streams".into(),
+            )));
+        }
+
+        if model_count == 0 {
+            return write_bytes(out_bytes, Vec::new());
+        }
+
+        let models_ptr = NonNull::new(models.cast_mut()).ok_or_else(|| {
+            invalid_argument("models must not be null when model_count is non-zero")
+        })?;
+        let models =
+            unsafe { slice::from_raw_parts(models_ptr.as_ptr().cast_const(), model_count) };
+        let refs = models
+            .iter()
+            .map(|handle| required_model_ref(*handle))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if options.validate_default_themes {
+            for model in &refs {
+                model
+                    .as_inner()
+                    .validate_default_themes()
+                    .map_err(cjlib::Error::from)
+                    .map_err(AbiError::from)?;
+            }
+        }
+
+        let mut buffer = Vec::new();
+        for (index, model) in refs.iter().enumerate() {
+            match model.as_inner().type_citymodel() {
+                CityModelType::CityJSON => {
+                    if index != 0 {
+                        return Err(AbiError::from(Error::UnsupportedFeature(
+                            "only the first feature-stream item may be CityJSON".into(),
+                        )));
+                    }
+                    cjlib::json::to_writer_with_options(
+                        &mut buffer,
+                        model,
+                        cjlib::json::WriteOptions {
+                            pretty: false,
+                            validate_default_themes: options.validate_default_themes,
+                        },
+                    )?;
+                }
+                CityModelType::CityJSONFeature => {
+                    cjlib::json::to_feature_writer(&mut buffer, model)?;
+                }
+                other => return Err(AbiError::from(Error::UnsupportedType(other.to_string()))),
+            }
+            buffer.push(b'\n');
+        }
+        write_bytes(out_bytes, buffer)
     }))
 }
