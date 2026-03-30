@@ -38,3 +38,7 @@ harness = false
 [[bench]]
 name = "ndjson"
 harness = false
+
+[[bin]]
+name = "perf-test"
+path = "src/bin/perf-test.rs"
