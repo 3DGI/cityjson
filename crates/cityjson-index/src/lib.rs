@@ -30,6 +30,34 @@ pub struct CityIndex {
     backend: Box<dyn StorageBackend>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndexedFeatureRef {
+    pub feature_id: String,
+    pub source_id: i64,
+    pub source_path: PathBuf,
+    pub offset: u64,
+    pub length: u64,
+    pub vertices_offset: Option<u64>,
+    pub vertices_length: Option<u64>,
+    pub member_ranges_json: Option<String>,
+    pub bbox: BBox,
+}
+
+impl IndexedFeatureRef {
+    fn to_location(&self) -> FeatureLocation {
+        FeatureLocation {
+            feature_id: self.feature_id.clone(),
+            source_id: self.source_id,
+            source_path: self.source_path.clone(),
+            offset: self.offset,
+            length: self.length,
+            vertices_offset: self.vertices_offset,
+            vertices_length: self.vertices_length,
+            member_ranges_json: self.member_ranges_json.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DatasetLayoutKind {
     #[serde(rename = "ndjson")]
@@ -752,6 +780,49 @@ impl CityIndex {
         }))
     }
 
+    /// Returns every indexed feature as a page of lightweight references.
+    ///
+    /// Each page is ordered by the internal feature row id and can be used for
+    /// caller-managed parallel decoding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed or `page_size`
+    /// is zero.
+    pub fn iter_all_feature_ref_pages(
+        &self,
+        page_size: usize,
+    ) -> Result<impl Iterator<Item = Result<Vec<IndexedFeatureRef>>> + '_> {
+        self.index.lookup_all_ref_page_iter(page_size)
+    }
+
+    /// Returns every indexed feature as a page of lightweight references.
+    ///
+    /// This is a semantic alias of [`CityIndex::iter_all_feature_ref_pages`]
+    /// for callers that care primarily about bbox-oriented processing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed or `page_size`
+    /// is zero.
+    pub fn iter_all_bbox_pages(
+        &self,
+        page_size: usize,
+    ) -> Result<impl Iterator<Item = Result<Vec<IndexedFeatureRef>>> + '_> {
+        self.index.lookup_all_ref_page_iter(page_size)
+    }
+
+    /// Reconstructs a single indexed feature from a lightweight reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the feature cannot be reconstructed.
+    pub fn read_feature(&self, feature: &IndexedFeatureRef) -> Result<CityModel> {
+        let metadata = self.index.get_metadata(feature.source_id)?;
+        self.backend
+            .read_one(&feature.to_location(), Arc::clone(&metadata))
+    }
+
     /// Returns cached metadata entries.
     ///
     /// # Errors
@@ -783,6 +854,11 @@ struct FeatureLocation {
 struct IndexedFeatureLocation {
     row_id: i64,
     location: FeatureLocation,
+}
+
+struct IndexedFeatureRefLocation {
+    row_id: i64,
+    feature: IndexedFeatureRef,
 }
 
 struct FeatureIndexEntry {
@@ -822,6 +898,13 @@ struct AllLocationIter<'a> {
     index: &'a Index,
     last_row_id: Option<i64>,
     page: std::vec::IntoIter<IndexedFeatureLocation>,
+    finished: bool,
+}
+
+struct AllFeatureRefPageIter<'a> {
+    index: &'a Index,
+    page_size: usize,
+    last_row_id: Option<i64>,
     finished: bool,
 }
 
@@ -908,6 +991,43 @@ impl<'a> AllLocationIter<'a> {
     }
 }
 
+impl<'a> AllFeatureRefPageIter<'a> {
+    fn new(index: &'a Index, page_size: usize) -> Result<Self> {
+        if page_size == 0 {
+            return Err(import_error("page_size must be greater than zero"));
+        }
+        Ok(Self {
+            index,
+            page_size,
+            last_row_id: None,
+            finished: false,
+        })
+    }
+
+    fn next_page(&mut self) -> Result<Option<Vec<IndexedFeatureRef>>> {
+        if self.finished {
+            return Ok(None);
+        }
+
+        let page = self
+            .index
+            .lookup_all_ref_page(self.last_row_id, self.page_size)?;
+        if page.is_empty() {
+            self.finished = true;
+            return Ok(None);
+        }
+
+        self.last_row_id = Some(
+            page.last()
+                .expect("non-empty page should yield at least one feature")
+                .row_id,
+        );
+        Ok(Some(
+            page.into_iter().map(|record| record.feature).collect(),
+        ))
+    }
+}
+
 impl Iterator for BBoxLocationIter<'_> {
     type Item = Result<FeatureLocation>;
 
@@ -929,6 +1049,21 @@ impl Iterator for AllLocationIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_location() {
             Ok(Some(feature)) => Some(Ok(feature)),
+            Ok(None) => None,
+            Err(error) => {
+                self.finished = true;
+                Some(Err(error))
+            }
+        }
+    }
+}
+
+impl Iterator for AllFeatureRefPageIter<'_> {
+    type Item = Result<Vec<IndexedFeatureRef>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_page() {
+            Ok(Some(page)) => Some(Ok(page)),
             Ok(None) => None,
             Err(error) => {
                 self.finished = true;
@@ -1077,6 +1212,10 @@ impl Index {
         AllLocationIter::new(self)
     }
 
+    fn lookup_all_ref_page_iter(&self, page_size: usize) -> Result<AllFeatureRefPageIter<'_>> {
+        AllFeatureRefPageIter::new(self, page_size)
+    }
+
     fn lookup_bbox_page(
         &self,
         bbox: &BBox,
@@ -1148,6 +1287,42 @@ impl Index {
         let rows = sqlite_result(stmt.query_map(
             params![after_row_id, limit],
             Self::indexed_feature_location_from_row,
+        ))?;
+        sqlite_result(rows.collect())
+    }
+
+    fn lookup_all_ref_page(
+        &self,
+        after_row_id: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<IndexedFeatureRefLocation>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT
+                f.id,
+                f.feature_id,
+                s.id,
+                f.path,
+                f.offset,
+                f.length,
+                s.vertices_offset,
+                s.vertices_length,
+                f.member_ranges,
+                fb.min_x,
+                fb.max_x,
+                fb.min_y,
+                fb.max_y
+            FROM features AS f
+            JOIN sources AS s ON s.id = f.source_id
+            JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+            WHERE (?1 IS NULL OR f.id > ?1)
+            ORDER BY f.id
+            LIMIT ?2
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map(
+            params![after_row_id, limit],
+            Self::indexed_feature_ref_location_from_row,
         ))?;
         sqlite_result(rows.collect())
     }
@@ -1446,6 +1621,47 @@ impl Index {
         let row_id = row.get::<_, i64>(0)?;
         let location = Self::feature_location_from_row_offset(row, 1)?;
         Ok(IndexedFeatureLocation { row_id, location })
+    }
+
+    fn indexed_feature_ref_location_from_row(
+        row: &rusqlite::Row<'_>,
+    ) -> rusqlite::Result<IndexedFeatureRefLocation> {
+        let row_id = row.get::<_, i64>(0)?;
+        let feature_id = row.get::<_, String>(1)?;
+        let source_id = row.get::<_, i64>(2)?;
+        let source_path = PathBuf::from(row.get::<_, String>(3)?);
+        let offset = i64_to_u64(row.get::<_, i64>(4)?)?;
+        let length = i64_to_u64(row.get::<_, i64>(5)?)?;
+        let vertices_offset = match row.get::<_, Option<i64>>(6)? {
+            Some(value) => Some(i64_to_u64(value)?),
+            None => None,
+        };
+        let vertices_length = match row.get::<_, Option<i64>>(7)? {
+            Some(value) => Some(i64_to_u64(value)?),
+            None => None,
+        };
+        let member_ranges_json = row.get::<_, Option<String>>(8)?;
+        let bbox = BBox {
+            min_x: row.get::<_, f64>(9)?,
+            max_x: row.get::<_, f64>(10)?,
+            min_y: row.get::<_, f64>(11)?,
+            max_y: row.get::<_, f64>(12)?,
+        };
+
+        Ok(IndexedFeatureRefLocation {
+            row_id,
+            feature: IndexedFeatureRef {
+                feature_id,
+                source_id,
+                source_path,
+                offset,
+                length,
+                vertices_offset,
+                vertices_length,
+                member_ranges_json,
+                bbox,
+            },
+        })
     }
 }
 
@@ -3074,6 +3290,7 @@ mod tests {
         .expect("ndjson index should open");
         ndjson_index.reindex().expect("ndjson dataset should index");
         assert_full_scan_order(&ndjson_index, &expected_ids);
+        assert_full_scan_pages(&ndjson_index, &expected_ids);
     }
 
     #[test]
@@ -3100,6 +3317,63 @@ mod tests {
         assert_eq!(scanned_ids.len(), 600);
         assert_eq!(scanned_ids.first().expect("first id"), "feature-000");
         assert_eq!(scanned_ids.last().expect("last id"), "feature-599");
+
+        let ref_pages = index
+            .iter_all_feature_ref_pages(128)
+            .expect("iter_all_feature_ref_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_feature_ref_pages should collect");
+        assert_eq!(
+            ref_pages.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![128, 128, 128, 128, 88]
+        );
+        assert_eq!(
+            ref_pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+
+        for page in &ref_pages {
+            for feature in page {
+                let model = index
+                    .read_feature(feature)
+                    .expect("feature should reconstruct");
+                assert!(model_contains_id(&model, &feature.feature_id));
+                assert_eq!(
+                    bbox_for_model(&model).expect("bbox should be computable"),
+                    feature.bbox
+                );
+            }
+        }
+
+        let bbox_pages = index
+            .iter_all_bbox_pages(128)
+            .expect("iter_all_bbox_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_bbox_pages should collect");
+        assert_eq!(
+            bbox_pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn iter_all_feature_ref_pages_rejects_zero_page_size() {
+        let root = write_temp_ndjson_root(&["alpha"]);
+        let index_path = write_temp_index_path_with_prefix("page-size-zero");
+        let mut index = CityIndex::open(StorageLayout::Ndjson { paths: vec![root] }, &index_path)
+            .expect("index should open");
+        index.reindex().expect("dataset should index");
+
+        match index.iter_all_feature_ref_pages(0) {
+            Ok(_) => panic!("zero page size should be rejected"),
+            Err(error) => assert!(error.to_string().contains("page_size")),
+        }
     }
 
     #[test]
@@ -3355,6 +3629,131 @@ mod tests {
             .collect::<Result<Vec<_>>>()
             .expect("iter_all_with_metadata should collect");
         assert_eq!(models_with_metadata.len(), expected_ids.len());
+    }
+
+    fn assert_full_scan_pages(index: &CityIndex, expected_ids: &[&str]) {
+        let pages = index
+            .iter_all_feature_ref_pages(2)
+            .expect("iter_all_feature_ref_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_feature_ref_pages should collect");
+        assert_eq!(
+            pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            expected_ids
+        );
+
+        let bbox_pages = index
+            .iter_all_bbox_pages(2)
+            .expect("iter_all_bbox_pages should build")
+            .collect::<Result<Vec<_>>>()
+            .expect("iter_all_bbox_pages should collect");
+        assert_eq!(
+            bbox_pages
+                .iter()
+                .flat_map(|page| page.iter().map(|feature| feature.feature_id.as_str()))
+                .collect::<Vec<_>>(),
+            expected_ids
+        );
+
+        for page in pages {
+            for feature in page {
+                let model = index
+                    .read_feature(&feature)
+                    .expect("feature should reconstruct");
+                assert!(model_contains_id(&model, &feature.feature_id));
+                assert_eq!(
+                    bbox_for_model(&model).expect("bbox should be computable"),
+                    feature.bbox
+                );
+            }
+        }
+    }
+
+    fn model_contains_id(model: &CityModel, id: &str) -> bool {
+        let value: Value =
+            serde_json::from_str(&cjlib::json::to_string(model).expect("serialize model"))
+                .expect("model JSON");
+        value["CityObjects"]
+            .as_object()
+            .is_some_and(|cityobjects| cityobjects.contains_key(id))
+    }
+
+    fn bbox_for_model(model: &CityModel) -> Result<BBox> {
+        let value: Value =
+            serde_json::from_str(&cjlib::json::to_string(model).expect("serialize model"))
+                .expect("model JSON");
+        let vertices = value
+            .get("vertices")
+            .and_then(Value::as_array)
+            .ok_or_else(|| import_error("model JSON is missing vertices"))?;
+        let transform = value
+            .get("transform")
+            .and_then(Value::as_object)
+            .ok_or_else(|| import_error("model JSON is missing transform"))?;
+        let scale = parse_transform_component(transform, "scale")?;
+        let translate = parse_transform_component(transform, "translate")?;
+
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+
+        for vertex in vertices {
+            let coords = vertex
+                .as_array()
+                .ok_or_else(|| import_error("vertex must be an array"))?;
+            if coords.len() != 3 {
+                return Err(import_error("vertex must have three coordinates"));
+            }
+            let x = translate[0] + scale[0] * value_as_f64(&coords[0])?;
+            let y = translate[1] + scale[1] * value_as_f64(&coords[1])?;
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+        }
+
+        if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
+            return Err(import_error(
+                "could not compute a finite bbox from the model",
+            ));
+        }
+
+        Ok(BBox {
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+        })
+    }
+
+    fn parse_transform_component(
+        transform: &serde_json::Map<String, Value>,
+        key: &str,
+    ) -> Result<[f64; 3]> {
+        let values = transform
+            .get(key)
+            .and_then(Value::as_array)
+            .ok_or_else(|| import_error(format!("transform is missing {key}")))?;
+        if values.len() != 3 {
+            return Err(import_error(format!(
+                "transform {key} must contain three values"
+            )));
+        }
+        Ok([
+            value_as_f64(&values[0])?,
+            value_as_f64(&values[1])?,
+            value_as_f64(&values[2])?,
+        ])
+    }
+
+    fn value_as_f64(value: &Value) -> Result<f64> {
+        value
+            .as_f64()
+            .ok_or_else(|| import_error("expected a numeric value"))
     }
 
     fn write_temp_bytes(bytes: &[u8]) -> PathBuf {
