@@ -140,9 +140,9 @@ pub(crate) fn infer_cityobject_projections(
 
     for field in schema.fields().iter().skip(5) {
         let spec = projected_field_spec(field)?;
-        if field.name().starts_with("attributes.") {
+        if field.name().starts_with("attr__") || field.name().starts_with("attributes.") {
             attributes.push(spec);
-        } else if field.name().starts_with("extra.") {
+        } else if field.name().starts_with("extra__") || field.name().starts_with("extra.") {
             extra.push(spec);
         } else {
             return Err(Error::Unsupported(format!(

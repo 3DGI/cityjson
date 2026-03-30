@@ -59,13 +59,13 @@ silently disappear from the roundtrip.
 
 ### Task List
 
-- [ ] Replace the disconnected prototype layout with clean public modules:
+- [x] Replace the disconnected prototype layout with clean public modules:
   - `src/convert/`
   - `src/package/`
-- [ ] Remove stale prototype files that are no longer part of the rewrite.
-- [ ] Implement `convert::to_parts`.
-- [ ] Implement `convert::from_parts`.
-- [ ] Implement normalized boundary flattening and reconstruction for:
+- [x] Remove stale prototype files that are no longer part of the rewrite.
+- [x] Implement `convert::to_parts`.
+- [x] Implement `convert::from_parts`.
+- [x] Implement normalized boundary flattening and reconstruction for:
   - `MultiPoint`
   - `MultiLineString`
   - `MultiSurface`
@@ -73,26 +73,26 @@ silently disappear from the roundtrip.
   - `Solid`
   - `MultiSolid`
   - `CompositeSolid`
-- [ ] Implement canonical metadata, transform, and extension table conversion.
-- [ ] Implement canonical cityobject table conversion.
-- [ ] Implement canonical semantics table conversion.
-- [ ] Implement Parquet-safe attribute projection.
-- [ ] Preserve exact attribute values with per-key JSON fallback columns.
-- [ ] Preserve explicit null versus missing value distinction in fallback columns.
-- [ ] Reject unsupported modules with hard errors:
+- [x] Implement canonical metadata, transform, and extension table conversion.
+- [x] Implement canonical cityobject table conversion.
+- [x] Implement canonical semantics table conversion.
+- [x] Implement Parquet-safe attribute projection.
+- [x] Preserve exact attribute values with per-key JSON fallback columns.
+- [x] Preserve explicit null versus missing value distinction in fallback columns.
+- [x] Reject unsupported modules with hard errors:
   - materials
   - textures
   - templates
   - geometry instances
-- [ ] Implement package manifest writing.
-- [ ] Implement Parquet table writing.
-- [ ] Implement package manifest reading.
-- [ ] Implement Parquet table reading.
-- [ ] Validate on package read that batch schemas match the canonical schema set.
-- [ ] Replace the identity placeholder in `tests/manifest_roundtrip.rs`.
-- [ ] Add focused unit tests for conversion helpers.
-- [ ] Add integration tests for package write/read roundtrip.
-- [ ] Run the full test stack, including ignored real-data acceptance.
+- [x] Implement package manifest writing.
+- [x] Implement Parquet table writing.
+- [x] Implement package manifest reading.
+- [x] Implement Parquet table reading.
+- [x] Validate on package read that batch schemas match the canonical schema set.
+- [x] Replace the identity placeholder in `tests/manifest_roundtrip.rs`.
+- [x] Add focused unit tests for conversion helpers.
+- [x] Add integration tests for package write/read roundtrip.
+- [x] Run the full test stack, including ignored real-data acceptance.
 
 ## Design Constraints
 

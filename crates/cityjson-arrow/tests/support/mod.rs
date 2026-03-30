@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use cityjson::v2_0::OwnedCityModel;
+use cityarrow::{from_parts, read_package_dir, to_parts, write_package_dir};
 use serde::Deserialize;
 use serde_cityjson::{from_str_owned, to_string_validated};
 use tempfile::Builder;
@@ -112,9 +113,11 @@ pub fn cjval_validate(path: &Path) {
 
 #[must_use]
 pub fn roundtrip_via_cityarrow(model: OwnedCityModel) -> OwnedCityModel {
-    // Harness seam: replace this with cityarrow::to_parts/from_parts once the
-    // trunk exposes the real roundtrip API.
-    model
+    let parts = to_parts(&model).expect("cityarrow to_parts should succeed");
+    let dir = tempfile::tempdir().expect("cityarrow tempdir should be created");
+    write_package_dir(dir.path(), &parts).expect("cityarrow package write should succeed");
+    let parts = read_package_dir(dir.path()).expect("cityarrow package read should succeed");
+    from_parts(&parts).expect("cityarrow from_parts should succeed")
 }
 
 pub fn assert_case_roundtrip(case: &Case) {
