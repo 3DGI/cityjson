@@ -17,7 +17,8 @@ introduce drift between the implementation, the docs, and the generated ABI.
 manual editing.
 
 The developer workflow will expose a dedicated `just ffi-header` recipe that
-produces the header from the current `ffi/core` crate state.
+refreshes `ffi/core/include/cjlib/cjlib.h` from the current `ffi/core` crate
+state.
 
 ## Consequences
 
@@ -26,6 +27,8 @@ Positive:
 - the header stays aligned with the Rust ABI surface
 - the generated contract can be refreshed on demand
 - downstream wrappers have one canonical C declaration source
+- the shared header lives at a stable repo path that C++ and Python packaging
+  can point at directly
 
 Tradeoffs:
 

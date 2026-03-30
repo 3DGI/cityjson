@@ -11,3 +11,7 @@ Planned layout:
 
 The C++ layer should stay RAII-oriented and STL-friendly while compiling down
 to the shared low-level core.
+
+The shared C ABI header is generated into `../core/include/cjlib/cjlib.h` via
+`just ffi-header`. The C++ wrapper should treat that header as its canonical
+low-level contract rather than duplicating the declarations.

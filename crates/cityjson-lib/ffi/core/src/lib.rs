@@ -9,6 +9,7 @@
 
 pub mod abi;
 pub mod error;
+pub mod exports;
 pub mod handle;
 
 pub use cjlib;

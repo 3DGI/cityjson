@@ -34,7 +34,8 @@ ffi-doc:
     cargo doc -p cjlib-ffi-core -p cjlib-wasm --no-deps
 
 ffi-header:
-    cbindgen --config ffi/core/cbindgen.toml --crate cjlib-ffi-core --output ffi/core/target/cbindgen/cjlib.h
+    mkdir -p ffi/core/include/cjlib
+    cbindgen --config ffi/core/cbindgen.toml --crate cjlib-ffi-core --output ffi/core/include/cjlib/cjlib.h
 
 docs-build:
     uv run --with-requirements python-requirements-dev.txt mkdocs build --strict

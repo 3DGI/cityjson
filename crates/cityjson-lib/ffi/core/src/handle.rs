@@ -26,13 +26,11 @@ pub unsafe fn model_free(handle: *mut cj_model_t) {
     let _ = unsafe { model_take(handle) };
 }
 
-pub fn bytes_from_vec(mut bytes: Vec<u8>) -> cj_bytes_t {
-    let out = cj_bytes_t {
-        data: bytes.as_mut_ptr(),
-        len: bytes.len(),
-    };
-    std::mem::forget(bytes);
-    out
+pub fn bytes_from_vec(bytes: Vec<u8>) -> cj_bytes_t {
+    let boxed = bytes.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<u8>();
+    cj_bytes_t { data, len }
 }
 
 pub fn bytes_from_string(bytes: String) -> cj_bytes_t {
