@@ -14,7 +14,18 @@ use serde_json::{Map, Value};
 #[command(
     name = "cjindex",
     version,
-    about = "Query CityJSON datasets through a persistent index"
+    about = "Query CityJSON datasets through a persistent index",
+    long_about = r#"Query CityJSON datasets through a persistent index.
+
+cjindex is dataset-first: point it at a dataset directory and it will auto-detect the storage layout, manage a sidecar index at <DATASET_DIR>/.cjindex.sqlite, and expose both inspection and read commands.
+
+Examples:
+  cjindex inspect /data/3dbag
+  cjindex index /data/3dbag
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
+  cjindex metadata /data/3dbag
+"#
 )]
 struct Cli {
     #[command(subcommand)]
@@ -23,92 +34,191 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Build the index for a dataset directory.
+    ///
+    /// This command discovers the storage layout under the dataset root, writes
+    /// the sidecar `SQLite` index, and reports any indexing errors.
+    #[command(long_about = r#"Build the index for a dataset directory.
+
+Use dataset mode to point at a dataset root directly, or use the explicit layout flags for low-level control.
+
+Examples:
+  cjindex index /data/3dbag
+  cjindex index --layout feature-files --root /data/feature-files --index /tmp/cjindex.sqlite
+"#)]
     Index(IndexCommand),
+    /// Rebuild the index from the dataset contents.
+    ///
+    /// This is the same operational path as `index`, but it is named
+    /// explicitly to highlight that any existing index is replaced.
+    #[command(long_about = r#"Rebuild the index from the dataset contents.
+
+This command is intended for full refreshes when the dataset has changed or the index needs to be regenerated from scratch.
+
+Examples:
+  cjindex reindex /data/3dbag
+  cjindex reindex --layout cityjson --paths /data/tiles/0566.city.json /data/tiles/0599.city.json --index /tmp/cjindex.sqlite
+"#)]
     Reindex(IndexCommand),
+    /// Fetch a single feature by identifier.
+    ///
+    /// The result is written as a line-oriented `CityJSON` stream, either to
+    /// stdout or to the file named by `--output`.
+    #[command(long_about = r#"Fetch a single feature by identifier.
+
+The output is a line-oriented CityJSON stream: the first record is the metadata header, and the following record is the feature as a CityJSONFeature. Use `--output` to write the stream to a file.
+
+Examples:
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0 --output /tmp/pand.cityjsonseq
+"#)]
     Get(FeatureCommand),
+    /// Fetch every feature that intersects a bounding box.
+    ///
+    /// The query is streamed lazily from the index and written as a
+    /// line-oriented `CityJSON` stream.
+    #[command(long_about = r#"Fetch every feature that intersects a bounding box.
+
+The results are streamed as line-oriented CityJSON: the first record is the metadata header, and each later record is one CityJSONFeature. Use `--output` to write the stream to a file.
+
+Examples:
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9 --output /tmp/query.cityjsonseq
+"#)]
     Query(QueryCommand),
+    /// Print the indexed metadata JSON for the dataset.
+    #[command(long_about = r#"Print the indexed metadata JSON for the dataset.
+
+This command returns the metadata payload associated with the dataset layout, which is useful for quick inspection or piping into other tools.
+
+Examples:
+  cjindex metadata /data/3dbag
+"#)]
     Metadata(IndexCommand),
+    /// Show index presence, freshness, coverage, and counts for a dataset.
+    #[command(
+        long_about = r#"Show index presence, freshness, coverage, and counts for a dataset.
+
+`inspect` auto-detects the storage layout under the dataset root and reports the discovered source counts, indexed counts, and whether the sidecar index is present and current.
+
+Examples:
+  cjindex inspect /data/3dbag
+  cjindex inspect /data/3dbag --json
+"#
+    )]
     Inspect(StatusCommand),
+    /// Validate that the index still matches the dataset contents.
+    #[command(
+        long_about = r#"Validate that the index still matches the dataset contents.
+
+`validate` performs the same dataset inspection checks as `inspect`, but exits with a non-zero status when the index is missing, stale, or no longer matches the dataset.
+
+Examples:
+  cjindex validate /data/3dbag
+  cjindex validate /data/3dbag --json
+"#
+    )]
     Validate(StatusCommand),
 }
 
 #[derive(Debug, Args)]
 struct IndexCommand {
+    /// Dataset directory or explicit layout configuration.
     #[command(flatten)]
     input: DatasetInputArgs,
 }
 
 #[derive(Debug, Args)]
 struct FeatureCommand {
+    /// Dataset directory or explicit layout configuration.
     #[command(flatten)]
     input: DatasetInputArgs,
 
+    /// Feature identifier to retrieve.
     #[arg(long)]
     id: String,
 
+    /// Write the `CityJSON` stream to a file instead of stdout.
     #[arg(long)]
     output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 struct QueryCommand {
+    /// Dataset directory or explicit layout configuration.
     #[command(flatten)]
     input: DatasetInputArgs,
 
+    /// Minimum X coordinate of the bounding box.
     #[arg(long)]
     min_x: f64,
 
+    /// Maximum X coordinate of the bounding box.
     #[arg(long)]
     max_x: f64,
 
+    /// Minimum Y coordinate of the bounding box.
     #[arg(long)]
     min_y: f64,
 
+    /// Maximum Y coordinate of the bounding box.
     #[arg(long)]
     max_y: f64,
 
+    /// Write the `CityJSON` stream to a file instead of stdout.
     #[arg(long)]
     output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 struct StatusCommand {
+    /// Dataset directory to inspect or validate.
     #[arg(value_name = "DATASET_DIR")]
     dataset_dir: PathBuf,
 
+    /// Override the default sidecar index location.
     #[arg(long)]
     index: Option<PathBuf>,
 
+    /// Emit machine-readable JSON.
     #[arg(long)]
     json: bool,
 }
 
 #[derive(Debug, Args, Clone)]
 struct DatasetInputArgs {
+    /// Dataset directory to operate on.
     #[arg(value_name = "DATASET_DIR")]
     dataset_dir: Option<PathBuf>,
 
+    /// Explicit storage layout override.
     #[command(flatten)]
     storage: StorageArgs,
 
+    /// Override the index path for dataset or explicit layout mode.
     #[arg(long)]
     index: Option<PathBuf>,
 }
 
 #[derive(Debug, Args, Clone)]
 struct StorageArgs {
+    /// Storage layout to use when not auto-detecting from a dataset directory.
     #[arg(long, value_enum)]
     layout: Option<LayoutKind>,
 
+    /// Source paths for `ndjson` and `cityjson` layouts.
     #[arg(long, value_name = "PATH", num_args = 1..)]
     paths: Vec<PathBuf>,
 
+    /// Root directory for the `feature-files` layout.
     #[arg(long)]
     root: Option<PathBuf>,
 
+    /// Metadata glob for the `feature-files` layout.
     #[arg(long, default_value = "**/metadata.json")]
     metadata_glob: String,
 
+    /// Feature file glob for the `feature-files` layout.
     #[arg(long, default_value = "**/*.city.jsonl")]
     feature_glob: String,
 }

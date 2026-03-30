@@ -7,7 +7,7 @@ use cjlib::Result;
 #[allow(dead_code)]
 mod data_prep;
 
-use data_prep::{DEFAULT_OUTPUT_ROOT, prepare_3dbag_benchmark_datasets};
+use data_prep::{DEFAULT_OUTPUT_ROOT, PrepConfig, prepare_3dbag_benchmark_datasets};
 
 fn main() -> Result<()> {
     let args = env::args_os().skip(1).collect::<Vec<_>>();
@@ -17,32 +17,47 @@ fn main() -> Result<()> {
     }
 
     let options = PrepOptions::from_args(&args);
-    prepare_3dbag_benchmark_datasets(&options.output)?;
+    let config = PrepConfig {
+        output_root: options.output,
+        validate_cjval: options.validate_cjval,
+    };
+    prepare_3dbag_benchmark_datasets(&config)?;
 
     Ok(())
 }
 
 struct PrepOptions {
     output: PathBuf,
+    validate_cjval: bool,
 }
 
 impl PrepOptions {
     fn from_args(args: &[std::ffi::OsString]) -> Self {
         let mut output = PathBuf::from(DEFAULT_OUTPUT_ROOT);
+        let mut validate_cjval = true;
         let mut iter = args.iter();
 
         while let Some(arg) = iter.next() {
-            if arg.to_string_lossy().as_ref() == "--output"
-                && let Some(value) = iter.next()
-            {
-                output = PathBuf::from(value);
+            match arg.to_string_lossy().as_ref() {
+                "--output" => {
+                    if let Some(value) = iter.next() {
+                        output = PathBuf::from(value);
+                    }
+                }
+                "--skip-cjval" => {
+                    validate_cjval = false;
+                }
+                _ => {}
             }
         }
 
-        Self { output }
+        Self {
+            output,
+            validate_cjval,
+        }
     }
 }
 
 fn print_usage() {
-    eprintln!("usage: prep-test-data [--output PATH]");
+    eprintln!("usage: prep-test-data [--output PATH] [--skip-cjval]");
 }

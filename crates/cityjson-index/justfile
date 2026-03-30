@@ -3,39 +3,47 @@
 default:
     just --list
 
+# Prepare the benchmark corpus from the pinned 3DBAG data set.
 prep-test-data:
-    cargo run --release --bin prep-test-data --
+    cargo run --release --bin prep-test-data -- --skip-cjval
 
-prep-benchmark-data:
-    just prep-test-data
-
+# Fast compile-time validation across all targets and features.
 check:
     cargo check --all-targets --all-features
 
+# Build all targets with all features enabled.
 build *args:
     cargo build --all-targets --all-features {{args}}
 
+# Run clippy with the project's strict lint settings.
 lint:
     cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Format the workspace with rustfmt.
 fmt:
     cargo fmt --all
 
+# Run the full test suite with all features enabled.
 test:
     cargo test --all-features
 
+# Build API docs for all features without pulling in dependencies.
 doc:
     cargo doc --all-features --no-deps
 
+# Benchmark the feature-files backend in the default bench profile.
 bench-feature-files:
     cargo bench --bench feature_files
 
+# Benchmark the CityJSON backend in the default bench profile.
 bench-cityjson:
     cargo bench --bench cityjson
 
+# Benchmark the NDJSON backend in the default bench profile.
 bench-ndjson:
     cargo bench --bench ndjson
 
+# Run the investigation binary and the release-mode benchmarks used for reporting.
 bench-release:
     cargo run --release --bin investigate-read-performance
     cargo bench --bench cityjson

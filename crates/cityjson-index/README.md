@@ -131,7 +131,13 @@ the `feature-files` layout. Once the cumulative CityObject count is between
 265k and 275k (target ~270k), it writes checksums, counts, and tool versions
 into `manifest.json` and swaps the staging tree into `tests/data` atomically.
 
+Validation with `cjval` takes a long time; pass `--skip-cjval` to `just
+prep-test-data` if you want to rebuild the corpus faster and are confident the
+downloads are sound.
+
 Target size: about 270,000 `CityObject`s in total.
+
+The benchmark binaries (`just bench-release`, `cargo run --bin investigate-read-performance`, the Criterion benches) always point at the prepared tree under `tests/data` (or whatever path `CJINDEX_BENCH_ROOT` overrides), so they never rebuild from scratch as long as the manifest declares the pinned tile index.
 
 The current steady-state read benchmarks use hot, repeated workloads rather than cold one-off reads:
 

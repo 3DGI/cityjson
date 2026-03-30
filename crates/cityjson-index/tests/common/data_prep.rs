@@ -30,6 +30,12 @@ pub struct PreparedDatasets {
     pub ndjson: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub struct PrepConfig {
+    pub output_root: PathBuf,
+    pub validate_cjval: bool,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BenchmarkDataManifest {
     pub tile_index_url: String,
@@ -68,7 +74,8 @@ struct TileIndexRecord {
 /// Returns an error if the tile index cannot be read, a tile download fails, or
 /// any generated layout does not validate.
 #[allow(clippy::too_many_lines)]
-pub fn prepare_3dbag_benchmark_datasets(output_root: &Path) -> Result<PreparedDatasets> {
+pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedDatasets> {
+    let output_root = &config.output_root;
     let staging_root = output_root.join(DEFAULT_STAGING_DIR_NAME);
     let cityjson_root = staging_root.join("cityjson");
     let ndjson_root = staging_root.join("ndjson");
@@ -109,7 +116,9 @@ pub fn prepare_3dbag_benchmark_datasets(output_root: &Path) -> Result<PreparedDa
             fs::create_dir_all(parent)?;
         }
         download_file(&http_client, &tile.download_url, &cityjson_path)?;
-        validate_cjval(&cityjson_path)?;
+        if config.validate_cjval {
+            validate_cjval(&cityjson_path)?;
+        }
 
         let cityobject_count = count_cityobjects(&cityjson_path)?;
         let cityjson_sha256 = sha256_file(&cityjson_path)?;
@@ -168,7 +177,9 @@ pub fn prepare_3dbag_benchmark_datasets(output_root: &Path) -> Result<PreparedDa
             fs::create_dir_all(parent)?;
         }
         write_bytes(&ndjson_path, seq_output.as_bytes())?;
-        validate_cjval(&ndjson_path)?;
+        if config.validate_cjval {
+            validate_cjval(&ndjson_path)?;
+        }
         let ndjson_sha256 = sha256_file(&ndjson_path)?;
 
         total_cityobjects = total_cityobjects.saturating_add(cityobject_count);
