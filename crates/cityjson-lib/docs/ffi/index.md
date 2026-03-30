@@ -30,12 +30,9 @@ The FFI section is split into:
 
 - [Shared low-level core](shared-core.md)
   The common substrate used by all non-Rust targets.
-- [Shared C ABI foundation plan](shared-c-abi-foundation-plan.md)
-  The first implementation slice for the shared core: lifecycle, errors, and
-  probe/parse/serialize exports.
-- [Shared FFI expansion plan](shared-ffi-expansion-plan.md)
-  The execution plan for widening the shared ABI and layering C++, Python, and
-  wasm bindings on top in parallel workstreams.
+- [FFI implementation plan](ffi-implementation-plan.md)
+  The single source of truth for the current ABI state, wrapper direction,
+  benchmark-driven conclusions, and the next grounded expansion slices.
 - [Architecture decisions](../adr/0001-shared-c-abi-foundation.md)
   Decision records that freeze the cross-cutting ABI and header workflow
   choices, including the copied coordinate-buffer and columnar boundary
@@ -56,12 +53,6 @@ The FFI section is split into:
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.
-- [C++ plan](cpp-ffi-plan.md)
-  C++ wrapper direction over the shared core.
-- [Python plan](python-ffi-plan.md)
-  Python binding direction over the shared core.
-- [Wasm plan](wasm-ffi-plan.md)
-  Narrow browser-facing adapter over the shared core.
 
-The target plan pages should not redefine the shared core. They should explain
-how each target projects that core into an idiomatic public API.
+The target-specific direction now lives inside the consolidated implementation
+plan so the wrapper pages cannot drift away from the shared ABI plan.

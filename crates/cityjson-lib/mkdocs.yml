@@ -17,12 +17,8 @@ nav:
   - FFI & Bindings:
       - Overview: ffi/index.md
       - Shared Low-level Core: ffi/shared-core.md
-      - Shared C ABI Foundation Plan: ffi/shared-c-abi-foundation-plan.md
-      - Shared FFI Expansion Plan: ffi/shared-ffi-expansion-plan.md
+      - FFI Implementation Plan: ffi/ffi-implementation-plan.md
       - Conventions: ffi/conventions.md
-      - C++ Plan: ffi/cpp-ffi-plan.md
-      - Python Plan: ffi/python-ffi-plan.md
-      - Wasm Plan: ffi/wasm-ffi-plan.md
   - Architecture Decisions:
       - Shared C ABI Foundation: adr/0001-shared-c-abi-foundation.md
       - FFI Header Workflow: adr/0002-ffi-header-workflow.md
@@ -31,6 +27,7 @@ nav:
       - Columnar Geometry Boundary ABI: adr/0005-columnar-geometry-boundary-abi.md
       - Model-Authoritative JSON Workflows: adr/0006-model-authoritative-json-ffi-workflows.md
       - JSON Write Options And Feature Streams: adr/0007-json-write-options-and-feature-stream-bytes.md
+      - Wasm32 Blocker And Wasm64 Path: adr/0008-wasm32-blocker-and-wasm64-path.md
 theme:
   name: material
   features:
