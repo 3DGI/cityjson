@@ -46,6 +46,9 @@ The FFI section is split into:
 - [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md)
   Decision record for the initial pretty/validation write options and the
   bytes-based feature-stream contract.
+- [Wasm32 blocker and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
+  Follow-up design note for the current wasm32 portability blocker in
+  `cityjson-rs` and the later wasm64 evaluation path.
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.

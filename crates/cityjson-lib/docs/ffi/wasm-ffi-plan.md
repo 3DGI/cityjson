@@ -68,3 +68,8 @@ This plan should not:
 2. Validate that the narrow wasm API can answer real browser-facing use cases.
 3. Keep the richer model-editing surface in the shared core and in the C++ and
    Python bindings, not in the wasm public API.
+
+## Follow-Up ADR
+
+The concrete wasm32 portability blocker and the later wasm64 evaluation path
+are tracked in [ADR 0008](../adr/0008-wasm32-blocker-and-wasm64-path.md).
