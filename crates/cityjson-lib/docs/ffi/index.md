@@ -30,6 +30,12 @@ The FFI section is split into:
 
 - [Shared low-level core](shared-core.md)
   The common substrate used by all non-Rust targets.
+- [Shared C ABI foundation plan](shared-c-abi-foundation-plan.md)
+  The first implementation slice for the shared core: lifecycle, errors, and
+  probe/parse/serialize exports.
+- [Architecture decisions](../adr/0001-shared-c-abi-foundation.md)
+  Decision records that freeze the cross-cutting ABI and header workflow
+  choices.
 - [Conventions](conventions.md)
   Documentation rules for keeping the shared concepts and target wrappers
   aligned.

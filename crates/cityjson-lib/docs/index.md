@@ -58,6 +58,9 @@ be idiomatic in its host environment.
 
 - [Architecture](architecture.md)
   Cross-crate responsibility split and long-term layering rules.
+- [Architecture Decisions](adr/0001-shared-c-abi-foundation.md)
+  Decision records for cross-cutting implementation choices, including the
+  shared C ABI foundation and header workflow.
 - [Guide](guide.md)
   How the Rust facade is meant to be used.
 - [Public API](public-api.md)

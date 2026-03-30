@@ -1,0 +1,12 @@
+[package]
+name = "cjlib-wasm"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+
+[lib]
+name = "cjlib_wasm"
+path = "src/lib.rs"
+
+[dependencies]
+cjlib-ffi-core = { path = "../core" }

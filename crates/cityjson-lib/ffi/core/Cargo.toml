@@ -1,0 +1,12 @@
+[package]
+name = "cjlib-ffi-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+
+[lib]
+name = "cjlib_ffi_core"
+path = "src/lib.rs"
+
+[dependencies]
+cjlib = { path = "../.." }
