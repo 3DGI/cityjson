@@ -58,7 +58,7 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
         "vertices":[[0,0,0],[2,0,0],[2,4,5]]
     }"#;
 
-    let model = json::from_feature_slice_with_base(feature, document)?;
+    let model = json::staged::from_feature_slice_with_base(feature, document)?;
     let vertices = model.as_inner().vertices();
     let v0 = vertices.as_slice()[0].to_array();
     let v2 = vertices.as_slice()[2].to_array();
@@ -84,18 +84,18 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document() -> 
             .to_owned(),
     )
     .expect("raw feature object");
-    let cityobjects = [json::FeatureObject {
+    let cityobjects = [json::staged::FeatureObjectFragment {
         id: "feature-1",
         object: object.as_ref(),
     }];
     let vertices = [[0, 0, 0], [2, 0, 0], [1, 0, 0]];
-    let parts = json::FeatureParts {
+    let parts = json::staged::FeatureAssembly {
         id: "feature-1",
         cityobjects: &cityobjects,
         vertices: &vertices,
     };
 
-    let model = json::from_feature_parts_with_base(parts, document)?;
+    let model = json::staged::from_feature_assembly_with_base(parts, document)?;
     let vertices = model.as_inner().vertices();
     let text = json::to_string(&model)?;
     let output: serde_json::Value = serde_json::from_str(&text)?;
@@ -134,6 +134,22 @@ fn explicit_json_module_owns_serialization() -> cjlib::Result<()> {
     assert!(!bytes.is_empty());
     assert!(!text.is_empty());
     assert!(!writer.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_can_write_features_without_building_a_string() -> cjlib::Result<()> {
+    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+    let model = json::from_feature_slice(feature)?;
+
+    let mut writer = Vec::new();
+    json::to_feature_writer(&mut writer, &model)?;
+
+    assert_eq!(
+        String::from_utf8(writer).expect("feature writer output is valid UTF-8"),
+        json::to_feature_string(&model)?,
+    );
 
     Ok(())
 }

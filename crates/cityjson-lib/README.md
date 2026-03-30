@@ -88,14 +88,19 @@ Within `cjlib::json`, the intended surface is:
 - `from_file`
 - `from_feature_slice`
 - `from_feature_file`
-- `from_feature_slice_with_base`
-- `from_feature_file_with_base`
 - `read_feature_stream`
 - `write_feature_stream`
 - `to_vec`
 - `to_string`
 - `to_writer`
 - `to_feature_string`
+- `to_feature_writer`
+
+Advanced staged reconstruction paths live under `cjlib::json::staged`:
+
+- `from_feature_slice_with_base`
+- `from_feature_file_with_base`
+- `from_feature_assembly_with_base`
 
 `json::from_file` is document-oriented.
 Feature streams should be handled explicitly through

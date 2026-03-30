@@ -6,7 +6,105 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
-pub use serde_cityjson::{FeatureObject, FeatureParts};
+
+pub mod staged {
+    use std::io::Write;
+    use std::path::Path;
+
+    use serde_json::value::RawValue;
+
+    use crate::{CityModel, Error, Result};
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct FeatureObjectFragment<'a> {
+        pub id: &'a str,
+        pub object: &'a RawValue,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct FeatureAssembly<'a> {
+        pub id: &'a str,
+        pub cityobjects: &'a [FeatureObjectFragment<'a>],
+        pub vertices: &'a [[i64; 3]],
+    }
+
+    pub fn from_feature_slice_with_base(
+        feature_bytes: &[u8],
+        base_document_bytes: &[u8],
+    ) -> Result<CityModel> {
+        let probe = super::probe(feature_bytes)?;
+        match probe.kind() {
+            super::RootKind::CityJSON => {
+                Err(Error::ExpectedCityJSONFeature(probe.kind().to_string()))
+            }
+            super::RootKind::CityJSONFeature => {
+                let feature_input = std::str::from_utf8(feature_bytes).map_err(|error| {
+                    Error::Json(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        error,
+                    )))
+                })?;
+                let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
+                    Error::Json(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        error,
+                    )))
+                })?;
+                Ok(CityModel(
+                    serde_cityjson::v2_0::from_feature_str_owned_with_base(
+                        feature_input,
+                        base_input,
+                    )?,
+                ))
+            }
+        }
+    }
+
+    pub fn from_feature_assembly_with_base(
+        assembly: FeatureAssembly<'_>,
+        base_document_bytes: &[u8],
+    ) -> Result<CityModel> {
+        let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
+            Error::Json(serde_json::Error::io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                error,
+            )))
+        })?;
+        let cityobjects = assembly
+            .cityobjects
+            .iter()
+            .map(|cityobject| serde_cityjson::FeatureObject {
+                id: cityobject.id,
+                object: cityobject.object,
+            })
+            .collect::<Vec<_>>();
+        let parts = serde_cityjson::FeatureParts {
+            id: assembly.id,
+            cityobjects: &cityobjects,
+            vertices: assembly.vertices,
+        };
+        Ok(CityModel(
+            serde_cityjson::from_feature_parts_owned_with_base(parts, base_input)?,
+        ))
+    }
+
+    pub fn from_feature_file_with_base<P: AsRef<Path>>(
+        path: P,
+        base_document_bytes: &[u8],
+    ) -> Result<CityModel> {
+        from_feature_slice_with_base(&std::fs::read(path)?, base_document_bytes)
+    }
+
+    pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
+        match model.as_inner().type_citymodel() {
+            cityjson::CityModelType::CityJSONFeature => {
+                serde_cityjson::to_writer_validated(writer, model.as_inner())?;
+                Ok(())
+            }
+            other => Err(Error::UnsupportedType(other.to_string())),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootKind {
@@ -124,55 +222,6 @@ pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
     from_feature_slice(&std::fs::read(path)?)
 }
 
-pub fn from_feature_slice_with_base(
-    feature_bytes: &[u8],
-    base_document_bytes: &[u8],
-) -> Result<CityModel> {
-    let probe = probe(feature_bytes)?;
-    match probe.kind {
-        RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind.to_string())),
-        RootKind::CityJSONFeature => {
-            let feature_input = std::str::from_utf8(feature_bytes).map_err(|error| {
-                Error::Json(serde_json::Error::io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    error,
-                )))
-            })?;
-            let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
-                Error::Json(serde_json::Error::io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    error,
-                )))
-            })?;
-            Ok(CityModel(
-                serde_cityjson::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
-            ))
-        }
-    }
-}
-
-pub fn from_feature_parts_with_base(
-    parts: FeatureParts<'_>,
-    base_document_bytes: &[u8],
-) -> Result<CityModel> {
-    let base_input = std::str::from_utf8(base_document_bytes).map_err(|error| {
-        Error::Json(serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            error,
-        )))
-    })?;
-    Ok(CityModel(
-        serde_cityjson::from_feature_parts_owned_with_base(parts, base_input)?,
-    ))
-}
-
-pub fn from_feature_file_with_base<P: AsRef<Path>>(
-    path: P,
-    base_document_bytes: &[u8],
-) -> Result<CityModel> {
-    from_feature_slice_with_base(&std::fs::read(path)?, base_document_bytes)
-}
-
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
 where
     R: BufRead,
@@ -187,7 +236,7 @@ where
     W: Write,
 {
     for model in models {
-        writer.write_all(to_feature_string(&model)?.as_bytes())?;
+        staged::to_feature_writer(&mut writer, &model)?;
         writer.write_all(b"\n")?;
     }
     Ok(())
@@ -208,4 +257,8 @@ pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
     Ok(serde_cityjson::v2_0::to_string_feature(model.as_inner())?)
+}
+
+pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
+    staged::to_feature_writer(writer, model)
 }

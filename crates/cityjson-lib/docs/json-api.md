@@ -64,6 +64,38 @@ pub mod json {
         model: &crate::CityModel,
     ) -> crate::Result<()>;
     pub fn to_feature_string(model: &crate::CityModel) -> crate::Result<String>;
+    pub fn to_feature_writer(
+        writer: &mut impl std::io::Write,
+        model: &crate::CityModel,
+    ) -> crate::Result<()>;
+
+    pub mod staged {
+        pub struct FeatureObjectFragment<'a> {
+            pub id: &'a str,
+            pub object: &'a serde_json::value::RawValue,
+        }
+
+        pub struct FeatureAssembly<'a> {
+            pub id: &'a str,
+            pub cityobjects: &'a [FeatureObjectFragment<'a>],
+            pub vertices: &'a [[i64; 3]],
+        }
+
+        pub fn from_feature_slice_with_base(
+            feature_bytes: &[u8],
+            base_document_bytes: &[u8],
+        ) -> crate::Result<crate::CityModel>;
+
+        pub fn from_feature_file_with_base(
+            path: impl AsRef<std::path::Path>,
+            base_document_bytes: &[u8],
+        ) -> crate::Result<crate::CityModel>;
+
+        pub fn from_feature_assembly_with_base(
+            assembly: FeatureAssembly<'_>,
+            base_document_bytes: &[u8],
+        ) -> crate::Result<crate::CityModel>;
+    }
 }
 ```
 
@@ -101,6 +133,15 @@ The returned semantic unit is still:
 
 That is the same rule used by the rest of the architecture: semantic model
 inside, wire-format distinctions at the boundary.
+
+## `json::staged`
+
+Advanced reconstruction paths belong under `json::staged`.
+
+That namespace is for callers such as indexers and staged readers that already
+own raw feature bytes, cached base-document metadata, or preassembled feature
+fragments and need to rehydrate a `CityModel` without pretending that those
+transport-specific pieces are the normal API.
 
 ## Leave Room For Raw And Staged APIs
 
