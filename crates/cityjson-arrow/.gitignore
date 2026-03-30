@@ -2,5 +2,6 @@
 .idea
 .run
 /tmp
+/complex_model_test/
 Cargo.lock
 tests/output/*
