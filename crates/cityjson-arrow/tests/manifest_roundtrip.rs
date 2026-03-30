@@ -110,8 +110,9 @@ fn assert_case_roundtrip_identity(case: &Case) {
     let model = from_str_owned(&input_json)
         .unwrap_or_else(|error| panic!("serde_cityjson failed for {}: {error}", case.id));
 
-    let output_json = to_string_validated(&model)
-        .unwrap_or_else(|error| panic!("serde_cityjson validation failed for {}: {error}", case.id));
+    let output_json = to_string_validated(&model).unwrap_or_else(|error| {
+        panic!("serde_cityjson validation failed for {}: {error}", case.id)
+    });
 
     let mut temp = Builder::new()
         .prefix(&format!("cityarrow-{}", case.id.replace(' ', "_")))
@@ -129,11 +130,12 @@ fn assert_case_roundtrip_identity(case: &Case) {
 fn acceptance_cases() -> Vec<Case> {
     let manifest = load_manifest();
 
-    assert_eq!(manifest.version, 2, "unexpected acceptance manifest version");
+    assert_eq!(
+        manifest.version, 2,
+        "unexpected acceptance manifest version"
+    );
     assert!(
-        manifest
-            .purpose
-            .starts_with("Benchmark profile catalog"),
+        manifest.purpose.starts_with("Benchmark profile catalog"),
         "acceptance manifest purpose should match the serde_cityjson catalog"
     );
 
@@ -148,7 +150,10 @@ fn acceptance_cases() -> Vec<Case> {
 #[test]
 fn manifest_layout_matches_serde_cityjson_real_cases() {
     let cases = acceptance_cases();
-    let ids = cases.iter().map(|case| case.id.as_str()).collect::<Vec<_>>();
+    let ids = cases
+        .iter()
+        .map(|case| case.id.as_str())
+        .collect::<Vec<_>>();
 
     assert!(ids.contains(&"3DBAG"));
     assert!(ids.contains(&"3D Basisvoorziening"));

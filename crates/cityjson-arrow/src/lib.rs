@@ -5,3 +5,9 @@
 //! Arrow/Parquet architecture is rebuilt.
 
 pub mod error;
+pub mod schema;
+
+pub use schema::{
+    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageManifest, PackageTables,
+    ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
+};
