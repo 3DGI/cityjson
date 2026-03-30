@@ -11,8 +11,9 @@ repository = "https://github.com/3DGI/cityjson-rs"
 exclude = ["benches/", "tests/", "docs/", "bench_results/", ".github/", "profiling/", "tools/", "docker/", "justfile"]
 
 [package.metadata]
-# Document platform requirements
-platform_support = "64-bit platforms only (x86_64, aarch64, etc.)"
+# The crate can compile on narrower targets, but `u64`-backed index paths need
+# explicit overflow handling when converting to `usize`.
+platform_support = "Portable across pointer widths; wider index conversions to usize may need explicit handling on 32-bit targets"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

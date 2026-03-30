@@ -2,11 +2,8 @@
 //!
 //! Supports `u16`, `u32`, and `u64` index widths. Widening conversions always succeed;
 //! narrowing conversions use `try_into` and may fail.
-//!
-//! Only 64-bit platforms are supported.
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("This crate only supports 64-bit platforms");
+//! Converting an index to `usize` may fail on narrower targets when the chosen
+//! index width exceeds the platform pointer width.
 
 use crate::error::{Error, Result};
 use num::{CheckedAdd, FromPrimitive, Unsigned};
@@ -101,13 +98,28 @@ impl<T: VertexRef> VertexIndex<T> {
         self.0
     }
 
-    // Safe on 64-bit: u16/u32/u64 all fit in usize.
+    #[inline]
+    pub fn try_to_usize(&self) -> Result<usize> {
+        self.0.try_into().map_err(|_| Error::IndexConversion {
+            source_type: std::any::type_name::<T>().to_string(),
+            target_type: "usize".to_string(),
+            value: self.0.to_string(),
+        })
+    }
+
+    /// Converts this index to `usize`.
+    ///
+    /// This is infallible for the crate's default `u32` model configuration.
+    /// For wider index types on narrower platforms, prefer
+    /// [`VertexIndex::try_to_usize`] and handle overflow explicitly.
     #[inline]
     pub fn to_usize(&self) -> usize {
-        match self.0.try_into() {
-            Ok(value) => value,
-            Err(_) => unreachable!("vertex index conversion to usize must fit on 64-bit targets"),
-        }
+        self.try_to_usize().unwrap_or_else(|_| {
+            panic!(
+                "vertex index {} does not fit in usize on this target; use try_to_usize()",
+                self.0
+            )
+        })
     }
 
     /// Constructs from a `u32` value, returning `None` if the value doesn't fit in `T`.
@@ -507,5 +519,35 @@ where
 {
     fn to_vertex_indices(self) -> Vec<VertexIndex<T>> {
         self.into_iter().map(VertexIndex::new).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VertexIndex32;
+    #[cfg(target_pointer_width = "32")]
+    use super::VertexIndex64;
+
+    #[test]
+    fn u32_index_converts_to_usize() {
+        let index = VertexIndex32::new(42);
+        assert_eq!(index.try_to_usize().unwrap(), 42);
+        assert_eq!(index.to_usize(), 42);
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn u64_index_overflow_is_reported_on_32_bit_targets() {
+        let index = VertexIndex64::new(u64::from(u32::MAX) + 1);
+        let error = index.try_to_usize().unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "failed to convert index from {} to usize: value {}",
+                std::any::type_name::<u64>(),
+                u64::from(u32::MAX) + 1
+            )
+        );
     }
 }
