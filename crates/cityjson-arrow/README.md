@@ -140,6 +140,10 @@ That rewrite should:
 - define the full component set only once, in the target shape
 - rebuild the tests around the new architecture instead of reviving obsolete
   ones
+- mirror the manifest-driven fixture setup used by `serde_cityjson` for
+  roundtrip acceptance instead of relying only on unit fixtures
+- treat final JSON emission through `serde_cityjson` plus `cjval` validation of
+  the real-world `3DBAG` and `3D Basisvoorziening` datasets as the end gate
 
 ## Repository Map
 

@@ -564,10 +564,25 @@ Lossless reconstruction into `CityModel` is defined as follows:
 The round-trip requirement is:
 
 ```text
-CityModel -> CityModelArrowParts -> CityModel
+CityJSON fixture
+  -> cityjson-rs CityModel
+  -> CityModelArrowParts
+  -> CityModel
+  -> serde_cityjson JSON
 ```
 
 for the supported component set, without requiring derived GIS views.
+
+Acceptance should use the same manifest-driven case setup used by
+`serde_cityjson`, not an unrelated local fixture set.
+
+That means:
+
+- the roundtrip suite should mirror the generated profile catalog and real
+  dataset layout used by `serde_cityjson`
+- the real-world `3DBAG` and `3D Basisvoorziening` cases are required
+- the final serializer in the acceptance path is `serde_cityjson`
+- the final external validity gate for the real-world outputs is `cjval`
 
 ## Derived Interoperability Views
 
@@ -605,6 +620,10 @@ The first implementation pass should:
 - stop assuming quantized integer vertex storage
 - implement projected attribute discovery before writing Parquet
 - keep GeoArrow and GeoParquet generation as explicit secondary export paths
+- add a manifest-driven roundtrip suite modeled on `serde_cityjson`'s fixture
+  setup instead of inventing a second acceptance layout
+- keep `3DBAG` and `3D Basisvoorziening` as end-to-end real-data gates, with
+  final JSON emission through `serde_cityjson` and validation by `cjval`
 
 ## Non-goals
 

@@ -377,6 +377,9 @@ not a staged migration from the current prototype.
 - define the target Arrow and Parquet schemas once, then make both readers and
   writers conform to them
 - delete obsolete tests and disabled code that encode the wrong data model
+- build the acceptance suite around the same manifest-driven case setup used by
+  `serde_cityjson`, including its generated profile catalog and downloaded
+  real-world datasets
 
 ### Rewrite acceptance criteria
 
@@ -385,9 +388,17 @@ The rewrite is done when all of the following are true:
 - the crate compiles against current `cityjson-rs`
 - `CityModel -> CityModelArrowParts -> CityModel` works for the supported
   component set
+- the roundtrip suite uses the same setup as `serde_cityjson`, centered on the
+  manifest-driven case catalog and real dataset layout rather than ad hoc local
+  fixtures
 - Arrow IPC and Parquet use the same target transport decomposition
 - attributes and extras use the projected Parquet-safe encoding defined above
 - geometry export uses the normalized transport layout defined above
+- the accepted roundtrip path ends by serializing the reconstructed model to
+  JSON with `serde_cityjson`
+- the real-world `3DBAG` and `3D Basisvoorziening` cases are serialized to JSON
+  with `serde_cityjson` at the very end and those produced files validate with
+  `cjval`
 - the test suite validates the new architecture instead of preserving the old
   one
 
