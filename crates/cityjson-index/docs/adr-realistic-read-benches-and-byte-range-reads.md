@@ -14,7 +14,9 @@ The earlier benchmark harness had already moved away from a single repeated
 `get`, but two material problems remained:
 
 1. the bbox workload still reused a small fixed window set too aggressively
-2. regular `CityJSON` was still not being compared on the same semantic unit as
+2. `query_iter()` needed to remain a streaming path rather than a buffered
+   iterator over all bbox matches
+3. regular `CityJSON` was still not being compared on the same semantic unit as
    feature-files and `NDJSON`
 
 The original regular `CityJSON` scan path indexed every `CityObject`, including
@@ -59,7 +61,7 @@ The steady-state benchmark contract is now:
 
 - `get`: 1,000 deterministic lookups per measured iteration
 - `query`: 10 bbox queries per measured iteration
-- `query_iter`: the same 10 bbox queries, fully drained
+- `query_iter`: the same 10 bbox queries, fully drained through the streaming path
 
 But the workload construction is now stricter:
 

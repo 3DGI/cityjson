@@ -1,5 +1,11 @@
 # ADR: Full Integration Benchmark Harness Across All Storage Layouts
 
+> Historical note: this ADR captures the earlier full-integration harness and
+> its full-corpus benchmark shape. The current read-path analysis and benchmark
+> contract are in
+> [docs/cjindex-realistic-read-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-realistic-read-benches-results.md)
+> and [docs/cjindex-backend-perf-investigation-results.md](/home/balazs/Development/cjindex/docs/cjindex-backend-perf-investigation-results.md).
+
 ## Status
 
 Accepted

@@ -42,7 +42,7 @@ The steady-state benchmark contract is now:
 
 - `get`: 1,000 deterministic lookups per measured iteration
 - `query`: 10 bbox queries per measured iteration
-- `query_iter`: the same 10 bbox queries, fully drained
+- `query_iter`: the same 10 bbox queries, fully drained through the streaming iterator path
 - `metadata`: unchanged
 - `reindex`: unchanged
 
