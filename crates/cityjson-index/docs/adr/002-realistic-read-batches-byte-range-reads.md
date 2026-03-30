@@ -1,4 +1,4 @@
-# ADR: Realistic Full-Corpus Read Batches, Indexed Byte-Range Reads, and Correct `CityJSON` Feature Semantics
+# Realistic Full-Corpus Read Batches, Indexed Byte-Range Reads, and Correct `CityJSON` Feature Semantics
 
 ## Status
 
@@ -144,13 +144,10 @@ Key points:
 
 ## Results
 
-The benchmark report is in
-[/home/balazs/Development/cjindex/docs/cjindex-realistic-read-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-realistic-read-benches-results.md).
+The benchmark and investigation results are summarized here so the ADR is
+self-contained.
 
-The investigation report is in
-[/home/balazs/Development/cjindex/docs/cjindex-backend-perf-investigation-results.md](/home/balazs/Development/cjindex/docs/cjindex-backend-perf-investigation-results.md).
-
-The key release-mode benchmark numbers are now:
+The key release-mode benchmark numbers are:
 
 - `feature_files_get`: `87.759 ms` to `88.336 ms` per 1,000-lookups batch
 - `cityjson_get`: `92.092 ms` to `92.581 ms` per 1,000-lookups batch

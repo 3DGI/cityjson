@@ -148,9 +148,13 @@ The current steady-state read benchmarks use hot, repeated workloads rather than
 - the current canonical `get` batch returns 2,003 `CityObject`s
 - the canonical 10-bbox query batch returns 15,886 `CityObject`s
 
-See the full benchmark write-up in [docs/cjindex-realistic-read-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-realistic-read-benches-results.md) and the backend investigation in [docs/cjindex-backend-perf-investigation-results.md](/home/balazs/Development/cjindex/docs/cjindex-backend-perf-investigation-results.md).
+See the benchmark ADRs for the current read-path contract and the historical
+benchmark harness:
 
-Current read ranking in the benchmark docs:
+- [docs/adr/001-full-integration-benchmark-harness.md](/home/balazs/Development/cjindex/docs/adr/001-full-integration-benchmark-harness.md)
+- [docs/adr/002-realistic-read-batches-byte-range-reads.md](/home/balazs/Development/cjindex/docs/adr/002-realistic-read-batches-byte-range-reads.md)
+
+Current read ranking in the benchmark ADRs:
 
 - `NDJSON` is the fastest steady-state read backend overall
 - feature-files is close behind

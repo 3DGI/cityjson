@@ -1,10 +1,4 @@
-# ADR: Full Integration Benchmark Harness Across All Storage Layouts
-
-> Historical note: this ADR captures the earlier full-integration harness and
-> its full-corpus benchmark shape. The current read-path analysis and benchmark
-> contract are in
-> [docs/cjindex-realistic-read-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-realistic-read-benches-results.md)
-> and [docs/cjindex-backend-perf-investigation-results.md](/home/balazs/Development/cjindex/docs/cjindex-backend-perf-investigation-results.md).
+# Full Integration Benchmark Harness Across All Storage Layouts
 
 ## Status
 
@@ -195,29 +189,10 @@ We intentionally traded convenience for realism. The earlier subset suite was
 faster, but it answered the wrong question. The current suite is slower, but it
 measures the workload that actually matters.
 
-## Results and Interpretation
+## See Also
 
-The benchmark run and exact numbers are recorded in
-[docs/cjindex-full-integration-benches-results.md](/home/balazs/Development/cjindex/docs/cjindex-full-integration-benches-results.md).
-
-The most important result is that the tiny-subset conclusion was wrong.
-
-On the full corpus:
-
-- feature-files is the fastest steady-state read layout
-- NDJSON is the fastest reindex layout and a reasonable second-place read
-  layout
-- CityJSON is the clear outlier on dense read workloads
-
-Observed release-mode timings:
-
-- `feature_files_reindex`: `9.2951 s` to `9.3231 s`
-- `feature_files_get`: `73.094 us` to `73.394 us`
-- `feature_files_query`: `88.030 ms` to `88.460 ms`
-- `feature_files_query_iter`: `87.634 ms` to `87.786 ms`
-- `cityjson_reindex`: `23.056 s` to `23.136 s`
-- `cityjson_get`: `27.105 ms` to `27.191 ms`
-- `cityjson_query`: `73.774 s` to `73.925 s`
+The later read-path correction and benchmark interpretation are captured in
+[ADR 002](./002-realistic-read-batches-byte-range-reads.md).
 - `cityjson_query_iter`: `73.859 s` to `74.234 s`
 - `ndjson_reindex`: `7.7962 s` to `7.8153 s`
 - `ndjson_get`: `163.97 us` to `164.21 us`
