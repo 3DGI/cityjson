@@ -86,11 +86,23 @@ impl CityIndex {
     ///
     /// Returns an error if lookup fails.
     pub fn get(&self, id: &str) -> Result<Option<CityModel>> {
+        self.get_with_metadata(id)
+            .map(|maybe| maybe.map(|(_, model)| model))
+    }
+
+    /// Returns a `CityJSON` feature by id together with the source metadata
+    /// used to reconstruct it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if lookup fails.
+    pub fn get_with_metadata(&self, id: &str) -> Result<Option<(Arc<Meta>, CityModel)>> {
         let Some(loc) = self.index.lookup_id(id)? else {
             return Ok(None);
         };
         let metadata = self.index.get_metadata(loc.source_id)?;
-        self.backend.read_one(&loc, metadata).map(Some)
+        let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
+        Ok(Some((metadata, model)))
     }
 
     /// Returns every feature intersecting the given bounding box.
@@ -99,14 +111,19 @@ impl CityIndex {
     ///
     /// Returns an error if the query fails.
     pub fn query(&self, bbox: &BBox) -> Result<Vec<CityModel>> {
-        self.index
-            .lookup_bbox(bbox)?
-            .into_iter()
-            .map(|loc| {
-                let metadata = self.index.get_metadata(loc.source_id)?;
-                self.backend.read_one(&loc, metadata)
-            })
-            .collect()
+        self.query_iter(bbox)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+    }
+
+    /// Returns every feature intersecting the given bounding box together with
+    /// the source metadata used to reconstruct it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query fails.
+    pub fn query_with_metadata(&self, bbox: &BBox) -> Result<Vec<(Arc<Meta>, CityModel)>> {
+        self.query_iter_with_metadata(bbox)?
+            .collect::<std::result::Result<Vec<_>, _>>()
     }
 
     /// Returns an iterator over features intersecting the given bounding box.
@@ -115,10 +132,26 @@ impl CityIndex {
     ///
     /// Returns an error if the iterator cannot be constructed.
     pub fn query_iter(&self, bbox: &BBox) -> Result<impl Iterator<Item = Result<CityModel>> + '_> {
-        let locations = self.index.lookup_bbox(bbox)?;
-        Ok(locations.into_iter().map(move |loc| {
+        let iter = self.query_iter_with_metadata(bbox)?;
+        Ok(iter.map(|item| item.map(|(_, model)| model)))
+    }
+
+    /// Returns an iterator over features intersecting the given bounding box
+    /// together with the source metadata used to reconstruct them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the iterator cannot be constructed.
+    pub fn query_iter_with_metadata(
+        &self,
+        bbox: &BBox,
+    ) -> Result<impl Iterator<Item = Result<(Arc<Meta>, CityModel)>> + '_> {
+        let locations = self.index.lookup_bbox_iter(*bbox);
+        Ok(locations.map(move |loc| {
+            let loc = loc?;
             let metadata = self.index.get_metadata(loc.source_id)?;
-            self.backend.read_one(&loc, metadata)
+            let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
+            Ok((metadata, model))
         }))
     }
 
@@ -160,6 +193,56 @@ struct FeatureIndexEntry {
     member_ranges_json: Option<String>,
 }
 
+struct BBoxLocationIter<'a> {
+    index: &'a Index,
+    bbox: BBox,
+    last_feature_id: Option<String>,
+    finished: bool,
+}
+
+impl<'a> BBoxLocationIter<'a> {
+    fn new(index: &'a Index, bbox: BBox) -> Self {
+        Self {
+            index,
+            bbox,
+            last_feature_id: None,
+            finished: false,
+        }
+    }
+
+    fn next_location(&mut self) -> Result<Option<FeatureLocation>> {
+        if self.finished {
+            return Ok(None);
+        }
+
+        let feature = self
+            .index
+            .lookup_bbox_next(&self.bbox, self.last_feature_id.as_deref())?;
+        if let Some(feature) = feature.as_ref() {
+            self.last_feature_id = Some(feature.feature_id.clone());
+        } else {
+            self.finished = true;
+        }
+
+        Ok(feature)
+    }
+}
+
+impl Iterator for BBoxLocationIter<'_> {
+    type Item = Result<FeatureLocation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_location() {
+            Ok(Some(feature)) => Some(Ok(feature)),
+            Ok(None) => None,
+            Err(error) => {
+                self.finished = true;
+                Some(Err(error))
+            }
+        }
+    }
+}
+
 impl Index {
     fn open(path: &Path) -> Result<Self> {
         if let Some(parent) = path
@@ -171,7 +254,7 @@ impl Index {
 
         let conn = sqlite_result(rusqlite::Connection::open(path))?;
         sqlite_result(conn.execute_batch(
-            r#"
+            r"
             PRAGMA foreign_keys = ON;
 
             CREATE TABLE IF NOT EXISTS sources (
@@ -205,7 +288,7 @@ impl Index {
                 feature_rowid INTEGER PRIMARY KEY,
                 feature_id TEXT NOT NULL UNIQUE REFERENCES features(feature_id) ON DELETE CASCADE
             );
-            "#,
+            ",
         ))?;
         Self::ensure_member_ranges_column(&conn)?;
 
@@ -249,7 +332,7 @@ impl Index {
 
         self.metadata_cache
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
         Ok(())
     }
@@ -258,7 +341,7 @@ impl Index {
         sqlite_result(
             self.conn
                 .query_row(
-                    r#"
+                    r"
                 SELECT
                     f.feature_id,
                     s.id,
@@ -271,49 +354,66 @@ impl Index {
                 FROM features AS f
                 JOIN sources AS s ON s.id = f.source_id
                 WHERE f.feature_id = ?1
-                "#,
+                ",
                     params![id],
-                    |row| Self::feature_location_from_row(row),
+                    Self::feature_location_from_row,
                 )
                 .optional(),
         )
     }
 
-    fn lookup_bbox(&self, bbox: &BBox) -> Result<Vec<FeatureLocation>> {
-        let mut stmt = sqlite_result(self.conn.prepare(
-            r#"
-            SELECT DISTINCT
-                f.feature_id,
-                s.id,
-                f.path,
-                f.offset,
-                f.length,
-                s.vertices_offset,
-                s.vertices_length,
-                f.member_ranges
-            FROM feature_bbox AS fb
-            JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
-            JOIN features AS f ON f.feature_id = bm.feature_id
-            JOIN sources AS s ON s.id = f.source_id
-            WHERE fb.min_x <= ?2
-              AND fb.max_x >= ?1
-              AND fb.min_y <= ?4
-              AND fb.max_y >= ?3
-            ORDER BY bm.feature_id
-            "#,
-        ))?;
-        let rows = sqlite_result(stmt.query_map(
-            params![bbox.min_x, bbox.max_x, bbox.min_y, bbox.max_y],
-            |row| Self::feature_location_from_row(row),
-        ))?;
-        sqlite_result(rows.collect())
+    fn lookup_bbox_iter(&self, bbox: BBox) -> BBoxLocationIter<'_> {
+        BBoxLocationIter::new(self, bbox)
+    }
+
+    fn lookup_bbox_next(
+        &self,
+        bbox: &BBox,
+        after_feature_id: Option<&str>,
+    ) -> Result<Option<FeatureLocation>> {
+        sqlite_result(
+            self.conn
+                .query_row(
+                    r"
+                    SELECT DISTINCT
+                        f.feature_id,
+                        s.id,
+                        f.path,
+                        f.offset,
+                        f.length,
+                        s.vertices_offset,
+                        s.vertices_length,
+                        f.member_ranges
+                    FROM feature_bbox AS fb
+                    JOIN bbox_map AS bm ON bm.feature_rowid = fb.feature_rowid
+                    JOIN features AS f ON f.feature_id = bm.feature_id
+                    JOIN sources AS s ON s.id = f.source_id
+                    WHERE fb.min_x <= ?2
+                      AND fb.max_x >= ?1
+                      AND fb.min_y <= ?4
+                      AND fb.max_y >= ?3
+                      AND (?5 IS NULL OR bm.feature_id > ?5)
+                    ORDER BY bm.feature_id
+                    LIMIT 1
+                    ",
+                    params![
+                        bbox.min_x,
+                        bbox.max_x,
+                        bbox.min_y,
+                        bbox.max_y,
+                        after_feature_id
+                    ],
+                    Self::feature_location_from_row,
+                )
+                .optional(),
+        )
     }
 
     fn get_metadata(&self, source_id: i64) -> Result<Arc<Meta>> {
         if let Some(metadata) = self
             .metadata_cache
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(&source_id)
             .cloned()
         {
@@ -330,7 +430,7 @@ impl Index {
 
         self.metadata_cache
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(source_id, Arc::clone(&metadata));
 
         Ok(metadata)
@@ -358,12 +458,12 @@ impl Index {
 
     fn clear_tables(tx: &rusqlite::Transaction<'_>) -> Result<()> {
         sqlite_result(tx.execute_batch(
-            r#"
+            r"
             DELETE FROM bbox_map;
             DELETE FROM feature_bbox;
             DELETE FROM features;
             DELETE FROM sources;
-            "#,
+            ",
         ))?;
         Ok(())
     }
@@ -379,10 +479,10 @@ impl Index {
         let vertices_offset = sqlite_result(vertices_offset.map(u64_to_i64).transpose())?;
         let vertices_length = sqlite_result(vertices_length.map(u64_to_i64).transpose())?;
         sqlite_result(tx.execute(
-            r#"
+            r"
             INSERT INTO sources (path, metadata, vertices_offset, vertices_length)
             VALUES (?1, ?2, ?3, ?4)
-            "#,
+            ",
             params![
                 path.to_string_lossy(),
                 metadata_json,
@@ -398,22 +498,22 @@ impl Index {
         entries: &[FeatureIndexEntry],
     ) -> Result<()> {
         let mut feature_stmt = sqlite_result(tx.prepare(
-            r#"
+            r"
             INSERT INTO features (feature_id, source_id, path, offset, length, member_ranges)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            "#,
+            ",
         ))?;
         let mut bbox_stmt = sqlite_result(tx.prepare(
-            r#"
+            r"
             INSERT INTO feature_bbox (feature_rowid, min_x, max_x, min_y, max_y)
             VALUES (?1, ?2, ?3, ?4, ?5)
-            "#,
+            ",
         ))?;
         let mut map_stmt = sqlite_result(tx.prepare(
-            r#"
+            r"
             INSERT INTO bbox_map (feature_rowid, feature_id)
             VALUES (?1, ?2)
-            "#,
+            ",
         ))?;
         for entry in entries {
             let offset = sqlite_result(u64_to_i64(entry.offset))?;
@@ -551,7 +651,7 @@ impl CityJsonBackend {
         let mut cache = self
             .vertices_cache
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(vertices) = cache.get(source_path) {
             return Ok(Arc::clone(vertices));
         }
@@ -1108,7 +1208,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
     let mut features = Vec::new();
 
     for (offset, line_bytes) in line_spans.into_iter().skip(1) {
-        if line_bytes.iter().all(|byte| byte.is_ascii_whitespace()) {
+        if line_bytes.iter().all(u8::is_ascii_whitespace) {
             continue;
         }
 
@@ -1282,11 +1382,11 @@ fn root_cityobject_ids(cityobjects: &Map<String, Value>) -> Vec<&String> {
     ids.sort();
     ids.into_iter()
         .filter(|id| {
-            !cityobjects
+            cityobjects
                 .get(*id)
                 .and_then(|object| object.get("parents"))
                 .and_then(Value::as_array)
-                .is_some_and(|parents| !parents.is_empty())
+                .is_none_or(Vec::is_empty)
                 && !child_ids.contains(id.as_str())
         })
         .collect()
@@ -1462,10 +1562,7 @@ fn find_json_key(bytes: &[u8], key: &str) -> Option<usize> {
 }
 
 fn skip_json_whitespace(bytes: &[u8], mut index: usize) -> usize {
-    while bytes
-        .get(index)
-        .is_some_and(|byte| byte.is_ascii_whitespace())
-    {
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
         index += 1;
     }
     index
@@ -1629,6 +1726,7 @@ fn parse_ndjson_feature_bbox(
     Ok((id, bbox))
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn bbox_from_vertices(
     vertices: &[[i64; 3]],
     referenced_vertices: &BTreeSet<usize>,
@@ -1986,13 +2084,14 @@ mod tests {
         );
 
         let hits = index
-            .lookup_bbox(&BBox {
+            .lookup_bbox_iter(BBox {
                 min_x: -1.0,
                 max_x: 1.0,
                 min_y: -1.0,
                 max_y: 1.0,
             })
-            .expect("bbox lookup should succeed");
+            .collect::<Result<Vec<_>>>()
+            .expect("bbox lookup should collect");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].source_path, ndjson_path);
     }

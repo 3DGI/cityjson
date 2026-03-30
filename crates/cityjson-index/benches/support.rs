@@ -1,3 +1,5 @@
+#![allow(clippy::explicit_iter_loop, clippy::missing_panics_doc)]
+
 use std::fs;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};

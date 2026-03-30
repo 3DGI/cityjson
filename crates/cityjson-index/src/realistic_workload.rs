@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -26,6 +26,12 @@ pub struct RealisticWorkload {
     pub query_bboxes: Vec<BBox>,
 }
 
+/// Builds a deterministic read workload from a prepared feature-files corpus.
+///
+/// # Errors
+///
+/// Returns an error if the corpus cannot be scanned or does not contain enough
+/// features and tiles to build the configured workload sizes.
 pub fn build_realistic_workload(layout_root: &Path) -> Result<RealisticWorkload> {
     let feature_records = collect_feature_records(layout_root)?;
     Ok(RealisticWorkload {
@@ -34,6 +40,12 @@ pub fn build_realistic_workload(layout_root: &Path) -> Result<RealisticWorkload>
     })
 }
 
+/// Collects feature metadata from a prepared feature-files corpus.
+///
+/// # Errors
+///
+/// Returns an error if the corpus cannot be scanned or a feature's metadata is
+/// missing or inconsistent.
 pub fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>> {
     let feature_root = layout_root.join("features");
     let mut metadata_files = Vec::new();
@@ -131,6 +143,12 @@ pub fn collect_feature_records(layout_root: &Path) -> Result<Vec<FeatureRecord>>
     Ok(records)
 }
 
+/// Builds the `get` benchmark workload from collected feature records.
+///
+/// # Errors
+///
+/// Returns an error if the corpus does not contain enough feature ids to
+/// satisfy the configured workload size.
 pub fn build_get_workload(feature_records: &[FeatureRecord]) -> Result<Vec<String>> {
     let mut ids_by_tile: BTreeMap<&PathBuf, Vec<&String>> = BTreeMap::new();
     for record in feature_records {
@@ -141,7 +159,7 @@ pub fn build_get_workload(feature_records: &[FeatureRecord]) -> Result<Vec<Strin
     }
 
     let mut ids = Vec::new();
-    let mut selected_ids = BTreeMap::new();
+    let mut selected_ids = BTreeSet::new();
     for (tile, tile_ids) in ids_by_tile {
         let mut tile_ids = tile_ids.into_iter().cloned().collect::<Vec<_>>();
         tile_ids.sort();
@@ -153,14 +171,14 @@ pub fn build_get_workload(feature_records: &[FeatureRecord]) -> Result<Vec<Strin
             .first()
             .cloned()
             .ok_or_else(|| Error::Import("tile grouping unexpectedly yielded no ids".into()))?;
-        selected_ids.insert(selected.clone(), ());
+        selected_ids.insert(selected.clone());
         ids.push(selected);
     }
 
     let mut remaining_ids = feature_records
         .iter()
         .map(|record| record.id.clone())
-        .filter(|id| !selected_ids.contains_key(id))
+        .filter(|id| !selected_ids.contains(id))
         .collect::<Vec<_>>();
     remaining_ids.sort();
     seeded_shuffle(&mut remaining_ids, WORKLOAD_SHUFFLE_SEED);
@@ -178,6 +196,12 @@ pub fn build_get_workload(feature_records: &[FeatureRecord]) -> Result<Vec<Strin
     Ok(ids)
 }
 
+/// Builds the `query` benchmark workload from collected feature records.
+///
+/// # Errors
+///
+/// Returns an error if the corpus does not contain enough tiles or a tile
+/// produces no bounding box when sampled.
 pub fn build_query_workload(feature_records: &[FeatureRecord]) -> Result<Vec<BBox>> {
     let mut by_tile: BTreeMap<PathBuf, Vec<&FeatureRecord>> = BTreeMap::new();
     for record in feature_records {
@@ -215,6 +239,7 @@ pub fn build_query_workload(feature_records: &[FeatureRecord]) -> Result<Vec<BBo
     Ok(bboxes)
 }
 
+#[must_use]
 pub fn union_bbox(a: BBox, b: BBox) -> BBox {
     BBox {
         min_x: a.min_x.min(b.min_x),
@@ -224,6 +249,12 @@ pub fn union_bbox(a: BBox, b: BBox) -> BBox {
     }
 }
 
+/// Shuffles items with a deterministic seed.
+///
+/// # Panics
+///
+/// Panics if the generated shuffle index cannot be represented as `usize` on
+/// the current target.
 pub fn seeded_shuffle<T>(items: &mut [T], seed: u64) {
     if items.len() < 2 {
         return;
@@ -238,7 +269,9 @@ pub fn seeded_shuffle<T>(items: &mut [T], seed: u64) {
         value ^= value >> 27;
         value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
         value ^= value >> 31;
-        let swap_with = (value as usize) % (index + 1);
+        let modulus = u64::try_from(index + 1).expect("shuffle index should fit in u64");
+        let swap_with =
+            usize::try_from(value % modulus).expect("shuffle index should fit in usize");
         items.swap(index, swap_with);
     }
 }

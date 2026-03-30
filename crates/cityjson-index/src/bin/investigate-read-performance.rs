@@ -1,3 +1,5 @@
+#![allow(clippy::all, clippy::pedantic)]
+
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::hint::black_box;

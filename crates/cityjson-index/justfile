@@ -30,6 +30,9 @@ fmt:
 test:
     cargo test --all-features
 
+doc:
+    cargo doc --all-features --no-deps
+
 bench-feature-files:
     cargo bench --bench feature_files
 

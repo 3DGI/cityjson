@@ -1,0 +1,380 @@
+#![allow(
+    clippy::let_and_return,
+    clippy::redundant_closure_for_method_calls,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+
+mod common;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use cjindex::{CityIndex, StorageLayout};
+use common::{bbox_for_model, feature_files_root, find_first, materialize_subset, temp_index_path};
+use serde_json::Value;
+use walkdir::WalkDir;
+
+#[test]
+fn cli_get_and_query_emit_cityjsonseq_streams() {
+    let source_root = feature_files_root();
+    let sample = find_first(&source_root.join("features"), "city.jsonl", true);
+    let root = materialize_subset(
+        "cli-feature-files",
+        &source_root,
+        &[source_root.join("metadata.json"), sample.clone()],
+    );
+    let feature_id = feature_id_from_feature_file(&sample);
+    let index_path = temp_index_path("cli");
+
+    run_cli([
+        "index",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+    ]);
+
+    let model = load_model(&root, &index_path, &feature_id);
+    let bbox = bbox_for_model(&model).expect("bbox should be computable");
+
+    let stdout = run_cli([
+        "get",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+        "--id",
+        &feature_id,
+    ]);
+    let stdout_lines = parse_json_lines(&stdout);
+    assert_eq!(
+        stdout_lines.len(),
+        2,
+        "get should emit one header and one feature"
+    );
+    assert_eq!(stdout_lines[0]["type"], "CityJSON");
+    assert!(
+        stdout_lines[0]["CityObjects"]
+            .as_object()
+            .is_some_and(|objects| objects.is_empty()),
+        "header CityObjects should be empty"
+    );
+    assert_eq!(stdout_lines[1]["type"], "CityJSONFeature");
+    assert_eq!(stdout_lines[1]["id"], feature_id);
+
+    let output_path = temp_output_path("cli-get");
+    let _ = run_cli([
+        "get",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+        "--id",
+        &feature_id,
+        "--output",
+        output_path
+            .as_os_str()
+            .to_str()
+            .expect("output path must be utf-8"),
+    ]);
+    assert_eq!(
+        parse_json_lines(
+            &fs::read_to_string(&output_path).expect("get output file should be readable")
+        ),
+        stdout_lines
+    );
+
+    let query_stdout = run_cli([
+        "query",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+        "--min-x",
+        &bbox.min_x.to_string(),
+        "--max-x",
+        &bbox.max_x.to_string(),
+        "--min-y",
+        &bbox.min_y.to_string(),
+        "--max-y",
+        &bbox.max_y.to_string(),
+    ]);
+    let query_lines = parse_json_lines(&query_stdout);
+    assert_eq!(
+        query_lines.len(),
+        2,
+        "query should emit one header and one feature for the selected bbox"
+    );
+    assert_eq!(query_lines[0]["type"], "CityJSON");
+    assert_eq!(query_lines[1]["type"], "CityJSONFeature");
+    assert_eq!(query_lines[1]["id"], feature_id);
+
+    let query_output_path = temp_output_path("cli-query");
+    let _ = run_cli([
+        "query",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+        "--min-x",
+        &bbox.min_x.to_string(),
+        "--max-x",
+        &bbox.max_x.to_string(),
+        "--min-y",
+        &bbox.min_y.to_string(),
+        "--max-y",
+        &bbox.max_y.to_string(),
+        "--output",
+        query_output_path
+            .as_os_str()
+            .to_str()
+            .expect("output path must be utf-8"),
+    ]);
+    assert_eq!(
+        parse_json_lines(
+            &fs::read_to_string(&query_output_path).expect("query output file should be readable")
+        ),
+        query_lines
+    );
+}
+
+#[test]
+fn cli_query_rejects_incompatible_metadata_roots() {
+    let source_root = feature_files_root();
+    let mut features = first_two_feature_files(&source_root.join("features"));
+    features.sort();
+    let feature_a = features[0].clone();
+    let feature_b = features[1].clone();
+    let feature_a_id = feature_id_from_feature_file(&feature_a);
+    let feature_b_id = feature_id_from_feature_file(&feature_b);
+
+    let root = temp_fixture_root("cli-metadata-mismatch");
+    fs::create_dir_all(root.join("features")).expect("features root should be creatable");
+    fs::create_dir_all(root.join("alt")).expect("alt root should be creatable");
+    fs::copy(
+        source_root.join("metadata.json"),
+        root.join("metadata.json"),
+    )
+    .expect("root metadata should copy");
+    fs::copy(
+        &feature_a,
+        root.join("features").join("feature-a.city.jsonl"),
+    )
+    .expect("feature A should copy");
+
+    let mut alt_metadata: Value =
+        serde_json::from_slice(&fs::read(source_root.join("metadata.json")).expect("metadata"))
+            .expect("source metadata should parse");
+    alt_metadata
+        .as_object_mut()
+        .expect("metadata root should be an object")
+        .insert(
+            "cli-test-note".to_owned(),
+            Value::String("mismatch".to_owned()),
+        );
+    fs::write(
+        root.join("alt").join("metadata.json"),
+        serde_json::to_vec(&alt_metadata).expect("alt metadata should serialize"),
+    )
+    .expect("alt metadata should copy");
+    fs::copy(&feature_b, root.join("alt").join("feature-b.city.jsonl"))
+        .expect("feature B should copy");
+
+    let index_path = temp_index_path("cli-metadata-mismatch");
+    run_cli([
+        "index",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+    ]);
+
+    let index = CityIndex::open(
+        StorageLayout::FeatureFiles {
+            root: root.clone(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+        &index_path,
+    )
+    .expect("index should open");
+    let model_a = index
+        .get(&feature_a_id)
+        .expect("feature A should load")
+        .expect("feature A should be indexed");
+    let model_b = index
+        .get(&feature_b_id)
+        .expect("feature B should load")
+        .expect("feature B should be indexed");
+    let bbox_a = bbox_for_model(&model_a).expect("feature A bbox should compute");
+    let bbox_b = bbox_for_model(&model_b).expect("feature B bbox should compute");
+    let min_x = bbox_a.min_x.min(bbox_b.min_x).to_string();
+    let max_x = bbox_a.max_x.max(bbox_b.max_x).to_string();
+    let min_y = bbox_a.min_y.min(bbox_b.min_y).to_string();
+    let max_y = bbox_a.max_y.max(bbox_b.max_y).to_string();
+
+    let output = run_cli_output([
+        "query",
+        "--layout",
+        "feature-files",
+        "--root",
+        root.as_os_str().to_str().expect("root path must be utf-8"),
+        "--index",
+        index_path
+            .as_os_str()
+            .to_str()
+            .expect("index path must be utf-8"),
+        "--min-x",
+        &min_x,
+        "--max-x",
+        &max_x,
+        "--min-y",
+        &min_y,
+        "--max-y",
+        &max_y,
+    ]);
+    assert!(
+        !output.status.success(),
+        "query should fail for incompatible metadata roots"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("incompatible metadata roots"),
+        "query should explain the metadata mismatch"
+    );
+}
+
+fn load_model(root: &Path, index_path: &Path, feature_id: &str) -> cjlib::CityModel {
+    let index = CityIndex::open(
+        StorageLayout::FeatureFiles {
+            root: root.to_path_buf(),
+            metadata_glob: "**/metadata.json".to_owned(),
+            feature_glob: "**/*.city.jsonl".to_owned(),
+        },
+        index_path,
+    )
+    .expect("index should open");
+    let model = index
+        .get(feature_id)
+        .expect("get should succeed")
+        .expect("feature should be indexed");
+    model
+}
+
+fn feature_id_from_feature_file(path: &Path) -> String {
+    let bytes = fs::read(path).expect("feature file should be readable");
+    let value: Value = serde_json::from_slice(&bytes).expect("feature file should be valid JSON");
+    value
+        .get("id")
+        .and_then(Value::as_str)
+        .expect("feature file must contain an id")
+        .to_owned()
+}
+
+fn parse_json_lines(output: &str) -> Vec<Value> {
+    output
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("output line should be valid JSON"))
+        .collect()
+}
+
+fn run_cli<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let output = run_cli_output(args);
+    assert!(
+        output.status.success(),
+        "cjindex command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("cjindex stdout should be utf-8")
+}
+
+fn run_cli_output<I, S>(args: I) -> std::process::Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let binary = std::env::var_os("CARGO_BIN_EXE_cjindex").expect("cjindex binary path");
+    let output = Command::new(binary)
+        .args(args)
+        .output()
+        .expect("cjindex command should run");
+    output
+}
+
+fn temp_output_path(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "cjindex-{label}-{}.jsonl",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos()
+    ))
+}
+
+fn temp_fixture_root(label: &str) -> PathBuf {
+    let path = std::env::temp_dir().join(format!(
+        "cjindex-{label}-{}.dir",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&path).expect("fixture root should be creatable");
+    path
+}
+
+fn first_two_feature_files(root: &Path) -> Vec<PathBuf> {
+    let mut features = Vec::new();
+    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if entry.path().extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+            continue;
+        }
+        if entry.metadata().map(|meta| meta.len() == 0).unwrap_or(true) {
+            continue;
+        }
+        features.push(entry.path().to_path_buf());
+        if features.len() == 2 {
+            break;
+        }
+    }
+    assert_eq!(features.len(), 2, "expected at least two feature files");
+    features
+}
