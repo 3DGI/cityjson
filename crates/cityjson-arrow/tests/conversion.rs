@@ -1,8 +1,9 @@
 use cityarrow::{from_parts, to_parts};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
-    AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Extension, Geometry,
-    GeometryType, LoD, OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
+    AffineTransform3D, AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType,
+    Extension, Geometry, GeometryType, LoD, OwnedCityModel, OwnedSemantic, SemanticMap,
+    SemanticType, StoredGeometryInstance, StoredGeometryParts,
 };
 use serde_cityjson::to_string_validated;
 use serde_json::Value as JsonValue;
@@ -24,9 +25,7 @@ fn sample_model() -> OwnedCityModel {
         .set_reference_system(cityjson::v2_0::CRS::new(
             "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
         ));
-    model
-        .metadata_mut()
-        .set_title("Sample".to_string());
+    model.metadata_mut().set_title("Sample".to_string());
     model
         .metadata_mut()
         .set_geographical_extent(cityjson::v2_0::BBox::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
@@ -117,10 +116,8 @@ fn sample_model() -> OwnedCityModel {
         CityObjectIdentifier::new("building-1-part-0".to_string()),
         CityObjectType::BuildingPart,
     );
-    part.attributes_mut().insert(
-        "storeys".to_string(),
-        AttributeValue::Unsigned(2),
-    );
+    part.attributes_mut()
+        .insert("storeys".to_string(), AttributeValue::Unsigned(2));
 
     let building_handle = model.cityobjects_mut().add(building).unwrap();
     let part_handle = model.cityobjects_mut().add(part).unwrap();
@@ -142,6 +139,62 @@ fn normalized_json(model: &OwnedCityModel) -> JsonValue {
     serde_json::from_str(&to_string_validated(model).unwrap()).unwrap()
 }
 
+fn sample_model_with_template_instance() -> OwnedCityModel {
+    let mut model = sample_model();
+
+    let reference_point = model
+        .add_vertex(cityjson::v2_0::RealWorldCoordinate::new(10.0, 20.0, 5.0))
+        .unwrap();
+    model
+        .add_template_vertex(cityjson::v2_0::RealWorldCoordinate::new(0.0, 0.0, 0.0))
+        .unwrap();
+    model
+        .add_template_vertex(cityjson::v2_0::RealWorldCoordinate::new(1.0, 0.0, 0.0))
+        .unwrap();
+
+    let template_boundary: Boundary<u32> = vec![0_u32, 1_u32].try_into().unwrap();
+    let template_geometry = Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: GeometryType::MultiPoint,
+        lod: Some(LoD::LoD1),
+        boundaries: Some(template_boundary),
+        semantics: None,
+        materials: None,
+        textures: None,
+        instance: None,
+    });
+    let template_handle = model.add_geometry_template(template_geometry).unwrap();
+
+    let instance_geometry = Geometry::from_stored_parts(StoredGeometryParts {
+        type_geometry: GeometryType::GeometryInstance,
+        lod: Some(LoD::LoD1),
+        boundaries: None,
+        semantics: None,
+        materials: None,
+        textures: None,
+        instance: Some(StoredGeometryInstance {
+            template: template_handle,
+            reference_point,
+            transformation: AffineTransform3D::from([
+                1.0, 0.0, 0.0, 2.5, 0.0, 1.0, 0.0, 3.5, 0.0, 0.0, 1.0, 4.5, 0.0, 0.0, 0.0, 1.0,
+            ]),
+        }),
+    });
+    let instance_handle = model.add_geometry(instance_geometry).unwrap();
+
+    let mut object = CityObject::new(
+        CityObjectIdentifier::new("building-template-instance".to_string()),
+        CityObjectType::Building,
+    );
+    object.add_geometry(instance_handle);
+    object.attributes_mut().insert(
+        "kind".to_string(),
+        AttributeValue::String("instance".to_string()),
+    );
+    model.cityobjects_mut().add(object).unwrap();
+
+    model
+}
+
 #[test]
 fn core_model_roundtrips_through_parts() {
     let model = sample_model();
@@ -152,6 +205,20 @@ fn core_model_roundtrips_through_parts() {
     assert!(parts.semantics.is_some());
     assert!(parts.geometry_surface_semantics.is_some());
     assert!(parts.extensions.is_some());
+
+    let reconstructed = from_parts(&parts).expect("from_parts should succeed");
+    assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
+}
+
+#[test]
+fn geometry_templates_and_instances_roundtrip_through_parts() {
+    let model = sample_model_with_template_instance();
+
+    let parts = to_parts(&model).expect("to_parts should succeed");
+    assert!(parts.geometry_instances.is_some());
+    assert!(parts.template_vertices.is_some());
+    assert!(parts.template_geometries.is_some());
+    assert!(parts.template_geometry_boundaries.is_some());
 
     let reconstructed = from_parts(&parts).expect("from_parts should succeed");
     assert_eq!(normalized_json(&model), normalized_json(&reconstructed));

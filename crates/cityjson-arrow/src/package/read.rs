@@ -108,6 +108,7 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
     ensure_paired_geometry_tables(
         &geometries,
         &geometry_boundaries,
+        "geometry_id",
         "geometries",
         "geometry_boundaries",
     )?;
@@ -135,6 +136,17 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
         CanonicalTable::TemplateGeometryBoundaries,
         &schemas.template_geometry_boundaries,
     )?;
+    if let (Some(template_geometries), Some(template_geometry_boundaries)) =
+        (&template_geometries, &template_geometry_boundaries)
+    {
+        ensure_paired_geometry_tables(
+            template_geometries,
+            template_geometry_boundaries,
+            "template_geometry_id",
+            "template_geometries",
+            "template_geometry_boundaries",
+        )?;
+    }
 
     let semantics = optional_table(
         &loaded.semantics,
@@ -385,6 +397,7 @@ fn ensure_max_row_count(batch: &RecordBatch, max: usize, table: CanonicalTable) 
 fn ensure_paired_geometry_tables(
     geometries: &RecordBatch,
     boundaries: &RecordBatch,
+    id_field: &str,
     left_name: &str,
     right_name: &str,
 ) -> Result<()> {
@@ -395,25 +408,25 @@ fn ensure_paired_geometry_tables(
     }
 
     let left_ids = geometries
-        .column_by_name("geometry_id")
-        .ok_or_else(|| Error::MissingField("geometry_id".to_string()))?;
+        .column_by_name(id_field)
+        .ok_or_else(|| Error::MissingField(id_field.to_string()))?;
     let right_ids = boundaries
-        .column_by_name("geometry_id")
-        .ok_or_else(|| Error::MissingField("geometry_id".to_string()))?;
+        .column_by_name(id_field)
+        .ok_or_else(|| Error::MissingField(id_field.to_string()))?;
 
     let left_ids = left_ids
         .as_any()
         .downcast_ref::<arrow::array::UInt64Array>()
-        .ok_or_else(|| Error::Conversion(format!("failed to read {left_name}.geometry_id")))?;
+        .ok_or_else(|| Error::Conversion(format!("failed to read {left_name}.{id_field}")))?;
     let right_ids = right_ids
         .as_any()
         .downcast_ref::<arrow::array::UInt64Array>()
-        .ok_or_else(|| Error::Conversion(format!("failed to read {right_name}.geometry_id")))?;
+        .ok_or_else(|| Error::Conversion(format!("failed to read {right_name}.{id_field}")))?;
 
     for index in 0..left_ids.len() {
         if left_ids.value(index) != right_ids.value(index) {
             return Err(Error::Unsupported(format!(
-                "{left_name} and {right_name} must be aligned by geometry_id"
+                "{left_name} and {right_name} must be aligned by {id_field}"
             )));
         }
     }

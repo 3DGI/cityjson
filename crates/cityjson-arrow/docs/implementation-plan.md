@@ -48,9 +48,6 @@ The rewrite is accepted only when all of the following are true:
 
 - materials
 - textures
-- template vertices
-- template geometries
-- geometry instances
 
 Deferred modules must fail explicitly when encountered. They are not allowed to
 silently disappear from the roundtrip.
@@ -82,8 +79,8 @@ silently disappear from the roundtrip.
 - [x] Reject unsupported modules with hard errors:
   - materials
   - textures
-  - templates
-  - geometry instances
+- [x] Implement template vertex, template geometry, and geometry instance conversion.
+- [x] Implement template and geometry-instance package tables.
 - [x] Implement package manifest writing.
 - [x] Implement Parquet table writing.
 - [x] Implement package manifest reading.

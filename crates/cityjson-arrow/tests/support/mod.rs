@@ -5,8 +5,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cityjson::v2_0::OwnedCityModel;
 use cityarrow::{from_parts, read_package_dir, to_parts, write_package_dir};
+use cityjson::v2_0::OwnedCityModel;
 use serde::Deserialize;
 use serde_cityjson::{from_str_owned, to_string_validated};
 use tempfile::Builder;

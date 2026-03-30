@@ -22,6 +22,10 @@ fn fixed_size_list_3(values: Vec<[f64; 3]>) -> ArrayRef {
     fixed_size_list(values, 3)
 }
 
+fn fixed_size_list_16(values: Vec<[f64; 16]>) -> ArrayRef {
+    fixed_size_list(values, 16)
+}
+
 fn fixed_size_list_6(values: Vec<[f64; 6]>) -> ArrayRef {
     fixed_size_list(values, 6)
 }
@@ -259,6 +263,62 @@ fn sample_parts() -> CityModelArrowParts {
         ],
     );
 
+    let geometry_instances = batch(
+        &schemas.geometry_instances,
+        vec![
+            array_ref(LargeStringArray::from(vec!["sample-citymodel"])),
+            array_ref(UInt64Array::from(vec![1_u64])),
+            array_ref(LargeStringArray::from(vec!["building-1-part"])),
+            array_ref(UInt32Array::from(vec![0_u32])),
+            array_ref(StringArray::from(vec![Some("1.0")])),
+            array_ref(UInt64Array::from(vec![0_u64])),
+            array_ref(UInt64Array::from(vec![1_u64])),
+            fixed_size_list_16(vec![[
+                1.0, 0.0, 0.0, 2.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 1.0, 4.0, 0.0, 0.0, 0.0, 1.0,
+            ]]),
+            array_ref(BinaryArray::from_iter_values([b"instance-mesh".as_slice()])),
+        ],
+    );
+
+    let template_vertices = batch(
+        &schemas.template_vertices,
+        vec![
+            array_ref(LargeStringArray::from(vec![
+                "sample-citymodel",
+                "sample-citymodel",
+            ])),
+            array_ref(UInt64Array::from(vec![0_u64, 1_u64])),
+            array_ref(Float64Array::from(vec![0.0, 1.0])),
+            array_ref(Float64Array::from(vec![0.0, 0.0])),
+            array_ref(Float64Array::from(vec![0.0, 0.0])),
+        ],
+    );
+
+    let template_geometries = batch(
+        &schemas.template_geometries,
+        vec![
+            array_ref(LargeStringArray::from(vec!["sample-citymodel"])),
+            array_ref(UInt64Array::from(vec![0_u64])),
+            array_ref(StringArray::from(vec!["MultiPoint"])),
+            array_ref(StringArray::from(vec![Some("1.0")])),
+            array_ref(BinaryArray::from_iter_values([b"template-mesh".as_slice()])),
+        ],
+    );
+
+    let template_geometry_boundaries = batch(
+        &schemas.template_geometry_boundaries,
+        vec![
+            array_ref(LargeStringArray::from(vec!["sample-citymodel"])),
+            array_ref(UInt64Array::from(vec![0_u64])),
+            u64_list(vec![Some(vec![0_u64, 1_u64])]),
+            u32_list(vec![None]),
+            u32_list(vec![None]),
+            u32_list(vec![None]),
+            u32_list(vec![None]),
+            u32_list(vec![None]),
+        ],
+    );
+
     let semantics = batch(
         &schemas.semantics,
         vec![
@@ -332,10 +392,10 @@ fn sample_parts() -> CityModelArrowParts {
         cityobject_children: Some(cityobject_children),
         geometries,
         geometry_boundaries,
-        geometry_instances: None,
-        template_vertices: None,
-        template_geometries: None,
-        template_geometry_boundaries: None,
+        geometry_instances: Some(geometry_instances),
+        template_vertices: Some(template_vertices),
+        template_geometries: Some(template_geometries),
+        template_geometry_boundaries: Some(template_geometry_boundaries),
         semantics: Some(semantics),
         semantic_children: None,
         geometry_surface_semantics: Some(geometry_surface_semantics),
@@ -357,6 +417,8 @@ fn package_directory_roundtrips_canonical_tables() {
     assert!(manifest.tables.metadata.is_some());
     assert!(manifest.tables.vertices.is_some());
     assert!(manifest.tables.geometries.is_some());
+    assert!(manifest.tables.geometry_instances.is_some());
+    assert!(manifest.tables.template_geometries.is_some());
     assert!(manifest.tables.geometry_ring_textures.is_some());
 
     let roundtrip = read_package_dir(dir.path()).expect("package read");
@@ -370,6 +432,13 @@ fn package_directory_roundtrips_canonical_tables() {
     assert_eq!(roundtrip.cityobject_children, parts.cityobject_children);
     assert_eq!(roundtrip.geometries, parts.geometries);
     assert_eq!(roundtrip.geometry_boundaries, parts.geometry_boundaries);
+    assert_eq!(roundtrip.geometry_instances, parts.geometry_instances);
+    assert_eq!(roundtrip.template_vertices, parts.template_vertices);
+    assert_eq!(roundtrip.template_geometries, parts.template_geometries);
+    assert_eq!(
+        roundtrip.template_geometry_boundaries,
+        parts.template_geometry_boundaries
+    );
     assert_eq!(roundtrip.semantics, parts.semantics);
     assert_eq!(
         roundtrip.geometry_surface_semantics,
