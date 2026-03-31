@@ -6,15 +6,10 @@ format.
 ## Summary
 
 - package schema id: `cityarrow.package.v1alpha1`
-- semantic target: `cityjson::v2_0::CityModel`
+- semantic target: `cityjson::v2_0::OwnedCityModel`
 - supported table encodings: Parquet and Arrow IPC file
-- reconstruction target: full-fidelity `CityModel`
-- interoperability model: derived GIS-facing views are secondary exports, not
-  the canonical package
-
-The package is designed for lossless reconstruction first. Generic GIS
-compatibility is provided through derived views rather than by collapsing the
-canonical model into a single simple-features table.
+- reconstruction target: full-fidelity `OwnedCityModel`
+- canonical transport type: `CityModelArrowParts`
 
 ## Scope
 
@@ -29,11 +24,11 @@ This document does not define:
 
 - a generic multi-format registry
 - a canonical WKB encoding for every CityJSON volumetric geometry
-- a second semantic model beside `CityModel`
+- a second semantic model beside `OwnedCityModel`
 
 ## Package Layout
 
-One package stores one `CityModel`.
+One package stores one logical CityJSON model.
 
 The manifest selects the table encoding. Parquet packages use `.parquet`
 filenames. Arrow IPC packages use `.arrow` filenames.
@@ -68,14 +63,14 @@ citymodel_package/
   texture_vertices.parquet
   geometry_ring_textures.parquet
   template_geometry_ring_textures.parquet
-  views/
-    surfaces.geoparquet
-    footprints.geoparquet
-    centroids.geoparquet
 ```
 
 All optional tables may be omitted when the corresponding component is absent.
 Arrow IPC packages use the same layout with `.arrow` file extensions.
+
+`PackageManifest` also has an optional `views` map for non-canonical derived
+artifacts, but the current package readers and writers only require the
+canonical tables listed above.
 
 ## Manifest
 
@@ -96,9 +91,6 @@ Example:
     "cityobjects": "cityobjects.arrow",
     "geometries": "geometries.arrow",
     "geometry_boundaries": "geometry_boundaries.arrow"
-  },
-  "views": {
-    "surfaces": "views/surfaces.geoparquet"
   }
 }
 ```
@@ -108,7 +100,7 @@ remain readable.
 
 ## General Conventions
 
-- one package contains one logical `CityModel`
+- one package contains one logical CityJSON model
 - every table includes `citymodel_id: LargeUtf8`
 - semantic external ids stay as strings
 - dense transport ids use `UInt64`
@@ -142,7 +134,7 @@ The transport layer exposes an explicit package header and the canonical
 component batches through `CityModelArrowParts`.
 
 ```rust
-use arrow_array::RecordBatch;
+use arrow::record_batch::RecordBatch;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CityArrowPackageVersion {
@@ -226,6 +218,24 @@ pub struct CityModelArrowParts {
 }
 ```
 
+The manifest surface is:
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageManifest {
+    pub package_schema: CityArrowPackageVersion,
+    pub table_encoding: PackageTableEncoding,
+    pub cityjson_version: String,
+    pub citymodel_id: String,
+    pub tables: PackageTables,
+    pub views: BTreeMap<String, PathBuf>,
+}
+```
+
+`views` is optional metadata for non-canonical artifacts. The current package
+helpers round-trip the canonical tables and do not depend on any particular
+view names.
+
 ## Canonical Tables
 
 The canonical package uses these tables:
@@ -281,6 +291,6 @@ canonical source of truth for those field definitions is `src/schema.rs`.
 
 ## Derived Views
 
-GeoArrow and GeoParquet outputs are derived views over the canonical package.
-They are not part of the canonical schema contract and may omit information that
-the canonical package preserves.
+Non-canonical artifacts may be attached through manifest `views`, but they are
+outside the canonical schema contract and may omit information that the
+canonical package preserves.

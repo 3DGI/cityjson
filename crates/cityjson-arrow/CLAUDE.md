@@ -4,66 +4,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CityArrow is a Rust library that converts between CityJSON models and Apache Arrow format. It provides bidirectional conversion capabilities, allowing CityJSON data to be stored and processed using Arrow's columnar format for better performance and interoperability.
+`cityarrow` is a Rust transport library for moving `cityjson-rs` models across
+Arrow IPC and Parquet package boundaries.
+
+The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
+`CityModelArrowParts` is the canonical transport decomposition used by package
+readers and writers.
 
 ## Key Commands
 
-- **Build**: `cargo build`
-- **Test**: `cargo test`
-- **Test specific test**: `cargo test <testname>`
-- **Check/lint**: `just check`
-- **Format**: `cargo fmt`
-- **Clippy**: `just clippy`
+- Build: `cargo build`
+- Test: `cargo test`
+- Check: `just check`
+- Clippy: `just clippy`
+- Format: `cargo fmt`
+- Ignored real-data acceptance tests: `just acceptance`
 
 ## Architecture
 
-The codebase is organized around a clear separation of concerns:
+Current source layout:
 
-### Core Modules
-- **`lib.rs`**: Defines `CityModelArrowParts` struct and main conversion entry points
-- **`reader.rs`**: Handles reading Arrow IPC files back into CityJSON models using `IPCBufferDecoder`
-- **`writer.rs`**: Handles writing CityJSON models to Arrow format (IPC, Parquet, JSON) with `FileManifest` metadata
-- **`error.rs`**: Custom error types and result handling
-- **`conversion.rs`**: Entry point for conversion modules
-
-### Conversion Modules (`src/conversion/`)
-Each module handles conversion of specific CityJSON components to/from Arrow:
-- **`geometry.rs`**: Converts geometries with support for boundaries, LoD, materials, textures
-- **`cityobjects.rs`**: Handles city objects and their properties
-- **`vertices.rs`**: Manages vertex data and coordinates
-- **`attributes.rs`**: Processes object attributes and properties
-- **`metadata.rs`**: Handles model metadata including geographical extent
-- **`semantics.rs`**: Manages semantic information
-- **`transform.rs`**: Handles coordinate transformations
-- **`common.rs`**: Shared utilities for conversions
-
-### Key Data Structures
-- **`CityModelArrowParts`**: Central struct containing all Arrow RecordBatch components of a CityJSON model
-- **`FileManifest`**: Metadata describing which components are present in Arrow files
-- **`IPCBufferDecoder`**: Low-level Arrow IPC file decoder wrapper
+- `src/lib.rs`: public exports
+- `src/convert/mod.rs`: `OwnedCityModel` <-> `CityModelArrowParts`
+- `src/package/write.rs`: canonical package write for Parquet and Arrow IPC
+- `src/package/read.rs`: canonical package read for Parquet and Arrow IPC
+- `src/package/mod.rs`: shared package helpers and schema inference support
+- `src/schema.rs`: canonical schema definitions, manifest types, and transport
+  structs
+- `src/error.rs`: crate error type
 
 ## Dependencies
 
-- **External CityJSON library**: Uses `cityjson = { path = "../cityjson-rs"}` - a local dependency
-- **Arrow ecosystem**: `arrow`, `arrow-json`, `parquet` for columnar data operations
-- **Serialization**: `nanoserde` for JSON manifest files
-- **Memory mapping**: `memmap2` for efficient file reading
+- Local `cityjson-rs` checkout via `cityjson = { path = "../cityjson-rs" }`
+- Local `serde_cityjson` checkout in dev-dependencies for acceptance tests
+- Arrow and Parquet crates for canonical table I/O
+- `serde` and `serde_json` for manifest and projected payload serialization
 
 ## Testing
 
-Tests are located in `tests/` directory. The project uses standard Rust testing with `cargo test`. Test data would typically be in `tests/data/` but the directory is currently empty.
+Tests live in `tests/`.
 
-## Output Formats
+Important coverage layers:
 
-The library supports multiple output formats:
-- Arrow IPC files (`.arrow`)
-- Parquet files (`.parquet`)
-- Line-delimited JSON (`.ndjson`)
-- Directory-based storage with manifest files
+- conversion and canonical roundtrip tests over synthetic fixtures
+- package I/O tests for both encodings
+- schema and manifest surface checks
+- ignored real-data acceptance tests in `tests/manifest_roundtrip.rs`
+
+The ignored real-data tests are intentionally expensive. Run them only
+explicitly.
+
+## Documentation
+
+- `README.md`: project overview and verification summary
+- `docs/design.md`: transport design and invariants
+- `docs/package-schema.md`: canonical package layout and manifest contract
 
 ## Development Notes
 
-- Uses Rust 2024 edition
-- Leverages `lazy_static!` for shared field definitions in geometry conversions
-- Heavy use of generics for `StringStorage` trait to support different string representations
-- Error handling through custom `Result<T>` type aliased to `std::result::Result<T, Error>`
+- The canonical package schema id is `cityarrow.package.v1alpha1`.
+- Keep docs aligned with the code in `src/schema.rs` and `src/package/`.
+- Avoid introducing claims about formats, modules, or views that are not
+  implemented in this repository.
