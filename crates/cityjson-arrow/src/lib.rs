@@ -2,7 +2,7 @@
 //!
 //! The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
 //! `CityModelArrowParts` is the canonical transport decomposition used by the
-//! implemented package readers and writers.
+//! package readers and writers; it is not a second semantic model.
 
 pub mod convert;
 pub mod error;

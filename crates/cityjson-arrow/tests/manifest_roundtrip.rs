@@ -1,6 +1,11 @@
 #[path = "support/mod.rs"]
 mod support;
 
+use cityarrow::schema::PackageTableEncoding;
+use std::sync::Mutex;
+
+static REAL_DATA_GATE: Mutex<()> = Mutex::new(());
+
 #[test]
 fn manifest_layout_matches_serde_cityjson_real_cases() {
     let cases = support::acceptance_cases();
@@ -28,8 +33,18 @@ fn manifest_layout_matches_serde_cityjson_real_cases() {
 
 #[test]
 #[ignore = "expensive real-data acceptance gate"]
-fn real_datasets_validate_with_serde_cityjson_cityarrow_and_cjval() {
+fn real_datasets_roundtrip_exactly_through_parquet_packages() {
+    let _gate = REAL_DATA_GATE.lock().expect("real-data gate lock");
     for case in support::acceptance_cases() {
-        support::assert_case_roundtrip(&case);
+        support::assert_case_roundtrip_with_encoding(&case, PackageTableEncoding::Parquet);
+    }
+}
+
+#[test]
+#[ignore = "expensive real-data acceptance gate"]
+fn real_datasets_roundtrip_exactly_through_ipc_packages() {
+    let _gate = REAL_DATA_GATE.lock().expect("real-data gate lock");
+    for case in support::acceptance_cases() {
+        support::assert_case_roundtrip_with_encoding(&case, PackageTableEncoding::ArrowIpcFile);
     }
 }

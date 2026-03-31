@@ -1,90 +1,61 @@
 # cityarrow
 
-`cityarrow` is the Arrow, Arrow IPC, and Parquet transport layer for the `cityjson-rs`
-data model.
+`cityarrow` is the Arrow, Arrow IPC, and Parquet transport layer for the
+`cityjson-rs` data model.
 
-It should not define a second semantic model. The semantic unit remains
-`cityjson::v2_0::CityModel`; Arrow IPC, Parquet, and stream framing are explicit
-format boundaries built around that model.
+It does not define a second semantic model. The semantic unit remains
+`cityjson::v2_0::OwnedCityModel`; Arrow IPC and Parquet are explicit transport
+boundaries around that model.
 
 ## Status
 
-As of 2026-03-31, the canonical package path is implemented for the current
-supported surface and the crate is working against the local `cityjson-rs`
-checkout.
+The canonical package path is implemented for both Parquet and Arrow IPC file
+storage.
 
-Verified in this repository:
+The crate currently provides:
 
-- `cargo test` passes
-- `cargo test -- --ignored` passes
-- the ignored acceptance gate round-trips the real `3DBAG` and
-  `3D Basisvoorziening` cases through `serde_cityjson -> cityarrow -> cjval`
+- `convert::to_parts` and `convert::from_parts`
+- canonical package write/read for Parquet
+- canonical package write/read for Arrow IPC
+- schema-locked canonical tables and manifest layout
+- package-level roundtrip coverage for exact canonical table equality
 
-The crate should now be understood as a working transport boundary around
-`cityjson::v2_0::OwnedCityModel`, not as a stale prototype.
+The current status and verification gates are documented in
+[docs/status.md](docs/status.md).
 
-## Implemented Surface
+## Canonical Surface
 
-The current codebase implements the canonical package path:
+The supported canonical package surface includes:
 
-- `CityModelArrowParts` splits a `CityModel` into canonical component batches
-- `convert::to_parts` exports `OwnedCityModel` into canonical batches
-- `convert::from_parts` reconstructs `OwnedCityModel` from canonical batches
-- `package::write_package_dir` writes canonical Parquet tables plus `manifest.json`
-- `package::write_package_ipc_dir` writes canonical Arrow IPC tables plus `manifest.json`
-- `package::read_package_dir` reads either canonical Parquet or Arrow IPC packages
-- `package::read_package_ipc_dir` reads canonical Arrow IPC packages explicitly
-- metadata, transform, extensions, vertices, cityobjects, geometries, semantics,
-  template geometries, geometry instances, materials, textures, and UV
-  coordinates all round-trip for the supported surface
-- the final acceptance path is wired through `serde_cityjson` and `cjval`
-
-## Supported Surface
-
-The canonical roundtrip currently supports:
-
-- metadata, transform, extensions, and model extra
+- metadata, transform, extensions, and projected extra fields
 - vertices and template vertices
 - cityobjects plus parent/child relations
 - projected cityobject and semantic attributes
 - boundary-carrying geometries with normalized topology
 - geometry instances and template geometries
-- semantic point, linestring, surface, and template assignments
-- materials, textures, UV coordinates, default appearance themes,
-  point/linestring/surface material assignments, and template ring texture
-  assignments
-
-## Current Priorities
-
-- keep `cityarrow.package.v1alpha1` stable and schema-locked in tests
-- keep projected attribute columns conservative and lossless
-- add derived GeoArrow and GeoParquet views as secondary exports
+- point, linestring, surface, and template semantic assignments
+- materials, textures, texture vertices, default appearance themes, and UV
+  mappings
+- point, linestring, and surface material assignments
+- geometry and template ring texture assignments
 
 ## Design Constraints
 
 - `CityModel` remains the semantic unit
-- Arrow IPC and Parquet remain explicit format boundaries
-- `CityModelArrowParts` remains a transport decomposition, not a second data model
-- canonical Parquet schemas must avoid Arrow `Union` and `Map`
-- attributes stay reconstructible even when projected conservatively
-- normalized topology is the canonical package shape; GIS views remain derived
+- `CityModelArrowParts` remains a transport decomposition
+- canonical package schemas must remain Parquet-safe
+- canonical topology stays normalized and reconstructible
+- package schema changes must stay deliberate and schema-locked
+
+## Current Documentation
+
+- [docs/status.md](docs/status.md): implementation status and verification
+- [docs/design.md](docs/design.md): transport design and invariants
+- [docs/package-schema.md](docs/package-schema.md): canonical package schema
 
 ## Repository Map
 
-- `src/lib.rs`
-  - top-level `CityModelArrowParts` and conversion entry points
-- `src/convert/mod.rs`
-  - model-to-parts and parts-to-model conversion
-- `src/package/`
-  - canonical package manifest plus Parquet and Arrow IPC read/write
-- `src/schema.rs`
-  - canonical schema definitions and transport structs
-- `docs/design.md`
-  - current design and scope notes
-- `docs/package-schema.md`
-  - canonical package schema
-
-## Documentation
-
-The current design document is [docs/design.md](docs/design.md).
-The current schema document is [docs/package-schema.md](docs/package-schema.md).
+- `src/lib.rs`: public API entry points
+- `src/convert/mod.rs`: model-to-parts and parts-to-model conversion
+- `src/package/`: package manifest plus Parquet and Arrow IPC read/write
+- `src/schema.rs`: canonical schema definitions and transport structs

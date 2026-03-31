@@ -1,387 +1,136 @@
 # cityarrow Design
 
-This document defines the current design for `cityarrow` around the current
-`cityjson-rs` model and the actual state of this repository as of 2026-03-31.
+This document defines the current transport design for `cityarrow`.
 
-It replaces the older implicit assumptions in the codebase with an explicit
-transport design.
-
-The concrete package schema that follows from this design is documented in
-[docs/package-schema.md](package-schema.md).
+The concrete package schema is documented in
+[docs/package-schema.md](package-schema.md). Current implementation status and
+verification gates are documented in [docs/status.md](status.md).
 
 ## Purpose
 
-`cityarrow` exists to move `cityjson-rs` models across Arrow IPC and Parquet
-boundaries.
+`cityarrow` moves `cityjson-rs` models across Arrow IPC and Parquet boundaries.
 
-It does not exist to define a second semantic model family.
+It does not define a second semantic model family. The semantic core remains
+`cityjson::v2_0::CityModel`, and the transport decomposition is
+`CityModelArrowParts`.
 
-The design target is therefore:
+## Source Model
 
-- semantic core: `cityjson::v2_0::CityModel`
-- transport boundary: Arrow IPC, Parquet, and framed streams
-- advanced internal decomposition: `CityModelArrowParts`
+The current `cityjson-rs` model drives the transport design.
 
-## Current Reality
+- Attributes are stored inline on semantic owners such as model extra,
+  metadata extra, cityobject attributes, cityobject extra, and semantic
+  attributes.
+- Shared resources remain pooled for geometries, semantics, materials,
+  textures, and template geometries.
+- Geometry boundaries are stored in offset-based flattened structures in memory.
 
-The canonical package path is now implemented.
-
-### Confirmed state from the codebase
-
-- `CityModelArrowParts` already expresses the right component split.
-- canonical Parquet package write exists.
-- canonical Parquet package read exists.
-- canonical Arrow IPC package write exists.
-- canonical Arrow IPC package read exists.
-- the crate contains component schemas for metadata, transform, vertices,
-  cityobjects, geometries, semantics, materials, textures, and UV coordinates.
-- `cargo test` passes.
-- `cargo test -- --ignored` passes, including the real-data
-  `serde_cityjson -> cityarrow -> cjval` gate.
-
-### Current supported scope
-
-The current implementation covers the full semantic/material surface exposed by
-the current package schema:
-
-- point, linestring, and surface semantic mappings
-- point, linestring, and surface material mappings
-- template geometry semantics
-- template geometry materials
-- template geometry textures for surface-backed template geometries
-
-## Source Model In `cityjson-rs` Today
-
-The current source model should drive the transport design.
-
-### Semantic unit
-
-The semantic unit is:
-
-```rust
-cityjson::v2_0::CityModel<VR, SS>
-```
-
-At the transport boundary, `cityarrow` should accept and return `CityModel`,
-not a transport-native semantic replacement.
-
-### Attributes are inline again
-
-Current `cityjson-rs` stores attributes inline as:
-
-- `AttributeValue::Null`
-- `AttributeValue::Bool`
-- `AttributeValue::Unsigned`
-- `AttributeValue::Integer`
-- `AttributeValue::Float`
-- `AttributeValue::String`
-- `AttributeValue::Vec`
-- `AttributeValue::Map`
-- `AttributeValue::Geometry`
-
-These attributes appear directly on semantic owners such as:
-
-- `CityModel::extra`
-- `Metadata::extra`
-- `CityObject::attributes`
-- `CityObject::extra`
-- `Semantic::attributes`
-
-This is important: the old `cityarrow` assumption that attribute export is
-blocked on a global `AttributePool` is no longer true.
-
-### Shared resources remain pooled
-
-Current `cityjson-rs` still uses shared resource collections for:
-
-- geometries
-- semantics
-- materials
-- textures
-- template geometries
-
-That means `cityarrow` still benefits from component batches that mirror these
-pools.
-
-### Boundaries are still offset-based in-memory
-
-Current geometry boundaries remain flattened and offset-based:
-
-- `vertices`
-- `rings`
-- `surfaces`
-- `shells`
-- `solids`
-
-This is a good in-memory shape for `cityjson-rs`. It should not force the wire
-format to use the same exact layout if a normalized Arrow/Parquet layout is
-better.
-
-### Raw access exists
-
-Current `cityjson-rs` also exposes a raw accessor for zero-copy reads of the
-internal pools.
-
-That gives `cityarrow` two viable implementation paths:
-
-- stable high-level iterators for normal conversion code
-- raw accessors for high-throughput batch builders
+`cityarrow` preserves that semantic structure while normalizing it into a
+package shape that is easier to write, read, and validate across Arrow IPC and
+Parquet.
 
 ## Design Rules
 
-The design should follow these rules.
-
 1. `cityarrow` is a format boundary, not a semantic fork.
-2. The public API should trade in `CityModel` or streams of `CityModel`.
-3. `CityModelArrowParts` is an advanced transport detail.
-4. Arrow-only features must not become the canonical Parquet design if Parquet
-   cannot encode them.
-5. Normalization from the semantic model into a transport-friendly layout is
-   acceptable and expected at serialization time.
-6. Package-surface changes should be deliberate, documented, and covered by
-   schema-lock tests.
+2. The public API trades in `CityModel` and explicit package helpers, not a
+   transport-native semantic replacement.
+3. `CityModelArrowParts` is the canonical transport decomposition.
+4. Canonical package schemas must be valid for both Arrow IPC and Parquet.
+5. Package changes must be deliberate, documented, and schema-locked in tests.
+6. Reconstruction must use explicit ids and ordinals instead of depending on
+   row order.
 
-## Transport Model
+## Transport Decomposition
 
-`CityModelArrowParts` remains a good internal decomposition, but it should be
-treated as a transport package.
+The canonical package decomposes a model into component tables that mirror the
+main ownership boundaries in `cityjson-rs`:
 
-### Suggested component split
+- metadata and transform
+- extensions
+- vertices and template vertices
+- cityobjects and parent/child relations
+- geometries, geometry boundaries, and geometry instances
+- semantics plus geometry/template assignment tables
+- materials plus geometry/template assignment tables
+- textures, texture vertices, geometry ring textures, and template ring textures
 
-| Component | Rows | Role |
-| --- | --- | --- |
-| `metadata` | 0 or 1 | model metadata |
-| `transform` | 0 or 1 | transform metadata |
-| `extensions` | 0 or 1 | CityJSON extensions metadata |
-| `extra` | 0 or 1 | model-level extra attributes |
-| `vertices` | N | world coordinates |
-| `cityobjects` | N | cityobject graph plus attribute projections |
-| `geometries` | N | geometry topology and references |
-| `semantics` | N | semantic resource pool |
-| `materials` | N | material resource pool |
-| `textures` | N | texture resource pool |
-| `vertices_texture` | N | UV coordinate buffer |
-| `template_vertices` | N | geometry template vertices |
-| `template_geometries` | N | geometry template pool |
-
-This split keeps the transport aligned with the current `cityjson-rs` ownership
-model and with the intended explicit-module architecture in `cjlib`.
+This keeps shared resources explicit and keeps topology and appearance
+assignments reconstructible through relational joins and ordinals.
 
 ## Attribute Encoding
 
-Attribute encoding is the main design gap.
+Attributes are projected into flat sibling columns on the owning table.
 
-### What should not be the canonical solution
+- primitive values map to native Arrow scalar columns
+- nested arrays and maps fall back to JSON text columns
+- geometry-valued attributes may be carried as geometry handles and optional
+  derived binary views
+- mixed-type values for the same logical key are coerced to a lossless text
+  representation instead of relying on Arrow unions
 
-The old code path models attributes as:
-
-- Arrow `Map<Utf8, DenseUnion>`
-
-That is not a viable canonical Parquet representation because Parquet still does
-not support Arrow union types natively.
-
-Even if Arrow IPC keeps a richer in-memory form for debugging or experimentation,
-the crate design should not center on unions.
-
-### Canonical Parquet-safe approach
-
-Project attributes into typed sibling columns per owner scope.
-
-For each owner scope:
-
-- discover the union of attribute keys present in the batch
-- resolve a physical Arrow type per key
-- emit one nullable column per discovered key
-- attach field metadata that records the original CityJSON key and encoding
-
-Examples of owner scopes:
-
-- model extra
-- metadata extra
-- cityobject attributes
-- cityobject extra
-- semantic attributes
-
-### Type resolution rules
-
-Primitive values map directly:
-
-- `Null` -> null
-- `Bool` -> `Boolean`
-- `Unsigned` -> `UInt64`
-- `Integer` -> `Int64`
-- `Float` -> `Float64`
-- `String` -> `LargeUtf8`
-
-Nested values map to JSON strings:
-
-- `Vec` -> `LargeUtf8` containing JSON
-- `Map` -> `LargeUtf8` containing JSON
-
-Geometry-valued attributes need an explicit policy:
-
-- default lossless mode: `UInt32` geometry handle column with field metadata
-- optional interoperability mode: additional `Binary` WKB shadow column
-
-If a key appears with mixed primitive types across rows, coerce it to
-`LargeUtf8` rather than trying to preserve a union in Parquet.
-
-That preserves data, keeps the schema Parquet-safe, and matches the direction
-used by GeoParquet-style table layouts.
-
-### Column naming
-
-Use namespaced columns inside the owning component.
-
-Examples:
-
-- `attributes.height`
-- `attributes.name`
-- `attributes.address_json`
-- `extra.source`
-- `extra.status`
-
-The exact field naming can be flattened or nested, but the contract should make
-the owner scope obvious and avoid collisions between `attributes` and `extra`.
+This keeps the canonical schema Parquet-safe while remaining reconstructible.
 
 ## Geometry Encoding
 
-Geometry is the second major design area.
+Geometry remains offset-based in memory and normalized at the transport
+boundary.
 
-### Source model
-
-Current `cityjson-rs` exposes offset-based flattened boundaries. That remains
-the correct in-memory source representation.
-
-### Transport normalization
-
-At the Arrow/Parquet boundary, normalize geometry topology into a more
-serialization-friendly layout.
-
-Recommended exported fields:
+The canonical package writes:
 
 - `vertex_indices`
+- `line_lengths`
 - `ring_lengths`
 - `surface_lengths`
 - `shell_lengths`
 - `solid_lengths`
 
-This normalization is a simple linear conversion from the current offset-based
-boundary:
+This normalization keeps topology explicit, keeps Parquet nesting shallow, and
+supports later derived GIS views without forcing a GIS-native in-memory model
+onto `cityjson-rs`.
 
-- offsets in `cityjson-rs`
-- counts in Arrow and Parquet
+Semantics, materials, and textures remain parallel sidecars over that normalized
+topology:
 
-Why this normalization is useful:
-
-- it aligns better with WKB polygon traversal order
-- it is easier to map into GeoArrow-style polygon hierarchies
-- it keeps Parquet nesting shallower than a fully nested list-of-list-of-list
-  encoding
-
-### GeoArrow compatibility
-
-For non-volumetric geometries, the normalized boundary can be transformed into a
-standard GeoArrow geometry column by:
-
-- prefix-summing lengths back into offsets
-- dereferencing vertex indices into coordinates
-- emitting GeoArrow-native coordinate buffers
-
-For `Solid` and `MultiSolid`, the shell and solid hierarchy remains a
-CityJSON-specific sidecar rather than pretending that the shape is already a
-standard GeoArrow primitive.
-
-### Semantics, materials, and textures
-
-Surface-aligned and ring-aligned sidecar arrays should stay parallel to the
-normalized topology.
-
-That means:
-
-- semantic references align to surface order
-- material assignments align to surface order
-- texture assignments align to ring order
-
-That UV layout is now implemented canonically through:
-
-- `texture_vertices`
-- `geometry_ring_textures.uv_indices`
-
-Texture image references alone are not enough; the UV index mapping remains a
-first-class part of the canonical package.
+- point assignments align to point order
+- linestring assignments align to linestring order
+- surface assignments align to surface order
+- ring texture assignments align to ring order
+- template assignments use explicit primitive type plus primitive ordinal
 
 ## Coordinates And Transform
 
-Current `cityjson-rs` stores world coordinates directly and carries `transform`
-as model metadata when present.
+`cityarrow` serializes the world-coordinate vertex buffers that `cityjson-rs`
+stores today and round-trips `transform` as explicit metadata when present.
 
-`cityarrow` should therefore:
-
-- serialize vertex buffers from current coordinate storage
-- round-trip the transform as explicit metadata
-- stop assuming that vertex buffers are always quantized integers
-
-If a future specialized export wants quantized integer coordinate columns for
-size or interoperability reasons, that should be an explicit transport policy,
-not an assumption baked into the core conversion path.
+The canonical package does not assume quantized integer vertices. Any future
+quantized export would be a separate transport policy, not the canonical model.
 
 ## Reader And Writer Scope
 
-The canonical package path is symmetrical today.
+The implemented canonical package path is symmetric:
 
-### Implemented writer behavior
+- `convert::to_parts`
+- package write to Parquet or Arrow IPC
+- package read from Parquet or Arrow IPC
+- `convert::from_parts`
 
-- Parquet directory output
-- Arrow IPC directory output
-
-### Implemented reader behavior
-
-- manifest-driven Parquet directory input
-- manifest-driven Arrow IPC directory input
-- reconstruction into `CityModel`
-
-The important design point is that all supported readers reconstruct the same
-transport decomposition and then the same semantic `CityModel`.
-
-## Public API Alignment With `cjlib`
-
-The neighboring `cjlib` docs establish the right boundary rule:
-
-- explicit format modules
-- one semantic unit across formats
-- no generic codec registry
-
-`cityarrow` should therefore optimize for APIs that can sit naturally behind:
-
-- `cjlib::arrow`
-- `cjlib::parquet`
-
-That implies:
-
-- file helpers should read and write `CityModel`
-- streams should yield `CityModel` or explicit streams of `CityModel`
-- `CityModelArrowParts` should remain available for advanced use, but it should
-  not become the primary semantic facade
+All supported readers reconstruct the same `CityModelArrowParts` shape and then
+the same semantic `CityModel`.
 
 ## Non-goals
 
-The redesign should not:
+The canonical package does not try to:
 
 - create a second semantic model beside `CityModel`
 - force `cityjson-rs` to adopt a transport-native in-memory representation
-- make Arrow union types the center of the Parquet design
-- hide format choice behind a generic `read` or `write` registry
+- make Arrow union types part of the canonical design
+- collapse the full CityJSON model into one generic GIS table
+- hide format choice behind a generic registry abstraction
 
-## Decision Summary
+## Current Follow-on Work
 
-The main conclusions from the review are straightforward.
+The canonical package path is implemented. The remaining work is downstream of
+that package:
 
-- `cityarrow` should be rebased to the current inline-attribute `cityjson-rs`
-  model, not the removed pool-based one.
-- the Parquet attribute gap should be solved with schema discovery and projected
-  columns, not with Arrow union types.
-- geometry should be normalized at the serialization boundary instead of pushing
-  a GeoArrow-friendly layout into `cityjson-rs` internals.
-- the crate should align with `cjlib` by keeping `CityModel` as the public
-  semantic unit across Arrow and Parquet.
+- derived GeoArrow and GeoParquet views
+- selected wider typed projections for query-oriented workloads
