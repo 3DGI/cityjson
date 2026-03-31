@@ -123,6 +123,15 @@ The benchmark corpus is produced by `just prep-test-data` against the pinned
 The prep tool writes a manifest under the output root that records the exact
 tile list, counts, and checksums for the prepared corpus.
 
+This prep flow is also the reusable bootstrap path for the shared
+`cityjson-benchmarks` corpus. The shared corpus repo should own the release
+contract, but it can reuse this pipeline for the first 3DBAG-derived artifact
+set.
+
+The concrete prep implementation lives in
+[tests/common/data_prep.rs](/home/balazs/Development/cjindex/tests/common/data_prep.rs)
+and the `prep-test-data` recipe in [justfile](/home/balazs/Development/cjindex/justfile).
+
 The prep pipeline downloads `tile_index.fgb` from `https://data.3dbag.nl/v20250903/`
 and parses every tile entry for the `cj_download` URL. It downloads tiles in
 lexicographic order, validates each CityJSON with `cjval`, and converts it via
@@ -159,6 +168,10 @@ Current read ranking in the benchmark ADRs:
 - `NDJSON` is the fastest steady-state read backend overall
 - feature-files is close behind
 - regular CityJSON is no longer broken on reads, but it remains slower than the other layouts
+
+Shared corpus migration:
+
+- [docs/shared-corpus-migration-plan.md](docs/shared-corpus-migration-plan.md)
 
 ## Status
 

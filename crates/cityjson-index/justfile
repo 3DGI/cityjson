@@ -3,7 +3,7 @@
 default:
     just --list
 
-# Prepare the benchmark corpus from the pinned 3DBAG data set.
+# Prepare the local bootstrap corpus from the pinned 3DBAG data set.
 prep-test-data:
     cargo run --release --bin prep-test-data -- --skip-cjval
 
