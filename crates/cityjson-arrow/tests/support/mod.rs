@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::fs;
-use std::io::Write;
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -15,7 +15,7 @@ use cityjson::v2_0::OwnedCityModel;
 use serde::Deserialize;
 use serde_cityjson::{from_str_owned, to_string_validated};
 use serde_json::Value as JsonValue;
-use tempfile::Builder;
+use tempfile::{Builder, NamedTempFile};
 
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
@@ -130,14 +130,112 @@ pub fn normalized_json(model: &OwnedCityModel) -> JsonValue {
     .expect("serialized CityJSON should parse as JSON")
 }
 
+fn memory_trace_enabled() -> bool {
+    std::env::var_os("CITYARROW_REAL_DATA_MEMORY_TRACE").is_some()
+}
+
+fn log_memory_phase(label: &str) {
+    if !memory_trace_enabled() {
+        return;
+    }
+
+    let Ok(status) = fs::read_to_string("/proc/self/status") else {
+        eprintln!("memory[{label}] unavailable");
+        return;
+    };
+
+    let vmrss = status
+        .lines()
+        .find(|line| line.starts_with("VmRSS:"))
+        .unwrap_or("VmRSS:\tunknown");
+    let vmhwm = status
+        .lines()
+        .find(|line| line.starts_with("VmHWM:"))
+        .unwrap_or("VmHWM:\tunknown");
+    eprintln!("memory[{label}] {vmrss} {vmhwm}");
+}
+
+fn write_validated_model_to_tempfile(model: &OwnedCityModel, prefix: &str) -> NamedTempFile {
+    let output_json = to_string_validated(model)
+        .unwrap_or_else(|error| panic!("serde_cityjson validation failed: {error}"));
+
+    let mut temp = Builder::new()
+        .prefix(prefix)
+        .suffix(".city.json")
+        .tempfile()
+        .unwrap_or_else(|error| panic!("failed to create temp output: {error}"));
+    temp.write_all(output_json.as_bytes())
+        .unwrap_or_else(|error| panic!("failed to write temp output: {error}"));
+    temp.flush()
+        .unwrap_or_else(|error| panic!("failed to flush temp output: {error}"));
+    temp
+}
+
+fn files_have_equal_bytes(left: &Path, right: &Path) -> bool {
+    let left_file = fs::File::open(left)
+        .unwrap_or_else(|error| panic!("failed to open {}: {error}", left.display()));
+    let right_file = fs::File::open(right)
+        .unwrap_or_else(|error| panic!("failed to open {}: {error}", right.display()));
+
+    let mut left_reader = BufReader::new(left_file);
+    let mut right_reader = BufReader::new(right_file);
+    let mut left_buf = [0_u8; 64 * 1024];
+    let mut right_buf = [0_u8; 64 * 1024];
+
+    loop {
+        let left_read = left_reader
+            .read(&mut left_buf)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", left.display()));
+        let right_read = right_reader
+            .read(&mut right_buf)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", right.display()));
+
+        if left_read != right_read {
+            return false;
+        }
+        if left_read == 0 {
+            return true;
+        }
+        if left_buf[..left_read] != right_buf[..right_read] {
+            return false;
+        }
+    }
+}
+
+fn assert_json_files_eq(expected: &Path, actual: &Path) {
+    if files_have_equal_bytes(expected, actual) {
+        return;
+    }
+
+    let expected_file = fs::File::open(expected)
+        .unwrap_or_else(|error| panic!("failed to open {}: {error}", expected.display()));
+    let actual_file = fs::File::open(actual)
+        .unwrap_or_else(|error| panic!("failed to open {}: {error}", actual.display()));
+    let expected_json: JsonValue = serde_json::from_reader(expected_file)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", expected.display()));
+    let actual_json: JsonValue = serde_json::from_reader(actual_file)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", actual.display()));
+
+    assert_eq!(
+        expected_json, actual_json,
+        "normalized CityJSON changed during package roundtrip"
+    );
+}
+
 #[must_use]
 pub fn roundtrip_via_cityarrow_with_encoding(
     model: OwnedCityModel,
     encoding: PackageTableEncoding,
 ) -> OwnedCityModel {
+    log_memory_phase("roundtrip_start");
     let parts = to_parts(&model).expect("cityarrow to_parts should succeed");
+    log_memory_phase("after_to_parts");
     let parts = roundtrip_parts_via_package(&parts, encoding);
-    from_parts(&parts).expect("cityarrow from_parts should succeed")
+    log_memory_phase("after_package_roundtrip");
+    drop(model);
+    let reconstructed = from_parts(&parts).expect("cityarrow from_parts should succeed");
+    log_memory_phase("after_from_parts");
+    reconstructed
 }
 
 #[must_use]
@@ -269,40 +367,60 @@ pub fn assert_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowPa
 }
 
 pub fn assert_model_roundtrip_integrity(model: OwnedCityModel, encoding: PackageTableEncoding) {
+    log_memory_phase("model_roundtrip_start");
     let parts = to_parts(&model).expect("cityarrow to_parts should succeed");
+    log_memory_phase("after_to_parts");
     let package_parts = roundtrip_parts_via_package(&parts, encoding);
+    log_memory_phase("after_package_roundtrip");
     assert_parts_eq(&parts, &package_parts);
+    drop(parts);
 
-    let expected_json = normalized_json(&model);
     let reconstructed = from_parts(&package_parts).expect("cityarrow from_parts should succeed");
-    assert_eq!(
-        expected_json,
-        normalized_json(&reconstructed),
-        "{encoding:?} model changed during package roundtrip"
-    );
+    log_memory_phase("after_from_parts");
+    drop(package_parts);
+    let expected_file = write_validated_model_to_tempfile(&model, "cityarrow-expected");
+    log_memory_phase("after_expected_serialize");
+    drop(model);
+    let actual_file = write_validated_model_to_tempfile(&reconstructed, "cityarrow-actual");
+    log_memory_phase("after_actual_serialize");
+    drop(reconstructed);
+    assert_json_files_eq(expected_file.path(), actual_file.path());
+    log_memory_phase("after_json_compare");
 
-    validate_model_with_cjval(&reconstructed, "cityarrow-roundtrip");
+    cjval_validate(actual_file.path());
+    log_memory_phase("after_cjval");
 }
 
 pub fn assert_package_roundtrip_parts_integrity(
     model: OwnedCityModel,
     encoding: PackageTableEncoding,
 ) {
+    log_memory_phase("package_roundtrip_start");
     let parts = to_parts(&model).expect("cityarrow to_parts should succeed");
+    log_memory_phase("after_to_parts");
     let package_parts = roundtrip_parts_via_package(&parts, encoding);
+    log_memory_phase("after_package_roundtrip");
     assert_parts_eq(&parts, &package_parts);
+    drop(parts);
+    drop(model);
 
     let reconstructed = from_parts(&package_parts).expect("cityarrow from_parts should succeed");
+    log_memory_phase("after_from_parts");
+    drop(package_parts);
     validate_model_with_cjval(&reconstructed, "cityarrow-roundtrip");
+    log_memory_phase("after_cjval");
 }
 
 pub fn assert_case_roundtrip_with_encoding(case: &Case, encoding: PackageTableEncoding) {
     let input_path = resolve_case_path(case);
-    let input_json = fs::read_to_string(&input_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
+    let model = {
+        let input_json = fs::read_to_string(&input_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
 
-    let model = from_str_owned(&input_json)
-        .unwrap_or_else(|error| panic!("serde_cityjson failed for {}: {error}", case.id));
+        from_str_owned(&input_json)
+            .unwrap_or_else(|error| panic!("serde_cityjson failed for {}: {error}", case.id))
+    };
+    log_memory_phase("after_parse");
     assert_model_roundtrip_integrity(model, encoding);
 }
 
@@ -369,18 +487,6 @@ fn assert_optional_batch_eq(
 }
 
 fn validate_model_with_cjval(model: &OwnedCityModel, prefix: &str) {
-    let output_json = to_string_validated(model)
-        .unwrap_or_else(|error| panic!("serde_cityjson validation failed: {error}"));
-
-    let mut temp = Builder::new()
-        .prefix(prefix)
-        .suffix(".city.json")
-        .tempfile()
-        .unwrap_or_else(|error| panic!("failed to create temp output: {error}"));
-    temp.write_all(output_json.as_bytes())
-        .unwrap_or_else(|error| panic!("failed to write temp output: {error}"));
-    temp.flush()
-        .unwrap_or_else(|error| panic!("failed to flush temp output: {error}"));
-
+    let temp = write_validated_model_to_tempfile(model, prefix);
     cjval_validate(temp.path());
 }
