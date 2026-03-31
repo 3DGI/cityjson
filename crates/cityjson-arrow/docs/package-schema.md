@@ -10,8 +10,8 @@ Status:
 - storage target: Parquet tables with Arrow-compatible schemas
 - interoperability target: derived GeoArrow and GeoParquet views
 - implementation status on 2026-03-31: canonical Parquet package roundtrip is
-  implemented for the supported surface, including appearance resources and
-  geometry-level appearance assignments
+  implemented for the supported surface, including point/linestring/template
+  semantic and material assignments and template-geometry textures
 
 The package is designed for full-fidelity `CityModel` reconstruction first.
 Generic GIS compatibility is provided through derived views, not by collapsing
@@ -55,11 +55,18 @@ citymodel_package/
   semantics.parquet
   semantic_children.parquet
   geometry_surface_semantics.parquet
+  geometry_point_semantics.parquet
+  geometry_linestring_semantics.parquet
+  template_geometry_semantics.parquet
   materials.parquet
   geometry_surface_materials.parquet
+  geometry_point_materials.parquet
+  geometry_linestring_materials.parquet
+  template_geometry_materials.parquet
   textures.parquet
   texture_vertices.parquet
   geometry_ring_textures.parquet
+  template_geometry_ring_textures.parquet
   views/
     surfaces.geoparquet
     footprints.geoparquet
@@ -212,13 +219,20 @@ pub struct CityModelArrowParts {
     pub semantics: Option<RecordBatch>,
     pub semantic_children: Option<RecordBatch>,
     pub geometry_surface_semantics: Option<RecordBatch>,
+    pub geometry_point_semantics: Option<RecordBatch>,
+    pub geometry_linestring_semantics: Option<RecordBatch>,
+    pub template_geometry_semantics: Option<RecordBatch>,
 
     pub materials: Option<RecordBatch>,
     pub geometry_surface_materials: Option<RecordBatch>,
+    pub geometry_point_materials: Option<RecordBatch>,
+    pub geometry_linestring_materials: Option<RecordBatch>,
+    pub template_geometry_materials: Option<RecordBatch>,
 
     pub textures: Option<RecordBatch>,
     pub texture_vertices: Option<RecordBatch>,
     pub geometry_ring_textures: Option<RecordBatch>,
+    pub template_geometry_ring_textures: Option<RecordBatch>,
 }
 ```
 
@@ -440,6 +454,40 @@ This table aligns surface semantics by canonical exported surface order. Surface
 meaning is therefore explicit relational data rather than implicit geometry
 payload.
 
+### geometry_point_semantics
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+geometry_id: UInt64!
+point_ordinal: UInt32!
+semantic_id: UInt64?
+```
+
+### geometry_linestring_semantics
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+geometry_id: UInt64!
+linestring_ordinal: UInt32!
+semantic_id: UInt64?
+```
+
+### template_geometry_semantics
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+template_geometry_id: UInt64!
+primitive_type: Utf8!
+primitive_ordinal: UInt32!
+semantic_id: UInt64?
+```
+
 ### materials
 
 Rows: 0..n
@@ -465,6 +513,43 @@ Rows: 0..n
 citymodel_id: LargeUtf8!
 geometry_id: UInt64!
 surface_ordinal: UInt32!
+theme: Utf8!
+material_id: UInt64!
+```
+
+### geometry_point_materials
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+geometry_id: UInt64!
+point_ordinal: UInt32!
+theme: Utf8!
+material_id: UInt64!
+```
+
+### geometry_linestring_materials
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+geometry_id: UInt64!
+linestring_ordinal: UInt32!
+theme: Utf8!
+material_id: UInt64!
+```
+
+### template_geometry_materials
+
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+template_geometry_id: UInt64!
+primitive_type: Utf8!
+primitive_ordinal: UInt32!
 theme: Utf8!
 material_id: UInt64!
 ```
@@ -511,11 +596,19 @@ uv_indices: List<UInt64!>!
 This table stores ring-level texture assignment plus UV index mapping. Texture
 references alone are not enough to reconstruct textured CityJSON geometries.
 
-Current implementation note:
+### template_geometry_ring_textures
 
-- geometry-level surface and ring appearance is supported
-- point and linestring material mappings are not represented in this package
-- template-geometry appearance is not represented in this package
+Rows: 0..n
+
+```text
+citymodel_id: LargeUtf8!
+template_geometry_id: UInt64!
+surface_ordinal: UInt32!
+ring_ordinal: UInt32!
+theme: Utf8!
+texture_id: UInt64!
+uv_indices: List<UInt64!>!
+```
 
 ## Boundary Contract By Geometry Type
 
@@ -577,11 +670,14 @@ Lossless reconstruction into `CityModel` is defined as follows:
 - `cityobjects` and `cityobject_children` rebuild object identity and hierarchy
 - `geometries` and `geometry_boundaries` rebuild boundary-carrying geometries
 - `geometry_instances` rebuild `GeometryInstance` rows
-- `semantics` and `geometry_surface_semantics` rebuild semantic surface
-  assignment
+- `semantics`, `geometry_surface_semantics`, `geometry_point_semantics`,
+  `geometry_linestring_semantics`, and `template_geometry_semantics` rebuild
+  semantic assignments
 - `materials`, `textures`, `texture_vertices`,
-  `geometry_surface_materials`, and `geometry_ring_textures` rebuild appearance
-  resources and geometry-level appearance sidecars
+  `geometry_surface_materials`, `geometry_point_materials`,
+  `geometry_linestring_materials`, `geometry_ring_textures`,
+  `template_geometry_materials`, and `template_geometry_ring_textures` rebuild
+  appearance resources and appearance sidecars
 - template tables rebuild template resources and template-based instances
 
 The round-trip requirement is:

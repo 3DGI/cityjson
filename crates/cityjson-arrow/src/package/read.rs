@@ -42,14 +42,42 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
             dir,
             manifest.tables.geometry_surface_semantics.as_ref(),
         )?,
+        geometry_point_semantics: load_table(
+            dir,
+            manifest.tables.geometry_point_semantics.as_ref(),
+        )?,
+        geometry_linestring_semantics: load_table(
+            dir,
+            manifest.tables.geometry_linestring_semantics.as_ref(),
+        )?,
+        template_geometry_semantics: load_table(
+            dir,
+            manifest.tables.template_geometry_semantics.as_ref(),
+        )?,
         materials: load_table(dir, manifest.tables.materials.as_ref())?,
         geometry_surface_materials: load_table(
             dir,
             manifest.tables.geometry_surface_materials.as_ref(),
         )?,
+        geometry_point_materials: load_table(
+            dir,
+            manifest.tables.geometry_point_materials.as_ref(),
+        )?,
+        geometry_linestring_materials: load_table(
+            dir,
+            manifest.tables.geometry_linestring_materials.as_ref(),
+        )?,
+        template_geometry_materials: load_table(
+            dir,
+            manifest.tables.template_geometry_materials.as_ref(),
+        )?,
         textures: load_table(dir, manifest.tables.textures.as_ref())?,
         texture_vertices: load_table(dir, manifest.tables.texture_vertices.as_ref())?,
         geometry_ring_textures: load_table(dir, manifest.tables.geometry_ring_textures.as_ref())?,
+        template_geometry_ring_textures: load_table(
+            dir,
+            manifest.tables.template_geometry_ring_textures.as_ref(),
+        )?,
     };
 
     let projection = infer_projection_layout(&loaded)?;
@@ -166,6 +194,24 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
         &schemas.geometry_surface_semantics,
     )?;
 
+    let geometry_point_semantics = optional_table(
+        &loaded.geometry_point_semantics,
+        CanonicalTable::GeometryPointSemantics,
+        &schemas.geometry_point_semantics,
+    )?;
+
+    let geometry_linestring_semantics = optional_table(
+        &loaded.geometry_linestring_semantics,
+        CanonicalTable::GeometryLinestringSemantics,
+        &schemas.geometry_linestring_semantics,
+    )?;
+
+    let template_geometry_semantics = optional_table(
+        &loaded.template_geometry_semantics,
+        CanonicalTable::TemplateGeometrySemantics,
+        &schemas.template_geometry_semantics,
+    )?;
+
     let materials = optional_table(
         &loaded.materials,
         CanonicalTable::Materials,
@@ -176,6 +222,24 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
         &loaded.geometry_surface_materials,
         CanonicalTable::GeometrySurfaceMaterials,
         &schemas.geometry_surface_materials,
+    )?;
+
+    let geometry_point_materials = optional_table(
+        &loaded.geometry_point_materials,
+        CanonicalTable::GeometryPointMaterials,
+        &schemas.geometry_point_materials,
+    )?;
+
+    let geometry_linestring_materials = optional_table(
+        &loaded.geometry_linestring_materials,
+        CanonicalTable::GeometryLinestringMaterials,
+        &schemas.geometry_linestring_materials,
+    )?;
+
+    let template_geometry_materials = optional_table(
+        &loaded.template_geometry_materials,
+        CanonicalTable::TemplateGeometryMaterials,
+        &schemas.template_geometry_materials,
     )?;
 
     let textures = optional_table(
@@ -196,6 +260,12 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
         &schemas.geometry_ring_textures,
     )?;
 
+    let template_geometry_ring_textures = optional_table(
+        &loaded.template_geometry_ring_textures,
+        CanonicalTable::TemplateGeometryRingTextures,
+        &schemas.template_geometry_ring_textures,
+    )?;
+
     Ok(CityModelArrowParts {
         header: (&manifest).into(),
         projection,
@@ -214,11 +284,18 @@ pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
         semantics,
         semantic_children,
         geometry_surface_semantics,
+        geometry_point_semantics,
+        geometry_linestring_semantics,
+        template_geometry_semantics,
         materials,
         geometry_surface_materials,
+        geometry_point_materials,
+        geometry_linestring_materials,
+        template_geometry_materials,
         textures,
         texture_vertices,
         geometry_ring_textures,
+        template_geometry_ring_textures,
     })
 }
 
@@ -263,11 +340,18 @@ struct LoadedTables {
     semantics: Option<LoadedTable>,
     semantic_children: Option<LoadedTable>,
     geometry_surface_semantics: Option<LoadedTable>,
+    geometry_point_semantics: Option<LoadedTable>,
+    geometry_linestring_semantics: Option<LoadedTable>,
+    template_geometry_semantics: Option<LoadedTable>,
     materials: Option<LoadedTable>,
     geometry_surface_materials: Option<LoadedTable>,
+    geometry_point_materials: Option<LoadedTable>,
+    geometry_linestring_materials: Option<LoadedTable>,
+    template_geometry_materials: Option<LoadedTable>,
     textures: Option<LoadedTable>,
     texture_vertices: Option<LoadedTable>,
     geometry_ring_textures: Option<LoadedTable>,
+    template_geometry_ring_textures: Option<LoadedTable>,
 }
 
 struct LoadedTable {

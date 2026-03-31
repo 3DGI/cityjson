@@ -399,11 +399,18 @@ fn sample_parts() -> CityModelArrowParts {
         semantics: Some(semantics),
         semantic_children: None,
         geometry_surface_semantics: Some(geometry_surface_semantics),
+        geometry_point_semantics: None,
+        geometry_linestring_semantics: None,
+        template_geometry_semantics: None,
         materials: Some(materials),
         geometry_surface_materials: None,
+        geometry_point_materials: None,
+        geometry_linestring_materials: None,
+        template_geometry_materials: None,
         textures: Some(textures),
         texture_vertices: Some(texture_vertices),
         geometry_ring_textures: Some(geometry_ring_textures),
+        template_geometry_ring_textures: None,
     }
 }
 
@@ -444,12 +451,44 @@ fn package_directory_roundtrips_canonical_tables() {
         roundtrip.geometry_surface_semantics,
         parts.geometry_surface_semantics
     );
+    assert_eq!(
+        roundtrip.geometry_point_semantics,
+        parts.geometry_point_semantics
+    );
+    assert_eq!(
+        roundtrip.geometry_linestring_semantics,
+        parts.geometry_linestring_semantics
+    );
+    assert_eq!(
+        roundtrip.template_geometry_semantics,
+        parts.template_geometry_semantics
+    );
     assert_eq!(roundtrip.materials, parts.materials);
+    assert_eq!(
+        roundtrip.geometry_surface_materials,
+        parts.geometry_surface_materials
+    );
+    assert_eq!(
+        roundtrip.geometry_point_materials,
+        parts.geometry_point_materials
+    );
+    assert_eq!(
+        roundtrip.geometry_linestring_materials,
+        parts.geometry_linestring_materials
+    );
+    assert_eq!(
+        roundtrip.template_geometry_materials,
+        parts.template_geometry_materials
+    );
     assert_eq!(roundtrip.textures, parts.textures);
     assert_eq!(roundtrip.texture_vertices, parts.texture_vertices);
     assert_eq!(
         roundtrip.geometry_ring_textures,
         parts.geometry_ring_textures
+    );
+    assert_eq!(
+        roundtrip.template_geometry_ring_textures,
+        parts.template_geometry_ring_textures
     );
 }
 

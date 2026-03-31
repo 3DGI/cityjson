@@ -33,11 +33,18 @@ pub(crate) enum CanonicalTable {
     Semantics,
     SemanticChildren,
     GeometrySurfaceSemantics,
+    GeometryPointSemantics,
+    GeometryLinestringSemantics,
+    TemplateGeometrySemantics,
     Materials,
     GeometrySurfaceMaterials,
+    GeometryPointMaterials,
+    GeometryLinestringMaterials,
+    TemplateGeometryMaterials,
     Textures,
     TextureVertices,
     GeometryRingTextures,
+    TemplateGeometryRingTextures,
 }
 
 impl CanonicalTable {
@@ -59,11 +66,18 @@ impl CanonicalTable {
             Self::Semantics => "semantics.parquet",
             Self::SemanticChildren => "semantic_children.parquet",
             Self::GeometrySurfaceSemantics => "geometry_surface_semantics.parquet",
+            Self::GeometryPointSemantics => "geometry_point_semantics.parquet",
+            Self::GeometryLinestringSemantics => "geometry_linestring_semantics.parquet",
+            Self::TemplateGeometrySemantics => "template_geometry_semantics.parquet",
             Self::Materials => "materials.parquet",
             Self::GeometrySurfaceMaterials => "geometry_surface_materials.parquet",
+            Self::GeometryPointMaterials => "geometry_point_materials.parquet",
+            Self::GeometryLinestringMaterials => "geometry_linestring_materials.parquet",
+            Self::TemplateGeometryMaterials => "template_geometry_materials.parquet",
             Self::Textures => "textures.parquet",
             Self::TextureVertices => "texture_vertices.parquet",
             Self::GeometryRingTextures => "geometry_ring_textures.parquet",
+            Self::TemplateGeometryRingTextures => "template_geometry_ring_textures.parquet",
         }
     }
 }

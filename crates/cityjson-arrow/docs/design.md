@@ -37,16 +37,16 @@ The canonical rewrite is now implemented on the Parquet package path.
 - `cargo test -- --ignored` passes, including the real-data
   `serde_cityjson -> cityarrow -> cjval` gate.
 
-### Current unsupported scope
+### Current supported scope
 
-The rewrite is not universal over every possible `cityjson-rs` shape.
-The current conversion code still rejects:
+The canonical rewrite now covers the full semantic/material surface exposed by
+the current package schema:
 
-- point and linestring semantic mappings
-- point and linestring material mappings
+- point, linestring, and surface semantic mappings
+- point, linestring, and surface material mappings
 - template geometry semantics
 - template geometry materials
-- template geometry textures
+- template geometry textures for surface-backed template geometries
 
 ## Source Model In `cityjson-rs` Today
 

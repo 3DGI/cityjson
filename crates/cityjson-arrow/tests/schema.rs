@@ -170,11 +170,18 @@ fn canonical_schema_set_avoids_union_and_map_types() {
         schemas.semantics.as_ref(),
         schemas.semantic_children.as_ref(),
         schemas.geometry_surface_semantics.as_ref(),
+        schemas.geometry_point_semantics.as_ref(),
+        schemas.geometry_linestring_semantics.as_ref(),
+        schemas.template_geometry_semantics.as_ref(),
         schemas.materials.as_ref(),
         schemas.geometry_surface_materials.as_ref(),
+        schemas.geometry_point_materials.as_ref(),
+        schemas.geometry_linestring_materials.as_ref(),
+        schemas.template_geometry_materials.as_ref(),
         schemas.textures.as_ref(),
         schemas.texture_vertices.as_ref(),
         schemas.geometry_ring_textures.as_ref(),
+        schemas.template_geometry_ring_textures.as_ref(),
     ];
 
     for schema in all_schemas {

@@ -166,11 +166,18 @@ pub struct CityModelArrowParts {
     pub semantics: Option<RecordBatch>,
     pub semantic_children: Option<RecordBatch>,
     pub geometry_surface_semantics: Option<RecordBatch>,
+    pub geometry_point_semantics: Option<RecordBatch>,
+    pub geometry_linestring_semantics: Option<RecordBatch>,
+    pub template_geometry_semantics: Option<RecordBatch>,
     pub materials: Option<RecordBatch>,
     pub geometry_surface_materials: Option<RecordBatch>,
+    pub geometry_point_materials: Option<RecordBatch>,
+    pub geometry_linestring_materials: Option<RecordBatch>,
+    pub template_geometry_materials: Option<RecordBatch>,
     pub textures: Option<RecordBatch>,
     pub texture_vertices: Option<RecordBatch>,
     pub geometry_ring_textures: Option<RecordBatch>,
+    pub template_geometry_ring_textures: Option<RecordBatch>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -206,15 +213,29 @@ pub struct PackageTables {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_surface_semantics: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry_point_semantics: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry_linestring_semantics: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_geometry_semantics: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub materials: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_surface_materials: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry_point_materials: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry_linestring_materials: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_geometry_materials: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub textures: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub texture_vertices: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_ring_textures: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_geometry_ring_textures: Option<PathBuf>,
 }
 
 impl PackageTables {
@@ -235,11 +256,18 @@ impl PackageTables {
             && self.semantics.is_none()
             && self.semantic_children.is_none()
             && self.geometry_surface_semantics.is_none()
+            && self.geometry_point_semantics.is_none()
+            && self.geometry_linestring_semantics.is_none()
+            && self.template_geometry_semantics.is_none()
             && self.materials.is_none()
             && self.geometry_surface_materials.is_none()
+            && self.geometry_point_materials.is_none()
+            && self.geometry_linestring_materials.is_none()
+            && self.template_geometry_materials.is_none()
             && self.textures.is_none()
             && self.texture_vertices.is_none()
             && self.geometry_ring_textures.is_none()
+            && self.template_geometry_ring_textures.is_none()
     }
 }
 
@@ -294,11 +322,18 @@ pub struct CanonicalSchemaSet {
     pub semantics: SchemaRef,
     pub semantic_children: SchemaRef,
     pub geometry_surface_semantics: SchemaRef,
+    pub geometry_point_semantics: SchemaRef,
+    pub geometry_linestring_semantics: SchemaRef,
+    pub template_geometry_semantics: SchemaRef,
     pub materials: SchemaRef,
     pub geometry_surface_materials: SchemaRef,
+    pub geometry_point_materials: SchemaRef,
+    pub geometry_linestring_materials: SchemaRef,
+    pub template_geometry_materials: SchemaRef,
     pub textures: SchemaRef,
     pub texture_vertices: SchemaRef,
     pub geometry_ring_textures: SchemaRef,
+    pub template_geometry_ring_textures: SchemaRef,
 }
 
 impl Default for CanonicalSchemaSet {
@@ -325,11 +360,18 @@ pub fn canonical_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
         semantics: schema_ref(semantics_fields(layout)),
         semantic_children: schema_ref(semantic_children_fields()),
         geometry_surface_semantics: schema_ref(geometry_surface_semantics_fields()),
+        geometry_point_semantics: schema_ref(geometry_point_semantics_fields()),
+        geometry_linestring_semantics: schema_ref(geometry_linestring_semantics_fields()),
+        template_geometry_semantics: schema_ref(template_geometry_semantics_fields()),
         materials: schema_ref(materials_fields(layout)),
         geometry_surface_materials: schema_ref(geometry_surface_materials_fields()),
+        geometry_point_materials: schema_ref(geometry_point_materials_fields()),
+        geometry_linestring_materials: schema_ref(geometry_linestring_materials_fields()),
+        template_geometry_materials: schema_ref(template_geometry_materials_fields()),
         textures: schema_ref(textures_fields(layout)),
         texture_vertices: schema_ref(texture_vertices_fields()),
         geometry_ring_textures: schema_ref(geometry_ring_textures_fields()),
+        template_geometry_ring_textures: schema_ref(template_geometry_ring_textures_fields()),
     }
 }
 
@@ -535,6 +577,34 @@ fn geometry_surface_semantics_fields() -> Vec<Field> {
     ]
 }
 
+fn geometry_point_semantics_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("geometry_id", DataType::UInt64, false),
+        Field::new("point_ordinal", DataType::UInt32, false),
+        Field::new("semantic_id", DataType::UInt64, true),
+    ]
+}
+
+fn geometry_linestring_semantics_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("geometry_id", DataType::UInt64, false),
+        Field::new("linestring_ordinal", DataType::UInt32, false),
+        Field::new("semantic_id", DataType::UInt64, true),
+    ]
+}
+
+fn template_geometry_semantics_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("template_geometry_id", DataType::UInt64, false),
+        Field::new("primitive_type", DataType::Utf8, false),
+        Field::new("primitive_ordinal", DataType::UInt32, false),
+        Field::new("semantic_id", DataType::UInt64, true),
+    ]
+}
+
 fn materials_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
         Field::new("citymodel_id", DataType::LargeUtf8, false),
@@ -549,6 +619,37 @@ fn geometry_surface_materials_fields() -> Vec<Field> {
         Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
+        Field::new("theme", DataType::Utf8, false),
+        Field::new("material_id", DataType::UInt64, false),
+    ]
+}
+
+fn geometry_point_materials_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("geometry_id", DataType::UInt64, false),
+        Field::new("point_ordinal", DataType::UInt32, false),
+        Field::new("theme", DataType::Utf8, false),
+        Field::new("material_id", DataType::UInt64, false),
+    ]
+}
+
+fn geometry_linestring_materials_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("geometry_id", DataType::UInt64, false),
+        Field::new("linestring_ordinal", DataType::UInt32, false),
+        Field::new("theme", DataType::Utf8, false),
+        Field::new("material_id", DataType::UInt64, false),
+    ]
+}
+
+fn template_geometry_materials_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("template_geometry_id", DataType::UInt64, false),
+        Field::new("primitive_type", DataType::Utf8, false),
+        Field::new("primitive_ordinal", DataType::UInt32, false),
         Field::new("theme", DataType::Utf8, false),
         Field::new("material_id", DataType::UInt64, false),
     ]
@@ -577,6 +678,18 @@ fn geometry_ring_textures_fields() -> Vec<Field> {
     vec![
         Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
+        Field::new("surface_ordinal", DataType::UInt32, false),
+        Field::new("ring_ordinal", DataType::UInt32, false),
+        Field::new("theme", DataType::Utf8, false),
+        Field::new("texture_id", DataType::UInt64, false),
+        list_field("uv_indices", DataType::UInt64, false, false),
+    ]
+}
+
+fn template_geometry_ring_textures_fields() -> Vec<Field> {
+    vec![
+        Field::new("citymodel_id", DataType::LargeUtf8, false),
+        Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
         Field::new("ring_ordinal", DataType::UInt32, false),
         Field::new("theme", DataType::Utf8, false),

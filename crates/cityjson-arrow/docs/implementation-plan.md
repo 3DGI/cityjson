@@ -42,26 +42,16 @@ The rewrite is accepted only when all of the following are true:
 - geometries
 - normalized geometry boundaries
 - semantics
-- geometry-to-surface semantic assignments
+- geometry-to-primitive semantic assignments
+- template-geometry semantic assignments
 - materials
 - textures
 - texture vertices
-- geometry surface materials
+- geometry point, linestring, and surface materials
 - geometry ring textures
-- default appearance themes
-
-### Explicitly Unsupported Surface
-
-- point semantic mappings
-- linestring semantic mappings
-- point material mappings
-- linestring material mappings
-- template geometry semantics
 - template geometry materials
-- template geometry textures
-
-Unsupported inputs must fail explicitly. They are not allowed to silently
-disappear from the roundtrip.
+- template geometry ring textures
+- default appearance themes
 
 ## Implementation Tasks
 
@@ -91,15 +81,11 @@ disappear from the roundtrip.
 - [x] Implement default appearance theme roundtrip.
 - [x] Implement geometry-surface material assignment roundtrip.
 - [x] Implement geometry-ring texture assignment roundtrip.
-- [x] Reject unsupported modules with hard errors for the remaining unsupported
-  surface:
-  - point and linestring semantic mappings
-  - point and linestring material mappings
-  - template geometry semantics
-  - template geometry materials
-  - template geometry textures
+- [x] Implement point and linestring semantic assignment roundtrip.
+- [x] Implement point and linestring material assignment roundtrip.
 - [x] Implement template vertex, template geometry, and geometry instance conversion.
 - [x] Implement template and geometry-instance package tables.
+- [x] Implement template-geometry semantic, material, and texture assignment roundtrip.
 - [x] Implement package manifest writing.
 - [x] Implement Parquet table writing.
 - [x] Implement package manifest reading.

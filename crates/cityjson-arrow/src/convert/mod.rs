@@ -45,6 +45,9 @@ const FIELD_TEXTURE_IMAGE_TYPE: &str = "payload.image_type";
 const FIELD_TEXTURE_WRAP_MODE: &str = "payload.wrap_mode";
 const FIELD_TEXTURE_TEXTURE_TYPE: &str = "payload.texture_type";
 const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color_json";
+const PRIMITIVE_TYPE_POINT: &str = "point";
+const PRIMITIVE_TYPE_LINESTRING: &str = "linestring";
+const PRIMITIVE_TYPE_SURFACE: &str = "surface";
 
 #[derive(Debug, Clone)]
 struct MetadataRow {
@@ -189,6 +192,31 @@ struct GeometrySurfaceSemanticRow {
 }
 
 #[derive(Debug, Clone)]
+struct GeometryPointSemanticRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    point_ordinal: u32,
+    semantic_id: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+struct GeometryLinestringSemanticRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    linestring_ordinal: u32,
+    semantic_id: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+struct TemplateGeometrySemanticRow {
+    citymodel_id: String,
+    template_geometry_id: u64,
+    primitive_type: String,
+    primitive_ordinal: u32,
+    semantic_id: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
 struct MaterialRow {
     citymodel_id: String,
     material_id: u64,
@@ -207,6 +235,34 @@ struct GeometrySurfaceMaterialRow {
     citymodel_id: String,
     geometry_id: u64,
     surface_ordinal: u32,
+    theme: String,
+    material_id: u64,
+}
+
+#[derive(Debug, Clone)]
+struct GeometryPointMaterialRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    point_ordinal: u32,
+    theme: String,
+    material_id: u64,
+}
+
+#[derive(Debug, Clone)]
+struct GeometryLinestringMaterialRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    linestring_ordinal: u32,
+    theme: String,
+    material_id: u64,
+}
+
+#[derive(Debug, Clone)]
+struct TemplateGeometryMaterialRow {
+    citymodel_id: String,
+    template_geometry_id: u64,
+    primitive_type: String,
+    primitive_ordinal: u32,
     theme: String,
     material_id: u64,
 }
@@ -239,6 +295,38 @@ struct GeometryRingTextureRow {
     theme: String,
     texture_id: u64,
     uv_indices: Vec<u64>,
+}
+
+#[derive(Debug, Clone)]
+struct TemplateGeometryRingTextureRow {
+    citymodel_id: String,
+    template_geometry_id: u64,
+    surface_ordinal: u32,
+    ring_ordinal: u32,
+    theme: String,
+    texture_id: u64,
+    uv_indices: Vec<u64>,
+}
+
+struct ExportedGeometryRows {
+    geometries: Vec<GeometryRow>,
+    boundaries: Vec<GeometryBoundaryRow>,
+    instances: Vec<GeometryInstanceRow>,
+    surface_semantics: Vec<GeometrySurfaceSemanticRow>,
+    point_semantics: Vec<GeometryPointSemanticRow>,
+    linestring_semantics: Vec<GeometryLinestringSemanticRow>,
+    surface_materials: Vec<GeometrySurfaceMaterialRow>,
+    point_materials: Vec<GeometryPointMaterialRow>,
+    linestring_materials: Vec<GeometryLinestringMaterialRow>,
+    ring_textures: Vec<GeometryRingTextureRow>,
+}
+
+struct ExportedTemplateGeometryRows {
+    geometries: Vec<TemplateGeometryRow>,
+    boundaries: Vec<TemplateGeometryBoundaryRow>,
+    semantics: Vec<TemplateGeometrySemanticRow>,
+    materials: Vec<TemplateGeometryMaterialRow>,
+    ring_textures: Vec<TemplateGeometryRingTextureRow>,
 }
 
 pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
@@ -276,14 +364,7 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
     let material_rows = material_rows(model, &citymodel_id);
     let texture_rows = texture_rows(model, &citymodel_id);
     let texture_vertex_rows = texture_vertex_rows(model, &citymodel_id);
-    let (
-        geometry_rows,
-        boundary_rows,
-        geometry_instance_rows,
-        surface_semantic_rows,
-        surface_material_rows,
-        ring_texture_rows,
-    ) = geometry_rows(
+    let geometry_rows = geometry_rows(
         model,
         &citymodel_id,
         &semantic_id_map,
@@ -292,7 +373,7 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         &template_geometry_id_map,
     )?;
     let template_vertex_rows = template_vertex_rows(model, &citymodel_id);
-    let (template_geometry_rows, template_boundary_rows) =
+    let template_geometry_rows =
         template_geometry_rows(model, &citymodel_id, &template_geometry_id_map)?;
     let semantic_rows = semantic_rows(model, &citymodel_id, &projection, &geometry_id_map)?;
     let semantic_child_rows = semantic_child_rows(model, &citymodel_id, &semantic_id_map);
@@ -312,21 +393,21 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         cityobject_children: optional_batch(cityobject_child_rows, |rows| {
             cityobject_children_batch(&schemas.cityobject_children, rows)
         })?,
-        geometries: geometries_batch(&schemas.geometries, &geometry_rows)?,
+        geometries: geometries_batch(&schemas.geometries, &geometry_rows.geometries)?,
         geometry_boundaries: geometry_boundaries_batch(
             &schemas.geometry_boundaries,
-            &boundary_rows,
+            &geometry_rows.boundaries,
         )?,
-        geometry_instances: optional_batch(geometry_instance_rows, |rows| {
+        geometry_instances: optional_batch(geometry_rows.instances, |rows| {
             geometry_instances_batch(&schemas.geometry_instances, &rows)
         })?,
         template_vertices: optional_batch(template_vertex_rows, |rows| {
             template_vertices_batch(&schemas.template_vertices, &rows)
         })?,
-        template_geometries: optional_batch(template_geometry_rows, |rows| {
+        template_geometries: optional_batch(template_geometry_rows.geometries, |rows| {
             template_geometries_batch(&schemas.template_geometries, &rows)
         })?,
-        template_geometry_boundaries: optional_batch(template_boundary_rows, |rows| {
+        template_geometry_boundaries: optional_batch(template_geometry_rows.boundaries, |rows| {
             template_geometry_boundaries_batch(&schemas.template_geometry_boundaries, &rows)
         })?,
         semantics: optional_batch(semantic_rows, |rows| {
@@ -335,14 +416,38 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         semantic_children: optional_batch(semantic_child_rows, |rows| {
             semantic_children_batch(&schemas.semantic_children, rows)
         })?,
-        geometry_surface_semantics: optional_batch(surface_semantic_rows, |rows| {
+        geometry_surface_semantics: optional_batch(geometry_rows.surface_semantics, |rows| {
             geometry_surface_semantics_batch(&schemas.geometry_surface_semantics, rows)
+        })?,
+        geometry_point_semantics: optional_batch(geometry_rows.point_semantics, |rows| {
+            geometry_point_semantics_batch(&schemas.geometry_point_semantics, rows)
+        })?,
+        geometry_linestring_semantics: optional_batch(
+            geometry_rows.linestring_semantics,
+            |rows| {
+                geometry_linestring_semantics_batch(&schemas.geometry_linestring_semantics, rows)
+            },
+        )?,
+        template_geometry_semantics: optional_batch(template_geometry_rows.semantics, |rows| {
+            template_geometry_semantics_batch(&schemas.template_geometry_semantics, rows)
         })?,
         materials: optional_batch(material_rows, |rows| {
             materials_batch(&schemas.materials, &rows, &projection)
         })?,
-        geometry_surface_materials: optional_batch(surface_material_rows, |rows| {
+        geometry_surface_materials: optional_batch(geometry_rows.surface_materials, |rows| {
             geometry_surface_materials_batch(&schemas.geometry_surface_materials, rows)
+        })?,
+        geometry_point_materials: optional_batch(geometry_rows.point_materials, |rows| {
+            geometry_point_materials_batch(&schemas.geometry_point_materials, rows)
+        })?,
+        geometry_linestring_materials: optional_batch(
+            geometry_rows.linestring_materials,
+            |rows| {
+                geometry_linestring_materials_batch(&schemas.geometry_linestring_materials, rows)
+            },
+        )?,
+        template_geometry_materials: optional_batch(template_geometry_rows.materials, |rows| {
+            template_geometry_materials_batch(&schemas.template_geometry_materials, rows)
         })?,
         textures: optional_batch(texture_rows, |rows| {
             textures_batch(&schemas.textures, &rows, &projection)
@@ -350,9 +455,18 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         texture_vertices: optional_batch(texture_vertex_rows, |rows| {
             texture_vertices_batch(&schemas.texture_vertices, rows)
         })?,
-        geometry_ring_textures: optional_batch(ring_texture_rows, |rows| {
+        geometry_ring_textures: optional_batch(geometry_rows.ring_textures, |rows| {
             geometry_ring_textures_batch(&schemas.geometry_ring_textures, rows)
         })?,
+        template_geometry_ring_textures: optional_batch(
+            template_geometry_rows.ring_textures,
+            |rows| {
+                template_geometry_ring_textures_batch(
+                    &schemas.template_geometry_ring_textures,
+                    rows,
+                )
+            },
+        )?,
     })
 }
 
@@ -542,6 +656,48 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
                 acc
             },
         );
+    let point_semantics_by_geometry_id = parts
+        .geometry_point_semantics
+        .as_ref()
+        .map(read_geometry_point_semantic_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometryPointSemanticRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let linestring_semantics_by_geometry_id = parts
+        .geometry_linestring_semantics
+        .as_ref()
+        .map(read_geometry_linestring_semantic_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometryLinestringSemanticRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let template_semantics_by_geometry_id = parts
+        .template_geometry_semantics
+        .as_ref()
+        .map(read_template_geometry_semantic_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<TemplateGeometrySemanticRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.template_geometry_id).or_default().push(row);
+                acc
+            },
+        );
     let surface_materials_by_geometry_id = parts
         .geometry_surface_materials
         .as_ref()
@@ -556,6 +712,48 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
                 acc
             },
         );
+    let point_materials_by_geometry_id = parts
+        .geometry_point_materials
+        .as_ref()
+        .map(read_geometry_point_material_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometryPointMaterialRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let linestring_materials_by_geometry_id = parts
+        .geometry_linestring_materials
+        .as_ref()
+        .map(read_geometry_linestring_material_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometryLinestringMaterialRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let template_materials_by_geometry_id = parts
+        .template_geometry_materials
+        .as_ref()
+        .map(read_template_geometry_material_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<TemplateGeometryMaterialRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.template_geometry_id).or_default().push(row);
+                acc
+            },
+        );
     let ring_textures_by_geometry_id = parts
         .geometry_ring_textures
         .as_ref()
@@ -567,6 +765,20 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
             HashMap::<u64, Vec<GeometryRingTextureRow>>::new(),
             |mut acc, row| {
                 acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let template_ring_textures_by_geometry_id = parts
+        .template_geometry_ring_textures
+        .as_ref()
+        .map(read_template_geometry_ring_texture_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<TemplateGeometryRingTextureRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.template_geometry_id).or_default().push(row);
                 acc
             },
         );
@@ -588,9 +800,24 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
                 type_geometry: parse_geometry_type(&row.geometry_type)?,
                 lod: row.lod.as_deref().map(parse_lod).transpose()?,
                 boundaries: Some(template_boundary_from_row(boundary, &row.geometry_type)?),
-                semantics: None,
-                materials: None,
-                textures: None,
+                semantics: build_template_semantic_map(
+                    &row.geometry_type,
+                    boundary,
+                    template_semantics_by_geometry_id.get(&row.template_geometry_id),
+                    &semantic_handle_by_id,
+                )?,
+                materials: build_template_material_maps(
+                    &row.geometry_type,
+                    boundary,
+                    template_materials_by_geometry_id.get(&row.template_geometry_id),
+                    &material_handle_by_id,
+                )?,
+                textures: build_template_texture_maps(
+                    &row.geometry_type,
+                    boundary,
+                    template_ring_textures_by_geometry_id.get(&row.template_geometry_id),
+                    &texture_handle_by_id,
+                )?,
                 instance: None,
             });
             let handle = model.add_geometry_template(geometry)?;
@@ -614,12 +841,16 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
             &row.geometry_type,
             boundary,
             surface_semantics_by_geometry_id.get(&row.geometry_id),
+            point_semantics_by_geometry_id.get(&row.geometry_id),
+            linestring_semantics_by_geometry_id.get(&row.geometry_id),
             &semantic_handle_by_id,
         )?;
         let materials = build_material_maps(
             &row.geometry_type,
             boundary,
             surface_materials_by_geometry_id.get(&row.geometry_id),
+            point_materials_by_geometry_id.get(&row.geometry_id),
+            linestring_materials_by_geometry_id.get(&row.geometry_id),
             &material_handle_by_id,
         )?;
         let textures = build_texture_maps(
@@ -797,25 +1028,8 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
 
 fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
     for (_, geometry) in model.iter_geometries() {
-        if let Some(materials) = geometry.materials() {
-            ensure_surface_backed_geometry(geometry.type_geometry(), "geometry materials")?;
-            for (_, map) in materials.iter() {
-                if !map.points().is_empty() || !map.linestrings().is_empty() {
-                    return Err(Error::Unsupported(
-                        "point and linestring material mappings".to_string(),
-                    ));
-                }
-            }
-        }
         if geometry.textures().is_some() {
             ensure_surface_backed_geometry(geometry.type_geometry(), "geometry textures")?;
-        }
-        if let Some(semantics) = geometry.semantics() {
-            if !semantics.points().is_empty() || !semantics.linestrings().is_empty() {
-                return Err(Error::Unsupported(
-                    "point and linestring semantic mappings".to_string(),
-                ));
-            }
         }
     }
     for (_, geometry) in model.iter_geometry_templates() {
@@ -824,18 +1038,8 @@ fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
                 "geometry instances in template geometry pool".to_string(),
             ));
         }
-        if geometry.semantics().is_some() {
-            return Err(Error::Unsupported(
-                "template geometry semantics".to_string(),
-            ));
-        }
-        if geometry.materials().is_some() {
-            return Err(Error::Unsupported(
-                "template geometry materials".to_string(),
-            ));
-        }
         if geometry.textures().is_some() {
-            return Err(Error::Unsupported("template geometry textures".to_string()));
+            ensure_surface_backed_geometry(geometry.type_geometry(), "template geometry textures")?;
         }
     }
     Ok(())
@@ -866,6 +1070,16 @@ fn ensure_supported_part_table_combinations(parts: &CityModelArrowParts) -> Resu
     if parts.geometry_ring_textures.is_some() && parts.texture_vertices.is_none() {
         return Err(Error::Unsupported(
             "geometry_ring_textures without texture_vertices".to_string(),
+        ));
+    }
+    if parts.template_geometry_ring_textures.is_some() && parts.textures.is_none() {
+        return Err(Error::Unsupported(
+            "template_geometry_ring_textures without textures".to_string(),
+        ));
+    }
+    if parts.template_geometry_ring_textures.is_some() && parts.texture_vertices.is_none() {
+        return Err(Error::Unsupported(
+            "template_geometry_ring_textures without texture_vertices".to_string(),
         ));
     }
     Ok(())
@@ -1301,20 +1515,17 @@ fn geometry_rows(
     material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
     texture_id_map: &HashMap<cityjson::prelude::TextureHandle, u64>,
     template_geometry_id_map: &HashMap<cityjson::prelude::GeometryTemplateHandle, u64>,
-) -> Result<(
-    Vec<GeometryRow>,
-    Vec<GeometryBoundaryRow>,
-    Vec<GeometryInstanceRow>,
-    Vec<GeometrySurfaceSemanticRow>,
-    Vec<GeometrySurfaceMaterialRow>,
-    Vec<GeometryRingTextureRow>,
-)> {
+) -> Result<ExportedGeometryRows> {
     let mut geometry_rows = Vec::new();
     let mut boundary_rows = Vec::new();
     let mut instance_rows = Vec::new();
-    let mut semantic_rows = Vec::new();
-    let mut material_rows = Vec::new();
-    let mut texture_rows = Vec::new();
+    let mut surface_semantic_rows = Vec::new();
+    let mut point_semantic_rows = Vec::new();
+    let mut linestring_semantic_rows = Vec::new();
+    let mut surface_material_rows = Vec::new();
+    let mut point_material_rows = Vec::new();
+    let mut linestring_material_rows = Vec::new();
+    let mut ring_texture_rows = Vec::new();
     let geometry_id_map = geometry_id_map(model);
 
     for (_, object) in model.cityobjects().iter() {
@@ -1361,27 +1572,92 @@ fn geometry_rows(
                         boundary,
                     );
                     if let Some(semantics) = geometry.semantics() {
-                        for (surface_ordinal, semantic_id) in
-                            semantics.surfaces().iter().enumerate()
-                        {
-                            semantic_rows.push(GeometrySurfaceSemanticRow {
-                                citymodel_id: citymodel_id.to_string(),
-                                geometry_id,
-                                surface_ordinal: surface_ordinal as u32,
-                                semantic_id: semantic_id
-                                    .and_then(|handle| semantic_id_map.get(&handle).copied()),
-                            });
+                        match geometry.type_geometry() {
+                            GeometryType::MultiPoint => {
+                                if semantics.points().len() != boundary_row.vertex_indices.len() {
+                                    return Err(Error::Conversion(format!(
+                                        "point semantic row count {} does not match point count {}",
+                                        semantics.points().len(),
+                                        boundary_row.vertex_indices.len()
+                                    )));
+                                }
+                                for (point_ordinal, semantic_id) in
+                                    semantics.points().iter().enumerate()
+                                {
+                                    point_semantic_rows.push(GeometryPointSemanticRow {
+                                        citymodel_id: citymodel_id.to_string(),
+                                        geometry_id,
+                                        point_ordinal: point_ordinal as u32,
+                                        semantic_id: semantic_id.and_then(|handle| {
+                                            semantic_id_map.get(&handle).copied()
+                                        }),
+                                    });
+                                }
+                            }
+                            GeometryType::MultiLineString => {
+                                let linestring_count =
+                                    required_lengths(&boundary_row.line_lengths, "line_lengths")?
+                                        .len();
+                                if semantics.linestrings().len() != linestring_count {
+                                    return Err(Error::Conversion(format!(
+                                        "linestring semantic row count {} does not match linestring count {}",
+                                        semantics.linestrings().len(),
+                                        linestring_count
+                                    )));
+                                }
+                                for (linestring_ordinal, semantic_id) in
+                                    semantics.linestrings().iter().enumerate()
+                                {
+                                    linestring_semantic_rows.push(GeometryLinestringSemanticRow {
+                                        citymodel_id: citymodel_id.to_string(),
+                                        geometry_id,
+                                        linestring_ordinal: linestring_ordinal as u32,
+                                        semantic_id: semantic_id.and_then(|handle| {
+                                            semantic_id_map.get(&handle).copied()
+                                        }),
+                                    });
+                                }
+                            }
+                            GeometryType::MultiSurface
+                            | GeometryType::CompositeSurface
+                            | GeometryType::Solid
+                            | GeometryType::MultiSolid
+                            | GeometryType::CompositeSolid => {
+                                for (surface_ordinal, semantic_id) in
+                                    semantics.surfaces().iter().enumerate()
+                                {
+                                    surface_semantic_rows.push(GeometrySurfaceSemanticRow {
+                                        citymodel_id: citymodel_id.to_string(),
+                                        geometry_id,
+                                        surface_ordinal: surface_ordinal as u32,
+                                        semantic_id: semantic_id.and_then(|handle| {
+                                            semantic_id_map.get(&handle).copied()
+                                        }),
+                                    });
+                                }
+                            }
+                            GeometryType::GeometryInstance => {
+                                return Err(Error::Unsupported("geometry instances".to_string()));
+                            }
+                            _ => {
+                                return Err(Error::Unsupported(
+                                    "unsupported geometry type".to_string(),
+                                ));
+                            }
                         }
                     }
-                    material_rows.extend(geometry_surface_material_rows(
+                    let material_rows = geometry_material_rows(
                         citymodel_id,
                         geometry_id,
                         geometry.type_geometry(),
                         &boundary_row,
                         geometry.materials(),
                         material_id_map,
-                    )?);
-                    texture_rows.extend(geometry_ring_texture_rows(
+                    )?;
+                    surface_material_rows.extend(material_rows.0);
+                    point_material_rows.extend(material_rows.1);
+                    linestring_material_rows.extend(material_rows.2);
+                    ring_texture_rows.extend(geometry_ring_texture_rows(
                         citymodel_id,
                         geometry_id,
                         geometry.type_geometry(),
@@ -1403,14 +1679,18 @@ fn geometry_rows(
         }
     }
 
-    Ok((
-        geometry_rows,
-        boundary_rows,
-        instance_rows,
-        semantic_rows,
-        material_rows,
-        texture_rows,
-    ))
+    Ok(ExportedGeometryRows {
+        geometries: geometry_rows,
+        boundaries: boundary_rows,
+        instances: instance_rows,
+        surface_semantics: surface_semantic_rows,
+        point_semantics: point_semantic_rows,
+        linestring_semantics: linestring_semantic_rows,
+        surface_materials: surface_material_rows,
+        point_materials: point_material_rows,
+        linestring_materials: linestring_material_rows,
+        ring_textures: ring_texture_rows,
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1421,53 +1701,117 @@ struct RingLayout {
     ring_ordinal: u32,
 }
 
-fn geometry_surface_material_rows(
+fn geometry_material_rows(
     citymodel_id: &str,
     geometry_id: u64,
     geometry_type: &GeometryType,
     boundary_row: &GeometryBoundaryRow,
     materials: Option<MaterialThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
     material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
-) -> Result<Vec<GeometrySurfaceMaterialRow>> {
+) -> Result<(
+    Vec<GeometrySurfaceMaterialRow>,
+    Vec<GeometryPointMaterialRow>,
+    Vec<GeometryLinestringMaterialRow>,
+)> {
     let Some(materials) = materials else {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new(), Vec::new()));
     };
-    ensure_surface_backed_geometry(geometry_type, "geometry materials")?;
-    let surface_count = surface_count(boundary_row)?;
-    let mut rows = Vec::new();
+    let mut surface_rows = Vec::new();
+    let mut point_rows = Vec::new();
+    let mut linestring_rows = Vec::new();
 
     for (theme, map) in materials.iter() {
-        if !map.points().is_empty() || !map.linestrings().is_empty() {
-            return Err(Error::Unsupported(
-                "point and linestring material mappings".to_string(),
-            ));
-        }
-        if map.surfaces().len() != surface_count {
-            return Err(Error::Conversion(format!(
-                "material theme {} has {} surface assignments, expected {}",
-                theme,
-                map.surfaces().len(),
-                surface_count
-            )));
-        }
-        for (surface_ordinal, material_handle) in map.surfaces().iter().enumerate() {
-            let Some(material_handle) = material_handle else {
-                continue;
-            };
-            let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
-                Error::Conversion("material handle missing from id map".to_string())
-            })?;
-            rows.push(GeometrySurfaceMaterialRow {
-                citymodel_id: citymodel_id.to_string(),
-                geometry_id,
-                surface_ordinal: surface_ordinal as u32,
-                theme: theme.as_ref().to_string(),
-                material_id,
-            });
+        match geometry_type {
+            GeometryType::MultiPoint => {
+                if map.points().len() != boundary_row.vertex_indices.len() {
+                    return Err(Error::Conversion(format!(
+                        "material theme {} has {} point assignments, expected {}",
+                        theme,
+                        map.points().len(),
+                        boundary_row.vertex_indices.len()
+                    )));
+                }
+                for (point_ordinal, material_handle) in map.points().iter().enumerate() {
+                    let Some(material_handle) = material_handle else {
+                        continue;
+                    };
+                    let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
+                        Error::Conversion("material handle missing from id map".to_string())
+                    })?;
+                    point_rows.push(GeometryPointMaterialRow {
+                        citymodel_id: citymodel_id.to_string(),
+                        geometry_id,
+                        point_ordinal: point_ordinal as u32,
+                        theme: theme.as_ref().to_string(),
+                        material_id,
+                    });
+                }
+            }
+            GeometryType::MultiLineString => {
+                let linestring_count =
+                    required_lengths(&boundary_row.line_lengths, "line_lengths")?.len();
+                if map.linestrings().len() != linestring_count {
+                    return Err(Error::Conversion(format!(
+                        "material theme {} has {} linestring assignments, expected {}",
+                        theme,
+                        map.linestrings().len(),
+                        linestring_count
+                    )));
+                }
+                for (linestring_ordinal, material_handle) in map.linestrings().iter().enumerate() {
+                    let Some(material_handle) = material_handle else {
+                        continue;
+                    };
+                    let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
+                        Error::Conversion("material handle missing from id map".to_string())
+                    })?;
+                    linestring_rows.push(GeometryLinestringMaterialRow {
+                        citymodel_id: citymodel_id.to_string(),
+                        geometry_id,
+                        linestring_ordinal: linestring_ordinal as u32,
+                        theme: theme.as_ref().to_string(),
+                        material_id,
+                    });
+                }
+            }
+            GeometryType::MultiSurface
+            | GeometryType::CompositeSurface
+            | GeometryType::Solid
+            | GeometryType::MultiSolid
+            | GeometryType::CompositeSolid => {
+                let surface_count = surface_count(boundary_row)?;
+                if map.surfaces().len() != surface_count {
+                    return Err(Error::Conversion(format!(
+                        "material theme {} has {} surface assignments, expected {}",
+                        theme,
+                        map.surfaces().len(),
+                        surface_count
+                    )));
+                }
+                for (surface_ordinal, material_handle) in map.surfaces().iter().enumerate() {
+                    let Some(material_handle) = material_handle else {
+                        continue;
+                    };
+                    let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
+                        Error::Conversion("material handle missing from id map".to_string())
+                    })?;
+                    surface_rows.push(GeometrySurfaceMaterialRow {
+                        citymodel_id: citymodel_id.to_string(),
+                        geometry_id,
+                        surface_ordinal: surface_ordinal as u32,
+                        theme: theme.as_ref().to_string(),
+                        material_id,
+                    });
+                }
+            }
+            GeometryType::GeometryInstance => {
+                return Err(Error::Unsupported("geometry materials".to_string()));
+            }
+            _ => return Err(Error::Unsupported("unsupported geometry type".to_string())),
         }
     }
 
-    Ok(rows)
+    Ok((surface_rows, point_rows, linestring_rows))
 }
 
 fn geometry_ring_texture_rows(
@@ -1538,6 +1882,71 @@ fn geometry_ring_texture_rows(
     Ok(rows)
 }
 
+fn template_geometry_ring_texture_rows(
+    citymodel_id: &str,
+    template_geometry_id: u64,
+    geometry_type: &GeometryType,
+    boundary_row: &TemplateGeometryBoundaryRow,
+    textures: TextureThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>,
+    texture_id_map: &HashMap<cityjson::prelude::TextureHandle, u64>,
+) -> Result<Vec<TemplateGeometryRingTextureRow>> {
+    ensure_surface_backed_geometry(geometry_type, "template geometry textures")?;
+    let ring_layouts = template_ring_layouts(boundary_row)?;
+    let mut rows = Vec::new();
+
+    for (theme, map) in textures.iter() {
+        if map.rings().len() != ring_layouts.len() {
+            return Err(Error::Conversion(format!(
+                "template geometry texture theme {} has {} rings, expected {}",
+                theme,
+                map.rings().len(),
+                ring_layouts.len()
+            )));
+        }
+        if map.vertices().len() != boundary_row.vertex_indices.len() {
+            return Err(Error::Conversion(format!(
+                "template geometry texture theme {} has {} uv assignments, expected {}",
+                theme,
+                map.vertices().len(),
+                boundary_row.vertex_indices.len()
+            )));
+        }
+        let ring_textures = map.ring_textures();
+        for (ring_index, layout) in ring_layouts.iter().enumerate() {
+            let Some(texture_handle) = ring_textures[ring_index] else {
+                continue;
+            };
+            let texture_id = *texture_id_map.get(&texture_handle).ok_or_else(|| {
+                Error::Conversion("texture handle missing from id map".to_string())
+            })?;
+            let uv_indices = map.vertices()[layout.start..layout.start + layout.len]
+                .iter()
+                .map(|value: &Option<cityjson::v2_0::VertexIndex<u32>>| {
+                    value
+                        .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
+                        .ok_or_else(|| {
+                            Error::Conversion(format!(
+                                "template textured ring {} for theme {} contains missing uv indices",
+                                ring_index, theme
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            rows.push(TemplateGeometryRingTextureRow {
+                citymodel_id: citymodel_id.to_string(),
+                template_geometry_id,
+                surface_ordinal: layout.surface_ordinal,
+                ring_ordinal: layout.ring_ordinal,
+                theme: theme.as_ref().to_string(),
+                texture_id,
+                uv_indices,
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
 fn ensure_surface_backed_geometry(geometry_type: &GeometryType, feature: &str) -> Result<()> {
     match geometry_type {
         GeometryType::MultiSurface
@@ -1554,6 +1963,50 @@ fn ensure_surface_backed_geometry(geometry_type: &GeometryType, feature: &str) -
 }
 
 fn ring_layouts(boundary_row: &GeometryBoundaryRow) -> Result<Vec<RingLayout>> {
+    let ring_lengths = required_lengths(&boundary_row.ring_lengths, "ring_lengths")?;
+    let surface_lengths = required_lengths(&boundary_row.surface_lengths, "surface_lengths")?;
+    let mut layouts = Vec::with_capacity(ring_lengths.len());
+    let mut vertex_start = 0_usize;
+    let mut ring_index = 0_usize;
+
+    for (surface_ordinal, ring_count) in surface_lengths.iter().enumerate() {
+        for ring_ordinal in 0..*ring_count {
+            let len = *ring_lengths.get(ring_index).ok_or_else(|| {
+                Error::Conversion(format!(
+                    "surface topology references missing ring {}",
+                    ring_index
+                ))
+            })? as usize;
+            layouts.push(RingLayout {
+                start: vertex_start,
+                len,
+                surface_ordinal: surface_ordinal as u32,
+                ring_ordinal,
+            });
+            vertex_start += len;
+            ring_index += 1;
+        }
+    }
+
+    if ring_index != ring_lengths.len() {
+        return Err(Error::Conversion(format!(
+            "ring topology consumed {} rings, but {} ring lengths are present",
+            ring_index,
+            ring_lengths.len()
+        )));
+    }
+    if vertex_start != boundary_row.vertex_indices.len() {
+        return Err(Error::Conversion(format!(
+            "ring topology consumed {} vertices, but {} boundary vertices are present",
+            vertex_start,
+            boundary_row.vertex_indices.len()
+        )));
+    }
+
+    Ok(layouts)
+}
+
+fn template_ring_layouts(boundary_row: &TemplateGeometryBoundaryRow) -> Result<Vec<RingLayout>> {
     let ring_lengths = required_lengths(&boundary_row.ring_lengths, "ring_lengths")?;
     let surface_lengths = required_lengths(&boundary_row.surface_lengths, "surface_lengths")?;
     let mut layouts = Vec::with_capacity(ring_lengths.len());
@@ -1660,9 +2113,15 @@ fn template_geometry_rows(
     model: &OwnedCityModel,
     citymodel_id: &str,
     template_geometry_id_map: &HashMap<cityjson::prelude::GeometryTemplateHandle, u64>,
-) -> Result<(Vec<TemplateGeometryRow>, Vec<TemplateGeometryBoundaryRow>)> {
+) -> Result<ExportedTemplateGeometryRows> {
+    let semantic_id_map = semantic_id_map(model);
+    let material_id_map = material_id_map(model);
+    let texture_id_map = texture_id_map(model);
     let mut geometry_rows = Vec::new();
     let mut boundary_rows = Vec::new();
+    let mut semantic_rows = Vec::new();
+    let mut material_rows = Vec::new();
+    let mut ring_texture_rows = Vec::new();
     for (handle, geometry) in model.iter_geometry_templates() {
         let template_geometry_id = *template_geometry_id_map.get(&handle).ok_or_else(|| {
             Error::Conversion("template geometry handle missing from id map".to_string())
@@ -1676,14 +2135,212 @@ fn template_geometry_rows(
             geometry_type: geometry.type_geometry().to_string(),
             lod: geometry.lod().map(ToString::to_string),
         });
-        boundary_rows.push(template_geometry_boundary_row(
+        let boundary_row = template_geometry_boundary_row(
             citymodel_id,
             template_geometry_id,
             geometry.type_geometry(),
             boundary,
-        ));
+        );
+        if let Some(semantics) = geometry.semantics() {
+            match geometry.type_geometry() {
+                GeometryType::MultiPoint => {
+                    if semantics.points().len() != boundary_row.vertex_indices.len() {
+                        return Err(Error::Conversion(format!(
+                            "template geometry {} has {} point semantics, expected {}",
+                            template_geometry_id,
+                            semantics.points().len(),
+                            boundary_row.vertex_indices.len()
+                        )));
+                    }
+                    for (primitive_ordinal, semantic_id) in semantics.points().iter().enumerate() {
+                        semantic_rows.push(TemplateGeometrySemanticRow {
+                            citymodel_id: citymodel_id.to_string(),
+                            template_geometry_id,
+                            primitive_type: PRIMITIVE_TYPE_POINT.to_string(),
+                            primitive_ordinal: primitive_ordinal as u32,
+                            semantic_id: semantic_id
+                                .and_then(|handle| semantic_id_map.get(&handle).copied()),
+                        });
+                    }
+                }
+                GeometryType::MultiLineString => {
+                    let linestring_count =
+                        required_lengths(&boundary_row.line_lengths, "line_lengths")?.len();
+                    if semantics.linestrings().len() != linestring_count {
+                        return Err(Error::Conversion(format!(
+                            "template geometry {} has {} linestring semantics, expected {}",
+                            template_geometry_id,
+                            semantics.linestrings().len(),
+                            linestring_count
+                        )));
+                    }
+                    for (primitive_ordinal, semantic_id) in
+                        semantics.linestrings().iter().enumerate()
+                    {
+                        semantic_rows.push(TemplateGeometrySemanticRow {
+                            citymodel_id: citymodel_id.to_string(),
+                            template_geometry_id,
+                            primitive_type: PRIMITIVE_TYPE_LINESTRING.to_string(),
+                            primitive_ordinal: primitive_ordinal as u32,
+                            semantic_id: semantic_id
+                                .and_then(|handle| semantic_id_map.get(&handle).copied()),
+                        });
+                    }
+                }
+                GeometryType::MultiSurface
+                | GeometryType::CompositeSurface
+                | GeometryType::Solid
+                | GeometryType::MultiSolid
+                | GeometryType::CompositeSolid => {
+                    for (primitive_ordinal, semantic_id) in semantics.surfaces().iter().enumerate()
+                    {
+                        semantic_rows.push(TemplateGeometrySemanticRow {
+                            citymodel_id: citymodel_id.to_string(),
+                            template_geometry_id,
+                            primitive_type: PRIMITIVE_TYPE_SURFACE.to_string(),
+                            primitive_ordinal: primitive_ordinal as u32,
+                            semantic_id: semantic_id
+                                .and_then(|handle| semantic_id_map.get(&handle).copied()),
+                        });
+                    }
+                }
+                GeometryType::GeometryInstance => {
+                    return Err(Error::Unsupported("geometry instances".to_string()));
+                }
+                _ => return Err(Error::Unsupported("unsupported geometry type".to_string())),
+            }
+        }
+        if let Some(materials) = geometry.materials() {
+            for (theme, map) in materials.iter() {
+                match geometry.type_geometry() {
+                    GeometryType::MultiPoint => {
+                        if map.points().len() != boundary_row.vertex_indices.len() {
+                            return Err(Error::Conversion(format!(
+                                "template geometry {} material theme {} has {} point assignments, expected {}",
+                                template_geometry_id,
+                                theme,
+                                map.points().len(),
+                                boundary_row.vertex_indices.len()
+                            )));
+                        }
+                        for (primitive_ordinal, material_handle) in map.points().iter().enumerate()
+                        {
+                            let Some(material_handle) = material_handle else {
+                                continue;
+                            };
+                            let material_id =
+                                *material_id_map.get(material_handle).ok_or_else(|| {
+                                    Error::Conversion(
+                                        "material handle missing from id map".to_string(),
+                                    )
+                                })?;
+                            material_rows.push(TemplateGeometryMaterialRow {
+                                citymodel_id: citymodel_id.to_string(),
+                                template_geometry_id,
+                                primitive_type: PRIMITIVE_TYPE_POINT.to_string(),
+                                primitive_ordinal: primitive_ordinal as u32,
+                                theme: theme.as_ref().to_string(),
+                                material_id,
+                            });
+                        }
+                    }
+                    GeometryType::MultiLineString => {
+                        let linestring_count =
+                            required_lengths(&boundary_row.line_lengths, "line_lengths")?.len();
+                        if map.linestrings().len() != linestring_count {
+                            return Err(Error::Conversion(format!(
+                                "template geometry {} material theme {} has {} linestring assignments, expected {}",
+                                template_geometry_id,
+                                theme,
+                                map.linestrings().len(),
+                                linestring_count
+                            )));
+                        }
+                        for (primitive_ordinal, material_handle) in
+                            map.linestrings().iter().enumerate()
+                        {
+                            let Some(material_handle) = material_handle else {
+                                continue;
+                            };
+                            let material_id =
+                                *material_id_map.get(material_handle).ok_or_else(|| {
+                                    Error::Conversion(
+                                        "material handle missing from id map".to_string(),
+                                    )
+                                })?;
+                            material_rows.push(TemplateGeometryMaterialRow {
+                                citymodel_id: citymodel_id.to_string(),
+                                template_geometry_id,
+                                primitive_type: PRIMITIVE_TYPE_LINESTRING.to_string(),
+                                primitive_ordinal: primitive_ordinal as u32,
+                                theme: theme.as_ref().to_string(),
+                                material_id,
+                            });
+                        }
+                    }
+                    GeometryType::MultiSurface
+                    | GeometryType::CompositeSurface
+                    | GeometryType::Solid
+                    | GeometryType::MultiSolid
+                    | GeometryType::CompositeSolid => {
+                        let surface_count = template_surface_count(&boundary_row);
+                        if map.surfaces().len() != surface_count {
+                            return Err(Error::Conversion(format!(
+                                "template geometry {} material theme {} has {} surface assignments, expected {}",
+                                template_geometry_id,
+                                theme,
+                                map.surfaces().len(),
+                                surface_count
+                            )));
+                        }
+                        for (primitive_ordinal, material_handle) in
+                            map.surfaces().iter().enumerate()
+                        {
+                            let Some(material_handle) = material_handle else {
+                                continue;
+                            };
+                            let material_id =
+                                *material_id_map.get(material_handle).ok_or_else(|| {
+                                    Error::Conversion(
+                                        "material handle missing from id map".to_string(),
+                                    )
+                                })?;
+                            material_rows.push(TemplateGeometryMaterialRow {
+                                citymodel_id: citymodel_id.to_string(),
+                                template_geometry_id,
+                                primitive_type: PRIMITIVE_TYPE_SURFACE.to_string(),
+                                primitive_ordinal: primitive_ordinal as u32,
+                                theme: theme.as_ref().to_string(),
+                                material_id,
+                            });
+                        }
+                    }
+                    GeometryType::GeometryInstance => {
+                        return Err(Error::Unsupported("geometry materials".to_string()));
+                    }
+                    _ => return Err(Error::Unsupported("unsupported geometry type".to_string())),
+                }
+            }
+        }
+        if let Some(textures) = geometry.textures() {
+            ring_texture_rows.extend(template_geometry_ring_texture_rows(
+                citymodel_id,
+                template_geometry_id,
+                geometry.type_geometry(),
+                &boundary_row,
+                textures,
+                &texture_id_map,
+            )?);
+        }
+        boundary_rows.push(boundary_row);
     }
-    Ok((geometry_rows, boundary_rows))
+    Ok(ExportedTemplateGeometryRows {
+        geometries: geometry_rows,
+        boundaries: boundary_rows,
+        semantics: semantic_rows,
+        materials: material_rows,
+        ring_textures: ring_texture_rows,
+    })
 }
 
 fn template_vertex_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<TemplateVertexRow> {
@@ -2540,6 +3197,101 @@ fn geometry_surface_semantics_batch(
     .map_err(Error::from)
 }
 
+fn geometry_point_semantics_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometryPointSemanticRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter().map(|row| row.point_ordinal).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.semantic_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn geometry_linestring_semantics_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometryLinestringSemanticRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.linestring_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.semantic_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn template_geometry_semantics_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<TemplateGeometrySemanticRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter()
+                    .map(|row| row.template_geometry_id)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.primitive_type.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.primitive_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.semantic_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
 fn materials_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: &[MaterialRow],
@@ -2579,6 +3331,116 @@ fn geometry_surface_materials_batch(
             Arc::new(UInt32Array::from(
                 rows.iter()
                     .map(|row| row.surface_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.material_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn geometry_point_materials_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometryPointMaterialRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter().map(|row| row.point_ordinal).collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.material_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn geometry_linestring_materials_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometryLinestringMaterialRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.linestring_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.material_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn template_geometry_materials_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<TemplateGeometryMaterialRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter()
+                    .map(|row| row.template_geometry_id)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.primitive_type.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.primitive_ordinal)
                     .collect::<Vec<_>>(),
             )),
             Arc::new(StringArray::from(
@@ -2662,6 +3524,50 @@ fn geometry_ring_textures_batch(
             )),
             Arc::new(UInt64Array::from(
                 rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.surface_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter().map(|row| row.ring_ordinal).collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.texture_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(list_u64_array(
+                field_from_schema(schema, "uv_indices")?,
+                rows.into_iter()
+                    .map(|row| Some(row.uv_indices))
+                    .collect::<Vec<_>>(),
+            )?),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn template_geometry_ring_textures_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<TemplateGeometryRingTextureRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter()
+                    .map(|row| row.template_geometry_id)
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(UInt32Array::from(
                 rows.iter()
@@ -3178,6 +4084,71 @@ fn read_geometry_surface_semantic_rows(
         .collect()
 }
 
+fn read_geometry_point_semantic_rows(batch: &RecordBatch) -> Result<Vec<GeometryPointSemanticRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "point_ordinal")?;
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometryPointSemanticRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                point_ordinal: ordinals.value(row),
+                semantic_id: if semantics.is_null(row) {
+                    None
+                } else {
+                    Some(semantics.value(row))
+                },
+            })
+        })
+        .collect()
+}
+
+fn read_geometry_linestring_semantic_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<GeometryLinestringSemanticRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "linestring_ordinal")?;
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometryLinestringSemanticRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                linestring_ordinal: ordinals.value(row),
+                semantic_id: if semantics.is_null(row) {
+                    None
+                } else {
+                    Some(semantics.value(row))
+                },
+            })
+        })
+        .collect()
+}
+
+fn read_template_geometry_semantic_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<TemplateGeometrySemanticRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "primitive_ordinal")?;
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(TemplateGeometrySemanticRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                template_geometry_id: geometries.value(row),
+                primitive_type: read_string_scalar(batch, "primitive_type", row)?,
+                primitive_ordinal: ordinals.value(row),
+                semantic_id: if semantics.is_null(row) {
+                    None
+                } else {
+                    Some(semantics.value(row))
+                },
+            })
+        })
+        .collect()
+}
+
 fn read_material_rows(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
@@ -3260,6 +4231,62 @@ fn read_geometry_surface_material_rows(
         .collect()
 }
 
+fn read_geometry_point_material_rows(batch: &RecordBatch) -> Result<Vec<GeometryPointMaterialRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "point_ordinal")?;
+    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometryPointMaterialRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                point_ordinal: ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                material_id: materials.value(row),
+            })
+        })
+        .collect()
+}
+
+fn read_geometry_linestring_material_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<GeometryLinestringMaterialRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "linestring_ordinal")?;
+    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometryLinestringMaterialRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                linestring_ordinal: ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                material_id: materials.value(row),
+            })
+        })
+        .collect()
+}
+
+fn read_template_geometry_material_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<TemplateGeometryMaterialRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "primitive_ordinal")?;
+    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(TemplateGeometryMaterialRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                template_geometry_id: geometries.value(row),
+                primitive_type: read_string_scalar(batch, "primitive_type", row)?,
+                primitive_ordinal: ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                material_id: materials.value(row),
+            })
+        })
+        .collect()
+}
+
 fn read_texture_rows(
     batch: &RecordBatch,
     projection: &ProjectionLayout,
@@ -3327,6 +4354,29 @@ fn read_geometry_ring_texture_rows(batch: &RecordBatch) -> Result<Vec<GeometryRi
             Ok(GeometryRingTextureRow {
                 citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
                 geometry_id: geometries.value(row),
+                surface_ordinal: surface_ordinals.value(row),
+                ring_ordinal: ring_ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                texture_id: textures.value(row),
+                uv_indices: list_u64_value(uv_indices, row)?,
+            })
+        })
+        .collect()
+}
+
+fn read_template_geometry_ring_texture_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<TemplateGeometryRingTextureRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
+    let surface_ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
+    let ring_ordinals = downcast_required::<UInt32Array>(batch, "ring_ordinal")?;
+    let textures = downcast_required::<UInt64Array>(batch, "texture_id")?;
+    let uv_indices = downcast_required::<ListArray>(batch, "uv_indices")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(TemplateGeometryRingTextureRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                template_geometry_id: geometries.value(row),
                 surface_ordinal: surface_ordinals.value(row),
                 ring_ordinal: ring_ordinals.value(row),
                 theme: read_string_scalar(batch, "theme", row)?,
@@ -3439,21 +4489,69 @@ fn apply_projected_attributes(
 fn build_semantic_map(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
-    rows: Option<&Vec<GeometrySurfaceSemanticRow>>,
+    surface_rows: Option<&Vec<GeometrySurfaceSemanticRow>>,
+    point_rows: Option<&Vec<GeometryPointSemanticRow>>,
+    linestring_rows: Option<&Vec<GeometryLinestringSemanticRow>>,
     handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
-    let Some(rows) = rows else {
-        return Ok(None);
-    };
-    if rows.is_empty() {
-        return Ok(None);
-    }
     match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiPoint => {
+            let Some(rows) = point_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
+            let point_count = boundary.vertex_indices.len();
+            let mut rows = rows.clone();
+            rows.sort_by_key(|row| row.point_ordinal);
+            if rows.len() != point_count {
+                return Err(Error::Conversion(format!(
+                    "point semantic row count {} does not match point count {}",
+                    rows.len(),
+                    point_count
+                )));
+            }
+            let mut map = SemanticMap::new();
+            for row in rows {
+                map.add_point(row.semantic_id.and_then(|id| handles.get(&id).copied()));
+            }
+            Ok(Some(map))
+        }
+        GeometryType::MultiLineString => {
+            let Some(rows) = linestring_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
+            let linestring_count = required_lengths(&boundary.line_lengths, "line_lengths")?.len();
+            let mut rows = rows.clone();
+            rows.sort_by_key(|row| row.linestring_ordinal);
+            if rows.len() != linestring_count {
+                return Err(Error::Conversion(format!(
+                    "linestring semantic row count {} does not match linestring count {}",
+                    rows.len(),
+                    linestring_count
+                )));
+            }
+            let mut map = SemanticMap::new();
+            for row in rows {
+                map.add_linestring(row.semantic_id.and_then(|id| handles.get(&id).copied()));
+            }
+            Ok(Some(map))
+        }
         GeometryType::MultiSurface
         | GeometryType::CompositeSurface
         | GeometryType::Solid
         | GeometryType::MultiSolid
         | GeometryType::CompositeSolid => {
+            let Some(rows) = surface_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
             let surface_count = surface_count(boundary)?;
             let mut rows = rows.clone();
             rows.sort_by_key(|row| row.surface_ordinal);
@@ -3470,9 +4568,6 @@ fn build_semantic_map(
             }
             Ok(Some(map))
         }
-        GeometryType::MultiPoint | GeometryType::MultiLineString => Err(Error::Unsupported(
-            "point and linestring semantic mappings".to_string(),
-        )),
         GeometryType::GeometryInstance => Err(Error::Unsupported("geometry instances".to_string())),
         _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
     }
@@ -3481,7 +4576,9 @@ fn build_semantic_map(
 fn build_material_maps(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
-    rows: Option<&Vec<GeometrySurfaceMaterialRow>>,
+    surface_rows: Option<&Vec<GeometrySurfaceMaterialRow>>,
+    point_rows: Option<&Vec<GeometryPointMaterialRow>>,
+    linestring_rows: Option<&Vec<GeometryLinestringMaterialRow>>,
     handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
 ) -> Result<
     Option<
@@ -3491,18 +4588,106 @@ fn build_material_maps(
         )>,
     >,
 > {
-    let Some(rows) = rows else {
-        return Ok(None);
-    };
-    if rows.is_empty() {
-        return Ok(None);
-    }
     match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiPoint => {
+            let Some(rows) = point_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
+            let point_count = boundary.vertex_indices.len();
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows {
+                if row.point_ordinal as usize >= point_count {
+                    return Err(Error::Conversion(format!(
+                        "material assignment point ordinal {} exceeds point count {}",
+                        row.point_ordinal, point_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let points = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; point_count]);
+                if points[row.point_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate material assignment for theme {} point {}",
+                        row.theme, row.point_ordinal
+                    )));
+                }
+                points[row.point_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, points)| {
+                        let mut map = MaterialMap::new();
+                        for point in points {
+                            map.add_point(point);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiLineString => {
+            let Some(rows) = linestring_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
+            let linestring_count = required_lengths(&boundary.line_lengths, "line_lengths")?.len();
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows {
+                if row.linestring_ordinal as usize >= linestring_count {
+                    return Err(Error::Conversion(format!(
+                        "material assignment linestring ordinal {} exceeds linestring count {}",
+                        row.linestring_ordinal, linestring_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let linestrings = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; linestring_count]);
+                if linestrings[row.linestring_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate material assignment for theme {} linestring {}",
+                        row.theme, row.linestring_ordinal
+                    )));
+                }
+                linestrings[row.linestring_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, linestrings)| {
+                        let mut map = MaterialMap::new();
+                        for linestring in linestrings {
+                            map.add_linestring(linestring);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
         GeometryType::MultiSurface
         | GeometryType::CompositeSurface
         | GeometryType::Solid
         | GeometryType::MultiSolid
         | GeometryType::CompositeSolid => {
+            let Some(rows) = surface_rows else {
+                return Ok(None);
+            };
+            if rows.is_empty() {
+                return Ok(None);
+            }
             let surface_count = surface_count(boundary)?;
             let mut grouped =
                 BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
@@ -3540,10 +4725,343 @@ fn build_material_maps(
                     .collect(),
             ))
         }
-        GeometryType::MultiPoint | GeometryType::MultiLineString => Err(Error::Unsupported(
-            "point and linestring material mappings".to_string(),
-        )),
         GeometryType::GeometryInstance => Err(Error::Unsupported("geometry materials".to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn build_template_semantic_map(
+    geometry_type: &str,
+    boundary: &TemplateGeometryBoundaryRow,
+    rows: Option<&Vec<TemplateGeometrySemanticRow>>,
+    handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
+) -> Result<Option<SemanticMap<u32>>> {
+    let Some(rows) = rows else {
+        return Ok(None);
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiPoint => {
+            let point_count = boundary.vertex_indices.len();
+            let mut rows = rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_POINT)
+                .cloned()
+                .collect::<Vec<_>>();
+            rows.sort_by_key(|row| row.primitive_ordinal);
+            if rows.len() != point_count {
+                return Err(Error::Conversion(format!(
+                    "template point semantic row count {} does not match point count {}",
+                    rows.len(),
+                    point_count
+                )));
+            }
+            let mut map = SemanticMap::new();
+            for row in rows {
+                map.add_point(row.semantic_id.and_then(|id| handles.get(&id).copied()));
+            }
+            Ok(Some(map))
+        }
+        GeometryType::MultiLineString => {
+            let linestring_count = required_lengths(&boundary.line_lengths, "line_lengths")?.len();
+            let mut rows = rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_LINESTRING)
+                .cloned()
+                .collect::<Vec<_>>();
+            rows.sort_by_key(|row| row.primitive_ordinal);
+            if rows.len() != linestring_count {
+                return Err(Error::Conversion(format!(
+                    "template linestring semantic row count {} does not match linestring count {}",
+                    rows.len(),
+                    linestring_count
+                )));
+            }
+            let mut map = SemanticMap::new();
+            for row in rows {
+                map.add_linestring(row.semantic_id.and_then(|id| handles.get(&id).copied()));
+            }
+            Ok(Some(map))
+        }
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => {
+            let surface_count = template_surface_count(boundary);
+            let mut rows = rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_SURFACE)
+                .cloned()
+                .collect::<Vec<_>>();
+            rows.sort_by_key(|row| row.primitive_ordinal);
+            if rows.len() != surface_count {
+                return Err(Error::Conversion(format!(
+                    "template surface semantic row count {} does not match surface count {}",
+                    rows.len(),
+                    surface_count
+                )));
+            }
+            let mut map = SemanticMap::new();
+            for row in rows {
+                map.add_surface(row.semantic_id.and_then(|id| handles.get(&id).copied()));
+            }
+            Ok(Some(map))
+        }
+        GeometryType::GeometryInstance => Err(Error::Unsupported("geometry instances".to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn build_template_material_maps(
+    geometry_type: &str,
+    boundary: &TemplateGeometryBoundaryRow,
+    rows: Option<&Vec<TemplateGeometryMaterialRow>>,
+    handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
+) -> Result<
+    Option<
+        Vec<(
+            ThemeName<cityjson::prelude::OwnedStringStorage>,
+            MaterialMap<u32>,
+        )>,
+    >,
+> {
+    let Some(rows) = rows else {
+        return Ok(None);
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiPoint => {
+            let point_count = boundary.vertex_indices.len();
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_POINT)
+            {
+                if row.primitive_ordinal as usize >= point_count {
+                    return Err(Error::Conversion(format!(
+                        "template material assignment point ordinal {} exceeds point count {}",
+                        row.primitive_ordinal, point_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let points = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; point_count]);
+                if points[row.primitive_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate template material assignment for theme {} point {}",
+                        row.theme, row.primitive_ordinal
+                    )));
+                }
+                points[row.primitive_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, points)| {
+                        let mut map = MaterialMap::new();
+                        for point in points {
+                            map.add_point(point);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiLineString => {
+            let linestring_count = required_lengths(&boundary.line_lengths, "line_lengths")?.len();
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_LINESTRING)
+            {
+                if row.primitive_ordinal as usize >= linestring_count {
+                    return Err(Error::Conversion(format!(
+                        "template material assignment linestring ordinal {} exceeds linestring count {}",
+                        row.primitive_ordinal, linestring_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let linestrings = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; linestring_count]);
+                if linestrings[row.primitive_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate template material assignment for theme {} linestring {}",
+                        row.theme, row.primitive_ordinal
+                    )));
+                }
+                linestrings[row.primitive_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, linestrings)| {
+                        let mut map = MaterialMap::new();
+                        for linestring in linestrings {
+                            map.add_linestring(linestring);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => {
+            let surface_count = template_surface_count(boundary);
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows
+                .iter()
+                .filter(|row| row.primitive_type == PRIMITIVE_TYPE_SURFACE)
+            {
+                if row.primitive_ordinal as usize >= surface_count {
+                    return Err(Error::Conversion(format!(
+                        "template material assignment surface ordinal {} exceeds surface count {}",
+                        row.primitive_ordinal, surface_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let surfaces = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; surface_count]);
+                if surfaces[row.primitive_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate template material assignment for theme {} surface {}",
+                        row.theme, row.primitive_ordinal
+                    )));
+                }
+                surfaces[row.primitive_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, surfaces)| {
+                        let mut map = MaterialMap::new();
+                        for surface in surfaces {
+                            map.add_surface(surface);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
+        GeometryType::GeometryInstance => Err(Error::Unsupported("geometry materials".to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn build_template_texture_maps(
+    geometry_type: &str,
+    boundary: &TemplateGeometryBoundaryRow,
+    rows: Option<&Vec<TemplateGeometryRingTextureRow>>,
+    handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
+) -> Result<
+    Option<
+        Vec<(
+            ThemeName<cityjson::prelude::OwnedStringStorage>,
+            TextureMap<u32>,
+        )>,
+    >,
+> {
+    let Some(rows) = rows else {
+        return Ok(None);
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => {
+            let ring_layouts = template_ring_layouts(boundary)?;
+            let ring_lookup = ring_layouts
+                .iter()
+                .enumerate()
+                .map(|(index, layout)| ((layout.surface_ordinal, layout.ring_ordinal), index))
+                .collect::<HashMap<_, _>>();
+            let mut maps = BTreeMap::<String, TextureMap<u32>>::new();
+
+            for row in rows {
+                let layout_index = *ring_lookup
+                    .get(&(row.surface_ordinal, row.ring_ordinal))
+                    .ok_or_else(|| {
+                        Error::Conversion(format!(
+                            "missing template ring layout for surface {} ring {}",
+                            row.surface_ordinal, row.ring_ordinal
+                        ))
+                    })?;
+                let layout = ring_layouts[layout_index];
+                if row.uv_indices.len() != layout.len {
+                    return Err(Error::Conversion(format!(
+                        "template texture assignment for theme {} surface {} ring {} has {} uv indices, expected {}",
+                        row.theme,
+                        row.surface_ordinal,
+                        row.ring_ordinal,
+                        row.uv_indices.len(),
+                        layout.len
+                    )));
+                }
+                let texture = *handles.get(&row.texture_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing texture {}", row.texture_id))
+                })?;
+                let map = maps.entry(row.theme.clone()).or_insert_with(|| {
+                    let mut map = TextureMap::new();
+                    for layout in &ring_layouts {
+                        map.add_ring(cityjson::v2_0::VertexIndex::new(layout.start as u32));
+                        map.add_ring_texture(None);
+                        for _ in 0..layout.len {
+                            map.add_vertex(None);
+                        }
+                    }
+                    map
+                });
+                if map.ring_textures()[layout_index].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate template texture assignment for theme {} surface {} ring {}",
+                        row.theme, row.surface_ordinal, row.ring_ordinal
+                    )));
+                }
+                if !map.set_ring_texture(layout_index, Some(texture)) {
+                    return Err(Error::Conversion("missing texture ring slot".to_string()));
+                }
+                let slice = map.vertices_mut()[layout.start..layout.start + layout.len].iter_mut();
+                for (slot, uv_id) in slice.zip(&row.uv_indices) {
+                    let uv_id = u32::try_from(*uv_id).map_err(|_| {
+                        Error::Conversion(format!("uv index {} does not fit into u32", uv_id))
+                    })?;
+                    *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
+                }
+            }
+
+            Ok(Some(
+                maps.into_iter()
+                    .map(|(theme, map)| (ThemeName::new(theme), map))
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiPoint | GeometryType::MultiLineString => {
+            Err(Error::Unsupported("geometry textures".to_string()))
+        }
+        GeometryType::GeometryInstance => Err(Error::Unsupported("geometry textures".to_string())),
         _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
     }
 }
@@ -3760,6 +5278,10 @@ fn surface_count(row: &GeometryBoundaryRow) -> Result<usize> {
         Some(lengths) => lengths.len(),
         None => 0,
     })
+}
+
+fn template_surface_count(row: &TemplateGeometryBoundaryRow) -> usize {
+    row.surface_lengths.as_ref().map_or(0, std::vec::Vec::len)
 }
 
 fn encode_key(value: &str) -> String {

@@ -216,6 +216,54 @@ pub fn write_package_dir(
             Some(CanonicalTable::GeometrySurfaceSemantics.file_name().into());
     }
 
+    if let Some(geometry_point_semantics) = &parts.geometry_point_semantics {
+        validate_schema(
+            &schemas.geometry_point_semantics,
+            geometry_point_semantics.schema(),
+            CanonicalTable::GeometryPointSemantics,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::GeometryPointSemantics,
+            geometry_point_semantics,
+        )?;
+        manifest.tables.geometry_point_semantics =
+            Some(CanonicalTable::GeometryPointSemantics.file_name().into());
+    }
+
+    if let Some(geometry_linestring_semantics) = &parts.geometry_linestring_semantics {
+        validate_schema(
+            &schemas.geometry_linestring_semantics,
+            geometry_linestring_semantics.schema(),
+            CanonicalTable::GeometryLinestringSemantics,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::GeometryLinestringSemantics,
+            geometry_linestring_semantics,
+        )?;
+        manifest.tables.geometry_linestring_semantics = Some(
+            CanonicalTable::GeometryLinestringSemantics
+                .file_name()
+                .into(),
+        );
+    }
+
+    if let Some(template_geometry_semantics) = &parts.template_geometry_semantics {
+        validate_schema(
+            &schemas.template_geometry_semantics,
+            template_geometry_semantics.schema(),
+            CanonicalTable::TemplateGeometrySemantics,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::TemplateGeometrySemantics,
+            template_geometry_semantics,
+        )?;
+        manifest.tables.template_geometry_semantics =
+            Some(CanonicalTable::TemplateGeometrySemantics.file_name().into());
+    }
+
     if let Some(materials) = &parts.materials {
         validate_schema(
             &schemas.materials,
@@ -239,6 +287,54 @@ pub fn write_package_dir(
         )?;
         manifest.tables.geometry_surface_materials =
             Some(CanonicalTable::GeometrySurfaceMaterials.file_name().into());
+    }
+
+    if let Some(geometry_point_materials) = &parts.geometry_point_materials {
+        validate_schema(
+            &schemas.geometry_point_materials,
+            geometry_point_materials.schema(),
+            CanonicalTable::GeometryPointMaterials,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::GeometryPointMaterials,
+            geometry_point_materials,
+        )?;
+        manifest.tables.geometry_point_materials =
+            Some(CanonicalTable::GeometryPointMaterials.file_name().into());
+    }
+
+    if let Some(geometry_linestring_materials) = &parts.geometry_linestring_materials {
+        validate_schema(
+            &schemas.geometry_linestring_materials,
+            geometry_linestring_materials.schema(),
+            CanonicalTable::GeometryLinestringMaterials,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::GeometryLinestringMaterials,
+            geometry_linestring_materials,
+        )?;
+        manifest.tables.geometry_linestring_materials = Some(
+            CanonicalTable::GeometryLinestringMaterials
+                .file_name()
+                .into(),
+        );
+    }
+
+    if let Some(template_geometry_materials) = &parts.template_geometry_materials {
+        validate_schema(
+            &schemas.template_geometry_materials,
+            template_geometry_materials.schema(),
+            CanonicalTable::TemplateGeometryMaterials,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::TemplateGeometryMaterials,
+            template_geometry_materials,
+        )?;
+        manifest.tables.template_geometry_materials =
+            Some(CanonicalTable::TemplateGeometryMaterials.file_name().into());
     }
 
     if let Some(textures) = &parts.textures {
@@ -274,6 +370,24 @@ pub fn write_package_dir(
         )?;
         manifest.tables.geometry_ring_textures =
             Some(CanonicalTable::GeometryRingTextures.file_name().into());
+    }
+
+    if let Some(template_geometry_ring_textures) = &parts.template_geometry_ring_textures {
+        validate_schema(
+            &schemas.template_geometry_ring_textures,
+            template_geometry_ring_textures.schema(),
+            CanonicalTable::TemplateGeometryRingTextures,
+        )?;
+        write_batch(
+            dir,
+            CanonicalTable::TemplateGeometryRingTextures,
+            template_geometry_ring_textures,
+        )?;
+        manifest.tables.template_geometry_ring_textures = Some(
+            CanonicalTable::TemplateGeometryRingTextures
+                .file_name()
+                .into(),
+        );
     }
 
     let manifest_path = package_manifest_path(dir);

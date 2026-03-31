@@ -135,17 +135,10 @@ The canonical roundtrip currently supports:
 - projected cityobject and semantic attributes
 - boundary-carrying geometries with normalized topology
 - geometry instances and template geometries
-- semantic surface assignments
+- semantic point, linestring, surface, and template assignments
 - materials, textures, UV coordinates, default appearance themes,
-  surface material assignments, and ring texture assignments
-
-The canonical roundtrip still rejects these inputs explicitly:
-
-- point and linestring semantic mappings
-- point and linestring material mappings
-- template geometry semantics
-- template geometry materials
-- template geometry textures
+  point/linestring/surface material assignments, and template ring texture
+  assignments
 
 ## Repository Map
 
