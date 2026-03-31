@@ -7,7 +7,10 @@ nav:
       - Home: index.md
       - CityJSON Ecosystem Naming Map: ecosystem-naming.md
       - Architecture: architecture.md
+      - Shared Corpus Migration Plan: shared-corpus-migration-plan.md
       - Guide: guide.md
+      - Reading Data: guide-reading.md
+      - Writing Data: guide-writing.md
       - Examples: examples.md
   - API Design:
       - Public API: public-api.md

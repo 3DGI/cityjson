@@ -61,6 +61,9 @@ be idiomatic in its host environment.
   current-to-target rename map.
 - [Architecture](architecture.md)
   Cross-crate responsibility split and long-term layering rules.
+- [Shared Corpus Migration Plan](shared-corpus-migration-plan.md)
+  Concrete plan for moving correctness fixtures and benchmark cases into one
+  shared, multi-consumer corpus contract.
 - [Architecture Decisions](adr/0001-shared-c-abi-foundation.md)
   Decision records for cross-cutting implementation choices, including the
   shared C ABI foundation and header workflow.
