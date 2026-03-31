@@ -56,6 +56,9 @@ be idiomatic in its host environment.
 
 ## Documentation Map
 
+- [CityJSON Ecosystem Naming Map](ecosystem-naming.md)
+  Proposed repository naming scheme for the CityJSON family, including the
+  current-to-target rename map.
 - [Architecture](architecture.md)
   Cross-crate responsibility split and long-term layering rules.
 - [Architecture Decisions](adr/0001-shared-c-abi-foundation.md)
