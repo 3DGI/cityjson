@@ -683,9 +683,9 @@ impl CityIndex {
         let Some(loc) = self.index.lookup_id(id)? else {
             return Ok(None);
         };
-        let metadata = self.index.get_metadata(loc.source_id)?;
-        let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
-        Ok(Some((metadata, model)))
+        let metadata = self.index.get_cached_metadata(loc.source_id)?;
+        let model = self.backend.read_one(&loc, Arc::clone(&metadata.bytes))?;
+        Ok(Some((metadata.value, model)))
     }
 
     /// Returns every feature intersecting the given bounding box.
@@ -733,8 +733,8 @@ impl CityIndex {
         Ok(locations.map(move |loc| {
             let loc = loc?;
             let feature_id = loc.feature_id.clone();
-            let metadata = self.index.get_metadata(loc.source_id)?;
-            let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
+            let metadata = self.index.get_cached_metadata(loc.source_id)?;
+            let model = self.backend.read_one(&loc, Arc::clone(&metadata.bytes))?;
             Ok((feature_id, model))
         }))
     }
@@ -752,9 +752,9 @@ impl CityIndex {
         let locations = self.index.lookup_bbox_iter(*bbox);
         Ok(locations.map(move |loc| {
             let loc = loc?;
-            let metadata = self.index.get_metadata(loc.source_id)?;
-            let model = self.backend.read_one(&loc, Arc::clone(&metadata))?;
-            Ok((metadata, model))
+            let metadata = self.index.get_cached_metadata(loc.source_id)?;
+            let model = self.backend.read_one(&loc, Arc::clone(&metadata.bytes))?;
+            Ok((metadata.value, model))
         }))
     }
 
@@ -780,10 +780,10 @@ impl CityIndex {
         Ok(iter.map(move |loc| {
             let loc = loc?;
             let feature_id = loc.location.feature_id.clone();
-            let metadata = self.index.get_metadata(loc.location.source_id)?;
+            let metadata = self.index.get_cached_metadata(loc.location.source_id)?;
             let model = self
                 .backend
-                .read_one(&loc.location, Arc::clone(&metadata))?;
+                .read_one(&loc.location, Arc::clone(&metadata.bytes))?;
             Ok((feature_id, model))
         }))
     }
@@ -800,11 +800,11 @@ impl CityIndex {
         let iter = self.index.lookup_all_iter();
         Ok(iter.map(move |loc| {
             let loc = loc?;
-            let metadata = self.index.get_metadata(loc.location.source_id)?;
+            let metadata = self.index.get_cached_metadata(loc.location.source_id)?;
             let model = self
                 .backend
-                .read_one(&loc.location, Arc::clone(&metadata))?;
-            Ok((metadata, model))
+                .read_one(&loc.location, Arc::clone(&metadata.bytes))?;
+            Ok((metadata.value, model))
         }))
     }
 
@@ -846,9 +846,9 @@ impl CityIndex {
     ///
     /// Returns an error if the feature cannot be reconstructed.
     pub fn read_feature(&self, feature: &IndexedFeatureRef) -> Result<CityModel> {
-        let metadata = self.index.get_metadata(feature.source_id)?;
+        let metadata = self.index.get_cached_metadata(feature.source_id)?;
         self.backend
-            .read_one(&feature.to_location(), Arc::clone(&metadata))
+            .read_one(&feature.to_location(), Arc::clone(&metadata.bytes))
     }
 
     /// Returns cached metadata entries.
@@ -863,9 +863,15 @@ impl CityIndex {
 
 type Meta = serde_json::Value;
 
+#[derive(Clone)]
+struct CachedMetadata {
+    value: Arc<Meta>,
+    bytes: Arc<[u8]>,
+}
+
 struct Index {
     conn: rusqlite::Connection,
-    metadata_cache: Mutex<HashMap<i64, Arc<Meta>>>,
+    metadata_cache: Mutex<HashMap<i64, CachedMetadata>>,
 }
 
 struct FeatureLocation {
@@ -1360,7 +1366,7 @@ impl Index {
         sqlite_result(rows.collect())
     }
 
-    fn get_metadata(&self, source_id: i64) -> Result<Arc<Meta>> {
+    fn get_cached_metadata(&self, source_id: i64) -> Result<CachedMetadata> {
         if let Some(metadata) = self
             .metadata_cache
             .lock()
@@ -1377,14 +1383,22 @@ impl Index {
             |row| row.get(0),
         ))?;
         let metadata: Meta = serde_json::from_str(&metadata_json)?;
-        let metadata = Arc::new(metadata);
+        let metadata = CachedMetadata {
+            value: Arc::new(metadata),
+            bytes: Arc::from(metadata_json.into_bytes()),
+        };
 
         self.metadata_cache
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(source_id, Arc::clone(&metadata));
+            .insert(source_id, metadata.clone());
 
         Ok(metadata)
+    }
+
+    fn get_metadata(&self, source_id: i64) -> Result<Arc<Meta>> {
+        self.get_cached_metadata(source_id)
+            .map(|metadata| metadata.value)
     }
 
     fn metadata(&self) -> Result<Vec<Arc<Meta>>> {
@@ -1728,7 +1742,7 @@ impl Index {
 
 trait StorageBackend: Send + Sync {
     fn scan(&self) -> Result<Vec<SourceScan>>;
-    fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel>;
+    fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel>;
 }
 
 struct SourceScan {
@@ -1783,10 +1797,9 @@ impl StorageBackend for NdjsonBackend {
             .collect()
     }
 
-    fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
+    fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
-        let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
-        staged::from_feature_slice_with_base(&bytes, &metadata_bytes)
+        staged::from_feature_slice_with_base(&bytes, metadata_bytes.as_ref())
     }
 }
 
@@ -1834,7 +1847,7 @@ impl StorageBackend for CityJsonBackend {
             .collect()
     }
 
-    fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
+    fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let vertices_offset = loc.vertices_offset.ok_or_else(|| {
             Error::UnsupportedFeature(
                 "regular CityJSON reads require an indexed shared vertices range".into(),
@@ -1846,7 +1859,6 @@ impl StorageBackend for CityJsonBackend {
             )
         })?;
 
-        let base_document_bytes = serde_json::to_vec(metadata.as_ref())?;
         let mut source_file = fs::File::open(&loc.source_path)?;
         let member_ranges = loc
             .member_ranges_json
@@ -1899,7 +1911,7 @@ impl StorageBackend for CityJsonBackend {
             vertices: &feature_parts.vertices,
         };
 
-        staged::from_feature_assembly_with_base(assembly, &base_document_bytes)
+        staged::from_feature_assembly_with_base(assembly, metadata_bytes.as_ref())
     }
 }
 
@@ -1930,10 +1942,9 @@ impl StorageBackend for FeatureFilesBackend {
         scan_feature_files_root(&self.root, &self.metadata_glob, &self.feature_glob)
     }
 
-    fn read_one(&self, loc: &FeatureLocation, metadata: Arc<Meta>) -> Result<CityModel> {
+    fn read_one(&self, loc: &FeatureLocation, metadata_bytes: Arc<[u8]>) -> Result<CityModel> {
         let feature_bytes = read_exact_range(&loc.source_path, loc.offset, loc.length)?;
-        let metadata_bytes = serde_json::to_vec(metadata.as_ref())?;
-        staged::from_feature_slice_with_base(&feature_bytes, &metadata_bytes)
+        staged::from_feature_slice_with_base(&feature_bytes, metadata_bytes.as_ref())
     }
 }
 
@@ -3089,6 +3100,8 @@ mod tests {
         });
         let document_bytes = serde_json::to_vec(&document).expect("fixture JSON");
         let base_document = cityjson_base_metadata(&document).expect("base CityJSON metadata");
+        let base_document_bytes: Arc<[u8]> =
+            Arc::from(serde_json::to_vec(&base_document).expect("base CityJSON metadata bytes"));
         let object_fragment = object_entry_fragment(selected_id, &selected_object);
         let vertices_fragment = serde_json::to_vec(&vertices).expect("vertices fragment");
         let loc = FeatureLocation {
@@ -3107,7 +3120,7 @@ mod tests {
 
         let backend = CityJsonBackend::new(vec![loc.source_path.clone()]);
         let model = backend
-            .read_one(&loc, Arc::new(base_document))
+            .read_one(&loc, base_document_bytes)
             .expect("CityJSON read should succeed");
         let output: Value =
             serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
@@ -3196,8 +3209,10 @@ mod tests {
             ),
         };
         let backend = CityJsonBackend::new(vec![loc.source_path.clone()]);
+        let metadata_bytes: Arc<[u8]> =
+            Arc::from(serde_json::to_vec(&scan.metadata).expect("metadata JSON"));
         let model = backend
-            .read_one(&loc, Arc::new(scan.metadata))
+            .read_one(&loc, metadata_bytes)
             .expect("CityJSON read should succeed");
         let output: Value =
             serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
