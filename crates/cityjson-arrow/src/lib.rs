@@ -1,8 +1,8 @@
-//! cityarrow rewrite scaffold.
+//! Arrow and Parquet transport for `cityjson-rs`.
 //!
-//! The old prototype conversion tree is intentionally not part of the default
-//! build. The acceptance harness is wired separately in `tests/` while the new
-//! Arrow/Parquet architecture is rebuilt.
+//! The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
+//! `CityModelArrowParts` is the canonical transport decomposition used by the
+//! implemented Parquet package reader and writer.
 
 pub mod convert;
 pub mod error;

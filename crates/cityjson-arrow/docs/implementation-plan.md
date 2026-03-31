@@ -1,21 +1,19 @@
-# Cityarrow Implementation Plan
+# Cityarrow Implementation Status
 
-This file is the execution plan for the rewrite that implements the canonical
-`cityarrow.package.v1alpha1` schema. Transitional compatibility with the old
-prototype is not a goal.
+This file records the current implementation state of the canonical
+`cityarrow.package.v1alpha1` package.
 
-## Goal
+## Status
 
-Implement a lossless canonical roundtrip:
+The canonical Parquet package path is implemented and verified.
 
-`cityjson::v2_0::OwnedCityModel -> CityModelArrowParts -> Parquet package -> CityModelArrowParts -> OwnedCityModel`
+- `convert::to_parts` is implemented
+- `convert::from_parts` is implemented
+- package manifest write/read is implemented
+- Parquet table write/read is implemented
+- the real acceptance path is `serde_cityjson -> cityarrow -> serde_cityjson -> cjval`
 
-The package remains the semantic/topological source of truth. GeoArrow and
-GeoParquet feature tables remain derived views.
-
-## Acceptance
-
-The rewrite is accepted only when all of the following are true:
+## Verified Gates
 
 1. Canonical in-memory roundtrip is lossless for the supported package surface.
 2. Canonical package write/read roundtrip is lossless for the supported package surface.
@@ -28,9 +26,7 @@ The rewrite is accepted only when all of the following are true:
    - validate the emitted JSON with `cjval`
 5. The real-world datasets `3DBAG` and `3D Basisvoorziening` pass that final gate.
 
-## Scope Order
-
-### Implemented Canonical Surface
+## Implemented Canonical Surface
 
 - metadata
 - transform
@@ -53,49 +49,6 @@ The rewrite is accepted only when all of the following are true:
 - template geometry ring textures
 - default appearance themes
 
-## Implementation Tasks
-
-### Task List
-
-- [x] Replace the disconnected prototype layout with clean public modules:
-  - `src/convert/`
-  - `src/package/`
-- [x] Remove stale prototype files that are no longer part of the rewrite.
-- [x] Implement `convert::to_parts`.
-- [x] Implement `convert::from_parts`.
-- [x] Implement normalized boundary flattening and reconstruction for:
-  - `MultiPoint`
-  - `MultiLineString`
-  - `MultiSurface`
-  - `CompositeSurface`
-  - `Solid`
-  - `MultiSolid`
-  - `CompositeSolid`
-- [x] Implement canonical metadata, transform, and extension table conversion.
-- [x] Implement canonical cityobject table conversion.
-- [x] Implement canonical semantics table conversion.
-- [x] Implement Parquet-safe attribute projection.
-- [x] Preserve exact attribute values with per-key JSON fallback columns.
-- [x] Preserve explicit null versus missing value distinction in fallback columns.
-- [x] Implement canonical material, texture, and UV table conversion.
-- [x] Implement default appearance theme roundtrip.
-- [x] Implement geometry-surface material assignment roundtrip.
-- [x] Implement geometry-ring texture assignment roundtrip.
-- [x] Implement point and linestring semantic assignment roundtrip.
-- [x] Implement point and linestring material assignment roundtrip.
-- [x] Implement template vertex, template geometry, and geometry instance conversion.
-- [x] Implement template and geometry-instance package tables.
-- [x] Implement template-geometry semantic, material, and texture assignment roundtrip.
-- [x] Implement package manifest writing.
-- [x] Implement Parquet table writing.
-- [x] Implement package manifest reading.
-- [x] Implement Parquet table reading.
-- [x] Validate on package read that batch schemas match the canonical schema set.
-- [x] Replace the identity placeholder in `tests/manifest_roundtrip.rs`.
-- [x] Add focused unit tests for conversion helpers.
-- [x] Add integration tests for package write/read roundtrip.
-- [x] Run the full test stack, including ignored real-data acceptance.
-
 ## Design Constraints
 
 - The canonical package must not use Arrow `Union`.
@@ -107,8 +60,8 @@ The rewrite is accepted only when all of the following are true:
 - If a feature is not implemented, the code must return an explicit error instead
   of dropping data.
 
-## Current Execution Split
+## Separate Work
 
-- Main trunk: conversion rewrite, repo cleanup, integration, final verification.
-- Parallel worktree A: package manifest and Parquet I/O.
-- Parallel worktree B: harness and integration test updates around the new API.
+- derived GeoArrow and GeoParquet feature views
+- Arrow IPC package read/write
+- richer typed projections for selected high-value attribute columns

@@ -1,12 +1,12 @@
 # cityarrow Design
 
-This document rewrites the design for `cityarrow` around the current
+This document defines the current design for `cityarrow` around the current
 `cityjson-rs` model and the actual state of this repository as of 2026-03-31.
 
 It replaces the older implicit assumptions in the codebase with an explicit
 transport design.
 
-The concrete package schema draft that follows from this design is documented in
+The concrete package schema that follows from this design is documented in
 [docs/package-schema.md](package-schema.md).
 
 ## Purpose
@@ -24,9 +24,9 @@ The design target is therefore:
 
 ## Current Reality
 
-The canonical rewrite is now implemented on the Parquet package path.
+The canonical Parquet package path is now implemented.
 
-### Confirmed state from the code review
+### Confirmed state from the codebase
 
 - `CityModelArrowParts` already expresses the right component split.
 - canonical Parquet package write exists.
@@ -39,7 +39,7 @@ The canonical rewrite is now implemented on the Parquet package path.
 
 ### Current supported scope
 
-The canonical rewrite now covers the full semantic/material surface exposed by
+The current implementation covers the full semantic/material surface exposed by
 the current package schema:
 
 - point, linestring, and surface semantic mappings
@@ -127,7 +127,7 @@ That gives `cityarrow` two viable implementation paths:
 
 ## Design Rules
 
-The redesign should follow these rules.
+The design should follow these rules.
 
 1. `cityarrow` is a format boundary, not a semantic fork.
 2. The public API should trade in `CityModel` or streams of `CityModel`.
@@ -136,9 +136,8 @@ The redesign should follow these rules.
    cannot encode them.
 5. Normalization from the semantic model into a transport-friendly layout is
    acceptable and expected at serialization time.
-6. The rewrite may break existing `cityarrow` APIs and internal schemas freely
-   if that yields a cleaner architecture. Transitional compatibility is not a
-   design goal.
+6. Package-surface changes should be deliberate, documented, and covered by
+   schema-lock tests.
 
 ## Transport Model
 
@@ -361,47 +360,6 @@ That implies:
 - streams should yield `CityModel` or explicit streams of `CityModel`
 - `CityModelArrowParts` should remain available for advanced use, but it should
   not become the primary semantic facade
-
-## Rewrite Strategy
-
-The next implementation should be a direct rewrite in the target architecture,
-not a staged migration from the current prototype.
-
-### Rewrite constraints
-
-- update the entire crate to `cityjson-rs v0.4.1` consistently instead of
-  carrying dual API assumptions
-- remove every `AttributePool` and Arrow-union-centered path rather than trying
-  to preserve them
-- rebuild vertices, transform, geometry, and semantic conversion around the
-  current source model
-- define the target Arrow and Parquet schemas once, then make both readers and
-  writers conform to them
-- delete obsolete tests and disabled code that encode the wrong data model
-- build the acceptance suite around the same manifest-driven case setup used by
-  `serde_cityjson`, including its generated profile catalog and downloaded
-  real-world datasets
-
-### Rewrite acceptance criteria
-
-The rewrite is done when all of the following are true:
-
-- the crate compiles against current `cityjson-rs`
-- `CityModel -> CityModelArrowParts -> CityModel` works for the supported
-  component set
-- the roundtrip suite uses the same setup as `serde_cityjson`, centered on the
-  manifest-driven case catalog and real dataset layout rather than ad hoc local
-  fixtures
-- Arrow IPC and Parquet use the same target transport decomposition
-- attributes and extras use the projected Parquet-safe encoding defined above
-- geometry export uses the normalized transport layout defined above
-- the accepted roundtrip path ends by serializing the reconstructed model to
-  JSON with `serde_cityjson`
-- the real-world `3DBAG` and `3D Basisvoorziening` cases are serialized to JSON
-  with `serde_cityjson` at the very end and those produced files validate with
-  `cjval`
-- the test suite validates the new architecture instead of preserving the old
-  one
 
 ## Non-goals
 

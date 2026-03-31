@@ -1,6 +1,6 @@
-# cityarrow Package Schema Draft
+# cityarrow Package Schema
 
-This document defines the first concrete schema draft for the canonical
+This document defines the current schema for the canonical
 `cityarrow` package format.
 
 Status:
@@ -19,15 +19,15 @@ the canonical model into a single simple-features table.
 
 ## Scope
 
-This schema draft defines:
+This schema document defines:
 
 - the package layout on disk
 - the canonical Parquet tables
 - the Arrow field definitions for each table
-- the draft Rust transport structs for `CityModelArrowParts`
+- the Rust transport structs for `CityModelArrowParts`
 - the reconstruction and projection rules
 
-This schema draft does not define:
+This schema document does not define:
 
 - a generic multi-format registry
 - a canonical WKB encoding for CityJSON solids
@@ -725,28 +725,9 @@ Recommended derived views:
 The derived views may be incomplete or lossy. The canonical package is the
 source of truth.
 
-## Implementation Notes For The Rewrite
-
-The current `cityarrow` codebase should be rewritten to this target shape rather
-than migrated incrementally from its older pool-based and union-oriented
-assumptions.
-
-The first implementation pass should:
-
-- replace the current `CityModelArrowParts` with the batch set defined here
-- split geometry metadata from boundary payload
-- remove Arrow `Map` and `Union` assumptions from canonical Parquet schemas
-- stop assuming quantized integer vertex storage
-- implement projected attribute discovery before writing Parquet
-- keep GeoArrow and GeoParquet generation as explicit secondary export paths
-- add a manifest-driven roundtrip suite modeled on `serde_cityjson`'s fixture
-  setup instead of inventing a second acceptance layout
-- keep `3DBAG` and `3D Basisvoorziening` as end-to-end real-data gates, with
-  final JSON emission through `serde_cityjson` and validation by `cjval`
-
 ## Non-goals
 
-This schema draft does not attempt to:
+This schema does not attempt to:
 
 - make `cityjson-rs` adopt the package layout as its in-memory model
 - encode CityJSON solids as if they were native simple-feature geometries
