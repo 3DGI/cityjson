@@ -21,9 +21,9 @@ name = "cjlib"
 path = "src/lib.rs"
 
 [dependencies]
-cityjson = { path = "/home/balazs/Development/cityjson-rs" }
-cityarrow = { path = "/home/balazs/Development/cityarrow" }
-serde_cityjson = { path = "/home/balazs/Development/serde_cityjson" }
+cityjson = { path = "../cityjson-rs" }
+cityarrow = { path = "../cityarrow" }
+serde_cityjson = { path = "../serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 
