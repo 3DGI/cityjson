@@ -7,8 +7,12 @@ description = "An indexing extension for cjlib."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cjindex"
 
+[lib]
+crate-type = ["rlib", "cdylib"]
+
 [dependencies]
 cjlib = { path = "../cjlib" }
+cjlib-ffi-core = { path = "../cjlib/ffi/core" }
 clap = { version = "4.6.0", features = ["derive"] }
 flatgeobuf = { version = "6.0.1", default-features = false }
 flate2 = "1"

@@ -1,3 +1,4 @@
+pub mod ffi;
 pub mod realistic_workload;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -851,6 +852,47 @@ impl CityIndex {
             .read_one(&feature.to_location(), Arc::clone(&metadata.bytes))
     }
 
+    /// Returns the total number of indexed feature references.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the count cannot be read from the index.
+    pub fn feature_ref_count(&self) -> Result<usize> {
+        self.index.feature_count()
+    }
+
+    /// Returns a contiguous page of indexed feature references.
+    ///
+    /// The page is ordered by the underlying feature row identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the page cannot be read from the index.
+    pub fn feature_ref_page(&self, offset: usize, limit: usize) -> Result<Vec<IndexedFeatureRef>> {
+        self.index.lookup_all_ref_page_window(offset, limit)
+    }
+
+    /// Returns the raw indexed feature bytes for the given feature identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index lookup or byte-range read fails.
+    pub fn get_bytes(&self, id: &str) -> Result<Option<Vec<u8>>> {
+        let Some(loc) = self.index.lookup_id(id)? else {
+            return Ok(None);
+        };
+        read_exact_range(&loc.source_path, loc.offset, loc.length).map(Some)
+    }
+
+    /// Returns the raw bytes for a feature reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the feature bytes cannot be read from disk.
+    pub fn read_feature_bytes(&self, feature: &IndexedFeatureRef) -> Result<Vec<u8>> {
+        read_exact_range(&feature.source_path, feature.offset, feature.length)
+    }
+
     /// Returns cached metadata entries.
     ///
     /// # Errors
@@ -1251,6 +1293,43 @@ impl Index {
 
     fn lookup_all_ref_page_iter(&self, page_size: usize) -> Result<AllFeatureRefPageIter<'_>> {
         AllFeatureRefPageIter::new(self, page_size)
+    }
+
+    fn lookup_all_ref_page_window(
+        &self,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<IndexedFeatureRef>> {
+        let mut stmt = sqlite_result(self.conn.prepare(
+            r"
+            SELECT
+                f.id,
+                f.feature_id,
+                s.id,
+                f.path,
+                f.offset,
+                f.length,
+                s.vertices_offset,
+                s.vertices_length,
+                f.member_ranges,
+                fb.min_x,
+                fb.max_x,
+                fb.min_y,
+                fb.max_y,
+                f.min_z,
+                f.max_z
+            FROM features AS f
+            JOIN sources AS s ON s.id = f.source_id
+            JOIN feature_bbox AS fb ON fb.feature_rowid = f.id
+            ORDER BY f.id
+            LIMIT ?2 OFFSET ?1
+            ",
+        ))?;
+        let rows = sqlite_result(stmt.query_map(
+            params![offset, limit],
+            Self::indexed_feature_ref_location_from_row,
+        ))?;
+        sqlite_result(rows.map(|row| row.map(|record| record.feature)).collect())
     }
 
     fn lookup_bbox_page(

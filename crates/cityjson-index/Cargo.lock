@@ -275,6 +275,7 @@ name = "cjindex"
 version = "0.1.0"
 dependencies = [
  "cjlib",
+ "cjlib-ffi-core",
  "clap",
  "criterion",
  "flate2",
@@ -299,6 +300,14 @@ dependencies = [
  "cityjson",
  "serde",
  "serde_cityjson",
+ "serde_json",
+]
+
+[[package]]
+name = "cjlib-ffi-core"
+version = "0.1.0"
+dependencies = [
+ "cjlib",
  "serde_json",
 ]
 
