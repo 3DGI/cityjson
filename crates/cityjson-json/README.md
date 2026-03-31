@@ -106,7 +106,11 @@ cargo test --test v2_0
 
 ### Running Benchmarks
 
-Download the real-world test data first:
+The benchmark corpus is migrating to the shared `cityjson-benchmarks`
+repository. Until the shared release index is available, this crate keeps a
+local bootstrap copy of the current benchmark inputs.
+
+Download the local test data first:
 
 ```bash
 just download
@@ -117,7 +121,8 @@ just bench-report
 
 The benchmarks use Criterion. Read throughput is based on input bytes and write
 throughput is based on output bytes. Synthetic cases are generated
-deterministically from the profiles in `tests/data/generated/`.
+deterministically from the profiles in `tests/data/generated/`, which mirrors
+the current shared-corpus profile catalog.
 
 ### Read Benchmarks
 
@@ -168,3 +173,4 @@ This crate is part of the serde-cityjson project.
 
 - [CityJSON Specification](https://www.cityjson.org/)
 - [cityjson-rs crate documentation](https://docs.rs/cityjson/)
+- [Shared corpus migration plan](docs/shared-corpus-migration-plan.md)

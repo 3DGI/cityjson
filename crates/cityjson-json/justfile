@@ -13,7 +13,7 @@ _prepare:
       mkdir -p {{datadir}}
     fi
 
-# Download test data for the benchmarks from the 3DBAG
+# Download local bootstrap test data for the benchmarks from the 3DBAG
 _download-3dbag: _prepare
     #!/usr/bin/env bash
     set -euxo pipefail
@@ -29,7 +29,7 @@ _download-3dbag: _prepare
     done
     wget "https://data.3dbag.nl/"$version"/metadata.json" -O {{datadir}}"/metadata.json"
 
-# Download test data for the benchmarks from the 3D Basivoorziening
+# Download local bootstrap test data for the benchmarks from the 3D Basivoorziening
 _download-3dbasisvoorziening: _prepare
     #!/usr/bin/env bash
     set -euxo pipefail
@@ -49,7 +49,7 @@ _upgrade:
     uvx cjio@0.10.1 {{datadir}}/10-356-724.city.json upgrade save {{datadir}}/10-356-724.city.json
     uvx cjio@0.10.1 {{datadir}}/30gz1_04.city.json upgrade save {{datadir}}/30gz1_04.city.json
 
-# Download test data for the benchmarks
+# Download local bootstrap test data for the benchmarks
 download: _download-3dbag _download-3dbasisvoorziening _upgrade
 
 # Delete all downloaded files

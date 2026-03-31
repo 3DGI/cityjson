@@ -36,6 +36,10 @@ The benchmark suite should be organized around two axes:
 
 The real-world cases should remain available for regression tracking, but the synthetic cases should be the primary tool for explaining performance behavior.
 
+The shared benchmark corpus in `cityjson-benchmarks` is now the canonical
+source of truth for synthetic profiles and releaseable case ids. This crate
+keeps a local bootstrap mirror until that shared release index exists.
+
 ## Benchmark Cases
 
 ### Read
@@ -67,7 +71,9 @@ The write-specific stress case should exercise material/texture/template-heavy o
 
 ## `cjfake` Fixture Strategy
 
-`cjfake` should generate deterministic fixtures from committed profiles. The benchmark repository should own the profiles, not the ad hoc output.
+`cjfake` should generate deterministic fixtures from committed profiles. The
+benchmark repository that owns those profiles is now the shared
+`cityjson-benchmarks` repo, not this crate.
 
 Each synthetic case should have:
 
@@ -191,6 +197,8 @@ The implementation is done when:
 - benchmark output includes throughput numbers
 - the README contains short case descriptions and measured results
 - the benchmark workflow can be regenerated without manual editing of the measured data
+- the synthetic profile catalog can be sourced from the shared
+  `cityjson-benchmarks` repo
 
 ## Risks
 

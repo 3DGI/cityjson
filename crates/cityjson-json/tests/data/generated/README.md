@@ -3,6 +3,10 @@
 This directory does not store generated fixtures. It stores the benchmark
 profile catalog used by the `cjfake`-backed read and write suites.
 
+The same profile ids are expected to move into the shared
+`cityjson-benchmarks` corpus repo. This directory is the local bootstrap copy
+until that shared release exists.
+
 The benchmark inputs are generated deterministically at benchmark time from the
 profiles in [`manifest.json`](/home/balazs/Development/serde_cityjson/tests/data/generated/manifest.json)
 and the per-case profile files in
