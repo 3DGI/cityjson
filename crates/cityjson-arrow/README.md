@@ -32,6 +32,31 @@ The canonical package surface includes:
 - point, linestring, and surface material assignments
 - geometry and template ring texture assignments
 
+## Implementation Status
+
+`cityarrow` is implemented enough to do exact end-to-end transport roundtrips,
+but it is still an alpha transport surface.
+
+- correctness: the canonical conversion and package paths are implemented for
+  both Parquet and Arrow IPC file and are covered by schema-lock, package, and
+  real-data acceptance tests
+- scope: the canonical package covers the current `OwnedCityModel` surface used
+  by `cityjson-rs`, including templates, geometry instances, semantics,
+  materials, textures, metadata, and projected attributes
+- stability: the on-disk contract is currently `cityarrow.package.v1alpha1`,
+  so compatibility should be treated as deliberate but not yet stable
+- performance: the current conversion and package read paths are eager and
+  fully in-memory; large real-data roundtrips are therefore memory intensive
+
+Known limitations in the current implementation:
+
+- package helpers round-trip the canonical tables; manifest `views` are treated
+  as optional non-canonical metadata
+- template geometry pools cannot themselves contain geometry instances
+- texture mappings are only supported on surface-backed geometry types
+- the current implementation prioritizes exactness and schema clarity over
+  streaming or low-memory operation
+
 ## Public API
 
 The top-level crate exports:
@@ -62,6 +87,8 @@ more expensive than the regular suite.
 - [docs/design.md](docs/design.md): transport design and invariants
 - [docs/adr/001-canonical-transport-boundary.md](docs/adr/001-canonical-transport-boundary.md):
   accepted ADR for the current transport architecture
+- [docs/adr/002-streaming-and-bounded-memory-package-io.md](docs/adr/002-streaming-and-bounded-memory-package-io.md):
+  proposed ADR for additive streaming package I/O and bounded-memory operation
 - [docs/package-schema.md](docs/package-schema.md): canonical package layout and
   manifest contract
 

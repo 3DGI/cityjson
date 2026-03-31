@@ -6,6 +6,8 @@ The concrete on-disk contract lives in
 [docs/package-schema.md](package-schema.md).
 The accepted architectural position for the current implementation is recorded
 in [docs/adr/001-canonical-transport-boundary.md](adr/001-canonical-transport-boundary.md).
+The proposed scalability direction for large-model package handling is recorded
+in [docs/adr/002-streaming-and-bounded-memory-package-io.md](adr/002-streaming-and-bounded-memory-package-io.md).
 
 ## Purpose
 
