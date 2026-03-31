@@ -27,7 +27,8 @@ nav:
       - Columnar Geometry Boundary ABI: adr/0005-columnar-geometry-boundary-abi.md
       - Model-Authoritative JSON Workflows: adr/0006-model-authoritative-json-ffi-workflows.md
       - JSON Write Options And Feature Streams: adr/0007-json-write-options-and-feature-stream-bytes.md
-      - Wasm32 Blocker And Wasm64 Path: adr/0008-wasm32-blocker-and-wasm64-path.md
+      - Wasm32 Portability Note And Wasm64 Path: adr/0008-wasm32-blocker-and-wasm64-path.md
+      - CityJSON Benchmark Corpus Design: adr/0009-cityjson-benchmark-corpus-design.md
 theme:
   name: material
   features:

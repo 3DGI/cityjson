@@ -43,9 +43,9 @@ The FFI section is split into:
 - [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md)
   Decision record for the initial pretty/validation write options and the
   bytes-based feature-stream contract.
-- [Wasm32 blocker and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
-  Follow-up design note for the current wasm32 portability blocker in
-  `cityjson-rs` and the later wasm64 evaluation path.
+- [Wasm32 portability note and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
+  Historical note on the wasm32 portability issue that was resolved in
+  `cjlib-benchmarks`, plus the later wasm64 evaluation path.
 - [FFI performance analysis](ffi-performance-analysis.md)
   Analysis of why the current end-to-end wrapper benchmarks are much slower
   than the direct Rust baseline and which costs come from wrapper design rather

@@ -3,14 +3,26 @@
 default:
     just --list
 
+help:
+    just --list
+
+list:
+    just --list
+
+clean:
+    cargo clean
+
 check:
     cargo check --workspace --all-targets --all-features
 
 build *args:
     cargo build --workspace --all-targets --all-features {{args}}
 
-lint:
+clippy:
     cargo clippy --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Aclippy::float_cmp
+
+lint:
+    just clippy
 
 fmt:
     cargo fmt --all
@@ -20,6 +32,12 @@ test:
 
 doc:
     cargo doc --workspace --all-features --no-deps
+
+ci:
+    just fmt
+    just clippy
+    just test
+    just doc
 
 ffi-check:
     cargo check -p cjlib-ffi-core -p cjlib-wasm --all-targets

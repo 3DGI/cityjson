@@ -2,21 +2,21 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
 ## Context
 
-The benchmark work has reached a real upstream limit: `cityjson-rs` currently
-hard-fails on non-64-bit targets in `src/backend/default/vertex.rs`
-with:
+The benchmark work originally hit a real upstream limit: `cityjson-rs`
+hard-failed on non-64-bit targets in `src/backend/default/vertex.rs` with:
 
 ```rust
 compile_error!("This crate only supports 64-bit platforms");
 ```
 
-That failure is useful signal, not just a benchmark inconvenience. It means the
-current `cjlib` wasm story is not blocked by wrappers alone; the semantic core
-still assumes a 64-bit host in at least one low-level geometry/indexing path.
+That failure was useful signal, not just a benchmark inconvenience. It meant
+the current `cjlib` wasm story was not blocked by wrappers alone; the semantic
+core still assumed a 64-bit host in at least one low-level geometry/indexing
+path.
 
 At the same time, the platform picture has moved in three different ways:
 
@@ -48,14 +48,12 @@ assumptions disappear.
 
 `cjlib` should treat wasm portability as a staged effort:
 
-1. Remove the 64-bit platform guard in `cityjson-rs`.
-2. Make vertex and boundary storage paths compile and test on wasm32.
-3. Keep the wasm-facing `cjlib` adapter narrow and benchmark the real wasm32
-   boundary once the core builds there.
-4. Evaluate wasm64 only after the wasm32 baseline is green and only if the
+1. Keep the wasm-facing `cjlib` adapter narrow and benchmark the real wasm32
+   boundary.
+2. Evaluate wasm64 only after the wasm32 baseline is green and only if the
    dataset size or memory pressure makes it materially useful.
 
-The first portability pass should focus on the code that currently assumes
+The original portability pass focused on the code that assumed
 `usize`/pointer-width friendliness:
 
 - `vertex.rs`
@@ -79,12 +77,17 @@ index and allocation boundaries.
 - Add a wasm32-oriented CI or local verification path for the affected crate
   surface.
 
+Status: complete. The benchmark worktree now exercises a real `wasm32-unknown-unknown`
+module instead of a native fallback.
+
 ### Phase 2: benchmark the real wasm32 boundary
 
 - Repoint the benchmark worktree from the native wasm fallback to a true
   wasm32 artifact.
 - Measure parse, summary, and roundtrip costs again so the benchmark captures
   the actual JS or host boundary cost rather than a host-side adapter surrogate.
+
+Status: complete in `cjlib-benchmarks`.
 
 ### Phase 3: decide whether wasm64 is worth a first-class target
 
@@ -103,8 +106,8 @@ Positive:
 - the blocker is documented where the architecture decisions live
 - the plan separates core portability work from wrapper work
 - wasm64 stays on the table without obscuring the nearer-term wasm32 goal
-- benchmark results will eventually reflect the real wasm boundary instead of a
-  fallback path
+- benchmark results now reflect the real wasm boundary instead of a fallback
+  path
 
 Tradeoffs:
 
@@ -113,8 +116,6 @@ Tradeoffs:
   `cityjson-rs` becomes pointer-width-neutral
 - wasm64 remains a moving target and should not be used as the immediate
   production baseline
-- the benchmark repo still needs a follow-up once the core can actually compile
-  to wasm32
 
 ## References
 

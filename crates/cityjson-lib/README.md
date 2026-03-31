@@ -141,8 +141,11 @@ The repository now has a small `justfile` in the same style as `cityjson-rs`.
 The main tasks are:
 
 - `just check`
+- `just clean`
+- `just clippy`
 - `just fmt`
 - `just lint`
+- `just ci`
 - `just test`
 - `just doc`
 - `just docs-build`

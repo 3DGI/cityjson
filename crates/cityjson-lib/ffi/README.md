@@ -14,12 +14,17 @@ host-language projects that consume the shared core.
 
 Current implementation status:
 
-- `core/`: shared C ABI foundation plus read-only inspection, copied coordinate
-  buffers, columnar geometry boundary extraction, and minimal creation or
-  add-vertex paths
-- `cpp/`: first RAII wrapper with parse, inspect, serialize, geometry-boundary
-  helpers, and smoke tests
-- `python/`: first `ctypes` binding with object wrapper, geometry-boundary
-  helpers, and smoke tests
-- `wasm/`: narrow task-oriented adapter for probe, summary, coordinate
-  extraction, and geometry-boundary extraction
+- `core/`: shared C ABI foundation plus parse and serialize entry points,
+  read/write options, read-only inspection, copied coordinate buffers,
+  geometry-boundary extraction, targeted mutation, and
+  model-authoritative workflows
+- `cpp/`: first RAII wrapper with parse, inspect, serialize, cleanup,
+  append/extract, geometry-boundary helpers, feature-stream helpers, and smoke
+  tests
+- `python/`: first `ctypes` binding with object wrapper, cleanup,
+  append/extract, geometry-boundary helpers, feature-stream helpers, and smoke
+  tests
+- `wasm/`: task-oriented adapter over the shared core, exercised through the
+  real `wasm32-unknown-unknown` benchmark path, with probe/summary, coordinate
+  and boundary extraction, write options, feature-stream merge, and a small
+  authoring/cleanup slice

@@ -24,6 +24,7 @@ The shared C ABI is no longer just a plan. It already exposes:
 - copied vertex, UV, and boundary extraction
 - minimal model creation and bulk-capacity reservation
 - vertex, template-vertex, and UV insertion
+- targeted model mutation and model-authoritative workflows
 
 The generated header is [cjlib.h](/home/balazs/Development/cjlib/ffi/core/include/cjlib/cjlib.h).
 
@@ -37,9 +38,10 @@ The benchmark work also produced useful reality checks:
 
 - native FFI performance is close to direct Rust when the bindings load release
   artifacts
-- the remaining large overhead is wasm, not C++ or Python
-- the benchmark work exposed a real portability issue in `cityjson-rs` for
-  `wasm32`, tracked in [ADR 0008](../adr/0008-wasm32-blocker-and-wasm64-path.md)
+- the benchmark work now exercises a real `wasm32-unknown-unknown` module in
+  `cjlib-benchmarks`
+- the remaining large overhead is wasm, not C++ or Python, and it now reflects
+  the real JS/Wasm boundary rather than a fallback path
 
 ## What This Plan Covers
 
@@ -110,6 +112,10 @@ The current shared ABI covers these concrete capabilities:
 - `cj_model_parse_feature_with_base_bytes`
 - `cj_model_serialize_document`
 - `cj_model_serialize_feature`
+- `cj_model_serialize_document_with_options`
+- `cj_model_serialize_feature_with_options`
+- `cj_model_parse_feature_stream_merge_bytes`
+- `cj_model_serialize_feature_stream`
 
 ### Inspection And Extraction
 
@@ -124,22 +130,39 @@ The current shared ABI covers these concrete capabilities:
 - `cj_model_copy_template_vertices`
 - `cj_model_copy_uv_coordinates`
 
-### Minimal Construction
+### Targeted Mutation
 
 - `cj_model_create`
 - `cj_model_reserve_import`
 - `cj_model_add_vertex`
 - `cj_model_add_template_vertex`
 - `cj_model_add_uv_coordinate`
+- `cj_model_set_metadata_title`
+- `cj_model_set_metadata_identifier`
+- `cj_model_set_transform`
+- `cj_model_clear_transform`
+- `cj_model_add_cityobject`
+- `cj_model_remove_cityobject`
+- `cj_model_attach_geometry_to_cityobject`
+- `cj_model_clear_cityobject_geometry`
+- `cj_model_add_geometry_from_boundary`
+
+### Model-Authoritative Workflows
+
+- `cj_model_cleanup`
+- `cj_model_append_model`
+- `cj_model_extract_cityobjects`
 
 This is enough to support:
 
 - end-to-end parsing and serialization
+- explicit write options and feature-stream workflows
 - benchmarkable wrapper layers
 - read-only bulk geometry extraction
-- the first batch-oriented model-building substrate
+- targeted model mutation and model-authoritative append/extract/cleanup paths
 
-It is not yet a complete foreign surface for the full Rust facade.
+It still does not expose every possible upstream workflow, but it now covers
+the shipped wrapper paths and the benchmarked wasm32 path.
 
 ## Benchmark-Driven Conclusions
 
@@ -172,24 +195,16 @@ experiment. It should keep answering:
 - whether roundtripped output stays valid under `cjval`
 - where wasm regressions show up in time and memory
 
-## Next Work, In Order
+## Implemented Slices
 
-The next work splits into infrastructure and ABI expansion.
+The JSON surface and model-authoritative workflow slices are already
+implemented in the shared ABI and wrappers. They stay documented here because
+they define the contract shape future work should preserve.
 
-### Track A: Keep The Benchmarks Honest
+### JSON Surface
 
-This is not an ABI expansion track, but it protects all of the others.
-
-1. Add CI coverage in `cjlib-benchmarks` for a small release-mode slice.
-2. Add a dedicated low-level C ABI microbenchmark to separate:
-   - raw boundary cost
-   - wrapper cost
-   - parse and serialize cost
-3. Keep `cjval` validation in the benchmark pipeline for produced outputs.
-
-### Track B: Finish The Supported JSON Surface In The ABI
-
-These additions are already backed by `cjlib::json`.
+These additions are already backed by `cjlib::json` and are implemented in the
+shared C ABI.
 
 #### Slice B1: Write Options
 
@@ -198,7 +213,7 @@ Rust support already exists in:
 - [json.rs](/home/balazs/Development/cjlib/src/json.rs): `to_vec_with_options`
 - [json.rs](/home/balazs/Development/cjlib/src/json.rs): `to_feature_vec_with_options`
 
-The shared C ABI should expose:
+The shared C ABI exposes:
 
 - document serialization with `pretty`
 - document serialization with `validate_default_themes`
@@ -216,7 +231,7 @@ Rust support already exists in:
 - [json.rs](/home/balazs/Development/cjlib/src/json.rs): `write_feature_stream_refs`
 - [json.rs](/home/balazs/Development/cjlib/src/json.rs): `merge_feature_stream_slice`
 
-The ABI expansion should stay conservative:
+The ABI stays conservative:
 
 - bytes-in stream merge is in scope
 - bytes-out feature-stream writing is in scope
@@ -225,9 +240,10 @@ The ABI expansion should stay conservative:
 
 The first cut should prefer bytes-based APIs over callback-heavy ones.
 
-### Track C: Expose Existing Model-Authoritative Operations
+### Model-Authoritative Operations
 
-These additions are already backed by `cjlib::ops`.
+These additions are already backed by `cjlib::ops` and are implemented in the
+shared C ABI.
 
 Rust support already exists in:
 
@@ -236,7 +252,7 @@ Rust support already exists in:
 - [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `append`
 - [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `merge`
 
-The shared C ABI should expose these as explicit model-authoritative workflows:
+The shared C ABI exposes these as explicit model-authoritative workflows:
 
 - cleanup of a model into a new normalized model
 - extract of a selected submodel by CityObject identifiers
@@ -244,8 +260,8 @@ The shared C ABI should expose these as explicit model-authoritative workflows:
 - merge of multiple models where the Rust implementation already defines the
   behavior
 
-These operations should preserve the same constraints the Rust layer already
-has. In particular:
+These operations preserve the same constraints the Rust layer already has. In
+particular:
 
 - append remains conservative about root-kind compatibility and transforms
 - extract operates on explicit CityObject identifier selection
@@ -254,6 +270,21 @@ has. In particular:
 The ABI should not pretend these are low-level mutations. They are higher-level
 operations executed by Rust-owned semantics.
 
+## Open Work, In Order
+
+The remaining work splits into infrastructure and any future ABI expansion.
+
+### Track A: Keep The Benchmarks Honest
+
+This is not an ABI expansion track, but it protects all of the others.
+
+1. Add CI coverage in `cjlib-benchmarks` for a small release-mode slice.
+2. Add a dedicated low-level C ABI microbenchmark to separate:
+   - raw boundary cost
+   - wrapper cost
+   - parse and serialize cost
+3. Keep `cjval` validation in the benchmark pipeline for produced outputs.
+
 ### Track D: Complete Read Coverage Before Broad Write Coverage
 
 The next read-side additions should only cover data the Rust layer already
@@ -261,10 +292,10 @@ models clearly and that wrappers can use in bulk.
 
 Priority order:
 
-1. explicit CityObject identifier selection input for extract and related ops
-2. any remaining summary or count-style inspection that already exists in Rust
-3. additional copied bulk buffers only when they map to stable upstream
+1. any remaining summary or count-style inspection that already exists in Rust
+2. additional copied bulk buffers only when they map to stable upstream
    semantics
+3. any future selection-style inputs only when a new Rust op needs them in bulk
 
 This track should not invent rich borrowed views or chatty per-field getters.
 
@@ -278,13 +309,22 @@ The current C ABI has the first building blocks for authoring:
 - add template vertices
 - add UV coordinates
 
-That does not yet justify freezing a broad foreign authoring API for:
+The current C ABI also includes targeted mutation and model-authoritative
+helpers:
 
-- CityObject creation
-- geometry insertion
+- metadata setters
+- transform setters and clearers
+- CityObject add/remove helpers
+- geometry attach and clear helpers
+- cleanup, append, and extract workflows
+
+That still does not justify freezing a broad foreign authoring API for:
+
+- a fully general editable CityObject graph
+- richer geometry construction primitives
 - appearance editing
-- metadata editing
-- transform editing
+- deeper metadata editing
+- transform editing beyond the current explicit setters
 
 Those may be worth adding later, but only after the Rust facade exposes clear,
 stable authoring semantics that are strong enough to document. Until then, the
@@ -321,8 +361,8 @@ The wasm adapter should:
 - prefer one-shot operations and bulk result buffers
 - avoid exposing deep editable handle graphs unless a real browser case proves
   it is necessary
-- stay tied to the wasm32 portability work in
-  [ADR 0008](../adr/0008-wasm32-blocker-and-wasm64-path.md)
+- stay tied to the real wasm32 benchmark path and any future wasm64
+  evaluation in [ADR 0008](../adr/0008-wasm32-blocker-and-wasm64-path.md)
 
 ## Worktree Split
 
@@ -377,7 +417,7 @@ Own:
 
 Deliver:
 
-- wasm32 follow-up after core portability work lands
+- keep the real wasm32 path benchmarked
 - wasm-focused performance investigation
 - ABI microbenchmark and regression thresholds in the benchmark repo
 
