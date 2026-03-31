@@ -11,7 +11,7 @@ The concrete package schema that follows from this design is documented in
 
 ## Purpose
 
-`cityarrow` exists to move `cityjson-rs` models across Arrow and Parquet
+`cityarrow` exists to move `cityjson-rs` models across Arrow IPC and Parquet
 boundaries.
 
 It does not exist to define a second semantic model family.
@@ -24,13 +24,15 @@ The design target is therefore:
 
 ## Current Reality
 
-The canonical Parquet package path is now implemented.
+The canonical package path is now implemented.
 
 ### Confirmed state from the codebase
 
 - `CityModelArrowParts` already expresses the right component split.
 - canonical Parquet package write exists.
 - canonical Parquet package read exists.
+- canonical Arrow IPC package write exists.
+- canonical Arrow IPC package read exists.
 - the crate contains component schemas for metadata, transform, vertices,
   cityobjects, geometries, semantics, materials, textures, and UV coordinates.
 - `cargo test` passes.
@@ -326,20 +328,21 @@ not an assumption baked into the core conversion path.
 
 ## Reader And Writer Scope
 
-The canonical Parquet package path is symmetrical today.
+The canonical package path is symmetrical today.
 
 ### Implemented writer behavior
 
 - Parquet directory output
+- Arrow IPC directory output
 
 ### Implemented reader behavior
 
-- Parquet directory input
+- manifest-driven Parquet directory input
+- manifest-driven Arrow IPC directory input
 - reconstruction into `CityModel`
 
-Arrow IPC packaging remains separate work. The important design point is that
-all supported readers reconstruct the same transport decomposition and then the
-same semantic `CityModel`.
+The important design point is that all supported readers reconstruct the same
+transport decomposition and then the same semantic `CityModel`.
 
 ## Public API Alignment With `cjlib`
 

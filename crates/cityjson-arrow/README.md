@@ -1,6 +1,6 @@
 # cityarrow
 
-`cityarrow` is the Arrow and Parquet transport layer for the `cityjson-rs`
+`cityarrow` is the Arrow, Arrow IPC, and Parquet transport layer for the `cityjson-rs`
 data model.
 
 It should not define a second semantic model. The semantic unit remains
@@ -25,13 +25,15 @@ The crate should now be understood as a working transport boundary around
 
 ## Implemented Surface
 
-The current codebase implements the canonical Parquet package path:
+The current codebase implements the canonical package path:
 
 - `CityModelArrowParts` splits a `CityModel` into canonical component batches
 - `convert::to_parts` exports `OwnedCityModel` into canonical batches
 - `convert::from_parts` reconstructs `OwnedCityModel` from canonical batches
 - `package::write_package_dir` writes canonical Parquet tables plus `manifest.json`
-- `package::read_package_dir` reads the package back and validates schema shape
+- `package::write_package_ipc_dir` writes canonical Arrow IPC tables plus `manifest.json`
+- `package::read_package_dir` reads either canonical Parquet or Arrow IPC packages
+- `package::read_package_ipc_dir` reads canonical Arrow IPC packages explicitly
 - metadata, transform, extensions, vertices, cityobjects, geometries, semantics,
   template geometries, geometry instances, materials, textures, and UV
   coordinates all round-trip for the supported surface
@@ -57,12 +59,11 @@ The canonical roundtrip currently supports:
 - keep `cityarrow.package.v1alpha1` stable and schema-locked in tests
 - keep projected attribute columns conservative and lossless
 - add derived GeoArrow and GeoParquet views as secondary exports
-- add Arrow IPC package read/write as a separate transport path
 
 ## Design Constraints
 
 - `CityModel` remains the semantic unit
-- Arrow and Parquet remain explicit format boundaries
+- Arrow IPC and Parquet remain explicit format boundaries
 - `CityModelArrowParts` remains a transport decomposition, not a second data model
 - canonical Parquet schemas must avoid Arrow `Union` and `Map`
 - attributes stay reconstructible even when projected conservatively
@@ -75,7 +76,7 @@ The canonical roundtrip currently supports:
 - `src/convert/mod.rs`
   - model-to-parts and parts-to-model conversion
 - `src/package/`
-  - canonical package manifest, Parquet write, and Parquet read
+  - canonical package manifest plus Parquet and Arrow IPC read/write
 - `src/schema.rs`
   - canonical schema definitions and transport structs
 - `docs/design.md`

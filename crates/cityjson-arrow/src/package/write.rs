@@ -1,9 +1,11 @@
 use super::{
-    CanonicalTable, expected_schema_set, package_manifest_path, package_table_path, validate_schema,
+    CanonicalTable, expected_schema_set, package_manifest_path, package_table_path_for_encoding,
+    validate_schema,
 };
 use crate::error::{Error, Result};
-use crate::schema::{CityModelArrowParts, PackageManifest};
+use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableEncoding};
 use arrow::array::{Array, UInt64Array};
+use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
 use std::fs::{self, File};
@@ -16,9 +18,31 @@ pub fn write_package(
     write_package_dir(dir, parts)
 }
 
+pub fn write_package_ipc(
+    dir: impl AsRef<Path>,
+    parts: &CityModelArrowParts,
+) -> Result<PackageManifest> {
+    write_package_ipc_dir(dir, parts)
+}
+
 pub fn write_package_dir(
     dir: impl AsRef<Path>,
     parts: &CityModelArrowParts,
+) -> Result<PackageManifest> {
+    write_package_dir_with_encoding(dir, parts, PackageTableEncoding::Parquet)
+}
+
+pub fn write_package_ipc_dir(
+    dir: impl AsRef<Path>,
+    parts: &CityModelArrowParts,
+) -> Result<PackageManifest> {
+    write_package_dir_with_encoding(dir, parts, PackageTableEncoding::ArrowIpcFile)
+}
+
+fn write_package_dir_with_encoding(
+    dir: impl AsRef<Path>,
+    parts: &CityModelArrowParts,
+    encoding: PackageTableEncoding,
 ) -> Result<PackageManifest> {
     let dir = dir.as_ref();
     fs::create_dir_all(dir)?;
@@ -29,6 +53,7 @@ pub fn write_package_dir(
         parts.header.cityjson_version.clone(),
     );
     manifest.package_schema = parts.header.package_version;
+    manifest.table_encoding = encoding;
 
     validate_schema(
         &schemas.metadata,
@@ -36,8 +61,8 @@ pub fn write_package_dir(
         CanonicalTable::Metadata,
     )?;
     ensure_single_row(&parts.metadata, CanonicalTable::Metadata)?;
-    write_batch(dir, CanonicalTable::Metadata, &parts.metadata)?;
-    manifest.tables.metadata = Some(CanonicalTable::Metadata.file_name().into());
+    write_batch(dir, CanonicalTable::Metadata, &parts.metadata, encoding)?;
+    manifest.tables.metadata = Some(CanonicalTable::Metadata.file_name_for(encoding).into());
 
     if let Some(transform) = &parts.transform {
         validate_schema(
@@ -46,8 +71,8 @@ pub fn write_package_dir(
             CanonicalTable::Transform,
         )?;
         ensure_max_one_row(transform, CanonicalTable::Transform)?;
-        write_batch(dir, CanonicalTable::Transform, transform)?;
-        manifest.tables.transform = Some(CanonicalTable::Transform.file_name().into());
+        write_batch(dir, CanonicalTable::Transform, transform, encoding)?;
+        manifest.tables.transform = Some(CanonicalTable::Transform.file_name_for(encoding).into());
     }
 
     if let Some(extensions) = &parts.extensions {
@@ -56,8 +81,9 @@ pub fn write_package_dir(
             extensions.schema(),
             CanonicalTable::Extensions,
         )?;
-        write_batch(dir, CanonicalTable::Extensions, extensions)?;
-        manifest.tables.extensions = Some(CanonicalTable::Extensions.file_name().into());
+        write_batch(dir, CanonicalTable::Extensions, extensions, encoding)?;
+        manifest.tables.extensions =
+            Some(CanonicalTable::Extensions.file_name_for(encoding).into());
     }
 
     validate_schema(
@@ -65,16 +91,21 @@ pub fn write_package_dir(
         parts.vertices.schema(),
         CanonicalTable::Vertices,
     )?;
-    write_batch(dir, CanonicalTable::Vertices, &parts.vertices)?;
-    manifest.tables.vertices = Some(CanonicalTable::Vertices.file_name().into());
+    write_batch(dir, CanonicalTable::Vertices, &parts.vertices, encoding)?;
+    manifest.tables.vertices = Some(CanonicalTable::Vertices.file_name_for(encoding).into());
 
     validate_schema(
         &schemas.cityobjects,
         parts.cityobjects.schema(),
         CanonicalTable::CityObjects,
     )?;
-    write_batch(dir, CanonicalTable::CityObjects, &parts.cityobjects)?;
-    manifest.tables.cityobjects = Some(CanonicalTable::CityObjects.file_name().into());
+    write_batch(
+        dir,
+        CanonicalTable::CityObjects,
+        &parts.cityobjects,
+        encoding,
+    )?;
+    manifest.tables.cityobjects = Some(CanonicalTable::CityObjects.file_name_for(encoding).into());
 
     if let Some(children) = &parts.cityobject_children {
         validate_schema(
@@ -82,9 +113,12 @@ pub fn write_package_dir(
             children.schema(),
             CanonicalTable::CityObjectChildren,
         )?;
-        write_batch(dir, CanonicalTable::CityObjectChildren, children)?;
-        manifest.tables.cityobject_children =
-            Some(CanonicalTable::CityObjectChildren.file_name().into());
+        write_batch(dir, CanonicalTable::CityObjectChildren, children, encoding)?;
+        manifest.tables.cityobject_children = Some(
+            CanonicalTable::CityObjectChildren
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     validate_schema(
@@ -104,15 +138,19 @@ pub fn write_package_dir(
         "geometries",
         "geometry_boundaries",
     )?;
-    write_batch(dir, CanonicalTable::Geometries, &parts.geometries)?;
+    write_batch(dir, CanonicalTable::Geometries, &parts.geometries, encoding)?;
     write_batch(
         dir,
         CanonicalTable::GeometryBoundaries,
         &parts.geometry_boundaries,
+        encoding,
     )?;
-    manifest.tables.geometries = Some(CanonicalTable::Geometries.file_name().into());
-    manifest.tables.geometry_boundaries =
-        Some(CanonicalTable::GeometryBoundaries.file_name().into());
+    manifest.tables.geometries = Some(CanonicalTable::Geometries.file_name_for(encoding).into());
+    manifest.tables.geometry_boundaries = Some(
+        CanonicalTable::GeometryBoundaries
+            .file_name_for(encoding)
+            .into(),
+    );
 
     if let Some(geometry_instances) = &parts.geometry_instances {
         validate_schema(
@@ -120,9 +158,17 @@ pub fn write_package_dir(
             geometry_instances.schema(),
             CanonicalTable::GeometryInstances,
         )?;
-        write_batch(dir, CanonicalTable::GeometryInstances, geometry_instances)?;
-        manifest.tables.geometry_instances =
-            Some(CanonicalTable::GeometryInstances.file_name().into());
+        write_batch(
+            dir,
+            CanonicalTable::GeometryInstances,
+            geometry_instances,
+            encoding,
+        )?;
+        manifest.tables.geometry_instances = Some(
+            CanonicalTable::GeometryInstances
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(template_vertices) = &parts.template_vertices {
@@ -131,9 +177,17 @@ pub fn write_package_dir(
             template_vertices.schema(),
             CanonicalTable::TemplateVertices,
         )?;
-        write_batch(dir, CanonicalTable::TemplateVertices, template_vertices)?;
-        manifest.tables.template_vertices =
-            Some(CanonicalTable::TemplateVertices.file_name().into());
+        write_batch(
+            dir,
+            CanonicalTable::TemplateVertices,
+            template_vertices,
+            encoding,
+        )?;
+        manifest.tables.template_vertices = Some(
+            CanonicalTable::TemplateVertices
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     match (
@@ -158,17 +212,26 @@ pub fn write_package_dir(
                 "template_geometries",
                 "template_geometry_boundaries",
             )?;
-            write_batch(dir, CanonicalTable::TemplateGeometries, template_geometries)?;
+            write_batch(
+                dir,
+                CanonicalTable::TemplateGeometries,
+                template_geometries,
+                encoding,
+            )?;
             write_batch(
                 dir,
                 CanonicalTable::TemplateGeometryBoundaries,
                 template_geometry_boundaries,
+                encoding,
             )?;
-            manifest.tables.template_geometries =
-                Some(CanonicalTable::TemplateGeometries.file_name().into());
+            manifest.tables.template_geometries = Some(
+                CanonicalTable::TemplateGeometries
+                    .file_name_for(encoding)
+                    .into(),
+            );
             manifest.tables.template_geometry_boundaries = Some(
                 CanonicalTable::TemplateGeometryBoundaries
-                    .file_name()
+                    .file_name_for(encoding)
                     .into(),
             );
         }
@@ -186,8 +249,8 @@ pub fn write_package_dir(
             semantics.schema(),
             CanonicalTable::Semantics,
         )?;
-        write_batch(dir, CanonicalTable::Semantics, semantics)?;
-        manifest.tables.semantics = Some(CanonicalTable::Semantics.file_name().into());
+        write_batch(dir, CanonicalTable::Semantics, semantics, encoding)?;
+        manifest.tables.semantics = Some(CanonicalTable::Semantics.file_name_for(encoding).into());
     }
 
     if let Some(semantic_children) = &parts.semantic_children {
@@ -196,9 +259,17 @@ pub fn write_package_dir(
             semantic_children.schema(),
             CanonicalTable::SemanticChildren,
         )?;
-        write_batch(dir, CanonicalTable::SemanticChildren, semantic_children)?;
-        manifest.tables.semantic_children =
-            Some(CanonicalTable::SemanticChildren.file_name().into());
+        write_batch(
+            dir,
+            CanonicalTable::SemanticChildren,
+            semantic_children,
+            encoding,
+        )?;
+        manifest.tables.semantic_children = Some(
+            CanonicalTable::SemanticChildren
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_surface_semantics) = &parts.geometry_surface_semantics {
@@ -211,9 +282,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometrySurfaceSemantics,
             geometry_surface_semantics,
+            encoding,
         )?;
-        manifest.tables.geometry_surface_semantics =
-            Some(CanonicalTable::GeometrySurfaceSemantics.file_name().into());
+        manifest.tables.geometry_surface_semantics = Some(
+            CanonicalTable::GeometrySurfaceSemantics
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_point_semantics) = &parts.geometry_point_semantics {
@@ -226,9 +301,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometryPointSemantics,
             geometry_point_semantics,
+            encoding,
         )?;
-        manifest.tables.geometry_point_semantics =
-            Some(CanonicalTable::GeometryPointSemantics.file_name().into());
+        manifest.tables.geometry_point_semantics = Some(
+            CanonicalTable::GeometryPointSemantics
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_linestring_semantics) = &parts.geometry_linestring_semantics {
@@ -241,10 +320,11 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometryLinestringSemantics,
             geometry_linestring_semantics,
+            encoding,
         )?;
         manifest.tables.geometry_linestring_semantics = Some(
             CanonicalTable::GeometryLinestringSemantics
-                .file_name()
+                .file_name_for(encoding)
                 .into(),
         );
     }
@@ -259,9 +339,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::TemplateGeometrySemantics,
             template_geometry_semantics,
+            encoding,
         )?;
-        manifest.tables.template_geometry_semantics =
-            Some(CanonicalTable::TemplateGeometrySemantics.file_name().into());
+        manifest.tables.template_geometry_semantics = Some(
+            CanonicalTable::TemplateGeometrySemantics
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(materials) = &parts.materials {
@@ -270,8 +354,8 @@ pub fn write_package_dir(
             materials.schema(),
             CanonicalTable::Materials,
         )?;
-        write_batch(dir, CanonicalTable::Materials, materials)?;
-        manifest.tables.materials = Some(CanonicalTable::Materials.file_name().into());
+        write_batch(dir, CanonicalTable::Materials, materials, encoding)?;
+        manifest.tables.materials = Some(CanonicalTable::Materials.file_name_for(encoding).into());
     }
 
     if let Some(geometry_surface_materials) = &parts.geometry_surface_materials {
@@ -284,9 +368,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometrySurfaceMaterials,
             geometry_surface_materials,
+            encoding,
         )?;
-        manifest.tables.geometry_surface_materials =
-            Some(CanonicalTable::GeometrySurfaceMaterials.file_name().into());
+        manifest.tables.geometry_surface_materials = Some(
+            CanonicalTable::GeometrySurfaceMaterials
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_point_materials) = &parts.geometry_point_materials {
@@ -299,9 +387,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometryPointMaterials,
             geometry_point_materials,
+            encoding,
         )?;
-        manifest.tables.geometry_point_materials =
-            Some(CanonicalTable::GeometryPointMaterials.file_name().into());
+        manifest.tables.geometry_point_materials = Some(
+            CanonicalTable::GeometryPointMaterials
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_linestring_materials) = &parts.geometry_linestring_materials {
@@ -314,10 +406,11 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometryLinestringMaterials,
             geometry_linestring_materials,
+            encoding,
         )?;
         manifest.tables.geometry_linestring_materials = Some(
             CanonicalTable::GeometryLinestringMaterials
-                .file_name()
+                .file_name_for(encoding)
                 .into(),
         );
     }
@@ -332,9 +425,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::TemplateGeometryMaterials,
             template_geometry_materials,
+            encoding,
         )?;
-        manifest.tables.template_geometry_materials =
-            Some(CanonicalTable::TemplateGeometryMaterials.file_name().into());
+        manifest.tables.template_geometry_materials = Some(
+            CanonicalTable::TemplateGeometryMaterials
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(textures) = &parts.textures {
@@ -343,8 +440,8 @@ pub fn write_package_dir(
             textures.schema(),
             CanonicalTable::Textures,
         )?;
-        write_batch(dir, CanonicalTable::Textures, textures)?;
-        manifest.tables.textures = Some(CanonicalTable::Textures.file_name().into());
+        write_batch(dir, CanonicalTable::Textures, textures, encoding)?;
+        manifest.tables.textures = Some(CanonicalTable::Textures.file_name_for(encoding).into());
     }
 
     if let Some(texture_vertices) = &parts.texture_vertices {
@@ -353,8 +450,17 @@ pub fn write_package_dir(
             texture_vertices.schema(),
             CanonicalTable::TextureVertices,
         )?;
-        write_batch(dir, CanonicalTable::TextureVertices, texture_vertices)?;
-        manifest.tables.texture_vertices = Some(CanonicalTable::TextureVertices.file_name().into());
+        write_batch(
+            dir,
+            CanonicalTable::TextureVertices,
+            texture_vertices,
+            encoding,
+        )?;
+        manifest.tables.texture_vertices = Some(
+            CanonicalTable::TextureVertices
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(geometry_ring_textures) = &parts.geometry_ring_textures {
@@ -367,9 +473,13 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::GeometryRingTextures,
             geometry_ring_textures,
+            encoding,
         )?;
-        manifest.tables.geometry_ring_textures =
-            Some(CanonicalTable::GeometryRingTextures.file_name().into());
+        manifest.tables.geometry_ring_textures = Some(
+            CanonicalTable::GeometryRingTextures
+                .file_name_for(encoding)
+                .into(),
+        );
     }
 
     if let Some(template_geometry_ring_textures) = &parts.template_geometry_ring_textures {
@@ -382,10 +492,11 @@ pub fn write_package_dir(
             dir,
             CanonicalTable::TemplateGeometryRingTextures,
             template_geometry_ring_textures,
+            encoding,
         )?;
         manifest.tables.template_geometry_ring_textures = Some(
             CanonicalTable::TemplateGeometryRingTextures
-                .file_name()
+                .file_name_for(encoding)
                 .into(),
         );
     }
@@ -397,12 +508,26 @@ pub fn write_package_dir(
     Ok(manifest)
 }
 
-fn write_batch(dir: &Path, table: CanonicalTable, batch: &RecordBatch) -> Result<()> {
-    let path = package_table_path(dir, table);
+fn write_batch(
+    dir: &Path,
+    table: CanonicalTable,
+    batch: &RecordBatch,
+    encoding: PackageTableEncoding,
+) -> Result<()> {
+    let path = package_table_path_for_encoding(dir, table, encoding);
     let file = File::create(path)?;
-    let mut writer = ArrowWriter::try_new(file, batch.schema(), None)?;
-    writer.write(batch)?;
-    writer.close()?;
+    match encoding {
+        PackageTableEncoding::Parquet => {
+            let mut writer = ArrowWriter::try_new(file, batch.schema(), None)?;
+            writer.write(batch)?;
+            writer.close()?;
+        }
+        PackageTableEncoding::ArrowIpcFile => {
+            let mut writer = FileWriter::try_new(file, &batch.schema())?;
+            writer.write(batch)?;
+            writer.finish()?;
+        }
+    }
     Ok(())
 }
 

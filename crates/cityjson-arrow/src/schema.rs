@@ -61,6 +61,22 @@ impl FromStr for CityArrowPackageVersion {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum PackageTableEncoding {
+    #[default]
+    #[serde(rename = "parquet")]
+    Parquet,
+    #[serde(rename = "arrow_ipc_file")]
+    ArrowIpcFile,
+}
+
+impl PackageTableEncoding {
+    #[must_use]
+    pub const fn is_parquet(&self) -> bool {
+        matches!(self, Self::Parquet)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CityArrowHeader {
     pub package_version: CityArrowPackageVersion,
@@ -274,6 +290,8 @@ impl PackageTables {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageManifest {
     pub package_schema: CityArrowPackageVersion,
+    #[serde(default, skip_serializing_if = "PackageTableEncoding::is_parquet")]
+    pub table_encoding: PackageTableEncoding,
     pub cityjson_version: String,
     pub citymodel_id: String,
     #[serde(default, skip_serializing_if = "PackageTables::is_empty")]
@@ -287,6 +305,7 @@ impl PackageManifest {
     pub fn new(citymodel_id: impl Into<String>, cityjson_version: impl Into<String>) -> Self {
         Self {
             package_schema: CityArrowPackageVersion::V1Alpha1,
+            table_encoding: PackageTableEncoding::Parquet,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             tables: PackageTables::default(),

@@ -1,4 +1,7 @@
-use cityarrow::{from_parts, read_package_dir, to_parts, write_package_dir};
+use cityarrow::{
+    from_parts, read_package_dir, read_package_ipc_dir, to_parts, write_package_dir,
+    write_package_ipc_dir,
+};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
     AffineTransform3D, AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType,
@@ -537,5 +540,19 @@ fn remaining_semantic_material_and_template_mappings_roundtrip() {
     write_package_dir(dir.path(), &parts).expect("package write should succeed");
     let package_parts = read_package_dir(dir.path()).expect("package read should succeed");
     let reconstructed = from_parts(&package_parts).expect("from_parts should succeed");
+    assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
+}
+
+#[test]
+fn canonical_model_roundtrips_through_ipc_package() {
+    let model = sample_model_with_remaining_mappings();
+
+    let parts = to_parts(&model).expect("to_parts should succeed");
+
+    let dir = tempdir().expect("temp dir");
+    write_package_ipc_dir(dir.path(), &parts).expect("ipc package write should succeed");
+    let package_parts = read_package_ipc_dir(dir.path()).expect("ipc package read should succeed");
+    let reconstructed = from_parts(&package_parts).expect("from_parts should succeed");
+
     assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
 }

@@ -7,11 +7,13 @@ Status:
 
 - package schema id: `cityarrow.package.v1alpha1`
 - semantic target: `cityjson::v2_0::CityModel`
-- storage target: Parquet tables with Arrow-compatible schemas
+- storage targets: Parquet tables and Arrow IPC file tables with the same
+  canonical Arrow schemas
 - interoperability target: derived GeoArrow and GeoParquet views
-- implementation status on 2026-03-31: canonical Parquet package roundtrip is
-  implemented for the supported surface, including point/linestring/template
-  semantic and material assignments and template-geometry textures
+- implementation status on 2026-03-31: canonical package roundtrip is
+  implemented for the supported surface for both Parquet and Arrow IPC storage,
+  including point/linestring/template semantic and material assignments and
+  template-geometry textures
 
 The package is designed for full-fidelity `CityModel` reconstruction first.
 Generic GIS compatibility is provided through derived views, not by collapsing
@@ -22,7 +24,7 @@ the canonical model into a single simple-features table.
 This schema document defines:
 
 - the package layout on disk
-- the canonical Parquet tables
+- the canonical tables and their storage encodings
 - the Arrow field definitions for each table
 - the Rust transport structs for `CityModelArrowParts`
 - the reconstruction and projection rules
@@ -36,6 +38,9 @@ This schema document does not define:
 ## Package Layout
 
 One package stores one `CityModel`.
+
+The manifest selects the table encoding. Parquet packages use `.parquet`
+filenames. Arrow IPC packages use `.arrow` filenames.
 
 ```text
 citymodel_package/
@@ -75,30 +80,37 @@ citymodel_package/
 
 All optional tables may be omitted if the corresponding component is absent.
 
+An Arrow IPC package uses the same table set and directory layout, with
+`.arrow` file extensions instead of `.parquet`.
+
 ## Manifest
 
-`manifest.json` is the package entry point. It identifies the schema version and
-the table set present in the package.
+`manifest.json` is the package entry point. It identifies the schema version,
+the table encoding, and the table set present in the package.
 
 Example:
 
 ```json
 {
   "package_schema": "cityarrow.package.v1alpha1",
+  "table_encoding": "arrow_ipc_file",
   "cityjson_version": "2.0",
   "citymodel_id": "rotterdam-sample",
   "tables": {
-    "metadata": "metadata.parquet",
-    "vertices": "vertices.parquet",
-    "cityobjects": "cityobjects.parquet",
-    "geometries": "geometries.parquet",
-    "geometry_boundaries": "geometry_boundaries.parquet"
+    "metadata": "metadata.arrow",
+    "vertices": "vertices.arrow",
+    "cityobjects": "cityobjects.arrow",
+    "geometries": "geometries.arrow",
+    "geometry_boundaries": "geometry_boundaries.arrow"
   },
   "views": {
     "surfaces": "views/surfaces.geoparquet"
   }
 }
 ```
+
+`table_encoding` defaults to `parquet` when omitted so existing Parquet package
+manifests remain valid.
 
 ## General Conventions
 

@@ -1,16 +1,18 @@
 # Cityarrow Implementation Status
 
 This file records the current implementation state of the canonical
-`cityarrow.package.v1alpha1` package.
+`cityarrow.package.v1alpha1` package and its supported storage encodings.
 
 ## Status
 
-The canonical Parquet package path is implemented and verified.
+The canonical package path is implemented and verified for Parquet and Arrow IPC
+table storage.
 
 - `convert::to_parts` is implemented
 - `convert::from_parts` is implemented
 - package manifest write/read is implemented
 - Parquet table write/read is implemented
+- Arrow IPC table write/read is implemented
 - the real acceptance path is `serde_cityjson -> cityarrow -> serde_cityjson -> cjval`
 
 ## Verified Gates
@@ -63,5 +65,4 @@ The canonical Parquet package path is implemented and verified.
 ## Separate Work
 
 - derived GeoArrow and GeoParquet feature views
-- Arrow IPC package read/write
 - richer typed projections for selected high-value attribute columns

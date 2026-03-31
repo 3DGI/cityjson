@@ -4,9 +4,10 @@ use super::{
     infer_texture_projection, package_manifest_path, table_path_from_manifest, validate_schema,
 };
 use crate::error::{Error, Result};
-use crate::schema::{CityModelArrowParts, PackageManifest, ProjectionLayout};
+use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableEncoding, ProjectionLayout};
 use arrow::array::RecordBatchReader;
 use arrow::datatypes::SchemaRef;
+use arrow::ipc::reader::FileReader;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
@@ -16,67 +17,117 @@ pub fn read_package(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
     read_package_dir(dir)
 }
 
+pub fn read_package_ipc(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    read_package_ipc_dir(dir)
+}
+
 pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    read_package_dir_with_encoding(dir, None)
+}
+
+pub fn read_package_ipc_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    read_package_dir_with_encoding(dir, Some(PackageTableEncoding::ArrowIpcFile))
+}
+
+fn read_package_dir_with_encoding(
+    dir: impl AsRef<Path>,
+    required_encoding: Option<PackageTableEncoding>,
+) -> Result<CityModelArrowParts> {
     let dir = dir.as_ref();
     let manifest = read_manifest(dir)?;
+    if let Some(required_encoding) = required_encoding {
+        if manifest.table_encoding != required_encoding {
+            return Err(Error::Unsupported(format!(
+                "package uses {:?} tables but {:?} was requested",
+                manifest.table_encoding, required_encoding
+            )));
+        }
+    }
+    let encoding = manifest.table_encoding;
 
     let loaded = LoadedTables {
-        metadata: load_table(dir, manifest.tables.metadata.as_ref())?,
-        transform: load_table(dir, manifest.tables.transform.as_ref())?,
-        extensions: load_table(dir, manifest.tables.extensions.as_ref())?,
-        vertices: load_table(dir, manifest.tables.vertices.as_ref())?,
-        cityobjects: load_table(dir, manifest.tables.cityobjects.as_ref())?,
-        cityobject_children: load_table(dir, manifest.tables.cityobject_children.as_ref())?,
-        geometries: load_table(dir, manifest.tables.geometries.as_ref())?,
-        geometry_boundaries: load_table(dir, manifest.tables.geometry_boundaries.as_ref())?,
-        geometry_instances: load_table(dir, manifest.tables.geometry_instances.as_ref())?,
-        template_vertices: load_table(dir, manifest.tables.template_vertices.as_ref())?,
-        template_geometries: load_table(dir, manifest.tables.template_geometries.as_ref())?,
+        metadata: load_table(dir, manifest.tables.metadata.as_ref(), encoding)?,
+        transform: load_table(dir, manifest.tables.transform.as_ref(), encoding)?,
+        extensions: load_table(dir, manifest.tables.extensions.as_ref(), encoding)?,
+        vertices: load_table(dir, manifest.tables.vertices.as_ref(), encoding)?,
+        cityobjects: load_table(dir, manifest.tables.cityobjects.as_ref(), encoding)?,
+        cityobject_children: load_table(
+            dir,
+            manifest.tables.cityobject_children.as_ref(),
+            encoding,
+        )?,
+        geometries: load_table(dir, manifest.tables.geometries.as_ref(), encoding)?,
+        geometry_boundaries: load_table(
+            dir,
+            manifest.tables.geometry_boundaries.as_ref(),
+            encoding,
+        )?,
+        geometry_instances: load_table(dir, manifest.tables.geometry_instances.as_ref(), encoding)?,
+        template_vertices: load_table(dir, manifest.tables.template_vertices.as_ref(), encoding)?,
+        template_geometries: load_table(
+            dir,
+            manifest.tables.template_geometries.as_ref(),
+            encoding,
+        )?,
         template_geometry_boundaries: load_table(
             dir,
             manifest.tables.template_geometry_boundaries.as_ref(),
+            encoding,
         )?,
-        semantics: load_table(dir, manifest.tables.semantics.as_ref())?,
-        semantic_children: load_table(dir, manifest.tables.semantic_children.as_ref())?,
+        semantics: load_table(dir, manifest.tables.semantics.as_ref(), encoding)?,
+        semantic_children: load_table(dir, manifest.tables.semantic_children.as_ref(), encoding)?,
         geometry_surface_semantics: load_table(
             dir,
             manifest.tables.geometry_surface_semantics.as_ref(),
+            encoding,
         )?,
         geometry_point_semantics: load_table(
             dir,
             manifest.tables.geometry_point_semantics.as_ref(),
+            encoding,
         )?,
         geometry_linestring_semantics: load_table(
             dir,
             manifest.tables.geometry_linestring_semantics.as_ref(),
+            encoding,
         )?,
         template_geometry_semantics: load_table(
             dir,
             manifest.tables.template_geometry_semantics.as_ref(),
+            encoding,
         )?,
-        materials: load_table(dir, manifest.tables.materials.as_ref())?,
+        materials: load_table(dir, manifest.tables.materials.as_ref(), encoding)?,
         geometry_surface_materials: load_table(
             dir,
             manifest.tables.geometry_surface_materials.as_ref(),
+            encoding,
         )?,
         geometry_point_materials: load_table(
             dir,
             manifest.tables.geometry_point_materials.as_ref(),
+            encoding,
         )?,
         geometry_linestring_materials: load_table(
             dir,
             manifest.tables.geometry_linestring_materials.as_ref(),
+            encoding,
         )?,
         template_geometry_materials: load_table(
             dir,
             manifest.tables.template_geometry_materials.as_ref(),
+            encoding,
         )?,
-        textures: load_table(dir, manifest.tables.textures.as_ref())?,
-        texture_vertices: load_table(dir, manifest.tables.texture_vertices.as_ref())?,
-        geometry_ring_textures: load_table(dir, manifest.tables.geometry_ring_textures.as_ref())?,
+        textures: load_table(dir, manifest.tables.textures.as_ref(), encoding)?,
+        texture_vertices: load_table(dir, manifest.tables.texture_vertices.as_ref(), encoding)?,
+        geometry_ring_textures: load_table(
+            dir,
+            manifest.tables.geometry_ring_textures.as_ref(),
+            encoding,
+        )?,
         template_geometry_ring_textures: load_table(
             dir,
             manifest.tables.template_geometry_ring_textures.as_ref(),
+            encoding,
         )?,
     };
 
@@ -304,22 +355,42 @@ fn read_manifest(dir: &Path) -> Result<PackageManifest> {
     Ok(serde_json::from_reader(file)?)
 }
 
-fn load_table(dir: &Path, path: Option<&std::path::PathBuf>) -> Result<Option<LoadedTable>> {
+fn load_table(
+    dir: &Path,
+    path: Option<&std::path::PathBuf>,
+    encoding: PackageTableEncoding,
+) -> Result<Option<LoadedTable>> {
     let Some(path) = path else {
         return Ok(None);
     };
 
     let path = table_path_from_manifest(dir, path);
     let file = File::open(&path)?;
-    let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)?
-        .with_batch_size(1024)
-        .build()?;
-    let schema = reader.schema().clone();
-    let mut batches = Vec::new();
-    while let Some(batch) = reader.next() {
-        batches.push(batch?);
-    }
-    let batch = concat_record_batches(&schema, &batches)?;
+
+    let (schema, batches) = match encoding {
+        PackageTableEncoding::Parquet => {
+            let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+                .with_batch_size(1024)
+                .build()?;
+            let schema = reader.schema().clone();
+            let mut batches = Vec::new();
+            while let Some(batch) = reader.next() {
+                batches.push(batch?);
+            }
+            (schema, batches)
+        }
+        PackageTableEncoding::ArrowIpcFile => {
+            let reader = FileReader::try_new(file, None)?;
+            let schema = reader.schema();
+            let batches = reader.collect::<std::result::Result<Vec<_>, _>>()?;
+            (schema, batches)
+        }
+    };
+    let batch = if batches.is_empty() {
+        RecordBatch::new_empty(schema.clone())
+    } else {
+        concat_record_batches(&schema, &batches)?
+    };
     Ok(Some(LoadedTable { schema, batch }))
 }
 

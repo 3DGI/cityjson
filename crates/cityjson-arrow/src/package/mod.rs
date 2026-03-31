@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::schema::{
-    CanonicalSchemaSet, ProjectedFieldSpec, ProjectedValueType, ProjectionLayout,
-    canonical_schema_set,
+    CanonicalSchemaSet, PackageTableEncoding, ProjectedFieldSpec, ProjectedValueType,
+    ProjectionLayout, canonical_schema_set,
 };
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 pub mod read;
 pub mod write;
 
-pub use read::{read_package, read_package_dir};
-pub use write::{write_package, write_package_dir};
+pub use read::{read_package, read_package_dir, read_package_ipc, read_package_ipc_dir};
+pub use write::{write_package, write_package_dir, write_package_ipc, write_package_ipc_dir};
 
 pub(crate) const MANIFEST_FILE_NAME: &str = "manifest.json";
 
@@ -50,34 +50,70 @@ pub(crate) enum CanonicalTable {
 impl CanonicalTable {
     #[must_use]
     pub fn file_name(self) -> &'static str {
-        match self {
-            Self::Metadata => "metadata.parquet",
-            Self::Transform => "transform.parquet",
-            Self::Extensions => "extensions.parquet",
-            Self::Vertices => "vertices.parquet",
-            Self::CityObjects => "cityobjects.parquet",
-            Self::CityObjectChildren => "cityobject_children.parquet",
-            Self::Geometries => "geometries.parquet",
-            Self::GeometryBoundaries => "geometry_boundaries.parquet",
-            Self::GeometryInstances => "geometry_instances.parquet",
-            Self::TemplateVertices => "template_vertices.parquet",
-            Self::TemplateGeometries => "template_geometries.parquet",
-            Self::TemplateGeometryBoundaries => "template_geometry_boundaries.parquet",
-            Self::Semantics => "semantics.parquet",
-            Self::SemanticChildren => "semantic_children.parquet",
-            Self::GeometrySurfaceSemantics => "geometry_surface_semantics.parquet",
-            Self::GeometryPointSemantics => "geometry_point_semantics.parquet",
-            Self::GeometryLinestringSemantics => "geometry_linestring_semantics.parquet",
-            Self::TemplateGeometrySemantics => "template_geometry_semantics.parquet",
-            Self::Materials => "materials.parquet",
-            Self::GeometrySurfaceMaterials => "geometry_surface_materials.parquet",
-            Self::GeometryPointMaterials => "geometry_point_materials.parquet",
-            Self::GeometryLinestringMaterials => "geometry_linestring_materials.parquet",
-            Self::TemplateGeometryMaterials => "template_geometry_materials.parquet",
-            Self::Textures => "textures.parquet",
-            Self::TextureVertices => "texture_vertices.parquet",
-            Self::GeometryRingTextures => "geometry_ring_textures.parquet",
-            Self::TemplateGeometryRingTextures => "template_geometry_ring_textures.parquet",
+        self.file_name_for(PackageTableEncoding::Parquet)
+    }
+
+    #[must_use]
+    pub fn file_name_for(self, encoding: PackageTableEncoding) -> &'static str {
+        match encoding {
+            PackageTableEncoding::Parquet => match self {
+                Self::Metadata => "metadata.parquet",
+                Self::Transform => "transform.parquet",
+                Self::Extensions => "extensions.parquet",
+                Self::Vertices => "vertices.parquet",
+                Self::CityObjects => "cityobjects.parquet",
+                Self::CityObjectChildren => "cityobject_children.parquet",
+                Self::Geometries => "geometries.parquet",
+                Self::GeometryBoundaries => "geometry_boundaries.parquet",
+                Self::GeometryInstances => "geometry_instances.parquet",
+                Self::TemplateVertices => "template_vertices.parquet",
+                Self::TemplateGeometries => "template_geometries.parquet",
+                Self::TemplateGeometryBoundaries => "template_geometry_boundaries.parquet",
+                Self::Semantics => "semantics.parquet",
+                Self::SemanticChildren => "semantic_children.parquet",
+                Self::GeometrySurfaceSemantics => "geometry_surface_semantics.parquet",
+                Self::GeometryPointSemantics => "geometry_point_semantics.parquet",
+                Self::GeometryLinestringSemantics => "geometry_linestring_semantics.parquet",
+                Self::TemplateGeometrySemantics => "template_geometry_semantics.parquet",
+                Self::Materials => "materials.parquet",
+                Self::GeometrySurfaceMaterials => "geometry_surface_materials.parquet",
+                Self::GeometryPointMaterials => "geometry_point_materials.parquet",
+                Self::GeometryLinestringMaterials => "geometry_linestring_materials.parquet",
+                Self::TemplateGeometryMaterials => "template_geometry_materials.parquet",
+                Self::Textures => "textures.parquet",
+                Self::TextureVertices => "texture_vertices.parquet",
+                Self::GeometryRingTextures => "geometry_ring_textures.parquet",
+                Self::TemplateGeometryRingTextures => "template_geometry_ring_textures.parquet",
+            },
+            PackageTableEncoding::ArrowIpcFile => match self {
+                Self::Metadata => "metadata.arrow",
+                Self::Transform => "transform.arrow",
+                Self::Extensions => "extensions.arrow",
+                Self::Vertices => "vertices.arrow",
+                Self::CityObjects => "cityobjects.arrow",
+                Self::CityObjectChildren => "cityobject_children.arrow",
+                Self::Geometries => "geometries.arrow",
+                Self::GeometryBoundaries => "geometry_boundaries.arrow",
+                Self::GeometryInstances => "geometry_instances.arrow",
+                Self::TemplateVertices => "template_vertices.arrow",
+                Self::TemplateGeometries => "template_geometries.arrow",
+                Self::TemplateGeometryBoundaries => "template_geometry_boundaries.arrow",
+                Self::Semantics => "semantics.arrow",
+                Self::SemanticChildren => "semantic_children.arrow",
+                Self::GeometrySurfaceSemantics => "geometry_surface_semantics.arrow",
+                Self::GeometryPointSemantics => "geometry_point_semantics.arrow",
+                Self::GeometryLinestringSemantics => "geometry_linestring_semantics.arrow",
+                Self::TemplateGeometrySemantics => "template_geometry_semantics.arrow",
+                Self::Materials => "materials.arrow",
+                Self::GeometrySurfaceMaterials => "geometry_surface_materials.arrow",
+                Self::GeometryPointMaterials => "geometry_point_materials.arrow",
+                Self::GeometryLinestringMaterials => "geometry_linestring_materials.arrow",
+                Self::TemplateGeometryMaterials => "template_geometry_materials.arrow",
+                Self::Textures => "textures.arrow",
+                Self::TextureVertices => "texture_vertices.arrow",
+                Self::GeometryRingTextures => "geometry_ring_textures.arrow",
+                Self::TemplateGeometryRingTextures => "template_geometry_ring_textures.arrow",
+            },
         }
     }
 }
@@ -88,8 +124,12 @@ pub(crate) fn package_manifest_path(dir: &Path) -> PathBuf {
 }
 
 #[must_use]
-pub(crate) fn package_table_path(dir: &Path, table: CanonicalTable) -> PathBuf {
-    dir.join(table.file_name())
+pub(crate) fn package_table_path_for_encoding(
+    dir: &Path,
+    table: CanonicalTable,
+    encoding: PackageTableEncoding,
+) -> PathBuf {
+    dir.join(table.file_name_for(encoding))
 }
 
 #[must_use]

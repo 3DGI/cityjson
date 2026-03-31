@@ -8,10 +8,11 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use cityarrow::package::write_package_dir;
+use cityarrow::package::{write_package_dir, write_package_ipc_dir};
 use cityarrow::schema::{
-    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageManifest, PackageTables,
-    ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageManifest,
+    PackageTableEncoding, PackageTables, ProjectedFieldSpec, ProjectedValueType, ProjectionLayout,
+    canonical_schema_set,
 };
 use tempfile::tempdir;
 
@@ -239,6 +240,42 @@ const MANIFEST_LOCK: &str = r#"{
   }
 }"#;
 
+const IPC_MANIFEST_LOCK: &str = r#"{
+  "package_schema": "cityarrow.package.v1alpha1",
+  "table_encoding": "arrow_ipc_file",
+  "cityjson_version": "2.0",
+  "citymodel_id": "schema-lock-citymodel",
+  "tables": {
+    "metadata": "metadata.arrow",
+    "transform": "transform.arrow",
+    "extensions": "extensions.arrow",
+    "vertices": "vertices.arrow",
+    "cityobjects": "cityobjects.arrow",
+    "cityobject_children": "cityobject_children.arrow",
+    "geometries": "geometries.arrow",
+    "geometry_boundaries": "geometry_boundaries.arrow",
+    "geometry_instances": "geometry_instances.arrow",
+    "template_vertices": "template_vertices.arrow",
+    "template_geometries": "template_geometries.arrow",
+    "template_geometry_boundaries": "template_geometry_boundaries.arrow",
+    "semantics": "semantics.arrow",
+    "semantic_children": "semantic_children.arrow",
+    "geometry_surface_semantics": "geometry_surface_semantics.arrow",
+    "geometry_point_semantics": "geometry_point_semantics.arrow",
+    "geometry_linestring_semantics": "geometry_linestring_semantics.arrow",
+    "template_geometry_semantics": "template_geometry_semantics.arrow",
+    "materials": "materials.arrow",
+    "geometry_surface_materials": "geometry_surface_materials.arrow",
+    "geometry_point_materials": "geometry_point_materials.arrow",
+    "geometry_linestring_materials": "geometry_linestring_materials.arrow",
+    "template_geometry_materials": "template_geometry_materials.arrow",
+    "textures": "textures.arrow",
+    "texture_vertices": "texture_vertices.arrow",
+    "geometry_ring_textures": "geometry_ring_textures.arrow",
+    "template_geometry_ring_textures": "template_geometry_ring_textures.arrow"
+  }
+}"#;
+
 fn field<'a>(schema: &'a Schema, index: usize) -> &'a Field {
     schema.field(index)
 }
@@ -463,6 +500,23 @@ fn package_manifest_roundtrips_and_keeps_schema_id() {
 }
 
 #[test]
+fn package_manifest_defaults_missing_transport_to_parquet() {
+    let manifest: PackageManifest = serde_json::from_str(
+        r#"{
+          "package_schema": "cityarrow.package.v1alpha1",
+          "cityjson_version": "2.0",
+          "citymodel_id": "rotterdam-sample",
+          "tables": {
+            "metadata": "metadata.parquet"
+          }
+        }"#,
+    )
+    .expect("manifest should deserialize");
+
+    assert_eq!(manifest.table_encoding, PackageTableEncoding::Parquet);
+}
+
+#[test]
 fn cityarrow_header_is_derived_from_the_package_manifest() {
     let manifest = PackageManifest::new("rotterdam-sample", "2.0");
     let header = CityArrowHeader::from(&manifest);
@@ -606,6 +660,7 @@ fn projected_fields_are_appended_to_owner_tables() {
 fn package_manifest_supports_empty_views_and_tables() {
     let manifest = PackageManifest {
         package_schema: CityArrowPackageVersion::V1Alpha1,
+        table_encoding: PackageTableEncoding::Parquet,
         cityjson_version: "2.0".to_string(),
         citymodel_id: "sample".to_string(),
         tables: PackageTables::default(),
@@ -677,4 +732,15 @@ fn package_writer_manifest_matches_locked_snapshot() {
     let json = serde_json::to_string_pretty(&manifest).expect("manifest json");
 
     assert_eq!(json, MANIFEST_LOCK);
+}
+
+#[test]
+fn ipc_package_writer_manifest_matches_locked_snapshot() {
+    let parts = schema_lock_parts();
+    let dir = tempdir().expect("temp dir");
+
+    let manifest = write_package_ipc_dir(dir.path(), &parts).expect("ipc package write");
+    let json = serde_json::to_string_pretty(&manifest).expect("manifest json");
+
+    assert_eq!(json, IPC_MANIFEST_LOCK);
 }

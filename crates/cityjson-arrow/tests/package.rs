@@ -7,10 +7,12 @@ use arrow::array::{
 use arrow::buffer::{NullBuffer, OffsetBuffer};
 use arrow::datatypes::{DataType, Field, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use cityarrow::package::{read_package_dir, write_package_dir};
+use cityarrow::package::{
+    read_package_dir, read_package_ipc_dir, write_package_dir, write_package_ipc_dir,
+};
 use cityarrow::schema::{
-    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, ProjectedFieldSpec,
-    ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageTableEncoding,
+    ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
 };
 use tempfile::tempdir;
 
@@ -490,6 +492,58 @@ fn package_directory_roundtrips_canonical_tables() {
         roundtrip.template_geometry_ring_textures,
         parts.template_geometry_ring_textures
     );
+}
+
+#[test]
+fn ipc_package_directory_roundtrips_canonical_tables() {
+    let parts = sample_parts();
+    let dir = tempdir().expect("temp dir");
+
+    let manifest = write_package_ipc_dir(dir.path(), &parts).expect("ipc package write");
+    assert_eq!(manifest.citymodel_id, "sample-citymodel");
+    assert_eq!(manifest.table_encoding, PackageTableEncoding::ArrowIpcFile);
+    assert_eq!(
+        manifest.tables.metadata.as_deref(),
+        Some(std::path::Path::new("metadata.arrow"))
+    );
+    assert_eq!(
+        manifest.tables.geometries.as_deref(),
+        Some(std::path::Path::new("geometries.arrow"))
+    );
+
+    let roundtrip = read_package_dir(dir.path()).expect("generic package read");
+    assert_eq!(roundtrip.header, parts.header);
+    assert_eq!(roundtrip.projection, parts.projection);
+    assert_eq!(roundtrip.metadata, parts.metadata);
+    assert_eq!(roundtrip.transform, parts.transform);
+    assert_eq!(roundtrip.extensions, parts.extensions);
+    assert_eq!(roundtrip.vertices, parts.vertices);
+    assert_eq!(roundtrip.cityobjects, parts.cityobjects);
+    assert_eq!(roundtrip.cityobject_children, parts.cityobject_children);
+    assert_eq!(roundtrip.geometries, parts.geometries);
+    assert_eq!(roundtrip.geometry_boundaries, parts.geometry_boundaries);
+    assert_eq!(roundtrip.geometry_instances, parts.geometry_instances);
+    assert_eq!(roundtrip.template_vertices, parts.template_vertices);
+    assert_eq!(roundtrip.template_geometries, parts.template_geometries);
+    assert_eq!(
+        roundtrip.template_geometry_boundaries,
+        parts.template_geometry_boundaries
+    );
+    assert_eq!(roundtrip.semantics, parts.semantics);
+    assert_eq!(
+        roundtrip.geometry_surface_semantics,
+        parts.geometry_surface_semantics
+    );
+    assert_eq!(roundtrip.materials, parts.materials);
+    assert_eq!(roundtrip.textures, parts.textures);
+    assert_eq!(roundtrip.texture_vertices, parts.texture_vertices);
+    assert_eq!(
+        roundtrip.geometry_ring_textures,
+        parts.geometry_ring_textures
+    );
+
+    let explicit_roundtrip = read_package_ipc_dir(dir.path()).expect("ipc package read");
+    assert_eq!(explicit_roundtrip.metadata, parts.metadata);
 }
 
 #[test]
