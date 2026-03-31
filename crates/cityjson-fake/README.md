@@ -84,6 +84,9 @@ cjfake --output output.city.json
 
 # Write multiple documents into a directory
 cjfake --count 3 --output out/
+
+# Generate from a manifest-driven case catalog
+cjfake --manifest manifest.json --output out/
 ```
 
 The available options are grouped below.
@@ -101,6 +104,29 @@ The available options are grouped below.
 | Attributes  | `--attributes-enabled`, `--min-attributes`, `--max-attributes`, `--attributes-max-depth`, `--attributes-random-keys`, `--attributes-random-values`                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Semantics   | `--semantics-enabled`, `--allowed-types-semantic`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
+Manifest mode accepts a JSON file whose cases flatten the normal `CJFakeConfig`
+fields at the top level:
+
+```json
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "spec_complete_omnibus",
+      "seed": 42,
+      "cityobjects": {
+        "min_cityobjects": 2,
+        "max_cityobjects": 2
+      }
+    }
+  ]
+}
+```
+
+When `--manifest` is present, the manifest supplies the generation config.
+With multiple cases, `--output` must name a directory and each case is written
+as `<id>.city.json` unless the case defines its own output path.
+
 Use `cjfake --help` for the exact defaults and the full clap-generated help text.
 
 ## API Shape
@@ -110,6 +136,7 @@ The easiest entry points are:
 - `cjfake::generate_model(config, seed)` for a `CityModel`
 - `cjfake::generate_string(config, seed)` for a serialized CityJSON string
 - `cjfake::generate_vec(config, seed)` for UTF-8 encoded bytes
+- `cjfake::manifest::load_manifest(path)` for manifest-driven generation cases
 - `CityModelBuilder` when you need fine-grained control over generation
 
 ## License

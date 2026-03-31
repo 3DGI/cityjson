@@ -89,6 +89,8 @@
 pub mod attribute;
 pub mod citymodel;
 pub mod cli;
+#[cfg(feature = "serialize")]
+pub mod manifest;
 pub mod material;
 pub mod metadata;
 pub mod texture;
@@ -129,6 +131,8 @@ pub mod prelude {
     };
 
     pub use crate::generate_model;
+    #[cfg(feature = "serialize")]
+    pub use crate::manifest::{GenerationCase, GenerationManifest};
     #[cfg(feature = "serialize")]
     pub use crate::{generate_string, generate_vec};
 }

@@ -6,6 +6,8 @@
 //! let config = CJFakeConfig::default();
 //! let cli = Cli {
 //!     config,
+//!     manifest: None,
+//!     case: None,
 //!     output: None,
 //!     count: 1,
 //! };
@@ -15,18 +17,26 @@
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
 use clap::{Args, Parser};
+#[cfg(feature = "serialize")]
+use serde::Deserialize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 type IndexType = u32;
 
 // ─── Sub-configs ─────────────────────────────────────────────────────────────
 
 /// Configuration for `CityObject` generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct CityObjectConfig {
     /// Restrict the `CityObject` types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_cityobject_type)]
+    #[cfg_attr(
+        feature = "serialize",
+        serde(deserialize_with = "deserialize_cityobject_types")
+    )]
     pub allowed_types_cityobject: Option<Vec<CityObjectType<OwnedStringStorage>>>,
 
     /// Minimum number of `CityObjects` to generate
@@ -64,14 +74,21 @@ impl Default for CityObjectConfig {
 }
 
 /// Configuration for geometry generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct GeometryConfig {
     /// Restrict the Geometry types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_geometry_type)]
+    #[cfg_attr(
+        feature = "serialize",
+        serde(deserialize_with = "deserialize_geometry_types")
+    )]
     pub allowed_types_geometry: Option<Vec<GeometryType>>,
 
     /// Restrict the `LoD` values to the provided values
     #[arg(long, value_delimiter = ',', value_parser = parse_lod)]
+    #[cfg_attr(feature = "serialize", serde(deserialize_with = "deserialize_lods"))]
     pub allowed_lods: Option<Vec<LoD>>,
 
     /// Minimum number of points in `MultiPoint` geometries
@@ -165,6 +182,8 @@ impl Default for GeometryConfig {
 }
 
 /// Configuration for generated vertices.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct VertexConfig {
     /// Minimum coordinate value for geometry vertices
@@ -196,6 +215,8 @@ impl Default for VertexConfig {
 }
 
 /// Configuration for material generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct MaterialConfig {
     /// Whether to generate materials (default: true)
@@ -257,6 +278,8 @@ impl Default for MaterialConfig {
 }
 
 /// Configuration for texture generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct TextureConfig {
     /// Whether to generate textures (default: true)
@@ -298,6 +321,8 @@ impl Default for TextureConfig {
 }
 
 /// Configuration for template generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct TemplateConfig {
     /// Generate `GeometryInstances` (templates)
@@ -325,6 +350,8 @@ impl Default for TemplateConfig {
 
 /// Configuration for metadata generation.
 #[allow(clippy::struct_excessive_bools)]
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct MetadataConfig {
     /// Whether to generate metadata (default: true)
@@ -371,6 +398,8 @@ impl Default for MetadataConfig {
 }
 
 /// Configuration for attribute generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct AttributeConfig {
     /// Whether to generate attributes (default: true)
@@ -412,6 +441,8 @@ impl Default for AttributeConfig {
 }
 
 /// Configuration for semantic generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct SemanticConfig {
     /// Whether to generate semantics (default: true)
@@ -420,6 +451,10 @@ pub struct SemanticConfig {
 
     /// Restrict semantic types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_semantic_type)]
+    #[cfg_attr(
+        feature = "serialize",
+        serde(deserialize_with = "deserialize_semantic_types")
+    )]
     pub allowed_types_semantic: Option<Vec<SemanticType<OwnedStringStorage>>>,
 }
 
@@ -433,6 +468,8 @@ impl Default for SemanticConfig {
 }
 
 /// Top-level configuration for `CityJSON` fake data generation.
+#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serialize", serde(default))]
 #[derive(Args, Debug, Clone, Default)]
 pub struct CJFakeConfig {
     /// Random seed for deterministic output
@@ -473,6 +510,19 @@ pub struct CJFakeConfig {
 pub struct Cli {
     #[command(flatten)]
     pub config: CJFakeConfig,
+
+    /// Optional manifest file that defines one or more generation cases.
+    ///
+    /// When present, the manifest supplies the output configuration and the
+    /// regular flag-based config is ignored.
+    #[arg(long)]
+    pub manifest: Option<PathBuf>,
+
+    /// Optional case id to select from a manifest.
+    ///
+    /// If omitted, all manifest cases are generated.
+    #[arg(long)]
+    pub case: Option<String>,
 
     /// Optional output path.
     ///
@@ -548,7 +598,106 @@ fn parse_semantic_type(s: &str) -> Result<SemanticType<OwnedStringStorage>, Stri
     }
 }
 
+#[cfg(feature = "serialize")]
+fn deserialize_cityobject_types<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<CityObjectType<OwnedStringStorage>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Option::<Vec<String>>::deserialize(deserializer)?;
+    values
+        .map(|values| {
+            values
+                .into_iter()
+                .map(|value| parse_cityobject_type(&value).map_err(serde::de::Error::custom))
+                .collect()
+        })
+        .transpose()
+}
+
+#[cfg(feature = "serialize")]
+fn deserialize_geometry_types<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<GeometryType>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Option::<Vec<String>>::deserialize(deserializer)?;
+    values
+        .map(|values| {
+            values
+                .into_iter()
+                .map(|value| parse_geometry_type(&value).map_err(serde::de::Error::custom))
+                .collect()
+        })
+        .transpose()
+}
+
+#[cfg(feature = "serialize")]
+fn deserialize_lods<'de, D>(deserializer: D) -> Result<Option<Vec<LoD>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Option::<Vec<String>>::deserialize(deserializer)?;
+    values
+        .map(|values| {
+            values
+                .into_iter()
+                .map(|value| parse_lod(&value).map_err(serde::de::Error::custom))
+                .collect()
+        })
+        .transpose()
+}
+
+#[cfg(feature = "serialize")]
+fn deserialize_semantic_types<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<SemanticType<OwnedStringStorage>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Option::<Vec<String>>::deserialize(deserializer)?;
+    values
+        .map(|values| {
+            values
+                .into_iter()
+                .map(|value| parse_semantic_type(&value).map_err(serde::de::Error::custom))
+                .collect()
+        })
+        .transpose()
+}
+
 // ─── CLI runner ──────────────────────────────────────────────────────────────
+
+fn resolve_manifest_output_path(
+    output_dir: Option<&Path>,
+    case_output: Option<&Path>,
+    manifest_dir: Option<&Path>,
+    case_id: &str,
+) -> PathBuf {
+    if let Some(case_output) = case_output {
+        if case_output.is_absolute() {
+            return case_output.to_path_buf();
+        }
+
+        if let Some(output_dir) = output_dir {
+            return output_dir.join(case_output);
+        }
+
+        if let Some(manifest_dir) = manifest_dir {
+            return manifest_dir.join(case_output);
+        }
+
+        return case_output.to_path_buf();
+    }
+
+    if let Some(output_dir) = output_dir {
+        return output_dir.join(format!("{case_id}.city.json"));
+    }
+
+    PathBuf::from(format!("{case_id}.city.json"))
+}
 
 #[cfg(feature = "serialize")]
 /// Run the CLI and write the generated `CityJSON` to stdout or files.
@@ -558,6 +707,66 @@ fn parse_semantic_type(s: &str) -> Result<SemanticType<OwnedStringStorage>, Stri
 /// Returns an error if generation fails, output paths cannot be created, or writing fails.
 pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{self, Write};
+
+    if let Some(manifest_path) = cli.manifest {
+        let manifest = crate::manifest::load_manifest(&manifest_path)?;
+        let manifest_dir = manifest_path.parent();
+        let mut cases: Vec<&crate::manifest::GenerationCase> = if let Some(case_id) = cli.case {
+            vec![manifest
+                .case(&case_id)
+                .ok_or_else(|| format!("case '{case_id}' not found in manifest"))?]
+        } else {
+            manifest.cases().collect()
+        };
+
+        if cases.is_empty() {
+            return Err("manifest does not contain any cases".into());
+        }
+
+        if cases.len() > 1 && cli.output.is_none() {
+            return Err("multiple manifest cases require --output <DIR>".into());
+        }
+
+        if let Some(output) = cli.output {
+            if cases.len() == 1 {
+                let case = cases.pop().expect("single case should exist");
+                let json = crate::generate_string(case.config.clone(), case.seed)?;
+                let resolved = output;
+                if let Some(parent) = resolved.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::write(resolved, json)?;
+            } else {
+                fs::create_dir_all(&output)?;
+                for case in cases {
+                    let json = crate::generate_string(case.config.clone(), case.seed)?;
+                    let resolved = resolve_manifest_output_path(
+                        Some(output.as_path()),
+                        case.output.as_deref(),
+                        manifest_dir,
+                        &case.id,
+                    );
+                    if let Some(parent) = resolved.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    fs::write(resolved, json)?;
+                }
+            }
+            return Ok(());
+        }
+
+        if cases.len() != 1 {
+            return Err("a manifest with multiple cases requires --output <DIR>".into());
+        }
+
+        let case = cases.pop().expect("single case should exist");
+        let json = crate::generate_string(case.config.clone(), case.seed)?;
+        let mut stdout = io::stdout().lock();
+        stdout.write_all(json.as_bytes())?;
+        stdout.write_all(b"\n")?;
+        stdout.flush()?;
+        return Ok(());
+    }
 
     let seed = cli.config.seed;
     let config = cli.config;
@@ -778,6 +987,8 @@ mod tests {
 
         let cli = Cli {
             config: CJFakeConfig::default(),
+            manifest: None,
+            case: None,
             output: Some(output.clone()),
             count: 1,
         };
@@ -785,5 +996,125 @@ mod tests {
         run(cli).expect("CLI should succeed");
         let json = fs::read_to_string(&output).expect("output should exist");
         assert!(json.starts_with('{'));
+    }
+
+    #[test]
+    fn test_manifest_loads_case_config() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("cjfake-manifest-{stamp}"));
+        fs::create_dir_all(&dir).expect("temp dir should be creatable");
+        let manifest_path = dir.join("manifest.json");
+
+        let manifest = r#"
+        {
+          "version": 1,
+          "purpose": "test",
+          "cases": [
+            {
+              "id": "spec_complete_omnibus",
+              "seed": 42
+            }
+          ]
+        }
+        "#;
+        fs::write(&manifest_path, manifest).expect("manifest should be writable");
+
+        let loaded = crate::manifest::load_manifest(&manifest_path).expect("manifest should load");
+        assert_eq!(loaded.version, 1);
+        assert_eq!(loaded.purpose.as_deref(), Some("test"));
+        let case = loaded
+            .case("spec_complete_omnibus")
+            .expect("case should exist");
+        assert_eq!(case.id, "spec_complete_omnibus");
+        assert_eq!(case.seed, Some(42));
+        assert_eq!(case.config.cityobjects.min_cityobjects, 1);
+        assert_eq!(case.config.geometry.max_members_solid, 3);
+    }
+
+    #[test]
+    fn test_cli_run_writes_manifest_case() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("cjfake-manifest-run-{stamp}"));
+        let output = dir.join("spec_complete_omnibus.city.json");
+        fs::create_dir_all(&dir).expect("temp dir should be creatable");
+        let manifest_path = dir.join("manifest.json");
+        let manifest = r#"
+        {
+          "version": 1,
+          "cases": [
+            {
+              "id": "spec_complete_omnibus",
+              "seed": 11,
+              "cityobjects": {
+                "min_cityobjects": 2,
+                "max_cityobjects": 2
+              }
+            }
+          ]
+        }
+        "#;
+        fs::write(&manifest_path, manifest).expect("manifest should be writable");
+
+        let cli = Cli {
+            config: CJFakeConfig::default(),
+            manifest: Some(manifest_path),
+            case: None,
+            output: Some(output.clone()),
+            count: 1,
+        };
+
+        run(cli).expect("manifest-driven CLI should succeed");
+        let generated = fs::read_to_string(output).expect("manifest output should exist");
+        assert!(generated.starts_with('{'));
+    }
+
+    #[test]
+    fn test_cli_run_writes_manifest_directory() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("cjfake-manifest-dir-{stamp}"));
+        let output = dir.join("out");
+        fs::create_dir_all(&dir).expect("temp dir should be creatable");
+        let manifest_path = dir.join("manifest.json");
+        let manifest = r#"
+        {
+          "version": 1,
+          "cases": [
+            {
+              "id": "spec_complete_omnibus",
+              "seed": 11
+            },
+            {
+              "id": "geometry_matrix",
+              "seed": 17
+            }
+          ]
+        }
+        "#;
+        fs::write(&manifest_path, manifest).expect("manifest should be writable");
+
+        let cli = Cli {
+            config: CJFakeConfig::default(),
+            manifest: Some(manifest_path),
+            case: None,
+            output: Some(output.clone()),
+            count: 1,
+        };
+
+        run(cli).expect("manifest-driven CLI should succeed");
+        let generated_one = fs::read_to_string(output.join("spec_complete_omnibus.city.json"))
+            .expect("first manifest output should exist");
+        let generated_two = fs::read_to_string(output.join("geometry_matrix.city.json"))
+            .expect("second manifest output should exist");
+        assert!(generated_one.starts_with('{'));
+        assert!(generated_two.starts_with('{'));
     }
 }
