@@ -7,7 +7,9 @@
 //! let cli = Cli {
 //!     config,
 //!     manifest: None,
+//!     schema: None,
 //!     case: None,
+//!     check_manifest: false,
 //!     output: None,
 //!     count: 1,
 //! };
@@ -518,11 +520,22 @@ pub struct Cli {
     #[arg(long)]
     pub manifest: Option<PathBuf>,
 
+    /// Optional JSON Schema file used to validate `--manifest`.
+    ///
+    /// When omitted, `cjfake` looks for `cjfake-manifest.schema.json` next to
+    /// the manifest file.
+    #[arg(long)]
+    pub schema: Option<PathBuf>,
+
     /// Optional case id to select from a manifest.
     ///
     /// If omitted, all manifest cases are generated.
     #[arg(long)]
     pub case: Option<String>,
+
+    /// Validate the manifest and exit without generating output.
+    #[arg(long)]
+    pub check_manifest: bool,
 
     /// Optional output path.
     ///
@@ -709,7 +722,14 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
     if let Some(manifest_path) = cli.manifest {
-        let manifest = crate::manifest::load_manifest(&manifest_path)?;
+        let schema_path = cli
+            .schema
+            .unwrap_or_else(|| crate::manifest::default_schema_path(&manifest_path));
+        if cli.check_manifest {
+            crate::manifest::validate_manifest(&manifest_path, &schema_path)?;
+            return Ok(());
+        }
+        let manifest = crate::manifest::load_manifest_validated(&manifest_path, &schema_path)?;
         let manifest_dir = manifest_path.parent();
         let mut cases: Vec<&crate::manifest::GenerationCase> = if let Some(case_id) = cli.case {
             vec![manifest
@@ -857,6 +877,10 @@ mod tests {
         assert!(!config.textures.texture_allow_none);
         assert!(cli.output.is_none());
         assert_eq!(cli.count, 1);
+        assert!(cli.manifest.is_none());
+        assert!(cli.schema.is_none());
+        assert!(cli.case.is_none());
+        assert!(!cli.check_manifest);
     }
 
     #[test]
@@ -973,6 +997,10 @@ mod tests {
         assert!(config.textures.texture_allow_none);
         assert_eq!(cli.output, Some(PathBuf::from("output.city.json")));
         assert_eq!(cli.count, 3);
+        assert!(cli.manifest.is_none());
+        assert!(cli.schema.is_none());
+        assert!(cli.case.is_none());
+        assert!(!cli.check_manifest);
     }
 
     #[test]
@@ -988,7 +1016,9 @@ mod tests {
         let cli = Cli {
             config: CJFakeConfig::default(),
             manifest: None,
+            schema: None,
             case: None,
+            check_manifest: false,
             output: Some(output.clone()),
             count: 1,
         };
@@ -1042,8 +1072,34 @@ mod tests {
             .as_nanos();
         let dir = std::env::temp_dir().join(format!("cjfake-manifest-run-{stamp}"));
         let output = dir.join("spec_complete_omnibus.city.json");
+        let schema_path = dir.join("schema.json");
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let manifest_path = dir.join("manifest.json");
+        let schema = r#"
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "cases"],
+          "properties": {
+            "version": { "type": "integer", "const": 1 },
+            "cases": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "seed": { "type": ["integer", "null"] }
+                }
+              }
+            }
+          }
+        }
+        "#;
+        fs::write(&schema_path, schema).expect("schema should be writable");
         let manifest = r#"
         {
           "version": 1,
@@ -1051,10 +1107,8 @@ mod tests {
             {
               "id": "spec_complete_omnibus",
               "seed": 11,
-              "cityobjects": {
-                "min_cityobjects": 2,
-                "max_cityobjects": 2
-              }
+              "min_cityobjects": 2,
+              "max_cityobjects": 2
             }
           ]
         }
@@ -1064,7 +1118,9 @@ mod tests {
         let cli = Cli {
             config: CJFakeConfig::default(),
             manifest: Some(manifest_path),
+            schema: Some(schema_path),
             case: None,
+            check_manifest: false,
             output: Some(output.clone()),
             count: 1,
         };
@@ -1082,8 +1138,34 @@ mod tests {
             .as_nanos();
         let dir = std::env::temp_dir().join(format!("cjfake-manifest-dir-{stamp}"));
         let output = dir.join("out");
+        let schema_path = dir.join("schema.json");
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let manifest_path = dir.join("manifest.json");
+        let schema = r#"
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "cases"],
+          "properties": {
+            "version": { "type": "integer", "const": 1 },
+            "cases": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "seed": { "type": ["integer", "null"] }
+                }
+              }
+            }
+          }
+        }
+        "#;
+        fs::write(&schema_path, schema).expect("schema should be writable");
         let manifest = r#"
         {
           "version": 1,
@@ -1104,7 +1186,9 @@ mod tests {
         let cli = Cli {
             config: CJFakeConfig::default(),
             manifest: Some(manifest_path),
+            schema: Some(schema_path),
             case: None,
+            check_manifest: false,
             output: Some(output.clone()),
             count: 1,
         };

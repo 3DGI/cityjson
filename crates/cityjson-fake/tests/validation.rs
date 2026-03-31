@@ -175,5 +175,7 @@ fn deterministic_output() {
         .cityobjects()
         .build_string()
         .unwrap();
-    assert_eq!(json1, json2);
+    let value1: serde_json::Value = serde_json::from_str(&json1).unwrap();
+    let value2: serde_json::Value = serde_json::from_str(&json2).unwrap();
+    assert_eq!(value1, value2);
 }

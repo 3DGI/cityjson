@@ -86,7 +86,10 @@ cjfake --output output.city.json
 cjfake --count 3 --output out/
 
 # Generate from a manifest-driven case catalog
-cjfake --manifest manifest.json --output out/
+cjfake --manifest manifest.json --schema cjfake-manifest.schema.json --output out/
+
+# Validate a manifest without generating output
+cjfake --manifest manifest.json --schema cjfake-manifest.schema.json --check-manifest
 ```
 
 The available options are grouped below.
@@ -94,6 +97,7 @@ The available options are grouped below.
 | Group       | Flags                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 |-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | General     | `--seed`, `--output`, `--count`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Manifest    | `--manifest`, `--schema`, `--case`, `--check-manifest`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | CityObjects | `--allowed-types-cityobject`, `--min-cityobjects`, `--max-cityobjects`, `--cityobject-hierarchy`, `--min-children`, `--max-children`                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Geometry    | `--allowed-types-geometry`, `--allowed-lods`, `--min-members-multipoint`, `--max-members-multipoint`, `--min-members-multilinestring`, `--max-members-multilinestring`, `--min-members-multisurface`, `--max-members-multisurface`, `--min-members-solid`, `--max-members-solid`, `--min-members-multisolid`, `--max-members-multisolid`, `--min-members-compositesurface`, `--max-members-compositesurface`, `--min-members-compositesolid`, `--max-members-compositesolid`, `--min-members-cityobject-geometries`, `--max-members-cityobject-geometries` |
 | Vertices    | `--min-coordinate`, `--max-coordinate`, `--min-vertices`, `--max-vertices`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -105,7 +109,8 @@ The available options are grouped below.
 | Semantics   | `--semantics-enabled`, `--allowed-types-semantic`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Manifest mode accepts a JSON file whose cases flatten the normal `CJFakeConfig`
-fields at the top level:
+fields at the top level. The manifest should validate against
+`cjfake-manifest.schema.json`:
 
 ```json
 {
@@ -114,16 +119,19 @@ fields at the top level:
     {
       "id": "spec_complete_omnibus",
       "seed": 42,
-      "cityobjects": {
-        "min_cityobjects": 2,
-        "max_cityobjects": 2
-      }
+      "min_cityobjects": 2,
+      "max_cityobjects": 2,
+      "allowed_types_geometry": ["MultiSurface"]
     }
   ]
 }
 ```
 
 When `--manifest` is present, the manifest supplies the generation config.
+If `--schema` is not provided, `cjfake` looks for
+`cjfake-manifest.schema.json` next to the manifest file. Use
+`--check-manifest` to validate and exit without generating output.
+
 With multiple cases, `--output` must name a directory and each case is written
 as `<id>.city.json` unless the case defines its own output path.
 
@@ -136,7 +144,9 @@ The easiest entry points are:
 - `cjfake::generate_model(config, seed)` for a `CityModel`
 - `cjfake::generate_string(config, seed)` for a serialized CityJSON string
 - `cjfake::generate_vec(config, seed)` for UTF-8 encoded bytes
-- `cjfake::manifest::load_manifest(path)` for manifest-driven generation cases
+- `cjfake::manifest::load_manifest(path)` for raw manifest loading
+- `cjfake::manifest::load_manifest_validated(path, schema)` when you want
+  schema validation before generation
 - `CityModelBuilder` when you need fine-grained control over generation
 
 ## License
