@@ -1,7 +1,7 @@
 # cityarrow Design
 
 This document rewrites the design for `cityarrow` around the current
-`cityjson-rs` model and the actual state of this repository as of 2026-03-30.
+`cityjson-rs` model and the actual state of this repository as of 2026-03-31.
 
 It replaces the older implicit assumptions in the codebase with an explicit
 transport design.
@@ -24,29 +24,29 @@ The design target is therefore:
 
 ## Current Reality
 
-The repository already contains a useful transport skeleton, but it is not
-currently aligned with `cityjson-rs v0.4.1`.
+The canonical rewrite is now implemented on the Parquet package path.
 
 ### Confirmed state from the code review
 
 - `CityModelArrowParts` already expresses the right component split.
-- directory writers exist for Arrow IPC and Parquet.
+- canonical Parquet package write exists.
+- canonical Parquet package read exists.
 - the crate contains component schemas for metadata, transform, vertices,
-  cityobjects, geometries, and semantics.
-- the Arrow directory reader exists only for IPC, not for Parquet.
-- `cargo check` currently fails against `cityjson-rs v0.4.1`.
+  cityobjects, geometries, semantics, materials, textures, and UV coordinates.
+- `cargo test` passes.
+- `cargo test -- --ignored` passes, including the real-data
+  `serde_cityjson -> cityarrow -> cjval` gate.
 
-### Why it fails
+### Current unsupported scope
 
-The current code still assumes an older `cityjson-rs` shape:
+The rewrite is not universal over every possible `cityjson-rs` shape.
+The current conversion code still rejects:
 
-- removed `AttributePool` APIs
-- removed `ResourceId32`-parameterized `CityModel` signature
-- removed or private import paths
-- older quantized-vertex assumptions
-
-That matters because the redesign should solve the real current problem, not the
-historical one encoded in stale comments.
+- point and linestring semantic mappings
+- point and linestring material mappings
+- template geometry semantics
+- template geometry materials
+- template geometry textures
 
 ## Source Model In `cityjson-rs` Today
 
@@ -302,9 +302,13 @@ That means:
 - material assignments align to surface order
 - texture assignments align to ring order
 
-The open design issue is still texture UV storage. The current note set is right
-to call this out: texture image references alone are not enough; the UV index
-mapping also needs a canonical Arrow layout.
+That UV layout is now implemented canonically through:
+
+- `texture_vertices`
+- `geometry_ring_textures.uv_indices`
+
+Texture image references alone are not enough; the UV index mapping remains a
+first-class part of the canonical package.
 
 ## Coordinates And Transform
 
@@ -323,23 +327,20 @@ not an assumption baked into the core conversion path.
 
 ## Reader And Writer Scope
 
-The writer side currently exists in more detail than the reader side. The target
-shape should be symmetrical.
+The canonical Parquet package path is symmetrical today.
 
-### Required writer behavior
+### Implemented writer behavior
 
-- Arrow IPC directory output
 - Parquet directory output
-- framed Arrow IPC stream output
 
-### Required reader behavior
+### Implemented reader behavior
 
-- Arrow IPC directory input
 - Parquet directory input
 - reconstruction into `CityModel`
 
-The important design point is that both readers should reconstruct the same
-transport decomposition and then the same semantic `CityModel`.
+Arrow IPC packaging remains separate work. The important design point is that
+all supported readers reconstruct the same transport decomposition and then the
+same semantic `CityModel`.
 
 ## Public API Alignment With `cjlib`
 

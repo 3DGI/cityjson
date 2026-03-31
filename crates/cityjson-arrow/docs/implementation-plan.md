@@ -30,7 +30,7 @@ The rewrite is accepted only when all of the following are true:
 
 ## Scope Order
 
-### Phase 1: Canonical Core
+### Implemented Canonical Surface
 
 - metadata
 - transform
@@ -43,14 +43,25 @@ The rewrite is accepted only when all of the following are true:
 - normalized geometry boundaries
 - semantics
 - geometry-to-surface semantic assignments
-
-### Phase 2: Deferred Modules
-
 - materials
 - textures
+- texture vertices
+- geometry surface materials
+- geometry ring textures
+- default appearance themes
 
-Deferred modules must fail explicitly when encountered. They are not allowed to
-silently disappear from the roundtrip.
+### Explicitly Unsupported Surface
+
+- point semantic mappings
+- linestring semantic mappings
+- point material mappings
+- linestring material mappings
+- template geometry semantics
+- template geometry materials
+- template geometry textures
+
+Unsupported inputs must fail explicitly. They are not allowed to silently
+disappear from the roundtrip.
 
 ## Implementation Tasks
 
@@ -76,9 +87,17 @@ silently disappear from the roundtrip.
 - [x] Implement Parquet-safe attribute projection.
 - [x] Preserve exact attribute values with per-key JSON fallback columns.
 - [x] Preserve explicit null versus missing value distinction in fallback columns.
-- [x] Reject unsupported modules with hard errors:
-  - materials
-  - textures
+- [x] Implement canonical material, texture, and UV table conversion.
+- [x] Implement default appearance theme roundtrip.
+- [x] Implement geometry-surface material assignment roundtrip.
+- [x] Implement geometry-ring texture assignment roundtrip.
+- [x] Reject unsupported modules with hard errors for the remaining unsupported
+  surface:
+  - point and linestring semantic mappings
+  - point and linestring material mappings
+  - template geometry semantics
+  - template geometry materials
+  - template geometry textures
 - [x] Implement template vertex, template geometry, and geometry instance conversion.
 - [x] Implement template and geometry-instance package tables.
 - [x] Implement package manifest writing.

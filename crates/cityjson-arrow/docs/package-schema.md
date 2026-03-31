@@ -9,6 +9,9 @@ Status:
 - semantic target: `cityjson::v2_0::CityModel`
 - storage target: Parquet tables with Arrow-compatible schemas
 - interoperability target: derived GeoArrow and GeoParquet views
+- implementation status on 2026-03-31: canonical Parquet package roundtrip is
+  implemented for the supported surface, including appearance resources and
+  geometry-level appearance assignments
 
 The package is designed for full-fidelity `CityModel` reconstruction first.
 Generic GIS compatibility is provided through derived views, not by collapsing
@@ -233,6 +236,10 @@ identifier: LargeUtf8?
 title: LargeUtf8?
 reference_system: LargeUtf8?
 geographical_extent: FixedSizeList<Float64!, 6>?
+metadata_field__referenceDate_json: LargeUtf8?
+metadata_field__pointOfContact_json: LargeUtf8?
+metadata_field__defaultMaterialTheme_json: LargeUtf8?
+metadata_field__defaultTextureTheme_json: LargeUtf8?
 extra.*: projected
 ```
 
@@ -440,7 +447,14 @@ Rows: 0..n
 ```text
 citymodel_id: LargeUtf8!
 material_id: UInt64!
-payload.*: projected
+payload.name: LargeUtf8!
+payload.ambient_intensity: Float64?
+payload.diffuse_color_json: LargeUtf8?
+payload.emissive_color_json: LargeUtf8?
+payload.specular_color_json: LargeUtf8?
+payload.shininess: Float64?
+payload.transparency: Float64?
+payload.is_smooth: Boolean?
 ```
 
 ### geometry_surface_materials
@@ -463,7 +477,10 @@ Rows: 0..n
 citymodel_id: LargeUtf8!
 texture_id: UInt64!
 image_uri: LargeUtf8!
-payload.*: projected
+payload.image_type: LargeUtf8!
+payload.wrap_mode: LargeUtf8?
+payload.texture_type: LargeUtf8?
+payload.border_color_json: LargeUtf8?
 ```
 
 ### texture_vertices
@@ -493,6 +510,12 @@ uv_indices: List<UInt64!>!
 
 This table stores ring-level texture assignment plus UV index mapping. Texture
 references alone are not enough to reconstruct textured CityJSON geometries.
+
+Current implementation note:
+
+- geometry-level surface and ring appearance is supported
+- point and linestring material mappings are not represented in this package
+- template-geometry appearance is not represented in this package
 
 ## Boundary Contract By Geometry Type
 
@@ -558,7 +581,7 @@ Lossless reconstruction into `CityModel` is defined as follows:
   assignment
 - `materials`, `textures`, `texture_vertices`,
   `geometry_surface_materials`, and `geometry_ring_textures` rebuild appearance
-  sidecars
+  resources and geometry-level appearance sidecars
 - template tables rebuild template resources and template-based instances
 
 The round-trip requirement is:

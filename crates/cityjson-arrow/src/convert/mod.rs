@@ -10,14 +10,17 @@ use arrow::array::{
 use arrow::datatypes::{DataType, FieldRef};
 use arrow_buffer::{NullBuffer, OffsetBuffer, ScalarBuffer};
 use cityjson::CityModelType;
+use cityjson::v2_0::geometry::{MaterialThemesView, TextureThemesView};
 use cityjson::v2_0::{
     AttributeValue, BBox, Boundary, CRS, CityModelIdentifier, CityObject, CityObjectIdentifier,
-    CityObjectType, Contact, ContactRole, ContactType, Extension, Geometry, GeometryType, LoD,
-    Metadata, OwnedAttributeValue, OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType,
-    StoredGeometryInstance, StoredGeometryParts, VertexIndexVec,
+    CityObjectType, Contact, ContactRole, ContactType, Extension, Geometry, GeometryType,
+    ImageType, LoD, MaterialMap, Metadata, OwnedAttributeValue, OwnedCityModel, OwnedMaterial,
+    OwnedSemantic, OwnedTexture, RGB, RGBA, SemanticMap, SemanticType, StoredGeometryInstance,
+    StoredGeometryParts, TextureMap, TextureType, ThemeName, UVCoordinate, VertexIndexVec,
+    WrapMode,
 };
 use serde_json::{Map as JsonMap, Number as JsonNumber, Value as JsonValue};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 const DEFAULT_CITYMODEL_ID: &str = "citymodel";
@@ -25,9 +28,23 @@ const FIELD_ROOT_EXTRA_PREFIX: &str = "root_extra__";
 const FIELD_METADATA_EXTRA_PREFIX: &str = "metadata_extra__";
 const FIELD_METADATA_REFERENCE_DATE: &str = "metadata_field__referenceDate_json";
 const FIELD_METADATA_POINT_OF_CONTACT: &str = "metadata_field__pointOfContact_json";
+const FIELD_METADATA_DEFAULT_MATERIAL_THEME: &str = "metadata_field__defaultMaterialTheme_json";
+const FIELD_METADATA_DEFAULT_TEXTURE_THEME: &str = "metadata_field__defaultTextureTheme_json";
 const FIELD_ATTR_PREFIX: &str = "attr__";
 const FIELD_EXTRA_PREFIX: &str = "extra__";
 const FIELD_JSON_SUFFIX: &str = "_json";
+const FIELD_MATERIAL_NAME: &str = "payload.name";
+const FIELD_MATERIAL_AMBIENT_INTENSITY: &str = "payload.ambient_intensity";
+const FIELD_MATERIAL_DIFFUSE_COLOR: &str = "payload.diffuse_color_json";
+const FIELD_MATERIAL_EMISSIVE_COLOR: &str = "payload.emissive_color_json";
+const FIELD_MATERIAL_SPECULAR_COLOR: &str = "payload.specular_color_json";
+const FIELD_MATERIAL_SHININESS: &str = "payload.shininess";
+const FIELD_MATERIAL_TRANSPARENCY: &str = "payload.transparency";
+const FIELD_MATERIAL_IS_SMOOTH: &str = "payload.is_smooth";
+const FIELD_TEXTURE_IMAGE_TYPE: &str = "payload.image_type";
+const FIELD_TEXTURE_WRAP_MODE: &str = "payload.wrap_mode";
+const FIELD_TEXTURE_TEXTURE_TYPE: &str = "payload.texture_type";
+const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color_json";
 
 #[derive(Debug, Clone)]
 struct MetadataRow {
@@ -171,6 +188,59 @@ struct GeometrySurfaceSemanticRow {
     semantic_id: Option<u64>,
 }
 
+#[derive(Debug, Clone)]
+struct MaterialRow {
+    citymodel_id: String,
+    material_id: u64,
+    name: String,
+    ambient_intensity: Option<f64>,
+    diffuse_color: Option<String>,
+    emissive_color: Option<String>,
+    specular_color: Option<String>,
+    shininess: Option<f64>,
+    transparency: Option<f64>,
+    is_smooth: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+struct GeometrySurfaceMaterialRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    surface_ordinal: u32,
+    theme: String,
+    material_id: u64,
+}
+
+#[derive(Debug, Clone)]
+struct TextureRow {
+    citymodel_id: String,
+    texture_id: u64,
+    image_uri: String,
+    image_type: String,
+    wrap_mode: Option<String>,
+    texture_type: Option<String>,
+    border_color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct TextureVertexRow {
+    citymodel_id: String,
+    uv_id: u64,
+    u: f64,
+    v: f64,
+}
+
+#[derive(Debug, Clone)]
+struct GeometryRingTextureRow {
+    citymodel_id: String,
+    geometry_id: u64,
+    surface_ordinal: u32,
+    ring_ordinal: u32,
+    theme: String,
+    texture_id: u64,
+    uv_indices: Vec<u64>,
+}
+
 pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
     reject_unsupported_modules(model)?;
 
@@ -190,6 +260,8 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
     let geometry_id_map = geometry_id_map(model);
     let template_geometry_id_map = template_geometry_id_map(model);
     let semantic_id_map = semantic_id_map(model);
+    let material_id_map = material_id_map(model);
+    let texture_id_map = texture_id_map(model);
 
     let metadata_row = metadata_row(model, &header, &projection, &geometry_id_map)?;
     let transform_row = model.transform().map(|transform| TransformRow {
@@ -201,13 +273,24 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
     let vertex_rows = vertex_rows(model, &citymodel_id);
     let cityobject_rows = cityobject_rows(model, &citymodel_id, &projection, &geometry_id_map)?;
     let cityobject_child_rows = cityobject_child_rows(model, &citymodel_id);
-    let (geometry_rows, boundary_rows, geometry_instance_rows, surface_semantic_rows) =
-        geometry_rows(
-            model,
-            &citymodel_id,
-            &semantic_id_map,
-            &template_geometry_id_map,
-        )?;
+    let material_rows = material_rows(model, &citymodel_id);
+    let texture_rows = texture_rows(model, &citymodel_id);
+    let texture_vertex_rows = texture_vertex_rows(model, &citymodel_id);
+    let (
+        geometry_rows,
+        boundary_rows,
+        geometry_instance_rows,
+        surface_semantic_rows,
+        surface_material_rows,
+        ring_texture_rows,
+    ) = geometry_rows(
+        model,
+        &citymodel_id,
+        &semantic_id_map,
+        &material_id_map,
+        &texture_id_map,
+        &template_geometry_id_map,
+    )?;
     let template_vertex_rows = template_vertex_rows(model, &citymodel_id);
     let (template_geometry_rows, template_boundary_rows) =
         template_geometry_rows(model, &citymodel_id, &template_geometry_id_map)?;
@@ -255,17 +338,27 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         geometry_surface_semantics: optional_batch(surface_semantic_rows, |rows| {
             geometry_surface_semantics_batch(&schemas.geometry_surface_semantics, rows)
         })?,
-        materials: None,
-        geometry_surface_materials: None,
-        textures: None,
-        texture_vertices: None,
-        geometry_ring_textures: None,
+        materials: optional_batch(material_rows, |rows| {
+            materials_batch(&schemas.materials, &rows, &projection)
+        })?,
+        geometry_surface_materials: optional_batch(surface_material_rows, |rows| {
+            geometry_surface_materials_batch(&schemas.geometry_surface_materials, rows)
+        })?,
+        textures: optional_batch(texture_rows, |rows| {
+            textures_batch(&schemas.textures, &rows, &projection)
+        })?,
+        texture_vertices: optional_batch(texture_vertex_rows, |rows| {
+            texture_vertices_batch(&schemas.texture_vertices, rows)
+        })?,
+        geometry_ring_textures: optional_batch(ring_texture_rows, |rows| {
+            geometry_ring_textures_batch(&schemas.geometry_ring_textures, rows)
+        })?,
     })
 }
 
 pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
-    reject_unsupported_part_tables(parts)?;
     ensure_supported_part_table_combinations(parts)?;
+    validate_appearance_projection_layout(&parts.projection)?;
 
     let kind = CityModelType::try_from(read_string_scalar(&parts.metadata, "citymodel_kind", 0)?)?;
     let mut model = OwnedCityModel::new(kind);
@@ -306,6 +399,14 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
         for row in rows {
             let coordinate = cityjson::v2_0::RealWorldCoordinate::new(row.x, row.y, row.z);
             model.add_template_vertex(coordinate)?;
+        }
+    }
+
+    if let Some(batch) = &parts.texture_vertices {
+        let mut rows = read_texture_vertex_rows(batch)?;
+        rows.sort_by_key(|row| row.uv_id);
+        for row in rows {
+            model.add_uv_coordinate(UVCoordinate::new(row.u as f32, row.v as f32))?;
         }
     }
 
@@ -356,6 +457,63 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
         }
     }
 
+    let mut material_handle_by_id = HashMap::new();
+    if let Some(batch) = &parts.materials {
+        let mut rows = read_material_rows(batch, &parts.projection)?;
+        rows.sort_by_key(|row| row.material_id);
+        for row in rows {
+            let mut material = OwnedMaterial::new(row.name);
+            material.set_ambient_intensity(row.ambient_intensity.map(|value| value as f32));
+            material.set_diffuse_color(
+                row.diffuse_color
+                    .as_deref()
+                    .map(parse_rgb_json)
+                    .transpose()?,
+            );
+            material.set_emissive_color(
+                row.emissive_color
+                    .as_deref()
+                    .map(parse_rgb_json)
+                    .transpose()?,
+            );
+            material.set_specular_color(
+                row.specular_color
+                    .as_deref()
+                    .map(parse_rgb_json)
+                    .transpose()?,
+            );
+            material.set_shininess(row.shininess.map(|value| value as f32));
+            material.set_transparency(row.transparency.map(|value| value as f32));
+            material.set_is_smooth(row.is_smooth);
+            let handle = model.add_material(material)?;
+            material_handle_by_id.insert(row.material_id, handle);
+        }
+    }
+
+    let mut texture_handle_by_id = HashMap::new();
+    if let Some(batch) = &parts.textures {
+        let mut rows = read_texture_rows(batch, &parts.projection)?;
+        rows.sort_by_key(|row| row.texture_id);
+        for row in rows {
+            let mut texture = OwnedTexture::new(row.image_uri, parse_image_type(&row.image_type)?);
+            texture.set_wrap_mode(row.wrap_mode.as_deref().map(parse_wrap_mode).transpose()?);
+            texture.set_texture_type(
+                row.texture_type
+                    .as_deref()
+                    .map(parse_texture_mapping_type)
+                    .transpose()?,
+            );
+            texture.set_border_color(
+                row.border_color
+                    .as_deref()
+                    .map(parse_rgba_json)
+                    .transpose()?,
+            );
+            let handle = model.add_texture(texture)?;
+            texture_handle_by_id.insert(row.texture_id, handle);
+        }
+    }
+
     let geometry_boundaries = read_geometry_boundary_rows(&parts.geometry_boundaries)?;
     let boundary_by_geometry_id: HashMap<_, _> = geometry_boundaries
         .into_iter()
@@ -379,6 +537,34 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
         .into_iter()
         .fold(
             HashMap::<u64, Vec<GeometrySurfaceSemanticRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let surface_materials_by_geometry_id = parts
+        .geometry_surface_materials
+        .as_ref()
+        .map(read_geometry_surface_material_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometrySurfaceMaterialRow>>::new(),
+            |mut acc, row| {
+                acc.entry(row.geometry_id).or_default().push(row);
+                acc
+            },
+        );
+    let ring_textures_by_geometry_id = parts
+        .geometry_ring_textures
+        .as_ref()
+        .map(read_geometry_ring_texture_rows)
+        .transpose()?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(
+            HashMap::<u64, Vec<GeometryRingTextureRow>>::new(),
             |mut acc, row| {
                 acc.entry(row.geometry_id).or_default().push(row);
                 acc
@@ -430,13 +616,25 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
             surface_semantics_by_geometry_id.get(&row.geometry_id),
             &semantic_handle_by_id,
         )?;
+        let materials = build_material_maps(
+            &row.geometry_type,
+            boundary,
+            surface_materials_by_geometry_id.get(&row.geometry_id),
+            &material_handle_by_id,
+        )?;
+        let textures = build_texture_maps(
+            &row.geometry_type,
+            boundary,
+            ring_textures_by_geometry_id.get(&row.geometry_id),
+            &texture_handle_by_id,
+        )?;
         let geometry = Geometry::from_stored_parts(StoredGeometryParts {
             type_geometry: parse_geometry_type(&row.geometry_type)?,
             lod: row.lod.as_deref().map(parse_lod).transpose()?,
             boundaries: Some(boundary_from_row(boundary, &row.geometry_type)?),
             semantics,
-            materials: None,
-            textures: None,
+            materials,
+            textures,
             instance: None,
         });
         let handle = model.add_geometry(geometry)?;
@@ -598,21 +796,19 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
 }
 
 fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
-    if model.material_count() > 0 {
-        return Err(Error::Unsupported("materials".to_string()));
-    }
-    if model.texture_count() > 0 {
-        return Err(Error::Unsupported("textures".to_string()));
-    }
-    if !model.vertices_texture().is_empty() {
-        return Err(Error::Unsupported("uv coordinates".to_string()));
-    }
     for (_, geometry) in model.iter_geometries() {
-        if geometry.materials().is_some() {
-            return Err(Error::Unsupported("geometry materials".to_string()));
+        if let Some(materials) = geometry.materials() {
+            ensure_surface_backed_geometry(geometry.type_geometry(), "geometry materials")?;
+            for (_, map) in materials.iter() {
+                if !map.points().is_empty() || !map.linestrings().is_empty() {
+                    return Err(Error::Unsupported(
+                        "point and linestring material mappings".to_string(),
+                    ));
+                }
+            }
         }
         if geometry.textures().is_some() {
-            return Err(Error::Unsupported("geometry textures".to_string()));
+            ensure_surface_backed_geometry(geometry.type_geometry(), "geometry textures")?;
         }
         if let Some(semantics) = geometry.semantics() {
             if !semantics.points().is_empty() || !semantics.linestrings().is_empty() {
@@ -645,37 +841,34 @@ fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
     Ok(())
 }
 
-fn reject_unsupported_part_tables(parts: &CityModelArrowParts) -> Result<()> {
-    for (name, batch) in [
-        ("materials", parts.materials.as_ref()),
-        (
-            "geometry_surface_materials",
-            parts.geometry_surface_materials.as_ref(),
-        ),
-        ("textures", parts.textures.as_ref()),
-        ("texture_vertices", parts.texture_vertices.as_ref()),
-        (
-            "geometry_ring_textures",
-            parts.geometry_ring_textures.as_ref(),
-        ),
-    ] {
-        if batch.is_some() {
-            return Err(Error::Unsupported(name.to_string()));
-        }
-    }
-    Ok(())
-}
-
 fn ensure_supported_part_table_combinations(parts: &CityModelArrowParts) -> Result<()> {
     match (
         parts.template_geometries.as_ref(),
         parts.template_geometry_boundaries.as_ref(),
     ) {
-        (Some(_), Some(_)) | (None, None) => Ok(()),
-        _ => Err(Error::Unsupported(
-            "template_geometries and template_geometry_boundaries must either both be present or both be absent".to_string(),
-        )),
+        (Some(_), Some(_)) | (None, None) => {}
+        _ => {
+            return Err(Error::Unsupported(
+                "template_geometries and template_geometry_boundaries must either both be present or both be absent".to_string(),
+            ))
+        }
     }
+    if parts.geometry_surface_materials.is_some() && parts.materials.is_none() {
+        return Err(Error::Unsupported(
+            "geometry_surface_materials without materials".to_string(),
+        ));
+    }
+    if parts.geometry_ring_textures.is_some() && parts.textures.is_none() {
+        return Err(Error::Unsupported(
+            "geometry_ring_textures without textures".to_string(),
+        ));
+    }
+    if parts.geometry_ring_textures.is_some() && parts.texture_vertices.is_none() {
+        return Err(Error::Unsupported(
+            "geometry_ring_textures without texture_vertices".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn infer_citymodel_id(model: &OwnedCityModel) -> String {
@@ -712,6 +905,22 @@ fn semantic_id_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::Semanti
         .collect()
 }
 
+fn material_id_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::MaterialHandle, u64> {
+    model
+        .iter_materials()
+        .enumerate()
+        .map(|(index, (handle, _))| (handle, index as u64))
+        .collect()
+}
+
+fn texture_id_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::TextureHandle, u64> {
+    model
+        .iter_textures()
+        .enumerate()
+        .map(|(index, (handle, _))| (handle, index as u64))
+        .collect()
+}
+
 fn discover_projection_layout(model: &OwnedCityModel) -> ProjectionLayout {
     let mut layout = ProjectionLayout::default();
 
@@ -736,7 +945,96 @@ fn discover_projection_layout(model: &OwnedCityModel) -> ProjectionLayout {
             .filter_map(|(_, semantic)| semantic.attributes()),
         FIELD_ATTR_PREFIX,
     );
+    if model.material_count() > 0 {
+        layout.material_payload = canonical_material_projection();
+    }
+    if model.texture_count() > 0 {
+        layout.texture_payload = canonical_texture_projection();
+    }
     layout
+}
+
+fn canonical_material_projection() -> Vec<ProjectedFieldSpec> {
+    vec![
+        ProjectedFieldSpec::new(FIELD_MATERIAL_NAME, ProjectedValueType::LargeUtf8, false),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_AMBIENT_INTENSITY,
+            ProjectedValueType::Float64,
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_DIFFUSE_COLOR,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_EMISSIVE_COLOR,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_SPECULAR_COLOR,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_SHININESS, ProjectedValueType::Float64, true),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_TRANSPARENCY,
+            ProjectedValueType::Float64,
+            true,
+        ),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_IS_SMOOTH, ProjectedValueType::Boolean, true),
+    ]
+}
+
+fn canonical_texture_projection() -> Vec<ProjectedFieldSpec> {
+    vec![
+        ProjectedFieldSpec::new(
+            FIELD_TEXTURE_IMAGE_TYPE,
+            ProjectedValueType::LargeUtf8,
+            false,
+        ),
+        ProjectedFieldSpec::new(FIELD_TEXTURE_WRAP_MODE, ProjectedValueType::LargeUtf8, true),
+        ProjectedFieldSpec::new(
+            FIELD_TEXTURE_TEXTURE_TYPE,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_TEXTURE_BORDER_COLOR,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ),
+    ]
+}
+
+fn validate_appearance_projection_layout(layout: &ProjectionLayout) -> Result<()> {
+    let supported_material = canonical_material_projection()
+        .into_iter()
+        .map(|spec| spec.name)
+        .collect::<BTreeSet<_>>();
+    for spec in &layout.material_payload {
+        if !supported_material.contains(&spec.name) {
+            return Err(Error::Unsupported(format!(
+                "material payload column {}",
+                spec.name
+            )));
+        }
+    }
+
+    let supported_texture = canonical_texture_projection()
+        .into_iter()
+        .map(|spec| spec.name)
+        .collect::<BTreeSet<_>>();
+    for spec in &layout.texture_payload {
+        if !supported_texture.contains(&spec.name) {
+            return Err(Error::Unsupported(format!(
+                "texture payload column {}",
+                spec.name
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn discover_metadata_projection(model: &OwnedCityModel) -> Vec<ProjectedFieldSpec> {
@@ -760,6 +1058,20 @@ fn discover_metadata_projection(model: &OwnedCityModel) -> Vec<ProjectedFieldSpe
     {
         fields.push(ProjectedFieldSpec::new(
             FIELD_METADATA_POINT_OF_CONTACT,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ));
+    }
+    if model.default_material_theme().is_some() {
+        fields.push(ProjectedFieldSpec::new(
+            FIELD_METADATA_DEFAULT_MATERIAL_THEME,
+            ProjectedValueType::LargeUtf8,
+            true,
+        ));
+    }
+    if model.default_texture_theme().is_some() {
+        fields.push(ProjectedFieldSpec::new(
+            FIELD_METADATA_DEFAULT_TEXTURE_THEME,
             ProjectedValueType::LargeUtf8,
             true,
         ));
@@ -861,6 +1173,56 @@ fn extension_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<ExtensionRo
         .collect()
 }
 
+fn material_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<MaterialRow> {
+    model
+        .iter_materials()
+        .enumerate()
+        .map(|(index, (_, material))| MaterialRow {
+            citymodel_id: citymodel_id.to_string(),
+            material_id: index as u64,
+            name: material.name().to_string(),
+            ambient_intensity: material.ambient_intensity().map(f64::from),
+            diffuse_color: material.diffuse_color().map(rgb_to_json),
+            emissive_color: material.emissive_color().map(rgb_to_json),
+            specular_color: material.specular_color().map(rgb_to_json),
+            shininess: material.shininess().map(f64::from),
+            transparency: material.transparency().map(f64::from),
+            is_smooth: material.is_smooth(),
+        })
+        .collect()
+}
+
+fn texture_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<TextureRow> {
+    model
+        .iter_textures()
+        .enumerate()
+        .map(|(index, (_, texture))| TextureRow {
+            citymodel_id: citymodel_id.to_string(),
+            texture_id: index as u64,
+            image_uri: texture.image().to_string(),
+            image_type: texture.image_type().to_string(),
+            wrap_mode: texture.wrap_mode().map(|value| value.to_string()),
+            texture_type: texture.texture_type().map(|value| value.to_string()),
+            border_color: texture.border_color().map(rgba_to_json),
+        })
+        .collect()
+}
+
+fn texture_vertex_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<TextureVertexRow> {
+    model
+        .vertices_texture()
+        .as_slice()
+        .iter()
+        .enumerate()
+        .map(|(index, coordinate)| TextureVertexRow {
+            citymodel_id: citymodel_id.to_string(),
+            uv_id: index as u64,
+            u: f64::from(coordinate.u()),
+            v: f64::from(coordinate.v()),
+        })
+        .collect()
+}
+
 fn vertex_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<VertexRow> {
     model
         .vertices()
@@ -936,17 +1298,23 @@ fn geometry_rows(
     model: &OwnedCityModel,
     citymodel_id: &str,
     semantic_id_map: &HashMap<cityjson::prelude::SemanticHandle, u64>,
+    material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
+    texture_id_map: &HashMap<cityjson::prelude::TextureHandle, u64>,
     template_geometry_id_map: &HashMap<cityjson::prelude::GeometryTemplateHandle, u64>,
 ) -> Result<(
     Vec<GeometryRow>,
     Vec<GeometryBoundaryRow>,
     Vec<GeometryInstanceRow>,
     Vec<GeometrySurfaceSemanticRow>,
+    Vec<GeometrySurfaceMaterialRow>,
+    Vec<GeometryRingTextureRow>,
 )> {
     let mut geometry_rows = Vec::new();
     let mut boundary_rows = Vec::new();
     let mut instance_rows = Vec::new();
     let mut semantic_rows = Vec::new();
+    let mut material_rows = Vec::new();
+    let mut texture_rows = Vec::new();
     let geometry_id_map = geometry_id_map(model);
 
     for (_, object) in model.cityobjects().iter() {
@@ -1005,6 +1373,22 @@ fn geometry_rows(
                             });
                         }
                     }
+                    material_rows.extend(geometry_surface_material_rows(
+                        citymodel_id,
+                        geometry_id,
+                        geometry.type_geometry(),
+                        &boundary_row,
+                        geometry.materials(),
+                        material_id_map,
+                    )?);
+                    texture_rows.extend(geometry_ring_texture_rows(
+                        citymodel_id,
+                        geometry_id,
+                        geometry.type_geometry(),
+                        &boundary_row,
+                        geometry.textures(),
+                        texture_id_map,
+                    )?);
                     geometry_rows.push(GeometryRow {
                         citymodel_id: citymodel_id.to_string(),
                         geometry_id,
@@ -1019,7 +1403,228 @@ fn geometry_rows(
         }
     }
 
-    Ok((geometry_rows, boundary_rows, instance_rows, semantic_rows))
+    Ok((
+        geometry_rows,
+        boundary_rows,
+        instance_rows,
+        semantic_rows,
+        material_rows,
+        texture_rows,
+    ))
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RingLayout {
+    start: usize,
+    len: usize,
+    surface_ordinal: u32,
+    ring_ordinal: u32,
+}
+
+fn geometry_surface_material_rows(
+    citymodel_id: &str,
+    geometry_id: u64,
+    geometry_type: &GeometryType,
+    boundary_row: &GeometryBoundaryRow,
+    materials: Option<MaterialThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
+    material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
+) -> Result<Vec<GeometrySurfaceMaterialRow>> {
+    let Some(materials) = materials else {
+        return Ok(Vec::new());
+    };
+    ensure_surface_backed_geometry(geometry_type, "geometry materials")?;
+    let surface_count = surface_count(boundary_row)?;
+    let mut rows = Vec::new();
+
+    for (theme, map) in materials.iter() {
+        if !map.points().is_empty() || !map.linestrings().is_empty() {
+            return Err(Error::Unsupported(
+                "point and linestring material mappings".to_string(),
+            ));
+        }
+        if map.surfaces().len() != surface_count {
+            return Err(Error::Conversion(format!(
+                "material theme {} has {} surface assignments, expected {}",
+                theme,
+                map.surfaces().len(),
+                surface_count
+            )));
+        }
+        for (surface_ordinal, material_handle) in map.surfaces().iter().enumerate() {
+            let Some(material_handle) = material_handle else {
+                continue;
+            };
+            let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
+                Error::Conversion("material handle missing from id map".to_string())
+            })?;
+            rows.push(GeometrySurfaceMaterialRow {
+                citymodel_id: citymodel_id.to_string(),
+                geometry_id,
+                surface_ordinal: surface_ordinal as u32,
+                theme: theme.as_ref().to_string(),
+                material_id,
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
+fn geometry_ring_texture_rows(
+    citymodel_id: &str,
+    geometry_id: u64,
+    geometry_type: &GeometryType,
+    boundary_row: &GeometryBoundaryRow,
+    textures: Option<TextureThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
+    texture_id_map: &HashMap<cityjson::prelude::TextureHandle, u64>,
+) -> Result<Vec<GeometryRingTextureRow>> {
+    let Some(textures) = textures else {
+        return Ok(Vec::new());
+    };
+    ensure_surface_backed_geometry(geometry_type, "geometry textures")?;
+    let ring_layouts = ring_layouts(boundary_row)?;
+    let mut rows = Vec::new();
+
+    for (theme, map) in textures.iter() {
+        if map.rings().len() != ring_layouts.len() {
+            return Err(Error::Conversion(format!(
+                "texture theme {} has {} rings, expected {}",
+                theme,
+                map.rings().len(),
+                ring_layouts.len()
+            )));
+        }
+        if map.vertices().len() != boundary_row.vertex_indices.len() {
+            return Err(Error::Conversion(format!(
+                "texture theme {} has {} uv assignments, expected {}",
+                theme,
+                map.vertices().len(),
+                boundary_row.vertex_indices.len()
+            )));
+        }
+        let ring_textures = map.ring_textures();
+        for (ring_index, layout) in ring_layouts.iter().enumerate() {
+            let Some(texture_handle) = ring_textures[ring_index] else {
+                continue;
+            };
+            let texture_id = *texture_id_map.get(&texture_handle).ok_or_else(|| {
+                Error::Conversion("texture handle missing from id map".to_string())
+            })?;
+            let uv_indices = map.vertices()[layout.start..layout.start + layout.len]
+                .iter()
+                .map(|value: &Option<cityjson::v2_0::VertexIndex<u32>>| {
+                    value
+                        .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
+                        .ok_or_else(|| {
+                            Error::Conversion(format!(
+                                "textured ring {} for theme {} contains missing uv indices",
+                                ring_index, theme
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            rows.push(GeometryRingTextureRow {
+                citymodel_id: citymodel_id.to_string(),
+                geometry_id,
+                surface_ordinal: layout.surface_ordinal,
+                ring_ordinal: layout.ring_ordinal,
+                theme: theme.as_ref().to_string(),
+                texture_id,
+                uv_indices,
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
+fn ensure_surface_backed_geometry(geometry_type: &GeometryType, feature: &str) -> Result<()> {
+    match geometry_type {
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => Ok(()),
+        GeometryType::MultiPoint | GeometryType::MultiLineString => {
+            Err(Error::Unsupported(feature.to_string()))
+        }
+        GeometryType::GeometryInstance => Err(Error::Unsupported(feature.to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn ring_layouts(boundary_row: &GeometryBoundaryRow) -> Result<Vec<RingLayout>> {
+    let ring_lengths = required_lengths(&boundary_row.ring_lengths, "ring_lengths")?;
+    let surface_lengths = required_lengths(&boundary_row.surface_lengths, "surface_lengths")?;
+    let mut layouts = Vec::with_capacity(ring_lengths.len());
+    let mut vertex_start = 0_usize;
+    let mut ring_index = 0_usize;
+
+    for (surface_ordinal, ring_count) in surface_lengths.iter().enumerate() {
+        for ring_ordinal in 0..*ring_count {
+            let len = *ring_lengths.get(ring_index).ok_or_else(|| {
+                Error::Conversion(format!(
+                    "surface topology references missing ring {}",
+                    ring_index
+                ))
+            })? as usize;
+            layouts.push(RingLayout {
+                start: vertex_start,
+                len,
+                surface_ordinal: surface_ordinal as u32,
+                ring_ordinal,
+            });
+            vertex_start += len;
+            ring_index += 1;
+        }
+    }
+
+    if ring_index != ring_lengths.len() {
+        return Err(Error::Conversion(format!(
+            "ring topology consumed {} rings, but {} ring lengths are present",
+            ring_index,
+            ring_lengths.len()
+        )));
+    }
+    if vertex_start != boundary_row.vertex_indices.len() {
+        return Err(Error::Conversion(format!(
+            "ring topology consumed {} vertices, but {} boundary vertices are present",
+            vertex_start,
+            boundary_row.vertex_indices.len()
+        )));
+    }
+
+    Ok(layouts)
+}
+
+fn rgb_to_json(value: RGB) -> String {
+    JsonValue::Array(
+        value
+            .to_array()
+            .into_iter()
+            .map(|component| {
+                JsonValue::Number(
+                    JsonNumber::from_f64(f64::from(component)).expect("finite rgb component"),
+                )
+            })
+            .collect(),
+    )
+    .to_string()
+}
+
+fn rgba_to_json(value: RGBA) -> String {
+    JsonValue::Array(
+        value
+            .to_array()
+            .into_iter()
+            .map(|component| {
+                JsonValue::Number(
+                    JsonNumber::from_f64(f64::from(component)).expect("finite rgba component"),
+                )
+            })
+            .collect(),
+    )
+    .to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -1250,6 +1855,18 @@ fn project_metadata_columns(
                     .map(contact_to_json)
                     .transpose()
                     .map(|value| value.map(|item| item.to_string()));
+            }
+            if spec.name == FIELD_METADATA_DEFAULT_MATERIAL_THEME {
+                return Ok(model
+                    .default_material_theme()
+                    .map(ToString::to_string)
+                    .map(json_string));
+            }
+            if spec.name == FIELD_METADATA_DEFAULT_TEXTURE_THEME {
+                return Ok(model
+                    .default_texture_theme()
+                    .map(ToString::to_string)
+                    .map(json_string));
             }
             if let Some(key) = decode_projection_name(&spec.name, FIELD_ROOT_EXTRA_PREFIX) {
                 return project_one_attribute(root_extra, &key, geometry_id_map);
@@ -1923,6 +2540,230 @@ fn geometry_surface_semantics_batch(
     .map_err(Error::from)
 }
 
+fn materials_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: &[MaterialRow],
+    projection: &ProjectionLayout,
+) -> Result<RecordBatch> {
+    let mut arrays: Vec<ArrayRef> = vec![
+        Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| Some(row.citymodel_id.clone()))
+                .collect::<Vec<_>>(),
+        )),
+        Arc::new(UInt64Array::from(
+            rows.iter().map(|row| row.material_id).collect::<Vec<_>>(),
+        )),
+    ];
+    for spec in &projection.material_payload {
+        arrays.push(material_payload_array(spec, rows)?);
+    }
+    RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
+}
+
+fn geometry_surface_materials_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometrySurfaceMaterialRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.surface_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.into_iter()
+                    .map(|row| row.material_id)
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn textures_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: &[TextureRow],
+    projection: &ProjectionLayout,
+) -> Result<RecordBatch> {
+    let mut arrays: Vec<ArrayRef> = vec![
+        Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| Some(row.citymodel_id.clone()))
+                .collect::<Vec<_>>(),
+        )),
+        Arc::new(UInt64Array::from(
+            rows.iter().map(|row| row.texture_id).collect::<Vec<_>>(),
+        )),
+        Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| Some(row.image_uri.clone()))
+                .collect::<Vec<_>>(),
+        )),
+    ];
+    for spec in &projection.texture_payload {
+        arrays.push(texture_payload_array(spec, rows)?);
+    }
+    RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
+}
+
+fn texture_vertices_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<TextureVertexRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.uv_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                rows.iter().map(|row| row.u).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                rows.into_iter().map(|row| row.v).collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn geometry_ring_textures_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    rows: Vec<GeometryRingTextureRow>,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(LargeStringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.citymodel_id.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter()
+                    .map(|row| row.surface_ordinal)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt32Array::from(
+                rows.iter().map(|row| row.ring_ordinal).collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| Some(row.theme.clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(UInt64Array::from(
+                rows.iter().map(|row| row.texture_id).collect::<Vec<_>>(),
+            )),
+            Arc::new(list_u64_array(
+                field_from_schema(schema, "uv_indices")?,
+                rows.into_iter()
+                    .map(|row| Some(row.uv_indices))
+                    .collect::<Vec<_>>(),
+            )?),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn material_payload_array(spec: &ProjectedFieldSpec, rows: &[MaterialRow]) -> Result<ArrayRef> {
+    Ok(match spec.name.as_str() {
+        FIELD_MATERIAL_NAME => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| Some(row.name.clone()))
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_AMBIENT_INTENSITY => Arc::new(Float64Array::from(
+            rows.iter()
+                .map(|row| row.ambient_intensity)
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_DIFFUSE_COLOR => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.diffuse_color.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_EMISSIVE_COLOR => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.emissive_color.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_SPECULAR_COLOR => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.specular_color.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_SHININESS => Arc::new(Float64Array::from(
+            rows.iter().map(|row| row.shininess).collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_TRANSPARENCY => Arc::new(Float64Array::from(
+            rows.iter().map(|row| row.transparency).collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_MATERIAL_IS_SMOOTH => Arc::new(arrow::array::BooleanArray::from(
+            rows.iter().map(|row| row.is_smooth).collect::<Vec<_>>(),
+        )) as ArrayRef,
+        other => {
+            return Err(Error::Conversion(format!(
+                "unsupported material projection column {other}"
+            )));
+        }
+    })
+}
+
+fn texture_payload_array(spec: &ProjectedFieldSpec, rows: &[TextureRow]) -> Result<ArrayRef> {
+    Ok(match spec.name.as_str() {
+        FIELD_TEXTURE_IMAGE_TYPE => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| Some(row.image_type.clone()))
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_TEXTURE_WRAP_MODE => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.wrap_mode.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_TEXTURE_TEXTURE_TYPE => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.texture_type.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        FIELD_TEXTURE_BORDER_COLOR => Arc::new(LargeStringArray::from(
+            rows.iter()
+                .map(|row| row.border_color.clone())
+                .collect::<Vec<_>>(),
+        )) as ArrayRef,
+        other => {
+            return Err(Error::Conversion(format!(
+                "unsupported texture projection column {other}"
+            )));
+        }
+    })
+}
+
 fn optional_batch<T, F>(rows: Vec<T>, build: F) -> Result<Option<RecordBatch>>
 where
     F: FnOnce(Vec<T>) -> Result<RecordBatch>,
@@ -2337,6 +3178,165 @@ fn read_geometry_surface_semantic_rows(
         .collect()
 }
 
+fn read_material_rows(
+    batch: &RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<Vec<MaterialRow>> {
+    let material_ids = downcast_required::<UInt64Array>(batch, "material_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(MaterialRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                material_id: material_ids.value(row),
+                name: read_required_large_string_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_NAME,
+                    row,
+                )?,
+                ambient_intensity: read_optional_float_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_AMBIENT_INTENSITY,
+                    row,
+                )?,
+                diffuse_color: read_optional_large_string_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_DIFFUSE_COLOR,
+                    row,
+                )?,
+                emissive_color: read_optional_large_string_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_EMISSIVE_COLOR,
+                    row,
+                )?,
+                specular_color: read_optional_large_string_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_SPECULAR_COLOR,
+                    row,
+                )?,
+                shininess: read_optional_float_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_SHININESS,
+                    row,
+                )?,
+                transparency: read_optional_float_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_TRANSPARENCY,
+                    row,
+                )?,
+                is_smooth: read_optional_bool_projection(
+                    batch,
+                    &projection.material_payload,
+                    FIELD_MATERIAL_IS_SMOOTH,
+                    row,
+                )?,
+            })
+        })
+        .collect()
+}
+
+fn read_geometry_surface_material_rows(
+    batch: &RecordBatch,
+) -> Result<Vec<GeometrySurfaceMaterialRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
+    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometrySurfaceMaterialRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                surface_ordinal: ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                material_id: materials.value(row),
+            })
+        })
+        .collect()
+}
+
+fn read_texture_rows(
+    batch: &RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<Vec<TextureRow>> {
+    let texture_ids = downcast_required::<UInt64Array>(batch, "texture_id")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(TextureRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                texture_id: texture_ids.value(row),
+                image_uri: read_large_string_scalar(batch, "image_uri", row)?,
+                image_type: read_required_large_string_projection(
+                    batch,
+                    &projection.texture_payload,
+                    FIELD_TEXTURE_IMAGE_TYPE,
+                    row,
+                )?,
+                wrap_mode: read_optional_large_string_projection(
+                    batch,
+                    &projection.texture_payload,
+                    FIELD_TEXTURE_WRAP_MODE,
+                    row,
+                )?,
+                texture_type: read_optional_large_string_projection(
+                    batch,
+                    &projection.texture_payload,
+                    FIELD_TEXTURE_TEXTURE_TYPE,
+                    row,
+                )?,
+                border_color: read_optional_large_string_projection(
+                    batch,
+                    &projection.texture_payload,
+                    FIELD_TEXTURE_BORDER_COLOR,
+                    row,
+                )?,
+            })
+        })
+        .collect()
+}
+
+fn read_texture_vertex_rows(batch: &RecordBatch) -> Result<Vec<TextureVertexRow>> {
+    let uv_ids = downcast_required::<UInt64Array>(batch, "uv_id")?;
+    let us = downcast_required::<Float64Array>(batch, "u")?;
+    let vs = downcast_required::<Float64Array>(batch, "v")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(TextureVertexRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                uv_id: uv_ids.value(row),
+                u: us.value(row),
+                v: vs.value(row),
+            })
+        })
+        .collect()
+}
+
+fn read_geometry_ring_texture_rows(batch: &RecordBatch) -> Result<Vec<GeometryRingTextureRow>> {
+    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
+    let surface_ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
+    let ring_ordinals = downcast_required::<UInt32Array>(batch, "ring_ordinal")?;
+    let textures = downcast_required::<UInt64Array>(batch, "texture_id")?;
+    let uv_indices = downcast_required::<ListArray>(batch, "uv_indices")?;
+    (0..batch.num_rows())
+        .map(|row| {
+            Ok(GeometryRingTextureRow {
+                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
+                geometry_id: geometries.value(row),
+                surface_ordinal: surface_ordinals.value(row),
+                ring_ordinal: ring_ordinals.value(row),
+                theme: read_string_scalar(batch, "theme", row)?,
+                texture_id: textures.value(row),
+                uv_indices: list_u64_value(uv_indices, row)?,
+            })
+        })
+        .collect()
+}
+
 fn apply_metadata_row(
     model: &mut OwnedCityModel,
     row: &MetadataRow,
@@ -2379,6 +3379,20 @@ fn apply_metadata_row(
         if spec.name == FIELD_METADATA_POINT_OF_CONTACT {
             let contact = contact_from_json(&json, geometry_handles)?;
             model.metadata_mut().set_point_of_contact(Some(contact));
+            continue;
+        }
+        if spec.name == FIELD_METADATA_DEFAULT_MATERIAL_THEME {
+            let theme = json.as_str().ok_or_else(|| {
+                Error::Conversion("default material theme must be a JSON string".to_string())
+            })?;
+            model.set_default_material_theme(Some(ThemeName::new(theme.to_string())));
+            continue;
+        }
+        if spec.name == FIELD_METADATA_DEFAULT_TEXTURE_THEME {
+            let theme = json.as_str().ok_or_else(|| {
+                Error::Conversion("default texture theme must be a JSON string".to_string())
+            })?;
+            model.set_default_texture_theme(Some(ThemeName::new(theme.to_string())));
             continue;
         }
         if let Some(key) = decode_projection_name(&spec.name, FIELD_ROOT_EXTRA_PREFIX) {
@@ -2460,6 +3474,175 @@ fn build_semantic_map(
             "point and linestring semantic mappings".to_string(),
         )),
         GeometryType::GeometryInstance => Err(Error::Unsupported("geometry instances".to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn build_material_maps(
+    geometry_type: &str,
+    boundary: &GeometryBoundaryRow,
+    rows: Option<&Vec<GeometrySurfaceMaterialRow>>,
+    handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
+) -> Result<
+    Option<
+        Vec<(
+            ThemeName<cityjson::prelude::OwnedStringStorage>,
+            MaterialMap<u32>,
+        )>,
+    >,
+> {
+    let Some(rows) = rows else {
+        return Ok(None);
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => {
+            let surface_count = surface_count(boundary)?;
+            let mut grouped =
+                BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
+            for row in rows {
+                if row.surface_ordinal as usize >= surface_count {
+                    return Err(Error::Conversion(format!(
+                        "material assignment surface ordinal {} exceeds surface count {}",
+                        row.surface_ordinal, surface_count
+                    )));
+                }
+                let material = *handles.get(&row.material_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing material {}", row.material_id))
+                })?;
+                let surfaces = grouped
+                    .entry(row.theme.clone())
+                    .or_insert_with(|| vec![None; surface_count]);
+                if surfaces[row.surface_ordinal as usize].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate material assignment for theme {} surface {}",
+                        row.theme, row.surface_ordinal
+                    )));
+                }
+                surfaces[row.surface_ordinal as usize] = Some(material);
+            }
+            Ok(Some(
+                grouped
+                    .into_iter()
+                    .map(|(theme, surfaces)| {
+                        let mut map = MaterialMap::new();
+                        for surface in surfaces {
+                            map.add_surface(surface);
+                        }
+                        (ThemeName::new(theme), map)
+                    })
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiPoint | GeometryType::MultiLineString => Err(Error::Unsupported(
+            "point and linestring material mappings".to_string(),
+        )),
+        GeometryType::GeometryInstance => Err(Error::Unsupported("geometry materials".to_string())),
+        _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
+    }
+}
+
+fn build_texture_maps(
+    geometry_type: &str,
+    boundary: &GeometryBoundaryRow,
+    rows: Option<&Vec<GeometryRingTextureRow>>,
+    handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
+) -> Result<
+    Option<
+        Vec<(
+            ThemeName<cityjson::prelude::OwnedStringStorage>,
+            TextureMap<u32>,
+        )>,
+    >,
+> {
+    let Some(rows) = rows else {
+        return Ok(None);
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    match parse_geometry_type(geometry_type)? {
+        GeometryType::MultiSurface
+        | GeometryType::CompositeSurface
+        | GeometryType::Solid
+        | GeometryType::MultiSolid
+        | GeometryType::CompositeSolid => {
+            let ring_layouts = ring_layouts(boundary)?;
+            let ring_lookup = ring_layouts
+                .iter()
+                .enumerate()
+                .map(|(index, layout)| ((layout.surface_ordinal, layout.ring_ordinal), index))
+                .collect::<HashMap<_, _>>();
+            let mut maps = BTreeMap::<String, TextureMap<u32>>::new();
+
+            for row in rows {
+                let layout_index = *ring_lookup
+                    .get(&(row.surface_ordinal, row.ring_ordinal))
+                    .ok_or_else(|| {
+                        Error::Conversion(format!(
+                            "missing ring layout for surface {} ring {}",
+                            row.surface_ordinal, row.ring_ordinal
+                        ))
+                    })?;
+                let layout = ring_layouts[layout_index];
+                if row.uv_indices.len() != layout.len {
+                    return Err(Error::Conversion(format!(
+                        "texture assignment for theme {} surface {} ring {} has {} uv indices, expected {}",
+                        row.theme,
+                        row.surface_ordinal,
+                        row.ring_ordinal,
+                        row.uv_indices.len(),
+                        layout.len
+                    )));
+                }
+                let texture = *handles.get(&row.texture_id).ok_or_else(|| {
+                    Error::Conversion(format!("missing texture {}", row.texture_id))
+                })?;
+                let map = maps.entry(row.theme.clone()).or_insert_with(|| {
+                    let mut map = TextureMap::new();
+                    for layout in &ring_layouts {
+                        map.add_ring(cityjson::v2_0::VertexIndex::new(layout.start as u32));
+                        map.add_ring_texture(None);
+                        for _ in 0..layout.len {
+                            map.add_vertex(None);
+                        }
+                    }
+                    map
+                });
+                if map.ring_textures()[layout_index].is_some() {
+                    return Err(Error::Conversion(format!(
+                        "duplicate texture assignment for theme {} surface {} ring {}",
+                        row.theme, row.surface_ordinal, row.ring_ordinal
+                    )));
+                }
+                if !map.set_ring_texture(layout_index, Some(texture)) {
+                    return Err(Error::Conversion("missing texture ring slot".to_string()));
+                }
+                let slice = map.vertices_mut()[layout.start..layout.start + layout.len].iter_mut();
+                for (slot, uv_id) in slice.zip(&row.uv_indices) {
+                    let uv_id = u32::try_from(*uv_id).map_err(|_| {
+                        Error::Conversion(format!("uv index {} does not fit into u32", uv_id))
+                    })?;
+                    *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
+                }
+            }
+
+            Ok(Some(
+                maps.into_iter()
+                    .map(|(theme, map)| (ThemeName::new(theme), map))
+                    .collect(),
+            ))
+        }
+        GeometryType::MultiPoint | GeometryType::MultiLineString => {
+            Err(Error::Unsupported("geometry textures".to_string()))
+        }
+        GeometryType::GeometryInstance => Err(Error::Unsupported("geometry textures".to_string())),
         _ => Err(Error::Unsupported("unsupported geometry type".to_string())),
     }
 }
@@ -2620,6 +3803,60 @@ fn decode_projection_name(name: &str, prefix: &str) -> Option<String> {
         .and_then(|value| decode_key(value).ok())
 }
 
+fn has_projection_field(specs: &[ProjectedFieldSpec], name: &str) -> bool {
+    specs.iter().any(|spec| spec.name == name)
+}
+
+fn read_required_large_string_projection(
+    batch: &RecordBatch,
+    specs: &[ProjectedFieldSpec],
+    name: &str,
+    row: usize,
+) -> Result<String> {
+    if !has_projection_field(specs, name) {
+        return Err(Error::Conversion(format!(
+            "missing required projection column {name}"
+        )));
+    }
+    read_large_string_scalar(batch, name, row)
+}
+
+fn read_optional_large_string_projection(
+    batch: &RecordBatch,
+    specs: &[ProjectedFieldSpec],
+    name: &str,
+    row: usize,
+) -> Result<Option<String>> {
+    if !has_projection_field(specs, name) {
+        return Ok(None);
+    }
+    read_large_string_optional(batch, name, row)
+}
+
+fn read_optional_float_projection(
+    batch: &RecordBatch,
+    specs: &[ProjectedFieldSpec],
+    name: &str,
+    row: usize,
+) -> Result<Option<f64>> {
+    if !has_projection_field(specs, name) {
+        return Ok(None);
+    }
+    read_f64_optional(batch, name, row)
+}
+
+fn read_optional_bool_projection(
+    batch: &RecordBatch,
+    specs: &[ProjectedFieldSpec],
+    name: &str,
+    row: usize,
+) -> Result<Option<bool>> {
+    if !has_projection_field(specs, name) {
+        return Ok(None);
+    }
+    read_bool_optional(batch, name, row)
+}
+
 fn parse_geometry_type(value: &str) -> Result<GeometryType> {
     value.parse().map_err(Error::from)
 }
@@ -2650,6 +3887,80 @@ fn parse_lod(value: &str) -> Result<LoD> {
             return Err(Error::Conversion(format!("unsupported lod string {other}")));
         }
     })
+}
+
+fn parse_image_type(value: &str) -> Result<ImageType> {
+    Ok(match value {
+        "PNG" => ImageType::Png,
+        "JPG" => ImageType::Jpg,
+        other => return Err(Error::Conversion(format!("unsupported image type {other}"))),
+    })
+}
+
+fn parse_wrap_mode(value: &str) -> Result<WrapMode> {
+    Ok(match value {
+        "wrap" => WrapMode::Wrap,
+        "mirror" => WrapMode::Mirror,
+        "clamp" => WrapMode::Clamp,
+        "border" => WrapMode::Border,
+        "none" => WrapMode::None,
+        other => return Err(Error::Conversion(format!("unsupported wrap mode {other}"))),
+    })
+}
+
+fn parse_texture_mapping_type(value: &str) -> Result<TextureType> {
+    Ok(match value {
+        "unknown" => TextureType::Unknown,
+        "specific" => TextureType::Specific,
+        "typical" => TextureType::Typical,
+        other => {
+            return Err(Error::Conversion(format!(
+                "unsupported texture type {other}"
+            )));
+        }
+    })
+}
+
+fn parse_rgb_json(value: &str) -> Result<RGB> {
+    let json: JsonValue = serde_json::from_str(value)?;
+    let array = json
+        .as_array()
+        .ok_or_else(|| Error::Conversion("rgb payload must be a JSON array".to_string()))?;
+    if array.len() != 3 {
+        return Err(Error::Conversion(format!(
+            "rgb payload must contain 3 elements, found {}",
+            array.len()
+        )));
+    }
+    let mut values = [0.0_f32; 3];
+    for (index, component) in array.iter().enumerate() {
+        values[index] = component
+            .as_f64()
+            .ok_or_else(|| Error::Conversion("rgb component must be numeric".to_string()))?
+            as f32;
+    }
+    Ok(RGB::from(values))
+}
+
+fn parse_rgba_json(value: &str) -> Result<RGBA> {
+    let json: JsonValue = serde_json::from_str(value)?;
+    let array = json
+        .as_array()
+        .ok_or_else(|| Error::Conversion("rgba payload must be a JSON array".to_string()))?;
+    if array.len() != 4 {
+        return Err(Error::Conversion(format!(
+            "rgba payload must contain 4 elements, found {}",
+            array.len()
+        )));
+    }
+    let mut values = [0.0_f32; 4];
+    for (index, component) in array.iter().enumerate() {
+        values[index] = component
+            .as_f64()
+            .ok_or_else(|| Error::Conversion("rgba component must be numeric".to_string()))?
+            as f32;
+    }
+    Ok(RGBA::from(values))
 }
 
 fn parse_semantic_type(value: &str) -> SemanticType<cityjson::prelude::OwnedStringStorage> {
@@ -2823,6 +4134,16 @@ fn read_string_scalar(batch: &RecordBatch, name: &str, row: usize) -> Result<Str
 fn read_string_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<Option<String>> {
     let array = downcast_required::<StringArray>(batch, name)?;
     Ok((!array.is_null(row)).then(|| array.value(row).to_string()))
+}
+
+fn read_f64_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<Option<f64>> {
+    let array = downcast_required::<Float64Array>(batch, name)?;
+    Ok((!array.is_null(row)).then(|| array.value(row)))
+}
+
+fn read_bool_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<Option<bool>> {
+    let array = downcast_required::<arrow::array::BooleanArray>(batch, name)?;
+    Ok((!array.is_null(row)).then(|| array.value(row)))
 }
 
 fn read_fixed_size_f64_required<const N: usize>(

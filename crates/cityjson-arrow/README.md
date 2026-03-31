@@ -9,45 +9,45 @@ format boundaries built around that model.
 
 ## Status
 
-On 2026-03-30, `cargo check` against `cityjson-rs v0.4.1` fails. The crate
-still contains significant code written against an older `cityjson-rs` API,
-including:
+As of 2026-03-31, the rewrite is implemented for the current canonical package
+surface and the crate is working against the local `cityjson-rs` checkout.
 
-- `AttributePool`-based attribute conversion paths that no longer exist
-- older `CityModel<u32, ResourceId32, SS>` generics
-- `QuantizedCoordinate`-based vertex conversion
-- imports through private or removed modules
+Verified in this repository:
 
-That means the current crate is best understood as a stale prototype plus a set
-of useful schemas and file-format experiments, not as a working transport
-crate. The preferred recovery path is a rewrite, not a compatibility migration.
+- `cargo test` passes
+- `cargo test -- --ignored` passes
+- the ignored acceptance gate round-trips the real `3DBAG` and
+  `3D Basisvoorziening` cases through `serde_cityjson -> cityarrow -> cjval`
+
+The crate should now be understood as a working transport boundary around
+`cityjson::v2_0::OwnedCityModel`, not as a stale prototype.
 
 ## What Exists Today
 
-The current codebase already has the right high-level decomposition:
+The current codebase implements the canonical Parquet package path:
 
-- `CityModelArrowParts` splits a `CityModel` into component batches
-- Arrow IPC directory writing exists
-- framed Arrow IPC stream writing exists
-- Parquet directory writing exists
-- component schemas exist for metadata, transform, vertices, cityobjects,
-  geometries, and semantics
-
-The current implementation shape is still useful. The problem is that several
-critical conversion paths are incomplete or stale.
+- `CityModelArrowParts` splits a `CityModel` into canonical component batches
+- `convert::to_parts` exports `OwnedCityModel` into canonical batches
+- `convert::from_parts` reconstructs `OwnedCityModel` from canonical batches
+- `package::write_package_dir` writes canonical Parquet tables plus `manifest.json`
+- `package::read_package_dir` reads the package back and validates schema shape
+- metadata, transform, extensions, vertices, cityobjects, geometries, semantics,
+  template geometries, geometry instances, materials, textures, and UV
+  coordinates all round-trip for the supported surface
+- the final acceptance path is wired through `serde_cityjson` and `cjval`
 
 ## Current Gap Summary
 
 | Area | Current State | Gap |
 | --- | --- | --- |
-| Build status | `cargo check` fails | Rebase the whole crate to `cityjson-rs v0.4.1` |
-| Attributes and extra | Conversion code assumes removed global attribute pools and Arrow dense unions | Redesign around current inline `AttributeValue` and Parquet-safe projection |
-| Vertices and transform | Code assumes older quantized-coordinate model | Rebase to current `RealWorldCoordinate`-based API and preserve transform explicitly |
-| Geometries | Batch schema exists, but end-to-end conversion is only partially wired | Reconnect geometry export/import to the current `Boundary`, semantic, material, and texture views |
-| Semantics | Schema and partial conversion exist | Rebase to current handles and attribute model |
-| Materials, textures, template geometry, UV vertices | Present in `CityModelArrowParts`, mostly not implemented end-to-end | Define canonical batch schemas and round-trip behavior |
-| Reading | Arrow IPC directory reader exists | Add Parquet reader and align both readers with the same transport model |
-| Tests | Many tests are disabled or reflect removed APIs | Rebuild the suite around current `cityjson-rs` behavior |
+| Canonical Parquet package | Implemented and tested | Keep the schema stable while extending coverage |
+| Attributes and extra | Implemented as Parquet-safe JSON fallback projections | Future work can widen selected fields to richer typed projections |
+| Vertices and transform | Implemented against current `RealWorldCoordinate`-based APIs | None on the canonical path |
+| Geometries | Implemented with normalized boundary flattening and reconstruction | Derived GeoArrow and GeoParquet views remain separate work |
+| Semantics | Implemented for surface-based mappings | Point and linestring semantic mappings remain unsupported |
+| Appearance | Materials, textures, UV coordinates, default themes, surface materials, and ring textures round-trip | Point and linestring material mappings remain unsupported; template-geometry appearance remains unsupported |
+| Reading | Parquet package read is implemented and validated | Arrow IPC package read/write is still a separate future path |
+| Tests | Unit, integration, and ignored acceptance gates pass | Keep expanding fixtures around unsupported edge cases |
 
 ## Design Direction
 
@@ -125,40 +125,42 @@ The intended direction is:
 - `cjlib::arrow` and `cjlib::parquet` should expose explicit format modules that
   read and write `CityModel`, not transport-native fragments
 
-## Rewrite Target
+## Supported Surface
 
-The next implementation should be done as one architectural rewrite, not as a
-phased migration.
+The canonical roundtrip currently supports:
 
-That rewrite should:
+- metadata, transform, extensions, and model extra
+- vertices and template vertices
+- cityobjects plus parent/child relations
+- projected cityobject and semantic attributes
+- boundary-carrying geometries with normalized topology
+- geometry instances and template geometries
+- semantic surface assignments
+- materials, textures, UV coordinates, default appearance themes,
+  surface material assignments, and ring texture assignments
 
-- rebase the entire crate to `cityjson-rs v0.4.1` in one pass
-- replace pool- and union-based attribute assumptions with projected,
-  Parquet-safe columns
-- normalize geometry topology at the transport boundary instead of preserving
-  stale wire layouts for compatibility
-- define the full component set only once, in the target shape
-- rebuild the tests around the new architecture instead of reviving obsolete
-  ones
-- mirror the manifest-driven fixture setup used by `serde_cityjson` for
-  roundtrip acceptance instead of relying only on unit fixtures
-- treat final JSON emission through `serde_cityjson` plus `cjval` validation of
-  the real-world `3DBAG` and `3D Basisvoorziening` datasets as the end gate
+The canonical roundtrip still rejects these inputs explicitly:
+
+- point and linestring semantic mappings
+- point and linestring material mappings
+- template geometry semantics
+- template geometry materials
+- template geometry textures
 
 ## Repository Map
 
 - `src/lib.rs`
   - top-level `CityModelArrowParts` and conversion entry points
-- `src/writer.rs`
-  - Arrow IPC, stream, JSON debug, and Parquet writers
-- `src/reader.rs`
-  - Arrow IPC directory reader
-- `src/conversion/*.rs`
-  - component-level schema and conversion code
+- `src/convert/mod.rs`
+  - model-to-parts and parts-to-model conversion
+- `src/package/`
+  - canonical package manifest, Parquet write, and Parquet read
+- `src/schema.rs`
+  - canonical schema definitions and transport structs
 - `docs/design.md`
-  - current design document and redesign target
+  - current design and scope notes
 - `docs/package-schema.md`
-  - first concrete draft of the canonical package schema
+  - canonical package schema draft
 
 ## Design Doc
 

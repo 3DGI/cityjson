@@ -1,13 +1,15 @@
-use cityarrow::{from_parts, to_parts};
+use cityarrow::{from_parts, read_package_dir, to_parts, write_package_dir};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
     AffineTransform3D, AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType,
-    Extension, Geometry, GeometryType, LoD, OwnedCityModel, OwnedSemantic, SemanticMap,
-    SemanticType, StoredGeometryInstance, StoredGeometryParts,
+    Extension, Geometry, GeometryDraft, GeometryType, ImageType, LoD, OwnedCityModel,
+    OwnedMaterial, OwnedSemantic, OwnedTexture, RGB, RGBA, RingDraft, SemanticMap, SemanticType,
+    StoredGeometryInstance, StoredGeometryParts, SurfaceDraft, TextureType, ThemeName, WrapMode,
 };
 use serde_cityjson::to_string_validated;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+use tempfile::tempdir;
 
 fn sample_model() -> OwnedCityModel {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
@@ -195,6 +197,80 @@ fn sample_model_with_template_instance() -> OwnedCityModel {
     model
 }
 
+fn sample_model_with_appearance() -> OwnedCityModel {
+    let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+    model
+        .metadata_mut()
+        .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
+            "appearance-citymodel".to_string(),
+        ));
+
+    let roof = model
+        .add_semantic(OwnedSemantic::new(SemanticType::RoofSurface))
+        .unwrap();
+    let wall = model
+        .add_semantic(OwnedSemantic::new(SemanticType::WallSurface))
+        .unwrap();
+
+    let mut material = OwnedMaterial::new("roof-tiles".to_string());
+    material.set_ambient_intensity(Some(0.2));
+    material.set_diffuse_color(Some(RGB::new(0.7, 0.2, 0.1)));
+    material.set_specular_color(Some(RGB::new(0.9, 0.9, 0.9)));
+    material.set_shininess(Some(0.6));
+    material.set_transparency(Some(0.1));
+    material.set_is_smooth(Some(true));
+    let material = model.add_material(material).unwrap();
+
+    let mut texture = OwnedTexture::new("textures/roof.png".to_string(), ImageType::Png);
+    texture.set_wrap_mode(Some(WrapMode::Border));
+    texture.set_texture_type(Some(TextureType::Specific));
+    texture.set_border_color(Some(RGBA::new(1.0, 1.0, 1.0, 0.5)));
+    let texture = model.add_texture(texture).unwrap();
+
+    let theme = ThemeName::new("visual".to_string());
+    model.set_default_material_theme(Some(theme.clone()));
+    model.set_default_texture_theme(Some(theme.clone()));
+
+    let surface_0 = SurfaceDraft::new(
+        RingDraft::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 0.5, 1.0]]).with_texture(
+            theme.clone(),
+            texture,
+            [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]],
+        ),
+        [],
+    )
+    .with_semantic(roof)
+    .with_material(theme.clone(), material);
+
+    let surface_1 = SurfaceDraft::new(
+        RingDraft::new([[1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.5, 0.5, 1.0]]).with_texture(
+            theme.clone(),
+            texture,
+            [[0.0, 0.2], [1.0, 0.2], [0.5, 1.0]],
+        ),
+        [],
+    )
+    .with_semantic(wall)
+    .with_material(theme, material);
+
+    let geometry = GeometryDraft::multi_surface(Some(LoD::LoD2_2), [surface_0, surface_1])
+        .insert_into(&mut model)
+        .unwrap();
+
+    let mut building = CityObject::new(
+        CityObjectIdentifier::new("appearance-building".to_string()),
+        CityObjectType::Building,
+    );
+    building.add_geometry(geometry);
+    building.attributes_mut().insert(
+        "name".to_string(),
+        AttributeValue::String("Appearance Building".to_string()),
+    );
+    model.cityobjects_mut().add(building).unwrap();
+
+    model
+}
+
 #[test]
 fn core_model_roundtrips_through_parts() {
     let model = sample_model();
@@ -221,5 +297,26 @@ fn geometry_templates_and_instances_roundtrip_through_parts() {
     assert!(parts.template_geometry_boundaries.is_some());
 
     let reconstructed = from_parts(&parts).expect("from_parts should succeed");
+    assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
+}
+
+#[test]
+fn appearances_roundtrip_through_parts_and_package() {
+    let model = sample_model_with_appearance();
+
+    let parts = to_parts(&model).expect("to_parts should succeed");
+    assert!(parts.materials.is_some());
+    assert!(parts.geometry_surface_materials.is_some());
+    assert!(parts.textures.is_some());
+    assert!(parts.texture_vertices.is_some());
+    assert!(parts.geometry_ring_textures.is_some());
+
+    let reconstructed = from_parts(&parts).expect("from_parts should succeed");
+    assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
+
+    let dir = tempdir().expect("temp dir");
+    write_package_dir(dir.path(), &parts).expect("package write should succeed");
+    let package_parts = read_package_dir(dir.path()).expect("package read should succeed");
+    let reconstructed = from_parts(&package_parts).expect("from_parts should succeed");
     assert_eq!(normalized_json(&model), normalized_json(&reconstructed));
 }
