@@ -60,6 +60,8 @@ more expensive than the regular suite.
 ## Documentation
 
 - [docs/design.md](docs/design.md): transport design and invariants
+- [docs/adr/001-canonical-transport-boundary.md](docs/adr/001-canonical-transport-boundary.md):
+  accepted ADR for the current transport architecture
 - [docs/package-schema.md](docs/package-schema.md): canonical package layout and
   manifest contract
 

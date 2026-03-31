@@ -4,6 +4,8 @@ This document defines the transport design and invariants for `cityarrow`.
 
 The concrete on-disk contract lives in
 [docs/package-schema.md](package-schema.md).
+The accepted architectural position for the current implementation is recorded
+in [docs/adr/001-canonical-transport-boundary.md](adr/001-canonical-transport-boundary.md).
 
 ## Purpose
 
