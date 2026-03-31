@@ -84,16 +84,15 @@ The same rule applies to non-JSON backends:
 # fn main() -> cjlib::Result<()> {
 let model = cjlib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 
-#[cfg(feature = "arrow")]
 cjlib::arrow::to_file("tiles-out.cjarrow", &model)?;
 
-#[cfg(feature = "parquet")]
 cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
 # Ok(())
 # }
 ```
 
-Format choice stays explicit at the call site.
+Format choice stays explicit at the call site. Both paths create package
+directories rooted at the given path.
 
 ## Drop Down To `cjlib::cityjson` For Model Work
 

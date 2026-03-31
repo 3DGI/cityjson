@@ -104,3 +104,15 @@ impl From<serde_cityjson::Error> for Error {
         Self::Import(value.to_string())
     }
 }
+
+impl From<cityarrow::error::Error> for Error {
+    fn from(value: cityarrow::error::Error) -> Self {
+        match value {
+            cityarrow::error::Error::Io(error) => Self::Io(error),
+            cityarrow::error::Error::Json(error) => Self::Json(error),
+            cityarrow::error::Error::CityJSON(error) => Self::CityJSON(error),
+            cityarrow::error::Error::Unsupported(message) => Self::UnsupportedFeature(message),
+            other => Self::Import(other.to_string()),
+        }
+    }
+}

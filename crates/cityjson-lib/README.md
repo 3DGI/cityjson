@@ -27,8 +27,8 @@ The future public API is centered on:
 - `cjlib::ErrorKind`
 - `cjlib::json`
 - `cjlib::ops`, currently one illustrative `todo!()` function
-- `cjlib::arrow`, currently one illustrative `todo!()` function
-- `cjlib::parquet`, currently one illustrative `todo!()` function
+- `cjlib::arrow`, backed by the sibling `cityarrow` transport crate
+- `cjlib::parquet`, backed by the sibling `cityarrow` transport crate
 - `cjlib::cityjson` for advanced model access
 
 ## Default Path
@@ -49,8 +49,9 @@ Current practical status:
 - `cjlib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cjlib::json`
+- explicit Arrow IPC and Parquet package transport exists under `cjlib::arrow` and `cjlib::parquet`
 - `tyler` 0.4.0 now dogfoods `cjlib` for CityJSON reading
-- higher-level workflows such as `ops::merge` and non-JSON backends are still intentionally unimplemented
+- higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
 ## Explicit Format Modules
 
@@ -73,8 +74,8 @@ let feature_text = json::to_feature_string(&model)?;
 Alternative encodings and containers should live in explicit modules:
 
 - `cjlib::json`
-- `cjlib::arrow`
-- `cjlib::parquet`
+- `cjlib::arrow`, which owns the Arrow transport decomposition and Arrow IPC packages
+- `cjlib::parquet`, which owns Parquet package I/O over that same transport model
 
 That keeps the facade predictable:
 
@@ -156,5 +157,6 @@ The MkDocs site is intended to be the main documentation home for the Rust facad
 ## Status
 
 This repository is currently being rewritten in a docs-first, tests-first style.
-Unimplemented areas are intentionally marked with `todo!()` and covered by
-tests that assert the explicit panic so the remaining work stays visible.
+Unimplemented areas are intentionally marked with `todo!()` where that is still
+the deliberate contract, and implemented boundaries are covered by direct
+roundtrip tests so the remaining gaps stay visible.

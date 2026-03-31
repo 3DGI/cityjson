@@ -18,16 +18,12 @@ The public layout is:
 
 ```rust
 pub mod json;
-
-#[cfg(feature = "arrow")]
 pub mod arrow;
-
-#[cfg(feature = "parquet")]
 pub mod parquet;
 ```
 
-Those modules delegate to backend crates such as `serde_cityjson`, `cityarrow`,
-and `cityparquet`.
+Those modules delegate to backend crates such as `serde_cityjson` and
+`cityarrow`.
 
 ## JSON Is Richer
 
@@ -43,6 +39,11 @@ and `cityparquet`.
 Sibling transport modules can stay smaller as long as they follow the same
 semantic rule.
 
+Within that family, `cjlib::arrow` is the canonical home for the
+`CityModelArrowParts` transport decomposition and related schema types.
+`cjlib::parquet` should stay narrower: explicit Parquet package read/write
+entry points that still trade in `CityModel` at the facade boundary.
+
 ## One Semantic Unit Across Formats
 
 Arrow and Parquet must not invent separate semantic units at the `cjlib`
@@ -56,7 +57,6 @@ chunks internally, the public facade still trades in:
 File-oriented helpers are fine as conveniences:
 
 ```rust
-#[cfg(feature = "arrow")]
 pub mod arrow {
     pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<crate::CityModel>;
     pub fn to_file(
@@ -89,7 +89,7 @@ one place. The explicit-module rule is clearer:
 `cjfake` should remain above `cjlib`.
 
 ```text
-cjfake -> cjlib -> { serde_cityjson, cityarrow, cityparquet, cityjson-rs }
+cjfake -> cjlib -> { serde_cityjson, cityarrow, cityjson-rs }
 ```
 
 That lets `cjfake` reuse every format that `cjlib` exposes without making fake
