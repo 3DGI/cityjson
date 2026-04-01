@@ -29,7 +29,6 @@ nav:
   - Design:
       - Transport design: design.md
       - ADR 1: adr/001-canonical-transport-boundary.md
-      - ADR 2: adr/002-streaming-and-bounded-memory-package-io.md
 
 markdown_extensions:
   - admonition

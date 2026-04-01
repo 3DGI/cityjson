@@ -8,8 +8,6 @@ The detailed on-disk contracts live in
 The shared summary lives in [docs/package-schema.md](package-schema.md).
 The accepted architectural position for the current implementation is recorded
 in [docs/adr/001-canonical-transport-boundary.md](adr/001-canonical-transport-boundary.md).
-The proposed scalability direction for large-model package handling is recorded
-in [docs/adr/002-streaming-and-bounded-memory-package-io.md](adr/002-streaming-and-bounded-memory-package-io.md).
 
 ## Purpose
 
@@ -111,6 +109,14 @@ The implemented package path is symmetric:
 
 All supported readers reconstruct the same `CityModelArrowParts` shape and then
 the same semantic `OwnedCityModel`.
+
+## Current Scalability Limits
+
+The implemented read and write paths are eager and fully materialized.
+
+- `to_parts` collects full canonical tables in memory before serialization
+- package readers load full tables into memory before reconstruction
+- bounded-memory package handling is not implemented in the current surface
 
 ## Non-goals
 

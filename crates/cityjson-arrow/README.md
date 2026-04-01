@@ -94,8 +94,7 @@ The repository keeps four test layers around the canonical package path:
 - [docs/design.md](docs/design.md): transport design and invariants
 - [docs/adr/001-canonical-transport-boundary.md](docs/adr/001-canonical-transport-boundary.md):
   accepted ADR for the current transport architecture
-- [docs/adr/002-streaming-and-bounded-memory-package-io.md](docs/adr/002-streaming-and-bounded-memory-package-io.md):
-  proposed ADR for additive streaming package I/O and bounded-memory operation
+- [STATUS.md](STATUS.md): current implementation status and readiness review
 
 ## Repository Map
 
