@@ -3,12 +3,20 @@ use super::{
     expected_schema_set, package_manifest_path, package_table_path_for_encoding, validate_schema,
 };
 use arrow::array::{Array, UInt64Array};
+use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use cityarrow::error::{Error, Result};
+use cityarrow::schema::CanonicalSchemaSet;
 use parquet::arrow::ArrowWriter;
 use std::fs::{self, File};
 use std::path::Path;
 
+/// Writes a package directory whose tables are stored as Parquet files.
+///
+/// # Errors
+///
+/// Returns an error when schemas are invalid, tables are inconsistent, or the
+/// package files cannot be written.
 pub fn write_package(
     dir: impl AsRef<Path>,
     parts: &CityModelArrowParts,
@@ -16,6 +24,12 @@ pub fn write_package(
     write_package_dir(dir, parts)
 }
 
+/// Writes a package directory whose tables are stored as Parquet files.
+///
+/// # Errors
+///
+/// Returns an error when schemas are invalid, tables are inconsistent, or the
+/// package files cannot be written.
 pub fn write_package_dir(
     dir: impl AsRef<Path>,
     parts: &CityModelArrowParts,
@@ -38,7 +52,25 @@ fn write_package_dir_with_encoding(
     );
     manifest.package_schema = parts.header.package_version;
     manifest.table_encoding = encoding;
+    write_core_tables(dir, parts, &schemas, encoding, &mut manifest)?;
+    write_geometry_tables(dir, parts, &schemas, encoding, &mut manifest)?;
+    write_semantic_tables(dir, parts, &schemas, encoding, &mut manifest)?;
+    write_appearance_tables(dir, parts, &schemas, encoding, &mut manifest)?;
 
+    let manifest_path = package_manifest_path(dir);
+    let file = File::create(&manifest_path)?;
+    serde_json::to_writer_pretty(file, &manifest)?;
+
+    Ok(manifest)
+}
+
+fn write_core_tables(
+    dir: &Path,
+    parts: &CityModelArrowParts,
+    schemas: &CanonicalSchemaSet,
+    encoding: PackageTableEncoding,
+    manifest: &mut PackageManifest,
+) -> Result<()> {
     validate_schema(
         &schemas.metadata,
         parts.metadata.schema(),
@@ -105,6 +137,16 @@ fn write_package_dir_with_encoding(
         );
     }
 
+    Ok(())
+}
+
+fn write_geometry_tables(
+    dir: &Path,
+    parts: &CityModelArrowParts,
+    schemas: &CanonicalSchemaSet,
+    encoding: PackageTableEncoding,
+    manifest: &mut PackageManifest,
+) -> Result<()> {
     validate_schema(
         &schemas.geometries,
         parts.geometries.schema(),
@@ -174,6 +216,18 @@ fn write_package_dir_with_encoding(
         );
     }
 
+    write_template_geometry_tables(dir, parts, schemas, encoding, manifest)?;
+
+    Ok(())
+}
+
+fn write_template_geometry_tables(
+    dir: &Path,
+    parts: &CityModelArrowParts,
+    schemas: &CanonicalSchemaSet,
+    encoding: PackageTableEncoding,
+    manifest: &mut PackageManifest,
+) -> Result<()> {
     match (
         &parts.template_geometries,
         &parts.template_geometry_boundaries,
@@ -227,269 +281,164 @@ fn write_package_dir_with_encoding(
         }
     }
 
-    if let Some(semantics) = &parts.semantics {
-        validate_schema(
-            &schemas.semantics,
-            semantics.schema(),
-            CanonicalTable::Semantics,
-        )?;
-        write_batch(dir, CanonicalTable::Semantics, semantics, encoding)?;
-        manifest.tables.semantics = Some(CanonicalTable::Semantics.file_name_for(encoding).into());
-    }
+    Ok(())
+}
 
-    if let Some(semantic_children) = &parts.semantic_children {
-        validate_schema(
-            &schemas.semantic_children,
-            semantic_children.schema(),
-            CanonicalTable::SemanticChildren,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::SemanticChildren,
-            semantic_children,
-            encoding,
-        )?;
-        manifest.tables.semantic_children = Some(
-            CanonicalTable::SemanticChildren
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
+fn write_semantic_tables(
+    dir: &Path,
+    parts: &CityModelArrowParts,
+    schemas: &CanonicalSchemaSet,
+    encoding: PackageTableEncoding,
+    manifest: &mut PackageManifest,
+) -> Result<()> {
+    maybe_write_table(
+        dir,
+        parts.semantics.as_ref(),
+        &schemas.semantics,
+        CanonicalTable::Semantics,
+        encoding,
+        &mut manifest.tables.semantics,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.semantic_children.as_ref(),
+        &schemas.semantic_children,
+        CanonicalTable::SemanticChildren,
+        encoding,
+        &mut manifest.tables.semantic_children,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_surface_semantics.as_ref(),
+        &schemas.geometry_surface_semantics,
+        CanonicalTable::GeometrySurfaceSemantics,
+        encoding,
+        &mut manifest.tables.geometry_surface_semantics,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_point_semantics.as_ref(),
+        &schemas.geometry_point_semantics,
+        CanonicalTable::GeometryPointSemantics,
+        encoding,
+        &mut manifest.tables.geometry_point_semantics,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_linestring_semantics.as_ref(),
+        &schemas.geometry_linestring_semantics,
+        CanonicalTable::GeometryLinestringSemantics,
+        encoding,
+        &mut manifest.tables.geometry_linestring_semantics,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.template_geometry_semantics.as_ref(),
+        &schemas.template_geometry_semantics,
+        CanonicalTable::TemplateGeometrySemantics,
+        encoding,
+        &mut manifest.tables.template_geometry_semantics,
+    )?;
+    Ok(())
+}
 
-    if let Some(geometry_surface_semantics) = &parts.geometry_surface_semantics {
-        validate_schema(
-            &schemas.geometry_surface_semantics,
-            geometry_surface_semantics.schema(),
-            CanonicalTable::GeometrySurfaceSemantics,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometrySurfaceSemantics,
-            geometry_surface_semantics,
-            encoding,
-        )?;
-        manifest.tables.geometry_surface_semantics = Some(
-            CanonicalTable::GeometrySurfaceSemantics
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
+fn write_appearance_tables(
+    dir: &Path,
+    parts: &CityModelArrowParts,
+    schemas: &CanonicalSchemaSet,
+    encoding: PackageTableEncoding,
+    manifest: &mut PackageManifest,
+) -> Result<()> {
+    maybe_write_table(
+        dir,
+        parts.materials.as_ref(),
+        &schemas.materials,
+        CanonicalTable::Materials,
+        encoding,
+        &mut manifest.tables.materials,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_surface_materials.as_ref(),
+        &schemas.geometry_surface_materials,
+        CanonicalTable::GeometrySurfaceMaterials,
+        encoding,
+        &mut manifest.tables.geometry_surface_materials,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_point_materials.as_ref(),
+        &schemas.geometry_point_materials,
+        CanonicalTable::GeometryPointMaterials,
+        encoding,
+        &mut manifest.tables.geometry_point_materials,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_linestring_materials.as_ref(),
+        &schemas.geometry_linestring_materials,
+        CanonicalTable::GeometryLinestringMaterials,
+        encoding,
+        &mut manifest.tables.geometry_linestring_materials,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.template_geometry_materials.as_ref(),
+        &schemas.template_geometry_materials,
+        CanonicalTable::TemplateGeometryMaterials,
+        encoding,
+        &mut manifest.tables.template_geometry_materials,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.textures.as_ref(),
+        &schemas.textures,
+        CanonicalTable::Textures,
+        encoding,
+        &mut manifest.tables.textures,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.texture_vertices.as_ref(),
+        &schemas.texture_vertices,
+        CanonicalTable::TextureVertices,
+        encoding,
+        &mut manifest.tables.texture_vertices,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.geometry_ring_textures.as_ref(),
+        &schemas.geometry_ring_textures,
+        CanonicalTable::GeometryRingTextures,
+        encoding,
+        &mut manifest.tables.geometry_ring_textures,
+    )?;
+    maybe_write_table(
+        dir,
+        parts.template_geometry_ring_textures.as_ref(),
+        &schemas.template_geometry_ring_textures,
+        CanonicalTable::TemplateGeometryRingTextures,
+        encoding,
+        &mut manifest.tables.template_geometry_ring_textures,
+    )?;
+    Ok(())
+}
 
-    if let Some(geometry_point_semantics) = &parts.geometry_point_semantics {
-        validate_schema(
-            &schemas.geometry_point_semantics,
-            geometry_point_semantics.schema(),
-            CanonicalTable::GeometryPointSemantics,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometryPointSemantics,
-            geometry_point_semantics,
-            encoding,
-        )?;
-        manifest.tables.geometry_point_semantics = Some(
-            CanonicalTable::GeometryPointSemantics
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(geometry_linestring_semantics) = &parts.geometry_linestring_semantics {
-        validate_schema(
-            &schemas.geometry_linestring_semantics,
-            geometry_linestring_semantics.schema(),
-            CanonicalTable::GeometryLinestringSemantics,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometryLinestringSemantics,
-            geometry_linestring_semantics,
-            encoding,
-        )?;
-        manifest.tables.geometry_linestring_semantics = Some(
-            CanonicalTable::GeometryLinestringSemantics
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(template_geometry_semantics) = &parts.template_geometry_semantics {
-        validate_schema(
-            &schemas.template_geometry_semantics,
-            template_geometry_semantics.schema(),
-            CanonicalTable::TemplateGeometrySemantics,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::TemplateGeometrySemantics,
-            template_geometry_semantics,
-            encoding,
-        )?;
-        manifest.tables.template_geometry_semantics = Some(
-            CanonicalTable::TemplateGeometrySemantics
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(materials) = &parts.materials {
-        validate_schema(
-            &schemas.materials,
-            materials.schema(),
-            CanonicalTable::Materials,
-        )?;
-        write_batch(dir, CanonicalTable::Materials, materials, encoding)?;
-        manifest.tables.materials = Some(CanonicalTable::Materials.file_name_for(encoding).into());
-    }
-
-    if let Some(geometry_surface_materials) = &parts.geometry_surface_materials {
-        validate_schema(
-            &schemas.geometry_surface_materials,
-            geometry_surface_materials.schema(),
-            CanonicalTable::GeometrySurfaceMaterials,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometrySurfaceMaterials,
-            geometry_surface_materials,
-            encoding,
-        )?;
-        manifest.tables.geometry_surface_materials = Some(
-            CanonicalTable::GeometrySurfaceMaterials
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(geometry_point_materials) = &parts.geometry_point_materials {
-        validate_schema(
-            &schemas.geometry_point_materials,
-            geometry_point_materials.schema(),
-            CanonicalTable::GeometryPointMaterials,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometryPointMaterials,
-            geometry_point_materials,
-            encoding,
-        )?;
-        manifest.tables.geometry_point_materials = Some(
-            CanonicalTable::GeometryPointMaterials
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(geometry_linestring_materials) = &parts.geometry_linestring_materials {
-        validate_schema(
-            &schemas.geometry_linestring_materials,
-            geometry_linestring_materials.schema(),
-            CanonicalTable::GeometryLinestringMaterials,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometryLinestringMaterials,
-            geometry_linestring_materials,
-            encoding,
-        )?;
-        manifest.tables.geometry_linestring_materials = Some(
-            CanonicalTable::GeometryLinestringMaterials
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(template_geometry_materials) = &parts.template_geometry_materials {
-        validate_schema(
-            &schemas.template_geometry_materials,
-            template_geometry_materials.schema(),
-            CanonicalTable::TemplateGeometryMaterials,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::TemplateGeometryMaterials,
-            template_geometry_materials,
-            encoding,
-        )?;
-        manifest.tables.template_geometry_materials = Some(
-            CanonicalTable::TemplateGeometryMaterials
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(textures) = &parts.textures {
-        validate_schema(
-            &schemas.textures,
-            textures.schema(),
-            CanonicalTable::Textures,
-        )?;
-        write_batch(dir, CanonicalTable::Textures, textures, encoding)?;
-        manifest.tables.textures = Some(CanonicalTable::Textures.file_name_for(encoding).into());
-    }
-
-    if let Some(texture_vertices) = &parts.texture_vertices {
-        validate_schema(
-            &schemas.texture_vertices,
-            texture_vertices.schema(),
-            CanonicalTable::TextureVertices,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::TextureVertices,
-            texture_vertices,
-            encoding,
-        )?;
-        manifest.tables.texture_vertices = Some(
-            CanonicalTable::TextureVertices
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(geometry_ring_textures) = &parts.geometry_ring_textures {
-        validate_schema(
-            &schemas.geometry_ring_textures,
-            geometry_ring_textures.schema(),
-            CanonicalTable::GeometryRingTextures,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::GeometryRingTextures,
-            geometry_ring_textures,
-            encoding,
-        )?;
-        manifest.tables.geometry_ring_textures = Some(
-            CanonicalTable::GeometryRingTextures
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    if let Some(template_geometry_ring_textures) = &parts.template_geometry_ring_textures {
-        validate_schema(
-            &schemas.template_geometry_ring_textures,
-            template_geometry_ring_textures.schema(),
-            CanonicalTable::TemplateGeometryRingTextures,
-        )?;
-        write_batch(
-            dir,
-            CanonicalTable::TemplateGeometryRingTextures,
-            template_geometry_ring_textures,
-            encoding,
-        )?;
-        manifest.tables.template_geometry_ring_textures = Some(
-            CanonicalTable::TemplateGeometryRingTextures
-                .file_name_for(encoding)
-                .into(),
-        );
-    }
-
-    let manifest_path = package_manifest_path(dir);
-    let file = File::create(&manifest_path)?;
-    serde_json::to_writer_pretty(file, &manifest)?;
-
-    Ok(manifest)
+fn maybe_write_table(
+    dir: &Path,
+    batch: Option<&RecordBatch>,
+    expected_schema: &SchemaRef,
+    table: CanonicalTable,
+    encoding: PackageTableEncoding,
+    destination: &mut Option<std::path::PathBuf>,
+) -> Result<()> {
+    let Some(batch) = batch else {
+        return Ok(());
+    };
+    validate_schema(expected_schema, batch.schema(), table)?;
+    write_batch(dir, table, batch, encoding)?;
+    *destination = Some(table.file_name_for(encoding).into());
+    Ok(())
 }
 
 fn write_batch(

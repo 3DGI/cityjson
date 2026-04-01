@@ -14,41 +14,7 @@ use tempfile::tempdir;
 
 fn sample_model() -> OwnedCityModel {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
-
-    model
-        .metadata_mut()
-        .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
-            "sample-citymodel".to_string(),
-        ));
-    model
-        .metadata_mut()
-        .set_reference_date(cityjson::v2_0::Date::new("2026-03-30".to_string()));
-    model
-        .metadata_mut()
-        .set_reference_system(cityjson::v2_0::CRS::new(
-            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
-        ));
-    model.metadata_mut().set_title("Sample".to_string());
-    model
-        .metadata_mut()
-        .set_geographical_extent(cityjson::v2_0::BBox::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
-    model.metadata_mut().extra_mut().insert(
-        "source".to_string(),
-        AttributeValue::String("unit-test".to_string()),
-    );
-    model.extra_mut().insert(
-        "+metadata-extended".to_string(),
-        AttributeValue::Map(HashMap::from([(
-            "textures".to_string(),
-            AttributeValue::String("absent".to_string()),
-        )])),
-    );
-
-    model.extensions_mut().add(Extension::new(
-        "MetadataExtended".to_string(),
-        "https://example.com/metadata-extended.ext.json".to_string(),
-        "0.5".to_string(),
-    ));
+    configure_sample_metadata(&mut model);
 
     let roof = model
         .add_semantic(OwnedSemantic::new(SemanticType::RoofSurface))
@@ -122,6 +88,52 @@ fn sample_model() -> OwnedCityModel {
     part.attributes_mut()
         .insert("storeys".to_string(), AttributeValue::Unsigned(2));
 
+    attach_sample_building_hierarchy(&mut model, building, part);
+
+    model
+}
+
+fn configure_sample_metadata(model: &mut OwnedCityModel) {
+    model
+        .metadata_mut()
+        .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
+            "sample-citymodel".to_string(),
+        ));
+    model
+        .metadata_mut()
+        .set_reference_date(cityjson::v2_0::Date::new("2026-03-30".to_string()));
+    model
+        .metadata_mut()
+        .set_reference_system(cityjson::v2_0::CRS::new(
+            "https://www.opengis.net/def/crs/EPSG/0/7415".to_string(),
+        ));
+    model.metadata_mut().set_title("Sample".to_string());
+    model
+        .metadata_mut()
+        .set_geographical_extent(cityjson::v2_0::BBox::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
+    model.metadata_mut().extra_mut().insert(
+        "source".to_string(),
+        AttributeValue::String("unit-test".to_string()),
+    );
+    model.extra_mut().insert(
+        "+metadata-extended".to_string(),
+        AttributeValue::Map(HashMap::from([(
+            "textures".to_string(),
+            AttributeValue::String("absent".to_string()),
+        )])),
+    );
+    model.extensions_mut().add(Extension::new(
+        "MetadataExtended".to_string(),
+        "https://example.com/metadata-extended.ext.json".to_string(),
+        "0.5".to_string(),
+    ));
+}
+
+fn attach_sample_building_hierarchy(
+    model: &mut OwnedCityModel,
+    building: CityObject<cityjson::prelude::OwnedStringStorage>,
+    part: CityObject<cityjson::prelude::OwnedStringStorage>,
+) {
     let building_handle = model.cityobjects_mut().add(building).unwrap();
     let part_handle = model.cityobjects_mut().add(part).unwrap();
     model
@@ -134,8 +146,6 @@ fn sample_model() -> OwnedCityModel {
         .get_mut(part_handle)
         .unwrap()
         .add_parent(building_handle);
-
-    model
 }
 
 fn normalized_json(model: &OwnedCityModel) -> JsonValue {
@@ -274,6 +284,25 @@ fn sample_model_with_appearance() -> OwnedCityModel {
 
 fn sample_model_with_remaining_mappings() -> OwnedCityModel {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+    let context = configure_remaining_mappings_model(&mut model);
+    add_remaining_mapping_vertices(&mut model);
+    add_remaining_mapping_objects(&mut model, &context);
+    add_remaining_mapping_template_vertices(&mut model);
+    add_remaining_mapping_templates(&mut model, &context);
+
+    model
+}
+
+struct RemainingMappingsContext {
+    roof: cityjson::prelude::SemanticHandle,
+    wall: cityjson::prelude::SemanticHandle,
+    red_material: cityjson::prelude::MaterialHandle,
+    blue_material: cityjson::prelude::MaterialHandle,
+    texture: cityjson::prelude::TextureHandle,
+    theme: ThemeName<cityjson::prelude::OwnedStringStorage>,
+}
+
+fn configure_remaining_mappings_model(model: &mut OwnedCityModel) -> RemainingMappingsContext {
     model
         .metadata_mut()
         .set_identifier(cityjson::v2_0::CityModelIdentifier::new(
@@ -286,7 +315,6 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
     let wall = model
         .add_semantic(OwnedSemantic::new(SemanticType::WallSurface))
         .unwrap();
-
     let red_material = model
         .add_material(OwnedMaterial::new("red".to_string()))
         .unwrap();
@@ -299,11 +327,21 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
             ImageType::Png,
         ))
         .unwrap();
-
     let theme = ThemeName::new("visual".to_string());
     model.set_default_material_theme(Some(theme.clone()));
     model.set_default_texture_theme(Some(theme.clone()));
 
+    RemainingMappingsContext {
+        roof,
+        wall,
+        red_material,
+        blue_material,
+        texture,
+        theme,
+    }
+}
+
+fn add_remaining_mapping_vertices(model: &mut OwnedCityModel) {
     for vertex in [
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -320,22 +358,24 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
             ))
             .unwrap();
     }
+}
 
+fn add_remaining_mapping_objects(model: &mut OwnedCityModel, context: &RemainingMappingsContext) {
     let point_boundary: Boundary<u32> = vec![0_u32, 1_u32, 2_u32].try_into().unwrap();
     let mut point_semantics = SemanticMap::new();
-    point_semantics.add_point(Some(roof));
+    point_semantics.add_point(Some(context.roof));
     point_semantics.add_point(None);
-    point_semantics.add_point(Some(wall));
+    point_semantics.add_point(Some(context.wall));
     let mut point_materials = MaterialMap::new();
-    point_materials.add_point(Some(red_material));
+    point_materials.add_point(Some(context.red_material));
     point_materials.add_point(None);
-    point_materials.add_point(Some(blue_material));
+    point_materials.add_point(Some(context.blue_material));
     let point_geometry = Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiPoint,
         lod: Some(LoD::LoD1),
         boundaries: Some(point_boundary),
         semantics: Some(point_semantics),
-        materials: Some(vec![(theme.clone(), point_materials)]),
+        materials: Some(vec![(context.theme.clone(), point_materials)]),
         textures: None,
         instance: None,
     });
@@ -346,16 +386,16 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
         .unwrap();
     let mut line_semantics = SemanticMap::new();
     line_semantics.add_linestring(None);
-    line_semantics.add_linestring(Some(roof));
+    line_semantics.add_linestring(Some(context.roof));
     let mut line_materials = MaterialMap::new();
-    line_materials.add_linestring(Some(red_material));
-    line_materials.add_linestring(Some(blue_material));
+    line_materials.add_linestring(Some(context.red_material));
+    line_materials.add_linestring(Some(context.blue_material));
     let line_geometry = Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiLineString,
         lod: Some(LoD::LoD1),
         boundaries: Some(line_boundary),
         semantics: Some(line_semantics),
-        materials: Some(vec![(theme.clone(), line_materials)]),
+        materials: Some(vec![(context.theme.clone(), line_materials)]),
         textures: None,
         instance: None,
     });
@@ -374,7 +414,9 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
     );
     multiline_object.add_geometry(line_geometry);
     model.cityobjects_mut().add(multiline_object).unwrap();
+}
 
+fn add_remaining_mapping_template_vertices(model: &mut OwnedCityModel) {
     for vertex in [
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -387,22 +429,24 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
             ))
             .unwrap();
     }
+}
 
+fn add_remaining_mapping_templates(model: &mut OwnedCityModel, context: &RemainingMappingsContext) {
     let template_point_boundary: Boundary<u32> = vec![0_u32, 1_u32, 2_u32].try_into().unwrap();
     let mut template_point_semantics = SemanticMap::new();
-    template_point_semantics.add_point(Some(roof));
+    template_point_semantics.add_point(Some(context.roof));
     template_point_semantics.add_point(None);
-    template_point_semantics.add_point(Some(wall));
+    template_point_semantics.add_point(Some(context.wall));
     let mut template_point_materials = MaterialMap::new();
-    template_point_materials.add_point(Some(red_material));
+    template_point_materials.add_point(Some(context.red_material));
     template_point_materials.add_point(None);
-    template_point_materials.add_point(Some(blue_material));
+    template_point_materials.add_point(Some(context.blue_material));
     let template_point = Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiPoint,
         lod: Some(LoD::LoD1),
         boundaries: Some(template_point_boundary),
         semantics: Some(template_point_semantics),
-        materials: Some(vec![(theme.clone(), template_point_materials)]),
+        materials: Some(vec![(context.theme.clone(), template_point_materials)]),
         textures: None,
         instance: None,
     });
@@ -412,17 +456,17 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
         .try_into()
         .unwrap();
     let mut template_line_semantics = SemanticMap::new();
-    template_line_semantics.add_linestring(Some(roof));
+    template_line_semantics.add_linestring(Some(context.roof));
     template_line_semantics.add_linestring(None);
     let mut template_line_materials = MaterialMap::new();
-    template_line_materials.add_linestring(Some(red_material));
-    template_line_materials.add_linestring(Some(blue_material));
+    template_line_materials.add_linestring(Some(context.red_material));
+    template_line_materials.add_linestring(Some(context.blue_material));
     let template_line = Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: GeometryType::MultiLineString,
         lod: Some(LoD::LoD1),
         boundaries: Some(template_line_boundary),
         semantics: Some(template_line_semantics),
-        materials: Some(vec![(theme.clone(), template_line_materials)]),
+        materials: Some(vec![(context.theme.clone(), template_line_materials)]),
         textures: None,
         instance: None,
     });
@@ -432,16 +476,16 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
         Some(LoD::LoD2_2),
         [SurfaceDraft::new(
             RingDraft::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 0.5, 1.0]]).with_texture(
-                theme.clone(),
-                texture,
+                context.theme.clone(),
+                context.texture,
                 [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]],
             ),
             [],
         )
-        .with_semantic(roof)
-        .with_material(theme.clone(), red_material)],
+        .with_semantic(context.roof)
+        .with_material(context.theme.clone(), context.red_material)],
     )
-    .insert_template_into(&mut model)
+    .insert_template_into(model)
     .unwrap();
 
     let instance_geometry = Geometry::from_stored_parts(StoredGeometryParts {
@@ -464,8 +508,6 @@ fn sample_model_with_remaining_mappings() -> OwnedCityModel {
     );
     instance_object.add_geometry(instance_geometry);
     model.cityobjects_mut().add(instance_object).unwrap();
-
-    model
 }
 
 #[test]

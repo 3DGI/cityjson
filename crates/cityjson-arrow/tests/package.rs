@@ -12,8 +12,9 @@ use arrow::datatypes::{DataType, Field, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use cityarrow::package::{read_package_ipc_dir, write_package_ipc_dir};
 use cityarrow::schema::{
-    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageTableEncoding,
-    ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    CanonicalSchemaSet, CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts,
+    PackageTableEncoding, ProjectedFieldSpec, ProjectedValueType, ProjectionLayout,
+    canonical_schema_set,
 };
 use cityparquet::package::{read_package_dir, write_package_dir};
 use tempfile::tempdir;
@@ -35,7 +36,10 @@ fn fixed_size_list_6(values: Vec<[f64; 6]>) -> ArrayRef {
 }
 
 fn fixed_size_list<const N: usize>(values: Vec<[f64; N]>, width: i32) -> ArrayRef {
-    let flat: Vec<f64> = values.into_iter().flat_map(std::iter::IntoIterator::into_iter).collect();
+    let flat: Vec<f64> = values
+        .into_iter()
+        .flat_map(std::iter::IntoIterator::into_iter)
+        .collect();
     let values = Float64Array::from(flat).into_data();
     let data_type = DataType::FixedSizeList(
         Arc::new(Field::new_list_field(DataType::Float64, false)),
@@ -50,6 +54,10 @@ fn fixed_size_list<const N: usize>(values: Vec<[f64; N]>, width: i32) -> ArrayRe
     Arc::new(FixedSizeListArray::from(data)) as ArrayRef
 }
 
+fn usize_to_i32(value: usize) -> i32 {
+    i32::try_from(value).expect("test offset should fit in i32")
+}
+
 fn u64_list(values: Vec<Option<Vec<u64>>>) -> ArrayRef {
     let mut offsets = vec![0_i32];
     let mut flat = Vec::new();
@@ -57,10 +65,10 @@ fn u64_list(values: Vec<Option<Vec<u64>>>) -> ArrayRef {
     for value in values {
         if let Some(items) = value {
             flat.extend(items);
-            offsets.push(flat.len() as i32);
+            offsets.push(usize_to_i32(flat.len()));
             validity.push(true);
         } else {
-            offsets.push(flat.len() as i32);
+            offsets.push(usize_to_i32(flat.len()));
             validity.push(false);
         }
     }
@@ -86,10 +94,10 @@ fn u32_list(values: Vec<Option<Vec<u32>>>) -> ArrayRef {
     for value in values {
         if let Some(items) = value {
             flat.extend(items);
-            offsets.push(flat.len() as i32);
+            offsets.push(usize_to_i32(flat.len()));
             validity.push(true);
         } else {
-            offsets.push(flat.len() as i32);
+            offsets.push(usize_to_i32(flat.len()));
             validity.push(false);
         }
     }
@@ -112,8 +120,67 @@ fn batch(schema: &SchemaRef, columns: Vec<ArrayRef>) -> RecordBatch {
     RecordBatch::try_new(schema.clone(), columns).expect("record batch")
 }
 
+struct SampleTables {
+    metadata: RecordBatch,
+    transform: RecordBatch,
+    extensions: RecordBatch,
+    vertices: RecordBatch,
+    cityobjects: RecordBatch,
+    cityobject_children: RecordBatch,
+    geometries: RecordBatch,
+    geometry_boundaries: RecordBatch,
+    geometry_instances: RecordBatch,
+    template_vertices: RecordBatch,
+    template_geometries: RecordBatch,
+    template_geometry_boundaries: RecordBatch,
+    semantics: RecordBatch,
+    geometry_surface_semantics: RecordBatch,
+    materials: RecordBatch,
+    textures: RecordBatch,
+    texture_vertices: RecordBatch,
+    geometry_ring_textures: RecordBatch,
+}
+
 fn sample_parts() -> CityModelArrowParts {
-    let projection = ProjectionLayout {
+    let projection = sample_projection();
+    let schemas = canonical_schema_set(&projection);
+    let tables = sample_tables(&schemas);
+
+    CityModelArrowParts {
+        header: CityArrowHeader::new(CityArrowPackageVersion::V1Alpha1, "sample-citymodel", "2.0"),
+        projection,
+        metadata: tables.metadata,
+        transform: Some(tables.transform),
+        extensions: Some(tables.extensions),
+        vertices: tables.vertices,
+        cityobjects: tables.cityobjects,
+        cityobject_children: Some(tables.cityobject_children),
+        geometries: tables.geometries,
+        geometry_boundaries: tables.geometry_boundaries,
+        geometry_instances: Some(tables.geometry_instances),
+        template_vertices: Some(tables.template_vertices),
+        template_geometries: Some(tables.template_geometries),
+        template_geometry_boundaries: Some(tables.template_geometry_boundaries),
+        semantics: Some(tables.semantics),
+        semantic_children: None,
+        geometry_surface_semantics: Some(tables.geometry_surface_semantics),
+        geometry_point_semantics: None,
+        geometry_linestring_semantics: None,
+        template_geometry_semantics: None,
+        materials: Some(tables.materials),
+        geometry_surface_materials: None,
+        geometry_point_materials: None,
+        geometry_linestring_materials: None,
+        template_geometry_materials: None,
+        textures: Some(tables.textures),
+        texture_vertices: Some(tables.texture_vertices),
+        geometry_ring_textures: Some(tables.geometry_ring_textures),
+        template_geometry_ring_textures: None,
+    }
+}
+
+fn sample_projection() -> ProjectionLayout {
+    ProjectionLayout {
         metadata_extra: vec![ProjectedFieldSpec::new(
             "extra.note",
             ProjectedValueType::LargeUtf8,
@@ -149,9 +216,56 @@ fn sample_parts() -> CityModelArrowParts {
             ProjectedValueType::LargeUtf8,
             true,
         )],
-    };
-    let schemas = canonical_schema_set(&projection);
+    }
+}
 
+fn sample_tables(schemas: &CanonicalSchemaSet) -> SampleTables {
+    let (metadata, transform, extensions, vertices, cityobjects, cityobject_children) =
+        sample_core_tables(schemas);
+    let (
+        geometries,
+        geometry_boundaries,
+        geometry_instances,
+        template_vertices,
+        template_geometries,
+        template_geometry_boundaries,
+    ) = sample_geometry_tables(schemas);
+    let (semantics, geometry_surface_semantics) = sample_semantic_tables(schemas);
+    let (materials, textures, texture_vertices, geometry_ring_textures) =
+        sample_appearance_tables(schemas);
+
+    SampleTables {
+        metadata,
+        transform,
+        extensions,
+        vertices,
+        cityobjects,
+        cityobject_children,
+        geometries,
+        geometry_boundaries,
+        geometry_instances,
+        template_vertices,
+        template_geometries,
+        template_geometry_boundaries,
+        semantics,
+        geometry_surface_semantics,
+        materials,
+        textures,
+        texture_vertices,
+        geometry_ring_textures,
+    }
+}
+
+fn sample_core_tables(
+    schemas: &CanonicalSchemaSet,
+) -> (
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+) {
     let metadata = batch(
         &schemas.metadata,
         vec![
@@ -165,7 +279,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(LargeStringArray::from(vec![Some("metadata-extra")])),
         ],
     );
-
     let transform = batch(
         &schemas.transform,
         vec![
@@ -174,7 +287,6 @@ fn sample_parts() -> CityModelArrowParts {
             fixed_size_list_3(vec![[10.0, 20.0, 30.0]]),
         ],
     );
-
     let extensions = batch(
         &schemas.extensions,
         vec![
@@ -184,7 +296,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(StringArray::from(vec![Some("1.0")])),
         ],
     );
-
     let vertices = batch(
         &schemas.vertices,
         vec![
@@ -198,7 +309,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(Float64Array::from(vec![30.0, 31.0])),
         ],
     );
-
     let cityobjects = batch(
         &schemas.cityobjects,
         vec![
@@ -223,7 +333,6 @@ fn sample_parts() -> CityModelArrowParts {
             ])),
         ],
     );
-
     let cityobject_children = batch(
         &schemas.cityobject_children,
         vec![
@@ -233,7 +342,26 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(LargeStringArray::from(vec!["building-1-part"])),
         ],
     );
+    (
+        metadata,
+        transform,
+        extensions,
+        vertices,
+        cityobjects,
+        cityobject_children,
+    )
+}
 
+fn sample_geometry_tables(
+    schemas: &CanonicalSchemaSet,
+) -> (
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+    RecordBatch,
+) {
     let geometries = batch(
         &schemas.geometries,
         vec![
@@ -246,7 +374,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(BinaryArray::from_iter_values([b"mesh".as_slice()])),
         ],
     );
-
     let geometry_boundaries = batch(
         &schemas.geometry_boundaries,
         vec![
@@ -260,7 +387,6 @@ fn sample_parts() -> CityModelArrowParts {
             u32_list(vec![None]),
         ],
     );
-
     let geometry_instances = batch(
         &schemas.geometry_instances,
         vec![
@@ -277,7 +403,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(BinaryArray::from_iter_values([b"instance-mesh".as_slice()])),
         ],
     );
-
     let template_vertices = batch(
         &schemas.template_vertices,
         vec![
@@ -291,7 +416,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(Float64Array::from(vec![0.0, 0.0])),
         ],
     );
-
     let template_geometries = batch(
         &schemas.template_geometries,
         vec![
@@ -302,7 +426,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(BinaryArray::from_iter_values([b"template-mesh".as_slice()])),
         ],
     );
-
     let template_geometry_boundaries = batch(
         &schemas.template_geometry_boundaries,
         vec![
@@ -316,7 +439,17 @@ fn sample_parts() -> CityModelArrowParts {
             u32_list(vec![None]),
         ],
     );
+    (
+        geometries,
+        geometry_boundaries,
+        geometry_instances,
+        template_vertices,
+        template_geometries,
+        template_geometry_boundaries,
+    )
+}
 
+fn sample_semantic_tables(schemas: &CanonicalSchemaSet) -> (RecordBatch, RecordBatch) {
     let semantics = batch(
         &schemas.semantics,
         vec![
@@ -326,7 +459,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(LargeStringArray::from(vec![Some("roof")])),
         ],
     );
-
     let geometry_surface_semantics = batch(
         &schemas.geometry_surface_semantics,
         vec![
@@ -336,7 +468,12 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(UInt64Array::from(vec![0_u64])),
         ],
     );
+    (semantics, geometry_surface_semantics)
+}
 
+fn sample_appearance_tables(
+    schemas: &CanonicalSchemaSet,
+) -> (RecordBatch, RecordBatch, RecordBatch, RecordBatch) {
     let materials = batch(
         &schemas.materials,
         vec![
@@ -345,7 +482,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(LargeStringArray::from(vec![Some("brick")])),
         ],
     );
-
     let textures = batch(
         &schemas.textures,
         vec![
@@ -355,7 +491,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(LargeStringArray::from(vec![Some("tile")])),
         ],
     );
-
     let texture_vertices = batch(
         &schemas.texture_vertices,
         vec![
@@ -365,7 +500,6 @@ fn sample_parts() -> CityModelArrowParts {
             array_ref(Float64Array::from(vec![0.0])),
         ],
     );
-
     let geometry_ring_textures = batch(
         &schemas.geometry_ring_textures,
         vec![
@@ -378,38 +512,12 @@ fn sample_parts() -> CityModelArrowParts {
             u64_list(vec![Some(vec![0_u64, 0_u64, 0_u64])]),
         ],
     );
-
-    CityModelArrowParts {
-        header: CityArrowHeader::new(CityArrowPackageVersion::V1Alpha1, "sample-citymodel", "2.0"),
-        projection,
-        metadata,
-        transform: Some(transform),
-        extensions: Some(extensions),
-        vertices,
-        cityobjects,
-        cityobject_children: Some(cityobject_children),
-        geometries,
-        geometry_boundaries,
-        geometry_instances: Some(geometry_instances),
-        template_vertices: Some(template_vertices),
-        template_geometries: Some(template_geometries),
-        template_geometry_boundaries: Some(template_geometry_boundaries),
-        semantics: Some(semantics),
-        semantic_children: None,
-        geometry_surface_semantics: Some(geometry_surface_semantics),
-        geometry_point_semantics: None,
-        geometry_linestring_semantics: None,
-        template_geometry_semantics: None,
-        materials: Some(materials),
-        geometry_surface_materials: None,
-        geometry_point_materials: None,
-        geometry_linestring_materials: None,
-        template_geometry_materials: None,
-        textures: Some(textures),
-        texture_vertices: Some(texture_vertices),
-        geometry_ring_textures: Some(geometry_ring_textures),
-        template_geometry_ring_textures: None,
-    }
+    (
+        materials,
+        textures,
+        texture_vertices,
+        geometry_ring_textures,
+    )
 }
 
 #[test]

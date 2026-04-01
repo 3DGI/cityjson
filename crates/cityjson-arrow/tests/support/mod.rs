@@ -177,8 +177,8 @@ fn files_have_equal_bytes(left: &Path, right: &Path) -> bool {
 
     let mut left_reader = BufReader::new(left_file);
     let mut right_reader = BufReader::new(right_file);
-    let mut left_buf = [0_u8; 64 * 1024];
-    let mut right_buf = [0_u8; 64 * 1024];
+    let mut left_buf = vec![0_u8; 64 * 1024];
+    let mut right_buf = vec![0_u8; 64 * 1024];
 
     loop {
         let left_read = left_reader
@@ -263,105 +263,10 @@ pub fn assert_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowPa
         "projection layout changed"
     );
 
-    assert_batch_eq("metadata", &expected.metadata, &actual.metadata);
-    assert_optional_batch_eq("transform", &expected.transform, &actual.transform);
-    assert_optional_batch_eq("extensions", &expected.extensions, &actual.extensions);
-    assert_batch_eq("vertices", &expected.vertices, &actual.vertices);
-    assert_batch_eq("cityobjects", &expected.cityobjects, &actual.cityobjects);
-    assert_optional_batch_eq(
-        "cityobject_children",
-        &expected.cityobject_children,
-        &actual.cityobject_children,
-    );
-    assert_batch_eq("geometries", &expected.geometries, &actual.geometries);
-    assert_batch_eq(
-        "geometry_boundaries",
-        &expected.geometry_boundaries,
-        &actual.geometry_boundaries,
-    );
-    assert_optional_batch_eq(
-        "geometry_instances",
-        &expected.geometry_instances,
-        &actual.geometry_instances,
-    );
-    assert_optional_batch_eq(
-        "template_vertices",
-        &expected.template_vertices,
-        &actual.template_vertices,
-    );
-    assert_optional_batch_eq(
-        "template_geometries",
-        &expected.template_geometries,
-        &actual.template_geometries,
-    );
-    assert_optional_batch_eq(
-        "template_geometry_boundaries",
-        &expected.template_geometry_boundaries,
-        &actual.template_geometry_boundaries,
-    );
-    assert_optional_batch_eq("semantics", &expected.semantics, &actual.semantics);
-    assert_optional_batch_eq(
-        "semantic_children",
-        &expected.semantic_children,
-        &actual.semantic_children,
-    );
-    assert_optional_batch_eq(
-        "geometry_surface_semantics",
-        &expected.geometry_surface_semantics,
-        &actual.geometry_surface_semantics,
-    );
-    assert_optional_batch_eq(
-        "geometry_point_semantics",
-        &expected.geometry_point_semantics,
-        &actual.geometry_point_semantics,
-    );
-    assert_optional_batch_eq(
-        "geometry_linestring_semantics",
-        &expected.geometry_linestring_semantics,
-        &actual.geometry_linestring_semantics,
-    );
-    assert_optional_batch_eq(
-        "template_geometry_semantics",
-        &expected.template_geometry_semantics,
-        &actual.template_geometry_semantics,
-    );
-    assert_optional_batch_eq("materials", &expected.materials, &actual.materials);
-    assert_optional_batch_eq(
-        "geometry_surface_materials",
-        &expected.geometry_surface_materials,
-        &actual.geometry_surface_materials,
-    );
-    assert_optional_batch_eq(
-        "geometry_point_materials",
-        &expected.geometry_point_materials,
-        &actual.geometry_point_materials,
-    );
-    assert_optional_batch_eq(
-        "geometry_linestring_materials",
-        &expected.geometry_linestring_materials,
-        &actual.geometry_linestring_materials,
-    );
-    assert_optional_batch_eq(
-        "template_geometry_materials",
-        &expected.template_geometry_materials,
-        &actual.template_geometry_materials,
-    );
-    assert_optional_batch_eq("textures", &expected.textures, &actual.textures);
-    assert_optional_batch_eq(
-        "texture_vertices",
-        &expected.texture_vertices,
-        &actual.texture_vertices,
-    );
-    assert_optional_batch_eq(
-        "geometry_ring_textures",
-        &expected.geometry_ring_textures,
-        &actual.geometry_ring_textures,
-    );
-    assert_optional_batch_eq(
-        "template_geometry_ring_textures",
-        &expected.template_geometry_ring_textures,
-        &actual.template_geometry_ring_textures,
-    );
+    assert_core_parts_eq(expected, actual);
+    assert_geometry_parts_eq(expected, actual);
+    assert_semantic_parts_eq(expected, actual);
+    assert_appearance_parts_eq(expected, actual);
 }
 
 pub fn assert_model_roundtrip_integrity(model: OwnedCityModel, encoding: PackageTableEncoding) {
@@ -469,10 +374,141 @@ fn assert_batch_eq(label: &str, expected: &RecordBatch, actual: &RecordBatch) {
     );
 }
 
+fn assert_core_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowParts) {
+    assert_batch_eq("metadata", &expected.metadata, &actual.metadata);
+    assert_optional_batch_eq(
+        "transform",
+        expected.transform.as_ref(),
+        actual.transform.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "extensions",
+        expected.extensions.as_ref(),
+        actual.extensions.as_ref(),
+    );
+    assert_batch_eq("vertices", &expected.vertices, &actual.vertices);
+    assert_batch_eq("cityobjects", &expected.cityobjects, &actual.cityobjects);
+    assert_optional_batch_eq(
+        "cityobject_children",
+        expected.cityobject_children.as_ref(),
+        actual.cityobject_children.as_ref(),
+    );
+}
+
+fn assert_geometry_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowParts) {
+    assert_batch_eq("geometries", &expected.geometries, &actual.geometries);
+    assert_batch_eq(
+        "geometry_boundaries",
+        &expected.geometry_boundaries,
+        &actual.geometry_boundaries,
+    );
+    assert_optional_batch_eq(
+        "geometry_instances",
+        expected.geometry_instances.as_ref(),
+        actual.geometry_instances.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_vertices",
+        expected.template_vertices.as_ref(),
+        actual.template_vertices.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_geometries",
+        expected.template_geometries.as_ref(),
+        actual.template_geometries.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_geometry_boundaries",
+        expected.template_geometry_boundaries.as_ref(),
+        actual.template_geometry_boundaries.as_ref(),
+    );
+}
+
+fn assert_semantic_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowParts) {
+    assert_optional_batch_eq(
+        "semantics",
+        expected.semantics.as_ref(),
+        actual.semantics.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "semantic_children",
+        expected.semantic_children.as_ref(),
+        actual.semantic_children.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_surface_semantics",
+        expected.geometry_surface_semantics.as_ref(),
+        actual.geometry_surface_semantics.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_point_semantics",
+        expected.geometry_point_semantics.as_ref(),
+        actual.geometry_point_semantics.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_linestring_semantics",
+        expected.geometry_linestring_semantics.as_ref(),
+        actual.geometry_linestring_semantics.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_geometry_semantics",
+        expected.template_geometry_semantics.as_ref(),
+        actual.template_geometry_semantics.as_ref(),
+    );
+}
+
+fn assert_appearance_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowParts) {
+    assert_optional_batch_eq(
+        "materials",
+        expected.materials.as_ref(),
+        actual.materials.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_surface_materials",
+        expected.geometry_surface_materials.as_ref(),
+        actual.geometry_surface_materials.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_point_materials",
+        expected.geometry_point_materials.as_ref(),
+        actual.geometry_point_materials.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_linestring_materials",
+        expected.geometry_linestring_materials.as_ref(),
+        actual.geometry_linestring_materials.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_geometry_materials",
+        expected.template_geometry_materials.as_ref(),
+        actual.template_geometry_materials.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "textures",
+        expected.textures.as_ref(),
+        actual.textures.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "texture_vertices",
+        expected.texture_vertices.as_ref(),
+        actual.texture_vertices.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "geometry_ring_textures",
+        expected.geometry_ring_textures.as_ref(),
+        actual.geometry_ring_textures.as_ref(),
+    );
+    assert_optional_batch_eq(
+        "template_geometry_ring_textures",
+        expected.template_geometry_ring_textures.as_ref(),
+        actual.template_geometry_ring_textures.as_ref(),
+    );
+}
+
 fn assert_optional_batch_eq(
     label: &str,
-    expected: &Option<RecordBatch>,
-    actual: &Option<RecordBatch>,
+    expected: Option<&RecordBatch>,
+    actual: Option<&RecordBatch>,
 ) {
     assert_eq!(
         expected.is_some(),

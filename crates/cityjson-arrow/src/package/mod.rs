@@ -137,6 +137,11 @@ pub fn expected_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
     canonical_schema_set(layout)
 }
 
+/// Concatenates a sequence of record batches that all share the same schema.
+///
+/// # Errors
+///
+/// Returns an error when Arrow cannot concatenate the provided batches.
 pub fn concat_record_batches(schema: &SchemaRef, batches: &[RecordBatch]) -> Result<RecordBatch> {
     let batch_refs: Vec<&RecordBatch> = batches.iter().collect();
     concat_batches(schema, batch_refs).map_err(Error::from)
@@ -172,6 +177,11 @@ fn projected_field_spec(field: &Field) -> Result<ProjectedFieldSpec> {
     ))
 }
 
+/// Infers projected field specifications from the trailing fields of a schema.
+///
+/// # Errors
+///
+/// Returns an error when a trailing field uses an unsupported Arrow type.
 pub fn infer_tail_projection(
     schema: &Schema,
     start_index: usize,
@@ -183,6 +193,12 @@ pub fn infer_tail_projection(
     Ok(fields)
 }
 
+/// Infers projected attribute and extra columns from a cityobjects schema.
+///
+/// # Errors
+///
+/// Returns an error when a projected field does not belong to either supported
+/// projection namespace.
 pub fn infer_cityobject_projections(
     schema: &Schema,
 ) -> Result<(Vec<ProjectedFieldSpec>, Vec<ProjectedFieldSpec>)> {
@@ -206,18 +222,39 @@ pub fn infer_cityobject_projections(
     Ok((attributes, extra))
 }
 
+/// Infers projected semantic attribute columns from a semantics schema.
+///
+/// # Errors
+///
+/// Returns an error when a projected field uses an unsupported Arrow type.
 pub fn infer_semantic_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 3)
 }
 
+/// Infers projected material payload columns from a materials schema.
+///
+/// # Errors
+///
+/// Returns an error when a projected field uses an unsupported Arrow type.
 pub fn infer_material_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 2)
 }
 
+/// Infers projected texture payload columns from a textures schema.
+///
+/// # Errors
+///
+/// Returns an error when a projected field uses an unsupported Arrow type.
 pub fn infer_texture_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 3)
 }
 
+/// Validates that a table schema matches the canonical schema for a table.
+///
+/// # Errors
+///
+/// Returns an error when the actual schema differs from the expected canonical
+/// schema.
 pub fn validate_schema(
     expected: impl AsRef<Schema>,
     actual: impl AsRef<Schema>,
@@ -235,7 +272,7 @@ pub fn validate_schema(
     Ok(())
 }
 
-#[must_use] 
+#[must_use]
 pub fn table_path_from_manifest(dir: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()

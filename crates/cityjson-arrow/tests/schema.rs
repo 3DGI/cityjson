@@ -282,7 +282,10 @@ fn field(schema: &Schema, index: usize) -> &Field {
 }
 
 fn fixed_size_list<const N: usize>(values: Vec<[f64; N]>, width: i32) -> ArrayRef {
-    let flat: Vec<f64> = values.into_iter().flat_map(std::iter::IntoIterator::into_iter).collect();
+    let flat: Vec<f64> = values
+        .into_iter()
+        .flat_map(std::iter::IntoIterator::into_iter)
+        .collect();
     let values = Float64Array::from(flat).into_data();
     let data_type = DataType::FixedSizeList(
         Arc::new(Field::new_list_field(DataType::Float64, false)),

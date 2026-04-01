@@ -115,11 +115,10 @@ impl ProjectedValueType {
     pub fn to_arrow_type(self) -> DataType {
         match self {
             Self::Boolean => DataType::Boolean,
-            Self::UInt64 => DataType::UInt64,
+            Self::UInt64 | Self::GeometryId => DataType::UInt64,
             Self::Int64 => DataType::Int64,
             Self::Float64 => DataType::Float64,
             Self::LargeUtf8 => DataType::LargeUtf8,
-            Self::GeometryId => DataType::UInt64,
             Self::WkbBinary => DataType::Binary,
         }
     }
