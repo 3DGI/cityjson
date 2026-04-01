@@ -8,9 +8,12 @@ use arrow::record_batch::RecordBatch;
 use arrow_select::concat::concat_batches;
 use std::path::{Path, PathBuf};
 
+mod pipeline;
 mod read;
 mod write;
 
+#[doc(hidden)]
+pub use pipeline::{read_package_dir_with_loader, write_package_dir_with_writer};
 pub use read::{read_package_ipc, read_package_ipc_dir};
 pub use write::{write_package_ipc, write_package_ipc_dir};
 
