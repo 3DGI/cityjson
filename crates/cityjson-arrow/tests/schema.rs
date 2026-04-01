@@ -17,7 +17,7 @@ use cityarrow::schema::{
 use cityparquet::package::write_package_dir;
 use tempfile::tempdir;
 
-const CANONICAL_SCHEMA_LOCK: &str = r#"metadata
+const CANONICAL_SCHEMA_LOCK: &str = r"metadata
   citymodel_id: LargeUtf8!
   cityjson_version: Utf8!
   citymodel_kind: Utf8!
@@ -204,7 +204,7 @@ template_geometry_ring_textures
   ring_ordinal: UInt32!
   theme: Utf8!
   texture_id: UInt64!
-  uv_indices: List<UInt64!>!"#;
+  uv_indices: List<UInt64!>!";
 
 const MANIFEST_LOCK: &str = r#"{
   "package_schema": "cityarrow.package.v1alpha1",
@@ -277,12 +277,12 @@ const IPC_MANIFEST_LOCK: &str = r#"{
   }
 }"#;
 
-fn field<'a>(schema: &'a Schema, index: usize) -> &'a Field {
+fn field(schema: &Schema, index: usize) -> &Field {
     schema.field(index)
 }
 
 fn fixed_size_list<const N: usize>(values: Vec<[f64; N]>, width: i32) -> ArrayRef {
-    let flat: Vec<f64> = values.into_iter().flat_map(|row| row.into_iter()).collect();
+    let flat: Vec<f64> = values.into_iter().flat_map(std::iter::IntoIterator::into_iter).collect();
     let values = Float64Array::from(flat).into_data();
     let data_type = DataType::FixedSizeList(
         Arc::new(Field::new_list_field(DataType::Float64, false)),

@@ -23,17 +23,17 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Arrow(e) => write!(f, "Arrow error: {}", e),
-            Error::Parquet(e) => write!(f, "Parquet error: {}", e),
-            Error::CityJSON(e) => write!(f, "CityJSON error: {}", e),
-            Error::Json(e) => write!(f, "JSON error: {}", e),
-            Error::Conversion(s) => write!(f, "could not convert due to {}", s),
-            Error::Unsupported(s) => write!(f, "feature {} is not supported", s),
+            Error::Arrow(e) => write!(f, "Arrow error: {e}"),
+            Error::Parquet(e) => write!(f, "Parquet error: {e}"),
+            Error::CityJSON(e) => write!(f, "CityJSON error: {e}"),
+            Error::Json(e) => write!(f, "JSON error: {e}"),
+            Error::Conversion(s) => write!(f, "could not convert due to {s}"),
+            Error::Unsupported(s) => write!(f, "feature {s} is not supported"),
             Error::SchemaMismatch { expected, found } => {
-                write!(f, "expected schema: {}, found schema: {}", expected, found)
+                write!(f, "expected schema: {expected}, found schema: {found}")
             }
-            Error::MissingField(s) => write!(f, "field {} should be present in the Arrow data", s),
-            Error::Io(e) => write!(f, "IO error: {}", e),
+            Error::MissingField(s) => write!(f, "field {s} should be present in the Arrow data"),
+            Error::Io(e) => write!(f, "IO error: {e}"),
         }
     }
 }

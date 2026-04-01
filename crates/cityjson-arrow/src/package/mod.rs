@@ -235,6 +235,7 @@ pub fn validate_schema(
     Ok(())
 }
 
+#[must_use] 
 pub fn table_path_from_manifest(dir: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()

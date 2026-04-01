@@ -25,14 +25,13 @@ fn read_package_dir_with_encoding(
 ) -> Result<CityModelArrowParts> {
     let dir = dir.as_ref();
     let manifest = read_manifest(dir)?;
-    if let Some(required_encoding) = required_encoding {
-        if manifest.table_encoding != required_encoding {
+    if let Some(required_encoding) = required_encoding
+        && manifest.table_encoding != required_encoding {
             return Err(Error::Unsupported(format!(
                 "package uses {:?} tables but {:?} was requested",
                 manifest.table_encoding, required_encoding
             )));
         }
-    }
     let encoding = manifest.table_encoding;
 
     let loaded = LoadedTables {

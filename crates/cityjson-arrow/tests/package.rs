@@ -35,7 +35,7 @@ fn fixed_size_list_6(values: Vec<[f64; 6]>) -> ArrayRef {
 }
 
 fn fixed_size_list<const N: usize>(values: Vec<[f64; N]>, width: i32) -> ArrayRef {
-    let flat: Vec<f64> = values.into_iter().flat_map(|row| row.into_iter()).collect();
+    let flat: Vec<f64> = values.into_iter().flat_map(std::iter::IntoIterator::into_iter).collect();
     let values = Float64Array::from(flat).into_data();
     let data_type = DataType::FixedSizeList(
         Arc::new(Field::new_list_field(DataType::Float64, false)),
@@ -55,16 +55,13 @@ fn u64_list(values: Vec<Option<Vec<u64>>>) -> ArrayRef {
     let mut flat = Vec::new();
     let mut validity = Vec::with_capacity(values.len());
     for value in values {
-        match value {
-            Some(items) => {
-                flat.extend(items);
-                offsets.push(flat.len() as i32);
-                validity.push(true);
-            }
-            None => {
-                offsets.push(flat.len() as i32);
-                validity.push(false);
-            }
+        if let Some(items) = value {
+            flat.extend(items);
+            offsets.push(flat.len() as i32);
+            validity.push(true);
+        } else {
+            offsets.push(flat.len() as i32);
+            validity.push(false);
         }
     }
 
@@ -87,16 +84,13 @@ fn u32_list(values: Vec<Option<Vec<u32>>>) -> ArrayRef {
     let mut flat = Vec::new();
     let mut validity = Vec::with_capacity(values.len());
     for value in values {
-        match value {
-            Some(items) => {
-                flat.extend(items);
-                offsets.push(flat.len() as i32);
-                validity.push(true);
-            }
-            None => {
-                offsets.push(flat.len() as i32);
-                validity.push(false);
-            }
+        if let Some(items) = value {
+            flat.extend(items);
+            offsets.push(flat.len() as i32);
+            validity.push(true);
+        } else {
+            offsets.push(flat.len() as i32);
+            validity.push(false);
         }
     }
 

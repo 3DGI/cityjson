@@ -978,11 +978,11 @@ pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
         let object = cityobject_handle_by_id
             .get(&cityobject_id)
             .copied()
-            .ok_or_else(|| Error::Conversion(format!("missing cityobject {}", cityobject_id)))?;
+            .ok_or_else(|| Error::Conversion(format!("missing cityobject {cityobject_id}")))?;
         let geometry = geometry_handle_by_id
             .get(&geometry_id)
             .copied()
-            .ok_or_else(|| Error::Conversion(format!("missing geometry {}", geometry_id)))?;
+            .ok_or_else(|| Error::Conversion(format!("missing geometry {geometry_id}")))?;
         model
             .cityobjects_mut()
             .get_mut(object)
@@ -1294,7 +1294,7 @@ fn discover_metadata_projection(model: &OwnedCityModel) -> Vec<ProjectedFieldSpe
     let mut root_keys: BTreeSet<String> = BTreeSet::new();
     if let Some(extra) = model.extra() {
         for key in extra.keys() {
-            root_keys.insert(key.to_string());
+            root_keys.insert(key.clone());
         }
     }
     for key in root_keys {
@@ -1313,7 +1313,7 @@ fn discover_metadata_projection(model: &OwnedCityModel) -> Vec<ProjectedFieldSpe
         && let Some(extra) = metadata.extra()
     {
         for key in extra.keys() {
-            metadata_keys.insert(key.to_string());
+            metadata_keys.insert(key.clone());
         }
     }
     for key in metadata_keys {
@@ -1337,7 +1337,7 @@ where
     let mut keys: BTreeSet<String> = BTreeSet::new();
     for attrs in attributes {
         for key in attrs.keys() {
-            keys.insert(key.to_string());
+            keys.insert(key.clone());
         }
     }
     keys.into_iter()
@@ -1380,9 +1380,9 @@ fn extension_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<ExtensionRo
         .flat_map(|extensions| extensions.iter())
         .map(|extension| ExtensionRow {
             citymodel_id: citymodel_id.to_string(),
-            extension_name: extension.name().to_string(),
-            uri: extension.url().to_string(),
-            version: Some(extension.version().to_string()),
+            extension_name: extension.name().clone(),
+            uri: extension.url().clone(),
+            version: Some(extension.version().clone()),
         })
         .collect()
 }
@@ -1394,7 +1394,7 @@ fn material_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<MaterialRow>
         .map(|(index, (_, material))| MaterialRow {
             citymodel_id: citymodel_id.to_string(),
             material_id: index as u64,
-            name: material.name().to_string(),
+            name: material.name().clone(),
             ambient_intensity: material.ambient_intensity().map(f64::from),
             diffuse_color: material.diffuse_color().map(rgb_to_json),
             emissive_color: material.emissive_color().map(rgb_to_json),
@@ -1413,7 +1413,7 @@ fn texture_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<TextureRow> {
         .map(|(index, (_, texture))| TextureRow {
             citymodel_id: citymodel_id.to_string(),
             texture_id: index as u64,
-            image_uri: texture.image().to_string(),
+            image_uri: texture.image().clone(),
             image_type: texture.image_type().to_string(),
             wrap_mode: texture.wrap_mode().map(|value| value.to_string()),
             texture_type: texture.texture_type().map(|value| value.to_string()),
@@ -1535,7 +1535,7 @@ fn geometry_rows(
                     Error::Conversion("geometry handle missing from id map".to_string())
                 })?;
                 let geometry = model.get_geometry(*geometry_handle).ok_or_else(|| {
-                    Error::Conversion(format!("missing geometry for handle {:?}", geometry_handle))
+                    Error::Conversion(format!("missing geometry for handle {geometry_handle:?}"))
                 })?;
                 if *geometry.type_geometry() == GeometryType::GeometryInstance {
                     let instance = geometry.instance().ok_or_else(|| {
@@ -1545,8 +1545,7 @@ fn geometry_rows(
                         .get(&instance.template())
                         .ok_or_else(|| {
                             Error::Conversion(format!(
-                                "missing template id for instance geometry {:?}",
-                                geometry_handle
+                                "missing template id for instance geometry {geometry_handle:?}"
                             ))
                         })?;
                     instance_rows.push(GeometryInstanceRow {
@@ -1861,8 +1860,7 @@ fn geometry_ring_texture_rows(
                         .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
                         .ok_or_else(|| {
                             Error::Conversion(format!(
-                                "textured ring {} for theme {} contains missing uv indices",
-                                ring_index, theme
+                                "textured ring {ring_index} for theme {theme} contains missing uv indices"
                             ))
                         })
                 })
@@ -1926,8 +1924,7 @@ fn template_geometry_ring_texture_rows(
                         .map(|uv: cityjson::v2_0::VertexIndex<u32>| u64::from(uv.value()))
                         .ok_or_else(|| {
                             Error::Conversion(format!(
-                                "template textured ring {} for theme {} contains missing uv indices",
-                                ring_index, theme
+                                "template textured ring {ring_index} for theme {theme} contains missing uv indices"
                             ))
                         })
                 })
@@ -1973,8 +1970,7 @@ fn ring_layouts(boundary_row: &GeometryBoundaryRow) -> Result<Vec<RingLayout>> {
         for ring_ordinal in 0..*ring_count {
             let len = *ring_lengths.get(ring_index).ok_or_else(|| {
                 Error::Conversion(format!(
-                    "surface topology references missing ring {}",
-                    ring_index
+                    "surface topology references missing ring {ring_index}"
                 ))
             })? as usize;
             layouts.push(RingLayout {
@@ -2017,8 +2013,7 @@ fn template_ring_layouts(boundary_row: &TemplateGeometryBoundaryRow) -> Result<V
         for ring_ordinal in 0..*ring_count {
             let len = *ring_lengths.get(ring_index).ok_or_else(|| {
                 Error::Conversion(format!(
-                    "surface topology references missing ring {}",
-                    ring_index
+                    "surface topology references missing ring {ring_index}"
                 ))
             })? as usize;
             layouts.push(RingLayout {
@@ -2511,7 +2506,7 @@ fn project_metadata_columns(
                 return point_of_contact
                     .map(contact_to_json)
                     .transpose()
-                    .map(|value| value.map(|item| item.to_string()));
+                    .map(|value| value);
             }
             if spec.name == FIELD_METADATA_DEFAULT_MATERIAL_THEME {
                 return Ok(model
@@ -2645,8 +2640,7 @@ fn json_to_attribute(
                 })?;
                 let handle = geometry_handles.get(&geometry_id).copied().ok_or_else(|| {
                     Error::Conversion(format!(
-                        "missing geometry handle {} for attribute reconstruction",
-                        geometry_id
+                        "missing geometry handle {geometry_id} for attribute reconstruction"
                     ))
                 })?;
                 AttributeValue::Geometry(handle)
@@ -3693,15 +3687,12 @@ fn fixed_size_f64_array<const N: usize>(
     let mut flat = Vec::with_capacity(rows.len() * N);
     let mut validity = Vec::with_capacity(rows.len());
     for row in rows {
-        match row {
-            Some(values) => {
-                flat.extend(values);
-                validity.push(true);
-            }
-            None => {
-                flat.extend(std::iter::repeat_n(0.0, N));
-                validity.push(false);
-            }
+        if let Some(values) = row {
+            flat.extend(values);
+            validity.push(true);
+        } else {
+            flat.extend(std::iter::repeat_n(0.0, N));
+            validity.push(false);
         }
     }
     let values: ArrayRef = Arc::new(Float64Array::from(flat));
@@ -3719,16 +3710,13 @@ fn list_u64_array(field: FieldRef, rows: Vec<Option<Vec<u64>>>) -> Result<ListAr
     let mut flat: Vec<u64> = Vec::new();
     let mut validity = Vec::with_capacity(rows.len());
     for row in rows {
-        match row {
-            Some(values) => {
-                flat.extend(&values);
-                offsets.push(flat.len() as i32);
-                validity.push(true);
-            }
-            None => {
-                offsets.push(flat.len() as i32);
-                validity.push(false);
-            }
+        if let Some(values) = row {
+            flat.extend(&values);
+            offsets.push(flat.len() as i32);
+            validity.push(true);
+        } else {
+            offsets.push(flat.len() as i32);
+            validity.push(false);
         }
     }
     let values: ArrayRef = Arc::new(UInt64Array::from(flat));
@@ -3751,16 +3739,13 @@ fn list_u32_array(field: FieldRef, rows: Vec<Option<Vec<u32>>>) -> Result<ListAr
     let mut flat: Vec<u32> = Vec::new();
     let mut validity = Vec::with_capacity(rows.len());
     for row in rows {
-        match row {
-            Some(values) => {
-                flat.extend(&values);
-                offsets.push(flat.len() as i32);
-                validity.push(true);
-            }
-            None => {
-                offsets.push(flat.len() as i32);
-                validity.push(false);
-            }
+        if let Some(values) = row {
+            flat.extend(&values);
+            offsets.push(flat.len() as i32);
+            validity.push(true);
+        } else {
+            offsets.push(flat.len() as i32);
+            validity.push(false);
         }
     }
     let values: ArrayRef = Arc::new(UInt32Array::from(flat));
@@ -5046,7 +5031,7 @@ fn build_template_texture_maps(
                 let slice = map.vertices_mut()[layout.start..layout.start + layout.len].iter_mut();
                 for (slot, uv_id) in slice.zip(&row.uv_indices) {
                     let uv_id = u32::try_from(*uv_id).map_err(|_| {
-                        Error::Conversion(format!("uv index {} does not fit into u32", uv_id))
+                        Error::Conversion(format!("uv index {uv_id} does not fit into u32"))
                     })?;
                     *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
                 }
@@ -5145,7 +5130,7 @@ fn build_texture_maps(
                 let slice = map.vertices_mut()[layout.start..layout.start + layout.len].iter_mut();
                 for (slot, uv_id) in slice.zip(&row.uv_indices) {
                     let uv_id = u32::try_from(*uv_id).map_err(|_| {
-                        Error::Conversion(format!("uv index {} does not fit into u32", uv_id))
+                        Error::Conversion(format!("uv index {uv_id} does not fit into u32"))
                     })?;
                     *slot = Some(cityjson::v2_0::VertexIndex::new(uv_id));
                 }
@@ -5205,7 +5190,7 @@ fn boundary_from_parts(
         .iter()
         .map(|value| {
             u32::try_from(*value).map_err(|_| {
-                Error::Conversion(format!("vertex index {} does not fit into u32", value))
+                Error::Conversion(format!("vertex index {value} does not fit into u32"))
             })
         })
         .collect::<Result<Vec<_>>>()?
@@ -5290,7 +5275,7 @@ fn encode_key(value: &str) -> String {
         if byte.is_ascii_alphanumeric() || byte == b'_' {
             encoded.push(byte as char);
         } else {
-            encoded.push_str(&format!("_x{:02X}_", byte));
+            encoded.push_str(&format!("_x{byte:02X}_"));
         }
     }
     encoded
