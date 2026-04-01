@@ -9,7 +9,7 @@ This repository owns:
 
 - the indexed storage layouts
 - the dataset-first CLI
-- the 3DBAG preparation pipeline used to materialize benchmark inputs locally
+- the 3DBAG preparation pipeline used to reshape raw inputs locally
 
 It does not own the canonical benchmark catalog or the release contract for
 the shared corpus itself.
@@ -17,7 +17,8 @@ the shared corpus itself.
 ## Why This Matters
 
 The shared corpus repo needs a reproducible real-data acquisition path for
-3DBAG-derived cases. `cjindex` already has one:
+3DBAG-derived cases. `cityjson-benchmarks` now owns the acquisition contract,
+and `cjindex` remains the layout builder:
 
 - `tests/common/data_prep.rs`
 - `justfile`'s `prep-test-data` recipe
@@ -32,8 +33,8 @@ real-data release.
 ## Migration Boundary
 
 The shared corpus should absorb the acquisition contract and the published
-artifacts. `cjindex` should remain the implementation behind that acquisition
-contract until the shared corpus can publish the same inputs directly.
+artifacts. `cjindex` should remain the implementation behind the layout
+conversion, not the release contract.
 
 In practical terms:
 

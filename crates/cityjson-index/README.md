@@ -123,10 +123,9 @@ The benchmark corpus is produced by `just prep-test-data` against the pinned
 The prep tool writes a manifest under the output root that records the exact
 tile list, counts, and checksums for the prepared corpus.
 
-This prep flow is also the reusable bootstrap path for the shared
-`cityjson-benchmarks` corpus. The shared corpus repo should own the release
-contract, but it can reuse this pipeline for the first 3DBAG-derived artifact
-set.
+The shared `cityjson-benchmarks` repository now owns the acquisition contract
+for the raw 3DBAG inputs. `cjindex` keeps the layout-building prep pipeline and
+consumes that shared source data when it needs a local benchmark tree.
 
 The concrete prep implementation lives in
 [tests/common/data_prep.rs](/home/balazs/Development/cjindex/tests/common/data_prep.rs)
