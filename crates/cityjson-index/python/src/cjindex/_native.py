@@ -115,8 +115,16 @@ def _configure(lib: CDLL) -> None:
     lib.cjx_feature_ref_page_free.restype = c_int
     lib.cjx_index_get_bytes.argtypes = [c_void_p, c_char_p, c_size_t, POINTER(_Bytes)]
     lib.cjx_index_get_bytes.restype = c_int
+    lib.cjx_index_get_model_bytes.argtypes = [c_void_p, c_char_p, c_size_t, POINTER(_Bytes)]
+    lib.cjx_index_get_model_bytes.restype = c_int
     lib.cjx_index_read_feature_bytes.argtypes = [c_void_p, POINTER(_FeatureRef), POINTER(_Bytes)]
     lib.cjx_index_read_feature_bytes.restype = c_int
+    lib.cjx_index_read_feature_model_bytes.argtypes = [
+        c_void_p,
+        POINTER(_FeatureRef),
+        POINTER(_Bytes),
+    ]
+    lib.cjx_index_read_feature_model_bytes.restype = c_int
 
 
 if LIB is not None:
@@ -263,6 +271,23 @@ def get_bytes(handle: c_void_p, feature_id: str) -> bytes | None:
         LIB.cjx_bytes_free(out)
 
 
+def get_model_bytes(handle: c_void_p, feature_id: str) -> bytes | None:
+    if LIB is None:
+        return None
+
+    payload = feature_id.encode("utf-8")
+    out = _Bytes()
+    status = LIB.cjx_index_get_model_bytes(handle, c_char_p(payload), len(payload), byref(out))
+    if status == INVALID_ARGUMENT:
+        clear_error()
+        return None
+    check_status(status)
+    try:
+        return _bytes_to_py(out)
+    finally:
+        LIB.cjx_bytes_free(out)
+
+
 def read_feature_bytes(handle: c_void_p, source_path: str, offset: int, length: int) -> bytes:
     if LIB is None:
         return b"{}"
@@ -284,6 +309,48 @@ def read_feature_bytes(handle: c_void_p, source_path: str, offset: int, length: 
 
     out = _Bytes()
     status = LIB.cjx_index_read_feature_bytes(handle, byref(native), byref(out))
+    check_status(status)
+    try:
+        return _bytes_to_py(out)
+    finally:
+        LIB.cjx_bytes_free(out)
+
+
+def read_feature_model_bytes(
+    handle: c_void_p,
+    feature_id: str,
+    source_path: str,
+    offset: int,
+    length: int,
+    vertices_offset: int,
+    vertices_length: int,
+    member_ranges_json: str,
+    source_id: int,
+) -> bytes:
+    if LIB is None:
+        return b"{}"
+
+    feature_id_bytes = feature_id.encode("utf-8")
+    feature_id_buffer = create_string_buffer(feature_id_bytes)
+    source_bytes = source_path.encode("utf-8")
+    source_buffer = create_string_buffer(source_bytes)
+    member_ranges_bytes = member_ranges_json.encode("utf-8")
+    member_ranges_buffer = create_string_buffer(member_ranges_bytes)
+    native = _FeatureRef()
+    native.feature_id.data = cast(feature_id_buffer, c_void_p)
+    native.feature_id.len = len(feature_id_bytes)
+    native.source_path.data = cast(source_buffer, c_void_p)
+    native.source_path.len = len(source_bytes)
+    native.offset = offset
+    native.length = length
+    native.vertices_offset = vertices_offset
+    native.vertices_length = vertices_length
+    native.member_ranges_json.data = cast(member_ranges_buffer, c_void_p)
+    native.member_ranges_json.len = len(member_ranges_bytes)
+    native.source_id = source_id
+
+    out = _Bytes()
+    status = LIB.cjx_index_read_feature_model_bytes(handle, byref(native), byref(out))
     check_status(status)
     try:
         return _bytes_to_py(out)

@@ -3667,13 +3667,13 @@ mod tests {
         .expect("write metadata");
         for (idx, id) in ids.iter().enumerate() {
             let feature_path = root.join(format!("features/{idx:03}.city.jsonl"));
+            let idx = i64::try_from(idx).expect("test index fits in i64");
             if let Some(parent) = feature_path.parent() {
                 fs::create_dir_all(parent).expect("create feature directory");
             }
             fs::write(
                 &feature_path,
-                serde_json::to_vec(&feature_feature_document(id, idx as i64))
-                    .expect("feature JSON"),
+                serde_json::to_vec(&feature_feature_document(id, idx)).expect("feature JSON"),
             )
             .expect("write feature file");
         }
@@ -3716,9 +3716,9 @@ mod tests {
         let mut contents = serde_json::to_string(&base_document()).expect("metadata JSON");
         contents.push('\n');
         for (idx, id) in ids.iter().enumerate() {
+            let idx = i64::try_from(idx).expect("test index fits in i64");
             contents.push_str(
-                &serde_json::to_string(&feature_feature_document(id, idx as i64))
-                    .expect("feature JSON"),
+                &serde_json::to_string(&feature_feature_document(id, idx)).expect("feature JSON"),
             );
             contents.push('\n');
         }

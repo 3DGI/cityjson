@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
-from typing import Self
+from typing import TYPE_CHECKING, Any, Self
 
 from . import _native
+
+if TYPE_CHECKING:
+    from cjlib import CityModel
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +51,31 @@ class IndexStatus:
             indexed_feature_count=int(native.indexed_feature_count),
             indexed_source_count=int(native.indexed_source_count),
         )
+
+
+def _require_citymodel_type() -> type["CityModel"]:
+    try:
+        from cjlib import CityModel
+    except ImportError as exc:
+        raise RuntimeError(
+            "cjindex model APIs require the cjlib Python package to be importable"
+        ) from exc
+    return CityModel
+
+
+def _parse_citymodel_bytes(payload: bytes) -> "CityModel":
+    try:
+        from cjlib import RootKind, probe_bytes
+    except ImportError as exc:
+        raise RuntimeError(
+            "cjindex model APIs require the cjlib Python package to be importable"
+        ) from exc
+
+    citymodel_type = _require_citymodel_type()
+    probe = probe_bytes(payload)
+    if probe.root_kind is RootKind.CITY_JSON_FEATURE:
+        return citymodel_type.parse_feature_bytes(payload)
+    return citymodel_type.parse_document_bytes(payload)
 
 
 class OpenedIndex:
@@ -111,10 +140,48 @@ class OpenedIndex:
             return None
         return _native.get_bytes(self._handle, feature_id)
 
+    def get_model_bytes(self, feature_id: str) -> bytes | None:
+        if self._handle is None:
+            return None
+        return _native.get_model_bytes(self._handle, feature_id)
+
+    def get(self, feature_id: str) -> "CityModel | None":
+        payload = self.get_model_bytes(feature_id)
+        if payload is None:
+            return None
+        return _parse_citymodel_bytes(payload)
+
+    def get_json(self, feature_id: str) -> Any | None:
+        payload = self.get_model_bytes(feature_id)
+        if payload is None:
+            return None
+        return json.loads(payload)
+
     def read_feature_bytes(self, ref: FeatureRef) -> bytes:
         if self._handle is None:
             return b"{}"
         return _native.read_feature_bytes(self._handle, ref.source_path, ref.offset, ref.length)
+
+    def read_feature_model_bytes(self, ref: FeatureRef) -> bytes:
+        if self._handle is None:
+            return b"{}"
+        return _native.read_feature_model_bytes(
+            self._handle,
+            ref.feature_id,
+            ref.source_path,
+            ref.offset,
+            ref.length,
+            ref.vertices_offset,
+            ref.vertices_length,
+            ref.member_ranges_json,
+            ref.source_id,
+        )
+
+    def read_feature(self, ref: FeatureRef) -> "CityModel":
+        return _parse_citymodel_bytes(self.read_feature_model_bytes(ref))
+
+    def read_feature_json(self, ref: FeatureRef) -> Any:
+        return json.loads(self.read_feature_model_bytes(ref))
 
 
 __all__ = ["FeatureRef", "IndexStatus", "OpenedIndex"]

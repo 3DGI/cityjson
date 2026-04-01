@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::ptr::{self, NonNull};
 use std::slice;
 
+use cjlib::json;
 use cjlib_ffi_core::{
     AbiError, bytes_free, bytes_from_string, bytes_from_vec, cj_bytes_t, cj_error_kind_t,
     cj_status_t, clear_last_error, copy_last_error_message, last_error_kind,
@@ -56,6 +57,39 @@ impl From<IndexedFeatureRef> for cjx_feature_ref_t {
     }
 }
 
+impl TryFrom<&cjx_feature_ref_t> for IndexedFeatureRef {
+    type Error = AbiError;
+
+    fn try_from(feature: &cjx_feature_ref_t) -> Result<Self, Self::Error> {
+        let source_path = PathBuf::from(bytes_to_string(feature.source_path, "source_path")?);
+        let feature_id = bytes_to_string(feature.feature_id, "feature_id")?;
+        let member_ranges_json = (!feature.member_ranges_json.data.is_null()
+            && feature.member_ranges_json.len > 0)
+            .then(|| bytes_to_string(feature.member_ranges_json, "member_ranges_json"))
+            .transpose()?;
+        let has_vertices_range = feature.vertices_offset != 0 || feature.vertices_length != 0;
+
+        Ok(Self {
+            feature_id,
+            source_id: feature.source_id,
+            source_path,
+            offset: feature.offset,
+            length: feature.length,
+            vertices_offset: has_vertices_range.then_some(feature.vertices_offset),
+            vertices_length: has_vertices_range.then_some(feature.vertices_length),
+            member_ranges_json,
+            bounds: crate::FeatureBounds {
+                min_x: 0.0,
+                max_x: 0.0,
+                min_y: 0.0,
+                max_y: 0.0,
+                min_z: 0.0,
+                max_z: 0.0,
+            },
+        })
+    }
+}
+
 struct OpenedIndex {
     resolved: ResolvedDataset,
     index: CityIndex,
@@ -102,10 +136,23 @@ impl OpenedIndex {
         self.index.get_bytes(feature_id).map_err(AbiError::from)
     }
 
-    fn read_feature_bytes(&self, feature: &cjx_feature_ref_t) -> Result<Vec<u8>, AbiError> {
+    fn get_model_bytes(&self, feature_id: &str) -> Result<Option<Vec<u8>>, AbiError> {
+        let Some(model) = self.index.get(feature_id).map_err(AbiError::from)? else {
+            return Ok(None);
+        };
+        json::to_vec(&model).map(Some).map_err(AbiError::from)
+    }
+
+    fn read_feature_bytes(feature: &cjx_feature_ref_t) -> Result<Vec<u8>, AbiError> {
         let source_path = bytes_to_string(feature.source_path, "source_path")?;
         read_exact_range(Path::new(&source_path), feature.offset, feature.length)
             .map_err(AbiError::from)
+    }
+
+    fn read_feature_model_bytes(&self, feature: &cjx_feature_ref_t) -> Result<Vec<u8>, AbiError> {
+        let feature = IndexedFeatureRef::try_from(feature)?;
+        let model = self.index.read_feature(&feature).map_err(AbiError::from)?;
+        json::to_vec(&model).map_err(AbiError::from)
     }
 }
 
@@ -182,7 +229,7 @@ fn write_handle(out_index: *mut *mut cjx_index_t, index: OpenedIndex) -> Result<
 }
 
 fn required_handle<'a>(handle: *const cjx_index_t) -> Result<&'a OpenedIndex, AbiError> {
-    let ptr = NonNull::new(handle as *mut cjx_index_t)
+    let ptr = NonNull::new(handle.cast_mut())
         .ok_or_else(|| AbiError::invalid_argument("index must not be null"))?;
     // SAFETY: the pointer originates from `write_handle`, which stores `OpenedIndex` as the
     // concrete allocation behind `cjx_index_t`.
@@ -223,6 +270,10 @@ pub extern "C" fn cjx_last_error_message_len() -> usize {
 }
 
 #[unsafe(no_mangle)]
+/// # Safety
+///
+/// `buffer` must point to `capacity` writable bytes and `out_len` must be a
+/// valid writable pointer when non-null.
 pub unsafe extern "C" fn cjx_last_error_message_copy(
     buffer: *mut c_char,
     capacity: usize,
@@ -264,7 +315,7 @@ pub extern "C" fn cjx_index_open(
 pub extern "C" fn cjx_index_free(handle: *mut cjx_index_t) -> cj_status_t {
     match run_ffi(|| {
         let handle = required_handle_mut(handle)?;
-        let raw = handle as *mut OpenedIndex;
+        let raw = std::ptr::from_mut(handle);
         // SAFETY: `raw` originates from `Box::into_raw` in `write_handle`.
         unsafe {
             drop(Box::from_raw(raw));
@@ -352,7 +403,11 @@ pub extern "C" fn cjx_index_feature_ref_page(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn cjx_feature_ref_page_free(
+/// # Safety
+///
+/// `refs` must either be null or point to `count` feature refs allocated by
+/// `cjx_index_feature_ref_page`.
+pub unsafe extern "C" fn cjx_feature_ref_page_free(
     refs: *mut cjx_feature_ref_t,
     count: usize,
 ) -> cj_status_t {
@@ -402,18 +457,60 @@ pub extern "C" fn cjx_index_get_bytes(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cjx_index_get_model_bytes(
+    handle: *const cjx_index_t,
+    feature_id: *const c_char,
+    feature_id_len: usize,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    match run_ffi(|| {
+        let handle = required_handle(handle)?;
+        let feature_id = required_string(feature_id, feature_id_len, "feature_id")?;
+        let Some(bytes) = handle.get_model_bytes(&feature_id)? else {
+            return Err(AbiError::invalid_argument(format!(
+                "feature {feature_id} was not found"
+            )));
+        };
+        write_value(out_bytes, "out_bytes", bytes_from_vec(bytes))
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cjx_index_read_feature_bytes(
     handle: *const cjx_index_t,
     feature: *const cjx_feature_ref_t,
     out_bytes: *mut cj_bytes_t,
 ) -> cj_status_t {
     match run_ffi(|| {
-        let _handle = required_handle(handle)?;
-        let feature = NonNull::new(feature as *mut cjx_feature_ref_t)
+        required_handle(handle)?;
+        let feature = NonNull::new(feature.cast_mut())
             .ok_or_else(|| AbiError::invalid_argument("feature must not be null"))?;
         // SAFETY: `feature` is validated to be non-null and points to a valid `cjx_feature_ref_t`.
         let feature = unsafe { feature.as_ref() };
-        let bytes = _handle.read_feature_bytes(feature)?;
+        let bytes = OpenedIndex::read_feature_bytes(feature)?;
+        write_value(out_bytes, "out_bytes", bytes_from_vec(bytes))
+    }) {
+        Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
+        Err(status) => status,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cjx_index_read_feature_model_bytes(
+    handle: *const cjx_index_t,
+    feature: *const cjx_feature_ref_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    match run_ffi(|| {
+        let handle = required_handle(handle)?;
+        let feature = NonNull::new(feature.cast_mut())
+            .ok_or_else(|| AbiError::invalid_argument("feature must not be null"))?;
+        // SAFETY: `feature` is validated to be non-null and points to a valid `cjx_feature_ref_t`.
+        let feature = unsafe { feature.as_ref() };
+        let bytes = handle.read_feature_model_bytes(feature)?;
         write_value(out_bytes, "out_bytes", bytes_from_vec(bytes))
     }) {
         Ok(()) => cj_status_t::CJ_STATUS_SUCCESS,
