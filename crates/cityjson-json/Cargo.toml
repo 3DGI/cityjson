@@ -21,7 +21,6 @@ ahash = { version = "0.8.11", features = ["serde"] }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports"]}
-cjfake = { path = "../cjfake" }
 pretty_assertions = "1.4.1"
 
 [[bench]]

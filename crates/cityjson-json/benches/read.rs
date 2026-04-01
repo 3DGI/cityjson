@@ -35,13 +35,11 @@ fn bench_read(c: &mut Criterion) {
             });
         });
 
-        if prepared.borrowed {
-            group.bench_function(READ_BENCH_SERDE_CITYJSON_BORROWED, |b| {
-                b.iter_with_large_drop(|| {
-                    serde_cityjson::from_str_borrowed(black_box(&prepared.input_json)).unwrap()
-                });
+        group.bench_function(READ_BENCH_SERDE_CITYJSON_BORROWED, |b| {
+            b.iter_with_large_drop(|| {
+                serde_cityjson::from_str_borrowed(black_box(&prepared.input_json)).unwrap()
             });
-        }
+        });
 
         group.bench_function(READ_BENCH_SERDE_JSON_VALUE, |b| {
             b.iter_with_large_drop(|| {

@@ -44,20 +44,18 @@ separate Criterion entrypoints:
    - `serde_cityjson::to_string_validated`
    - `serde_json::to_string` as the baseline
 
-The manifest in `tests/data/generated/manifest.json` is the catalog of cases.
-It declares:
+The shared benchmark index in
+`../cityjson-benchmarks/artifacts/benchmark-index.json` is now the catalog of
+cases. It declares:
 
 - case id
 - description
-- whether the case participates in read, write, or both
-- whether the case is real or synthetic
-- the seed for synthetic generation
-- the path to the profile file for synthetic generation
+- the path to the benchmark input file
+- whether the case came from a generated, acquired, or checked-in source
 
-Synthetic benchmark profiles live in `tests/data/generated/profiles/`. The
-benchmark harness loads those profiles at runtime and converts them into
-`cjfake::cli::CJFakeConfig` values. This keeps the profile data external to the
-Rust source while still making the generated inputs deterministic.
+The benchmark harness reads those files directly. Synthetic cases are already
+materialized by the shared corpus repo, so `serde_cityjson` no longer needs a
+local `cjfake` generation step.
 
 The shared benchmark module prepares data outside the timed closure and writes
 suite metadata into `benches/results/suite_metadata_*.json`. The reporting
@@ -75,20 +73,18 @@ Good:
 - the manifest is the single source of truth for benchmark membership
 - read and write suites now prepare only the data they need
 - synthetic cases are deterministic and separated from the Rust harness logic
-- the reporting layer can be regenerated from the recorded Criterion output
-- README benchmark tables can be refreshed mechanically instead of edited by hand
+  - the reporting layer can be regenerated from the recorded Criterion output
+  - README benchmark tables can be refreshed mechanically instead of edited by hand
 
 Trade-offs:
 
-- the harness now includes a small manifest loader and profile-to-config mapping
-- synthetic profile files must stay in sync with the manifest entries
+- the harness now includes a small shared-index loader
 - the benchmark setup is more explicit than the previous hardcoded constructors
 
 Rejected alternatives:
 
 - keeping all benchmark cases hardcoded in Rust
-- using generated fixture files instead of manifest-backed profile files
-- combining read and write benchmarks into one suite with conditional branches
+- keeping a local benchmark corpus mirror in `tests/data/generated/`
 
 ## Notes
 

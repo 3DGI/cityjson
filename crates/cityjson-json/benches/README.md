@@ -12,10 +12,12 @@ crate.
 
 ## Data
 
-- real-world regression inputs live in `tests/data/downloaded/`
-- synthetic benchmark cases are cataloged in `tests/data/generated/manifest.json`
-- synthetic benchmark profiles live in `tests/data/generated/profiles/`
-- `cjfake` generates the synthetic inputs deterministically at benchmark time
+- real-world regression inputs are consumed from the shared
+  `../cityjson-benchmarks/artifacts/benchmark-index.json`
+- the shared corpus repo publishes the generated benchmark outputs and the
+  raw acquired 3DBAG file paths
+- the local 3D Basisvoorziening bootstrap data still lives in
+  `tests/data/downloaded/`
 
 ## Workflow
 

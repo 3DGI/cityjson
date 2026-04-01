@@ -29,15 +29,13 @@ used for correctness testing. Those files should be treated as the current
 local mirror of the shared conformance corpus until the shared repo publishes
 the same ids.
 
-`tests/data/generated/` is the same story for benchmarks: it is a local
-bootstrap for the current synthetic cases, but the canonical profile catalog
-belongs in the shared corpus repo.
+Benchmark inputs now come from the shared corpus repo directly. The crate no
+longer owns a local synthetic benchmark mirror; it only keeps the 3D
+Basisvoorziening bootstrap data under `tests/data/downloaded/`.
 
 ## Migration Steps
 
 1. keep using the existing handcrafted fixtures for correctness tests
 2. align the local fixture ids with the shared corpus ids
-3. move benchmark inputs to the shared corpus release index once it exists
-4. treat the 3DBAG download workflow as historical bootstrap code, not as the
-   long-term source of truth
-
+3. consume the shared corpus benchmark index directly
+4. keep the 3D Basisvoorziening download workflow local to this crate

@@ -1,5 +1,7 @@
 set dotenv-load := true
 datadir := "tests" / "data" / "downloaded"
+shared_corpus_root := "../cityjson-benchmarks"
+shared_benchmark_index := shared_corpus_root / "artifacts" / "benchmark-index.json"
 
 # Show the available recipes.
 _default:
@@ -13,21 +15,9 @@ _prepare:
       mkdir -p {{datadir}}
     fi
 
-# Download local bootstrap test data for the benchmarks from the 3DBAG
-_download-3dbag: _prepare
-    #!/usr/bin/env bash
-    set -euxo pipefail
-    version="v20231008"
-    tiles=( "10-356-724" )
-    download_url="https://data.3dbag.nl/"$version"/tiles"
-    for tile_id in "${tiles[@]}" ;
-    do
-      tile_path=${tile_id//[-]//}
-      tile_filename=$tile_id".city.json.gz"
-      wget $download_url"/"$tile_path"/"$tile_filename -O {{datadir}}"/"$tile_filename
-      gunzip {{datadir}}"/"$tile_filename
-    done
-    wget "https://data.3dbag.nl/"$version"/metadata.json" -O {{datadir}}"/metadata.json"
+# Verify the shared benchmark corpus is available for 3DBAG-backed cases.
+_check-shared-3dbag:
+    test -f {{shared_benchmark_index}} && test -f {{shared_corpus_root}}/artifacts/acquired/3dbag/v20231008/10-356-724.city.json
 
 # Download local bootstrap test data for the benchmarks from the 3D Basivoorziening
 _download-3dbasisvoorziening: _prepare
@@ -44,13 +34,18 @@ _download-3dbasisvoorziening: _prepare
       rm {{datadir}}"/"$tile_filename
     done
 
+# Verify the shared benchmark corpus is available for the 3DBAG-backed cases.
+download-3dbag: _check-shared-3dbag
+
+# Download local bootstrap test data for the benchmarks from the 3D Basisvoorziening.
+download-3dbasisvoorziening: _download-3dbasisvoorziening _upgrade
+
 # Upgrade downloaded CityJSON files from v1.1 to v2.0
 _upgrade:
-    uvx cjio@0.10.1 {{datadir}}/10-356-724.city.json upgrade save {{datadir}}/10-356-724.city.json
     uvx cjio@0.10.1 {{datadir}}/30gz1_04.city.json upgrade save {{datadir}}/30gz1_04.city.json
 
 # Download local bootstrap test data for the benchmarks
-download: _download-3dbag _download-3dbasisvoorziening _upgrade
+download: download-3dbag download-3dbasisvoorziening
 
 # Delete all downloaded files
 clean:
@@ -78,19 +73,19 @@ bench-report:
 # Describe the synthetic benchmark profiles.
 synthetic-bench-specs:
     @printf '%s\n' \
-      'Synthetic benchmark profiles:' \
-      '  README: tests/data/generated/README.md' \
-      '  manifest: tests/data/generated/manifest.json' \
+      'Shared benchmark index:' \
+      '  repo: {{shared_corpus_root}}' \
+      '  index: {{shared_benchmark_index}}' \
       '' \
-      'These are benchmark profiles. cjfake generates the inputs at benchmark time.'
+      'serde_cityjson consumes the shared corpus index directly.'
 
-# Print the synthetic benchmark manifest.
+# Print the shared benchmark index.
 synthetic-bench-manifest:
-    cat tests/data/generated/manifest.json
+    cat {{shared_benchmark_index}}
 
-# Print the synthetic benchmark README.
+# Print the shared benchmark README.
 synthetic-bench-readme:
-    cat tests/data/generated/README.md
+    cat {{shared_corpus_root}}/README.md
 
 # Run cargo check across the workspace.
 check:
