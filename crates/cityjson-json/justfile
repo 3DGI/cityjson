@@ -62,10 +62,6 @@ bench-read:
 bench-write:
     cargo bench --bench write --
 
-# Generate benchmark plots.
-bench-plot:
-    uv run resources/compare_benchmarks/compare_benchmarks.py
-
 # Generate the markdown benchmark summary.
 bench-report:
     uv run resources/compare_benchmarks/compare_benchmarks.py --markdown

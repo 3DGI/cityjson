@@ -109,7 +109,6 @@ fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
         .contains("duplicate CityObject id in feature parts"));
 }
 
-
 #[test]
 fn serialize_quantizes_root_vertices_only() {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);

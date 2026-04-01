@@ -6,25 +6,24 @@ Generated from Criterion results.
 
 | Case | Description | serde_cityjson | serde_json::Value | Factor |
 | --- | --- | --- | --- | --- |
-| 3D Basisvoorziening | Large real-world dataset dominated by geometry flattening and vertex import | owned 847.122 ms (440.4 MiB/s) | 1.328 s (280.9 MiB/s) | 0.64x |
-| 3DBAG | Real-world medium-size dataset with two geometries per object and parent-child links | owned 35.206 ms (206.5 MiB/s); borrowed 34.153 ms (212.8 MiB/s) | 25.303 ms (287.3 MiB/s) | 1.39x |
-| attribute_tree_worst_case | Deep nested attributes with minimal geometry work | owned 30.462 ms (182.8 MiB/s); borrowed 25.802 ms (215.8 MiB/s) | 21.266 ms (261.9 MiB/s) | 1.43x |
-| composite_value_favorable_worst_case | Mixed geometry and normalization workload that is smaller but denser | owned 15.427 ms (225.0 MiB/s); borrowed 14.255 ms (243.5 MiB/s) | 13.597 ms (255.3 MiB/s) | 1.13x |
-| deep_boundary_stress | Solid-heavy geometry that exercises nested boundary flattening | owned 8.135 ms (325.1 MiB/s); borrowed 8.104 ms (326.3 MiB/s) | 10.249 ms (258.0 MiB/s) | 0.79x |
-| geometry_flattening_best_case | Large MultiSurface payload with no relation graph or attribute tree | owned 39.971 ms (332.5 MiB/s); borrowed 39.550 ms (336.0 MiB/s) | 51.061 ms (260.3 MiB/s) | 0.78x |
-| relation_graph_worst_case | Dense parent-child graph with small geometry payloads | owned 7.313 ms (297.1 MiB/s); borrowed 7.071 ms (307.3 MiB/s) | 7.162 ms (303.4 MiB/s) | 1.02x |
-| vertex_transform_stress | Large vertex pool with very little object-level normalization | owned 2.418 ms (295.4 MiB/s); borrowed 2.321 ms (307.8 MiB/s) | 2.317 ms (308.3 MiB/s) | 1.04x |
+| io_3dbag_cityjson |  | owned 29.290 ms (195.6 MiB/s); borrowed 27.761 ms (206.4 MiB/s) | 17.865 ms (320.7 MiB/s) | 1.64x |
+| stress_appearance_and_validation |  | owned 4.443 us (322.0 MiB/s); borrowed 4.445 us (321.8 MiB/s) | 4.065 us (351.9 MiB/s) | 1.09x |
+| stress_attribute_tree |  | owned 6.827 us (274.8 MiB/s); borrowed 6.639 us (282.5 MiB/s) | 6.033 us (310.9 MiB/s) | 1.13x |
+| stress_composite_value |  | owned 5.857 us (329.2 MiB/s); borrowed 5.432 us (355.0 MiB/s) | 5.734 us (336.3 MiB/s) | 1.02x |
+| stress_deep_boundary |  | owned 5.153 us (338.9 MiB/s); borrowed 4.895 us (356.8 MiB/s) | 5.269 us (331.4 MiB/s) | 0.98x |
+| stress_geometry_flattening |  | owned 4.357 us (323.8 MiB/s); borrowed 4.180 us (337.5 MiB/s) | 4.284 us (329.2 MiB/s) | 1.02x |
+| stress_relation_graph |  | owned 5.202 us (310.3 MiB/s); borrowed 4.766 us (338.8 MiB/s) | 4.908 us (328.9 MiB/s) | 1.06x |
+| stress_vertex_transform |  | owned 5.204 us (310.6 MiB/s); borrowed 4.861 us (332.5 MiB/s) | 4.890 us (330.6 MiB/s) | 1.06x |
 
 ### Write Benchmarks
 
 | Case | Description | serde_cityjson | serde_json::to_string | Factor |
 | --- | --- | --- | --- | --- |
-| 3D Basisvoorziening | Large real-world dataset dominated by geometry flattening and vertex import | as_json_to_value 646.119 ms (577.0 MiB/s); to_string 392.985 ms (948.6 MiB/s); to_string_validated 393.093 ms (948.4 MiB/s) | 471.668 ms (790.4 MiB/s) | 0.83x |
-| 3DBAG | Real-world medium-size dataset with two geometries per object and parent-child links | as_json_to_value 18.268 ms (383.9 MiB/s); to_string 9.807 ms (715.2 MiB/s); to_string_validated 9.831 ms (713.5 MiB/s) | 9.547 ms (734.7 MiB/s) | 1.03x |
-| appearance_and_validation_stress | Serializer-heavy case with materials, textures, templates, and semantics | as_json_to_value 3.924 ms (402.0 MiB/s); to_string 2.030 ms (777.1 MiB/s); to_string_validated 2.023 ms (779.8 MiB/s) | 2.023 ms (779.8 MiB/s) | 1.00x |
-| attribute_tree_worst_case | Deep nested attributes with minimal geometry work | as_json_to_value 24.949 ms (223.2 MiB/s); to_string 10.543 ms (528.2 MiB/s); to_string_validated 10.499 ms (530.5 MiB/s) | 10.989 ms (506.8 MiB/s) | 0.96x |
-| composite_value_favorable_worst_case | Mixed geometry and normalization workload that is smaller but denser | as_json_to_value 10.632 ms (326.5 MiB/s); to_string 6.222 ms (557.9 MiB/s); to_string_validated 6.217 ms (558.4 MiB/s) | 5.123 ms (677.6 MiB/s) | 1.21x |
-| deep_boundary_stress | Solid-heavy geometry that exercises nested boundary flattening | as_json_to_value 4.959 ms (533.3 MiB/s); to_string 5.245 ms (504.2 MiB/s); to_string_validated 5.250 ms (503.7 MiB/s) | 3.982 ms (664.1 MiB/s) | 1.32x |
-| geometry_flattening_best_case | Large MultiSurface payload with no relation graph or attribute tree | as_json_to_value 26.478 ms (501.9 MiB/s); to_string 27.101 ms (490.4 MiB/s); to_string_validated 27.183 ms (488.9 MiB/s) | 22.804 ms (582.8 MiB/s) | 1.19x |
-| relation_graph_worst_case | Dense parent-child graph with small geometry payloads | as_json_to_value 4.928 ms (440.9 MiB/s); to_string 3.376 ms (643.6 MiB/s); to_string_validated 3.376 ms (643.6 MiB/s) | 2.457 ms (884.3 MiB/s) | 1.37x |
-| vertex_transform_stress | Large vertex pool with very little object-level normalization | as_json_to_value 1.545 ms (462.2 MiB/s); to_string 1.082 ms (660.1 MiB/s); to_string_validated 1.087 ms (657.3 MiB/s) | 747.534 us (955.6 MiB/s) | 1.45x |
+| io_3dbag_cityjson |  | as_json_to_value 16.134 ms (349.3 MiB/s); to_string 8.087 ms (696.8 MiB/s); to_string_validated 8.262 ms (682.1 MiB/s) | 7.433 ms (758.1 MiB/s) | 1.09x |
+| stress_appearance_and_validation |  | as_json_to_value 3.029 us (471.9 MiB/s); to_string 1.697 us (842.5 MiB/s); to_string_validated 1.688 us (847.1 MiB/s) | 1.371 us (1043.0 MiB/s) | 1.24x |
+| stress_attribute_tree |  | as_json_to_value 4.377 us (428.6 MiB/s); to_string 2.191 us (856.1 MiB/s); to_string_validated 2.208 us (849.6 MiB/s) | 2.086 us (899.3 MiB/s) | 1.05x |
+| stress_composite_value |  | as_json_to_value 4.317 us (446.6 MiB/s); to_string 2.126 us (907.2 MiB/s); to_string_validated 2.128 us (906.1 MiB/s) | 2.038 us (946.4 MiB/s) | 1.04x |
+| stress_deep_boundary |  | as_json_to_value 4.062 us (429.8 MiB/s); to_string 2.119 us (824.0 MiB/s); to_string_validated 2.093 us (834.2 MiB/s) | 2.066 us (845.3 MiB/s) | 1.03x |
+| stress_geometry_flattening |  | as_json_to_value 3.261 us (432.5 MiB/s); to_string 1.576 us (894.7 MiB/s); to_string_validated 1.569 us (899.2 MiB/s) | 1.441 us (978.8 MiB/s) | 1.09x |
+| stress_relation_graph |  | as_json_to_value 3.696 us (436.8 MiB/s); to_string 1.797 us (898.4 MiB/s); to_string_validated 1.790 us (901.9 MiB/s) | 1.630 us (990.6 MiB/s) | 1.10x |
+| stress_vertex_transform |  | as_json_to_value 3.680 us (439.3 MiB/s); to_string 1.749 us (924.0 MiB/s); to_string_validated 1.752 us (922.6 MiB/s) | 1.683 us (960.5 MiB/s) | 1.04x |
