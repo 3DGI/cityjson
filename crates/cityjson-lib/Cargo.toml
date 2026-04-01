@@ -23,6 +23,7 @@ path = "src/lib.rs"
 [dependencies]
 cityjson = { path = "../cityjson-rs" }
 cityarrow = { path = "../cityarrow" }
+cityparquet = { path = "../cityarrow/cityparquet" }
 serde_cityjson = { path = "../serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }

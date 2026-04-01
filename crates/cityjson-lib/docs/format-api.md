@@ -22,8 +22,8 @@ pub mod arrow;
 pub mod parquet;
 ```
 
-Those modules delegate to backend crates such as `serde_cityjson` and
-`cityarrow`.
+Those modules delegate to backend crates such as `serde_cityjson`,
+`cityarrow`, and `cityparquet`.
 
 ## JSON Is Richer
 

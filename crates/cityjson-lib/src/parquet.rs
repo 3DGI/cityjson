@@ -2,7 +2,11 @@ use std::path::Path;
 
 use crate::{CityModel, Error, Result};
 
-pub use crate::arrow::PackageManifest;
+pub use cityparquet::{
+    CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageManifest,
+    PackageTableEncoding, PackageTables, ProjectedFieldSpec, ProjectedValueType, ProjectionLayout,
+    canonical_schema_set,
+};
 
 /// Write a Parquet package directory rooted at `path`.
 pub fn to_file<P: AsRef<Path>>(path: P, model: &CityModel) -> Result<()> {
@@ -18,8 +22,8 @@ pub fn write_package<P: AsRef<Path>>(path: P, model: &CityModel) -> Result<Packa
 }
 
 pub fn write_package_dir<P: AsRef<Path>>(path: P, model: &CityModel) -> Result<PackageManifest> {
-    let parts = cityarrow::to_parts(model.as_inner()).map_err(Error::from)?;
-    cityarrow::write_package_dir(path, &parts).map_err(Error::from)
+    let parts = cityparquet::to_parts(model.as_inner()).map_err(Error::from)?;
+    cityparquet::write_package_dir(path, &parts).map_err(Error::from)
 }
 
 pub fn read_package<P: AsRef<Path>>(path: P) -> Result<CityModel> {
@@ -27,8 +31,8 @@ pub fn read_package<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 }
 
 pub fn read_package_dir<P: AsRef<Path>>(path: P) -> Result<CityModel> {
-    let parts = cityarrow::read_package_dir(path).map_err(Error::from)?;
-    cityarrow::from_parts(&parts)
+    let parts = cityparquet::read_package_dir(path).map_err(Error::from)?;
+    cityparquet::from_parts(&parts)
         .map(CityModel::from)
         .map_err(Error::from)
 }

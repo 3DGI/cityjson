@@ -28,7 +28,7 @@ The future public API is centered on:
 - `cjlib::json`
 - `cjlib::ops`, currently one illustrative `todo!()` function
 - `cjlib::arrow`, backed by the sibling `cityarrow` transport crate
-- `cjlib::parquet`, backed by the sibling `cityarrow` transport crate
+- `cjlib::parquet`, backed by the sibling `cityparquet` transport crate
 - `cjlib::cityjson` for advanced model access
 
 ## Default Path
@@ -49,7 +49,8 @@ Current practical status:
 - `cjlib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cjlib::json`
-- explicit Arrow IPC and Parquet package transport exists under `cjlib::arrow` and `cjlib::parquet`
+- explicit Arrow IPC package transport exists under `cjlib::arrow`
+- explicit Parquet package transport exists under `cjlib::parquet`
 - `tyler` 0.4.0 now dogfoods `cjlib` for CityJSON reading
 - higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
