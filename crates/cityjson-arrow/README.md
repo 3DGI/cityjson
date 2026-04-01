@@ -96,7 +96,7 @@ The repository keeps four test layers around the canonical package path:
 
 - `src/lib.rs`: public API entry points
 - `src/convert/mod.rs`: model-to-parts and parts-to-model conversion
-- `src/package/`: internal package/container implementation used by
-  `cityparquet`
+- `src/transport.rs`: shared canonical-table transport helpers
+- `cityparquet/src/package/`: persistent package/container implementation
 - `src/schema.rs`: canonical schema definitions and transport structs
 - `tests/`: conversion, package, schema, and shared-corpus roundtrip coverage

@@ -144,8 +144,9 @@ pub struct ProjectionLayout {
     pub texture_payload: Vec<ProjectedFieldSpec>,
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone)]
-pub(crate) struct CityModelArrowParts {
+pub struct CityModelArrowParts {
     pub header: CityArrowHeader,
     pub projection: ProjectionLayout,
     pub metadata: RecordBatch,

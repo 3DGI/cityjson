@@ -1,9 +1,9 @@
 use crate::error::{Error, Result};
-use crate::package::{
+use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableRef, canonical_schema_set};
+use crate::transport::{
     CanonicalTable, build_parts, collect_tables, concat_record_batches, schema_for_table,
     validate_schema,
 };
-use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableRef, canonical_schema_set};
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;

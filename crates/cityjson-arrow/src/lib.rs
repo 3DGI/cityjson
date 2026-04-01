@@ -7,9 +7,11 @@
 pub mod convert;
 pub mod error;
 #[doc(hidden)]
-pub mod package;
+pub mod internal;
 pub mod schema;
 mod stream;
+#[doc(hidden)]
+pub mod transport;
 
 pub use convert::{ModelDecoder, ModelEncoder};
 pub use schema::{
