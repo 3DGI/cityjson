@@ -21,7 +21,8 @@ use cityjson::v2_0::{
 };
 use serde_json::{Map as JsonMap, Number as JsonNumber, Value as JsonValue};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::Write;
+use std::fmt::Write as FmtWrite;
+use std::io::{Read, Write as IoWrite};
 use std::sync::Arc;
 
 const DEFAULT_CITYMODEL_ID: &str = "citymodel";
@@ -49,6 +50,36 @@ const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color_json";
 const PRIMITIVE_TYPE_POINT: &str = "point";
 const PRIMITIVE_TYPE_LINESTRING: &str = "linestring";
 const PRIMITIVE_TYPE_SURFACE: &str = "surface";
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ModelEncoder;
+
+impl ModelEncoder {
+    /// Encodes an in-memory model as a live Arrow IPC stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when model conversion or stream serialization fails.
+    pub fn encode<W: IoWrite>(&self, model: &OwnedCityModel, writer: W) -> Result<()> {
+        let parts = encode_parts(model)?;
+        crate::stream::write_model_stream(&parts, writer)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ModelDecoder;
+
+impl ModelDecoder {
+    /// Decodes an in-memory model from a live Arrow IPC stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when stream decoding or model reconstruction fails.
+    pub fn decode<R: Read>(&self, reader: R) -> Result<OwnedCityModel> {
+        let parts = crate::stream::read_model_stream(reader)?;
+        decode_parts(&parts)
+    }
+}
 
 #[derive(Debug, Clone)]
 struct MetadataRow {
@@ -397,6 +428,7 @@ struct ImportState {
     template_handle_by_id: HashMap<u64, cityjson::prelude::GeometryTemplateHandle>,
     geometry_handle_by_id: HashMap<u64, cityjson::prelude::GeometryHandle>,
     cityobject_handle_by_id: HashMap<String, cityjson::prelude::CityObjectHandle>,
+    pending_geometry_attachments: HashMap<String, Vec<(u32, u64)>>,
 }
 
 struct PartRowGroups {
@@ -410,6 +442,79 @@ struct PartRowGroups {
     template_materials: GroupedRows<TemplateGeometryMaterialRow>,
     ring_textures: GroupedRows<GeometryRingTextureRow>,
     template_ring_textures: GroupedRows<TemplateGeometryRingTextureRow>,
+}
+
+struct VertexColumns<'a> {
+    vertex_id: &'a UInt64Array,
+    x: &'a Float64Array,
+    y: &'a Float64Array,
+    z: &'a Float64Array,
+}
+
+struct UvColumns<'a> {
+    uv_id: &'a UInt64Array,
+    u: &'a Float64Array,
+    v: &'a Float64Array,
+}
+
+struct GeometryColumns<'a> {
+    geometry_id: &'a UInt64Array,
+    cityobject_id: &'a LargeStringArray,
+    geometry_ordinal: &'a UInt32Array,
+    geometry_type: &'a StringArray,
+    lod: &'a StringArray,
+}
+
+struct TemplateGeometryColumns<'a> {
+    template_geometry_id: &'a UInt64Array,
+    geometry_type: &'a StringArray,
+    lod: &'a StringArray,
+}
+
+struct GeometryInstanceColumns<'a> {
+    geometry_id: &'a UInt64Array,
+    cityobject_id: &'a LargeStringArray,
+    geometry_ordinal: &'a UInt32Array,
+    lod: &'a StringArray,
+    template_geometry_id: &'a UInt64Array,
+    reference_point_vertex_id: &'a UInt64Array,
+    transform_matrix: &'a FixedSizeListArray,
+}
+
+struct CityObjectColumns<'a> {
+    cityobject_id: &'a LargeStringArray,
+    cityobject_ix: &'a UInt64Array,
+    object_type: &'a StringArray,
+    geographical_extent: &'a FixedSizeListArray,
+    attributes: Vec<&'a LargeStringArray>,
+    extra: Vec<&'a LargeStringArray>,
+}
+
+struct SemanticColumns<'a> {
+    semantic_id: &'a UInt64Array,
+    semantic_type: &'a StringArray,
+    attributes: Vec<&'a LargeStringArray>,
+}
+
+struct MaterialColumns<'a> {
+    material_id: &'a UInt64Array,
+    name: &'a LargeStringArray,
+    ambient_intensity: Option<&'a Float64Array>,
+    diffuse_color: Option<&'a LargeStringArray>,
+    emissive_color: Option<&'a LargeStringArray>,
+    specular_color: Option<&'a LargeStringArray>,
+    shininess: Option<&'a Float64Array>,
+    transparency: Option<&'a Float64Array>,
+    is_smooth: Option<&'a arrow::array::BooleanArray>,
+}
+
+struct TextureColumns<'a> {
+    texture_id: &'a UInt64Array,
+    image_uri: &'a LargeStringArray,
+    image_type: &'a LargeStringArray,
+    wrap_mode: Option<&'a LargeStringArray>,
+    texture_type: Option<&'a LargeStringArray>,
+    border_color: Option<&'a LargeStringArray>,
 }
 
 fn empty_texture_map(ring_layouts: &[RingLayout]) -> Result<TextureMap<u32>> {
@@ -433,7 +538,7 @@ fn empty_texture_map(ring_layouts: &[RingLayout]) -> Result<TextureMap<u32>> {
 ///
 /// Returns an error when the model contains unsupported `CityJSON` features or when
 /// Arrow-compatible table rows cannot be derived from the model data.
-pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
+pub(crate) fn encode_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
     reject_unsupported_modules(model)?;
 
     let citymodel_id = infer_citymodel_id(model);
@@ -442,7 +547,7 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         model,
         citymodel_id: citymodel_id.clone(),
         header: CityArrowHeader::new(
-            CityArrowPackageVersion::V1Alpha1,
+            CityArrowPackageVersion::V2Alpha1,
             citymodel_id,
             model
                 .version()
@@ -687,7 +792,7 @@ fn export_appearance_batches(
 ///
 /// Returns an error when the provided tables are inconsistent, use unsupported
 /// combinations, or contain values that cannot be converted back into `CityJSON`.
-pub fn from_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
+pub(crate) fn decode_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
     ensure_supported_part_table_combinations(parts)?;
     validate_appearance_projection_layout(&parts.projection)?;
     let mut state = initialize_model_from_parts(parts)?;
@@ -731,21 +836,29 @@ fn initialize_model_from_parts(parts: &CityModelArrowParts) -> Result<ImportStat
         ))?;
     }
     if let Some(batch) = &parts.template_vertices {
-        let mut rows = read_template_vertex_rows(batch)?;
-        rows.sort_by_key(|row| row.template_vertex_id);
-        for row in rows {
+        let columns = bind_vertex_columns(batch, "template_vertex_id")?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let template_vertex_id = columns.vertex_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, template_vertex_id, "template_vertex_id")?;
+            previous_id = Some(template_vertex_id);
             model.add_template_vertex(cityjson::v2_0::RealWorldCoordinate::new(
-                row.x, row.y, row.z,
+                columns.x.value(row),
+                columns.y.value(row),
+                columns.z.value(row),
             ))?;
         }
     }
     if let Some(batch) = &parts.texture_vertices {
-        let mut rows = read_texture_vertex_rows(batch)?;
-        rows.sort_by_key(|row| row.uv_id);
-        for row in rows {
+        let columns = bind_uv_columns(batch)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let uv_id = columns.uv_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, uv_id, "uv_id")?;
+            previous_id = Some(uv_id);
             model.add_uv_coordinate(UVCoordinate::new(
-                f64_to_f32_preserving_cast(row.u)?,
-                f64_to_f32_preserving_cast(row.v)?,
+                f64_to_f32_preserving_cast(columns.u.value(row))?,
+                f64_to_f32_preserving_cast(columns.v.value(row))?,
             ))?;
         }
     }
@@ -762,6 +875,7 @@ fn initialize_model_from_parts(parts: &CityModelArrowParts) -> Result<ImportStat
         template_handle_by_id: HashMap::new(),
         geometry_handle_by_id: HashMap::new(),
         cityobject_handle_by_id: HashMap::new(),
+        pending_geometry_attachments: HashMap::new(),
     })
 }
 
@@ -771,18 +885,26 @@ fn import_semantics(
 ) -> Result<HashMap<u64, cityjson::prelude::SemanticHandle>> {
     let mut semantic_handle_by_id = HashMap::new();
     if let Some(batch) = &parts.semantics {
-        let mut rows = read_semantic_rows(batch, &parts.projection)?;
-        rows.sort_by_key(|row| row.semantic_id);
-        for row in rows {
-            let mut semantic = OwnedSemantic::new(parse_semantic_type(&row.semantic_type));
+        let columns = bind_semantic_columns(batch, &parts.projection)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let semantic_id = columns.semantic_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, semantic_id, "semantic_id")?;
+            previous_id = Some(semantic_id);
+            let mut semantic =
+                OwnedSemantic::new(parse_semantic_type(columns.semantic_type.value(row)));
             apply_projected_attributes(
                 semantic.attributes_mut(),
                 &parts.projection.semantic_attributes,
-                &row.attributes,
+                &columns
+                    .attributes
+                    .iter()
+                    .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
+                    .collect::<Vec<_>>(),
                 FIELD_ATTR_PREFIX,
                 &HashMap::new(),
             )?;
-            semantic_handle_by_id.insert(row.semantic_id, model.add_semantic(semantic)?);
+            semantic_handle_by_id.insert(semantic_id, model.add_semantic(semantic)?);
         }
         if let Some(children) = &parts.semantic_children {
             for row in read_semantic_child_rows(children)? {
@@ -823,41 +945,48 @@ fn import_materials(
 ) -> Result<HashMap<u64, cityjson::prelude::MaterialHandle>> {
     let mut material_handle_by_id = HashMap::new();
     if let Some(batch) = &parts.materials {
-        let mut rows = read_material_rows(batch, &parts.projection)?;
-        rows.sort_by_key(|row| row.material_id);
-        for row in rows {
-            let mut material = OwnedMaterial::new(row.name);
+        let columns = bind_material_columns(batch, &parts.projection)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let material_id = columns.material_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, material_id, "material_id")?;
+            previous_id = Some(material_id);
+            let mut material = OwnedMaterial::new(columns.name.value(row).to_string());
             material.set_ambient_intensity(
-                row.ambient_intensity
+                read_f64_array_optional(columns.ambient_intensity, row)
                     .map(f64_to_f32_preserving_cast)
                     .transpose()?,
             );
             material.set_diffuse_color(
-                row.diffuse_color
+                read_large_string_array_optional(columns.diffuse_color, row)
                     .as_deref()
                     .map(parse_rgb_json)
                     .transpose()?,
             );
             material.set_emissive_color(
-                row.emissive_color
+                read_large_string_array_optional(columns.emissive_color, row)
                     .as_deref()
                     .map(parse_rgb_json)
                     .transpose()?,
             );
             material.set_specular_color(
-                row.specular_color
+                read_large_string_array_optional(columns.specular_color, row)
                     .as_deref()
                     .map(parse_rgb_json)
                     .transpose()?,
             );
-            material.set_shininess(row.shininess.map(f64_to_f32_preserving_cast).transpose()?);
-            material.set_transparency(
-                row.transparency
+            material.set_shininess(
+                read_f64_array_optional(columns.shininess, row)
                     .map(f64_to_f32_preserving_cast)
                     .transpose()?,
             );
-            material.set_is_smooth(row.is_smooth);
-            material_handle_by_id.insert(row.material_id, model.add_material(material)?);
+            material.set_transparency(
+                read_f64_array_optional(columns.transparency, row)
+                    .map(f64_to_f32_preserving_cast)
+                    .transpose()?,
+            );
+            material.set_is_smooth(read_bool_array_optional(columns.is_smooth, row));
+            material_handle_by_id.insert(material_id, model.add_material(material)?);
         }
     }
     Ok(material_handle_by_id)
@@ -869,24 +998,35 @@ fn import_textures(
 ) -> Result<HashMap<u64, cityjson::prelude::TextureHandle>> {
     let mut texture_handle_by_id = HashMap::new();
     if let Some(batch) = &parts.textures {
-        let mut rows = read_texture_rows(batch, &parts.projection)?;
-        rows.sort_by_key(|row| row.texture_id);
-        for row in rows {
-            let mut texture = OwnedTexture::new(row.image_uri, parse_image_type(&row.image_type)?);
-            texture.set_wrap_mode(row.wrap_mode.as_deref().map(parse_wrap_mode).transpose()?);
+        let columns = bind_texture_columns(batch, &parts.projection)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let texture_id = columns.texture_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, texture_id, "texture_id")?;
+            previous_id = Some(texture_id);
+            let mut texture = OwnedTexture::new(
+                columns.image_uri.value(row).to_string(),
+                parse_image_type(columns.image_type.value(row))?,
+            );
+            texture.set_wrap_mode(
+                read_large_string_array_optional(columns.wrap_mode, row)
+                    .as_deref()
+                    .map(parse_wrap_mode)
+                    .transpose()?,
+            );
             texture.set_texture_type(
-                row.texture_type
+                read_large_string_array_optional(columns.texture_type, row)
                     .as_deref()
                     .map(parse_texture_mapping_type)
                     .transpose()?,
             );
             texture.set_border_color(
-                row.border_color
+                read_large_string_array_optional(columns.border_color, row)
                     .as_deref()
                     .map(parse_rgba_json)
                     .transpose()?,
             );
-            texture_handle_by_id.insert(row.texture_id, model.add_texture(texture)?);
+            texture_handle_by_id.insert(texture_id, model.add_texture(texture)?);
         }
     }
     Ok(texture_handle_by_id)
@@ -976,50 +1116,58 @@ fn import_template_geometries(
     grouped_rows: &PartRowGroups,
 ) -> Result<()> {
     if let Some(batch) = &parts.template_geometries {
-        let mut rows = read_template_geometry_rows(batch)?;
-        rows.sort_by_key(|row| row.template_geometry_id);
-        for row in rows {
+        let columns = bind_template_geometry_columns(batch)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let template_geometry_id = columns.template_geometry_id.value(row);
+            ensure_strictly_increasing_u64(
+                previous_id,
+                template_geometry_id,
+                "template_geometry_id",
+            )?;
+            previous_id = Some(template_geometry_id);
             let boundary = grouped_rows
                 .template_boundaries
-                .get(&row.template_geometry_id)
+                .get(&template_geometry_id)
                 .ok_or_else(|| {
                     Error::Conversion(format!(
-                        "missing boundary row for template geometry {}",
-                        row.template_geometry_id
+                        "missing boundary row for template geometry {template_geometry_id}"
                     ))
                 })?;
             let geometry = Geometry::from_stored_parts(StoredGeometryParts {
-                type_geometry: parse_geometry_type(&row.geometry_type)?,
-                lod: row.lod.as_deref().map(parse_lod).transpose()?,
-                boundaries: Some(template_boundary_from_row(boundary, &row.geometry_type)?),
-                semantics: build_template_semantic_map(
-                    &row.geometry_type,
+                type_geometry: parse_geometry_type(columns.geometry_type.value(row))?,
+                lod: (!columns.lod.is_null(row))
+                    .then(|| columns.lod.value(row))
+                    .map(parse_lod)
+                    .transpose()?,
+                boundaries: Some(template_boundary_from_row(
                     boundary,
-                    grouped_rows
-                        .template_semantics
-                        .get(&row.template_geometry_id),
+                    columns.geometry_type.value(row),
+                )?),
+                semantics: build_template_semantic_map(
+                    columns.geometry_type.value(row),
+                    boundary,
+                    grouped_rows.template_semantics.get(&template_geometry_id),
                     &state.semantic_handle_by_id,
                 )?,
                 materials: build_template_material_maps(
-                    &row.geometry_type,
+                    columns.geometry_type.value(row),
                     boundary,
-                    grouped_rows
-                        .template_materials
-                        .get(&row.template_geometry_id),
+                    grouped_rows.template_materials.get(&template_geometry_id),
                     &state.material_handle_by_id,
                 )?,
                 textures: build_template_texture_maps(
-                    &row.geometry_type,
+                    columns.geometry_type.value(row),
                     boundary,
                     grouped_rows
                         .template_ring_textures
-                        .get(&row.template_geometry_id),
+                        .get(&template_geometry_id),
                     &state.texture_handle_by_id,
                 )?,
                 instance: None,
             });
             state.template_handle_by_id.insert(
-                row.template_geometry_id,
+                template_geometry_id,
                 state.model.add_geometry_template(geometry)?,
             );
         }
@@ -1032,72 +1180,101 @@ fn import_geometries(
     state: &mut ImportState,
     grouped_rows: &PartRowGroups,
 ) -> Result<()> {
-    let mut rows = read_geometry_rows(&parts.geometries)?;
-    rows.sort_by_key(|row| row.geometry_id);
-    for row in rows {
-        let boundary = grouped_rows
-            .boundaries
-            .get(&row.geometry_id)
-            .ok_or_else(|| {
-                Error::Conversion(format!(
-                    "missing boundary row for geometry {}",
-                    row.geometry_id
-                ))
-            })?;
+    import_boundary_geometries(parts, state, grouped_rows)?;
+    import_instance_geometries(parts, state)?;
+    Ok(())
+}
+
+fn import_boundary_geometries(
+    parts: &CityModelArrowParts,
+    state: &mut ImportState,
+    grouped_rows: &PartRowGroups,
+) -> Result<()> {
+    let columns = bind_geometry_columns(&parts.geometries)?;
+    let mut previous_id = None;
+    for row in 0..parts.geometries.num_rows() {
+        let geometry_id = columns.geometry_id.value(row);
+        ensure_strictly_increasing_u64(previous_id, geometry_id, "geometry_id")?;
+        previous_id = Some(geometry_id);
+        let boundary = grouped_rows.boundaries.get(&geometry_id).ok_or_else(|| {
+            Error::Conversion(format!("missing boundary row for geometry {geometry_id}"))
+        })?;
         let geometry = Geometry::from_stored_parts(StoredGeometryParts {
-            type_geometry: parse_geometry_type(&row.geometry_type)?,
-            lod: row.lod.as_deref().map(parse_lod).transpose()?,
-            boundaries: Some(boundary_from_row(boundary, &row.geometry_type)?),
-            semantics: build_semantic_map(
-                &row.geometry_type,
+            type_geometry: parse_geometry_type(columns.geometry_type.value(row))?,
+            lod: (!columns.lod.is_null(row))
+                .then(|| columns.lod.value(row))
+                .map(parse_lod)
+                .transpose()?,
+            boundaries: Some(boundary_from_row(
                 boundary,
-                grouped_rows.surface_semantics.get(&row.geometry_id),
-                grouped_rows.point_semantics.get(&row.geometry_id),
-                grouped_rows.linestring_semantics.get(&row.geometry_id),
+                columns.geometry_type.value(row),
+            )?),
+            semantics: build_semantic_map(
+                columns.geometry_type.value(row),
+                boundary,
+                grouped_rows.surface_semantics.get(&geometry_id),
+                grouped_rows.point_semantics.get(&geometry_id),
+                grouped_rows.linestring_semantics.get(&geometry_id),
                 &state.semantic_handle_by_id,
             )?,
             materials: build_material_maps(
-                &row.geometry_type,
+                columns.geometry_type.value(row),
                 boundary,
-                grouped_rows.surface_materials.get(&row.geometry_id),
+                grouped_rows.surface_materials.get(&geometry_id),
                 &state.material_handle_by_id,
             )?,
             textures: build_texture_maps(
-                &row.geometry_type,
+                columns.geometry_type.value(row),
                 boundary,
-                grouped_rows.ring_textures.get(&row.geometry_id),
+                grouped_rows.ring_textures.get(&geometry_id),
                 &state.texture_handle_by_id,
             )?,
             instance: None,
         });
         insert_unique_geometry_handle(
             &mut state.geometry_handle_by_id,
-            row.geometry_id,
+            geometry_id,
             state.model.add_geometry(geometry)?,
         )?;
+        state
+            .pending_geometry_attachments
+            .entry(columns.cityobject_id.value(row).to_string())
+            .or_default()
+            .push((columns.geometry_ordinal.value(row), geometry_id));
     }
+    Ok(())
+}
+
+fn import_instance_geometries(parts: &CityModelArrowParts, state: &mut ImportState) -> Result<()> {
     if let Some(batch) = &parts.geometry_instances {
-        let mut rows = read_geometry_instance_rows(batch)?;
-        rows.sort_by_key(|row| row.geometry_id);
-        for row in rows {
+        let columns = bind_geometry_instance_columns(batch)?;
+        let mut previous_id = None;
+        for row in 0..batch.num_rows() {
+            let geometry_id = columns.geometry_id.value(row);
+            ensure_strictly_increasing_u64(previous_id, geometry_id, "geometry_instance_id")?;
+            previous_id = Some(geometry_id);
             let template = *state
                 .template_handle_by_id
-                .get(&row.template_geometry_id)
+                .get(&columns.template_geometry_id.value(row))
                 .ok_or_else(|| {
                     Error::Conversion(format!(
                         "missing template geometry {}",
-                        row.template_geometry_id
+                        columns.template_geometry_id.value(row)
                     ))
                 })?;
-            let reference_point = u32::try_from(row.reference_point_vertex_id).map_err(|_| {
-                Error::Conversion(format!(
-                    "reference point vertex id {} does not fit into u32",
-                    row.reference_point_vertex_id
-                ))
-            })?;
+            let reference_point = u32::try_from(columns.reference_point_vertex_id.value(row))
+                .map_err(|_| {
+                    Error::Conversion(format!(
+                        "reference point vertex id {} does not fit into u32",
+                        columns.reference_point_vertex_id.value(row)
+                    ))
+                })?;
             let geometry = Geometry::from_stored_parts(StoredGeometryParts {
                 type_geometry: GeometryType::GeometryInstance,
-                lod: row.lod.as_deref().map(parse_lod).transpose()?,
+                lod: (!columns.lod.is_null(row))
+                    .then(|| columns.lod.value(row))
+                    .map(parse_lod)
+                    .transpose()?,
                 boundaries: None,
                 semantics: None,
                 materials: None,
@@ -1105,17 +1282,25 @@ fn import_geometries(
                 instance: Some(StoredGeometryInstance {
                     template,
                     reference_point: cityjson::v2_0::VertexIndex::new(reference_point),
-                    transformation: row
-                        .transform_matrix
-                        .map(cityjson::v2_0::AffineTransform3D::from)
-                        .unwrap_or_default(),
+                    transformation: read_fixed_size_list_array_optional::<16>(
+                        columns.transform_matrix,
+                        "transform_matrix",
+                        row,
+                    )?
+                    .map(cityjson::v2_0::AffineTransform3D::from)
+                    .unwrap_or_default(),
                 }),
             });
             insert_unique_geometry_handle(
                 &mut state.geometry_handle_by_id,
-                row.geometry_id,
+                geometry_id,
                 state.model.add_geometry(geometry)?,
             )?;
+            state
+                .pending_geometry_attachments
+                .entry(columns.cityobject_id.value(row).to_string())
+                .or_default()
+                .push((columns.geometry_ordinal.value(row), geometry_id));
         }
     }
     Ok(())
@@ -1135,78 +1320,79 @@ fn insert_unique_geometry_handle(
 }
 
 fn import_cityobjects(parts: &CityModelArrowParts, state: &mut ImportState) -> Result<()> {
-    let mut rows = read_cityobject_rows(&parts.cityobjects, &parts.projection)?;
-    rows.sort_by_key(|row| row.cityobject_ix);
-    for row in rows {
+    let columns = bind_cityobject_columns(&parts.cityobjects, &parts.projection)?;
+    let mut previous_ix = None;
+    for row in 0..parts.cityobjects.num_rows() {
+        let object_index = columns.cityobject_ix.value(row);
+        ensure_strictly_increasing_u64(previous_ix, object_index, "cityobject_ix")?;
+        previous_ix = Some(object_index);
+        let object_id = columns.cityobject_id.value(row).to_string();
         let mut object = CityObject::new(
-            CityObjectIdentifier::new(row.cityobject_id.clone()),
-            row.object_type.parse::<CityObjectType<_>>()?,
+            CityObjectIdentifier::new(object_id.clone()),
+            columns
+                .object_type
+                .value(row)
+                .parse::<CityObjectType<_>>()?,
         );
-        if let Some(extent) = row.geographical_extent {
+        if let Some(extent) = read_fixed_size_list_array_optional::<6>(
+            columns.geographical_extent,
+            "geographical_extent",
+            row,
+        )? {
             object.set_geographical_extent(Some(BBox::from(extent)));
         }
         apply_projected_attributes(
             object.attributes_mut(),
             &parts.projection.cityobject_attributes,
-            &row.attributes,
+            &columns
+                .attributes
+                .iter()
+                .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
+                .collect::<Vec<_>>(),
             FIELD_ATTR_PREFIX,
             &state.geometry_handle_by_id,
         )?;
         apply_projected_attributes(
             object.extra_mut(),
             &parts.projection.cityobject_extra,
-            &row.extra,
+            &columns
+                .extra
+                .iter()
+                .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
+                .collect::<Vec<_>>(),
             FIELD_EXTRA_PREFIX,
             &state.geometry_handle_by_id,
         )?;
-        state.cityobject_handle_by_id.insert(
-            row.cityobject_id.clone(),
-            state.model.cityobjects_mut().add(object)?,
-        );
+        state
+            .cityobject_handle_by_id
+            .insert(object_id, state.model.cityobjects_mut().add(object)?);
     }
-    attach_cityobject_geometries(parts, state)?;
+    attach_cityobject_geometries(state)?;
     import_cityobject_children(parts, state)?;
     Ok(())
 }
 
-fn attach_cityobject_geometries(
-    parts: &CityModelArrowParts,
-    state: &mut ImportState,
-) -> Result<()> {
-    let mut geometry_attachments = read_geometry_rows(&parts.geometries)?
-        .into_iter()
-        .map(|row| (row.cityobject_id, row.geometry_id, row.geometry_ordinal))
-        .collect::<Vec<_>>();
-    if let Some(batch) = &parts.geometry_instances {
-        geometry_attachments.extend(
-            read_geometry_instance_rows(batch)?
-                .into_iter()
-                .map(|row| (row.cityobject_id, row.geometry_id, row.geometry_ordinal)),
-        );
-    }
-    geometry_attachments.sort_by(|left, right| {
-        left.0
-            .cmp(&right.0)
-            .then(left.2.cmp(&right.2))
-            .then(left.1.cmp(&right.1))
-    });
-    for (cityobject_id, geometry_id, _) in geometry_attachments {
+fn attach_cityobject_geometries(state: &mut ImportState) -> Result<()> {
+    for (cityobject_id, attachments) in &mut state.pending_geometry_attachments {
+        attachments.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
         let object = state
             .cityobject_handle_by_id
-            .get(&cityobject_id)
+            .get(cityobject_id)
             .copied()
             .ok_or_else(|| Error::Conversion(format!("missing cityobject {cityobject_id}")))?;
-        let geometry = state
-            .geometry_handle_by_id
-            .get(&geometry_id)
-            .copied()
-            .ok_or_else(|| Error::Conversion(format!("missing geometry {geometry_id}")))?;
-        state
+        let object = state
             .model
             .cityobjects_mut()
             .get_mut(object)
-            .ok_or_else(|| Error::Conversion("missing cityobject handle".to_string()))?
-            .add_geometry(geometry);
+            .ok_or_else(|| Error::Conversion("missing cityobject handle".to_string()))?;
+        for (_, geometry_id) in attachments.iter() {
+            let geometry = state
+                .geometry_handle_by_id
+                .get(geometry_id)
+                .copied()
+                .ok_or_else(|| Error::Conversion(format!("missing geometry {geometry_id}")))?;
+            object.add_geometry(geometry);
+        }
     }
     Ok(())
 }
@@ -4077,38 +4263,6 @@ fn read_vertex_rows(batch: &RecordBatch) -> Result<Vec<VertexRow>> {
         .collect()
 }
 
-fn read_cityobject_rows(
-    batch: &RecordBatch,
-    projection: &ProjectionLayout,
-) -> Result<Vec<CityObjectRow>> {
-    let object_ixs = downcast_required::<UInt64Array>(batch, "cityobject_ix")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(CityObjectRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                cityobject_id: read_large_string_scalar(batch, "cityobject_id", row)?,
-                cityobject_ix: object_ixs.value(row),
-                object_type: read_string_scalar(batch, "object_type", row)?,
-                geographical_extent: read_fixed_size_f64_optional::<6>(
-                    batch,
-                    "geographical_extent",
-                    row,
-                )?,
-                attributes: projection
-                    .cityobject_attributes
-                    .iter()
-                    .map(|spec| read_large_string_optional(batch, &spec.name, row))
-                    .collect::<Result<Vec<_>>>()?,
-                extra: projection
-                    .cityobject_extra
-                    .iter()
-                    .map(|spec| read_large_string_optional(batch, &spec.name, row))
-                    .collect::<Result<Vec<_>>>()?,
-            })
-        })
-        .collect()
-}
-
 fn read_cityobject_child_rows(batch: &RecordBatch) -> Result<Vec<CityObjectChildRow>> {
     let ordinals = downcast_required::<UInt32Array>(batch, "child_ordinal")?;
     (0..batch.num_rows())
@@ -4118,23 +4272,6 @@ fn read_cityobject_child_rows(batch: &RecordBatch) -> Result<Vec<CityObjectChild
                 parent_cityobject_id: read_large_string_scalar(batch, "parent_cityobject_id", row)?,
                 child_ordinal: ordinals.value(row),
                 child_cityobject_id: read_large_string_scalar(batch, "child_cityobject_id", row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_rows(batch: &RecordBatch) -> Result<Vec<GeometryRow>> {
-    let geometry_ids = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "geometry_ordinal")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                geometry_id: geometry_ids.value(row),
-                cityobject_id: read_large_string_scalar(batch, "cityobject_id", row)?,
-                geometry_ordinal: ordinals.value(row),
-                geometry_type: read_string_scalar(batch, "geometry_type", row)?,
-                lod: read_string_optional(batch, "lod", row)?,
             })
         })
         .collect()
@@ -4165,64 +4302,6 @@ fn read_geometry_boundary_rows(batch: &RecordBatch) -> Result<Vec<GeometryBounda
         .collect()
 }
 
-fn read_geometry_instance_rows(batch: &RecordBatch) -> Result<Vec<GeometryInstanceRow>> {
-    let geometry_ids = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "geometry_ordinal")?;
-    let template_geometry_ids = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    let reference_point_vertex_ids =
-        downcast_required::<UInt64Array>(batch, "reference_point_vertex_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryInstanceRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                geometry_id: geometry_ids.value(row),
-                cityobject_id: read_large_string_scalar(batch, "cityobject_id", row)?,
-                geometry_ordinal: ordinals.value(row),
-                lod: read_string_optional(batch, "lod", row)?,
-                template_geometry_id: template_geometry_ids.value(row),
-                reference_point_vertex_id: reference_point_vertex_ids.value(row),
-                transform_matrix: read_fixed_size_f64_optional::<16>(
-                    batch,
-                    "transform_matrix",
-                    row,
-                )?,
-            })
-        })
-        .collect()
-}
-
-fn read_template_vertex_rows(batch: &RecordBatch) -> Result<Vec<TemplateVertexRow>> {
-    let vertex_ids = downcast_required::<UInt64Array>(batch, "template_vertex_id")?;
-    let xs = downcast_required::<Float64Array>(batch, "x")?;
-    let ys = downcast_required::<Float64Array>(batch, "y")?;
-    let zs = downcast_required::<Float64Array>(batch, "z")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateVertexRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                template_vertex_id: vertex_ids.value(row),
-                x: xs.value(row),
-                y: ys.value(row),
-                z: zs.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_template_geometry_rows(batch: &RecordBatch) -> Result<Vec<TemplateGeometryRow>> {
-    let geometry_ids = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateGeometryRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                template_geometry_id: geometry_ids.value(row),
-                geometry_type: read_string_scalar(batch, "geometry_type", row)?,
-                lod: read_string_optional(batch, "lod", row)?,
-            })
-        })
-        .collect()
-}
-
 fn read_template_geometry_boundary_rows(
     batch: &RecordBatch,
 ) -> Result<Vec<TemplateGeometryBoundaryRow>> {
@@ -4245,27 +4324,6 @@ fn read_template_geometry_boundary_rows(
                 surface_lengths: list_u32_optional_value(surfaces, row)?,
                 shell_lengths: list_u32_optional_value(shells, row)?,
                 solid_lengths: list_u32_optional_value(solids, row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_semantic_rows(
-    batch: &RecordBatch,
-    projection: &ProjectionLayout,
-) -> Result<Vec<SemanticRow>> {
-    let semantic_ids = downcast_required::<UInt64Array>(batch, "semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(SemanticRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                semantic_id: semantic_ids.value(row),
-                semantic_type: read_string_scalar(batch, "semantic_type", row)?,
-                attributes: projection
-                    .semantic_attributes
-                    .iter()
-                    .map(|spec| read_large_string_optional(batch, &spec.name, row))
-                    .collect::<Result<Vec<_>>>()?,
             })
         })
         .collect()
@@ -4374,69 +4432,6 @@ fn read_template_geometry_semantic_rows(
         .collect()
 }
 
-fn read_material_rows(
-    batch: &RecordBatch,
-    projection: &ProjectionLayout,
-) -> Result<Vec<MaterialRow>> {
-    let material_ids = downcast_required::<UInt64Array>(batch, "material_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(MaterialRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                material_id: material_ids.value(row),
-                name: read_required_large_string_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_NAME,
-                    row,
-                )?,
-                ambient_intensity: read_optional_float_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_AMBIENT_INTENSITY,
-                    row,
-                )?,
-                diffuse_color: read_optional_large_string_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_DIFFUSE_COLOR,
-                    row,
-                )?,
-                emissive_color: read_optional_large_string_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_EMISSIVE_COLOR,
-                    row,
-                )?,
-                specular_color: read_optional_large_string_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_SPECULAR_COLOR,
-                    row,
-                )?,
-                shininess: read_optional_float_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_SHININESS,
-                    row,
-                )?,
-                transparency: read_optional_float_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_TRANSPARENCY,
-                    row,
-                )?,
-                is_smooth: read_optional_bool_projection(
-                    batch,
-                    &projection.material_payload,
-                    FIELD_MATERIAL_IS_SMOOTH,
-                    row,
-                )?,
-            })
-        })
-        .collect()
-}
-
 fn read_geometry_surface_material_rows(
     batch: &RecordBatch,
 ) -> Result<Vec<GeometrySurfaceMaterialRow>> {
@@ -4471,62 +4466,6 @@ fn read_template_geometry_material_rows(
                 primitive_ordinal: ordinals.value(row),
                 theme: read_string_scalar(batch, "theme", row)?,
                 material_id: materials.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_texture_rows(
-    batch: &RecordBatch,
-    projection: &ProjectionLayout,
-) -> Result<Vec<TextureRow>> {
-    let texture_ids = downcast_required::<UInt64Array>(batch, "texture_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TextureRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                texture_id: texture_ids.value(row),
-                image_uri: read_large_string_scalar(batch, "image_uri", row)?,
-                image_type: read_required_large_string_projection(
-                    batch,
-                    &projection.texture_payload,
-                    FIELD_TEXTURE_IMAGE_TYPE,
-                    row,
-                )?,
-                wrap_mode: read_optional_large_string_projection(
-                    batch,
-                    &projection.texture_payload,
-                    FIELD_TEXTURE_WRAP_MODE,
-                    row,
-                )?,
-                texture_type: read_optional_large_string_projection(
-                    batch,
-                    &projection.texture_payload,
-                    FIELD_TEXTURE_TEXTURE_TYPE,
-                    row,
-                )?,
-                border_color: read_optional_large_string_projection(
-                    batch,
-                    &projection.texture_payload,
-                    FIELD_TEXTURE_BORDER_COLOR,
-                    row,
-                )?,
-            })
-        })
-        .collect()
-}
-
-fn read_texture_vertex_rows(batch: &RecordBatch) -> Result<Vec<TextureVertexRow>> {
-    let uv_ids = downcast_required::<UInt64Array>(batch, "uv_id")?;
-    let us = downcast_required::<Float64Array>(batch, "u")?;
-    let vs = downcast_required::<Float64Array>(batch, "v")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TextureVertexRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                uv_id: uv_ids.value(row),
-                u: us.value(row),
-                v: vs.value(row),
             })
         })
         .collect()
@@ -5365,56 +5304,6 @@ fn has_projection_field(specs: &[ProjectedFieldSpec], name: &str) -> bool {
     specs.iter().any(|spec| spec.name == name)
 }
 
-fn read_required_large_string_projection(
-    batch: &RecordBatch,
-    specs: &[ProjectedFieldSpec],
-    name: &str,
-    row: usize,
-) -> Result<String> {
-    if !has_projection_field(specs, name) {
-        return Err(Error::Conversion(format!(
-            "missing required projection column {name}"
-        )));
-    }
-    read_large_string_scalar(batch, name, row)
-}
-
-fn read_optional_large_string_projection(
-    batch: &RecordBatch,
-    specs: &[ProjectedFieldSpec],
-    name: &str,
-    row: usize,
-) -> Result<Option<String>> {
-    if !has_projection_field(specs, name) {
-        return Ok(None);
-    }
-    read_large_string_optional(batch, name, row)
-}
-
-fn read_optional_float_projection(
-    batch: &RecordBatch,
-    specs: &[ProjectedFieldSpec],
-    name: &str,
-    row: usize,
-) -> Result<Option<f64>> {
-    if !has_projection_field(specs, name) {
-        return Ok(None);
-    }
-    read_f64_optional(batch, name, row)
-}
-
-fn read_optional_bool_projection(
-    batch: &RecordBatch,
-    specs: &[ProjectedFieldSpec],
-    name: &str,
-    row: usize,
-) -> Result<Option<bool>> {
-    if !has_projection_field(specs, name) {
-        return Ok(None);
-    }
-    read_bool_optional(batch, name, row)
-}
-
 fn parse_geometry_type(value: &str) -> Result<GeometryType> {
     value.parse().map_err(Error::from)
 }
@@ -5698,14 +5587,22 @@ fn read_string_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<O
     Ok((!array.is_null(row)).then(|| array.value(row).to_string()))
 }
 
-fn read_f64_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<Option<f64>> {
-    let array = downcast_required::<Float64Array>(batch, name)?;
-    Ok((!array.is_null(row)).then(|| array.value(row)))
+fn read_large_string_array_optional(
+    array: Option<&LargeStringArray>,
+    row: usize,
+) -> Option<String> {
+    array.and_then(|array| (!array.is_null(row)).then(|| array.value(row).to_string()))
 }
 
-fn read_bool_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<Option<bool>> {
-    let array = downcast_required::<arrow::array::BooleanArray>(batch, name)?;
-    Ok((!array.is_null(row)).then(|| array.value(row)))
+fn read_f64_array_optional(array: Option<&Float64Array>, row: usize) -> Option<f64> {
+    array.and_then(|array| (!array.is_null(row)).then(|| array.value(row)))
+}
+
+fn read_bool_array_optional(
+    array: Option<&arrow::array::BooleanArray>,
+    row: usize,
+) -> Option<bool> {
+    array.and_then(|array| (!array.is_null(row)).then(|| array.value(row)))
 }
 
 fn read_fixed_size_f64_required<const N: usize>(
@@ -5735,6 +5632,195 @@ fn read_fixed_size_f64_optional<const N: usize>(
     Ok(Some(slice.try_into().map_err(|_| {
         Error::Conversion(format!("fixed-size list {name} does not have length {N}"))
     })?))
+}
+
+fn read_fixed_size_list_array_optional<const N: usize>(
+    array: &FixedSizeListArray,
+    name: &str,
+    row: usize,
+) -> Result<Option<[f64; N]>> {
+    if array.is_null(row) {
+        return Ok(None);
+    }
+    let values = array.value(row);
+    let values = values
+        .as_any()
+        .downcast_ref::<Float64Array>()
+        .ok_or_else(|| Error::Conversion(format!("fixed-size list {name} does not contain f64")))?;
+    let slice = values.values().as_ref();
+    Ok(Some(slice.try_into().map_err(|_| {
+        Error::Conversion(format!("fixed-size list {name} does not have length {N}"))
+    })?))
+}
+
+fn ensure_strictly_increasing_u64(
+    previous: Option<u64>,
+    current: u64,
+    field_name: &str,
+) -> Result<()> {
+    if let Some(previous) = previous
+        && current <= previous
+    {
+        return Err(Error::Conversion(format!(
+            "{field_name} must be strictly increasing in canonical order, found {current} after {previous}"
+        )));
+    }
+    Ok(())
+}
+
+fn bind_vertex_columns<'a>(batch: &'a RecordBatch, id_name: &str) -> Result<VertexColumns<'a>> {
+    Ok(VertexColumns {
+        vertex_id: downcast_required::<UInt64Array>(batch, id_name)?,
+        x: downcast_required::<Float64Array>(batch, "x")?,
+        y: downcast_required::<Float64Array>(batch, "y")?,
+        z: downcast_required::<Float64Array>(batch, "z")?,
+    })
+}
+
+fn bind_uv_columns(batch: &RecordBatch) -> Result<UvColumns<'_>> {
+    Ok(UvColumns {
+        uv_id: downcast_required::<UInt64Array>(batch, "uv_id")?,
+        u: downcast_required::<Float64Array>(batch, "u")?,
+        v: downcast_required::<Float64Array>(batch, "v")?,
+    })
+}
+
+fn bind_semantic_columns<'a>(
+    batch: &'a RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<SemanticColumns<'a>> {
+    Ok(SemanticColumns {
+        semantic_id: downcast_required::<UInt64Array>(batch, "semantic_id")?,
+        semantic_type: downcast_required::<StringArray>(batch, "semantic_type")?,
+        attributes: projection
+            .semantic_attributes
+            .iter()
+            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
+            .collect::<Result<Vec<_>>>()?,
+    })
+}
+
+fn bind_material_columns<'a>(
+    batch: &'a RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<MaterialColumns<'a>> {
+    Ok(MaterialColumns {
+        material_id: downcast_required::<UInt64Array>(batch, "material_id")?,
+        name: downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_NAME)?,
+        ambient_intensity: has_projection_field(
+            &projection.material_payload,
+            FIELD_MATERIAL_AMBIENT_INTENSITY,
+        )
+        .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_AMBIENT_INTENSITY))
+        .transpose()?,
+        diffuse_color: has_projection_field(
+            &projection.material_payload,
+            FIELD_MATERIAL_DIFFUSE_COLOR,
+        )
+        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_DIFFUSE_COLOR))
+        .transpose()?,
+        emissive_color: has_projection_field(
+            &projection.material_payload,
+            FIELD_MATERIAL_EMISSIVE_COLOR,
+        )
+        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_EMISSIVE_COLOR))
+        .transpose()?,
+        specular_color: has_projection_field(
+            &projection.material_payload,
+            FIELD_MATERIAL_SPECULAR_COLOR,
+        )
+        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_SPECULAR_COLOR))
+        .transpose()?,
+        shininess: has_projection_field(&projection.material_payload, FIELD_MATERIAL_SHININESS)
+            .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_SHININESS))
+            .transpose()?,
+        transparency: has_projection_field(
+            &projection.material_payload,
+            FIELD_MATERIAL_TRANSPARENCY,
+        )
+        .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_TRANSPARENCY))
+        .transpose()?,
+        is_smooth: has_projection_field(&projection.material_payload, FIELD_MATERIAL_IS_SMOOTH)
+            .then(|| {
+                downcast_required::<arrow::array::BooleanArray>(batch, FIELD_MATERIAL_IS_SMOOTH)
+            })
+            .transpose()?,
+    })
+}
+
+fn bind_texture_columns<'a>(
+    batch: &'a RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<TextureColumns<'a>> {
+    Ok(TextureColumns {
+        texture_id: downcast_required::<UInt64Array>(batch, "texture_id")?,
+        image_uri: downcast_required::<LargeStringArray>(batch, "image_uri")?,
+        image_type: downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_IMAGE_TYPE)?,
+        wrap_mode: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_WRAP_MODE)
+            .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_WRAP_MODE))
+            .transpose()?,
+        texture_type: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_TEXTURE_TYPE)
+            .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_TEXTURE_TYPE))
+            .transpose()?,
+        border_color: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_BORDER_COLOR)
+            .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_BORDER_COLOR))
+            .transpose()?,
+    })
+}
+
+fn bind_template_geometry_columns(batch: &RecordBatch) -> Result<TemplateGeometryColumns<'_>> {
+    Ok(TemplateGeometryColumns {
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?,
+        geometry_type: downcast_required::<StringArray>(batch, "geometry_type")?,
+        lod: downcast_required::<StringArray>(batch, "lod")?,
+    })
+}
+
+fn bind_geometry_columns(batch: &RecordBatch) -> Result<GeometryColumns<'_>> {
+    Ok(GeometryColumns {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?,
+        cityobject_id: downcast_required::<LargeStringArray>(batch, "cityobject_id")?,
+        geometry_ordinal: downcast_required::<UInt32Array>(batch, "geometry_ordinal")?,
+        geometry_type: downcast_required::<StringArray>(batch, "geometry_type")?,
+        lod: downcast_required::<StringArray>(batch, "lod")?,
+    })
+}
+
+fn bind_geometry_instance_columns(batch: &RecordBatch) -> Result<GeometryInstanceColumns<'_>> {
+    Ok(GeometryInstanceColumns {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?,
+        cityobject_id: downcast_required::<LargeStringArray>(batch, "cityobject_id")?,
+        geometry_ordinal: downcast_required::<UInt32Array>(batch, "geometry_ordinal")?,
+        lod: downcast_required::<StringArray>(batch, "lod")?,
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?,
+        reference_point_vertex_id: downcast_required::<UInt64Array>(
+            batch,
+            "reference_point_vertex_id",
+        )?,
+        transform_matrix: downcast_required::<FixedSizeListArray>(batch, "transform_matrix")?,
+    })
+}
+
+fn bind_cityobject_columns<'a>(
+    batch: &'a RecordBatch,
+    projection: &ProjectionLayout,
+) -> Result<CityObjectColumns<'a>> {
+    Ok(CityObjectColumns {
+        cityobject_id: downcast_required::<LargeStringArray>(batch, "cityobject_id")?,
+        cityobject_ix: downcast_required::<UInt64Array>(batch, "cityobject_ix")?,
+        object_type: downcast_required::<StringArray>(batch, "object_type")?,
+        geographical_extent: downcast_required::<FixedSizeListArray>(batch, "geographical_extent")?,
+        attributes: projection
+            .cityobject_attributes
+            .iter()
+            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
+            .collect::<Result<Vec<_>>>()?,
+        extra: projection
+            .cityobject_extra
+            .iter()
+            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
+            .collect::<Result<Vec<_>>>()?,
+    })
 }
 
 fn list_u64_value(array: &ListArray, row: usize) -> Result<Vec<u64>> {

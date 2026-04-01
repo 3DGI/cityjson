@@ -29,6 +29,9 @@ nav:
   - Design:
       - Transport design: design.md
       - ADR 1: adr/001-canonical-transport-boundary.md
+      - ADR 2: adr/002-address-transport-performance-bottlenecks.md
+      - ADR 3: adr/003-separate-live-arrow-ipc-from-persistent-package-io.md
+      - ADR 3 implementation plan: adr-003-implementation-plan.md
 
 markdown_extensions:
   - admonition

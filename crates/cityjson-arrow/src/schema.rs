@@ -1,18 +1,16 @@
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v1alpha1";
+pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v2alpha1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityarrow.package.v1alpha1")]
-    V1Alpha1,
+    #[serde(rename = "cityarrow.package.v2alpha1")]
+    V2Alpha1,
 }
 
 impl CityArrowPackageVersion {
@@ -55,25 +53,9 @@ impl FromStr for CityArrowPackageVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            PACKAGE_SCHEMA_ID => Ok(Self::V1Alpha1),
+            PACKAGE_SCHEMA_ID => Ok(Self::V2Alpha1),
             other => Err(PackageVersionParseError::new(other)),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-pub enum PackageTableEncoding {
-    #[default]
-    #[serde(rename = "parquet")]
-    Parquet,
-    #[serde(rename = "arrow_ipc_file")]
-    ArrowIpcFile,
-}
-
-impl PackageTableEncoding {
-    #[must_use]
-    pub const fn is_parquet(&self) -> bool {
-        matches!(self, Self::Parquet)
     }
 }
 
@@ -163,7 +145,7 @@ pub struct ProjectionLayout {
 }
 
 #[derive(Debug, Clone)]
-pub struct CityModelArrowParts {
+pub(crate) struct CityModelArrowParts {
     pub header: CityArrowHeader,
     pub projection: ProjectionLayout,
     pub metadata: RecordBatch,
@@ -193,114 +175,36 @@ pub struct CityModelArrowParts {
     pub template_geometry_ring_textures: Option<RecordBatch>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct PackageTables {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub transform: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extensions: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub vertices: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cityobjects: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cityobject_children: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometries: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_boundaries: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_instances: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_vertices: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_geometries: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_geometry_boundaries: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub semantics: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub semantic_children: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_surface_semantics: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_point_semantics: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_linestring_semantics: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_geometry_semantics: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub materials: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_surface_materials: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_geometry_materials: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub textures: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub texture_vertices: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_ring_textures: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template_geometry_ring_textures: Option<PathBuf>,
-}
-
-impl PackageTables {
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.metadata.is_none()
-            && self.transform.is_none()
-            && self.extensions.is_none()
-            && self.vertices.is_none()
-            && self.cityobjects.is_none()
-            && self.cityobject_children.is_none()
-            && self.geometries.is_none()
-            && self.geometry_boundaries.is_none()
-            && self.geometry_instances.is_none()
-            && self.template_vertices.is_none()
-            && self.template_geometries.is_none()
-            && self.template_geometry_boundaries.is_none()
-            && self.semantics.is_none()
-            && self.semantic_children.is_none()
-            && self.geometry_surface_semantics.is_none()
-            && self.geometry_point_semantics.is_none()
-            && self.geometry_linestring_semantics.is_none()
-            && self.template_geometry_semantics.is_none()
-            && self.materials.is_none()
-            && self.geometry_surface_materials.is_none()
-            && self.template_geometry_materials.is_none()
-            && self.textures.is_none()
-            && self.texture_vertices.is_none()
-            && self.geometry_ring_textures.is_none()
-            && self.template_geometry_ring_textures.is_none()
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageTableRef {
+    pub name: String,
+    pub offset: u64,
+    pub length: u64,
+    pub rows: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageManifest {
     pub package_schema: CityArrowPackageVersion,
-    #[serde(default, skip_serializing_if = "PackageTableEncoding::is_parquet")]
-    pub table_encoding: PackageTableEncoding,
     pub cityjson_version: String,
     pub citymodel_id: String,
-    #[serde(default, skip_serializing_if = "PackageTables::is_empty")]
-    pub tables: PackageTables,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub views: BTreeMap<String, PathBuf>,
+    pub projection: ProjectionLayout,
+    pub tables: Vec<PackageTableRef>,
 }
 
 impl PackageManifest {
     #[must_use]
-    pub fn new(citymodel_id: impl Into<String>, cityjson_version: impl Into<String>) -> Self {
+    pub fn new(
+        citymodel_id: impl Into<String>,
+        cityjson_version: impl Into<String>,
+        projection: ProjectionLayout,
+    ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V1Alpha1,
-            table_encoding: PackageTableEncoding::Parquet,
+            package_schema: CityArrowPackageVersion::V2Alpha1,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
-            tables: PackageTables::default(),
-            views: BTreeMap::new(),
+            projection,
+            tables: Vec::new(),
         }
     }
 }
