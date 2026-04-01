@@ -209,7 +209,6 @@ class WriteOptionsPayload:
 
 def _candidate_library_paths() -> list[Path]:
     package_dir = Path(__file__).resolve().parent
-    repo_root = package_dir.parents[3]
     names = ["libcjlib_ffi_core.so", "libcjlib_ffi_core.dylib", "cjlib_ffi_core.dll"]
 
     candidates: list[Path] = []
@@ -217,8 +216,11 @@ def _candidate_library_paths() -> list[Path]:
         candidates.append(Path(os.environ["CJLIB_FFI_CORE_LIB"]))
 
     for name in names:
-        candidates.append(repo_root / "target" / "release" / name)
-        candidates.append(repo_root / "target" / "debug" / name)
+        candidates.append(package_dir / name)
+        if len(package_dir.parents) > 3:
+            repo_root = package_dir.parents[3]
+            candidates.append(repo_root / "target" / "release" / name)
+            candidates.append(repo_root / "target" / "debug" / name)
 
     unique_candidates: list[Path] = []
     for candidate in candidates:

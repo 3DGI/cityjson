@@ -39,6 +39,18 @@ bench *args:
 bench-profile tool workload case iterations="1":
     ./tools/profile_bench.sh {{tool}} {{workload}} {{case}} {{iterations}}
 
+perf description mode="full":
+    ./tools/perf.sh "{{description}}" "{{mode}}"
+
+perf-analyze *args:
+    python3 ./tools/perf_analyze.py {{args}}
+
+perf-plot *args:
+    uv run --script ./tools/perf_plot.py {{args}}
+
+perf-check:
+    cargo bench --bench throughput --bench profile --no-run
+
 doc:
     cargo doc --workspace --all-features --no-deps
 

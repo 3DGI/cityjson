@@ -9,11 +9,13 @@ Cargo.lock
 /experiments/*/target/
 site
 **/*.egg-info
+ffi/python/build
 
 # Profiling
 /experiments/profiling/massif*
 /experiments/profiling/xtmemory*
 **/*.zst
+dhat-heap.json
 
 # Virtual environment
 /venv/

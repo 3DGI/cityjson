@@ -4,7 +4,7 @@ mod support;
 use std::env;
 use std::time::Instant;
 
-use support::{find_case, prepared_cases, run_workload, throughput_bytes, Workload};
+use support::{Workload, load_case, prepare_workload, run_workload, throughput_bytes};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -17,8 +17,8 @@ enum ProfileMode {
 
 fn main() {
     let args = parse_args(env::args().skip(1).collect());
-    let cases = prepared_cases();
-    let case = find_case(&cases, &args.case_id);
+    let case = load_case(&args.case_id);
+    let prepared = prepare_workload(&case, args.workload);
 
     let _profiler = match args.profile_mode {
         ProfileMode::None => None,
@@ -27,7 +27,7 @@ fn main() {
 
     let started = Instant::now();
     for _ in 0..args.iterations {
-        run_workload(&case, args.workload);
+        run_workload(&prepared);
     }
     let elapsed = started.elapsed();
 
@@ -119,7 +119,9 @@ fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
 
 fn print_usage() {
     println!("Usage:");
-    println!("  cargo bench --bench profile -- --workload <name> [--case <id>] [--iterations <n>] [--profile none|dhat]");
+    println!(
+        "  cargo bench --bench profile -- --workload <name> [--case <id>] [--iterations <n>] [--profile none|dhat]"
+    );
     println!();
     println!("Cases:");
     println!("  io_3dbag_cityjson");

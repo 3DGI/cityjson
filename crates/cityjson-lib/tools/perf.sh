@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+description="${1:-}"
+mode="${2:-full}"
+
+if [[ -z "${description}" ]]; then
+  echo "Usage: ./tools/perf.sh \"description\" [full|fast]" >&2
+  exit 1
+fi
+
+case "${mode}" in
+  full|fast) ;;
+  *)
+    echo "unknown mode '${mode}' (expected full|fast)" >&2
+    exit 1
+    ;;
+esac
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+csv_out="${repo_dir}/bench_results/history.csv"
+bench_version="${CJLIB_BENCH_VERSION:-v2}"
+backend="default"
+seed="real-3dbag-v20250903"
+timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+commit="$(git -C "${repo_dir}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+rustc_version="$(rustc --version)"
+criterion_dir="${repo_dir}/target/bench/criterion"
+profile_root="${repo_dir}/target/bench-profile"
+
+profile_cases_raw="${PERF_PROFILE_CASES:-io_3dbag_cityjson io_3dbag_cityjson_cluster_4x}"
+profile_workloads_raw="${PERF_PROFILE_WORKLOADS:-serde_json-read serde_cityjson-read cjlib-json-read cityarrow-read cityparquet-read}"
+profile_iterations="${PERF_PROFILE_ITERATIONS:-1}"
+run_massif="${PERF_RUN_MASSIF:-0}"
+massif_case="${PERF_MASSIF_CASE:-io_3dbag_cityjson_cluster_4x}"
+massif_workload="${PERF_MASSIF_WORKLOAD:-serde_cityjson-read}"
+
+read -r -a profile_cases <<<"${profile_cases_raw}"
+read -r -a profile_workloads <<<"${profile_workloads_raw}"
+
+header="timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc"
+mkdir -p "$(dirname "${csv_out}")"
+if [[ ! -f "${csv_out}" ]]; then
+  echo "${header}" > "${csv_out}"
+else
+  current_header="$(head -n 1 "${csv_out}")"
+  if [[ "${current_header}" != "${header}" ]]; then
+    echo "${header}" > "${csv_out}"
+  fi
+fi
+
+workload_bench_id() {
+  local case_id="$1"
+  local workload="$2"
+  case "${workload}" in
+    serde_json-read) echo "deserialize/${case_id}/serde_json::Value/read" ;;
+    serde_cityjson-read) echo "deserialize/${case_id}/serde_cityjson/read" ;;
+    cjlib-json-read) echo "deserialize/${case_id}/cjlib::json/read" ;;
+    cityarrow-read) echo "deserialize/${case_id}/cityarrow/read" ;;
+    cityparquet-read) echo "deserialize/${case_id}/cityparquet/read" ;;
+    serde_json-write) echo "serialize/${case_id}/serde_json::Value/write" ;;
+    serde_cityjson-write) echo "serialize/${case_id}/serde_cityjson/write" ;;
+    cjlib-json-write) echo "serialize/${case_id}/cjlib::json/write" ;;
+    cityarrow-write) echo "serialize/${case_id}/cityarrow/write" ;;
+    cityparquet-write) echo "serialize/${case_id}/cityparquet/write" ;;
+    *)
+      echo "unknown workload '${workload}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+echo "=== Preparing benchmark data ==="
+just -f "${repo_dir}/justfile" bench-prepare
+
+export CARGO_TARGET_DIR="${repo_dir}/target/bench"
+
+bench_cmd=(cargo bench --bench throughput --manifest-path "${repo_dir}/Cargo.toml")
+if [[ "${mode}" == "fast" ]]; then
+  bench_cmd+=(-- --quick)
+fi
+
+echo "=== Throughput benchmarks: mode=${mode} ==="
+"${bench_cmd[@]}"
+
+python3 "${repo_dir}/tools/parse_criterion.py" \
+  --criterion-dir "${criterion_dir}" \
+  --timestamp "${timestamp}" \
+  --commit "${commit}" \
+  --description "${description}" \
+  --mode "${mode}" \
+  --backend "${backend}" \
+  --seed "${seed}" \
+  --bench-version "${bench_version}" \
+  --rustc "${rustc_version}" \
+  --out "${csv_out}"
+
+for case_id in "${profile_cases[@]}"; do
+  for workload in "${profile_workloads[@]}"; do
+    bench_id="$(workload_bench_id "${case_id}" "${workload}")"
+
+    echo "=== dhat: case=${case_id} workload=${workload} ==="
+    "${repo_dir}/tools/profile_bench.sh" dhat "${workload}" "${case_id}" "${profile_iterations}"
+    python3 "${repo_dir}/tools/parse_dhat.py" \
+      --dhat-json "${profile_root}/dhat/${case_id}/${workload}/dhat-heap.json" \
+      --timestamp "${timestamp}" \
+      --commit "${commit}" \
+      --description "${description}" \
+      --mode "${mode}" \
+      --backend "${backend}" \
+      --bench "${bench_id}" \
+      --seed "${seed}" \
+      --bench-version "${bench_version}" \
+      --rustc "${rustc_version}" \
+      --out "${csv_out}"
+
+    echo "=== cachegrind: case=${case_id} workload=${workload} ==="
+    "${repo_dir}/tools/profile_bench.sh" cachegrind "${workload}" "${case_id}" "${profile_iterations}"
+    python3 "${repo_dir}/tools/parse_cachegrind.py" \
+      --cachegrind-out "${profile_root}/cachegrind/${case_id}/${workload}/cachegrind.out" \
+      --timestamp "${timestamp}" \
+      --commit "${commit}" \
+      --description "${description}" \
+      --mode "${mode}" \
+      --backend "${backend}" \
+      --bench "${bench_id}" \
+      --seed "${seed}" \
+      --bench-version "${bench_version}" \
+      --rustc "${rustc_version}" \
+      --out "${csv_out}"
+  done
+done
+
+if [[ "${run_massif}" == "1" ]]; then
+  echo "=== massif: case=${massif_case} workload=${massif_workload} ==="
+  "${repo_dir}/tools/profile_bench.sh" massif "${massif_workload}" "${massif_case}" "${profile_iterations}"
+fi
+
+echo "=== plots: description=${description} timestamp=${timestamp} ==="
+uv run --script "${repo_dir}/tools/perf_plot.py" \
+  --csv "${csv_out}" \
+  --description "${description}" \
+  --mode "${mode}" \
+  --timestamp "${timestamp}"
+
+unset CARGO_TARGET_DIR
+echo "wrote ${csv_out}"
