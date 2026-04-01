@@ -24,10 +24,12 @@ The following should come from `cityjson-benchmarks` over time:
 
 ## Current Bridge
 
-`serde_cityjson/tests/data/v2_0` already contains the handcrafted fixture set
-used for correctness testing. Those files should be treated as the current
-local mirror of the shared conformance corpus until the shared repo publishes
-the same ids.
+Corpus-backed correctness tests now resolve fixture ids through the shared
+correctness index in
+`../cityjson-benchmarks/artifacts/correctness-index.json`.
+
+`serde_cityjson/tests/data/v2_0` still contains the historical handcrafted
+fixture mirror, but it is no longer the primary correctness catalog.
 
 Benchmark inputs now come from the shared corpus repo directly. The crate no
 longer owns a local synthetic benchmark mirror; it only keeps the 3D
@@ -35,7 +37,7 @@ Basisvoorziening bootstrap data under `tests/data/downloaded/`.
 
 ## Migration Steps
 
-1. keep using the existing handcrafted fixtures for correctness tests
-2. align the local fixture ids with the shared corpus ids
-3. consume the shared corpus benchmark index directly
-4. keep the 3D Basisvoorziening download workflow local to this crate
+1. consume the shared correctness and benchmark indices directly
+2. keep crate-specific regression tests local
+3. keep the 3D Basisvoorziening download workflow local to this crate
+4. remove the local conformance mirror once a pinned shared release replaces it

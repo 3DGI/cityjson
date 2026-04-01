@@ -104,6 +104,12 @@ cargo test
 cargo test --test v2_0
 ```
 
+The corpus-backed correctness tests read fixture IDs from the shared
+`cityjson-benchmarks` checkout at
+`../cityjson-benchmarks/artifacts/correctness-index.json` by default. Override
+the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
+`SERDE_CITYJSON_CORRECTNESS_INDEX` if your checkout lives elsewhere.
+
 ### Running Benchmarks
 
 The benchmark corpus now lives in the shared `cityjson-benchmarks` repository.
