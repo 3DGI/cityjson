@@ -10,13 +10,12 @@ use arrow::array::{
 use arrow::buffer::{NullBuffer, OffsetBuffer};
 use arrow::datatypes::{DataType, Field, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use cityarrow::package::{
-    read_package_dir, read_package_ipc_dir, write_package_dir, write_package_ipc_dir,
-};
+use cityarrow::package::{read_package_ipc_dir, write_package_ipc_dir};
 use cityarrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageTableEncoding,
     ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
 };
+use cityparquet::package::{read_package_dir, write_package_dir};
 use tempfile::tempdir;
 
 fn array_ref<T: Array + 'static>(array: T) -> ArrayRef {
@@ -454,11 +453,11 @@ fn ipc_package_directory_roundtrips_canonical_tables() {
         Some(std::path::Path::new("geometries.arrow"))
     );
 
-    let roundtrip = read_package_dir(dir.path()).expect("generic package read");
-    support::assert_parts_eq(&parts, &roundtrip);
-
     let explicit_roundtrip = read_package_ipc_dir(dir.path()).expect("ipc package read");
     support::assert_parts_eq(&parts, &explicit_roundtrip);
+
+    let error = read_package_dir(dir.path()).expect_err("parquet reader should reject ipc data");
+    assert!(matches!(error, cityarrow::error::Error::Unsupported(_)));
 }
 
 #[test]

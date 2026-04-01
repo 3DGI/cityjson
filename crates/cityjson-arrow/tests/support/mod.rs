@@ -7,11 +7,9 @@ use std::process::Command;
 
 use arrow::record_batch::RecordBatch;
 use cityarrow::schema::{CityModelArrowParts, PackageTableEncoding};
-use cityarrow::{
-    from_parts, read_package_dir, read_package_ipc_dir, to_parts, write_package_dir,
-    write_package_ipc_dir,
-};
+use cityarrow::{from_parts, read_package_ipc_dir, to_parts, write_package_ipc_dir};
 use cityjson::v2_0::OwnedCityModel;
+use cityparquet::{read_package_dir, write_package_dir};
 use serde::Deserialize;
 use serde_cityjson::{from_str_owned, to_string_validated};
 use serde_json::Value as JsonValue;
@@ -247,8 +245,8 @@ pub fn roundtrip_parts_via_package(
     match encoding {
         PackageTableEncoding::Parquet => {
             write_package_dir(dir.path(), parts)
-                .expect("cityarrow Parquet package write should succeed");
-            read_package_dir(dir.path()).expect("cityarrow Parquet package read should succeed")
+                .expect("cityparquet Parquet package write should succeed");
+            read_package_dir(dir.path()).expect("cityparquet Parquet package read should succeed")
         }
         PackageTableEncoding::ArrowIpcFile => {
             write_package_ipc_dir(dir.path(), parts)

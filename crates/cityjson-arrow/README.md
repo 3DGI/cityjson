@@ -1,7 +1,8 @@
 # cityarrow
 
-`cityarrow` is the Arrow, Arrow IPC, and Parquet transport layer for
-`cityjson-rs`.
+`cityarrow` is the Arrow and Arrow IPC transport layer for `cityjson-rs`.
+
+`cityparquet` is the sibling crate for Parquet package I/O.
 
 The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
 `CityModelArrowParts` is the canonical transport decomposition used at the
@@ -12,11 +13,10 @@ package boundary; it is not a second semantic model.
 The crate currently provides:
 
 - `convert::to_parts` and `convert::from_parts`
-- canonical package write/read for Parquet
 - canonical package write/read for Arrow IPC file
 - schema-locked canonical tables and manifest layout for
   `cityarrow.package.v1alpha1`
-- exact package roundtrip coverage for both supported encodings
+- exact package roundtrip coverage for Arrow IPC and Parquet via `cityparquet`
 
 The canonical package surface includes:
 
@@ -62,8 +62,8 @@ Known limitations in the current implementation:
 The top-level crate exports:
 
 - `to_parts` and `from_parts`
-- `write_package_dir` and `read_package_dir` for Parquet packages
 - `write_package_ipc_dir` and `read_package_ipc_dir` for Arrow IPC packages
+- `cityparquet::write_package_dir` and `cityparquet::read_package_dir` for Parquet packages
 - schema and manifest types from `src/schema.rs`
 
 ## Verification
@@ -71,8 +71,8 @@ The top-level crate exports:
 The repository keeps four test layers around the canonical package path:
 
 1. In-memory `to_parts`/`from_parts` roundtrip tests for synthetic fixtures.
-2. Exact canonical table equality tests for Parquet and Arrow IPC package
-   roundtrips.
+2. Exact canonical table equality tests for Arrow IPC package roundtrips in
+   `cityarrow` and Parquet package roundtrips in `cityparquet`.
 3. Fast fixture tests that verify package I/O preserves canonical parts for
    both encodings and still reconstructs `cjval`-valid CityJSON.
 4. Opt-in real-data acceptance tests for `3DBAG` and `3D Basisvoorziening`
@@ -96,6 +96,6 @@ more expensive than the regular suite.
 
 - `src/lib.rs`: public API entry points
 - `src/convert/mod.rs`: model-to-parts and parts-to-model conversion
-- `src/package/`: package manifest plus Parquet and Arrow IPC read/write
+- `src/package/`: package manifest plus Arrow IPC read/write
 - `src/schema.rs`: canonical schema definitions and transport structs
 - `tests/`: conversion, package, schema, and real-data roundtrip coverage

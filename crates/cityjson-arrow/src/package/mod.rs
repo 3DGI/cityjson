@@ -8,16 +8,16 @@ use arrow::record_batch::RecordBatch;
 use arrow_select::concat::concat_batches;
 use std::path::{Path, PathBuf};
 
-pub mod read;
-pub mod write;
+mod read;
+mod write;
 
-pub use read::{read_package, read_package_dir, read_package_ipc, read_package_ipc_dir};
-pub use write::{write_package, write_package_dir, write_package_ipc, write_package_ipc_dir};
+pub use read::{read_package_ipc, read_package_ipc_dir};
+pub use write::{write_package_ipc, write_package_ipc_dir};
 
-pub(crate) const MANIFEST_FILE_NAME: &str = "manifest.json";
+pub const MANIFEST_FILE_NAME: &str = "manifest.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum CanonicalTable {
+pub enum CanonicalTable {
     Metadata,
     Transform,
     Extensions,
@@ -119,12 +119,12 @@ impl CanonicalTable {
 }
 
 #[must_use]
-pub(crate) fn package_manifest_path(dir: &Path) -> PathBuf {
+pub fn package_manifest_path(dir: &Path) -> PathBuf {
     dir.join(MANIFEST_FILE_NAME)
 }
 
 #[must_use]
-pub(crate) fn package_table_path_for_encoding(
+pub fn package_table_path_for_encoding(
     dir: &Path,
     table: CanonicalTable,
     encoding: PackageTableEncoding,
@@ -133,19 +133,16 @@ pub(crate) fn package_table_path_for_encoding(
 }
 
 #[must_use]
-pub(crate) fn expected_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
+pub fn expected_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
     canonical_schema_set(layout)
 }
 
-pub(crate) fn concat_record_batches(
-    schema: &SchemaRef,
-    batches: &[RecordBatch],
-) -> Result<RecordBatch> {
+pub fn concat_record_batches(schema: &SchemaRef, batches: &[RecordBatch]) -> Result<RecordBatch> {
     let batch_refs: Vec<&RecordBatch> = batches.iter().collect();
     concat_batches(schema, batch_refs).map_err(Error::from)
 }
 
-pub(crate) fn projected_field_spec(field: &Field) -> Result<ProjectedFieldSpec> {
+fn projected_field_spec(field: &Field) -> Result<ProjectedFieldSpec> {
     let data_type = match field.data_type() {
         DataType::Boolean => ProjectedValueType::Boolean,
         DataType::UInt64 => {
@@ -175,7 +172,7 @@ pub(crate) fn projected_field_spec(field: &Field) -> Result<ProjectedFieldSpec> 
     ))
 }
 
-pub(crate) fn infer_tail_projection(
+pub fn infer_tail_projection(
     schema: &Schema,
     start_index: usize,
 ) -> Result<Vec<ProjectedFieldSpec>> {
@@ -186,7 +183,7 @@ pub(crate) fn infer_tail_projection(
     Ok(fields)
 }
 
-pub(crate) fn infer_cityobject_projections(
+pub fn infer_cityobject_projections(
     schema: &Schema,
 ) -> Result<(Vec<ProjectedFieldSpec>, Vec<ProjectedFieldSpec>)> {
     let mut attributes = Vec::new();
@@ -209,19 +206,19 @@ pub(crate) fn infer_cityobject_projections(
     Ok((attributes, extra))
 }
 
-pub(crate) fn infer_semantic_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
+pub fn infer_semantic_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 3)
 }
 
-pub(crate) fn infer_material_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
+pub fn infer_material_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 2)
 }
 
-pub(crate) fn infer_texture_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
+pub fn infer_texture_projection(schema: &Schema) -> Result<Vec<ProjectedFieldSpec>> {
     infer_tail_projection(schema, 3)
 }
 
-pub(crate) fn validate_schema(
+pub fn validate_schema(
     expected: impl AsRef<Schema>,
     actual: impl AsRef<Schema>,
     table: CanonicalTable,
@@ -238,7 +235,7 @@ pub(crate) fn validate_schema(
     Ok(())
 }
 
-pub(crate) fn table_path_from_manifest(dir: &Path, path: &Path) -> PathBuf {
+pub fn table_path_from_manifest(dir: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         path.to_path_buf()
     } else {

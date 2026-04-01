@@ -8,12 +8,13 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use cityarrow::package::{write_package_dir, write_package_ipc_dir};
+use cityarrow::package::write_package_ipc_dir;
 use cityarrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts, PackageManifest,
     PackageTableEncoding, PackageTables, ProjectedFieldSpec, ProjectedValueType, ProjectionLayout,
     canonical_schema_set,
 };
+use cityparquet::package::write_package_dir;
 use tempfile::tempdir;
 
 const CANONICAL_SCHEMA_LOCK: &str = r#"metadata

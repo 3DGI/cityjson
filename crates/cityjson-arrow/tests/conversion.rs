@@ -1,7 +1,4 @@
-use cityarrow::{
-    from_parts, read_package_dir, read_package_ipc_dir, to_parts, write_package_dir,
-    write_package_ipc_dir,
-};
+use cityarrow::{from_parts, read_package_ipc_dir, to_parts, write_package_ipc_dir};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
     AffineTransform3D, AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType,
@@ -9,6 +6,7 @@ use cityjson::v2_0::{
     OwnedMaterial, OwnedSemantic, OwnedTexture, RGB, RGBA, RingDraft, SemanticMap, SemanticType,
     StoredGeometryInstance, StoredGeometryParts, SurfaceDraft, TextureType, ThemeName, WrapMode,
 };
+use cityparquet::{read_package_dir, write_package_dir};
 use serde_cityjson::to_string_validated;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;

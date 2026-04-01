@@ -1,22 +1,23 @@
 use super::{
-    CanonicalTable, concat_record_batches, expected_schema_set, infer_cityobject_projections,
+    CanonicalTable, CityModelArrowParts, PackageManifest, PackageTableEncoding, ProjectionLayout,
+    concat_record_batches, expected_schema_set, infer_cityobject_projections,
     infer_material_projection, infer_semantic_projection, infer_tail_projection,
     infer_texture_projection, package_manifest_path, table_path_from_manifest, validate_schema,
 };
-use crate::error::{Error, Result};
-use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableEncoding, ProjectionLayout};
+use arrow::array::RecordBatchReader;
 use arrow::datatypes::SchemaRef;
-use arrow::ipc::reader::FileReader;
 use arrow::record_batch::RecordBatch;
+use cityarrow::error::{Error, Result};
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::fs::File;
 use std::path::Path;
 
-pub fn read_package_ipc(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
-    read_package_ipc_dir(dir)
+pub fn read_package(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    read_package_dir(dir)
 }
 
-pub fn read_package_ipc_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
-    read_package_dir_with_encoding(dir, Some(PackageTableEncoding::ArrowIpcFile))
+pub fn read_package_dir(dir: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    read_package_dir_with_encoding(dir, Some(PackageTableEncoding::Parquet))
 }
 
 fn read_package_dir_with_encoding(
@@ -358,15 +359,20 @@ fn load_table(
     let file = File::open(&path)?;
 
     let (schema, batches) = match encoding {
-        PackageTableEncoding::ArrowIpcFile => {
-            let reader = FileReader::try_new(file, None)?;
-            let schema = reader.schema();
-            let batches = reader.collect::<std::result::Result<Vec<_>, _>>()?;
+        PackageTableEncoding::Parquet => {
+            let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+                .with_batch_size(1024)
+                .build()?;
+            let schema = reader.schema().clone();
+            let mut batches = Vec::new();
+            while let Some(batch) = reader.next() {
+                batches.push(batch?);
+            }
             (schema, batches)
         }
-        PackageTableEncoding::Parquet => {
+        PackageTableEncoding::ArrowIpcFile => {
             return Err(Error::Unsupported(
-                "cityarrow only supports Arrow IPC package tables".to_string(),
+                "cityparquet only supports Parquet package tables".to_string(),
             ));
         }
     };
@@ -446,7 +452,7 @@ fn infer_projection_layout(loaded: &LoadedTables) -> Result<ProjectionLayout> {
 
 fn infer_consistent_geometry_projection(
     loaded: &LoadedTables,
-) -> Result<Vec<crate::schema::ProjectedFieldSpec>> {
+) -> Result<Vec<cityarrow::schema::ProjectedFieldSpec>> {
     let mut geometry_extra: Option<Vec<_>> = None;
 
     for (schema, start_index) in [

@@ -11,7 +11,8 @@ in [docs/adr/002-streaming-and-bounded-memory-package-io.md](adr/002-streaming-a
 
 ## Purpose
 
-`cityarrow` moves `cityjson-rs` models across Arrow IPC and Parquet boundaries.
+`cityarrow` moves `cityjson-rs` models across Arrow IPC boundaries.
+`cityparquet` handles the Parquet package boundary.
 
 It does not define a second semantic model family. The semantic core remains
 `cityjson::v2_0::OwnedCityModel`, and the transport decomposition is
@@ -102,8 +103,8 @@ The canonical package does not assume quantized integer vertices.
 The implemented package path is symmetric:
 
 - `convert::to_parts`
-- package write to Parquet or Arrow IPC file
-- package read from Parquet or Arrow IPC file
+- package write/read through Arrow IPC in `cityarrow`
+- package write/read through Parquet in `cityparquet`
 - `convert::from_parts`
 
 All supported readers reconstruct the same `CityModelArrowParts` shape and then

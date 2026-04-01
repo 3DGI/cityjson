@@ -1,27 +1,26 @@
 use super::{
-    CanonicalTable, expected_schema_set, package_manifest_path, package_table_path_for_encoding,
-    validate_schema,
+    CanonicalTable, CityModelArrowParts, PackageManifest, PackageTableEncoding,
+    expected_schema_set, package_manifest_path, package_table_path_for_encoding, validate_schema,
 };
-use crate::error::{Error, Result};
-use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableEncoding};
 use arrow::array::{Array, UInt64Array};
-use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
+use cityarrow::error::{Error, Result};
+use parquet::arrow::ArrowWriter;
 use std::fs::{self, File};
 use std::path::Path;
 
-pub fn write_package_ipc(
+pub fn write_package(
     dir: impl AsRef<Path>,
     parts: &CityModelArrowParts,
 ) -> Result<PackageManifest> {
-    write_package_ipc_dir(dir, parts)
+    write_package_dir(dir, parts)
 }
 
-pub fn write_package_ipc_dir(
+pub fn write_package_dir(
     dir: impl AsRef<Path>,
     parts: &CityModelArrowParts,
 ) -> Result<PackageManifest> {
-    write_package_dir_with_encoding(dir, parts, PackageTableEncoding::ArrowIpcFile)
+    write_package_dir_with_encoding(dir, parts, PackageTableEncoding::Parquet)
 }
 
 fn write_package_dir_with_encoding(
@@ -502,14 +501,14 @@ fn write_batch(
     let path = package_table_path_for_encoding(dir, table, encoding);
     let file = File::create(path)?;
     match encoding {
-        PackageTableEncoding::ArrowIpcFile => {
-            let mut writer = FileWriter::try_new(file, &batch.schema())?;
-            writer.write(batch)?;
-            writer.finish()?;
-        }
         PackageTableEncoding::Parquet => {
+            let mut writer = ArrowWriter::try_new(file, batch.schema(), None)?;
+            writer.write(batch)?;
+            writer.close()?;
+        }
+        PackageTableEncoding::ArrowIpcFile => {
             return Err(Error::Unsupported(
-                "cityarrow only supports Arrow IPC package tables".to_string(),
+                "cityparquet only supports Parquet package tables".to_string(),
             ));
         }
     }
