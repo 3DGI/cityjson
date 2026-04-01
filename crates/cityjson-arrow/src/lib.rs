@@ -6,12 +6,12 @@
 
 pub mod convert;
 pub mod error;
+#[doc(hidden)]
 pub mod package;
 pub mod schema;
 mod stream;
 
 pub use convert::{ModelDecoder, ModelEncoder};
-pub use package::{PackageReader, PackageWriter};
 pub use schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
     ProjectedValueType, ProjectionLayout, canonical_schema_set,

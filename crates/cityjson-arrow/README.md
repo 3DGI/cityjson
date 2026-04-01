@@ -2,21 +2,20 @@
 
 `cityarrow` is the Arrow and Arrow IPC transport layer for `cityjson-rs`.
 
-`cityparquet` is the sibling crate for Parquet package I/O.
+`cityparquet` is the sibling crate for persistent package I/O.
 
 The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
-`CityModelArrowParts` is the canonical transport decomposition used at the
-package boundary; it is not a second semantic model.
+The canonical table decomposition is an internal transport contract, not the
+public API boundary.
 
 ## Implemented Surface
 
 The crate currently provides:
 
-- `convert::to_parts` and `convert::from_parts`
-- canonical package write/read for Arrow IPC file
+- `ModelEncoder` and `ModelDecoder` for live Arrow IPC stream transport
 - schema-locked canonical tables and manifest layout for
-  `cityarrow.package.v1alpha1`
-- exact package roundtrip coverage for Arrow IPC and Parquet via `cityparquet`
+  `cityarrow.package.v2alpha1`
+- internal canonical table handling shared with `cityparquet`
 
 The canonical package surface includes:
 
@@ -38,20 +37,20 @@ The canonical package surface includes:
 but it is still an alpha transport surface.
 
 - correctness: the canonical conversion and package paths are implemented for
-  both Parquet and Arrow IPC file and are covered by schema-lock, package, and
-  shared-corpus correctness tests
+  the live stream path in `cityarrow` and the persistent package path in
+  `cityparquet`
 - scope: the canonical package covers the current `OwnedCityModel` surface used
   by `cityjson-rs`, including templates, geometry instances, semantics,
   materials, textures, metadata, and projected attributes
-- stability: the on-disk contract is currently `cityarrow.package.v1alpha1`,
+- stability: the on-disk contract is currently `cityarrow.package.v2alpha1`,
   so compatibility should be treated as deliberate but not yet stable
 - performance: the current conversion and package read paths are eager and
   fully in-memory; broad corpus roundtrips are therefore memory intensive
 
 Known limitations in the current implementation:
 
-- package helpers round-trip the canonical tables; manifest `views` are treated
-  as optional non-canonical metadata
+- the single-file package container currently lives behind `cityparquet`, not
+  the `cityarrow` top-level API
 - template geometry pools cannot themselves contain geometry instances
 - texture mappings are only supported on surface-backed geometry types
 - the current implementation prioritizes exactness and schema clarity over
@@ -61,23 +60,20 @@ Known limitations in the current implementation:
 
 The top-level crate exports:
 
-- `to_parts` and `from_parts`
-- `write_package_ipc_dir` and `read_package_ipc_dir` for Arrow IPC packages
-- `cityparquet::write_package_dir` and `cityparquet::read_package_dir` for Parquet packages
+- `ModelEncoder` and `ModelDecoder`
 - schema and manifest types from `src/schema.rs`
+
+`cityparquet` exports:
+
+- `PackageWriter` and `PackageReader`
+- the shared package manifest and schema types
 
 ## Verification
 
 The repository keeps four test layers around the canonical package path:
 
-1. In-memory `to_parts`/`from_parts` roundtrip tests for synthetic fixtures.
-2. Exact canonical table equality tests for Arrow IPC package roundtrips in
-   `cityarrow` and Parquet package roundtrips in `cityparquet`.
-3. Fast fixture tests that verify package I/O preserves canonical parts for
-   both encodings and still reconstructs `cjval`-valid CityJSON.
-4. Shared corpus conformance tests that roundtrip the same CityJSON 2.0
-   correctness fixtures used by `serde_cityjson` through both Parquet and Arrow
-   IPC packages.
+1. Live Arrow stream roundtrip tests in `cityarrow`.
+2. Persistent package roundtrip tests through `cityparquet`.
 
 ## Documentation
 
@@ -100,6 +96,7 @@ The repository keeps four test layers around the canonical package path:
 
 - `src/lib.rs`: public API entry points
 - `src/convert/mod.rs`: model-to-parts and parts-to-model conversion
-- `src/package/`: package manifest plus Arrow IPC read/write
+- `src/package/`: internal package/container implementation used by
+  `cityparquet`
 - `src/schema.rs`: canonical schema definitions and transport structs
 - `tests/`: conversion, package, schema, and shared-corpus roundtrip coverage

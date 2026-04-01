@@ -43,8 +43,8 @@ Remove:
 
 Recommended repository-level cleanup:
 
-- remove the `cityparquet` crate entirely once the new persistent package path
-  is implemented
+- repurpose `cityparquet` as the dedicated persistent package crate once the
+  new package path is implemented
 - replace the current Arrow IPC and Parquet package specs with a live-stream
   spec and a persistent package-container spec
 
@@ -52,10 +52,10 @@ Recommended repository-level cleanup:
 
 The target public API is intentionally narrower than the current one.
 
-- `ModelEncoder` encodes `OwnedCityModel` into either a live Arrow stream sink
-  or a persistent package sink
-- `ModelDecoder` reconstructs `OwnedCityModel` from either a live Arrow stream
-  source or a persistent package source
+- `ModelEncoder` encodes `OwnedCityModel` into a live Arrow stream sink
+- `ModelDecoder` reconstructs `OwnedCityModel` from a live Arrow stream source
+- `cityparquet::PackageWriter` writes persistent packages
+- `cityparquet::PackageReader` reads persistent packages
 - package reading and writing are defined in terms of a single package file,
   not a directory of per-table files
 - the canonical table decomposition remains internal to the implementation and
@@ -75,6 +75,10 @@ src/
     stream/
       read.rs
       write.rs
+
+cityparquet/
+  src/
+    lib.rs
     package/
       mod.rs
       manifest.rs
@@ -87,11 +91,9 @@ src/
 Modules and files to delete after the cut:
 
 - `src/convert/mod.rs`
-- `src/package/mod.rs`
 - `src/package/pipeline.rs`
 - `src/package/read.rs`
 - `src/package/write.rs`
-- `cityparquet/`
 
 ## Phase 1: Benchmarks And Cut Line
 
@@ -135,15 +137,14 @@ Work:
   encoding enum from [src/schema.rs](/home/balazs/Development/cityarrow/src/schema.rs)
 - replace `to_parts` / `from_parts` with encoder and decoder entry points
 - remove public reexports that expose internal package-pipeline helpers
-- remove the Parquet-first crate split if the new package format is no longer
-  Parquet-based
+- narrow `cityparquet` so it owns only persistent package IO
 
 Recommended public surface:
 
 - `encode_to_stream`
 - `decode_from_stream`
-- `write_package`
-- `read_package`
+- `cityparquet::write_package`
+- `cityparquet::read_package`
 
 Exit criteria:
 
@@ -309,7 +310,8 @@ surface.
 
 Work:
 
-- remove `cityparquet/` if it no longer owns any live package surface
+- keep `cityparquet/` as the package crate and remove stale package exports
+  from `cityarrow`
 - replace [docs/cityjson-arrow-ipc-spec.md](/home/balazs/Development/cityarrow/docs/cityjson-arrow-ipc-spec.md)
   with a live Arrow stream transport spec
 - replace [docs/cityjson-parquet-spec.md](/home/balazs/Development/cityarrow/docs/cityjson-parquet-spec.md)
@@ -368,5 +370,5 @@ Do not:
 - keep old and new readers side by side
 - keep a public transport struct while also introducing stream-first APIs
 - preserve `v1alpha1` package compatibility
-- preserve `cityparquet` for legacy naming reasons if it no longer matches the
-  actual architecture
+- preserve a stale `cityparquet` API if it no longer matches the actual
+  package architecture

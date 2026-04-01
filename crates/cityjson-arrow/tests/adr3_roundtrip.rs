@@ -1,11 +1,10 @@
-use cityarrow::{
-    CityArrowPackageVersion, ModelDecoder, ModelEncoder, PackageReader, PackageWriter,
-};
+use cityarrow::{CityArrowPackageVersion, ModelDecoder, ModelEncoder};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
     AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Geometry, LoD,
     OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
 };
+use cityparquet::{PackageReader, PackageWriter};
 use serde_cityjson::to_string_validated;
 use serde_json::Value as JsonValue;
 use tempfile::tempdir;

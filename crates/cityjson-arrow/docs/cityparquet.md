@@ -1,20 +1,20 @@
 # cityparquet
 
-`cityparquet` is the Parquet package crate for `cityjson-rs`.
+`cityparquet` is the persistent package crate for `cityjson-rs`.
 
-It uses the same canonical `CityModelArrowParts` shape as `cityarrow`, but
-stores the package tables as Parquet files instead of Arrow IPC files.
+It owns the durable package/container boundary in the ADR 3 architecture and
+uses the same canonical transport tables as `cityarrow`.
 
 ## What It Provides
 
-- package write/read support for Parquet packages
+- package write/read support for seekable single-file packages
 - the same canonical table layout as `cityarrow`
 - the same reconstruction rules and manifest contract
-- round-trip compatibility with the Arrow IPC package schema
+- round-trip compatibility with the shared `cityarrow.package.v2alpha1` schema
 
 ## Related Documents
 
-- [Parquet package layout specification](cityjson-parquet-spec.md)
+- [Package layout specification](package-schema.md)
 - [Shared package schema](package-schema.md)
 - [Transport design](design.md)
 
@@ -22,5 +22,5 @@ stores the package tables as Parquet files instead of Arrow IPC files.
 
 The crate exposes:
 
-- `write_package_dir` and `read_package_dir`
+- `PackageWriter` and `PackageReader`
 - the shared package manifest and schema types
