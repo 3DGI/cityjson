@@ -458,9 +458,23 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         texture_id_map: texture_id_map(model),
     };
     let core = export_core_batches(&context)?;
-    let geometry = export_geometry_batches(&context)?;
-    let semantics = export_semantic_batches(&context)?;
-    let appearance = export_appearance_batches(&context)?;
+    let geometry_rows = geometry_rows(
+        context.model,
+        &context.citymodel_id,
+        &context.geometry_id_map,
+        &context.semantic_id_map,
+        &context.material_id_map,
+        &context.texture_id_map,
+        &context.template_geometry_id_map,
+    )?;
+    let template_geometry_rows = template_geometry_rows(
+        context.model,
+        &context.citymodel_id,
+        &context.template_geometry_id_map,
+    )?;
+    let geometry = export_geometry_batches(&context, &geometry_rows, &template_geometry_rows)?;
+    let semantics = export_semantic_batches(&context, &geometry_rows, &template_geometry_rows)?;
+    let appearance = export_appearance_batches(&context, &geometry_rows, &template_geometry_rows)?;
 
     Ok(CityModelArrowParts {
         header: context.header.clone(),
@@ -539,57 +553,44 @@ fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches>
     })
 }
 
-fn export_geometry_batches(context: &ExportContext<'_>) -> Result<ExportGeometryBatches> {
-    let geometry_rows = geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.semantic_id_map,
-        &context.material_id_map,
-        &context.texture_id_map,
-        &context.template_geometry_id_map,
-    )?;
-    let template_geometry_rows = template_geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.template_geometry_id_map,
-    )?;
-
+fn export_geometry_batches(
+    context: &ExportContext<'_>,
+    geometry_rows: &ExportedGeometryRows,
+    template_geometry_rows: &ExportedTemplateGeometryRows,
+) -> Result<ExportGeometryBatches> {
     Ok(ExportGeometryBatches {
         geometries: geometries_batch(&context.schemas.geometries, &geometry_rows.geometries)?,
         geometry_boundaries: geometry_boundaries_batch(
             &context.schemas.geometry_boundaries,
             &geometry_rows.boundaries,
         )?,
-        geometry_instances: optional_batch(geometry_rows.instances, |rows| {
-            geometry_instances_batch(&context.schemas.geometry_instances, &rows)
+        geometry_instances: optional_batch_ref(&geometry_rows.instances, |rows| {
+            geometry_instances_batch(&context.schemas.geometry_instances, rows)
         })?,
         template_vertices: optional_batch(
             template_vertex_rows(context.model, &context.citymodel_id),
             |rows| template_vertices_batch(&context.schemas.template_vertices, &rows),
         )?,
-        template_geometries: optional_batch(template_geometry_rows.geometries, |rows| {
-            template_geometries_batch(&context.schemas.template_geometries, &rows)
+        template_geometries: optional_batch_ref(&template_geometry_rows.geometries, |rows| {
+            template_geometries_batch(&context.schemas.template_geometries, rows)
         })?,
-        template_geometry_boundaries: optional_batch(template_geometry_rows.boundaries, |rows| {
-            template_geometry_boundaries_batch(&context.schemas.template_geometry_boundaries, &rows)
-        })?,
+        template_geometry_boundaries: optional_batch_ref(
+            &template_geometry_rows.boundaries,
+            |rows| {
+                template_geometry_boundaries_batch(
+                    &context.schemas.template_geometry_boundaries,
+                    rows,
+                )
+            },
+        )?,
     })
 }
 
-fn export_semantic_batches(context: &ExportContext<'_>) -> Result<ExportSemanticBatches> {
-    let geometry_rows = geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.semantic_id_map,
-        &context.material_id_map,
-        &context.texture_id_map,
-        &context.template_geometry_id_map,
-    )?;
-    let template_geometry_rows = template_geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.template_geometry_id_map,
-    )?;
+fn export_semantic_batches(
+    context: &ExportContext<'_>,
+    geometry_rows: &ExportedGeometryRows,
+    template_geometry_rows: &ExportedTemplateGeometryRows,
+) -> Result<ExportSemanticBatches> {
     let semantic_rows = semantic_rows(
         context.model,
         &context.citymodel_id,
@@ -609,14 +610,14 @@ fn export_semantic_batches(context: &ExportContext<'_>) -> Result<ExportSemantic
             ),
             |rows| semantic_children_batch(&context.schemas.semantic_children, rows),
         )?,
-        geometry_surface_semantics: optional_batch(geometry_rows.surface_semantics, |rows| {
+        geometry_surface_semantics: optional_batch_ref(&geometry_rows.surface_semantics, |rows| {
             geometry_surface_semantics_batch(&context.schemas.geometry_surface_semantics, rows)
         })?,
-        geometry_point_semantics: optional_batch(geometry_rows.point_semantics, |rows| {
+        geometry_point_semantics: optional_batch_ref(&geometry_rows.point_semantics, |rows| {
             geometry_point_semantics_batch(&context.schemas.geometry_point_semantics, rows)
         })?,
-        geometry_linestring_semantics: optional_batch(
-            geometry_rows.linestring_semantics,
+        geometry_linestring_semantics: optional_batch_ref(
+            &geometry_rows.linestring_semantics,
             |rows| {
                 geometry_linestring_semantics_batch(
                     &context.schemas.geometry_linestring_semantics,
@@ -624,38 +625,40 @@ fn export_semantic_batches(context: &ExportContext<'_>) -> Result<ExportSemantic
                 )
             },
         )?,
-        template_geometry_semantics: optional_batch(template_geometry_rows.semantics, |rows| {
-            template_geometry_semantics_batch(&context.schemas.template_geometry_semantics, rows)
-        })?,
+        template_geometry_semantics: optional_batch_ref(
+            &template_geometry_rows.semantics,
+            |rows| {
+                template_geometry_semantics_batch(
+                    &context.schemas.template_geometry_semantics,
+                    rows,
+                )
+            },
+        )?,
     })
 }
 
-fn export_appearance_batches(context: &ExportContext<'_>) -> Result<ExportAppearanceBatches> {
-    let geometry_rows = geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.semantic_id_map,
-        &context.material_id_map,
-        &context.texture_id_map,
-        &context.template_geometry_id_map,
-    )?;
-    let template_geometry_rows = template_geometry_rows(
-        context.model,
-        &context.citymodel_id,
-        &context.template_geometry_id_map,
-    )?;
-
+fn export_appearance_batches(
+    context: &ExportContext<'_>,
+    geometry_rows: &ExportedGeometryRows,
+    template_geometry_rows: &ExportedTemplateGeometryRows,
+) -> Result<ExportAppearanceBatches> {
     Ok(ExportAppearanceBatches {
         materials: optional_batch(
             material_rows(context.model, &context.citymodel_id),
             |rows| materials_batch(&context.schemas.materials, &rows, &context.projection),
         )?,
-        geometry_surface_materials: optional_batch(geometry_rows.surface_materials, |rows| {
+        geometry_surface_materials: optional_batch_ref(&geometry_rows.surface_materials, |rows| {
             geometry_surface_materials_batch(&context.schemas.geometry_surface_materials, rows)
         })?,
-        template_geometry_materials: optional_batch(template_geometry_rows.materials, |rows| {
-            template_geometry_materials_batch(&context.schemas.template_geometry_materials, rows)
-        })?,
+        template_geometry_materials: optional_batch_ref(
+            &template_geometry_rows.materials,
+            |rows| {
+                template_geometry_materials_batch(
+                    &context.schemas.template_geometry_materials,
+                    rows,
+                )
+            },
+        )?,
         textures: optional_batch(texture_rows(context.model, &context.citymodel_id), |rows| {
             textures_batch(&context.schemas.textures, &rows, &context.projection)
         })?,
@@ -663,11 +666,11 @@ fn export_appearance_batches(context: &ExportContext<'_>) -> Result<ExportAppear
             texture_vertex_rows(context.model, &context.citymodel_id),
             |rows| texture_vertices_batch(&context.schemas.texture_vertices, rows),
         )?,
-        geometry_ring_textures: optional_batch(geometry_rows.ring_textures, |rows| {
+        geometry_ring_textures: optional_batch_ref(&geometry_rows.ring_textures, |rows| {
             geometry_ring_textures_batch(&context.schemas.geometry_ring_textures, rows)
         })?,
-        template_geometry_ring_textures: optional_batch(
-            template_geometry_rows.ring_textures,
+        template_geometry_ring_textures: optional_batch_ref(
+            &template_geometry_rows.ring_textures,
             |rows| {
                 template_geometry_ring_textures_batch(
                     &context.schemas.template_geometry_ring_textures,
@@ -1759,6 +1762,7 @@ fn cityobject_child_rows(model: &OwnedCityModel, citymodel_id: &str) -> Vec<City
 fn geometry_rows(
     model: &OwnedCityModel,
     citymodel_id: &str,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
     semantic_id_map: &HashMap<cityjson::prelude::SemanticHandle, u64>,
     material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
     texture_id_map: &HashMap<cityjson::prelude::TextureHandle, u64>,
@@ -1774,11 +1778,10 @@ fn geometry_rows(
         surface_materials: Vec::new(),
         ring_textures: Vec::new(),
     };
-    let geometry_id_map = geometry_id_map(model);
     let context = GeometryExportContext {
         model,
         citymodel_id,
-        geometry_id_map: &geometry_id_map,
+        geometry_id_map,
         semantic_id_map,
         material_id_map,
         texture_id_map,
@@ -3469,7 +3472,7 @@ fn semantic_children_batch(
 
 fn geometry_surface_semantics_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometrySurfaceSemanticRow>,
+    rows: &[GeometrySurfaceSemanticRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3488,9 +3491,7 @@ fn geometry_surface_semantics_batch(
                     .collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.semantic_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.semantic_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3499,7 +3500,7 @@ fn geometry_surface_semantics_batch(
 
 fn geometry_point_semantics_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometryPointSemanticRow>,
+    rows: &[GeometryPointSemanticRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3516,9 +3517,7 @@ fn geometry_point_semantics_batch(
                 rows.iter().map(|row| row.point_ordinal).collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.semantic_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.semantic_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3527,7 +3526,7 @@ fn geometry_point_semantics_batch(
 
 fn geometry_linestring_semantics_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometryLinestringSemanticRow>,
+    rows: &[GeometryLinestringSemanticRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3546,9 +3545,7 @@ fn geometry_linestring_semantics_batch(
                     .collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.semantic_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.semantic_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3557,7 +3554,7 @@ fn geometry_linestring_semantics_batch(
 
 fn template_geometry_semantics_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<TemplateGeometrySemanticRow>,
+    rows: &[TemplateGeometrySemanticRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3583,9 +3580,7 @@ fn template_geometry_semantics_batch(
                     .collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.semantic_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.semantic_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3615,7 +3610,7 @@ fn materials_batch(
 
 fn geometry_surface_materials_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometrySurfaceMaterialRow>,
+    rows: &[GeometrySurfaceMaterialRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3639,9 +3634,7 @@ fn geometry_surface_materials_batch(
                     .collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.material_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.material_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3650,7 +3643,7 @@ fn geometry_surface_materials_batch(
 
 fn template_geometry_materials_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<TemplateGeometryMaterialRow>,
+    rows: &[TemplateGeometryMaterialRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3681,9 +3674,7 @@ fn template_geometry_materials_batch(
                     .collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.material_id)
-                    .collect::<Vec<_>>(),
+                rows.iter().map(|row| row.material_id).collect::<Vec<_>>(),
             )),
         ],
     )
@@ -3744,7 +3735,7 @@ fn texture_vertices_batch(
 
 fn geometry_ring_textures_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometryRingTextureRow>,
+    rows: &[GeometryRingTextureRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3775,8 +3766,8 @@ fn geometry_ring_textures_batch(
             )),
             Arc::new(list_u64_array(
                 &field_from_schema(schema, "uv_indices")?,
-                rows.into_iter()
-                    .map(|row| Some(row.uv_indices))
+                rows.iter()
+                    .map(|row| Some(row.uv_indices.clone()))
                     .collect::<Vec<_>>(),
             )?),
         ],
@@ -3786,7 +3777,7 @@ fn geometry_ring_textures_batch(
 
 fn template_geometry_ring_textures_batch(
     schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<TemplateGeometryRingTextureRow>,
+    rows: &[TemplateGeometryRingTextureRow],
 ) -> Result<RecordBatch> {
     RecordBatch::try_new(
         schema.clone(),
@@ -3819,8 +3810,8 @@ fn template_geometry_ring_textures_batch(
             )),
             Arc::new(list_u64_array(
                 &field_from_schema(schema, "uv_indices")?,
-                rows.into_iter()
-                    .map(|row| Some(row.uv_indices))
+                rows.iter()
+                    .map(|row| Some(row.uv_indices.clone()))
                     .collect::<Vec<_>>(),
             )?),
         ],
@@ -3905,6 +3896,17 @@ fn texture_payload_array(spec: &ProjectedFieldSpec, rows: &[TextureRow]) -> Resu
 fn optional_batch<T, F>(rows: Vec<T>, build: F) -> Result<Option<RecordBatch>>
 where
     F: FnOnce(Vec<T>) -> Result<RecordBatch>,
+{
+    if rows.is_empty() {
+        Ok(None)
+    } else {
+        build(rows).map(Some)
+    }
+}
+
+fn optional_batch_ref<T, F>(rows: &[T], build: F) -> Result<Option<RecordBatch>>
+where
+    F: FnOnce(&[T]) -> Result<RecordBatch>,
 {
     if rows.is_empty() {
         Ok(None)

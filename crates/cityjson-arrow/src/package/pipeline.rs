@@ -834,7 +834,9 @@ fn manifest_table_path(tables: &PackageTables, table: CanonicalTable) -> Option<
         CanonicalTable::SemanticChildren => tables.semantic_children.as_ref(),
         CanonicalTable::GeometrySurfaceSemantics => tables.geometry_surface_semantics.as_ref(),
         CanonicalTable::GeometryPointSemantics => tables.geometry_point_semantics.as_ref(),
-        CanonicalTable::GeometryLinestringSemantics => tables.geometry_linestring_semantics.as_ref(),
+        CanonicalTable::GeometryLinestringSemantics => {
+            tables.geometry_linestring_semantics.as_ref()
+        }
         CanonicalTable::TemplateGeometrySemantics => tables.template_geometry_semantics.as_ref(),
         CanonicalTable::Materials => tables.materials.as_ref(),
         CanonicalTable::GeometrySurfaceMaterials => tables.geometry_surface_materials.as_ref(),
@@ -842,7 +844,9 @@ fn manifest_table_path(tables: &PackageTables, table: CanonicalTable) -> Option<
         CanonicalTable::Textures => tables.textures.as_ref(),
         CanonicalTable::TextureVertices => tables.texture_vertices.as_ref(),
         CanonicalTable::GeometryRingTextures => tables.geometry_ring_textures.as_ref(),
-        CanonicalTable::TemplateGeometryRingTextures => tables.template_geometry_ring_textures.as_ref(),
+        CanonicalTable::TemplateGeometryRingTextures => {
+            tables.template_geometry_ring_textures.as_ref()
+        }
     }
 }
 

@@ -95,10 +95,18 @@ pub fn conformance_case_ids() -> Vec<&'static str> {
 
 fn load_correctness_cases() -> std::collections::BTreeMap<String, CorrectnessCase> {
     let path = correctness_index_path();
-    let manifest = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("failed to read correctness index {}: {error}", path.display()));
-    let index: CorrectnessIndex = serde_json::from_str(&manifest)
-        .unwrap_or_else(|error| panic!("failed to parse correctness index {}: {error}", path.display()));
+    let manifest = fs::read_to_string(&path).unwrap_or_else(|error| {
+        panic!(
+            "failed to read correctness index {}: {error}",
+            path.display()
+        )
+    });
+    let index: CorrectnessIndex = serde_json::from_str(&manifest).unwrap_or_else(|error| {
+        panic!(
+            "failed to parse correctness index {}: {error}",
+            path.display()
+        )
+    });
     index
         .cases
         .into_iter()
@@ -158,7 +166,9 @@ fn materialize_generated_case(case_id: &str, profile: PathBuf) -> PathBuf {
             "run",
             "--quiet",
             "--manifest-path",
-            cjfake_manifest.to_str().expect("non-utf8 cjfake manifest path"),
+            cjfake_manifest
+                .to_str()
+                .expect("non-utf8 cjfake manifest path"),
             "--",
             "--manifest",
             profile_path.to_str().expect("non-utf8 profile path"),
@@ -222,8 +232,8 @@ fn log_memory_phase(label: &str) {
 }
 
 fn write_model_to_tempfile(model: &OwnedCityModel, prefix: &str) -> NamedTempFile {
-    let output_json =
-        to_string(model).unwrap_or_else(|error| panic!("serde_cityjson serialization failed: {error}"));
+    let output_json = to_string(model)
+        .unwrap_or_else(|error| panic!("serde_cityjson serialization failed: {error}"));
 
     let mut temp = Builder::new()
         .prefix(prefix)
