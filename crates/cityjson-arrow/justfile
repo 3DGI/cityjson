@@ -1,24 +1,31 @@
 #!/usr/bin/env just --justfile
 
-_git_ref := shell('git -C . rev-parse --short HEAD')
-_profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
-
-default:
+_default:
     just --list
 
 check:
-    cargo check --all-targets
+    cargo check --all-targets --all-features
 
-clippy:
-    cargo clippy --all-targets --all-features -- -D warnings
+build *args:
+    cargo build --all-targets --all-features {{args}}
 
-acceptance:
-    cargo test --test manifest_roundtrip -- --ignored --nocapture
+lint:
+    cargo clippy --all-targets --all-features
 
-# Build and open the crate documentation
+fmt:
+    cargo fmt --all
+
+test:
+    cargo test --all-features
+
+# Build the crate documentation
 doc:
-    RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo doc --all-features --no-deps
 
-# Extract the crate signatures to target/doc/cityjson.json
-doc-signatures:
-    RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps
+# Build the MkDocs Material site
+docs-build:
+    python3 -m mkdocs build --strict
+
+# Serve the MkDocs Material site locally
+docs-serve:
+    python3 -m mkdocs serve

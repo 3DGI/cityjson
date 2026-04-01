@@ -2,8 +2,10 @@
 
 This document defines the transport design and invariants for `cityarrow`.
 
-The concrete on-disk contract lives in
-[docs/package-schema.md](package-schema.md).
+The detailed on-disk contracts live in
+[docs/cityjson-arrow-ipc-spec.md](cityjson-arrow-ipc-spec.md) and
+[docs/cityjson-parquet-spec.md](cityjson-parquet-spec.md).
+The shared summary lives in [docs/package-schema.md](package-schema.md).
 The accepted architectural position for the current implementation is recorded
 in [docs/adr/001-canonical-transport-boundary.md](adr/001-canonical-transport-boundary.md).
 The proposed scalability direction for large-model package handling is recorded

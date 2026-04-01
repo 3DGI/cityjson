@@ -3,6 +3,11 @@
 This document defines the current canonical schema for the `cityarrow` package
 format.
 
+The detailed encoding-specific specifications live in:
+
+- [docs/cityjson-arrow-ipc-spec.md](cityjson-arrow-ipc-spec.md)
+- [docs/cityjson-parquet-spec.md](cityjson-parquet-spec.md)
+
 ## Summary
 
 - package schema id: `cityarrow.package.v1alpha1`

@@ -84,13 +84,21 @@ more expensive than the regular suite.
 
 ## Documentation
 
+- [mkdocs.yml](mkdocs.yml): MkDocs Material site configuration
+- [docs/index.md](docs/index.md): site landing page
+- [docs/cityarrow.md](docs/cityarrow.md): user-facing `cityarrow` overview
+- [docs/cityparquet.md](docs/cityparquet.md): user-facing `cityparquet` overview
+- [docs/cityjson-arrow-ipc-spec.md](docs/cityjson-arrow-ipc-spec.md): Arrow
+  IPC package layout specification
+- [docs/cityjson-parquet-spec.md](docs/cityjson-parquet-spec.md): Parquet
+  package layout specification
+- [docs/package-schema.md](docs/package-schema.md): shared package overview and
+  manifest contract
 - [docs/design.md](docs/design.md): transport design and invariants
 - [docs/adr/001-canonical-transport-boundary.md](docs/adr/001-canonical-transport-boundary.md):
   accepted ADR for the current transport architecture
 - [docs/adr/002-streaming-and-bounded-memory-package-io.md](docs/adr/002-streaming-and-bounded-memory-package-io.md):
   proposed ADR for additive streaming package I/O and bounded-memory operation
-- [docs/package-schema.md](docs/package-schema.md): canonical package layout and
-  manifest contract
 
 ## Repository Map
 

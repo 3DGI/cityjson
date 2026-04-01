@@ -1,0 +1,45 @@
+site_name: cityarrow
+site_description: User-facing documentation for cityarrow and cityparquet
+docs_dir: docs
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Products:
+      - cityarrow: cityarrow.md
+      - cityparquet: cityparquet.md
+  - Specifications:
+      - Package schema: package-schema.md
+      - Arrow IPC layout: cityjson-arrow-ipc-spec.md
+      - Parquet layout: cityjson-parquet-spec.md
+  - Design:
+      - Transport design: design.md
+      - ADR 1: adr/001-canonical-transport-boundary.md
+      - ADR 2: adr/002-streaming-and-bounded-memory-package-io.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
