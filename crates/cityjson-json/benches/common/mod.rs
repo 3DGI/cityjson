@@ -198,9 +198,10 @@ fn load_benchmark_index() -> BenchmarkIndex {
 }
 
 fn benchmark_index_path() -> PathBuf {
-    let path = std::env::var_os("SERDE_CITYJSON_BENCHMARK_INDEX")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH));
+    let path = std::env::var_os("SERDE_CITYJSON_BENCHMARK_INDEX").map_or_else(
+        || shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH),
+        PathBuf::from,
+    );
 
     if path.is_absolute() {
         path
@@ -210,11 +211,10 @@ fn benchmark_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT)
-        })
+    std::env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
+        PathBuf::from,
+    )
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {

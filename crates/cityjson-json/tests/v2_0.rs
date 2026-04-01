@@ -88,8 +88,8 @@ fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
         json["CityObjects"]["feature-1"]["geometry"][0]["boundaries"],
         json!([[[0, 2, 1]]])
     );
-    assert_eq!(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
-    assert_eq!(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
+    assert_vertex_eq(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
+    assert_vertex_eq(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
 }
 
 #[test]
@@ -121,6 +121,12 @@ fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
     assert!(error
         .to_string()
         .contains("duplicate CityObject id in feature parts"));
+}
+
+fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
+    for (actual_coord, expected_coord) in actual.into_iter().zip(expected) {
+        assert!((actual_coord - expected_coord).abs() < f64::EPSILON);
+    }
 }
 
 #[test]
