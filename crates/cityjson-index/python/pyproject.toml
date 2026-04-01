@@ -9,5 +9,8 @@ description = "Python bindings for cjindex"
 requires-python = ">=3.11"
 dependencies = ["cjlib"]
 
+[tool.uv.sources]
+cjlib = { path = "../../cjlib/ffi/python", editable = true }
+
 [tool.setuptools.packages.find]
 where = ["src"]
