@@ -30,6 +30,15 @@ fmt:
 test:
     cargo test --workspace
 
+bench-prepare:
+    ./tools/prepare_real_3dbag_bench_data.sh
+
+bench *args:
+    cargo bench --bench throughput {{args}}
+
+bench-profile tool workload case iterations="1":
+    ./tools/profile_bench.sh {{tool}} {{workload}} {{case}} {{iterations}}
+
 doc:
     cargo doc --workspace --all-features --no-deps
 

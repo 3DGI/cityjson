@@ -8,6 +8,7 @@ Cargo.lock
 /experiments/.ipynb_checkpoints/
 /experiments/*/target/
 site
+**/*.egg-info
 
 # Profiling
 /experiments/profiling/massif*
