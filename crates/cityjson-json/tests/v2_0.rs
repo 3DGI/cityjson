@@ -324,6 +324,35 @@ fn feature_constructor_rejects_full_documents() {
     assert!(format!("{err}").contains("CityJSON"));
 }
 
+fn assert_invalid_case_rejected(case_id: &str, expected_error_fragment: &str) {
+    let json_input = invalid_case_input(case_id);
+
+    let owned_err = from_str_owned(&json_input).unwrap_err();
+    assert!(
+        owned_err.to_string().contains(expected_error_fragment),
+        "owned parser accepted invalid case '{case_id}' with unexpected error: {owned_err}"
+    );
+
+    let borrowed_err = from_str_borrowed(&json_input).unwrap_err();
+    assert!(
+        borrowed_err.to_string().contains(expected_error_fragment),
+        "borrowed parser accepted invalid case '{case_id}' with unexpected error: {borrowed_err}"
+    );
+}
+
+#[test]
+fn invalid_missing_type_is_rejected() {
+    assert_invalid_case_rejected("invalid_missing_type", "missing field `type`");
+}
+
+#[test]
+fn invalid_out_of_range_vertex_index_is_rejected() {
+    assert_invalid_case_rejected(
+        "invalid_out_of_range_vertex_index",
+        "geometry vertex index 99 out of range",
+    );
+}
+
 #[test]
 fn strict_feature_stream_reads_self_contained_models() {
     let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}

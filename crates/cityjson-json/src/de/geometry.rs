@@ -451,6 +451,7 @@ where
     let geometry = timed("geometry.build_stream_geometry", || {
         build_stream_geometry(raw, model, resources)
     })?;
+    validate_root_vertex_references(&geometry, model.vertices().len())?;
     timed("geometry.add_geometry", || {
         model.add_geometry_unchecked(geometry).map_err(Error::from)
     })
@@ -609,6 +610,38 @@ where
             resources,
         ),
     }
+}
+
+fn validate_root_vertex_references<VR, SS>(
+    geometry: &Geometry<VR, SS>,
+    vertex_count: usize,
+) -> Result<()>
+where
+    VR: cityjson::v2_0::VertexRef,
+    SS: StringStorage,
+{
+    if let Some(instance) = geometry.instance() {
+        let reference_point = instance.reference_point().to_usize();
+        if reference_point >= vertex_count {
+            return Err(Error::InvalidValue(format!(
+                "geometry reference point index {reference_point} out of range for {vertex_count} root vertices"
+            )));
+        }
+        return Ok(());
+    }
+
+    if let Some(boundaries) = geometry.boundaries() {
+        for vertex in boundaries.vertices() {
+            let index = vertex.to_usize();
+            if index >= vertex_count {
+                return Err(Error::InvalidValue(format!(
+                    "geometry vertex index {index} out of range for {vertex_count} root vertices"
+                )));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn build_stream_geometry<'de, SS>(

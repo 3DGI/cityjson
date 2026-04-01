@@ -28,6 +28,9 @@ Corpus-backed correctness tests now resolve fixture ids through the shared
 correctness index in
 `../cityjson-benchmarks/artifacts/correctness-index.json`.
 
+The invalid correctness slice is also consumed directly from the shared index
+through explicit shared-ID-based negative tests.
+
 `serde_cityjson/tests/data/v2_0` still contains the historical handcrafted
 fixture mirror, but it is no longer the primary correctness catalog.
 

@@ -74,6 +74,21 @@ pub fn conformance_case_input(case_id: &str) -> String {
     read_to_string(case.source_path())
 }
 
+#[must_use]
+pub fn invalid_case_input(case_id: &str) -> String {
+    let case = correctness_case(case_id);
+    assert_eq!(
+        case.layer, "invalid",
+        "correctness case '{case_id}' is not an invalid fixture"
+    );
+    assert_eq!(
+        case.cityjson_version.as_deref(),
+        Some("2.0"),
+        "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
+    );
+    read_to_string(case.source_path())
+}
+
 fn correctness_case(case_id: &str) -> &'static CorrectnessCase {
     CORRECTNESS_CASES.get(case_id).unwrap_or_else(|| {
         panic!(
