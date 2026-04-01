@@ -2,10 +2,10 @@ mod common;
 
 use std::fs;
 
-use cjindex::{CityIndex, StorageLayout};
+use cjindex::{resolve_dataset, CityIndex, StorageLayout};
 use common::{
-    bbox_for_model, feature_files_root, find_first, model_contains_id, temp_fixture_root,
-    temp_index_path,
+    bbox_for_model, cityjson_root, feature_files_root, find_first, model_contains_id,
+    temp_fixture_root, temp_index_path,
 };
 use serde_json::Value;
 
@@ -113,4 +113,44 @@ fn first_cityobject_with_geometry(value: &Value) -> Option<String> {
         .find(|(_, object)| object.get("geometry").is_some())
         .map(|(id, _)| id.clone())
         .or_else(|| cityobjects.keys().next().cloned())
+}
+
+#[test]
+fn cityjson_index_needs_reindex_after_adding_files() {
+    let dir = temp_fixture_root("needs-reindex");
+    let index_path = temp_index_path("needs-reindex");
+
+    // Reindex against the empty directory — index is created with zero sources.
+    let mut index = CityIndex::open(
+        StorageLayout::CityJson {
+            paths: vec![dir.clone()],
+        },
+        &index_path,
+    )
+    .expect("index should open on empty dir");
+    index.reindex().expect("reindex on empty dir should succeed");
+
+    // Add a CityJSON file to the directory after indexing.
+    let fixture = find_first(&cityjson_root(), "city.json", true);
+    fs::copy(&fixture, dir.join("sample.city.json"))
+        .expect("fixture copy should succeed");
+
+    // Inspect the dataset: the new file is unindexed so needs_reindex must be true.
+    let resolved = resolve_dataset(&dir, Some(index_path))
+        .expect("resolve_dataset should detect cityjson layout");
+    let inspection = resolved.inspect().expect("inspect should succeed");
+
+    assert!(
+        !inspection.index.unindexed_source_paths.is_empty(),
+        "unindexed_source_paths should contain the newly added file"
+    );
+    assert_eq!(
+        inspection.index.fresh,
+        Some(false),
+        "index should not be fresh after a new file is added"
+    );
+    assert!(
+        !inspection.index.issues.is_empty(),
+        "inspect should report issues for the unindexed file"
+    );
 }

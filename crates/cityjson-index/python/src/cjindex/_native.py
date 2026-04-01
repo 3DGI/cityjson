@@ -60,19 +60,30 @@ def _library_name() -> str:
 
 
 def _candidate_paths() -> list[Path]:
+    lib_name = _library_name()
+    package_dir = Path(__file__).resolve().parent
+
+    candidates = []
     env = os.environ.get("CJINDEX_LIBRARY_PATH")
     if env:
-        return [Path(env)]
+        candidates.append(Path(env))
 
-    root = Path(__file__).resolve().parents[3]
-    lib_name = _library_name()
-    candidates = [
-        root / "target" / "debug" / lib_name,
-        root / "target" / "release" / lib_name,
-        root / "target" / "debug" / "deps" / lib_name,
-        root / "target" / "release" / "deps" / lib_name,
-    ]
-    return candidates
+    candidates.append(package_dir / lib_name)
+    if len(package_dir.parents) > 3:
+        root = package_dir.parents[3]
+        candidates.extend(
+            [
+                root / "target" / "debug" / lib_name,
+                root / "target" / "release" / lib_name,
+                root / "target" / "debug" / "deps" / lib_name,
+                root / "target" / "release" / "deps" / lib_name,
+            ]
+        )
+    unique_candidates: list[Path] = []
+    for candidate in candidates:
+        if candidate not in unique_candidates:
+            unique_candidates.append(candidate)
+    return unique_candidates
 
 
 def load_library() -> CDLL | None:
