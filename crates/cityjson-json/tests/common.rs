@@ -80,39 +80,6 @@ pub fn assert_eq_roundtrip_borrowed(json_input: &str) {
     assert_eq!(result, expected);
 }
 
-/// Assert that a JSON fragment retains the same content after being wrapped into a minimal
-/// `CityJSON` document, passed through the adapter, and extracted again.
-///
-/// # Panics
-///
-/// Panics if the roundtrip fails or the result does not match the input.
-pub fn assert_eq_roundtrip_wrapped(
-    json_input: &str,
-    wrap: fn(Value) -> Value,
-    extract: fn(&Value) -> Value,
-) {
-    let expected: Value = serde_json::from_str(json_input).unwrap();
-    let wrapped = wrap(expected.clone());
-    let result = roundtrip_value(&wrapped);
-    assert_eq!(extract(&result), expected);
-}
-
-/// Assert that a JSON fragment retains the same content after a borrowed-mode wrapped roundtrip.
-///
-/// # Panics
-///
-/// Panics if the roundtrip fails or the result does not match the input.
-pub fn assert_eq_roundtrip_borrowed_wrapped(
-    json_input: &str,
-    wrap: fn(Value) -> Value,
-    extract: fn(&Value) -> Value,
-) {
-    let expected: Value = serde_json::from_str(json_input).unwrap();
-    let wrapped = wrap(expected.clone());
-    let result = roundtrip_value_borrowed(&wrapped);
-    assert_eq!(extract(&result), expected);
-}
-
 /// Assert that owned and borrowed modes both roundtrip the input correctly and produce
 /// identical output.
 ///
@@ -123,25 +90,6 @@ pub fn assert_eq_roundtrip_parity(json_input: &str) {
     let expected: Value = serde_json::from_str(json_input).unwrap();
     let owned = roundtrip_value(&expected);
     let borrowed = roundtrip_value_borrowed(&expected);
-    assert_eq!(owned, expected, "owned roundtrip mismatch");
-    assert_eq!(borrowed, expected, "borrowed roundtrip mismatch");
-    assert_eq!(owned, borrowed, "owned/borrowed output mismatch");
-}
-
-/// Assert parity between owned and borrowed modes for a wrapped fragment.
-///
-/// # Panics
-///
-/// Panics if the roundtrip fails or the results do not match.
-pub fn assert_eq_roundtrip_parity_wrapped(
-    json_input: &str,
-    wrap: fn(Value) -> Value,
-    extract: fn(&Value) -> Value,
-) {
-    let expected: Value = serde_json::from_str(json_input).unwrap();
-    let wrapped = wrap(expected.clone());
-    let owned = extract(&roundtrip_value(&wrapped));
-    let borrowed = extract(&roundtrip_value_borrowed(&wrapped));
     assert_eq!(owned, expected, "owned roundtrip mismatch");
     assert_eq!(borrowed, expected, "borrowed roundtrip mismatch");
     assert_eq!(owned, borrowed, "owned/borrowed output mismatch");

@@ -1,26 +1,64 @@
 {
-  "type": "MultiPoint",
-  "lod": "2.1",
-  "boundaries": [
-    0,
-    3,
-    2,
-    1
-  ],
-  "semantics": {
-    "surfaces": [
-      {
-        "type": "TransportationMarking"
-      },
-      {
-        "type": "+Pylon"
-      }
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {
+    "fixture": {
+      "type": "GenericCityObject",
+      "geometry": [
+        {
+          "type": "MultiPoint",
+          "lod": "2.1",
+          "boundaries": [
+            0,
+            3,
+            2,
+            1
+          ],
+          "semantics": {
+            "surfaces": [
+              {
+                "type": "TransportationMarking"
+              },
+              {
+                "type": "+Pylon"
+              }
+            ],
+            "values": [
+              0,
+              0,
+              null,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "appearance": {},
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  },
+  "vertices": [
+    [
+      0,
+      0,
+      0
     ],
-    "values": [
+    [
+      1,
       0,
+      0
+    ],
+    [
+      2,
       0,
-      null,
-      1
+      0
+    ],
+    [
+      3,
+      0,
+      0
     ]
-  }
+  ]
 }

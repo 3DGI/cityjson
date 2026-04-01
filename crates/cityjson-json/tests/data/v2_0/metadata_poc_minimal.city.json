@@ -1,7 +1,18 @@
 {
-  "pointOfContact": {
-    "contactName": "3DGI",
-    "emailAddress": "email@3dgi.nl",
-    "role": "co-author"
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "appearance": {},
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  },
+  "vertices": [],
+  "metadata": {
+    "pointOfContact": {
+      "contactName": "3DGI",
+      "emailAddress": "email@3dgi.nl",
+      "role": "co-author"
+    }
   }
 }

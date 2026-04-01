@@ -1,4 +1,20 @@
 {
-  "type": "PNG",
-  "image": "appearancesmyroof.jpg"
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "appearance": {
+    "materials": [],
+    "textures": [
+      {
+        "type": "PNG",
+        "image": "appearancesmyroof.jpg"
+      }
+    ],
+    "vertices-texture": []
+  },
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  },
+  "vertices": []
 }

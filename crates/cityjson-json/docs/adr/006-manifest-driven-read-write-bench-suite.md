@@ -46,12 +46,12 @@ separate Criterion entrypoints:
 
 The shared benchmark index in
 `../cityjson-benchmarks/artifacts/benchmark-index.json` is now the catalog of
-cases. It declares:
+benchmark workload cases. It declares:
 
 - case id
 - description
 - the path to the benchmark input file
-- whether the case came from a generated, acquired, or checked-in source
+- whether the case came from a generated or acquired source
 
 The benchmark harness reads those files directly. Synthetic cases are already
 materialized by the shared corpus repo, so `serde_cityjson` no longer needs a

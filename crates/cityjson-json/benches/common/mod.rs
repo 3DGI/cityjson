@@ -145,7 +145,7 @@ impl BenchmarkCase {
         let source = self
             .output
             .or(self.artifact_paths.source)
-            .map(|path| resolve_shared_path(path));
+            .map(resolve_shared_path);
 
         source.map(|source| CaseSpec {
             name: self.id,
@@ -174,7 +174,10 @@ impl CaseSpec {
 }
 
 pub(crate) fn real_data_dir() -> PathBuf {
-    shared_corpus_root().join("tests").join("data").join("downloaded")
+    shared_corpus_root()
+        .join("tests")
+        .join("data")
+        .join("downloaded")
 }
 
 fn load_cases() -> Vec<BenchmarkCase> {
@@ -209,7 +212,9 @@ fn benchmark_index_path() -> PathBuf {
 fn shared_corpus_root() -> PathBuf {
     std::env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT))
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT)
+        })
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {
@@ -221,7 +226,8 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
 }
 
 fn read_file(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+    fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
 }
 
 fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata) {

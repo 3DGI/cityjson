@@ -1,21 +1,49 @@
 {
-  "templates": [
-    {
-      "type": "MultiSurface",
-      "lod": "2.1",
-      "boundaries": [
-        [[0, 2, 1]]
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "appearance": {},
+  "geometry-templates": {
+    "templates": [
+      {
+        "type": "MultiSurface",
+        "lod": "2.1",
+        "boundaries": [
+          [
+            [
+              0,
+              2,
+              1
+            ]
+          ]
+        ]
+      },
+      {
+        "type": "MultiPoint",
+        "lod": "1.3",
+        "boundaries": [
+          1,
+          2
+        ]
+      }
+    ],
+    "vertices-templates": [
+      [
+        0.0,
+        0.5,
+        0.0
+      ],
+      [
+        1.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
       ]
-    },
-    {
-      "type": "MultiPoint",
-      "lod": "1.3",
-      "boundaries": [1, 2]
-    }
-  ],
-  "vertices-templates": [
-    [0.0, 0.5, 0.0],
-    [1.0, 1.0, 0.0],
-    [0.0, 1.0, 0.0]
-  ]
+    ]
+  },
+  "vertices": []
 }

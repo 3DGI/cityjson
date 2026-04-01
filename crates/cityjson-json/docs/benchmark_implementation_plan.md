@@ -20,17 +20,17 @@ The benchmark suite now consumes the shared corpus index at
 
 The shared repo publishes:
 
-- synthetic benchmark outputs
-- checked-in conformance fixtures
-- published raw 3DBAG artifact paths
+- synthetic workload benchmark outputs
+- published raw 3DBAG workload artifact paths
 
 This crate only keeps the local 3D Basisvoorziening bootstrap data under
 `tests/data/downloaded/`.
 
 ## Benchmark Cases
 
-The current suite is whatever the shared benchmark index publishes for valid
-`cityjson` cases. The harness no longer owns a separate case taxonomy.
+The current suite is whatever the shared benchmark index publishes for
+workload `cityjson` cases. Conformance fixtures stay in the test suite. The
+harness no longer owns a separate case taxonomy.
 
 ## Harness
 

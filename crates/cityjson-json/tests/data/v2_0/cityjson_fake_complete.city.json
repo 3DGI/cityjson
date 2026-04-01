@@ -1,177 +1,454 @@
 {
- "type": "CityJSON",
- "version": "2.0",
- "extensions": {
-  "Noise": {
-   "url": "https://someurl.orgnoise.json",
-   "version": "2.0"
-  }
- },
- "transform": {
-  "scale": [ 1.0, 1.0, 1.0 ],
-  "translate": [ 0.0, 0.0, 0.0 ]
- },
- "metadata": {
-  "geographicalExtent": [ 84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9 ],
-  "identifier": "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
-  "pointOfContact": {
-   "contactName": "Kitalált Név",
-   "emailAddress": "spam@3dgi.nl",
-   "role": "author",
-   "website": "https://3dgi.nl",
-   "contactType": "organization",
-   "address": {
-    "city": "Den Haag",
-    "country": "The Netherlands"
-   },
-   "phone": "+36612345678",
-   "organization": "3DGI"
-  },
-  "referenceDate": "2026-01-26",
-  "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/2355",
-  "title": "Complete and fake CityJSON",
-  "nospec_description": "A CityJSON object with all existing properties set to a fake value"
- },
- "CityObjects": {
-  "id-1": {
-   "type": "BuildingPart",
-   "geographicalExtent": [ 84710.1, 446846.0, -5.3, 84757.1, 446944.0, 40.9 ],
-   "address": [
-    {
-     "Country": "Canada",
-     "Locality": "Chibougamau",
-     "ThoroughfareNumber": "1",
-     "ThoroughfareName": "rue de la Patate",
-     "Postcode": "H0H 0H0",
-     "location": {
-      "type": "MultiPoint",
-      "lod": "1",
-      "boundaries": [ 0 ]
-     }
+  "type": "CityJSON",
+  "version": "2.0",
+  "extensions": {
+    "Noise": {
+      "url": "https://someurl.orgnoise.json",
+      "version": "2.0"
     }
-   ],
-   "attributes": {
-    "measuredHeight": 22.3,
-    "roofType": "gable",
-    "residential": true,
-    "nr_doors": 3
-   },
-   "parents": [ "id-3", "my-neighbourhood" ],
-   "geometry": [
-    {
-     "type": "Solid",
-     "lod": "2.1",
-     "boundaries": [ [ [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ], [ [ 0, 3, 2, 1 ] ] ], [ [ [ 1, 2, 3, 0 ], [ 1, 2, 3, 0 ] ] ] ],
-     "semantics": {
-      "surfaces": [
-      {
-        "type": "RoofSurface",
-        "surfaceAttribute": true,
-        "children": [ 1 ]
-       }, {
-        "type": "+PatioDoor",
-        "parent": 0
-       }
-      ],
-      "values": [ [ 0, 0, null, 1 ], [ null ] ]
-     },
-     "material": {
-      "irradiation": {
-       "values": [ [ 0, 0, 0, null ], [ null ] ]
+  },
+  "transform": {
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "translate": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "metadata": {
+    "geographicalExtent": [
+      84710.1,
+      446846.0,
+      -5.3,
+      84757.1,
+      446944.0,
+      40.9
+    ],
+    "identifier": "eaeceeaa-3f66-429a-b81d-bbc6140b8c1c",
+    "pointOfContact": {
+      "contactName": "Kitalált Név",
+      "emailAddress": "spam@3dgi.nl",
+      "role": "author",
+      "website": "https://3dgi.nl",
+      "contactType": "organization",
+      "address": {
+        "city": "Den Haag",
+        "country": "The Netherlands"
       },
-      "red": {
-       "value": 0
+      "phone": "+36612345678",
+      "organization": "3DGI"
+    },
+    "referenceDate": "2026-01-26",
+    "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/2355",
+    "title": "Complete and fake CityJSON",
+    "nospec_description": "A CityJSON object with all existing properties set to a fake value"
+  },
+  "CityObjects": {
+    "id-1": {
+      "type": "BuildingPart",
+      "geographicalExtent": [
+        84710.1,
+        446846.0,
+        -5.3,
+        84757.1,
+        446944.0,
+        40.9
+      ],
+      "address": [
+        {
+          "Country": "Canada",
+          "Locality": "Chibougamau",
+          "ThoroughfareNumber": "1",
+          "ThoroughfareName": "rue de la Patate",
+          "Postcode": "H0H 0H0",
+          "location": {
+            "type": "MultiPoint",
+            "lod": "1",
+            "boundaries": [
+              0
+            ]
+          }
+        }
+      ],
+      "attributes": {
+        "measuredHeight": 22.3,
+        "roofType": "gable",
+        "residential": true,
+        "nr_doors": 3
+      },
+      "parents": [
+        "id-3",
+        "my-neighbourhood"
+      ],
+      "geometry": [
+        {
+          "type": "Solid",
+          "lod": "2.1",
+          "boundaries": [
+            [
+              [
+                [
+                  0,
+                  3,
+                  2,
+                  1
+                ]
+              ],
+              [
+                [
+                  0,
+                  3,
+                  2,
+                  1
+                ]
+              ],
+              [
+                [
+                  0,
+                  3,
+                  2,
+                  1
+                ]
+              ],
+              [
+                [
+                  0,
+                  3,
+                  2,
+                  1
+                ]
+              ]
+            ],
+            [
+              [
+                [
+                  1,
+                  2,
+                  3,
+                  0
+                ],
+                [
+                  1,
+                  2,
+                  3,
+                  0
+                ]
+              ]
+            ]
+          ],
+          "semantics": {
+            "surfaces": [
+              {
+                "type": "RoofSurface",
+                "surfaceAttribute": true,
+                "children": [
+                  1
+                ]
+              },
+              {
+                "type": "+PatioDoor",
+                "parent": 0
+              }
+            ],
+            "values": [
+              [
+                0,
+                0,
+                null,
+                1
+              ],
+              [
+                null
+              ]
+            ]
+          },
+          "material": {
+            "irradiation": {
+              "values": [
+                [
+                  0,
+                  0,
+                  0,
+                  null
+                ],
+                [
+                  null
+                ]
+              ]
+            },
+            "red": {
+              "value": 0
+            }
+          },
+          "texture": {
+            "winter-textures": {
+              "values": [
+                [
+                  [
+                    [
+                      0,
+                      0,
+                      1,
+                      2,
+                      3
+                    ]
+                  ],
+                  [
+                    [
+                      0,
+                      0,
+                      1,
+                      2,
+                      3
+                    ]
+                  ],
+                  [
+                    [
+                      null
+                    ]
+                  ],
+                  [
+                    [
+                      null
+                    ]
+                  ]
+                ],
+                [
+                  [
+                    [
+                      null
+                    ],
+                    [
+                      null
+                    ]
+                  ]
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "id-3": {
+      "type": "+NoiseBuilding",
+      "children": [
+        "id-1"
+      ],
+      "parents": [
+        "my-neighbourhood"
+      ],
+      "attributes": {
+        "buildingLDenMin": 1
       }
-     },
-     "texture": {
-      "winter-textures": {
-       "values": [ [ [ [ 0, 0, 1, 2, 3 ] ], [ [ 0, 0, 1, 2, 3 ] ], [ [ null ] ], [ [ null ] ] ], [ [ [ null ], [ null ] ] ] ]
+    },
+    "a-tree": {
+      "type": "SolitaryVegetationObject",
+      "geometry": [
+        {
+          "type": "GeometryInstance",
+          "template": 0,
+          "boundaries": [
+            1
+          ],
+          "transformationMatrix": [
+            2.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ]
+    },
+    "my-neighbourhood": {
+      "type": "CityObjectGroup",
+      "attributes": {
+        "location": "Magyarkanizsa"
+      },
+      "children": [
+        "id-1",
+        "id-3"
+      ],
+      "children_roles": [
+        "residential building",
+        "voting location"
+      ],
+      "geometry": [
+        {
+          "type": "MultiSurface",
+          "lod": "2",
+          "boundaries": [
+            [
+              [
+                0,
+                1,
+                2,
+                3
+              ]
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "vertices": [
+    [
+      102,
+      103,
+      1
+    ],
+    [
+      11,
+      910,
+      43
+    ],
+    [
+      25,
+      744,
+      22
+    ],
+    [
+      23,
+      88,
+      5
+    ]
+  ],
+  "appearance": {
+    "materials": [
+      {
+        "name": "irradiation",
+        "ambientIntensity": 0.2,
+        "diffuseColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "emissiveColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "specularColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "shininess": 0.2,
+        "transparency": 0.5,
+        "isSmooth": false
+      },
+      {
+        "name": "red"
       }
-     }
-    }
-   ]
+    ],
+    "textures": [
+      {
+        "type": "PNG",
+        "image": "http://www.someurl.org/filename.jpg",
+        "wrapMode": "wrap",
+        "textureType": "specific",
+        "borderColor": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    ],
+    "vertices-texture": [
+      [
+        0.0,
+        0.5
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "default-theme-texture": "summer-textures",
+    "default-theme-material": "irradiation"
   },
-  "id-3": {
-   "type": "+NoiseBuilding",
-   "children": [ "id-1" ],
-   "parents": [ "my-neighbourhood" ],
-   "attributes": {
-    "buildingLDenMin": 1
-   }
+  "geometry-templates": {
+    "templates": [
+      {
+        "type": "MultiSurface",
+        "lod": "2.1",
+        "boundaries": [
+          [
+            [
+              0,
+              3,
+              2,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              2,
+              0,
+              3
+            ]
+          ],
+          [
+            [
+              0,
+              1,
+              3,
+              2
+            ]
+          ]
+        ]
+      }
+    ],
+    "vertices-templates": [
+      [
+        0.0,
+        0.5,
+        0.0
+      ],
+      [
+        1.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        2.1,
+        4.2,
+        1.2
+      ]
+    ]
   },
-  "a-tree": {
-   "type": "SolitaryVegetationObject",
-   "geometry": [
-    {
-     "type": "GeometryInstance",
-     "template": 0,
-     "boundaries": [ 1 ],
-     "transformationMatrix": [
-      2.0, 0.0, 0.0, 0.0,
-      0.0, 2.0, 0.0, 0.0,
-      0.0, 0.0, 2.0, 0.0,
-      0.0, 0.0, 0.0, 1.0
-     ]
-    }
-   ]
-  },
-  "my-neighbourhood": {
-   "type": "CityObjectGroup",
-   "attributes": {
-    "location": "Magyarkanizsa"
-   },
-   "children": [ "id-1", "id-3" ],
-   "children_roles": [ "residential building", "voting location" ],
-   "geometry": [
-    {
-     "type": "MultiSurface",
-     "lod": "2",
-     "boundaries": [ [ [ 0, 1, 2, 3 ] ] ]
-    }
-   ]
+  "+census": {
+    "percent_men": 49.5,
+    "percent_women": 51.5
   }
- },
- "vertices": [ [ 102, 103, 1 ], [ 11, 910, 43 ], [ 25, 744, 22 ], [ 23, 88, 5 ] ],
- "appearance": {
-  "materials": [
-   {
-    "name": "irradiation",
-    "ambientIntensity": 0.2,
-    "diffuseColor": [ 0.9, 0.1, 0.75 ],
-    "emissiveColor": [ 0.9, 0.1, 0.75 ],
-    "specularColor": [ 0.9, 0.1, 0.75 ],
-    "shininess": 0.2,
-    "transparency": 0.5,
-    "isSmooth": false
-   }, {
-    "name": "red"
-   }
-  ],
-  "textures": [
-   {
-    "type": "PNG",
-    "image": "http://www.someurl.org/filename.jpg",
-    "wrapMode": "wrap",
-    "textureType": "specific",
-    "borderColor": [ 1.0, 1.0, 1.0, 1.0 ]
-   }
-  ],
-  "vertices-texture": [ [ 0.0, 0.5 ], [ 1.0, 0.0 ], [ 1.0, 1.0 ], [ 0.0, 1.0 ] ],
-  "default-theme-texture": "summer-textures",
-  "default-theme-material": "irradiation"
- },
- "geometry-templates": {
-  "templates": [
-   {
-    "type": "MultiSurface",
-    "lod": "2.1",
-    "boundaries": [ [ [ 0, 3, 2, 1 ] ], [ [ 1, 2, 0, 3 ] ], [ [ 0, 1, 3, 2 ] ] ]
-   }
-  ],
-  "vertices-templates": [ [ 0.0, 0.5, 0.0 ], [ 1.0, 1.0, 0.0 ], [ 0.0, 1.0, 0.0 ], [ 2.1, 4.2, 1.2 ] ]
- },
- "+census": {
-  "percent_men": 49.5,
-  "percent_women": 51.5
- }
 }

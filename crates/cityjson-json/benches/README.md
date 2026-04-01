@@ -14,8 +14,8 @@ crate.
 
 - real-world regression inputs are consumed from the shared
   `../cityjson-benchmarks/artifacts/benchmark-index.json`
-- the shared corpus repo publishes the generated benchmark outputs and the
-  raw acquired 3DBAG file paths
+- the shared corpus repo publishes the generated workload outputs and the raw
+  acquired 3DBAG workload file path
 - the local 3D Basisvoorziening bootstrap data still lives in
   `tests/data/downloaded/`
 

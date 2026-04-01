@@ -1,7 +1,17 @@
 {
-  "materials": [],
-  "textures": [],
-  "vertices-texture": [],
-  "default-theme-texture": "myDefaultTheme1",
-  "default-theme-material": "myDefaultTheme2"
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "appearance": {
+    "materials": [],
+    "textures": [],
+    "vertices-texture": [],
+    "default-theme-texture": "myDefaultTheme1",
+    "default-theme-material": "myDefaultTheme2"
+  },
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  },
+  "vertices": []
 }

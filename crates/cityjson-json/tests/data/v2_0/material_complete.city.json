@@ -1,22 +1,38 @@
 {
-  "name": "roofandground",
-  "ambientIntensity": 0.2000,
-  "diffuseColor": [
-    0.9000,
-    0.1000,
-    0.7500
-  ],
-  "emissiveColor": [
-    0.9000,
-    0.1000,
-    0.7500
-  ],
-  "specularColor": [
-    0.9000,
-    0.1000,
-    0.7500
-  ],
-  "shininess": 0.2,
-  "transparency": 0.5,
-  "isSmooth": false
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "appearance": {
+    "materials": [
+      {
+        "name": "roofandground",
+        "ambientIntensity": 0.2,
+        "diffuseColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "emissiveColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "specularColor": [
+          0.9,
+          0.1,
+          0.75
+        ],
+        "shininess": 0.2,
+        "transparency": 0.5,
+        "isSmooth": false
+      }
+    ],
+    "textures": [],
+    "vertices-texture": []
+  },
+  "geometry-templates": {
+    "templates": [],
+    "vertices-templates": []
+  },
+  "vertices": []
 }

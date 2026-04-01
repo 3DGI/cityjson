@@ -2,102 +2,83 @@
   "suite": "write",
   "cases": [
     {
-      "id": "3DBAG",
-      "description": "Real-world medium-size dataset with two geometries per object and parent-child links",
-      "borrowed": true,
+      "id": "stress_appearance_and_validation",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 7354602,
-        "serde_cityjson/to_string": 7354602,
-        "serde_cityjson/to_string_validated": 7354602,
-        "serde_json::to_string": 7354602
+        "serde_cityjson/as_json_to_value": 1499,
+        "serde_cityjson/to_string": 1499,
+        "serde_cityjson/to_string_validated": 1499,
+        "serde_json::to_string": 1499
       }
     },
     {
-      "id": "3D Basisvoorziening",
-      "description": "Large real-world dataset dominated by geometry flattening and vertex import",
-      "borrowed": false,
+      "id": "stress_attribute_tree",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 390914053,
-        "serde_cityjson/to_string": 390914053,
-        "serde_cityjson/to_string_validated": 390914053,
-        "serde_json::to_string": 390914053
+        "serde_cityjson/as_json_to_value": 1967,
+        "serde_cityjson/to_string": 1967,
+        "serde_cityjson/to_string_validated": 1967,
+        "serde_json::to_string": 1967
       }
     },
     {
-      "id": "geometry_flattening_best_case",
-      "description": "Large MultiSurface payload with no relation graph or attribute tree",
-      "borrowed": true,
+      "id": "stress_composite_value",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 13935257,
-        "serde_cityjson/to_string": 13935257,
-        "serde_cityjson/to_string_validated": 13935257,
-        "serde_json::to_string": 13935257
+        "serde_cityjson/as_json_to_value": 2022,
+        "serde_cityjson/to_string": 2022,
+        "serde_cityjson/to_string_validated": 2022,
+        "serde_json::to_string": 2022
       }
     },
     {
-      "id": "vertex_transform_stress",
-      "description": "Large vertex pool with very little object-level normalization",
-      "borrowed": true,
+      "id": "stress_deep_boundary",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 749073,
-        "serde_cityjson/to_string": 749073,
-        "serde_cityjson/to_string_validated": 749073,
-        "serde_json::to_string": 749073
+        "serde_cityjson/as_json_to_value": 1831,
+        "serde_cityjson/to_string": 1831,
+        "serde_cityjson/to_string_validated": 1831,
+        "serde_json::to_string": 1831
       }
     },
     {
-      "id": "attribute_tree_worst_case",
-      "description": "Deep nested attributes with minimal geometry work",
-      "borrowed": true,
+      "id": "stress_geometry_flattening",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 5839716,
-        "serde_cityjson/to_string": 5839716,
-        "serde_cityjson/to_string_validated": 5839716,
-        "serde_json::to_string": 5839716
+        "serde_cityjson/as_json_to_value": 1479,
+        "serde_cityjson/to_string": 1479,
+        "serde_cityjson/to_string_validated": 1479,
+        "serde_json::to_string": 1479
       }
     },
     {
-      "id": "relation_graph_worst_case",
-      "description": "Dense parent-child graph with small geometry payloads",
-      "borrowed": true,
+      "id": "stress_relation_graph",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 2278339,
-        "serde_cityjson/to_string": 2278339,
-        "serde_cityjson/to_string_validated": 2278339,
-        "serde_json::to_string": 2278339
+        "serde_cityjson/as_json_to_value": 1693,
+        "serde_cityjson/to_string": 1693,
+        "serde_cityjson/to_string_validated": 1693,
+        "serde_json::to_string": 1693
       }
     },
     {
-      "id": "deep_boundary_stress",
-      "description": "Solid-heavy geometry that exercises nested boundary flattening",
-      "borrowed": true,
+      "id": "stress_vertex_transform",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 2772867,
-        "serde_cityjson/to_string": 2772867,
-        "serde_cityjson/to_string_validated": 2772867,
-        "serde_json::to_string": 2772867
+        "serde_cityjson/as_json_to_value": 1695,
+        "serde_cityjson/to_string": 1695,
+        "serde_cityjson/to_string_validated": 1695,
+        "serde_json::to_string": 1695
       }
     },
     {
-      "id": "composite_value_favorable_worst_case",
-      "description": "Mixed geometry and normalization workload that is smaller but denser",
-      "borrowed": true,
+      "id": "io_3dbag_cityjson",
+      "description": "",
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 3640295,
-        "serde_cityjson/to_string": 3640295,
-        "serde_cityjson/to_string_validated": 3640295,
-        "serde_json::to_string": 3640295
-      }
-    },
-    {
-      "id": "appearance_and_validation_stress",
-      "description": "Serializer-heavy case with materials, textures, templates, and semantics",
-      "borrowed": true,
-      "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 1653911,
-        "serde_cityjson/to_string": 1653911,
-        "serde_cityjson/to_string_validated": 1653911,
-        "serde_json::to_string": 1653911
+        "serde_cityjson/as_json_to_value": 5908835,
+        "serde_cityjson/to_string": 5908835,
+        "serde_cityjson/to_string_validated": 5908835,
+        "serde_json::to_string": 5908835
       }
     }
   ]
