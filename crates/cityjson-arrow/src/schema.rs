@@ -186,8 +186,6 @@ pub struct CityModelArrowParts {
     pub template_geometry_semantics: Option<RecordBatch>,
     pub materials: Option<RecordBatch>,
     pub geometry_surface_materials: Option<RecordBatch>,
-    pub geometry_point_materials: Option<RecordBatch>,
-    pub geometry_linestring_materials: Option<RecordBatch>,
     pub template_geometry_materials: Option<RecordBatch>,
     pub textures: Option<RecordBatch>,
     pub texture_vertices: Option<RecordBatch>,
@@ -238,10 +236,6 @@ pub struct PackageTables {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry_surface_materials: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_point_materials: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geometry_linestring_materials: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template_geometry_materials: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub textures: Option<PathBuf>,
@@ -276,8 +270,6 @@ impl PackageTables {
             && self.template_geometry_semantics.is_none()
             && self.materials.is_none()
             && self.geometry_surface_materials.is_none()
-            && self.geometry_point_materials.is_none()
-            && self.geometry_linestring_materials.is_none()
             && self.template_geometry_materials.is_none()
             && self.textures.is_none()
             && self.texture_vertices.is_none()
@@ -345,8 +337,6 @@ pub struct CanonicalSchemaSet {
     pub template_geometry_semantics: SchemaRef,
     pub materials: SchemaRef,
     pub geometry_surface_materials: SchemaRef,
-    pub geometry_point_materials: SchemaRef,
-    pub geometry_linestring_materials: SchemaRef,
     pub template_geometry_materials: SchemaRef,
     pub textures: SchemaRef,
     pub texture_vertices: SchemaRef,
@@ -383,8 +373,6 @@ pub fn canonical_schema_set(layout: &ProjectionLayout) -> CanonicalSchemaSet {
         template_geometry_semantics: schema_ref(template_geometry_semantics_fields()),
         materials: schema_ref(materials_fields(layout)),
         geometry_surface_materials: schema_ref(geometry_surface_materials_fields()),
-        geometry_point_materials: schema_ref(geometry_point_materials_fields()),
-        geometry_linestring_materials: schema_ref(geometry_linestring_materials_fields()),
         template_geometry_materials: schema_ref(template_geometry_materials_fields()),
         textures: schema_ref(textures_fields(layout)),
         texture_vertices: schema_ref(texture_vertices_fields()),
@@ -637,26 +625,6 @@ fn geometry_surface_materials_fields() -> Vec<Field> {
         Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
-        Field::new("theme", DataType::Utf8, false),
-        Field::new("material_id", DataType::UInt64, false),
-    ]
-}
-
-fn geometry_point_materials_fields() -> Vec<Field> {
-    vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
-        Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("point_ordinal", DataType::UInt32, false),
-        Field::new("theme", DataType::Utf8, false),
-        Field::new("material_id", DataType::UInt64, false),
-    ]
-}
-
-fn geometry_linestring_materials_fields() -> Vec<Field> {
-    vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
-        Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("linestring_ordinal", DataType::UInt32, false),
         Field::new("theme", DataType::Utf8, false),
         Field::new("material_id", DataType::UInt64, false),
     ]

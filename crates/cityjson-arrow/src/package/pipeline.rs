@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
-const ALL_TABLES: [CanonicalTable; 27] = [
+const ALL_TABLES: [CanonicalTable; 25] = [
     CanonicalTable::Metadata,
     CanonicalTable::Transform,
     CanonicalTable::Extensions,
@@ -36,8 +36,6 @@ const ALL_TABLES: [CanonicalTable; 27] = [
     CanonicalTable::TemplateGeometrySemantics,
     CanonicalTable::Materials,
     CanonicalTable::GeometrySurfaceMaterials,
-    CanonicalTable::GeometryPointMaterials,
-    CanonicalTable::GeometryLinestringMaterials,
     CanonicalTable::TemplateGeometryMaterials,
     CanonicalTable::Textures,
     CanonicalTable::TextureVertices,
@@ -159,8 +157,6 @@ where
         template_geometry_semantics: semantics.template_geometry_semantics,
         materials: appearance.materials,
         geometry_surface_materials: appearance.geometry_surface_materials,
-        geometry_point_materials: appearance.geometry_point_materials,
-        geometry_linestring_materials: appearance.geometry_linestring_materials,
         template_geometry_materials: appearance.template_geometry_materials,
         textures: appearance.textures,
         texture_vertices: appearance.texture_vertices,
@@ -219,8 +215,6 @@ struct SemanticTables {
 struct AppearanceTables {
     materials: Option<RecordBatch>,
     geometry_surface_materials: Option<RecordBatch>,
-    geometry_point_materials: Option<RecordBatch>,
-    geometry_linestring_materials: Option<RecordBatch>,
     template_geometry_materials: Option<RecordBatch>,
     textures: Option<RecordBatch>,
     texture_vertices: Option<RecordBatch>,
@@ -428,14 +422,6 @@ where
             CanonicalTable::GeometrySurfaceMaterials,
         ),
         (
-            parts.geometry_point_materials.as_ref(),
-            CanonicalTable::GeometryPointMaterials,
-        ),
-        (
-            parts.geometry_linestring_materials.as_ref(),
-            CanonicalTable::GeometryLinestringMaterials,
-        ),
-        (
             parts.template_geometry_materials.as_ref(),
             CanonicalTable::TemplateGeometryMaterials,
         ),
@@ -525,7 +511,7 @@ where
     for table in ALL_TABLES {
         if let Some((schema, batch)) = load_table(
             dir,
-            manifest_table_path(&manifest.tables, table).as_ref(),
+            manifest_table_path(&manifest.tables, table),
             manifest.table_encoding,
         )? {
             loaded.insert(table, schema, batch);
@@ -692,16 +678,6 @@ fn read_appearance_tables(
             schemas,
             CanonicalTable::GeometrySurfaceMaterials,
         )?,
-        geometry_point_materials: optional_table(
-            loaded.get(CanonicalTable::GeometryPointMaterials),
-            schemas,
-            CanonicalTable::GeometryPointMaterials,
-        )?,
-        geometry_linestring_materials: optional_table(
-            loaded.get(CanonicalTable::GeometryLinestringMaterials),
-            schemas,
-            CanonicalTable::GeometryLinestringMaterials,
-        )?,
         template_geometry_materials: optional_table(
             loaded.get(CanonicalTable::TemplateGeometryMaterials),
             schemas,
@@ -832,8 +808,6 @@ fn schema_for_table(schemas: &CanonicalSchemaSet, table: CanonicalTable) -> &Sch
         CanonicalTable::TemplateGeometrySemantics => &schemas.template_geometry_semantics,
         CanonicalTable::Materials => &schemas.materials,
         CanonicalTable::GeometrySurfaceMaterials => &schemas.geometry_surface_materials,
-        CanonicalTable::GeometryPointMaterials => &schemas.geometry_point_materials,
-        CanonicalTable::GeometryLinestringMaterials => &schemas.geometry_linestring_materials,
         CanonicalTable::TemplateGeometryMaterials => &schemas.template_geometry_materials,
         CanonicalTable::Textures => &schemas.textures,
         CanonicalTable::TextureVertices => &schemas.texture_vertices,
@@ -842,35 +816,33 @@ fn schema_for_table(schemas: &CanonicalSchemaSet, table: CanonicalTable) -> &Sch
     }
 }
 
-fn manifest_table_path(tables: &PackageTables, table: CanonicalTable) -> &Option<PathBuf> {
+fn manifest_table_path(tables: &PackageTables, table: CanonicalTable) -> Option<&PathBuf> {
     match table {
-        CanonicalTable::Metadata => &tables.metadata,
-        CanonicalTable::Transform => &tables.transform,
-        CanonicalTable::Extensions => &tables.extensions,
-        CanonicalTable::Vertices => &tables.vertices,
-        CanonicalTable::CityObjects => &tables.cityobjects,
-        CanonicalTable::CityObjectChildren => &tables.cityobject_children,
-        CanonicalTable::Geometries => &tables.geometries,
-        CanonicalTable::GeometryBoundaries => &tables.geometry_boundaries,
-        CanonicalTable::GeometryInstances => &tables.geometry_instances,
-        CanonicalTable::TemplateVertices => &tables.template_vertices,
-        CanonicalTable::TemplateGeometries => &tables.template_geometries,
-        CanonicalTable::TemplateGeometryBoundaries => &tables.template_geometry_boundaries,
-        CanonicalTable::Semantics => &tables.semantics,
-        CanonicalTable::SemanticChildren => &tables.semantic_children,
-        CanonicalTable::GeometrySurfaceSemantics => &tables.geometry_surface_semantics,
-        CanonicalTable::GeometryPointSemantics => &tables.geometry_point_semantics,
-        CanonicalTable::GeometryLinestringSemantics => &tables.geometry_linestring_semantics,
-        CanonicalTable::TemplateGeometrySemantics => &tables.template_geometry_semantics,
-        CanonicalTable::Materials => &tables.materials,
-        CanonicalTable::GeometrySurfaceMaterials => &tables.geometry_surface_materials,
-        CanonicalTable::GeometryPointMaterials => &tables.geometry_point_materials,
-        CanonicalTable::GeometryLinestringMaterials => &tables.geometry_linestring_materials,
-        CanonicalTable::TemplateGeometryMaterials => &tables.template_geometry_materials,
-        CanonicalTable::Textures => &tables.textures,
-        CanonicalTable::TextureVertices => &tables.texture_vertices,
-        CanonicalTable::GeometryRingTextures => &tables.geometry_ring_textures,
-        CanonicalTable::TemplateGeometryRingTextures => &tables.template_geometry_ring_textures,
+        CanonicalTable::Metadata => tables.metadata.as_ref(),
+        CanonicalTable::Transform => tables.transform.as_ref(),
+        CanonicalTable::Extensions => tables.extensions.as_ref(),
+        CanonicalTable::Vertices => tables.vertices.as_ref(),
+        CanonicalTable::CityObjects => tables.cityobjects.as_ref(),
+        CanonicalTable::CityObjectChildren => tables.cityobject_children.as_ref(),
+        CanonicalTable::Geometries => tables.geometries.as_ref(),
+        CanonicalTable::GeometryBoundaries => tables.geometry_boundaries.as_ref(),
+        CanonicalTable::GeometryInstances => tables.geometry_instances.as_ref(),
+        CanonicalTable::TemplateVertices => tables.template_vertices.as_ref(),
+        CanonicalTable::TemplateGeometries => tables.template_geometries.as_ref(),
+        CanonicalTable::TemplateGeometryBoundaries => tables.template_geometry_boundaries.as_ref(),
+        CanonicalTable::Semantics => tables.semantics.as_ref(),
+        CanonicalTable::SemanticChildren => tables.semantic_children.as_ref(),
+        CanonicalTable::GeometrySurfaceSemantics => tables.geometry_surface_semantics.as_ref(),
+        CanonicalTable::GeometryPointSemantics => tables.geometry_point_semantics.as_ref(),
+        CanonicalTable::GeometryLinestringSemantics => tables.geometry_linestring_semantics.as_ref(),
+        CanonicalTable::TemplateGeometrySemantics => tables.template_geometry_semantics.as_ref(),
+        CanonicalTable::Materials => tables.materials.as_ref(),
+        CanonicalTable::GeometrySurfaceMaterials => tables.geometry_surface_materials.as_ref(),
+        CanonicalTable::TemplateGeometryMaterials => tables.template_geometry_materials.as_ref(),
+        CanonicalTable::Textures => tables.textures.as_ref(),
+        CanonicalTable::TextureVertices => tables.texture_vertices.as_ref(),
+        CanonicalTable::GeometryRingTextures => tables.geometry_ring_textures.as_ref(),
+        CanonicalTable::TemplateGeometryRingTextures => tables.template_geometry_ring_textures.as_ref(),
     }
 }
 
@@ -899,8 +871,6 @@ fn manifest_table_destination(
         CanonicalTable::TemplateGeometrySemantics => &mut tables.template_geometry_semantics,
         CanonicalTable::Materials => &mut tables.materials,
         CanonicalTable::GeometrySurfaceMaterials => &mut tables.geometry_surface_materials,
-        CanonicalTable::GeometryPointMaterials => &mut tables.geometry_point_materials,
-        CanonicalTable::GeometryLinestringMaterials => &mut tables.geometry_linestring_materials,
         CanonicalTable::TemplateGeometryMaterials => &mut tables.template_geometry_materials,
         CanonicalTable::Textures => &mut tables.textures,
         CanonicalTable::TextureVertices => &mut tables.texture_vertices,

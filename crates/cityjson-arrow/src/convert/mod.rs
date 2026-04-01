@@ -241,24 +241,6 @@ struct GeometrySurfaceMaterialRow {
 }
 
 #[derive(Debug, Clone)]
-struct GeometryPointMaterialRow {
-    citymodel_id: String,
-    geometry_id: u64,
-    point_ordinal: u32,
-    theme: String,
-    material_id: u64,
-}
-
-#[derive(Debug, Clone)]
-struct GeometryLinestringMaterialRow {
-    citymodel_id: String,
-    geometry_id: u64,
-    linestring_ordinal: u32,
-    theme: String,
-    material_id: u64,
-}
-
-#[derive(Debug, Clone)]
 struct TemplateGeometryMaterialRow {
     citymodel_id: String,
     template_geometry_id: u64,
@@ -317,8 +299,6 @@ struct ExportedGeometryRows {
     point_semantics: Vec<GeometryPointSemanticRow>,
     linestring_semantics: Vec<GeometryLinestringSemanticRow>,
     surface_materials: Vec<GeometrySurfaceMaterialRow>,
-    point_materials: Vec<GeometryPointMaterialRow>,
-    linestring_materials: Vec<GeometryLinestringMaterialRow>,
     ring_textures: Vec<GeometryRingTextureRow>,
 }
 
@@ -382,8 +362,6 @@ struct ExportSemanticBatches {
 struct ExportAppearanceBatches {
     materials: Option<RecordBatch>,
     geometry_surface_materials: Option<RecordBatch>,
-    geometry_point_materials: Option<RecordBatch>,
-    geometry_linestring_materials: Option<RecordBatch>,
     template_geometry_materials: Option<RecordBatch>,
     textures: Option<RecordBatch>,
     texture_vertices: Option<RecordBatch>,
@@ -429,8 +407,6 @@ struct PartRowGroups {
     linestring_semantics: GroupedRows<GeometryLinestringSemanticRow>,
     template_semantics: GroupedRows<TemplateGeometrySemanticRow>,
     surface_materials: GroupedRows<GeometrySurfaceMaterialRow>,
-    point_materials: GroupedRows<GeometryPointMaterialRow>,
-    linestring_materials: GroupedRows<GeometryLinestringMaterialRow>,
     template_materials: GroupedRows<TemplateGeometryMaterialRow>,
     ring_textures: GroupedRows<GeometryRingTextureRow>,
     template_ring_textures: GroupedRows<TemplateGeometryRingTextureRow>,
@@ -509,8 +485,6 @@ pub fn to_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
         template_geometry_semantics: semantics.template_geometry_semantics,
         materials: appearance.materials,
         geometry_surface_materials: appearance.geometry_surface_materials,
-        geometry_point_materials: appearance.geometry_point_materials,
-        geometry_linestring_materials: appearance.geometry_linestring_materials,
         template_geometry_materials: appearance.template_geometry_materials,
         textures: appearance.textures,
         texture_vertices: appearance.texture_vertices,
@@ -679,18 +653,6 @@ fn export_appearance_batches(context: &ExportContext<'_>) -> Result<ExportAppear
         geometry_surface_materials: optional_batch(geometry_rows.surface_materials, |rows| {
             geometry_surface_materials_batch(&context.schemas.geometry_surface_materials, rows)
         })?,
-        geometry_point_materials: optional_batch(geometry_rows.point_materials, |rows| {
-            geometry_point_materials_batch(&context.schemas.geometry_point_materials, rows)
-        })?,
-        geometry_linestring_materials: optional_batch(
-            geometry_rows.linestring_materials,
-            |rows| {
-                geometry_linestring_materials_batch(
-                    &context.schemas.geometry_linestring_materials,
-                    rows,
-                )
-            },
-        )?,
         template_geometry_materials: optional_batch(template_geometry_rows.materials, |rows| {
             template_geometry_materials_batch(&context.schemas.template_geometry_materials, rows)
         })?,
@@ -967,16 +929,6 @@ fn collect_part_row_groups(parts: &CityModelArrowParts) -> Result<PartRowGroups>
             read_geometry_surface_material_rows,
             |row| row.geometry_id,
         )?,
-        point_materials: read_grouped_rows(
-            parts.geometry_point_materials.as_ref(),
-            read_geometry_point_material_rows,
-            |row| row.geometry_id,
-        )?,
-        linestring_materials: read_grouped_rows(
-            parts.geometry_linestring_materials.as_ref(),
-            read_geometry_linestring_material_rows,
-            |row| row.geometry_id,
-        )?,
         template_materials: read_grouped_rows(
             parts.template_geometry_materials.as_ref(),
             read_template_geometry_material_rows,
@@ -1105,8 +1057,6 @@ fn import_geometries(
                 &row.geometry_type,
                 boundary,
                 grouped_rows.surface_materials.get(&row.geometry_id),
-                grouped_rows.point_materials.get(&row.geometry_id),
-                grouped_rows.linestring_materials.get(&row.geometry_id),
                 &state.material_handle_by_id,
             )?,
             textures: build_texture_maps(
@@ -1822,8 +1772,6 @@ fn geometry_rows(
         point_semantics: Vec::new(),
         linestring_semantics: Vec::new(),
         surface_materials: Vec::new(),
-        point_materials: Vec::new(),
-        linestring_materials: Vec::new(),
         ring_textures: Vec::new(),
     };
     let geometry_id_map = geometry_id_map(model);
@@ -1934,17 +1882,14 @@ fn append_boundary_geometry_rows(
         context.semantic_id_map,
         exported,
     )?;
-    let material_rows = geometry_material_rows(
+    exported.surface_materials.extend(geometry_material_rows(
         context.citymodel_id,
         geometry_id,
         *geometry.type_geometry(),
         &boundary_row,
         geometry.materials(),
         context.material_id_map,
-    )?;
-    exported.surface_materials.extend(material_rows.0);
-    exported.point_materials.extend(material_rows.1);
-    exported.linestring_materials.extend(material_rows.2);
+    )?);
     exported.ring_textures.extend(geometry_ring_texture_rows(
         context.citymodel_id,
         geometry_id,
@@ -2055,72 +2000,14 @@ fn geometry_material_rows(
     boundary_row: &GeometryBoundaryRow,
     materials: Option<MaterialThemesView<'_, u32, cityjson::prelude::OwnedStringStorage>>,
     material_id_map: &HashMap<cityjson::prelude::MaterialHandle, u64>,
-) -> Result<(
-    Vec<GeometrySurfaceMaterialRow>,
-    Vec<GeometryPointMaterialRow>,
-    Vec<GeometryLinestringMaterialRow>,
-)> {
+) -> Result<Vec<GeometrySurfaceMaterialRow>> {
     let Some(materials) = materials else {
-        return Ok((Vec::new(), Vec::new(), Vec::new()));
+        return Ok(Vec::new());
     };
     let mut surface_rows = Vec::new();
-    let mut point_rows = Vec::new();
-    let mut linestring_rows = Vec::new();
 
     for (theme, map) in materials.iter() {
         match geometry_type {
-            GeometryType::MultiPoint => {
-                if map.points().len() != boundary_row.vertex_indices.len() {
-                    return Err(Error::Conversion(format!(
-                        "material theme {} has {} point assignments, expected {}",
-                        theme,
-                        map.points().len(),
-                        boundary_row.vertex_indices.len()
-                    )));
-                }
-                for (point_ordinal, material_handle) in map.points().iter().enumerate() {
-                    let Some(material_handle) = material_handle else {
-                        continue;
-                    };
-                    let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
-                        Error::Conversion("material handle missing from id map".to_string())
-                    })?;
-                    point_rows.push(GeometryPointMaterialRow {
-                        citymodel_id: citymodel_id.to_string(),
-                        geometry_id,
-                        point_ordinal: usize_to_u32(point_ordinal, "point ordinal")?,
-                        theme: theme.as_ref().to_string(),
-                        material_id,
-                    });
-                }
-            }
-            GeometryType::MultiLineString => {
-                let linestring_count =
-                    required_lengths(boundary_row.line_lengths.as_ref(), "line_lengths")?.len();
-                if map.linestrings().len() != linestring_count {
-                    return Err(Error::Conversion(format!(
-                        "material theme {} has {} linestring assignments, expected {}",
-                        theme,
-                        map.linestrings().len(),
-                        linestring_count
-                    )));
-                }
-                for (linestring_ordinal, material_handle) in map.linestrings().iter().enumerate() {
-                    let Some(material_handle) = material_handle else {
-                        continue;
-                    };
-                    let material_id = *material_id_map.get(material_handle).ok_or_else(|| {
-                        Error::Conversion("material handle missing from id map".to_string())
-                    })?;
-                    linestring_rows.push(GeometryLinestringMaterialRow {
-                        citymodel_id: citymodel_id.to_string(),
-                        geometry_id,
-                        linestring_ordinal: usize_to_u32(linestring_ordinal, "linestring ordinal")?,
-                        theme: theme.as_ref().to_string(),
-                        material_id,
-                    });
-                }
-            }
             GeometryType::MultiSurface
             | GeometryType::CompositeSurface
             | GeometryType::Solid
@@ -2151,14 +2038,16 @@ fn geometry_material_rows(
                     });
                 }
             }
-            GeometryType::GeometryInstance => {
+            GeometryType::GeometryInstance
+            | GeometryType::MultiPoint
+            | GeometryType::MultiLineString => {
                 return Err(Error::Unsupported("geometry materials".to_string()));
             }
             _ => return Err(Error::Unsupported("unsupported geometry type".to_string())),
         }
     }
 
-    Ok((surface_rows, point_rows, linestring_rows))
+    Ok(surface_rows)
 }
 
 fn geometry_ring_texture_rows(
@@ -2821,7 +2710,7 @@ fn semantic_rows(
             Ok(SemanticRow {
                 citymodel_id: citymodel_id.to_string(),
                 semantic_id: index as u64,
-                semantic_type: semantic.type_semantic().to_string(),
+                semantic_type: encode_semantic_type(semantic.type_semantic()),
                 attributes: project_attribute_columns(
                     semantic.attributes(),
                     &projection.semantic_attributes,
@@ -2831,6 +2720,34 @@ fn semantic_rows(
             })
         })
         .collect()
+}
+
+fn encode_semantic_type(
+    semantic_type: &SemanticType<cityjson::prelude::OwnedStringStorage>,
+) -> String {
+    match semantic_type {
+        SemanticType::Default => "Default".to_string(),
+        SemanticType::RoofSurface => "RoofSurface".to_string(),
+        SemanticType::GroundSurface => "GroundSurface".to_string(),
+        SemanticType::WallSurface => "WallSurface".to_string(),
+        SemanticType::ClosureSurface => "ClosureSurface".to_string(),
+        SemanticType::OuterCeilingSurface => "OuterCeilingSurface".to_string(),
+        SemanticType::OuterFloorSurface => "OuterFloorSurface".to_string(),
+        SemanticType::Window => "Window".to_string(),
+        SemanticType::Door => "Door".to_string(),
+        SemanticType::InteriorWallSurface => "InteriorWallSurface".to_string(),
+        SemanticType::CeilingSurface => "CeilingSurface".to_string(),
+        SemanticType::FloorSurface => "FloorSurface".to_string(),
+        SemanticType::WaterSurface => "WaterSurface".to_string(),
+        SemanticType::WaterGroundSurface => "WaterGroundSurface".to_string(),
+        SemanticType::WaterClosureSurface => "WaterClosureSurface".to_string(),
+        SemanticType::TrafficArea => "TrafficArea".to_string(),
+        SemanticType::AuxiliaryTrafficArea => "AuxiliaryTrafficArea".to_string(),
+        SemanticType::TransportationMarking => "TransportationMarking".to_string(),
+        SemanticType::TransportationHole => "TransportationHole".to_string(),
+        SemanticType::Extension(value) => value.clone(),
+        other => other.to_string(),
+    }
 }
 
 fn semantic_child_rows(
@@ -3731,74 +3648,6 @@ fn geometry_surface_materials_batch(
     .map_err(Error::from)
 }
 
-fn geometry_point_materials_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometryPointMaterialRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(LargeStringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.citymodel_id.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt32Array::from(
-                rows.iter().map(|row| row.point_ordinal).collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.theme.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.material_id)
-                    .collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
-}
-
-fn geometry_linestring_materials_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<GeometryLinestringMaterialRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(LargeStringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.citymodel_id.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.iter().map(|row| row.geometry_id).collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt32Array::from(
-                rows.iter()
-                    .map(|row| row.linestring_ordinal)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.theme.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.material_id)
-                    .collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
-}
-
 fn template_geometry_materials_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: Vec<TemplateGeometryMaterialRow>,
@@ -4605,42 +4454,6 @@ fn read_geometry_surface_material_rows(
         .collect()
 }
 
-fn read_geometry_point_material_rows(batch: &RecordBatch) -> Result<Vec<GeometryPointMaterialRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "point_ordinal")?;
-    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryPointMaterialRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                geometry_id: geometries.value(row),
-                point_ordinal: ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                material_id: materials.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_linestring_material_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<GeometryLinestringMaterialRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "linestring_ordinal")?;
-    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryLinestringMaterialRow {
-                citymodel_id: read_large_string_scalar(batch, "citymodel_id", row)?,
-                geometry_id: geometries.value(row),
-                linestring_ordinal: ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                material_id: materials.value(row),
-            })
-        })
-        .collect()
-}
-
 fn read_template_geometry_material_rows(
     batch: &RecordBatch,
 ) -> Result<Vec<TemplateGeometryMaterialRow>> {
@@ -4952,55 +4765,10 @@ fn build_material_maps(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
     surface_rows: Option<&Vec<GeometrySurfaceMaterialRow>>,
-    point_rows: Option<&Vec<GeometryPointMaterialRow>>,
-    linestring_rows: Option<&Vec<GeometryLinestringMaterialRow>>,
     handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
 ) -> Result<Option<MaterialThemeMaps>> {
     match parse_geometry_type(geometry_type)? {
-        GeometryType::MultiPoint => point_rows.map_or(Ok(None), |rows| {
-            grouped_material_maps(
-                rows,
-                boundary.vertex_indices.len(),
-                |row| (row.theme.clone(), row.point_ordinal, row.material_id),
-                MaterialMap::add_point,
-                |row, count| {
-                    format!(
-                        "material assignment point ordinal {} exceeds point count {}",
-                        row.point_ordinal, count
-                    )
-                },
-                |row| {
-                    format!(
-                        "duplicate material assignment for theme {} point {}",
-                        row.theme, row.point_ordinal
-                    )
-                },
-                handles,
-            )
-            .map(Some)
-        }),
-        GeometryType::MultiLineString => linestring_rows.map_or(Ok(None), |rows| {
-            grouped_material_maps(
-                rows,
-                required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len(),
-                |row| (row.theme.clone(), row.linestring_ordinal, row.material_id),
-                MaterialMap::add_linestring,
-                |row, count| {
-                    format!(
-                        "material assignment linestring ordinal {} exceeds linestring count {}",
-                        row.linestring_ordinal, count
-                    )
-                },
-                |row| {
-                    format!(
-                        "duplicate material assignment for theme {} linestring {}",
-                        row.theme, row.linestring_ordinal
-                    )
-                },
-                handles,
-            )
-            .map(Some)
-        }),
+        GeometryType::MultiPoint | GeometryType::MultiLineString => Ok(None),
         GeometryType::MultiSurface
         | GeometryType::CompositeSurface
         | GeometryType::Solid

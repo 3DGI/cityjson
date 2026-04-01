@@ -169,8 +169,6 @@ fn sample_parts() -> CityModelArrowParts {
         template_geometry_semantics: None,
         materials: Some(tables.materials),
         geometry_surface_materials: None,
-        geometry_point_materials: None,
-        geometry_linestring_materials: None,
         template_geometry_materials: None,
         textures: Some(tables.textures),
         texture_vertices: Some(tables.texture_vertices),

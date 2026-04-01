@@ -49,10 +49,7 @@ Important coverage layers:
 - conversion and canonical roundtrip tests over synthetic fixtures
 - package I/O tests for both encodings
 - schema and manifest surface checks
-- ignored real-data acceptance tests in `tests/manifest_roundtrip.rs`
-
-The ignored real-data tests are intentionally expensive. Run them only
-explicitly.
+- shared-corpus conformance roundtrip tests for both encodings
 
 ## Documentation
 

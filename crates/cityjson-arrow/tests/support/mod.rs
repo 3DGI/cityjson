@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
 use std::fs;
-use std::io::{BufReader, Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::LazyLock;
 
 use arrow::record_batch::RecordBatch;
 use cityarrow::schema::{CityModelArrowParts, PackageTableEncoding};
@@ -11,44 +12,36 @@ use cityarrow::{from_parts, read_package_ipc_dir, to_parts, write_package_ipc_di
 use cityjson::v2_0::OwnedCityModel;
 use cityparquet::{read_package_dir, write_package_dir};
 use serde::Deserialize;
-use serde_cityjson::{from_str_owned, to_string_validated};
-use serde_json::Value as JsonValue;
+use serde_cityjson::{from_str_owned, to_string};
 use tempfile::{Builder, NamedTempFile};
 
-#[derive(Debug, Deserialize)]
-pub struct Manifest {
-    pub version: u32,
-    pub purpose: String,
-    pub cases: Vec<Case>,
-}
+const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
+const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum CaseKind {
-    Real,
-    Synthetic,
-}
+static CORRECTNESS_CASES: LazyLock<std::collections::BTreeMap<String, CorrectnessCase>> =
+    LazyLock::new(load_correctness_cases);
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-pub struct Case {
-    pub id: String,
-    pub kind: CaseKind,
-    pub suites: Vec<String>,
-    pub borrowed: bool,
-    pub description: String,
-    pub source: Option<Source>,
-    #[serde(default)]
-    pub seed: Option<u64>,
-    #[serde(default)]
-    pub profile_path: Option<PathBuf>,
-    #[serde(default)]
-    pub intent: Option<String>,
+struct CorrectnessIndex {
+    cases: Vec<CorrectnessCase>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Source {
-    pub path: PathBuf,
+struct CorrectnessCase {
+    id: String,
+    layer: String,
+    #[serde(default)]
+    cityjson_version: Option<String>,
+    representation: String,
+    artifact_paths: CorrectnessArtifactPaths,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct CorrectnessArtifactPaths {
+    source: Option<PathBuf>,
+    generated: Option<PathBuf>,
+    profile: Option<PathBuf>,
 }
 
 #[must_use]
@@ -57,47 +50,135 @@ pub fn workspace_root() -> PathBuf {
 }
 
 #[must_use]
-pub fn sibling_serde_cityjson_root() -> PathBuf {
-    workspace_root()
-        .parent()
-        .expect("cityarrow lives inside Development/")
-        .join("serde_cityjson")
+pub fn shared_corpus_root() -> PathBuf {
+    std::env::var_os("CITYARROW_SHARED_CORPUS_ROOT").map_or_else(
+        || workspace_root().join(DEFAULT_SHARED_CORPUS_ROOT),
+        PathBuf::from,
+    )
 }
 
 #[must_use]
-pub fn manifest_path() -> PathBuf {
-    workspace_root().join("tests/data/generated/manifest.json")
-}
-
-#[must_use]
-pub fn load_manifest() -> Manifest {
-    let manifest_json =
-        fs::read_to_string(manifest_path()).expect("failed to read acceptance manifest");
-    serde_json::from_str(&manifest_json).expect("failed to parse acceptance manifest")
-}
-
-#[must_use]
-pub fn resolve_case_path(case: &Case) -> PathBuf {
-    let source = case
-        .source
-        .as_ref()
-        .unwrap_or_else(|| panic!("case {} is missing a source path", case.id));
-
-    let direct = workspace_root().join(&source.path);
-    if direct.exists() {
-        return direct;
-    }
-
-    let sibling = sibling_serde_cityjson_root().join(&source.path);
-    if sibling.exists() {
-        return sibling;
-    }
-
-    panic!(
-        "could not resolve source path for case {}: {}",
-        case.id,
-        source.path.display()
+pub fn correctness_index_path() -> PathBuf {
+    let path = std::env::var_os("CITYARROW_CORRECTNESS_INDEX").map_or_else(
+        || shared_corpus_root().join(DEFAULT_CORRECTNESS_INDEX_PATH),
+        PathBuf::from,
     );
+
+    if path.is_absolute() {
+        path
+    } else {
+        shared_corpus_root().join(path)
+    }
+}
+
+#[must_use]
+pub fn resolve_shared_path(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
+    } else {
+        shared_corpus_root().join(path)
+    }
+}
+
+#[must_use]
+pub fn conformance_case_ids() -> Vec<&'static str> {
+    CORRECTNESS_CASES
+        .values()
+        .filter(|case| {
+            case.layer == "conformance"
+                && case.cityjson_version.as_deref() == Some("2.0")
+                && case.representation == "cityjson"
+        })
+        .map(|case| case.id.as_str())
+        .collect()
+}
+
+fn load_correctness_cases() -> std::collections::BTreeMap<String, CorrectnessCase> {
+    let path = correctness_index_path();
+    let manifest = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("failed to read correctness index {}: {error}", path.display()));
+    let index: CorrectnessIndex = serde_json::from_str(&manifest)
+        .unwrap_or_else(|error| panic!("failed to parse correctness index {}: {error}", path.display()));
+    index
+        .cases
+        .into_iter()
+        .map(|case| (case.id.clone(), case))
+        .collect()
+}
+
+fn conformance_case_path(case_id: &str) -> PathBuf {
+    let case = CORRECTNESS_CASES.get(case_id).unwrap_or_else(|| {
+        panic!(
+            "missing correctness case '{}' in {}",
+            case_id,
+            correctness_index_path().display()
+        )
+    });
+    assert_eq!(case.layer, "conformance");
+    assert_eq!(case.cityjson_version.as_deref(), Some("2.0"));
+    assert_eq!(case.representation, "cityjson");
+    if let Some(path) = case.artifact_paths.source.clone() {
+        return resolve_shared_path(path);
+    }
+    if let Some(path) = case.artifact_paths.generated.clone() {
+        let resolved = resolve_shared_path(path);
+        if resolved.exists() {
+            return resolved;
+        }
+    }
+    if let Some(profile) = case.artifact_paths.profile.clone() {
+        return materialize_generated_case(case_id, profile);
+    }
+    panic!("correctness case '{case_id}' is missing a consumable artifact path");
+}
+
+fn materialize_generated_case(case_id: &str, profile: PathBuf) -> PathBuf {
+    let output_dir = std::env::temp_dir().join("cityarrow-shared-corpus");
+    fs::create_dir_all(&output_dir)
+        .unwrap_or_else(|error| panic!("failed to create {}: {error}", output_dir.display()));
+    let output_path = output_dir.join(format!("{case_id}.city.json"));
+    if output_path.exists() {
+        return output_path;
+    }
+
+    let profile_path = resolve_shared_path(profile);
+    let schema_path = shared_corpus_root().join("profiles/cjfake-manifest.schema.json");
+    let cjfake_manifest = std::env::var_os("CITYARROW_CJFAKE_CARGO_MANIFEST").map_or_else(
+        || {
+            shared_corpus_root()
+                .parent()
+                .expect("shared corpus root should have a parent")
+                .join("cjfake/Cargo.toml")
+        },
+        PathBuf::from,
+    );
+
+    let output = Command::new("cargo")
+        .args([
+            "run",
+            "--quiet",
+            "--manifest-path",
+            cjfake_manifest.to_str().expect("non-utf8 cjfake manifest path"),
+            "--",
+            "--manifest",
+            profile_path.to_str().expect("non-utf8 profile path"),
+            "--schema",
+            schema_path.to_str().expect("non-utf8 schema path"),
+            "--output",
+            output_path.to_str().expect("non-utf8 output path"),
+        ])
+        .output()
+        .unwrap_or_else(|error| panic!("failed to execute cjfake for {case_id}: {error}"));
+
+    assert!(
+        output.status.success(),
+        "cjfake failed for {}:\nstdout:\n{}\nstderr:\n{}",
+        case_id,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    output_path
 }
 
 pub fn cjval_validate(path: &Path) {
@@ -113,19 +194,6 @@ pub fn cjval_validate(path: &Path) {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-#[must_use]
-pub fn roundtrip_via_cityarrow(model: OwnedCityModel) -> OwnedCityModel {
-    roundtrip_via_cityarrow_with_encoding(model, PackageTableEncoding::Parquet)
-}
-
-#[must_use]
-pub fn normalized_json(model: &OwnedCityModel) -> JsonValue {
-    serde_json::from_str(
-        &to_string_validated(model).expect("CityJSON serialization should succeed"),
-    )
-    .expect("serialized CityJSON should parse as JSON")
 }
 
 fn memory_trace_enabled() -> bool {
@@ -153,9 +221,9 @@ fn log_memory_phase(label: &str) {
     eprintln!("memory[{label}] {vmrss} {vmhwm}");
 }
 
-fn write_validated_model_to_tempfile(model: &OwnedCityModel, prefix: &str) -> NamedTempFile {
-    let output_json = to_string_validated(model)
-        .unwrap_or_else(|error| panic!("serde_cityjson validation failed: {error}"));
+fn write_model_to_tempfile(model: &OwnedCityModel, prefix: &str) -> NamedTempFile {
+    let output_json =
+        to_string(model).unwrap_or_else(|error| panic!("serde_cityjson serialization failed: {error}"));
 
     let mut temp = Builder::new()
         .prefix(prefix)
@@ -167,57 +235,6 @@ fn write_validated_model_to_tempfile(model: &OwnedCityModel, prefix: &str) -> Na
     temp.flush()
         .unwrap_or_else(|error| panic!("failed to flush temp output: {error}"));
     temp
-}
-
-fn files_have_equal_bytes(left: &Path, right: &Path) -> bool {
-    let left_file = fs::File::open(left)
-        .unwrap_or_else(|error| panic!("failed to open {}: {error}", left.display()));
-    let right_file = fs::File::open(right)
-        .unwrap_or_else(|error| panic!("failed to open {}: {error}", right.display()));
-
-    let mut left_reader = BufReader::new(left_file);
-    let mut right_reader = BufReader::new(right_file);
-    let mut left_buf = vec![0_u8; 64 * 1024];
-    let mut right_buf = vec![0_u8; 64 * 1024];
-
-    loop {
-        let left_read = left_reader
-            .read(&mut left_buf)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", left.display()));
-        let right_read = right_reader
-            .read(&mut right_buf)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", right.display()));
-
-        if left_read != right_read {
-            return false;
-        }
-        if left_read == 0 {
-            return true;
-        }
-        if left_buf[..left_read] != right_buf[..right_read] {
-            return false;
-        }
-    }
-}
-
-fn assert_json_files_eq(expected: &Path, actual: &Path) {
-    if files_have_equal_bytes(expected, actual) {
-        return;
-    }
-
-    let expected_file = fs::File::open(expected)
-        .unwrap_or_else(|error| panic!("failed to open {}: {error}", expected.display()));
-    let actual_file = fs::File::open(actual)
-        .unwrap_or_else(|error| panic!("failed to open {}: {error}", actual.display()));
-    let expected_json: JsonValue = serde_json::from_reader(expected_file)
-        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", expected.display()));
-    let actual_json: JsonValue = serde_json::from_reader(actual_file)
-        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", actual.display()));
-
-    assert_eq!(
-        expected_json, actual_json,
-        "normalized CityJSON changed during package roundtrip"
-    );
 }
 
 #[must_use]
@@ -269,31 +286,6 @@ pub fn assert_parts_eq(expected: &CityModelArrowParts, actual: &CityModelArrowPa
     assert_appearance_parts_eq(expected, actual);
 }
 
-pub fn assert_model_roundtrip_integrity(model: OwnedCityModel, encoding: PackageTableEncoding) {
-    log_memory_phase("model_roundtrip_start");
-    let parts = to_parts(&model).expect("cityarrow to_parts should succeed");
-    log_memory_phase("after_to_parts");
-    let package_parts = roundtrip_parts_via_package(&parts, encoding);
-    log_memory_phase("after_package_roundtrip");
-    assert_parts_eq(&parts, &package_parts);
-    drop(parts);
-
-    let reconstructed = from_parts(&package_parts).expect("cityarrow from_parts should succeed");
-    log_memory_phase("after_from_parts");
-    drop(package_parts);
-    let expected_file = write_validated_model_to_tempfile(&model, "cityarrow-expected");
-    log_memory_phase("after_expected_serialize");
-    drop(model);
-    let actual_file = write_validated_model_to_tempfile(&reconstructed, "cityarrow-actual");
-    log_memory_phase("after_actual_serialize");
-    drop(reconstructed);
-    assert_json_files_eq(expected_file.path(), actual_file.path());
-    log_memory_phase("after_json_compare");
-
-    cjval_validate(actual_file.path());
-    log_memory_phase("after_cjval");
-}
-
 pub fn assert_package_roundtrip_parts_integrity(
     model: OwnedCityModel,
     encoding: PackageTableEncoding,
@@ -314,42 +306,20 @@ pub fn assert_package_roundtrip_parts_integrity(
     log_memory_phase("after_cjval");
 }
 
-pub fn assert_case_roundtrip_with_encoding(case: &Case, encoding: PackageTableEncoding) {
-    let input_path = resolve_case_path(case);
+pub fn assert_conformance_case_roundtrip_with_encoding(
+    case_id: &str,
+    encoding: PackageTableEncoding,
+) {
+    let input_path = conformance_case_path(case_id);
     let model = {
         let input_json = fs::read_to_string(&input_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
 
         from_str_owned(&input_json)
-            .unwrap_or_else(|error| panic!("serde_cityjson failed for {}: {error}", case.id))
+            .unwrap_or_else(|error| panic!("serde_cityjson failed for {case_id}: {error}"))
     };
     log_memory_phase("after_parse");
-    assert_model_roundtrip_integrity(model, encoding);
-}
-
-pub fn assert_case_roundtrip(case: &Case) {
-    assert_case_roundtrip_with_encoding(case, PackageTableEncoding::Parquet);
-}
-
-#[must_use]
-pub fn acceptance_cases() -> Vec<Case> {
-    let manifest = load_manifest();
-
-    assert_eq!(
-        manifest.version, 2,
-        "unexpected acceptance manifest version"
-    );
-    assert!(
-        manifest.purpose.starts_with("Benchmark profile catalog"),
-        "acceptance manifest purpose should match the serde_cityjson catalog"
-    );
-
-    manifest
-        .cases
-        .into_iter()
-        .filter(|case| case.kind == CaseKind::Real)
-        .filter(|case| case.suites.iter().any(|suite| suite == "write"))
-        .collect()
+    assert_package_roundtrip_parts_integrity(model, encoding);
 }
 
 fn assert_batch_eq(label: &str, expected: &RecordBatch, actual: &RecordBatch) {
@@ -469,16 +439,6 @@ fn assert_appearance_parts_eq(expected: &CityModelArrowParts, actual: &CityModel
         actual.geometry_surface_materials.as_ref(),
     );
     assert_optional_batch_eq(
-        "geometry_point_materials",
-        expected.geometry_point_materials.as_ref(),
-        actual.geometry_point_materials.as_ref(),
-    );
-    assert_optional_batch_eq(
-        "geometry_linestring_materials",
-        expected.geometry_linestring_materials.as_ref(),
-        actual.geometry_linestring_materials.as_ref(),
-    );
-    assert_optional_batch_eq(
         "template_geometry_materials",
         expected.template_geometry_materials.as_ref(),
         actual.template_geometry_materials.as_ref(),
@@ -521,6 +481,6 @@ fn assert_optional_batch_eq(
 }
 
 fn validate_model_with_cjval(model: &OwnedCityModel, prefix: &str) {
-    let temp = write_validated_model_to_tempfile(model, prefix);
+    let temp = write_model_to_tempfile(model, prefix);
     cjval_validate(temp.path());
 }

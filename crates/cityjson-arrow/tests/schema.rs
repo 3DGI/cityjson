@@ -155,20 +155,6 @@ geometry_surface_materials
   theme: Utf8!
   material_id: UInt64!
 
-geometry_point_materials
-  citymodel_id: LargeUtf8!
-  geometry_id: UInt64!
-  point_ordinal: UInt32!
-  theme: Utf8!
-  material_id: UInt64!
-
-geometry_linestring_materials
-  citymodel_id: LargeUtf8!
-  geometry_id: UInt64!
-  linestring_ordinal: UInt32!
-  theme: Utf8!
-  material_id: UInt64!
-
 template_geometry_materials
   citymodel_id: LargeUtf8!
   template_geometry_id: UInt64!
@@ -231,8 +217,6 @@ const MANIFEST_LOCK: &str = r#"{
     "template_geometry_semantics": "template_geometry_semantics.parquet",
     "materials": "materials.parquet",
     "geometry_surface_materials": "geometry_surface_materials.parquet",
-    "geometry_point_materials": "geometry_point_materials.parquet",
-    "geometry_linestring_materials": "geometry_linestring_materials.parquet",
     "template_geometry_materials": "template_geometry_materials.parquet",
     "textures": "textures.parquet",
     "texture_vertices": "texture_vertices.parquet",
@@ -267,8 +251,6 @@ const IPC_MANIFEST_LOCK: &str = r#"{
     "template_geometry_semantics": "template_geometry_semantics.arrow",
     "materials": "materials.arrow",
     "geometry_surface_materials": "geometry_surface_materials.arrow",
-    "geometry_point_materials": "geometry_point_materials.arrow",
-    "geometry_linestring_materials": "geometry_linestring_materials.arrow",
     "template_geometry_materials": "template_geometry_materials.arrow",
     "textures": "textures.arrow",
     "texture_vertices": "texture_vertices.arrow",
@@ -355,8 +337,6 @@ fn schema_lock_parts() -> CityModelArrowParts {
         template_geometry_semantics: Some(empty_batch(&schemas.template_geometry_semantics)),
         materials: Some(empty_batch(&schemas.materials)),
         geometry_surface_materials: Some(empty_batch(&schemas.geometry_surface_materials)),
-        geometry_point_materials: Some(empty_batch(&schemas.geometry_point_materials)),
-        geometry_linestring_materials: Some(empty_batch(&schemas.geometry_linestring_materials)),
         template_geometry_materials: Some(empty_batch(&schemas.template_geometry_materials)),
         textures: Some(empty_batch(&schemas.textures)),
         texture_vertices: Some(empty_batch(&schemas.texture_vertices)),
@@ -433,14 +413,6 @@ fn schema_snapshot() -> String {
         (
             "geometry_surface_materials",
             schemas.geometry_surface_materials.as_ref(),
-        ),
-        (
-            "geometry_point_materials",
-            schemas.geometry_point_materials.as_ref(),
-        ),
-        (
-            "geometry_linestring_materials",
-            schemas.geometry_linestring_materials.as_ref(),
         ),
         (
             "template_geometry_materials",
@@ -700,8 +672,6 @@ fn canonical_schema_set_avoids_union_and_map_types() {
         schemas.template_geometry_semantics.as_ref(),
         schemas.materials.as_ref(),
         schemas.geometry_surface_materials.as_ref(),
-        schemas.geometry_point_materials.as_ref(),
-        schemas.geometry_linestring_materials.as_ref(),
         schemas.template_geometry_materials.as_ref(),
         schemas.textures.as_ref(),
         schemas.texture_vertices.as_ref(),

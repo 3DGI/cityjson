@@ -29,7 +29,7 @@ The canonical package surface includes:
 - point, linestring, surface, and template semantic assignments
 - materials, textures, texture vertices, default appearance themes, and UV
   mappings
-- point, linestring, and surface material assignments
+- surface and template material assignments
 - geometry and template ring texture assignments
 
 ## Implementation Status
@@ -39,14 +39,14 @@ but it is still an alpha transport surface.
 
 - correctness: the canonical conversion and package paths are implemented for
   both Parquet and Arrow IPC file and are covered by schema-lock, package, and
-  real-data acceptance tests
+  shared-corpus correctness tests
 - scope: the canonical package covers the current `OwnedCityModel` surface used
   by `cityjson-rs`, including templates, geometry instances, semantics,
   materials, textures, metadata, and projected attributes
 - stability: the on-disk contract is currently `cityarrow.package.v1alpha1`,
   so compatibility should be treated as deliberate but not yet stable
 - performance: the current conversion and package read paths are eager and
-  fully in-memory; large real-data roundtrips are therefore memory intensive
+  fully in-memory; broad corpus roundtrips are therefore memory intensive
 
 Known limitations in the current implementation:
 
@@ -75,12 +75,9 @@ The repository keeps four test layers around the canonical package path:
    `cityarrow` and Parquet package roundtrips in `cityparquet`.
 3. Fast fixture tests that verify package I/O preserves canonical parts for
    both encodings and still reconstructs `cjval`-valid CityJSON.
-4. Opt-in real-data acceptance tests for `3DBAG` and `3D Basisvoorziening`
-   covering exact package roundtrip equality and exact normalized model
-   equality for both encodings.
-
-The real-data acceptance tests stay `#[ignore]` because they are materially
-more expensive than the regular suite.
+4. Shared corpus conformance tests that roundtrip the same CityJSON 2.0
+   correctness fixtures used by `serde_cityjson` through both Parquet and Arrow
+   IPC packages.
 
 ## Documentation
 
@@ -106,4 +103,4 @@ more expensive than the regular suite.
 - `src/convert/mod.rs`: model-to-parts and parts-to-model conversion
 - `src/package/`: package manifest plus Arrow IPC read/write
 - `src/schema.rs`: canonical schema definitions and transport structs
-- `tests/`: conversion, package, schema, and real-data roundtrip coverage
+- `tests/`: conversion, package, schema, and shared-corpus roundtrip coverage

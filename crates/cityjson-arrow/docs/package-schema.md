@@ -61,8 +61,6 @@ citymodel_package/
   template_geometry_semantics.parquet
   materials.parquet
   geometry_surface_materials.parquet
-  geometry_point_materials.parquet
-  geometry_linestring_materials.parquet
   template_geometry_materials.parquet
   textures.parquet
   texture_vertices.parquet
@@ -212,8 +210,6 @@ pub struct CityModelArrowParts {
 
     pub materials: Option<RecordBatch>,
     pub geometry_surface_materials: Option<RecordBatch>,
-    pub geometry_point_materials: Option<RecordBatch>,
-    pub geometry_linestring_materials: Option<RecordBatch>,
     pub template_geometry_materials: Option<RecordBatch>,
 
     pub textures: Option<RecordBatch>,
@@ -265,8 +261,6 @@ The canonical package uses these tables:
 - `template_geometry_semantics`
 - `materials`
 - `geometry_surface_materials`
-- `geometry_point_materials`
-- `geometry_linestring_materials`
 - `template_geometry_materials`
 - `textures`
 - `texture_vertices`

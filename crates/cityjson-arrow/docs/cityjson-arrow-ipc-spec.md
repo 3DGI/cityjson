@@ -73,8 +73,6 @@ citymodel_package/
   template_geometry_semantics.arrow
   materials.arrow
   geometry_surface_materials.arrow
-  geometry_point_materials.arrow
-  geometry_linestring_materials.arrow
   template_geometry_materials.arrow
   textures.arrow
   texture_vertices.arrow
@@ -191,8 +189,6 @@ semantic assignment.
 | --- | --- | --- |
 | `materials` | No | `citymodel_id`, `material_id`, plus projected material payload columns |
 | `geometry_surface_materials` | No | `citymodel_id`, `geometry_id`, `surface_ordinal`, `theme`, `material_id` |
-| `geometry_point_materials` | No | `citymodel_id`, `geometry_id`, `point_ordinal`, `theme`, `material_id` |
-| `geometry_linestring_materials` | No | `citymodel_id`, `geometry_id`, `linestring_ordinal`, `theme`, `material_id` |
 | `template_geometry_materials` | No | `citymodel_id`, `template_geometry_id`, `primitive_type`, `primitive_ordinal`, `theme`, `material_id` |
 | `textures` | No | `citymodel_id`, `texture_id`, `image_uri`, plus projected texture payload columns |
 | `texture_vertices` | No | `citymodel_id`, `uv_id`, `u`, `v` |
