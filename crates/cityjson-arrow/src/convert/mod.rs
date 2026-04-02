@@ -25,24 +25,24 @@ use cityjson::v2_0::{
     StoredGeometryParts, TextureMap, TextureType, ThemeName, UVCoordinate, VertexIndexVec,
     WrapMode,
 };
-use serde_json::{Map as JsonMap, Number as JsonNumber, Value as JsonValue};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{Read, Write as IoWrite};
+use std::ops::Range;
 use std::sync::Arc;
 
 const DEFAULT_CITYMODEL_ID: &str = "citymodel";
 const FIELD_MATERIAL_NAME: &str = "payload.name";
 const FIELD_MATERIAL_AMBIENT_INTENSITY: &str = "payload.ambient_intensity";
-const FIELD_MATERIAL_DIFFUSE_COLOR: &str = "payload.diffuse_color_json";
-const FIELD_MATERIAL_EMISSIVE_COLOR: &str = "payload.emissive_color_json";
-const FIELD_MATERIAL_SPECULAR_COLOR: &str = "payload.specular_color_json";
+const FIELD_MATERIAL_DIFFUSE_COLOR: &str = "payload.diffuse_color";
+const FIELD_MATERIAL_EMISSIVE_COLOR: &str = "payload.emissive_color";
+const FIELD_MATERIAL_SPECULAR_COLOR: &str = "payload.specular_color";
 const FIELD_MATERIAL_SHININESS: &str = "payload.shininess";
 const FIELD_MATERIAL_TRANSPARENCY: &str = "payload.transparency";
 const FIELD_MATERIAL_IS_SMOOTH: &str = "payload.is_smooth";
 const FIELD_TEXTURE_IMAGE_TYPE: &str = "payload.image_type";
 const FIELD_TEXTURE_WRAP_MODE: &str = "payload.wrap_mode";
 const FIELD_TEXTURE_TEXTURE_TYPE: &str = "payload.texture_type";
-const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color_json";
+const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color";
 const PRIMITIVE_TYPE_POINT: &str = "point";
 const PRIMITIVE_TYPE_LINESTRING: &str = "linestring";
 const PRIMITIVE_TYPE_SURFACE: &str = "surface";
@@ -76,6 +76,18 @@ impl ModelDecoder {
 }
 
 #[derive(Debug, Clone)]
+struct MetadataContactRow {
+    contact_name: String,
+    email_address: String,
+    role: Option<String>,
+    website: Option<String>,
+    contact_type: Option<String>,
+    phone: Option<String>,
+    organization: Option<String>,
+    address: Option<cityjson::v2_0::OwnedAttributes>,
+}
+
+#[derive(Debug, Clone)]
 struct MetadataRow {
     citymodel_id: String,
     cityjson_version: String,
@@ -87,7 +99,7 @@ struct MetadataRow {
     reference_date: Option<String>,
     default_material_theme: Option<String>,
     default_texture_theme: Option<String>,
-    point_of_contact_json: Option<String>,
+    point_of_contact: Option<MetadataContactRow>,
     root_extra: Option<cityjson::v2_0::OwnedAttributes>,
     metadata_extra: Option<cityjson::v2_0::OwnedAttributes>,
 }
@@ -99,29 +111,6 @@ struct TransformRow {
 }
 
 #[derive(Debug, Clone)]
-struct ExtensionRow {
-    extension_name: String,
-    uri: String,
-    version: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct VertexRow {
-    vertex_id: u64,
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-#[derive(Debug, Clone)]
-struct TemplateVertexRow {
-    template_vertex_id: u64,
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-#[derive(Debug, Clone)]
 struct CityObjectRow {
     cityobject_id: String,
     cityobject_ix: u64,
@@ -129,13 +118,6 @@ struct CityObjectRow {
     geographical_extent: Option<[f64; 6]>,
     attributes: Option<cityjson::v2_0::OwnedAttributes>,
     extra: Option<cityjson::v2_0::OwnedAttributes>,
-}
-
-#[derive(Debug, Clone)]
-struct CityObjectChildRow {
-    parent_cityobject_ix: u64,
-    child_ordinal: u32,
-    child_cityobject_ix: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -188,20 +170,6 @@ struct TemplateGeometryBoundaryRow {
 }
 
 #[derive(Debug, Clone)]
-struct SemanticRow {
-    semantic_id: u64,
-    semantic_type: String,
-    attributes: Option<cityjson::v2_0::OwnedAttributes>,
-}
-
-#[derive(Debug, Clone)]
-struct SemanticChildRow {
-    parent_semantic_id: u64,
-    child_ordinal: u32,
-    child_semantic_id: u64,
-}
-
-#[derive(Debug, Clone)]
 struct GeometrySurfaceSemanticRow {
     geometry_id: u64,
     surface_ordinal: u32,
@@ -235,9 +203,9 @@ struct MaterialRow {
     material_id: u64,
     name: String,
     ambient_intensity: Option<f64>,
-    diffuse_color: Option<String>,
-    emissive_color: Option<String>,
-    specular_color: Option<String>,
+    diffuse_color: Option<[f64; 3]>,
+    emissive_color: Option<[f64; 3]>,
+    specular_color: Option<[f64; 3]>,
     shininess: Option<f64>,
     transparency: Option<f64>,
     is_smooth: Option<bool>,
@@ -267,14 +235,7 @@ struct TextureRow {
     image_type: String,
     wrap_mode: Option<String>,
     texture_type: Option<String>,
-    border_color: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct TextureVertexRow {
-    uv_id: u64,
-    u: f64,
-    v: f64,
+    border_color: Option<[f64; 4]>,
 }
 
 #[derive(Debug, Clone)]
@@ -421,7 +382,15 @@ struct TemplateGeometryExportContext<'a> {
     textures: &'a HashMap<cityjson::prelude::TextureHandle, u64>,
 }
 
-type GroupedRows<T> = HashMap<u64, Vec<T>>;
+struct UniqueRowBatch {
+    batch: RecordBatch,
+    row_by_id: HashMap<u64, usize>,
+}
+
+struct GroupedRowBatch {
+    batch: RecordBatch,
+    rows_by_id: HashMap<u64, Range<usize>>,
+}
 
 struct ImportState {
     model: OwnedCityModel,
@@ -435,17 +404,17 @@ struct ImportState {
 }
 
 #[derive(Default)]
-struct PartRowGroups {
-    boundaries: HashMap<u64, GeometryBoundaryRow>,
-    template_boundaries: HashMap<u64, TemplateGeometryBoundaryRow>,
-    surface_semantics: GroupedRows<GeometrySurfaceSemanticRow>,
-    point_semantics: GroupedRows<GeometryPointSemanticRow>,
-    linestring_semantics: GroupedRows<GeometryLinestringSemanticRow>,
-    template_semantics: GroupedRows<TemplateGeometrySemanticRow>,
-    surface_materials: GroupedRows<GeometrySurfaceMaterialRow>,
-    template_materials: GroupedRows<TemplateGeometryMaterialRow>,
-    ring_textures: GroupedRows<GeometryRingTextureRow>,
-    template_ring_textures: GroupedRows<TemplateGeometryRingTextureRow>,
+struct PartRowBatches {
+    boundaries: Option<UniqueRowBatch>,
+    template_boundaries: Option<UniqueRowBatch>,
+    surface_semantics: Option<GroupedRowBatch>,
+    point_semantics: Option<GroupedRowBatch>,
+    linestring_semantics: Option<GroupedRowBatch>,
+    template_semantics: Option<GroupedRowBatch>,
+    surface_materials: Option<GroupedRowBatch>,
+    template_materials: Option<GroupedRowBatch>,
+    ring_textures: Option<GroupedRowBatch>,
+    template_ring_textures: Option<GroupedRowBatch>,
 }
 
 pub(crate) struct IncrementalDecoder {
@@ -453,7 +422,7 @@ pub(crate) struct IncrementalDecoder {
     projection: ProjectionLayout,
     schemas: CanonicalSchemaSet,
     state: Option<ImportState>,
-    grouped_rows: PartRowGroups,
+    grouped_rows: PartRowBatches,
     last_table_position: Option<usize>,
     seen_tables: BTreeSet<CanonicalTable>,
 }
@@ -514,9 +483,9 @@ struct MaterialColumns<'a> {
     material_id: &'a UInt64Array,
     name: &'a LargeStringArray,
     ambient_intensity: Option<&'a Float64Array>,
-    diffuse_color: Option<&'a LargeStringArray>,
-    emissive_color: Option<&'a LargeStringArray>,
-    specular_color: Option<&'a LargeStringArray>,
+    diffuse_color: Option<&'a ListArray>,
+    emissive_color: Option<&'a ListArray>,
+    specular_color: Option<&'a ListArray>,
     shininess: Option<&'a Float64Array>,
     transparency: Option<&'a Float64Array>,
     is_smooth: Option<&'a arrow::array::BooleanArray>,
@@ -528,7 +497,7 @@ struct TextureColumns<'a> {
     image_type: &'a LargeStringArray,
     wrap_mode: Option<&'a LargeStringArray>,
     texture_type: Option<&'a LargeStringArray>,
-    border_color: Option<&'a LargeStringArray>,
+    border_color: Option<&'a ListArray>,
 }
 
 fn empty_texture_map(ring_layouts: &[RingLayout]) -> Result<TextureMap<u32>> {
@@ -856,19 +825,18 @@ fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches>
         transform: transform_row
             .map(|row| transform_batch(&context.schemas.transform, row))
             .transpose()?,
-        extensions: optional_batch(extension_rows(context.model), |rows| {
-            extensions_batch(&context.schemas.extensions, rows)
-        })?,
-        vertices: vertices_batch(&context.schemas.vertices, &vertex_rows(context.model))?,
-        cityobjects: cityobjects_batch(
+        extensions: extensions_batch_from_model(&context.schemas.extensions, context.model)?,
+        vertices: vertices_batch_from_model(&context.schemas.vertices, context.model)?,
+        cityobjects: cityobjects_batch_from_model(
             &context.schemas.cityobjects,
-            &cityobject_rows(context.model, &context.projection, &context.geometry_id_map)?,
+            context.model,
             &context.projection,
             &context.geometry_id_map,
         )?,
-        cityobject_children: optional_batch(cityobject_child_rows(context.model), |rows| {
-            cityobject_children_batch(&context.schemas.cityobject_children, rows)
-        })?,
+        cityobject_children: cityobject_children_batch_from_model(
+            &context.schemas.cityobject_children,
+            context.model,
+        )?,
     })
 }
 
@@ -886,9 +854,10 @@ fn export_geometry_batches(
         geometry_instances: optional_batch_ref(&geometry_rows.instances, |rows| {
             geometry_instances_batch(&context.schemas.geometry_instances, rows)
         })?,
-        template_vertices: optional_batch(template_vertex_rows(context.model), |rows| {
-            template_vertices_batch(&context.schemas.template_vertices, &rows)
-        })?,
+        template_vertices: template_vertices_batch_from_model(
+            &context.schemas.template_vertices,
+            context.model,
+        )?,
         template_geometries: optional_batch_ref(&template_geometry_rows.geometries, |rows| {
             template_geometries_batch(&context.schemas.template_geometries, rows)
         })?,
@@ -909,21 +878,17 @@ fn export_semantic_batches(
     geometry_rows: &ExportedGeometryRows,
     template_geometry_rows: &ExportedTemplateGeometryRows,
 ) -> Result<ExportSemanticBatches> {
-    let semantic_rows =
-        semantic_rows(context.model, &context.projection, &context.geometry_id_map)?;
-
     Ok(ExportSemanticBatches {
-        semantics: optional_batch(semantic_rows, |rows| {
-            semantics_batch(
-                &context.schemas.semantics,
-                &rows,
-                &context.projection,
-                &context.geometry_id_map,
-            )
-        })?,
-        semantic_children: optional_batch(
-            semantic_child_rows(context.model, &context.semantic_id_map),
-            |rows| semantic_children_batch(&context.schemas.semantic_children, rows),
+        semantics: semantics_batch_from_model(
+            &context.schemas.semantics,
+            context.model,
+            &context.projection,
+            &context.geometry_id_map,
+        )?,
+        semantic_children: semantic_children_batch_from_model(
+            &context.schemas.semantic_children,
+            context.model,
+            &context.semantic_id_map,
         )?,
         geometry_surface_semantics: optional_batch_ref(&geometry_rows.surface_semantics, |rows| {
             geometry_surface_semantics_batch(&context.schemas.geometry_surface_semantics, rows)
@@ -958,9 +923,11 @@ fn export_appearance_batches(
     template_geometry_rows: &ExportedTemplateGeometryRows,
 ) -> Result<ExportAppearanceBatches> {
     Ok(ExportAppearanceBatches {
-        materials: optional_batch(material_rows(context.model), |rows| {
-            materials_batch(&context.schemas.materials, &rows, &context.projection)
-        })?,
+        materials: materials_batch_from_model(
+            &context.schemas.materials,
+            context.model,
+            &context.projection,
+        )?,
         geometry_surface_materials: optional_batch_ref(&geometry_rows.surface_materials, |rows| {
             geometry_surface_materials_batch(&context.schemas.geometry_surface_materials, rows)
         })?,
@@ -973,12 +940,15 @@ fn export_appearance_batches(
                 )
             },
         )?,
-        textures: optional_batch(texture_rows(context.model), |rows| {
-            textures_batch(&context.schemas.textures, &rows, &context.projection)
-        })?,
-        texture_vertices: optional_batch(texture_vertex_rows(context.model), |rows| {
-            texture_vertices_batch(&context.schemas.texture_vertices, rows)
-        })?,
+        textures: textures_batch_from_model(
+            &context.schemas.textures,
+            context.model,
+            &context.projection,
+        )?,
+        texture_vertices: texture_vertices_batch_from_model(
+            &context.schemas.texture_vertices,
+            context.model,
+        )?,
         geometry_ring_textures: optional_batch_ref(&geometry_rows.ring_textures, |rows| {
             geometry_ring_textures_batch(&context.schemas.geometry_ring_textures, rows)
         })?,
@@ -1016,7 +986,7 @@ impl IncrementalDecoder {
             schemas: canonical_schema_set(&projection),
             projection,
             state: None,
-            grouped_rows: PartRowGroups::default(),
+            grouped_rows: PartRowBatches::default(),
             last_table_position: None,
             seen_tables: BTreeSet::new(),
         })
@@ -1119,33 +1089,23 @@ impl IncrementalDecoder {
                 state.texture_handle_by_id = handles;
             }
             CanonicalTable::TemplateGeometryBoundaries => {
-                extend_unique_rows(
-                    &mut self.grouped_rows.template_boundaries,
-                    read_template_geometry_boundary_rows(batch)?,
-                    |row| row.template_geometry_id,
+                self.grouped_rows.template_boundaries = Some(index_unique_row_batch(
+                    batch.clone(),
+                    "template_geometry_id",
                     "template geometry boundary",
-                )?;
+                )?);
             }
             CanonicalTable::TemplateGeometrySemantics => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.template_semantics,
-                    read_template_geometry_semantic_rows(batch)?,
-                    |row| row.template_geometry_id,
-                );
+                self.grouped_rows.template_semantics =
+                    Some(index_grouped_row_batch(batch.clone(), "template_geometry_id")?);
             }
             CanonicalTable::TemplateGeometryMaterials => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.template_materials,
-                    read_template_geometry_material_rows(batch)?,
-                    |row| row.template_geometry_id,
-                );
+                self.grouped_rows.template_materials =
+                    Some(index_grouped_row_batch(batch.clone(), "template_geometry_id")?);
             }
             CanonicalTable::TemplateGeometryRingTextures => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.template_ring_textures,
-                    read_template_geometry_ring_texture_rows(batch)?,
-                    |row| row.template_geometry_id,
-                );
+                self.grouped_rows.template_ring_textures =
+                    Some(index_grouped_row_batch(batch.clone(), "template_geometry_id")?);
             }
             CanonicalTable::TemplateGeometries => {
                 let grouped_rows = &self.grouped_rows;
@@ -1157,47 +1117,31 @@ impl IncrementalDecoder {
                 import_template_geometries_batch(batch, state, grouped_rows)?;
             }
             CanonicalTable::GeometryBoundaries => {
-                extend_unique_rows(
-                    &mut self.grouped_rows.boundaries,
-                    read_geometry_boundary_rows(batch)?,
-                    |row| row.geometry_id,
+                self.grouped_rows.boundaries = Some(index_unique_row_batch(
+                    batch.clone(),
+                    "geometry_id",
                     "geometry boundary",
-                )?;
+                )?);
             }
             CanonicalTable::GeometrySurfaceSemantics => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.surface_semantics,
-                    read_geometry_surface_semantic_rows(batch)?,
-                    |row| row.geometry_id,
-                );
+                self.grouped_rows.surface_semantics =
+                    Some(index_grouped_row_batch(batch.clone(), "geometry_id")?);
             }
             CanonicalTable::GeometryPointSemantics => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.point_semantics,
-                    read_geometry_point_semantic_rows(batch)?,
-                    |row| row.geometry_id,
-                );
+                self.grouped_rows.point_semantics =
+                    Some(index_grouped_row_batch(batch.clone(), "geometry_id")?);
             }
             CanonicalTable::GeometryLinestringSemantics => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.linestring_semantics,
-                    read_geometry_linestring_semantic_rows(batch)?,
-                    |row| row.geometry_id,
-                );
+                self.grouped_rows.linestring_semantics =
+                    Some(index_grouped_row_batch(batch.clone(), "geometry_id")?);
             }
             CanonicalTable::GeometrySurfaceMaterials => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.surface_materials,
-                    read_geometry_surface_material_rows(batch)?,
-                    |row| row.geometry_id,
-                );
+                self.grouped_rows.surface_materials =
+                    Some(index_grouped_row_batch(batch.clone(), "geometry_id")?);
             }
             CanonicalTable::GeometryRingTextures => {
-                extend_grouped_rows(
-                    &mut self.grouped_rows.ring_textures,
-                    read_geometry_ring_texture_rows(batch)?,
-                    |row| row.geometry_id,
-                );
+                self.grouped_rows.ring_textures =
+                    Some(index_grouped_row_batch(batch.clone(), "geometry_id")?);
             }
             CanonicalTable::GeometryInstances => {
                 import_instance_geometries_batch(batch, self.state_mut()?)?;
@@ -1248,31 +1192,53 @@ fn ensure_required_tables_seen(seen_tables: &BTreeSet<CanonicalTable>) -> Result
     Ok(())
 }
 
-fn extend_unique_rows<T, FKey>(
-    target: &mut HashMap<u64, T>,
-    rows: Vec<T>,
-    key: FKey,
+fn index_unique_row_batch(
+    batch: RecordBatch,
+    id_name: &str,
     label: &str,
-) -> Result<()>
-where
-    FKey: Fn(&T) -> u64,
-{
-    for row in rows {
-        let row_id = key(&row);
-        if target.insert(row_id, row).is_some() {
-            return Err(Error::Conversion(format!("duplicate {label} row {row_id}")));
+) -> Result<UniqueRowBatch> {
+    let ids = downcast_required::<UInt64Array>(&batch, id_name)?;
+    let mut row_by_id = HashMap::with_capacity(batch.num_rows());
+    let mut previous = None;
+    for row in 0..batch.num_rows() {
+        let id = ids.value(row);
+        ensure_strictly_increasing_u64(previous, id, id_name)?;
+        previous = Some(id);
+        if row_by_id.insert(id, row).is_some() {
+            return Err(Error::Conversion(format!("duplicate {label} row {id}")));
         }
     }
-    Ok(())
+    Ok(UniqueRowBatch { batch, row_by_id })
 }
 
-fn extend_grouped_rows<T, FKey>(target: &mut GroupedRows<T>, rows: Vec<T>, key: FKey)
-where
-    FKey: Fn(&T) -> u64,
-{
-    for row in rows {
-        target.entry(key(&row)).or_default().push(row);
+fn index_grouped_row_batch(batch: RecordBatch, id_name: &str) -> Result<GroupedRowBatch> {
+    let ids = downcast_required::<UInt64Array>(&batch, id_name)?;
+    let mut rows_by_id = HashMap::new();
+    let mut previous = None;
+    let mut range_start = 0_usize;
+    for row in 0..batch.num_rows() {
+        let id = ids.value(row);
+        if let Some(previous_id) = previous {
+            if id < previous_id {
+                return Err(Error::Conversion(format!(
+                    "{id_name} must be non-decreasing in canonical order, found {id} after {previous_id}"
+                )));
+            }
+            if id != previous_id {
+                rows_by_id.insert(previous_id, range_start..row);
+                range_start = row;
+            }
+        }
+        previous = Some(id);
     }
+    if let Some(last_id) = previous {
+        rows_by_id.insert(last_id, range_start..batch.num_rows());
+    }
+    Ok(GroupedRowBatch { batch, rows_by_id })
+}
+
+fn grouped_row_range<'a>(rows: Option<&'a GroupedRowBatch>, id: u64) -> Option<&'a Range<usize>> {
+    rows.and_then(|rows| rows.rows_by_id.get(&id))
 }
 
 fn initialize_model_from_metadata(
@@ -1346,23 +1312,29 @@ fn import_semantics_batch(
 }
 
 fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
-    for row in read_semantic_child_rows(batch)? {
+    let parents = downcast_required::<UInt64Array>(batch, "parent_semantic_id")?;
+    let ordinals = downcast_required::<UInt32Array>(batch, "child_ordinal")?;
+    let children = downcast_required::<UInt64Array>(batch, "child_semantic_id")?;
+    for row in 0..batch.num_rows() {
+        let parent_semantic_id = parents.value(row);
+        let child_ordinal = ordinals.value(row);
+        let child_semantic_id = children.value(row);
         let parent = *state
             .semantic_handle_by_id
-            .get(&row.parent_semantic_id)
+            .get(&parent_semantic_id)
             .ok_or_else(|| {
                 Error::Conversion(format!(
                     "missing semantic {} for child relation",
-                    row.parent_semantic_id
+                    parent_semantic_id
                 ))
             })?;
         let child = *state
             .semantic_handle_by_id
-            .get(&row.child_semantic_id)
+            .get(&child_semantic_id)
             .ok_or_else(|| {
                 Error::Conversion(format!(
                     "missing semantic {} for child relation",
-                    row.child_semantic_id
+                    child_semantic_id
                 ))
             })?;
         state
@@ -1376,6 +1348,7 @@ fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> 
             .get_semantic_mut(child)
             .ok_or_else(|| Error::Conversion("semantic child handle missing".to_string()))?
             .set_parent(parent);
+        let _ = child_ordinal;
     }
     Ok(())
 }
@@ -1388,22 +1361,29 @@ fn import_transform_batch(batch: &RecordBatch, state: &mut ImportState) -> Resul
 }
 
 fn import_extensions_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
-    for row in read_extension_rows(batch)? {
+    for row in 0..batch.num_rows() {
         state.model.extensions_mut().add(Extension::new(
-            row.extension_name,
-            row.uri,
-            row.version.unwrap_or_default(),
+            read_string_scalar(batch, "extension_name", row)?,
+            read_large_string_scalar(batch, "uri", row)?,
+            read_string_optional(batch, "version", row)?.unwrap_or_default(),
         ));
     }
     Ok(())
 }
 
 fn import_vertex_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
-    for row in read_vertex_rows(batch)? {
+    let columns = bind_vertex_columns(batch, "vertex_id")?;
+    let mut previous_id = None;
+    for row in 0..batch.num_rows() {
+        let vertex_id = columns.vertex_id.value(row);
+        ensure_strictly_increasing_u64(previous_id, vertex_id, "vertex_id")?;
+        previous_id = Some(vertex_id);
         state
             .model
             .add_vertex(cityjson::v2_0::RealWorldCoordinate::new(
-                row.x, row.y, row.z,
+                columns.x.value(row),
+                columns.y.value(row),
+                columns.z.value(row),
             ))?;
     }
     Ok(())
@@ -1461,21 +1441,18 @@ fn import_materials_batch(
                 .transpose()?,
         );
         material.set_diffuse_color(
-            read_large_string_array_optional(columns.diffuse_color, row)
-                .as_deref()
-                .map(parse_rgb_json)
+            read_list_f64_array_optional::<3>(columns.diffuse_color, row)?
+                .map(rgb_from_components)
                 .transpose()?,
         );
         material.set_emissive_color(
-            read_large_string_array_optional(columns.emissive_color, row)
-                .as_deref()
-                .map(parse_rgb_json)
+            read_list_f64_array_optional::<3>(columns.emissive_color, row)?
+                .map(rgb_from_components)
                 .transpose()?,
         );
         material.set_specular_color(
-            read_large_string_array_optional(columns.specular_color, row)
-                .as_deref()
-                .map(parse_rgb_json)
+            read_list_f64_array_optional::<3>(columns.specular_color, row)?
+                .map(rgb_from_components)
                 .transpose()?,
         );
         material.set_shininess(
@@ -1523,9 +1500,8 @@ fn import_textures_batch(
                 .transpose()?,
         );
         texture.set_border_color(
-            read_large_string_array_optional(columns.border_color, row)
-                .as_deref()
-                .map(parse_rgba_json)
+            read_list_f64_array_optional::<4>(columns.border_color, row)?
+                .map(rgba_from_components)
                 .transpose()?,
         );
         texture_handle_by_id.insert(texture_id, model.add_texture(texture)?);
@@ -1536,7 +1512,7 @@ fn import_textures_batch(
 fn import_template_geometries_batch(
     batch: &RecordBatch,
     state: &mut ImportState,
-    grouped_rows: &PartRowGroups,
+    grouped_rows: &PartRowBatches,
 ) -> Result<()> {
     let columns = bind_template_geometry_columns(batch)?;
     let mut previous_id = None;
@@ -1544,14 +1520,17 @@ fn import_template_geometries_batch(
         let template_geometry_id = columns.template_geometry_id.value(row);
         ensure_strictly_increasing_u64(previous_id, template_geometry_id, "template_geometry_id")?;
         previous_id = Some(template_geometry_id);
-        let boundary = grouped_rows
+        let boundary_row = grouped_rows
             .template_boundaries
-            .get(&template_geometry_id)
+            .as_ref()
+            .and_then(|rows| rows.row_by_id.get(&template_geometry_id).copied())
             .ok_or_else(|| {
                 Error::Conversion(format!(
                     "missing boundary row for template geometry {template_geometry_id}"
                 ))
             })?;
+        let boundary =
+            read_template_geometry_boundary_row(&grouped_rows.template_boundaries.as_ref().expect("checked above").batch, boundary_row)?;
         let geometry = Geometry::from_stored_parts(StoredGeometryParts {
             type_geometry: parse_geometry_type(columns.geometry_type.value(row))?,
             lod: (!columns.lod.is_null(row))
@@ -1559,27 +1538,28 @@ fn import_template_geometries_batch(
                 .map(parse_lod)
                 .transpose()?,
             boundaries: Some(template_boundary_from_row(
-                boundary,
+                &boundary,
                 columns.geometry_type.value(row),
             )?),
             semantics: build_template_semantic_map(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows.template_semantics.get(&template_geometry_id),
+                &boundary,
+                grouped_rows.template_semantics.as_ref(),
+                template_geometry_id,
                 &state.semantic_handle_by_id,
             )?,
             materials: build_template_material_maps(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows.template_materials.get(&template_geometry_id),
+                &boundary,
+                grouped_rows.template_materials.as_ref(),
+                template_geometry_id,
                 &state.material_handle_by_id,
             )?,
             textures: build_template_texture_maps(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows
-                    .template_ring_textures
-                    .get(&template_geometry_id),
+                &boundary,
+                grouped_rows.template_ring_textures.as_ref(),
+                template_geometry_id,
                 &state.texture_handle_by_id,
             )?,
             instance: None,
@@ -1595,7 +1575,7 @@ fn import_template_geometries_batch(
 fn import_boundary_geometries_batch(
     batch: &RecordBatch,
     state: &mut ImportState,
-    grouped_rows: &PartRowGroups,
+    grouped_rows: &PartRowBatches,
 ) -> Result<()> {
     let columns = bind_geometry_columns(batch)?;
     let mut previous_id = None;
@@ -1603,9 +1583,15 @@ fn import_boundary_geometries_batch(
         let geometry_id = columns.geometry_id.value(row);
         ensure_strictly_increasing_u64(previous_id, geometry_id, "geometry_id")?;
         previous_id = Some(geometry_id);
-        let boundary = grouped_rows.boundaries.get(&geometry_id).ok_or_else(|| {
-            Error::Conversion(format!("missing boundary row for geometry {geometry_id}"))
-        })?;
+        let boundary_row = grouped_rows
+            .boundaries
+            .as_ref()
+            .and_then(|rows| rows.row_by_id.get(&geometry_id).copied())
+            .ok_or_else(|| {
+                Error::Conversion(format!("missing boundary row for geometry {geometry_id}"))
+            })?;
+        let boundary =
+            read_geometry_boundary_row(&grouped_rows.boundaries.as_ref().expect("checked above").batch, boundary_row)?;
         let geometry = Geometry::from_stored_parts(StoredGeometryParts {
             type_geometry: parse_geometry_type(columns.geometry_type.value(row))?,
             lod: (!columns.lod.is_null(row))
@@ -1613,27 +1599,30 @@ fn import_boundary_geometries_batch(
                 .map(parse_lod)
                 .transpose()?,
             boundaries: Some(boundary_from_row(
-                boundary,
+                &boundary,
                 columns.geometry_type.value(row),
             )?),
             semantics: build_semantic_map(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows.surface_semantics.get(&geometry_id),
-                grouped_rows.point_semantics.get(&geometry_id),
-                grouped_rows.linestring_semantics.get(&geometry_id),
+                &boundary,
+                grouped_rows.surface_semantics.as_ref(),
+                grouped_rows.point_semantics.as_ref(),
+                grouped_rows.linestring_semantics.as_ref(),
+                geometry_id,
                 &state.semantic_handle_by_id,
             )?,
             materials: build_material_maps(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows.surface_materials.get(&geometry_id),
+                &boundary,
+                grouped_rows.surface_materials.as_ref(),
+                geometry_id,
                 &state.material_handle_by_id,
             )?,
             textures: build_texture_maps(
                 columns.geometry_type.value(row),
-                boundary,
-                grouped_rows.ring_textures.get(&geometry_id),
+                &boundary,
+                grouped_rows.ring_textures.as_ref(),
+                geometry_id,
                 &state.texture_handle_by_id,
             )?,
             instance: None,
@@ -1862,9 +1851,11 @@ fn attach_cityobject_geometries(state: &mut ImportState) -> Result<()> {
 }
 
 fn import_cityobject_children_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
-    for row in read_cityobject_child_rows(batch)? {
-        let parent = cityobject_handle(state, row.parent_cityobject_ix)?;
-        let child = cityobject_handle(state, row.child_cityobject_ix)?;
+    let parents = downcast_required::<UInt64Array>(batch, "parent_cityobject_ix")?;
+    let children = downcast_required::<UInt64Array>(batch, "child_cityobject_ix")?;
+    for row in 0..batch.num_rows() {
+        let parent = cityobject_handle(state, parents.value(row))?;
+        let child = cityobject_handle(state, children.value(row))?;
         state
             .model
             .cityobjects_mut()
@@ -1977,6 +1968,9 @@ fn discover_projection_layout(model: &OwnedCityModel) -> Result<ProjectionLayout
         metadata_extra: discover_optional_attribute_projection(
             model.metadata().and_then(Metadata::extra),
         )?,
+        metadata_point_of_contact_address: discover_optional_attribute_projection(
+            model.metadata().and_then(Metadata::point_of_contact).and_then(Contact::address),
+        )?,
         cityobject_attributes: discover_attribute_projection(
             model
                 .cityobjects()
@@ -2008,9 +2002,30 @@ fn canonical_material_projection() -> ProjectedStructSpec {
             ProjectedValueSpec::Float64,
             true,
         ),
-        ProjectedFieldSpec::new(FIELD_MATERIAL_DIFFUSE_COLOR, ProjectedValueSpec::Utf8, true),
-        ProjectedFieldSpec::new(FIELD_MATERIAL_EMISSIVE_COLOR, ProjectedValueSpec::Utf8, true),
-        ProjectedFieldSpec::new(FIELD_MATERIAL_SPECULAR_COLOR, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_DIFFUSE_COLOR,
+            ProjectedValueSpec::List {
+                item_nullable: false,
+                item: Box::new(ProjectedValueSpec::Float64),
+            },
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_EMISSIVE_COLOR,
+            ProjectedValueSpec::List {
+                item_nullable: false,
+                item: Box::new(ProjectedValueSpec::Float64),
+            },
+            true,
+        ),
+        ProjectedFieldSpec::new(
+            FIELD_MATERIAL_SPECULAR_COLOR,
+            ProjectedValueSpec::List {
+                item_nullable: false,
+                item: Box::new(ProjectedValueSpec::Float64),
+            },
+            true,
+        ),
         ProjectedFieldSpec::new(FIELD_MATERIAL_SHININESS, ProjectedValueSpec::Float64, true),
         ProjectedFieldSpec::new(FIELD_MATERIAL_TRANSPARENCY, ProjectedValueSpec::Float64, true),
         ProjectedFieldSpec::new(FIELD_MATERIAL_IS_SMOOTH, ProjectedValueSpec::Boolean, true),
@@ -2022,7 +2037,14 @@ fn canonical_texture_projection() -> ProjectedStructSpec {
         ProjectedFieldSpec::new(FIELD_TEXTURE_IMAGE_TYPE, ProjectedValueSpec::Utf8, false),
         ProjectedFieldSpec::new(FIELD_TEXTURE_WRAP_MODE, ProjectedValueSpec::Utf8, true),
         ProjectedFieldSpec::new(FIELD_TEXTURE_TEXTURE_TYPE, ProjectedValueSpec::Utf8, true),
-        ProjectedFieldSpec::new(FIELD_TEXTURE_BORDER_COLOR, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(
+            FIELD_TEXTURE_BORDER_COLOR,
+            ProjectedValueSpec::List {
+                item_nullable: false,
+                item: Box::new(ProjectedValueSpec::Float64),
+            },
+            true,
+        ),
     ])
 }
 
@@ -2280,136 +2302,37 @@ fn metadata_row(
             .map(ToString::to_string),
         default_material_theme: model.default_material_theme().map(ToString::to_string),
         default_texture_theme: model.default_texture_theme().map(ToString::to_string),
-        point_of_contact_json: metadata
+        point_of_contact: metadata
             .and_then(Metadata::point_of_contact)
-            .map(contact_to_json)
-            .transpose()?,
+            .map(|contact| MetadataContactRow {
+                contact_name: contact.contact_name().to_string(),
+                email_address: contact.email_address().to_string(),
+                role: contact.role().map(|value| value.to_string()),
+                website: contact.website().clone(),
+                contact_type: contact.contact_type().map(|value| value.to_string()),
+                phone: contact.phone().clone(),
+                organization: contact.organization().clone(),
+                address: contact.address().cloned(),
+            }),
         root_extra: cloned_attributes(model.extra()),
         metadata_extra: metadata.and_then(Metadata::extra).cloned(),
     })
 }
 
-fn extension_rows(model: &OwnedCityModel) -> Vec<ExtensionRow> {
-    model
-        .extensions()
-        .into_iter()
-        .flat_map(|extensions| extensions.iter())
-        .map(|extension| ExtensionRow {
-            extension_name: extension.name().clone(),
-            uri: extension.url().clone(),
-            version: Some(extension.version().clone()),
-        })
-        .collect()
-}
-
-fn material_rows(model: &OwnedCityModel) -> Vec<MaterialRow> {
-    model
-        .iter_materials()
-        .enumerate()
-        .map(|(index, (_, material))| MaterialRow {
-            material_id: index as u64,
-            name: material.name().clone(),
-            ambient_intensity: material.ambient_intensity().map(f64::from),
-            diffuse_color: material.diffuse_color().map(rgb_to_json),
-            emissive_color: material.emissive_color().map(rgb_to_json),
-            specular_color: material.specular_color().map(rgb_to_json),
-            shininess: material.shininess().map(f64::from),
-            transparency: material.transparency().map(f64::from),
-            is_smooth: material.is_smooth(),
-        })
-        .collect()
-}
-
-fn texture_rows(model: &OwnedCityModel) -> Vec<TextureRow> {
-    model
-        .iter_textures()
-        .enumerate()
-        .map(|(index, (_, texture))| TextureRow {
-            texture_id: index as u64,
-            image_uri: texture.image().clone(),
-            image_type: texture.image_type().to_string(),
-            wrap_mode: texture.wrap_mode().map(|value| value.to_string()),
-            texture_type: texture.texture_type().map(|value| value.to_string()),
-            border_color: texture.border_color().map(rgba_to_json),
-        })
-        .collect()
-}
-
-fn texture_vertex_rows(model: &OwnedCityModel) -> Vec<TextureVertexRow> {
-    model
-        .vertices_texture()
-        .as_slice()
-        .iter()
-        .enumerate()
-        .map(|(index, coordinate)| TextureVertexRow {
-            uv_id: index as u64,
-            u: f64::from(coordinate.u()),
-            v: f64::from(coordinate.v()),
-        })
-        .collect()
-}
-
-fn vertex_rows(model: &OwnedCityModel) -> Vec<VertexRow> {
-    model
-        .vertices()
-        .as_slice()
-        .iter()
-        .enumerate()
-        .map(|(index, coordinate)| VertexRow {
-            vertex_id: index as u64,
-            x: coordinate.x(),
-            y: coordinate.y(),
-            z: coordinate.z(),
-        })
-        .collect()
-}
-
-fn cityobject_rows(
-    model: &OwnedCityModel,
-    _projection: &ProjectionLayout,
-    _geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<Vec<CityObjectRow>> {
-    model
-        .cityobjects()
-        .iter()
-        .enumerate()
-        .map(|(index, (_, object))| {
-            Ok(CityObjectRow {
-                cityobject_id: object.id().to_string(),
-                cityobject_ix: index as u64,
-                object_type: object.type_cityobject().to_string(),
-                geographical_extent: object
-                    .geographical_extent()
-                    .map(|bbox| bbox.as_slice().try_into().expect("bbox is 6 long")),
-                attributes: cloned_attributes(object.attributes()),
-                extra: cloned_attributes(object.extra()),
-            })
-        })
-        .collect()
-}
-
-fn cityobject_child_rows(model: &OwnedCityModel) -> Vec<CityObjectChildRow> {
-    let cityobject_ix_map = cityobject_ix_map(model);
-    let mut rows = Vec::new();
-    for (parent_handle, object) in model.cityobjects().iter() {
-        let parent_cityobject_ix = cityobject_ix_map
-            .get(&parent_handle)
-            .copied()
-            .unwrap_or_default();
-        if let Some(children) = object.children() {
-            for (ordinal, child) in children.iter().enumerate() {
-                if let Some(child_cityobject_ix) = cityobject_ix_map.get(child).copied() {
-                    rows.push(CityObjectChildRow {
-                        parent_cityobject_ix,
-                        child_ordinal: usize_to_u32(ordinal, "child ordinal")
-                            .expect("child ordinal fits into u32"),
-                        child_cityobject_ix,
-                    });
-                }
-            }
-        }
-    }
-    rows
+fn cityobject_row(
+    index: usize,
+    object: &CityObject<cityjson::prelude::OwnedStringStorage>,
+) -> Result<CityObjectRow> {
+    Ok(CityObjectRow {
+        cityobject_id: object.id().to_string(),
+        cityobject_ix: index as u64,
+        object_type: object.type_cityobject().to_string(),
+        geographical_extent: object
+            .geographical_extent()
+            .map(|bbox| bbox.as_slice().try_into().expect("bbox is 6 long")),
+        attributes: cloned_attributes(object.attributes()),
+        extra: cloned_attributes(object.extra()),
+    })
 }
 
 fn cityobject_ix_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::CityObjectHandle, u64> {
@@ -2424,6 +2347,286 @@ fn cityobject_ix_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::CityO
             )
         })
         .collect()
+}
+
+fn extensions_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+) -> Result<Option<RecordBatch>> {
+    let Some(extensions) = model.extensions() else {
+        return Ok(None);
+    };
+    if extensions.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(StringArray::from(
+                extensions
+                    .iter()
+                    .map(|extension| Some(extension.name().clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(LargeStringArray::from(
+                extensions
+                    .iter()
+                    .map(|extension| Some(extension.url().clone()))
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                extensions
+                    .iter()
+                    .map(|extension| Some(extension.version().clone()))
+                    .collect::<Vec<_>>(),
+            )),
+        ],
+    )?))
+}
+
+fn vertices_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+) -> Result<RecordBatch> {
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::from(
+                (0..model.vertices().as_slice().len())
+                    .map(|index| index as u64)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.vertices().as_slice().iter().map(|vertex| vertex.x()).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.vertices().as_slice().iter().map(|vertex| vertex.y()).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.vertices().as_slice().iter().map(|vertex| vertex.z()).collect::<Vec<_>>(),
+            )),
+        ],
+    )
+    .map_err(Error::from)
+}
+
+fn cityobjects_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+    projection: &ProjectionLayout,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<RecordBatch> {
+    let rows = model
+        .cityobjects()
+        .iter()
+        .enumerate()
+        .map(|(index, (_, object))| cityobject_row(index, object))
+        .collect::<Result<Vec<_>>>()?;
+    cityobjects_batch(schema, &rows, projection, geometry_id_map)
+}
+
+fn cityobject_children_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+) -> Result<Option<RecordBatch>> {
+    let cityobject_ix_map = cityobject_ix_map(model);
+    let mut parent_cityobject_ix = Vec::new();
+    let mut child_ordinal = Vec::new();
+    let mut child_cityobject_ix = Vec::new();
+    for (parent_handle, object) in model.cityobjects().iter() {
+        let parent_ix = cityobject_ix_map
+            .get(&parent_handle)
+            .copied()
+            .unwrap_or_default();
+        if let Some(children) = object.children() {
+            for (ordinal, child) in children.iter().enumerate() {
+                if let Some(child_ix) = cityobject_ix_map.get(child).copied() {
+                    parent_cityobject_ix.push(parent_ix);
+                    child_ordinal.push(usize_to_u32(ordinal, "child ordinal")?);
+                    child_cityobject_ix.push(child_ix);
+                }
+            }
+        }
+    }
+    if parent_cityobject_ix.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::from(parent_cityobject_ix)),
+            Arc::new(UInt32Array::from(child_ordinal)),
+            Arc::new(UInt64Array::from(child_cityobject_ix)),
+        ],
+    )?))
+}
+
+fn template_vertices_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+) -> Result<Option<RecordBatch>> {
+    if model.template_vertices().as_slice().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::from(
+                (0..model.template_vertices().as_slice().len())
+                    .map(|index| index as u64)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.template_vertices().as_slice().iter().map(|vertex| vertex.x()).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.template_vertices().as_slice().iter().map(|vertex| vertex.y()).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.template_vertices().as_slice().iter().map(|vertex| vertex.z()).collect::<Vec<_>>(),
+            )),
+        ],
+    )?))
+}
+
+fn semantics_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+    projection: &ProjectionLayout,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<Option<RecordBatch>> {
+    if model.semantic_count() == 0 {
+        return Ok(None);
+    }
+    let semantic_type = model
+        .iter_semantics()
+        .map(|(_, semantic)| Some(encode_semantic_type(semantic.type_semantic())))
+        .collect::<Vec<_>>();
+    let semantic_id = (0..model.semantic_count()).map(|index| index as u64).collect::<Vec<_>>();
+    let mut arrays: Vec<ArrayRef> = vec![
+        Arc::new(UInt64Array::from(semantic_id)),
+        Arc::new(StringArray::from(semantic_type)),
+    ];
+    if let Some(spec) = projection.semantic_attributes.as_ref() {
+        let attrs = model
+            .iter_semantics()
+            .map(|(_, semantic)| semantic.attributes())
+            .collect::<Vec<_>>();
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "attributes")?,
+            spec,
+            &attrs,
+            geometry_id_map,
+        )?);
+    }
+    Ok(Some(RecordBatch::try_new(schema.clone(), arrays)?))
+}
+
+fn semantic_children_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+    semantic_id_map: &HashMap<cityjson::prelude::SemanticHandle, u64>,
+) -> Result<Option<RecordBatch>> {
+    let mut parent_semantic_id = Vec::new();
+    let mut child_ordinal = Vec::new();
+    let mut child_semantic_id = Vec::new();
+    for (handle, semantic) in model.iter_semantics() {
+        if let Some(children) = semantic.children() {
+            let parent_id = semantic_id_map.get(&handle).copied().unwrap_or_default();
+            for (ordinal, child) in children.iter().enumerate() {
+                if let Some(child_id) = semantic_id_map.get(child).copied() {
+                    parent_semantic_id.push(parent_id);
+                    child_ordinal.push(usize_to_u32(ordinal, "child ordinal")?);
+                    child_semantic_id.push(child_id);
+                }
+            }
+        }
+    }
+    if parent_semantic_id.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::from(parent_semantic_id)),
+            Arc::new(UInt32Array::from(child_ordinal)),
+            Arc::new(UInt64Array::from(child_semantic_id)),
+        ],
+    )?))
+}
+
+fn materials_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+    projection: &ProjectionLayout,
+) -> Result<Option<RecordBatch>> {
+    if model.material_count() == 0 {
+        return Ok(None);
+    }
+    let rows = model
+        .iter_materials()
+        .enumerate()
+        .map(|(index, (_, material))| MaterialRow {
+            material_id: index as u64,
+            name: material.name().clone(),
+            ambient_intensity: material.ambient_intensity().map(f64::from),
+            diffuse_color: material.diffuse_color().map(rgb_to_components),
+            emissive_color: material.emissive_color().map(rgb_to_components),
+            specular_color: material.specular_color().map(rgb_to_components),
+            shininess: material.shininess().map(f64::from),
+            transparency: material.transparency().map(f64::from),
+            is_smooth: material.is_smooth(),
+        })
+        .collect::<Vec<_>>();
+    Ok(Some(materials_batch(schema, &rows, projection)?))
+}
+
+fn textures_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+    projection: &ProjectionLayout,
+) -> Result<Option<RecordBatch>> {
+    if model.texture_count() == 0 {
+        return Ok(None);
+    }
+    let rows = model
+        .iter_textures()
+        .enumerate()
+        .map(|(index, (_, texture))| TextureRow {
+            texture_id: index as u64,
+            image_uri: texture.image().clone(),
+            image_type: texture.image_type().to_string(),
+            wrap_mode: texture.wrap_mode().map(|value| value.to_string()),
+            texture_type: texture.texture_type().map(|value| value.to_string()),
+            border_color: texture.border_color().map(rgba_to_components),
+        })
+        .collect::<Vec<_>>();
+    Ok(Some(textures_batch(schema, &rows, projection)?))
+}
+
+fn texture_vertices_batch_from_model(
+    schema: &Arc<arrow::datatypes::Schema>,
+    model: &OwnedCityModel,
+) -> Result<Option<RecordBatch>> {
+    if model.vertices_texture().as_slice().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::from(
+                (0..model.vertices_texture().as_slice().len())
+                    .map(|index| index as u64)
+                    .collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.vertices_texture().as_slice().iter().map(|uv| f64::from(uv.u())).collect::<Vec<_>>(),
+            )),
+            Arc::new(Float64Array::from(
+                model.vertices_texture().as_slice().iter().map(|uv| f64::from(uv.v())).collect::<Vec<_>>(),
+            )),
+        ],
+    )?))
 }
 
 fn geometry_rows(
@@ -2945,34 +3148,29 @@ fn template_ring_layouts(boundary_row: &TemplateGeometryBoundaryRow) -> Result<V
     Ok(layouts)
 }
 
-fn rgb_to_json(value: RGB) -> String {
-    JsonValue::Array(
-        value
-            .to_array()
-            .into_iter()
-            .map(|component| {
-                JsonValue::Number(
-                    JsonNumber::from_f64(f64::from(component)).expect("finite rgb component"),
-                )
-            })
-            .collect(),
-    )
-    .to_string()
+fn rgb_to_components(value: RGB) -> [f64; 3] {
+    value.to_array().map(f64::from)
 }
 
-fn rgba_to_json(value: RGBA) -> String {
-    JsonValue::Array(
-        value
-            .to_array()
-            .into_iter()
-            .map(|component| {
-                JsonValue::Number(
-                    JsonNumber::from_f64(f64::from(component)).expect("finite rgba component"),
-                )
-            })
-            .collect(),
-    )
-    .to_string()
+fn rgba_to_components(value: RGBA) -> [f64; 4] {
+    value.to_array().map(f64::from)
+}
+
+fn rgb_from_components(value: [f64; 3]) -> Result<RGB> {
+    Ok(RGB::from([
+        f64_to_f32_preserving_cast(value[0])?,
+        f64_to_f32_preserving_cast(value[1])?,
+        f64_to_f32_preserving_cast(value[2])?,
+    ]))
+}
+
+fn rgba_from_components(value: [f64; 4]) -> Result<RGBA> {
+    Ok(RGBA::from([
+        f64_to_f32_preserving_cast(value[0])?,
+        f64_to_f32_preserving_cast(value[1])?,
+        f64_to_f32_preserving_cast(value[2])?,
+        f64_to_f32_preserving_cast(value[3])?,
+    ]))
 }
 
 #[derive(Debug, Clone)]
@@ -3253,21 +3451,6 @@ fn append_template_material_rows(
     Ok(())
 }
 
-fn template_vertex_rows(model: &OwnedCityModel) -> Vec<TemplateVertexRow> {
-    model
-        .template_vertices()
-        .as_slice()
-        .iter()
-        .enumerate()
-        .map(|(index, coordinate)| TemplateVertexRow {
-            template_vertex_id: index as u64,
-            x: coordinate.x(),
-            y: coordinate.y(),
-            z: coordinate.z(),
-        })
-        .collect()
-}
-
 fn template_geometry_boundary_row(
     template_geometry_id: u64,
     geometry_type: GeometryType,
@@ -3332,24 +3515,6 @@ fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> Fl
     }
 }
 
-fn semantic_rows(
-    model: &OwnedCityModel,
-    _projection: &ProjectionLayout,
-    _geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<Vec<SemanticRow>> {
-    model
-        .iter_semantics()
-        .enumerate()
-        .map(|(index, (_, semantic))| {
-            Ok(SemanticRow {
-                semantic_id: index as u64,
-                semantic_type: encode_semantic_type(semantic.type_semantic()),
-                attributes: cloned_attributes(semantic.attributes()),
-            })
-        })
-        .collect()
-}
-
 fn encode_semantic_type(
     semantic_type: &SemanticType<cityjson::prelude::OwnedStringStorage>,
 ) -> String {
@@ -3378,29 +3543,6 @@ fn encode_semantic_type(
     }
 }
 
-fn semantic_child_rows(
-    model: &OwnedCityModel,
-    semantic_id_map: &HashMap<cityjson::prelude::SemanticHandle, u64>,
-) -> Vec<SemanticChildRow> {
-    let mut rows = Vec::new();
-    for (handle, semantic) in model.iter_semantics() {
-        if let Some(children) = semantic.children() {
-            let parent_id = semantic_id_map.get(&handle).copied().unwrap_or_default();
-            for (ordinal, child) in children.iter().enumerate() {
-                if let Some(child_id) = semantic_id_map.get(child).copied() {
-                    rows.push(SemanticChildRow {
-                        parent_semantic_id: parent_id,
-                        child_ordinal: usize_to_u32(ordinal, "child ordinal")
-                            .expect("child ordinal fits into u32"),
-                        child_semantic_id: child_id,
-                    });
-                }
-            }
-        }
-    }
-    rows
-}
-
 fn offsets_to_lengths(raw: &cityjson::v2_0::RawVertexView<'_, u32>, child_len: usize) -> Vec<u32> {
     let raw = &**raw;
     if raw.is_empty() {
@@ -3423,102 +3565,6 @@ fn cloned_attributes(
     attributes.cloned().filter(|attributes| !attributes.is_empty())
 }
 
-fn attribute_to_json(
-    value: &OwnedAttributeValue,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<JsonValue> {
-    Ok(match value {
-        AttributeValue::Null => JsonValue::Null,
-        AttributeValue::Bool(value) => JsonValue::Bool(*value),
-        AttributeValue::Unsigned(value) => JsonValue::Number(JsonNumber::from(*value)),
-        AttributeValue::Integer(value) => JsonValue::Number(JsonNumber::from(*value)),
-        AttributeValue::Float(value) => JsonNumber::from_f64(*value)
-            .map(JsonValue::Number)
-            .ok_or_else(|| Error::Conversion(format!("cannot encode float attribute {value}")))?,
-        AttributeValue::String(value) => JsonValue::String(value.clone()),
-        AttributeValue::Vec(values) => JsonValue::Array(
-            values
-                .iter()
-                .map(|value| attribute_to_json(value, geometry_id_map))
-                .collect::<Result<Vec<_>>>()?,
-        ),
-        AttributeValue::Map(values) => JsonValue::Object(
-            values
-                .iter()
-                .map(|(key, value)| Ok((key.clone(), attribute_to_json(value, geometry_id_map)?)))
-                .collect::<Result<JsonMap<_, _>>>()?,
-        ),
-        AttributeValue::Geometry(handle) => {
-            let geometry_id = geometry_id_map.get(handle).copied().ok_or_else(|| {
-                Error::Conversion("attribute geometry handle missing from map".to_string())
-            })?;
-            let mut object = JsonMap::new();
-            object.insert(
-                "__cityarrow_geometry_id".to_string(),
-                JsonValue::Number(JsonNumber::from(geometry_id)),
-            );
-            JsonValue::Object(object)
-        }
-        _ => {
-            return Err(Error::Unsupported(
-                "unsupported attribute value variant".to_string(),
-            ));
-        }
-    })
-}
-
-fn json_to_attribute(
-    value: &JsonValue,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
-) -> Result<OwnedAttributeValue> {
-    Ok(match value {
-        JsonValue::Null => AttributeValue::Null,
-        JsonValue::Bool(value) => AttributeValue::Bool(*value),
-        JsonValue::Number(value) => {
-            if let Some(unsigned) = value.as_u64() {
-                AttributeValue::Unsigned(unsigned)
-            } else if let Some(integer) = value.as_i64() {
-                AttributeValue::Integer(integer)
-            } else {
-                AttributeValue::Float(
-                    value.as_f64().ok_or_else(|| {
-                        Error::Conversion("failed to decode json number".to_string())
-                    })?,
-                )
-            }
-        }
-        JsonValue::String(value) => AttributeValue::String(value.clone()),
-        JsonValue::Array(values) => AttributeValue::Vec(
-            values
-                .iter()
-                .map(|value| json_to_attribute(value, geometry_handles))
-                .collect::<Result<Vec<_>>>()?,
-        ),
-        JsonValue::Object(values) => {
-            if values.len() == 1 && values.contains_key("__cityarrow_geometry_id") {
-                let geometry_id = values["__cityarrow_geometry_id"].as_u64().ok_or_else(|| {
-                    Error::Conversion("invalid geometry id attribute payload".to_string())
-                })?;
-                let handle = geometry_handles.get(&geometry_id).copied().ok_or_else(|| {
-                    Error::Conversion(format!(
-                        "missing geometry handle {geometry_id} for attribute reconstruction"
-                    ))
-                })?;
-                AttributeValue::Geometry(handle)
-            } else {
-                AttributeValue::Map(
-                    values
-                        .iter()
-                        .map(|(key, value)| {
-                            Ok((key.clone(), json_to_attribute(value, geometry_handles)?))
-                        })
-                        .collect::<Result<HashMap<_, _>>>()?,
-                )
-            }
-        }
-    })
-}
-
 fn metadata_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     row: MetadataRow,
@@ -3536,7 +3582,7 @@ fn metadata_batch(
         reference_date,
         default_material_theme,
         default_texture_theme,
-        point_of_contact_json,
+        point_of_contact,
         root_extra,
         metadata_extra,
     } = row;
@@ -3555,7 +3601,12 @@ fn metadata_batch(
         Arc::new(StringArray::from(vec![reference_date])),
         Arc::new(StringArray::from(vec![default_material_theme])),
         Arc::new(StringArray::from(vec![default_texture_theme])),
-        Arc::new(LargeStringArray::from(vec![point_of_contact_json])),
+        point_of_contact_array(
+            &field_from_schema(schema, "point_of_contact")?,
+            &point_of_contact,
+            projection.metadata_point_of_contact_address.as_ref(),
+            geometry_id_map,
+        )?,
     ];
     if let Some(spec) = projection.root_extra.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
@@ -3593,55 +3644,6 @@ fn transform_batch(
                 3,
                 vec![Some(row.translate)],
             )?),
-        ],
-    )
-    .map_err(Error::from)
-}
-
-fn extensions_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<ExtensionRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(StringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.extension_name.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(LargeStringArray::from(
-                rows.iter()
-                    .map(|row| Some(row.uri.clone()))
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                rows.into_iter().map(|row| row.version).collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
-}
-
-fn vertices_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: &[VertexRow],
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                rows.iter().map(|row| row.vertex_id).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.x).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.y).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.z).collect::<Vec<_>>(),
-            )),
         ],
     )
     .map_err(Error::from)
@@ -3692,31 +3694,6 @@ fn cityobjects_batch(
     }
 
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
-}
-
-fn cityobject_children_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<CityObjectChildRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                rows.iter()
-                    .map(|row| row.parent_cityobject_ix)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt32Array::from(
-                rows.iter().map(|row| row.child_ordinal).collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.child_cityobject_ix)
-                    .collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
 }
 
 fn geometries_batch(
@@ -3839,32 +3816,6 @@ fn geometry_instances_batch(
     RecordBatch::try_new(schema.clone(), arrays.split_off(0)).map_err(Error::from)
 }
 
-fn template_vertices_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: &[TemplateVertexRow],
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                rows.iter()
-                    .map(|row| row.template_vertex_id)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.x).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.y).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.z).collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
-}
-
 fn template_geometries_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: &[TemplateGeometryRow],
@@ -3938,58 +3889,6 @@ fn template_geometry_boundaries_batch(
                     .map(|row| row.solid_lengths.clone())
                     .collect::<Vec<_>>(),
             )?),
-        ],
-    )
-    .map_err(Error::from)
-}
-
-fn semantics_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: &[SemanticRow],
-    projection: &ProjectionLayout,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<RecordBatch> {
-    let mut arrays: Vec<ArrayRef> = vec![
-        Arc::new(UInt64Array::from(
-            rows.iter().map(|row| row.semantic_id).collect::<Vec<_>>(),
-        )),
-        Arc::new(StringArray::from(
-            rows.iter()
-                .map(|row| Some(row.semantic_type.clone()))
-                .collect::<Vec<_>>(),
-        )),
-    ];
-    if let Some(spec) = projection.semantic_attributes.as_ref() {
-        arrays.push(projected_struct_array_from_attributes(
-            &field_from_schema(schema, "attributes")?,
-            spec,
-            &rows.iter().map(|row| row.attributes.as_ref()).collect::<Vec<_>>(),
-            geometry_id_map,
-        )?);
-    }
-    RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
-}
-
-fn semantic_children_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<SemanticChildRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                rows.iter()
-                    .map(|row| row.parent_semantic_id)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt32Array::from(
-                rows.iter().map(|row| row.child_ordinal).collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt64Array::from(
-                rows.into_iter()
-                    .map(|row| row.child_semantic_id)
-                    .collect::<Vec<_>>(),
-            )),
         ],
     )
     .map_err(Error::from)
@@ -4194,27 +4093,6 @@ fn textures_batch(
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
 
-fn texture_vertices_batch(
-    schema: &Arc<arrow::datatypes::Schema>,
-    rows: Vec<TextureVertexRow>,
-) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                rows.iter().map(|row| row.uv_id).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.iter().map(|row| row.u).collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                rows.into_iter().map(|row| row.v).collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
-}
-
 fn geometry_ring_textures_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: &[GeometryRingTextureRow],
@@ -4303,21 +4181,24 @@ fn material_payload_array(spec: &ProjectedFieldSpec, rows: &[MaterialRow]) -> Re
                 .map(|row| row.ambient_intensity)
                 .collect::<Vec<_>>(),
         )) as ArrayRef,
-        FIELD_MATERIAL_DIFFUSE_COLOR => Arc::new(LargeStringArray::from(
+        FIELD_MATERIAL_DIFFUSE_COLOR => Arc::new(list_f64_array(
+            &Arc::new(spec.to_arrow_field()),
             rows.iter()
-                .map(|row| row.diffuse_color.clone())
+                .map(|row| row.diffuse_color.map(|value| value.into_iter().collect()))
                 .collect::<Vec<_>>(),
-        )) as ArrayRef,
-        FIELD_MATERIAL_EMISSIVE_COLOR => Arc::new(LargeStringArray::from(
+        )?) as ArrayRef,
+        FIELD_MATERIAL_EMISSIVE_COLOR => Arc::new(list_f64_array(
+            &Arc::new(spec.to_arrow_field()),
             rows.iter()
-                .map(|row| row.emissive_color.clone())
+                .map(|row| row.emissive_color.map(|value| value.into_iter().collect()))
                 .collect::<Vec<_>>(),
-        )) as ArrayRef,
-        FIELD_MATERIAL_SPECULAR_COLOR => Arc::new(LargeStringArray::from(
+        )?) as ArrayRef,
+        FIELD_MATERIAL_SPECULAR_COLOR => Arc::new(list_f64_array(
+            &Arc::new(spec.to_arrow_field()),
             rows.iter()
-                .map(|row| row.specular_color.clone())
+                .map(|row| row.specular_color.map(|value| value.into_iter().collect()))
                 .collect::<Vec<_>>(),
-        )) as ArrayRef,
+        )?) as ArrayRef,
         FIELD_MATERIAL_SHININESS => Arc::new(Float64Array::from(
             rows.iter().map(|row| row.shininess).collect::<Vec<_>>(),
         )) as ArrayRef,
@@ -4352,28 +4233,18 @@ fn texture_payload_array(spec: &ProjectedFieldSpec, rows: &[TextureRow]) -> Resu
                 .map(|row| row.texture_type.clone())
                 .collect::<Vec<_>>(),
         )) as ArrayRef,
-        FIELD_TEXTURE_BORDER_COLOR => Arc::new(LargeStringArray::from(
+        FIELD_TEXTURE_BORDER_COLOR => Arc::new(list_f64_array(
+            &Arc::new(spec.to_arrow_field()),
             rows.iter()
-                .map(|row| row.border_color.clone())
+                .map(|row| row.border_color.map(|value| value.into_iter().collect()))
                 .collect::<Vec<_>>(),
-        )) as ArrayRef,
+        )?) as ArrayRef,
         other => {
             return Err(Error::Conversion(format!(
                 "unsupported texture projection column {other}"
             )));
         }
     })
-}
-
-fn optional_batch<T, F>(rows: Vec<T>, build: F) -> Result<Option<RecordBatch>>
-where
-    F: FnOnce(Vec<T>) -> Result<RecordBatch>,
-{
-    if rows.is_empty() {
-        Ok(None)
-    } else {
-        build(rows).map(Some)
-    }
 }
 
 fn optional_batch_ref<T, F>(rows: &[T], build: F) -> Result<Option<RecordBatch>>
@@ -4475,6 +4346,35 @@ fn list_u32_array(field: &FieldRef, rows: Vec<Option<Vec<u32>>>) -> Result<ListA
     .map_err(Error::from)
 }
 
+fn list_f64_array(field: &FieldRef, rows: Vec<Option<Vec<f64>>>) -> Result<ListArray> {
+    let mut offsets = vec![0_i32];
+    let mut flat: Vec<f64> = Vec::new();
+    let mut validity = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(values) = row {
+            flat.extend(&values);
+            offsets.push(usize_to_i32(flat.len(), "list offset")?);
+            validity.push(true);
+        } else {
+            offsets.push(usize_to_i32(flat.len(), "list offset")?);
+            validity.push(false);
+        }
+    }
+    let values: ArrayRef = Arc::new(Float64Array::from(flat));
+    let nulls = if validity.iter().all(|item| *item) {
+        None
+    } else {
+        Some(NullBuffer::from(validity))
+    };
+    ListArray::try_new(
+        list_child_field(field)?,
+        OffsetBuffer::new(ScalarBuffer::from(offsets)),
+        values,
+        nulls,
+    )
+    .map_err(Error::from)
+}
+
 fn fixed_list_child_field(field: &FieldRef) -> Result<FieldRef> {
     match field.data_type() {
         DataType::FixedSizeList(child, _) => Ok(child.clone()),
@@ -4491,6 +4391,82 @@ fn list_child_field(field: &FieldRef) -> Result<FieldRef> {
             "expected list field, found {other:?}"
         ))),
     }
+}
+
+fn point_of_contact_array(
+    field: &FieldRef,
+    contact: &Option<MetadataContactRow>,
+    address_spec: Option<&ProjectedStructSpec>,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<ArrayRef> {
+    let address_field = if address_spec.is_some() {
+        Some(match field.data_type() {
+            DataType::Struct(fields) => fields
+                .iter()
+                .find(|candidate| candidate.name() == "address")
+                .cloned()
+                .ok_or_else(|| {
+                    Error::Conversion("point_of_contact.address field missing from schema".to_string())
+                })?,
+            other => {
+                return Err(Error::Conversion(format!(
+                    "expected point_of_contact struct field, found {other:?}"
+                )));
+            }
+        })
+    } else {
+        None
+    };
+    let address_rows = [contact.as_ref().and_then(|value| value.address.as_ref())];
+    let address_array = address_spec.zip(address_field.as_ref()).map(|(spec, field)| {
+        projected_struct_array_from_attributes(field, spec, &address_rows, geometry_id_map)
+    }).transpose()?;
+
+    let fields = match field.data_type() {
+        DataType::Struct(fields) => fields.clone(),
+        other => {
+            return Err(Error::Conversion(format!(
+                "expected point_of_contact struct field, found {other:?}"
+            )));
+        }
+    };
+    let arrays: Vec<ArrayRef> = vec![
+        Arc::new(LargeStringArray::from(vec![
+            contact.as_ref().map(|value| value.contact_name.clone()),
+        ])),
+        Arc::new(LargeStringArray::from(vec![
+            contact.as_ref().map(|value| value.email_address.clone()),
+        ])),
+        Arc::new(StringArray::from(vec![
+            contact.as_ref().and_then(|value| value.role.clone()),
+        ])),
+        Arc::new(LargeStringArray::from(vec![
+            contact.as_ref().and_then(|value| value.website.clone()),
+        ])),
+        Arc::new(StringArray::from(vec![
+            contact.as_ref().and_then(|value| value.contact_type.clone()),
+        ])),
+        Arc::new(LargeStringArray::from(vec![
+            contact.as_ref().and_then(|value| value.phone.clone()),
+        ])),
+        Arc::new(LargeStringArray::from(vec![
+            contact.as_ref().and_then(|value| value.organization.clone()),
+        ])),
+    ];
+    let mut arrays = arrays;
+    if let Some(array) = address_array {
+        arrays.push(array);
+    }
+    let nulls = contact.is_some().then_some(false).unwrap_or(true);
+    Ok(Arc::new(StructArray::try_new(
+        fields,
+        arrays,
+        if nulls {
+            Some(NullBuffer::from(vec![false]))
+        } else {
+            None
+        },
+    )?))
 }
 
 fn projected_struct_array_from_attributes(
@@ -4788,6 +4764,61 @@ fn required_downcast<'a, T: 'static>(
 
 fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Result<MetadataRow> {
     let empty_geometry_handles = HashMap::new();
+    let point_of_contact = {
+        let array = downcast_required::<StructArray>(batch, "point_of_contact")?;
+        if array.is_null(0) {
+            None
+        } else {
+            let address_array = projection
+                .metadata_point_of_contact_address
+                .as_ref()
+                .map(|_| {
+                    required_downcast::<StructArray>(array.column_by_name("address").ok_or_else(
+                        || Error::Conversion("missing point_of_contact.address column".to_string()),
+                    )?
+                    .as_ref(), "struct")
+                })
+                .transpose()?;
+            let address = projected_attributes_from_array(
+                projection.metadata_point_of_contact_address.as_ref(),
+                address_array,
+                0,
+                &empty_geometry_handles,
+            )?;
+            Some(MetadataContactRow {
+                contact_name: required_downcast::<LargeStringArray>(
+                    array.column_by_name("contact_name")
+                        .ok_or_else(|| {
+                            Error::Conversion(
+                                "missing point_of_contact.contact_name column".to_string(),
+                            )
+                        })?
+                        .as_ref(),
+                    "large_utf8",
+                )?
+                .value(0)
+                .to_string(),
+                email_address: required_downcast::<LargeStringArray>(
+                    array.column_by_name("email_address")
+                        .ok_or_else(|| {
+                            Error::Conversion(
+                                "missing point_of_contact.email_address column".to_string(),
+                            )
+                        })?
+                        .as_ref(),
+                    "large_utf8",
+                )?
+                .value(0)
+                .to_string(),
+                role: read_named_string_field(array, "role", 0)?,
+                website: read_named_large_string_field(array, "website", 0)?,
+                contact_type: read_named_string_field(array, "contact_type", 0)?,
+                phone: read_named_large_string_field(array, "phone", 0)?,
+                organization: read_named_large_string_field(array, "organization", 0)?,
+                address: (!address.is_empty()).then_some(address),
+            })
+        }
+    };
     Ok(MetadataRow {
         citymodel_id: read_large_string_scalar(batch, "citymodel_id", 0)?,
         cityjson_version: read_string_scalar(batch, "cityjson_version", 0)?,
@@ -4799,7 +4830,7 @@ fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Resu
         reference_date: read_string_optional(batch, "reference_date", 0)?,
         default_material_theme: read_string_optional(batch, "default_material_theme", 0)?,
         default_texture_theme: read_string_optional(batch, "default_texture_theme", 0)?,
-        point_of_contact_json: read_large_string_optional(batch, "point_of_contact_json", 0)?,
+        point_of_contact,
         root_extra: {
             let array = projection
                 .root_extra
@@ -4831,6 +4862,140 @@ fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Resu
     })
 }
 
+fn read_geometry_boundary_row(batch: &RecordBatch, row: usize) -> Result<GeometryBoundaryRow> {
+    Ok(GeometryBoundaryRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        vertex_indices: list_u64_value(downcast_required::<ListArray>(batch, "vertex_indices")?, row)?,
+        line_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "line_lengths")?, row)?,
+        ring_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "ring_lengths")?, row)?,
+        surface_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "surface_lengths")?, row)?,
+        shell_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "shell_lengths")?, row)?,
+        solid_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "solid_lengths")?, row)?,
+    })
+}
+
+fn read_template_geometry_boundary_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<TemplateGeometryBoundaryRow> {
+    Ok(TemplateGeometryBoundaryRow {
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?
+            .value(row),
+        vertex_indices: list_u64_value(downcast_required::<ListArray>(batch, "vertex_indices")?, row)?,
+        line_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "line_lengths")?, row)?,
+        ring_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "ring_lengths")?, row)?,
+        surface_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "surface_lengths")?, row)?,
+        shell_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "shell_lengths")?, row)?,
+        solid_lengths: list_u32_optional_value(downcast_required::<ListArray>(batch, "solid_lengths")?, row)?,
+    })
+}
+
+fn read_geometry_surface_semantic_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<GeometrySurfaceSemanticRow> {
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    Ok(GeometrySurfaceSemanticRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        surface_ordinal: downcast_required::<UInt32Array>(batch, "surface_ordinal")?.value(row),
+        semantic_id: (!semantics.is_null(row)).then(|| semantics.value(row)),
+    })
+}
+
+fn read_geometry_point_semantic_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<GeometryPointSemanticRow> {
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    Ok(GeometryPointSemanticRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        point_ordinal: downcast_required::<UInt32Array>(batch, "point_ordinal")?.value(row),
+        semantic_id: (!semantics.is_null(row)).then(|| semantics.value(row)),
+    })
+}
+
+fn read_geometry_linestring_semantic_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<GeometryLinestringSemanticRow> {
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    Ok(GeometryLinestringSemanticRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        linestring_ordinal: downcast_required::<UInt32Array>(batch, "linestring_ordinal")?
+            .value(row),
+        semantic_id: (!semantics.is_null(row)).then(|| semantics.value(row)),
+    })
+}
+
+fn read_template_geometry_semantic_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<TemplateGeometrySemanticRow> {
+    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
+    Ok(TemplateGeometrySemanticRow {
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?
+            .value(row),
+        primitive_type: read_string_scalar(batch, "primitive_type", row)?,
+        primitive_ordinal: downcast_required::<UInt32Array>(batch, "primitive_ordinal")?.value(row),
+        semantic_id: (!semantics.is_null(row)).then(|| semantics.value(row)),
+    })
+}
+
+fn read_geometry_surface_material_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<GeometrySurfaceMaterialRow> {
+    Ok(GeometrySurfaceMaterialRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        surface_ordinal: downcast_required::<UInt32Array>(batch, "surface_ordinal")?.value(row),
+        theme: read_string_scalar(batch, "theme", row)?,
+        material_id: downcast_required::<UInt64Array>(batch, "material_id")?.value(row),
+    })
+}
+
+fn read_template_geometry_material_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<TemplateGeometryMaterialRow> {
+    Ok(TemplateGeometryMaterialRow {
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?
+            .value(row),
+        primitive_type: read_string_scalar(batch, "primitive_type", row)?,
+        primitive_ordinal: downcast_required::<UInt32Array>(batch, "primitive_ordinal")?.value(row),
+        theme: read_string_scalar(batch, "theme", row)?,
+        material_id: downcast_required::<UInt64Array>(batch, "material_id")?.value(row),
+    })
+}
+
+fn read_geometry_ring_texture_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<GeometryRingTextureRow> {
+    Ok(GeometryRingTextureRow {
+        geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
+        surface_ordinal: downcast_required::<UInt32Array>(batch, "surface_ordinal")?.value(row),
+        ring_ordinal: downcast_required::<UInt32Array>(batch, "ring_ordinal")?.value(row),
+        theme: read_string_scalar(batch, "theme", row)?,
+        texture_id: downcast_required::<UInt64Array>(batch, "texture_id")?.value(row),
+        uv_indices: list_u64_value(downcast_required::<ListArray>(batch, "uv_indices")?, row)?,
+    })
+}
+
+fn read_template_geometry_ring_texture_row(
+    batch: &RecordBatch,
+    row: usize,
+) -> Result<TemplateGeometryRingTextureRow> {
+    Ok(TemplateGeometryRingTextureRow {
+        template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?
+            .value(row),
+        surface_ordinal: downcast_required::<UInt32Array>(batch, "surface_ordinal")?.value(row),
+        ring_ordinal: downcast_required::<UInt32Array>(batch, "ring_ordinal")?.value(row),
+        theme: read_string_scalar(batch, "theme", row)?,
+        texture_id: downcast_required::<UInt64Array>(batch, "texture_id")?.value(row),
+        uv_indices: list_u64_value(downcast_required::<ListArray>(batch, "uv_indices")?, row)?,
+    })
+}
+
 fn read_transform_row(batch: &RecordBatch) -> Result<TransformRow> {
     Ok(TransformRow {
         scale: read_fixed_size_f64_required::<3>(batch, "scale", 0)?,
@@ -4838,281 +5003,10 @@ fn read_transform_row(batch: &RecordBatch) -> Result<TransformRow> {
     })
 }
 
-fn read_extension_rows(batch: &RecordBatch) -> Result<Vec<ExtensionRow>> {
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(ExtensionRow {
-                extension_name: read_string_scalar(batch, "extension_name", row)?,
-                uri: read_large_string_scalar(batch, "uri", row)?,
-                version: read_string_optional(batch, "version", row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_vertex_rows(batch: &RecordBatch) -> Result<Vec<VertexRow>> {
-    let vertex_ids = downcast_required::<UInt64Array>(batch, "vertex_id")?;
-    let xs = downcast_required::<Float64Array>(batch, "x")?;
-    let ys = downcast_required::<Float64Array>(batch, "y")?;
-    let zs = downcast_required::<Float64Array>(batch, "z")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(VertexRow {
-                vertex_id: vertex_ids.value(row),
-                x: xs.value(row),
-                y: ys.value(row),
-                z: zs.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_cityobject_child_rows(batch: &RecordBatch) -> Result<Vec<CityObjectChildRow>> {
-    let parents = downcast_required::<UInt64Array>(batch, "parent_cityobject_ix")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "child_ordinal")?;
-    let children = downcast_required::<UInt64Array>(batch, "child_cityobject_ix")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(CityObjectChildRow {
-                parent_cityobject_ix: parents.value(row),
-                child_ordinal: ordinals.value(row),
-                child_cityobject_ix: children.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_boundary_rows(batch: &RecordBatch) -> Result<Vec<GeometryBoundaryRow>> {
-    let geometry_ids = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let vertices = downcast_required::<ListArray>(batch, "vertex_indices")?;
-    let lines = downcast_required::<ListArray>(batch, "line_lengths")?;
-    let rings = downcast_required::<ListArray>(batch, "ring_lengths")?;
-    let surfaces = downcast_required::<ListArray>(batch, "surface_lengths")?;
-    let shells = downcast_required::<ListArray>(batch, "shell_lengths")?;
-    let solids = downcast_required::<ListArray>(batch, "solid_lengths")?;
-
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryBoundaryRow {
-                geometry_id: geometry_ids.value(row),
-                vertex_indices: list_u64_value(vertices, row)?,
-                line_lengths: list_u32_optional_value(lines, row)?,
-                ring_lengths: list_u32_optional_value(rings, row)?,
-                surface_lengths: list_u32_optional_value(surfaces, row)?,
-                shell_lengths: list_u32_optional_value(shells, row)?,
-                solid_lengths: list_u32_optional_value(solids, row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_template_geometry_boundary_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<TemplateGeometryBoundaryRow>> {
-    let geometry_ids = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    let vertices = downcast_required::<ListArray>(batch, "vertex_indices")?;
-    let lines = downcast_required::<ListArray>(batch, "line_lengths")?;
-    let rings = downcast_required::<ListArray>(batch, "ring_lengths")?;
-    let surfaces = downcast_required::<ListArray>(batch, "surface_lengths")?;
-    let shells = downcast_required::<ListArray>(batch, "shell_lengths")?;
-    let solids = downcast_required::<ListArray>(batch, "solid_lengths")?;
-
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateGeometryBoundaryRow {
-                template_geometry_id: geometry_ids.value(row),
-                vertex_indices: list_u64_value(vertices, row)?,
-                line_lengths: list_u32_optional_value(lines, row)?,
-                ring_lengths: list_u32_optional_value(rings, row)?,
-                surface_lengths: list_u32_optional_value(surfaces, row)?,
-                shell_lengths: list_u32_optional_value(shells, row)?,
-                solid_lengths: list_u32_optional_value(solids, row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_semantic_child_rows(batch: &RecordBatch) -> Result<Vec<SemanticChildRow>> {
-    let parents = downcast_required::<UInt64Array>(batch, "parent_semantic_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "child_ordinal")?;
-    let children = downcast_required::<UInt64Array>(batch, "child_semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(SemanticChildRow {
-                parent_semantic_id: parents.value(row),
-                child_ordinal: ordinals.value(row),
-                child_semantic_id: children.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_surface_semantic_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<GeometrySurfaceSemanticRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
-    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometrySurfaceSemanticRow {
-                geometry_id: geometries.value(row),
-                surface_ordinal: ordinals.value(row),
-                semantic_id: if semantics.is_null(row) {
-                    None
-                } else {
-                    Some(semantics.value(row))
-                },
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_point_semantic_rows(batch: &RecordBatch) -> Result<Vec<GeometryPointSemanticRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "point_ordinal")?;
-    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryPointSemanticRow {
-                geometry_id: geometries.value(row),
-                point_ordinal: ordinals.value(row),
-                semantic_id: if semantics.is_null(row) {
-                    None
-                } else {
-                    Some(semantics.value(row))
-                },
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_linestring_semantic_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<GeometryLinestringSemanticRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "linestring_ordinal")?;
-    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryLinestringSemanticRow {
-                geometry_id: geometries.value(row),
-                linestring_ordinal: ordinals.value(row),
-                semantic_id: if semantics.is_null(row) {
-                    None
-                } else {
-                    Some(semantics.value(row))
-                },
-            })
-        })
-        .collect()
-}
-
-fn read_template_geometry_semantic_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<TemplateGeometrySemanticRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "primitive_ordinal")?;
-    let semantics = downcast_required::<UInt64Array>(batch, "semantic_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateGeometrySemanticRow {
-                template_geometry_id: geometries.value(row),
-                primitive_type: read_string_scalar(batch, "primitive_type", row)?,
-                primitive_ordinal: ordinals.value(row),
-                semantic_id: if semantics.is_null(row) {
-                    None
-                } else {
-                    Some(semantics.value(row))
-                },
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_surface_material_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<GeometrySurfaceMaterialRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
-    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometrySurfaceMaterialRow {
-                geometry_id: geometries.value(row),
-                surface_ordinal: ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                material_id: materials.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_template_geometry_material_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<TemplateGeometryMaterialRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "primitive_ordinal")?;
-    let materials = downcast_required::<UInt64Array>(batch, "material_id")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateGeometryMaterialRow {
-                template_geometry_id: geometries.value(row),
-                primitive_type: read_string_scalar(batch, "primitive_type", row)?,
-                primitive_ordinal: ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                material_id: materials.value(row),
-            })
-        })
-        .collect()
-}
-
-fn read_geometry_ring_texture_rows(batch: &RecordBatch) -> Result<Vec<GeometryRingTextureRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "geometry_id")?;
-    let surface_ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
-    let ring_ordinals = downcast_required::<UInt32Array>(batch, "ring_ordinal")?;
-    let textures = downcast_required::<UInt64Array>(batch, "texture_id")?;
-    let uv_indices = downcast_required::<ListArray>(batch, "uv_indices")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(GeometryRingTextureRow {
-                geometry_id: geometries.value(row),
-                surface_ordinal: surface_ordinals.value(row),
-                ring_ordinal: ring_ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                texture_id: textures.value(row),
-                uv_indices: list_u64_value(uv_indices, row)?,
-            })
-        })
-        .collect()
-}
-
-fn read_template_geometry_ring_texture_rows(
-    batch: &RecordBatch,
-) -> Result<Vec<TemplateGeometryRingTextureRow>> {
-    let geometries = downcast_required::<UInt64Array>(batch, "template_geometry_id")?;
-    let surface_ordinals = downcast_required::<UInt32Array>(batch, "surface_ordinal")?;
-    let ring_ordinals = downcast_required::<UInt32Array>(batch, "ring_ordinal")?;
-    let textures = downcast_required::<UInt64Array>(batch, "texture_id")?;
-    let uv_indices = downcast_required::<ListArray>(batch, "uv_indices")?;
-    (0..batch.num_rows())
-        .map(|row| {
-            Ok(TemplateGeometryRingTextureRow {
-                template_geometry_id: geometries.value(row),
-                surface_ordinal: surface_ordinals.value(row),
-                ring_ordinal: ring_ordinals.value(row),
-                theme: read_string_scalar(batch, "theme", row)?,
-                texture_id: textures.value(row),
-                uv_indices: list_u64_value(uv_indices, row)?,
-            })
-        })
-        .collect()
-}
-
 fn apply_metadata_row(
     model: &mut OwnedCityModel,
     row: &MetadataRow,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+    _geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
 ) -> Result<()> {
     if let Some(identifier) = &row.identifier {
         model
@@ -5144,9 +5038,23 @@ fn apply_metadata_row(
     if let Some(theme) = &row.default_texture_theme {
         model.set_default_texture_theme(Some(ThemeName::new(theme.clone())));
     }
-    if let Some(value) = &row.point_of_contact_json {
-        let json: JsonValue = serde_json::from_str(value)?;
-        let contact = contact_from_json(&json, geometry_handles)?;
+    if let Some(value) = &row.point_of_contact {
+        let mut contact = Contact::new();
+        contact.set_contact_name(value.contact_name.clone());
+        contact.set_email_address(value.email_address.clone());
+        contact.set_role(
+            value.role.as_deref().map(parse_contact_role).transpose()?,
+        );
+        contact.set_website(value.website.clone());
+        contact.set_contact_type(
+            value.contact_type
+                .as_deref()
+                .map(parse_contact_type)
+                .transpose()?,
+        );
+        contact.set_phone(value.phone.clone());
+        contact.set_organization(value.organization.clone());
+        contact.set_address(value.address.clone());
         model.metadata_mut().set_point_of_contact(Some(contact));
     }
     if let Some(extra) = &row.root_extra {
@@ -5169,19 +5077,17 @@ fn apply_metadata_row(
 fn build_semantic_map(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
-    surface_rows: Option<&Vec<GeometrySurfaceSemanticRow>>,
-    point_rows: Option<&Vec<GeometryPointSemanticRow>>,
-    linestring_rows: Option<&Vec<GeometryLinestringSemanticRow>>,
+    surface_rows: Option<&GroupedRowBatch>,
+    point_rows: Option<&GroupedRowBatch>,
+    linestring_rows: Option<&GroupedRowBatch>,
+    geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint => {
-            let Some(rows) = point_rows else {
+            let Some(rows) = grouped_row_range(point_rows, geometry_id) else {
                 return Ok(None);
             };
-            if rows.is_empty() {
-                return Ok(None);
-            }
             let point_count = boundary.vertex_indices.len();
             if rows.len() != point_count {
                 return Err(Error::Conversion(format!(
@@ -5191,7 +5097,9 @@ fn build_semantic_map(
                 )));
             }
             let mut map = SemanticMap::new();
-            for (expected_ordinal, row) in rows.iter().enumerate() {
+            let batch = &point_rows.expect("checked above").batch;
+            for (expected_ordinal, row_index) in rows.clone().enumerate() {
+                let row = read_geometry_point_semantic_row(batch, row_index)?;
                 let actual_ordinal =
                     usize::try_from(row.point_ordinal).expect("u32 point ordinal fits into usize");
                 if actual_ordinal != expected_ordinal {
@@ -5205,12 +5113,9 @@ fn build_semantic_map(
             Ok(Some(map))
         }
         GeometryType::MultiLineString => {
-            let Some(rows) = linestring_rows else {
+            let Some(rows) = grouped_row_range(linestring_rows, geometry_id) else {
                 return Ok(None);
             };
-            if rows.is_empty() {
-                return Ok(None);
-            }
             let linestring_count =
                 required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len();
             if rows.len() != linestring_count {
@@ -5221,7 +5126,9 @@ fn build_semantic_map(
                 )));
             }
             let mut map = SemanticMap::new();
-            for (expected_ordinal, row) in rows.iter().enumerate() {
+            let batch = &linestring_rows.expect("checked above").batch;
+            for (expected_ordinal, row_index) in rows.clone().enumerate() {
+                let row = read_geometry_linestring_semantic_row(batch, row_index)?;
                 let actual_ordinal = usize::try_from(row.linestring_ordinal)
                     .expect("u32 linestring ordinal fits into usize");
                 if actual_ordinal != expected_ordinal {
@@ -5239,12 +5146,9 @@ fn build_semantic_map(
         | GeometryType::Solid
         | GeometryType::MultiSolid
         | GeometryType::CompositeSolid => {
-            let Some(rows) = surface_rows else {
+            let Some(rows) = grouped_row_range(surface_rows, geometry_id) else {
                 return Ok(None);
             };
-            if rows.is_empty() {
-                return Ok(None);
-            }
             let surface_count = surface_count(boundary);
             if rows.len() != surface_count {
                 return Err(Error::Conversion(format!(
@@ -5254,7 +5158,9 @@ fn build_semantic_map(
                 )));
             }
             let mut map = SemanticMap::new();
-            for (expected_ordinal, row) in rows.iter().enumerate() {
+            let batch = &surface_rows.expect("checked above").batch;
+            for (expected_ordinal, row_index) in rows.clone().enumerate() {
+                let row = read_geometry_surface_semantic_row(batch, row_index)?;
                 let actual_ordinal = usize::try_from(row.surface_ordinal)
                     .expect("u32 surface ordinal fits into usize");
                 if actual_ordinal != expected_ordinal {
@@ -5275,7 +5181,8 @@ fn build_semantic_map(
 fn build_material_maps(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
-    surface_rows: Option<&Vec<GeometrySurfaceMaterialRow>>,
+    surface_rows: Option<&GroupedRowBatch>,
+    geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
 ) -> Result<Option<MaterialThemeMaps>> {
     match parse_geometry_type(geometry_type)? {
@@ -5284,24 +5191,18 @@ fn build_material_maps(
         | GeometryType::CompositeSurface
         | GeometryType::Solid
         | GeometryType::MultiSolid
-        | GeometryType::CompositeSolid => surface_rows.map_or(Ok(None), |rows| {
+        | GeometryType::CompositeSolid => grouped_row_range(surface_rows, geometry_id).map_or(Ok(None), |rows| {
             grouped_material_maps(
+                &surface_rows.expect("checked above").batch,
                 rows,
                 surface_count(boundary),
-                |row| Ok((row.theme.clone(), row.surface_ordinal, row.material_id)),
+                |batch, row| {
+                    let row = read_geometry_surface_material_row(batch, row)?;
+                    Ok((row.theme, row.surface_ordinal, row.material_id))
+                },
                 MaterialMap::add_surface,
-                |row, count| {
-                    format!(
-                        "material assignment surface ordinal {} exceeds surface count {}",
-                        row.surface_ordinal, count
-                    )
-                },
-                |row| {
-                    format!(
-                        "duplicate material assignment for theme {} surface {}",
-                        row.theme, row.surface_ordinal
-                    )
-                },
+                |row, count| format!("material assignment row {row} exceeds surface count {count}"),
+                |row| format!("duplicate material assignment at row {row}"),
                 handles,
             )
             .map(Some)
@@ -5311,8 +5212,9 @@ fn build_material_maps(
     }
 }
 
-fn grouped_material_maps<R, FFields, FAppend, FExceeds, FDuplicate>(
-    rows: &[R],
+fn grouped_material_maps<FFields, FAppend, FExceeds, FDuplicate>(
+    batch: &RecordBatch,
+    rows: &Range<usize>,
     primitive_count: usize,
     fields: FFields,
     append: FAppend,
@@ -5321,17 +5223,17 @@ fn grouped_material_maps<R, FFields, FAppend, FExceeds, FDuplicate>(
     handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
 ) -> Result<MaterialThemeMaps>
 where
-    FFields: Fn(&R) -> Result<(String, u32, u64)>,
+    FFields: Fn(&RecordBatch, usize) -> Result<(String, u32, u64)>,
     FAppend: Fn(&mut MaterialMap<u32>, Option<cityjson::prelude::MaterialHandle>),
-    FExceeds: Fn(&R, usize) -> String,
-    FDuplicate: Fn(&R) -> String,
+    FExceeds: Fn(usize, usize) -> String,
+    FDuplicate: Fn(usize) -> String,
 {
     if rows.is_empty() {
         return Ok(Vec::new());
     }
     let mut grouped = BTreeMap::<String, Vec<Option<cityjson::prelude::MaterialHandle>>>::new();
-    for row in rows {
-        let (theme, ordinal, id) = fields(row)?;
+    for row in rows.clone() {
+        let (theme, ordinal, id) = fields(batch, row)?;
         let ordinal = usize::try_from(ordinal).expect("u32 ordinal fits into usize");
         if ordinal >= primitive_count {
             return Err(Error::Conversion(exceeds_message(row, primitive_count)));
@@ -5360,7 +5262,8 @@ where
 }
 
 fn build_ordered_template_semantic_map(
-    rows: &[TemplateGeometrySemanticRow],
+    batch: &RecordBatch,
+    rows: &Range<usize>,
     expected_primitive_type: &str,
     expected_count: usize,
     count_label: &str,
@@ -5378,7 +5281,8 @@ fn build_ordered_template_semantic_map(
     }
 
     let mut map = SemanticMap::new();
-    for (expected_ordinal, row) in rows.iter().enumerate() {
+    for (expected_ordinal, row_index) in rows.clone().enumerate() {
+        let row = read_template_geometry_semantic_row(batch, row_index)?;
         if row.primitive_type != expected_primitive_type {
             return Err(Error::Conversion(format!(
                 "template {count_label} semantic row has unexpected primitive type {}",
@@ -5412,14 +5316,20 @@ fn build_ordered_template_semantic_map(
 fn build_template_semantic_map(
     geometry_type: &str,
     boundary: &TemplateGeometryBoundaryRow,
-    rows: Option<&Vec<TemplateGeometrySemanticRow>>,
+    rows: Option<&GroupedRowBatch>,
+    template_geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::SemanticHandle>,
 ) -> Result<Option<SemanticMap<u32>>> {
-    let Some(rows) = rows else {
+    let Some(grouped) = rows else {
         return Ok(None);
     };
+    let Some(rows) = grouped_row_range(Some(grouped), template_geometry_id) else {
+        return Ok(None);
+    };
+    let batch = &grouped.batch;
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint => build_ordered_template_semantic_map(
+            batch,
             rows,
             PRIMITIVE_TYPE_POINT,
             boundary.vertex_indices.len(),
@@ -5427,6 +5337,7 @@ fn build_template_semantic_map(
             handles,
         ),
         GeometryType::MultiLineString => build_ordered_template_semantic_map(
+            batch,
             rows,
             PRIMITIVE_TYPE_LINESTRING,
             required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len(),
@@ -5438,6 +5349,7 @@ fn build_template_semantic_map(
         | GeometryType::Solid
         | GeometryType::MultiSolid
         | GeometryType::CompositeSolid => build_ordered_template_semantic_map(
+            batch,
             rows,
             PRIMITIVE_TYPE_SURFACE,
             template_surface_count(boundary),
@@ -5452,20 +5364,23 @@ fn build_template_semantic_map(
 fn build_template_material_maps(
     geometry_type: &str,
     boundary: &TemplateGeometryBoundaryRow,
-    rows: Option<&Vec<TemplateGeometryMaterialRow>>,
+    rows: Option<&GroupedRowBatch>,
+    template_geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::MaterialHandle>,
 ) -> Result<Option<MaterialThemeMaps>> {
-    let Some(rows) = rows else {
+    let Some(grouped) = rows else {
         return Ok(None);
     };
-    if rows.is_empty() {
+    let Some(rows) = grouped_row_range(Some(grouped), template_geometry_id) else {
         return Ok(None);
-    }
+    };
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint => grouped_material_maps(
+            &grouped.batch,
             rows,
             boundary.vertex_indices.len(),
-            |row| {
+            |batch, row| {
+                let row = read_template_geometry_material_row(batch, row)?;
                 if row.primitive_type != PRIMITIVE_TYPE_POINT {
                     return Err(Error::Conversion(format!(
                         "template point material row has unexpected primitive type {}",
@@ -5477,23 +5392,21 @@ fn build_template_material_maps(
             MaterialMap::add_point,
             |row, count| {
                 format!(
-                    "template material assignment point ordinal {} exceeds point count {}",
-                    row.primitive_ordinal, count
+                    "template material assignment row {row} exceeds point count {count}",
                 )
             },
             |row| {
-                format!(
-                    "duplicate template material assignment for theme {} point {}",
-                    row.theme, row.primitive_ordinal
-                )
+                format!("duplicate template material assignment at row {row}")
             },
             handles,
         )
         .map(Some),
         GeometryType::MultiLineString => grouped_material_maps(
+            &grouped.batch,
             rows,
             required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len(),
-            |row| {
+            |batch, row| {
+                let row = read_template_geometry_material_row(batch, row)?;
                 if row.primitive_type != PRIMITIVE_TYPE_LINESTRING {
                     return Err(Error::Conversion(format!(
                         "template linestring material row has unexpected primitive type {}",
@@ -5505,16 +5418,10 @@ fn build_template_material_maps(
             MaterialMap::add_linestring,
             |row, count| {
                 format!(
-                    "template material assignment linestring ordinal {} exceeds linestring count {}",
-                    row.primitive_ordinal, count
+                    "template material assignment row {row} exceeds linestring count {count}",
                 )
             },
-            |row| {
-                format!(
-                    "duplicate template material assignment for theme {} linestring {}",
-                    row.theme, row.primitive_ordinal
-                )
-            },
+            |row| format!("duplicate template material assignment at row {row}"),
             handles,
         )
         .map(Some),
@@ -5523,9 +5430,11 @@ fn build_template_material_maps(
         | GeometryType::Solid
         | GeometryType::MultiSolid
         | GeometryType::CompositeSolid => grouped_material_maps(
+            &grouped.batch,
             rows,
             template_surface_count(boundary),
-            |row| {
+            |batch, row| {
+                let row = read_template_geometry_material_row(batch, row)?;
                 if row.primitive_type != PRIMITIVE_TYPE_SURFACE {
                     return Err(Error::Conversion(format!(
                         "template surface material row has unexpected primitive type {}",
@@ -5537,16 +5446,10 @@ fn build_template_material_maps(
             MaterialMap::add_surface,
             |row, count| {
                 format!(
-                    "template material assignment surface ordinal {} exceeds surface count {}",
-                    row.primitive_ordinal, count
+                    "template material assignment row {row} exceeds surface count {count}",
                 )
             },
-            |row| {
-                format!(
-                    "duplicate template material assignment for theme {} surface {}",
-                    row.theme, row.primitive_ordinal
-                )
-            },
+            |row| format!("duplicate template material assignment at row {row}"),
             handles,
         )
         .map(Some),
@@ -5558,15 +5461,16 @@ fn build_template_material_maps(
 fn build_template_texture_maps(
     geometry_type: &str,
     boundary: &TemplateGeometryBoundaryRow,
-    rows: Option<&Vec<TemplateGeometryRingTextureRow>>,
+    rows: Option<&GroupedRowBatch>,
+    template_geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
 ) -> Result<Option<TextureThemeMaps>> {
-    let Some(rows) = rows else {
+    let Some(grouped) = rows else {
         return Ok(None);
     };
-    if rows.is_empty() {
+    let Some(rows) = grouped_row_range(Some(grouped), template_geometry_id) else {
         return Ok(None);
-    }
+    };
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiSurface
         | GeometryType::CompositeSurface
@@ -5581,7 +5485,8 @@ fn build_template_texture_maps(
                 .collect::<HashMap<_, _>>();
             let mut maps = BTreeMap::<String, TextureMap<u32>>::new();
 
-            for row in rows {
+            for row_index in rows.clone() {
+                let row = read_template_geometry_ring_texture_row(&grouped.batch, row_index)?;
                 let layout_index = *ring_lookup
                     .get(&(row.surface_ordinal, row.ring_ordinal))
                     .ok_or_else(|| {
@@ -5645,15 +5550,16 @@ fn build_template_texture_maps(
 fn build_texture_maps(
     geometry_type: &str,
     boundary: &GeometryBoundaryRow,
-    rows: Option<&Vec<GeometryRingTextureRow>>,
+    rows: Option<&GroupedRowBatch>,
+    geometry_id: u64,
     handles: &HashMap<u64, cityjson::prelude::TextureHandle>,
 ) -> Result<Option<TextureThemeMaps>> {
-    let Some(rows) = rows else {
+    let Some(grouped) = rows else {
         return Ok(None);
     };
-    if rows.is_empty() {
+    let Some(rows) = grouped_row_range(Some(grouped), geometry_id) else {
         return Ok(None);
-    }
+    };
     match parse_geometry_type(geometry_type)? {
         GeometryType::MultiSurface
         | GeometryType::CompositeSurface
@@ -5668,7 +5574,8 @@ fn build_texture_maps(
                 .collect::<HashMap<_, _>>();
             let mut maps = BTreeMap::<String, TextureMap<u32>>::new();
 
-            for row in rows {
+            for row_index in rows.clone() {
+                let row = read_geometry_ring_texture_row(&grouped.batch, row_index)?;
                 let layout_index = *ring_lookup
                     .get(&(row.surface_ordinal, row.ring_ordinal))
                     .ok_or_else(|| {
@@ -5918,52 +5825,6 @@ fn parse_texture_mapping_type(value: &str) -> Result<TextureType> {
     })
 }
 
-fn parse_rgb_json(value: &str) -> Result<RGB> {
-    let json: JsonValue = serde_json::from_str(value)?;
-    let array = json
-        .as_array()
-        .ok_or_else(|| Error::Conversion("rgb payload must be a JSON array".to_string()))?;
-    if array.len() != 3 {
-        return Err(Error::Conversion(format!(
-            "rgb payload must contain 3 elements, found {}",
-            array.len()
-        )));
-    }
-    let mut values = [0.0_f32; 3];
-    for (index, component) in array.iter().enumerate() {
-        values[index] = component
-            .as_f64()
-            .ok_or_else(|| Error::Conversion("rgb component must be numeric".to_string()))?
-            .to_string()
-            .parse::<f32>()
-            .map_err(|error| Error::Conversion(format!("invalid rgb component: {error}")))?;
-    }
-    Ok(RGB::from(values))
-}
-
-fn parse_rgba_json(value: &str) -> Result<RGBA> {
-    let json: JsonValue = serde_json::from_str(value)?;
-    let array = json
-        .as_array()
-        .ok_or_else(|| Error::Conversion("rgba payload must be a JSON array".to_string()))?;
-    if array.len() != 4 {
-        return Err(Error::Conversion(format!(
-            "rgba payload must contain 4 elements, found {}",
-            array.len()
-        )));
-    }
-    let mut values = [0.0_f32; 4];
-    for (index, component) in array.iter().enumerate() {
-        values[index] = component
-            .as_f64()
-            .ok_or_else(|| Error::Conversion("rgba component must be numeric".to_string()))?
-            .to_string()
-            .parse::<f32>()
-            .map_err(|error| Error::Conversion(format!("invalid rgba component: {error}")))?;
-    }
-    Ok(RGBA::from(values))
-}
-
 fn parse_semantic_type(value: &str) -> SemanticType<cityjson::prelude::OwnedStringStorage> {
     match value {
         "Default" => SemanticType::Default,
@@ -5988,50 +5849,6 @@ fn parse_semantic_type(value: &str) -> SemanticType<cityjson::prelude::OwnedStri
         other if other.starts_with('+') => SemanticType::Extension(other.to_string()),
         other => SemanticType::Extension(other.to_string()),
     }
-}
-
-fn contact_from_json(
-    value: &JsonValue,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
-) -> Result<Contact<cityjson::prelude::OwnedStringStorage>> {
-    let object = value.as_object().ok_or_else(|| {
-        Error::Conversion("pointOfContact must be encoded as a JSON object".to_string())
-    })?;
-    let mut contact = Contact::new();
-    if let Some(value) = object.get("contactName").and_then(JsonValue::as_str) {
-        contact.set_contact_name(value.to_string());
-    }
-    if let Some(value) = object.get("emailAddress").and_then(JsonValue::as_str) {
-        contact.set_email_address(value.to_string());
-    }
-    if let Some(value) = object.get("role").and_then(JsonValue::as_str) {
-        contact.set_role(Some(parse_contact_role(value)?));
-    }
-    if let Some(value) = object.get("website").and_then(JsonValue::as_str) {
-        contact.set_website(Some(value.to_string()));
-    }
-    if let Some(value) = object.get("type").and_then(JsonValue::as_str) {
-        contact.set_contact_type(Some(parse_contact_type(value)?));
-    }
-    if let Some(value) = object.get("phone").and_then(JsonValue::as_str) {
-        contact.set_phone(Some(value.to_string()));
-    }
-    if let Some(value) = object.get("organization").and_then(JsonValue::as_str) {
-        contact.set_organization(Some(value.to_string()));
-    }
-    if let Some(address) = object.get("address") {
-        match json_to_attribute(address, geometry_handles)? {
-            AttributeValue::Map(map) => {
-                contact.set_address(Some(map.into()));
-            }
-            other => {
-                return Err(Error::Conversion(format!(
-                    "pointOfContact address must decode to an attribute map, found {other}"
-                )));
-            }
-        }
-    }
-    Ok(contact)
 }
 
 fn parse_contact_role(value: &str) -> Result<ContactRole> {
@@ -6071,48 +5888,6 @@ fn parse_contact_type(value: &str) -> Result<ContactType> {
     })
 }
 
-fn contact_to_json(contact: &Contact<cityjson::prelude::OwnedStringStorage>) -> Result<String> {
-    let mut object = JsonMap::new();
-    object.insert(
-        "contactName".to_string(),
-        JsonValue::String(contact.contact_name().to_string()),
-    );
-    object.insert(
-        "emailAddress".to_string(),
-        JsonValue::String(contact.email_address().to_string()),
-    );
-    if let Some(role) = contact.role() {
-        object.insert("role".to_string(), JsonValue::String(role.to_string()));
-    }
-    if let Some(value) = contact.website().as_ref() {
-        object.insert("website".to_string(), JsonValue::String(value.clone()));
-    }
-    if let Some(kind) = contact.contact_type() {
-        object.insert("type".to_string(), JsonValue::String(kind.to_string()));
-    }
-    if let Some(value) = contact.phone().as_ref() {
-        object.insert("phone".to_string(), JsonValue::String(value.clone()));
-    }
-    if let Some(value) = contact.organization().as_ref() {
-        object.insert("organization".to_string(), JsonValue::String(value.clone()));
-    }
-    if let Some(address) = contact.address() {
-        object.insert(
-            "address".to_string(),
-            attribute_to_json(
-                &AttributeValue::Map(
-                    address
-                        .iter()
-                        .map(|(key, value)| (key.clone(), value.clone()))
-                        .collect::<HashMap<_, _>>(),
-                ),
-                &HashMap::new(),
-            )?,
-        );
-    }
-    Ok(JsonValue::Object(object).to_string())
-}
-
 fn read_large_string_scalar(batch: &RecordBatch, name: &str, row: usize) -> Result<String> {
     let array = downcast_required::<LargeStringArray>(batch, name)?;
     Ok(array.value(row).to_string())
@@ -6137,6 +5912,26 @@ fn read_string_optional(batch: &RecordBatch, name: &str, row: usize) -> Result<O
     Ok((!array.is_null(row)).then(|| array.value(row).to_string()))
 }
 
+fn read_named_large_string_field(
+    array: &StructArray,
+    name: &str,
+    row: usize,
+) -> Result<Option<String>> {
+    let column = array.column_by_name(name).ok_or_else(|| {
+        Error::Conversion(format!("missing struct field {name}"))
+    })?;
+    let column = required_downcast::<LargeStringArray>(column.as_ref(), "large_utf8")?;
+    Ok((!column.is_null(row)).then(|| column.value(row).to_string()))
+}
+
+fn read_named_string_field(array: &StructArray, name: &str, row: usize) -> Result<Option<String>> {
+    let column = array.column_by_name(name).ok_or_else(|| {
+        Error::Conversion(format!("missing struct field {name}"))
+    })?;
+    let column = required_downcast::<StringArray>(column.as_ref(), "utf8")?;
+    Ok((!column.is_null(row)).then(|| column.value(row).to_string()))
+}
+
 fn read_large_string_array_optional(
     array: Option<&LargeStringArray>,
     row: usize,
@@ -6153,6 +5948,27 @@ fn read_bool_array_optional(
     row: usize,
 ) -> Option<bool> {
     array.and_then(|array| (!array.is_null(row)).then(|| array.value(row)))
+}
+
+fn read_list_f64_array_optional<const N: usize>(
+    array: Option<&ListArray>,
+    row: usize,
+) -> Result<Option<[f64; N]>> {
+    let Some(array) = array else {
+        return Ok(None);
+    };
+    if array.is_null(row) {
+        return Ok(None);
+    }
+    let values = array.value(row);
+    let values = values
+        .as_any()
+        .downcast_ref::<Float64Array>()
+        .ok_or_else(|| Error::Conversion("list child is not f64".to_string()))?;
+    let slice = values.values().as_ref();
+    Ok(Some(slice.try_into().map_err(|_| {
+        Error::Conversion(format!("list does not have length {N}"))
+    })?))
 }
 
 fn read_fixed_size_f64_required<const N: usize>(
@@ -6267,19 +6083,19 @@ fn bind_material_columns<'a>(
             projection.material_payload.as_ref(),
             FIELD_MATERIAL_DIFFUSE_COLOR,
         )
-        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_DIFFUSE_COLOR))
+        .then(|| downcast_required::<ListArray>(batch, FIELD_MATERIAL_DIFFUSE_COLOR))
         .transpose()?,
         emissive_color: has_projection_field(
             projection.material_payload.as_ref(),
             FIELD_MATERIAL_EMISSIVE_COLOR,
         )
-        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_EMISSIVE_COLOR))
+        .then(|| downcast_required::<ListArray>(batch, FIELD_MATERIAL_EMISSIVE_COLOR))
         .transpose()?,
         specular_color: has_projection_field(
             projection.material_payload.as_ref(),
             FIELD_MATERIAL_SPECULAR_COLOR,
         )
-        .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_SPECULAR_COLOR))
+        .then(|| downcast_required::<ListArray>(batch, FIELD_MATERIAL_SPECULAR_COLOR))
         .transpose()?,
         shininess: has_projection_field(projection.material_payload.as_ref(), FIELD_MATERIAL_SHININESS)
             .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_SHININESS))
@@ -6313,7 +6129,7 @@ fn bind_texture_columns<'a>(
             .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_TEXTURE_TYPE))
             .transpose()?,
         border_color: has_projection_field(projection.texture_payload.as_ref(), FIELD_TEXTURE_BORDER_COLOR)
-            .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_BORDER_COLOR))
+            .then(|| downcast_required::<ListArray>(batch, FIELD_TEXTURE_BORDER_COLOR))
             .transpose()?,
     })
 }

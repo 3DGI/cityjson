@@ -177,6 +177,7 @@ impl ProjectedFieldSpec {
 pub struct ProjectionLayout {
     pub root_extra: Option<ProjectedStructSpec>,
     pub metadata_extra: Option<ProjectedStructSpec>,
+    pub metadata_point_of_contact_address: Option<ProjectedStructSpec>,
     pub cityobject_attributes: Option<ProjectedStructSpec>,
     pub cityobject_extra: Option<ProjectedStructSpec>,
     pub geometry_extra: Option<ProjectedStructSpec>,
@@ -360,6 +361,28 @@ fn projected_struct_field(name: &str, layout: Option<&ProjectedStructSpec>) -> O
     layout.map(|layout| Field::new(name, DataType::Struct(layout.to_arrow_fields()), true))
 }
 
+fn point_of_contact_field(layout: &ProjectionLayout) -> Field {
+    let mut fields = vec![
+        Field::new("contact_name", DataType::LargeUtf8, false),
+        Field::new("email_address", DataType::LargeUtf8, false),
+        Field::new("role", DataType::Utf8, true),
+        Field::new("website", DataType::LargeUtf8, true),
+        Field::new("contact_type", DataType::Utf8, true),
+        Field::new("phone", DataType::LargeUtf8, true),
+        Field::new("organization", DataType::LargeUtf8, true),
+    ];
+    if let Some(field) =
+        projected_struct_field("address", layout.metadata_point_of_contact_address.as_ref())
+    {
+        fields.push(field);
+    }
+    Field::new(
+        "point_of_contact",
+        DataType::Struct(fields.into_iter().map(Arc::new).collect()),
+        true,
+    )
+}
+
 fn projected_payload_fields(layout: Option<&ProjectedStructSpec>) -> Vec<Field> {
     layout
         .map(|layout| {
@@ -384,7 +407,7 @@ fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("reference_date", DataType::Utf8, true),
         Field::new("default_material_theme", DataType::Utf8, true),
         Field::new("default_texture_theme", DataType::Utf8, true),
-        Field::new("point_of_contact_json", DataType::LargeUtf8, true),
+        point_of_contact_field(layout),
     ];
     if let Some(field) = projected_struct_field("root_extra", layout.root_extra.as_ref()) {
         fields.push(field);

@@ -1,8 +1,10 @@
 use cityarrow::{CityArrowPackageVersion, ModelDecoder, ModelEncoder};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
-    AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Geometry, LoD,
-    OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
+    AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Contact,
+    ContactRole, ContactType, Geometry, ImageType, LoD, OwnedCityModel, OwnedMaterial,
+    OwnedSemantic, OwnedTexture, SemanticMap, SemanticType, StoredGeometryParts, TextureType,
+    WrapMode,
 };
 use cityparquet::{PackageReader, PackageWriter};
 use serde_cityjson::to_string_validated;
@@ -17,6 +19,39 @@ fn sample_model() -> OwnedCityModel {
             "sample-citymodel".to_string(),
         ));
     model.metadata_mut().set_title("Sample".to_string());
+    model
+        .metadata_mut()
+        .set_reference_date(cityjson::v2_0::Date::new("2026-04-02".to_string()));
+    let mut contact = Contact::new();
+    contact.set_contact_name("Example Contact".to_string());
+    contact.set_email_address("contact@example.test".to_string());
+    contact.set_role(Some(ContactRole::PointOfContact));
+    contact.set_contact_type(Some(ContactType::Organization));
+    contact.set_phone(Some("+31-20-1234567".to_string()));
+    contact.set_organization(Some("CityArrow".to_string()));
+    let mut address = cityjson::v2_0::OwnedAttributes::default();
+    address.insert(
+        "locality".to_string(),
+        AttributeValue::String("Amsterdam".to_string()),
+    );
+    address.insert(
+        "postalCode".to_string(),
+        AttributeValue::String("1011AA".to_string()),
+    );
+    contact.set_address(Some(address));
+    model.metadata_mut().set_point_of_contact(Some(contact));
+
+    let mut material = OwnedMaterial::new("Facade".to_string());
+    material.set_diffuse_color(Some([0.8, 0.7, 0.6].into()));
+    material.set_emissive_color(Some([0.1, 0.1, 0.1].into()));
+    material.set_specular_color(Some([0.9, 0.9, 0.9].into()));
+    model.add_material(material).unwrap();
+
+    let mut texture = OwnedTexture::new("textures/facade.png".to_string(), ImageType::Png);
+    texture.set_wrap_mode(Some(WrapMode::Mirror));
+    texture.set_texture_type(Some(TextureType::Specific));
+    texture.set_border_color(Some([0.0, 0.0, 0.0, 1.0].into()));
+    model.add_texture(texture).unwrap();
 
     let roof = model
         .add_semantic(OwnedSemantic::new(SemanticType::RoofSurface))
