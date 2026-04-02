@@ -9,9 +9,10 @@ use cjindex::realistic_workload::{seeded_shuffle, WORKLOAD_SHUFFLE_SEED};
 use cjindex::{CityIndex, IndexedFeatureRef, StorageLayout};
 use cjlib::json::staged;
 use cjlib::Result;
+use std::time::Duration;
+
 use criterion::{Criterion, criterion_group, criterion_main};
 
-const PARALLEL_GET_WORKLOAD_COUNT: usize = 10_000;
 const WORKER_COUNT: usize = 6;
 /// Deterministic number of adjacents per building (median from real data).
 const ADJACENTS_PER_BUILDING: usize = 4;
@@ -106,7 +107,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
         .map(|r| (r.feature_id.clone(), r.clone()))
         .collect();
 
-    // Select deterministic 10K target IDs (only IDs present in both layouts)
+    // Use ALL IDs present in both layouts as targets
     let mut target_ids: Vec<String> = ff_ref_by_id
         .keys()
         .filter(|id| ndjson_ref_by_id.contains_key(*id))
@@ -114,41 +115,34 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
         .collect();
     target_ids.sort();
     seeded_shuffle(&mut target_ids, WORKLOAD_SHUFFLE_SEED);
-    target_ids.truncate(PARALLEL_GET_WORKLOAD_COUNT);
 
-    // Build deterministic adjacency pool (IDs present in both)
-    let mut all_ids_for_adjacency: Vec<String> = ff_ref_by_id
-        .keys()
-        .filter(|id| ndjson_ref_by_id.contains_key(*id))
-        .cloned()
-        .collect();
-    all_ids_for_adjacency.sort();
+    // Build deterministic adjacency in O(N): shuffle once, then pick adjacents
+    // by strided offset into the shuffled list.
+    let n = target_ids.len();
+    let mut adj_order = target_ids.clone();
+    seeded_shuffle(&mut adj_order, WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe);
 
-    let mut cjindex_work = Vec::with_capacity(target_ids.len());
-    let mut baseline_work = Vec::with_capacity(target_ids.len());
+    let mut cjindex_work = Vec::with_capacity(n);
+    let mut baseline_work = Vec::with_capacity(n);
     let mut metadata_cache: HashMap<PathBuf, Vec<u8>> = HashMap::new();
 
     for (i, target_id) in target_ids.iter().enumerate() {
         let ff_target_ref = ff_ref_by_id[target_id].clone();
         let ndjson_target_ref = ndjson_ref_by_id[target_id].clone();
 
-        // Deterministic adjacency
-        let mut adj_pool = all_ids_for_adjacency.clone();
-        seeded_shuffle(
-            &mut adj_pool,
-            WORKLOAD_SHUFFLE_SEED ^ (i as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15),
-        );
-
-        let adjacent_ids: Vec<&String> = adj_pool
-            .iter()
-            .filter(|id| *id != target_id)
-            .take(ADJACENTS_PER_BUILDING)
-            .collect();
-
-        let ndjson_adjacent_refs: Vec<IndexedFeatureRef> = adjacent_ids
-            .iter()
-            .filter_map(|id| ndjson_ref_by_id.get(*id).cloned())
-            .collect();
+        // Pick ADJACENTS_PER_BUILDING neighbors from the pre-shuffled list,
+        // skipping self.
+        let mut ndjson_adjacent_refs = Vec::with_capacity(ADJACENTS_PER_BUILDING);
+        let mut adjacent_ids_for_baseline = Vec::with_capacity(ADJACENTS_PER_BUILDING);
+        let mut j = (i + 1) % n;
+        while ndjson_adjacent_refs.len() < ADJACENTS_PER_BUILDING && j != i {
+            let adj_id = &adj_order[j];
+            if adj_id != target_id {
+                ndjson_adjacent_refs.push(ndjson_ref_by_id[adj_id].clone());
+                adjacent_ids_for_baseline.push(adj_id.clone());
+            }
+            j = (j + 1) % n;
+        }
 
         // Baseline: resolve file paths from feature-files layout
         let target_dir = ff_target_ref.source_path.parent().unwrap().to_path_buf();
@@ -159,9 +153,9 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
             }
         }
 
-        let mut adjacent_paths = Vec::with_capacity(adjacent_ids.len());
-        for adj_id in &adjacent_ids {
-            let adj_ref = &ff_ref_by_id[*adj_id];
+        let mut adjacent_paths = Vec::with_capacity(ADJACENTS_PER_BUILDING);
+        for adj_id in &adjacent_ids_for_baseline {
+            let adj_ref = &ff_ref_by_id[adj_id];
             let adj_dir = adj_ref.source_path.parent().unwrap().to_path_buf();
             if !metadata_cache.contains_key(&adj_dir) {
                 let md_path = adj_dir.join("metadata.json");
@@ -287,9 +281,88 @@ fn bench_parallel_get(c: &mut Criterion) {
     });
 }
 
+fn bench_parallel_io_only(c: &mut Criterion) {
+    let fixture = prepare_fixture().expect("fixture should prepare");
+
+    c.bench_function("parallel_io_baseline", |b| {
+        let metadata_cache = &fixture.metadata_cache;
+        let work = &fixture.baseline_work;
+
+        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunks: Vec<&[BaselineBuildingWork]> = work.chunks(chunk_size).collect();
+
+        b.iter(|| {
+            thread::scope(|s| {
+                for chunk in &chunks {
+                    s.spawn(|| {
+                        for item in *chunk {
+                            let target_bytes = fs::read(&item.target_path)
+                                .expect("target file should be readable");
+                            black_box(&target_bytes);
+                            let target_meta = metadata_cache
+                                .get(&item.target_metadata_dir)
+                                .expect("target metadata should exist");
+                            black_box(target_meta);
+
+                            for (adj_path, adj_meta_dir) in &item.adjacent_paths {
+                                let adj_bytes =
+                                    fs::read(adj_path).expect("adjacent file should be readable");
+                                black_box(&adj_bytes);
+                                let adj_meta = metadata_cache
+                                    .get(adj_meta_dir)
+                                    .expect("adjacent metadata should exist");
+                                black_box(adj_meta);
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    });
+
+    c.bench_function("parallel_io_cjindex_ndjson", |b| {
+        let index_path = &fixture.ndjson_index_path;
+        let ndjson_root = &fixture.ndjson_root;
+        let work = &fixture.cjindex_work;
+
+        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunks: Vec<&[BuildingWork]> = work.chunks(chunk_size).collect();
+
+        b.iter(|| {
+            thread::scope(|s| {
+                for chunk in &chunks {
+                    s.spawn(|| {
+                        let index = CityIndex::open(
+                            StorageLayout::Ndjson {
+                                paths: vec![ndjson_root.clone()],
+                            },
+                            index_path,
+                        )
+                        .expect("index should open");
+
+                        for item in *chunk {
+                            let target_bytes = index
+                                .read_feature_bytes(black_box(&item.target_ref))
+                                .expect("read_feature_bytes should succeed");
+                            black_box(&target_bytes);
+
+                            for adj_ref in &item.adjacent_refs {
+                                let adj_bytes = index
+                                    .read_feature_bytes(black_box(adj_ref))
+                                    .expect("read_feature_bytes should succeed");
+                                black_box(&adj_bytes);
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    });
+}
+
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(10);
-    targets = bench_parallel_get
+    config = Criterion::default().sample_size(10).measurement_time(Duration::from_secs(120));
+    targets = bench_parallel_get, bench_parallel_io_only
 }
 criterion_main!(benches);
