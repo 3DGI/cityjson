@@ -80,10 +80,7 @@ pub fn build_parts_from_tables(
 /// # Errors
 ///
 /// Returns an error when stream serialization fails.
-pub fn write_stream_parts<W: std::io::Write>(
-    parts: &CityModelArrowParts,
-    writer: W,
-) -> Result<()> {
+pub fn write_stream_parts<W: std::io::Write>(parts: &CityModelArrowParts, writer: W) -> Result<()> {
     crate::stream::write_parts_stream(parts, writer)
 }
 

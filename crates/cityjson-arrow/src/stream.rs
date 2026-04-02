@@ -139,8 +139,9 @@ fn read_stream_prelude<R: Read>(reader: &mut R) -> Result<StreamPrelude> {
         ));
     }
 
-    let prelude_len = usize::try_from(read_u64(reader)?)
-        .map_err(|_| Error::Conversion("stream prelude length does not fit in memory".to_string()))?;
+    let prelude_len = usize::try_from(read_u64(reader)?).map_err(|_| {
+        Error::Conversion("stream prelude length does not fit in memory".to_string())
+    })?;
     let mut prelude_bytes = vec![0_u8; prelude_len];
     reader.read_exact(&mut prelude_bytes)?;
     serde_json::from_slice(&prelude_bytes).map_err(Error::from)
@@ -156,8 +157,9 @@ fn read_stream_frames<R: Read>(reader: &mut R) -> Result<(StreamPrelude, StreamF
             break;
         }
         let table = CanonicalTable::from_stream_tag(tag)?;
-        let expected_rows = usize::try_from(read_u64(reader)?)
-            .map_err(|_| Error::Conversion("stream row count does not fit in memory".to_string()))?;
+        let expected_rows = usize::try_from(read_u64(reader)?).map_err(|_| {
+            Error::Conversion("stream row count does not fit in memory".to_string())
+        })?;
         let batch = deserialize_stream_batch(
             reader,
             schema_for_table(&schemas, table),

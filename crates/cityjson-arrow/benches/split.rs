@@ -111,7 +111,9 @@ fn split_benches(c: &mut Criterion) {
     c.bench_function("stream_write_model", |b| {
         b.iter(|| {
             let mut bytes = Vec::new();
-            ModelEncoder.encode(&model, &mut bytes).expect("encode stream");
+            ModelEncoder
+                .encode(&model, &mut bytes)
+                .expect("encode stream");
         });
     });
     c.bench_function("stream_read_model", |b| {
@@ -134,7 +136,9 @@ fn split_benches(c: &mut Criterion) {
     });
     c.bench_function("package_write_model", |b| {
         b.iter(|| {
-            let _ = PackageWriter.write_file(&model_path, &model).expect("write package");
+            let _ = PackageWriter
+                .write_file(&model_path, &model)
+                .expect("write package");
         });
     });
     c.bench_function("package_read_model", |b| {
@@ -154,7 +158,9 @@ fn split_benches(c: &mut Criterion) {
     });
     c.bench_function("package_read_manifest", |b| {
         b.iter(|| {
-            let _ = PackageReader.read_manifest(&model_path).expect("read manifest");
+            let _ = PackageReader
+                .read_manifest(&model_path)
+                .expect("read manifest");
         });
     });
 }

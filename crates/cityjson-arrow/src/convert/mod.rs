@@ -665,7 +665,10 @@ pub(crate) fn emit_tables<S: CanonicalTableSink>(
         CanonicalTable::TemplateGeometries,
         geometry.template_geometries,
     )?;
-    sink.push_batch(CanonicalTable::GeometryBoundaries, geometry.geometry_boundaries)?;
+    sink.push_batch(
+        CanonicalTable::GeometryBoundaries,
+        geometry.geometry_boundaries,
+    )?;
     push_optional_batch(
         sink,
         CanonicalTable::GeometrySurfaceSemantics,
@@ -795,9 +798,7 @@ impl CanonicalTableSink for PartsSink {
             CanonicalTable::GeometryBoundaries => &mut self.geometry_boundaries,
             CanonicalTable::GeometrySurfaceSemantics => &mut self.geometry_surface_semantics,
             CanonicalTable::GeometryPointSemantics => &mut self.geometry_point_semantics,
-            CanonicalTable::GeometryLinestringSemantics => {
-                &mut self.geometry_linestring_semantics
-            }
+            CanonicalTable::GeometryLinestringSemantics => &mut self.geometry_linestring_semantics,
             CanonicalTable::GeometrySurfaceMaterials => &mut self.geometry_surface_materials,
             CanonicalTable::GeometryRingTextures => &mut self.geometry_ring_textures,
             CanonicalTable::GeometryInstances => &mut self.geometry_instances,
@@ -1076,7 +1077,11 @@ impl IncrementalDecoder {
     }
 
     pub(crate) fn push_batch(&mut self, table: CanonicalTable, batch: &RecordBatch) -> Result<()> {
-        validate_schema(schema_for_table(&self.schemas, table), batch.schema(), table)?;
+        validate_schema(
+            schema_for_table(&self.schemas, table),
+            batch.schema(),
+            table,
+        )?;
         self.validate_table_order(table)?;
         self.dispatch_table(table, batch)?;
         self.seen_tables.insert(table);
@@ -1086,9 +1091,9 @@ impl IncrementalDecoder {
 
     pub(crate) fn finish(self) -> Result<OwnedCityModel> {
         ensure_required_tables_seen(&self.seen_tables)?;
-        let mut state = self
-            .state
-            .ok_or_else(|| Error::Unsupported("stream or package is missing metadata".to_string()))?;
+        let mut state = self.state.ok_or_else(|| {
+            Error::Unsupported("stream or package is missing metadata".to_string())
+        })?;
         attach_cityobject_geometries(&mut state)?;
         Ok(state.model)
     }
@@ -1143,14 +1148,18 @@ impl IncrementalDecoder {
             CanonicalTable::TemplateVertices => {
                 import_template_vertex_batch(batch, self.state_mut()?)?;
             }
-            CanonicalTable::TextureVertices => import_texture_vertex_batch(batch, self.state_mut()?)?,
+            CanonicalTable::TextureVertices => {
+                import_texture_vertex_batch(batch, self.state_mut()?)?
+            }
             CanonicalTable::Semantics => {
                 let projection = self.projection.clone();
                 let state = self.state_mut()?;
                 let handles = import_semantics_batch(batch, &projection, &mut state.model)?;
                 state.semantic_handle_by_id = handles;
             }
-            CanonicalTable::SemanticChildren => import_semantic_child_batch(batch, self.state_mut()?)?,
+            CanonicalTable::SemanticChildren => {
+                import_semantic_child_batch(batch, self.state_mut()?)?
+            }
             CanonicalTable::Materials => {
                 let projection = self.projection.clone();
                 let state = self.state_mut()?;
@@ -1270,7 +1279,9 @@ impl IncrementalDecoder {
 
     fn state_mut(&mut self) -> Result<&mut ImportState> {
         self.state.as_mut().ok_or_else(|| {
-            Error::Unsupported("metadata table must arrive before other canonical tables".to_string())
+            Error::Unsupported(
+                "metadata table must arrive before other canonical tables".to_string(),
+            )
         })
     }
 }
@@ -1340,7 +1351,12 @@ fn initialize_model_from_metadata(
             metadata_row.cityjson_version, header.cityjson_version
         )));
     }
-    apply_metadata_row(&mut model, &metadata_row, projection, &empty_geometry_handles)?;
+    apply_metadata_row(
+        &mut model,
+        &metadata_row,
+        projection,
+        &empty_geometry_handles,
+    )?;
 
     Ok(ImportState {
         model,
@@ -1366,7 +1382,8 @@ fn import_semantics_batch(
         let semantic_id = columns.semantic_id.value(row);
         ensure_strictly_increasing_u64(previous_id, semantic_id, "semantic_id")?;
         previous_id = Some(semantic_id);
-        let mut semantic = OwnedSemantic::new(parse_semantic_type(columns.semantic_type.value(row)));
+        let mut semantic =
+            OwnedSemantic::new(parse_semantic_type(columns.semantic_type.value(row)));
         apply_projected_attributes(
             semantic.attributes_mut(),
             &projection.semantic_attributes,
@@ -1440,7 +1457,9 @@ fn import_vertex_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<(
     for row in read_vertex_rows(batch)? {
         state
             .model
-            .add_vertex(cityjson::v2_0::RealWorldCoordinate::new(row.x, row.y, row.z))?;
+            .add_vertex(cityjson::v2_0::RealWorldCoordinate::new(
+                row.x, row.y, row.z,
+            ))?;
     }
     Ok(())
 }
@@ -1613,7 +1632,9 @@ fn import_template_geometries_batch(
             textures: build_template_texture_maps(
                 columns.geometry_type.value(row),
                 boundary,
-                grouped_rows.template_ring_textures.get(&template_geometry_id),
+                grouped_rows
+                    .template_ring_textures
+                    .get(&template_geometry_id),
                 &state.texture_handle_by_id,
             )?,
             instance: None,
@@ -1702,8 +1723,8 @@ fn import_instance_geometries_batch(batch: &RecordBatch, state: &mut ImportState
                     columns.template_geometry_id.value(row)
                 ))
             })?;
-        let reference_point = u32::try_from(columns.reference_point_vertex_id.value(row))
-            .map_err(|_| {
+        let reference_point =
+            u32::try_from(columns.reference_point_vertex_id.value(row)).map_err(|_| {
                 Error::Conversion(format!(
                     "reference point vertex id {} does not fit into u32",
                     columns.reference_point_vertex_id.value(row)
@@ -1897,7 +1918,6 @@ fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
     }
     Ok(())
 }
-
 
 fn infer_citymodel_id(model: &OwnedCityModel) -> String {
     model

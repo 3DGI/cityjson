@@ -4,10 +4,13 @@ use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use cityarrow::error::{Error, Result};
 use cityarrow::internal::{
-    CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables, emit_part_tables,
-    emit_tables, concat_record_batches, schema_for_table, validate_schema,
+    CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables,
+    concat_record_batches, emit_part_tables, emit_tables, schema_for_table, validate_schema,
 };
-use cityarrow::schema::{CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout, canonical_schema_set};
+use cityarrow::schema::{
+    CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout,
+    canonical_schema_set,
+};
 use cityjson::v2_0::OwnedCityModel;
 use memmap2::Mmap;
 use std::fs::File;
@@ -128,7 +131,10 @@ fn read_package_file(path: impl AsRef<Path>) -> Result<OwnedCityModel> {
     let manifest = read_manifest_from_file(&mut file)?;
     let mmap = unsafe { Mmap::map(&file)? };
     let schemas = canonical_schema_set(&manifest.projection);
-    let mut decoder = IncrementalDecoder::new(CityArrowHeader::from(&manifest), manifest.projection.clone())?;
+    let mut decoder = IncrementalDecoder::new(
+        CityArrowHeader::from(&manifest),
+        manifest.projection.clone(),
+    )?;
 
     for table in &manifest.tables {
         let kind = CanonicalTable::parse(&table.name)?;
@@ -238,11 +244,13 @@ fn read_manifest_from_file(file: &mut File) -> Result<PackageManifest> {
         ));
     }
 
-    let manifest_offset = usize::try_from(u64::from_le_bytes(footer[..8].try_into().expect("footer slice")))
-        .map_err(|_| Error::Conversion("manifest offset does not fit in memory".to_string()))?;
-    let manifest_length = usize::try_from(
-        u64::from_le_bytes(footer[8..16].try_into().expect("footer slice")),
-    )
+    let manifest_offset = usize::try_from(u64::from_le_bytes(
+        footer[..8].try_into().expect("footer slice"),
+    ))
+    .map_err(|_| Error::Conversion("manifest offset does not fit in memory".to_string()))?;
+    let manifest_length = usize::try_from(u64::from_le_bytes(
+        footer[8..16].try_into().expect("footer slice"),
+    ))
     .map_err(|_| Error::Conversion("manifest length does not fit in memory".to_string()))?;
     let footer_start_usize = usize::try_from(footer_start)
         .map_err(|_| Error::Conversion("footer offset does not fit in memory".to_string()))?;
@@ -256,9 +264,9 @@ fn read_manifest_from_file(file: &mut File) -> Result<PackageManifest> {
     }
 
     let mut manifest_bytes = vec![0_u8; manifest_length];
-    file.seek(SeekFrom::Start(u64::try_from(manifest_offset).map_err(|_| {
-        Error::Conversion("manifest offset overflow".to_string())
-    })?))?;
+    file.seek(SeekFrom::Start(u64::try_from(manifest_offset).map_err(
+        |_| Error::Conversion("manifest offset overflow".to_string()),
+    )?))?;
     file.read_exact(&mut manifest_bytes)?;
     serde_json::from_slice(&manifest_bytes).map_err(Error::from)
 }

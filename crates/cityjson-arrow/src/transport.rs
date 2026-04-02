@@ -303,14 +303,8 @@ pub fn collect_tables(parts: &CityModelArrowParts) -> Vec<(CanonicalTable, Recor
             CanonicalTable::GeometryInstances,
             parts.geometry_instances.clone(),
         ),
-        (
-            CanonicalTable::Geometries,
-            Some(parts.geometries.clone()),
-        ),
-        (
-            CanonicalTable::CityObjects,
-            Some(parts.cityobjects.clone()),
-        ),
+        (CanonicalTable::Geometries, Some(parts.geometries.clone())),
+        (CanonicalTable::CityObjects, Some(parts.cityobjects.clone())),
         (
             CanonicalTable::CityObjectChildren,
             parts.cityobject_children.clone(),
