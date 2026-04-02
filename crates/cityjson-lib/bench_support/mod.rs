@@ -4,28 +4,17 @@ use std::fs;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 use cjlib::CityModel;
+use serde::Deserialize;
 use serde_json::Value;
 
 const DEFAULT_BENCH_DATA_ROOT: &str = "target/bench-data";
 const RELEASE_PATH: &str = "3dbag/v20250903";
-const BASE_CASE_ID: &str = "io_3dbag_cityjson";
-const STRESS_CASE_ID: &str = "io_3dbag_cityjson_cluster_4x";
+const PREPARE_INSTRUCTION: &str = "benchmark data is missing; run `just bench-prepare` to materialize the pinned 3DBAG CityJSON, cityarrow, and cityparquet artifacts";
 
-const BASE_CASE_DESCRIPTION: &str =
-    "Pinned real 3DBAG tile from the shared corpus release v20250903.";
-const STRESS_CASE_DESCRIPTION: &str =
-    "Merged four-tile real 3DBAG workload built from contiguous v20250903 tiles.";
-
-const BASE_CASE_FILE: &str = "10-758-50.city.json";
-const BASE_CASE_ARROW_DIR: &str = "10-758-50.arrow-ipc";
-const BASE_CASE_PARQUET_DIR: &str = "10-758-50.parquet";
-const STRESS_CASE_FILE: &str = "cluster_4x.city.json";
-const STRESS_CASE_ARROW_DIR: &str = "cluster_4x.arrow-ipc";
-const STRESS_CASE_PARQUET_DIR: &str = "cluster_4x.parquet";
-
-const PREPARE_INSTRUCTION: &str = "benchmark data is missing; run `just bench-prepare` to materialize the pinned 3DBAG CityJSON, Arrow IPC, and Parquet artifacts";
+static BENCHMARK_CASES: OnceLock<Vec<BenchmarkCase>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub(crate) struct BenchmarkCase {
@@ -33,10 +22,10 @@ pub(crate) struct BenchmarkCase {
     pub(crate) description: String,
     pub(crate) json_path: PathBuf,
     pub(crate) input_bytes: u64,
-    pub(crate) arrow_dir: PathBuf,
-    pub(crate) arrow_bytes: u64,
-    pub(crate) parquet_dir: PathBuf,
-    pub(crate) parquet_bytes: u64,
+    pub(crate) cityarrow_path: PathBuf,
+    pub(crate) cityarrow_bytes: u64,
+    pub(crate) cityparquet_path: PathBuf,
+    pub(crate) cityparquet_bytes: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -53,10 +42,10 @@ pub(crate) enum PreparedWorkload {
         model: CityModel,
     },
     ArrowRead {
-        arrow_dir: PathBuf,
+        cityarrow_path: PathBuf,
     },
     ParquetRead {
-        parquet_dir: PathBuf,
+        cityparquet_path: PathBuf,
     },
 }
 
@@ -91,15 +80,15 @@ pub(crate) const WRITE_WORKLOADS: [Workload; 5] = [
 ];
 
 pub(crate) fn benchmark_cases() -> Vec<BenchmarkCase> {
-    case_specs().into_iter().map(load_case_spec).collect()
+    cached_benchmark_cases().to_vec()
 }
 
 pub(crate) fn load_case(case_id: &str) -> BenchmarkCase {
-    let spec = case_specs()
-        .into_iter()
-        .find(|spec| spec.id == case_id)
-        .unwrap_or_else(|| panic!("unknown benchmark case '{case_id}'"));
-    load_case_spec(spec)
+    cached_benchmark_cases()
+        .iter()
+        .find(|case| case.id == case_id)
+        .cloned()
+        .unwrap_or_else(|| panic!("unknown benchmark case '{case_id}'"))
 }
 
 pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> PreparedWorkload {
@@ -121,10 +110,10 @@ pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> Prep
             model: read_model(&case.json_path),
         },
         Workload::ArrowRead => PreparedWorkload::ArrowRead {
-            arrow_dir: case.arrow_dir.clone(),
+            cityarrow_path: case.cityarrow_path.clone(),
         },
         Workload::ParquetRead => PreparedWorkload::ParquetRead {
-            parquet_dir: case.parquet_dir.clone(),
+            cityparquet_path: case.cityparquet_path.clone(),
         },
     }
 }
@@ -170,9 +159,8 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             let output = cjlib::json::to_vec(black_box(model)).unwrap();
             black_box(output);
         }
-        PreparedWorkload::ArrowRead { arrow_dir } => {
-            let parts = cityarrow::read_package_ipc_dir(black_box(arrow_dir.as_path())).unwrap();
-            let model = cityarrow::from_parts(&parts).unwrap();
+        PreparedWorkload::ArrowRead { cityarrow_path } => {
+            let model = cjlib::arrow::from_file(black_box(cityarrow_path.as_path())).unwrap();
             black_box(model);
         }
         PreparedWorkload::ModelWrite {
@@ -180,13 +168,12 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             model,
         } => {
             let dir = tempfile::tempdir().unwrap();
-            let parts = cityarrow::to_parts(black_box(model.as_inner())).unwrap();
-            cityarrow::write_package_ipc_dir(dir.path(), &parts).unwrap();
+            let path = dir.path().join("model.cjarrow");
+            cjlib::arrow::to_file(&path, black_box(model)).unwrap();
             black_box(dir);
         }
-        PreparedWorkload::ParquetRead { parquet_dir } => {
-            let parts = cityparquet::read_package_dir(black_box(parquet_dir.as_path())).unwrap();
-            let model = cityparquet::from_parts(&parts).unwrap();
+        PreparedWorkload::ParquetRead { cityparquet_path } => {
+            let model = cjlib::parquet::from_file(black_box(cityparquet_path.as_path())).unwrap();
             black_box(model);
         }
         PreparedWorkload::ModelWrite {
@@ -194,8 +181,8 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             model,
         } => {
             let dir = tempfile::tempdir().unwrap();
-            let parts = cityparquet::to_parts(black_box(model.as_inner())).unwrap();
-            cityparquet::write_package_dir(dir.path(), &parts).unwrap();
+            let path = dir.path().join("model.cjparquet");
+            cjlib::parquet::to_file(&path, black_box(model)).unwrap();
             black_box(dir);
         }
         PreparedWorkload::JsonRead { workload, .. }
@@ -224,8 +211,8 @@ pub(crate) fn throughput_bytes(case: &BenchmarkCase, workload: Workload) -> u64 
         Workload::JsonCjlibWrite => cjlib::json::to_vec(&read_model(&case.json_path))
             .unwrap()
             .len() as u64,
-        Workload::ArrowRead | Workload::ArrowWrite => case.arrow_bytes,
-        Workload::ParquetRead | Workload::ParquetWrite => case.parquet_bytes,
+        Workload::ArrowRead | Workload::ArrowWrite => case.cityarrow_bytes,
+        Workload::ParquetRead | Workload::ParquetWrite => case.cityparquet_bytes,
     }
 }
 
@@ -266,50 +253,86 @@ impl FromStr for Workload {
     }
 }
 
-#[derive(Debug, Clone)]
-struct CaseSpec {
-    id: &'static str,
-    description: &'static str,
-    json_path: PathBuf,
-    arrow_dir: PathBuf,
-    parquet_dir: PathBuf,
+#[derive(Debug, Clone, Deserialize)]
+struct ManifestRoot {
+    cases: Vec<ManifestCase>,
 }
 
-fn case_specs() -> Vec<CaseSpec> {
-    let root = bench_data_root().join(RELEASE_PATH);
-    vec![
-        CaseSpec {
-            id: BASE_CASE_ID,
-            description: BASE_CASE_DESCRIPTION,
-            json_path: root.join(BASE_CASE_FILE),
-            arrow_dir: root.join(BASE_CASE_ARROW_DIR),
-            parquet_dir: root.join(BASE_CASE_PARQUET_DIR),
-        },
-        CaseSpec {
-            id: STRESS_CASE_ID,
-            description: STRESS_CASE_DESCRIPTION,
-            json_path: root.join(STRESS_CASE_FILE),
-            arrow_dir: root.join(STRESS_CASE_ARROW_DIR),
-            parquet_dir: root.join(STRESS_CASE_PARQUET_DIR),
-        },
-    ]
+#[derive(Debug, Clone, Deserialize)]
+struct ManifestCase {
+    id: String,
+    description: String,
+    artifacts: ManifestArtifacts,
 }
 
-fn load_case_spec(spec: CaseSpec) -> BenchmarkCase {
-    ensure_file(&spec.json_path);
-    ensure_dir(&spec.arrow_dir);
-    ensure_dir(&spec.parquet_dir);
+#[derive(Debug, Clone, Deserialize)]
+struct ManifestArtifacts {
+    cityjson: ManifestArtifact,
+    cityarrow: ManifestArtifact,
+    cityparquet: ManifestArtifact,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ManifestArtifact {
+    path: PathBuf,
+    byte_size: u64,
+}
+
+fn cached_benchmark_cases() -> &'static [BenchmarkCase] {
+    BENCHMARK_CASES.get_or_init(load_benchmark_cases)
+}
+
+fn load_benchmark_cases() -> Vec<BenchmarkCase> {
+    let manifest_path = benchmark_manifest_path();
+    ensure_file(&manifest_path);
+
+    let manifest_dir = manifest_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
+    let manifest_bytes = fs::read(&manifest_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
+    let manifest: ManifestRoot = serde_json::from_slice(&manifest_bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", manifest_path.display()));
+
+    manifest
+        .cases
+        .into_iter()
+        .map(|case| load_manifest_case(&manifest_dir, case))
+        .collect()
+}
+
+fn load_manifest_case(manifest_dir: &Path, case: ManifestCase) -> BenchmarkCase {
+    let json_path = resolve_artifact_path(manifest_dir, case.artifacts.cityjson.path);
+    let cityarrow_path = resolve_artifact_path(manifest_dir, case.artifacts.cityarrow.path);
+    let cityparquet_path = resolve_artifact_path(manifest_dir, case.artifacts.cityparquet.path);
+
+    ensure_file(&json_path);
+    ensure_file(&cityarrow_path);
+    ensure_file(&cityparquet_path);
 
     BenchmarkCase {
-        id: spec.id.to_string(),
-        description: spec.description.to_string(),
-        input_bytes: file_size_bytes(&spec.json_path),
-        json_path: spec.json_path,
-        arrow_bytes: dir_size_bytes(&spec.arrow_dir),
-        arrow_dir: spec.arrow_dir,
-        parquet_bytes: dir_size_bytes(&spec.parquet_dir),
-        parquet_dir: spec.parquet_dir,
+        id: case.id,
+        description: case.description,
+        json_path,
+        input_bytes: case.artifacts.cityjson.byte_size,
+        cityarrow_path,
+        cityarrow_bytes: case.artifacts.cityarrow.byte_size,
+        cityparquet_path,
+        cityparquet_bytes: case.artifacts.cityparquet.byte_size,
     }
+}
+
+fn resolve_artifact_path(manifest_dir: &Path, path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
+    } else {
+        manifest_dir.join(path)
+    }
+}
+
+fn benchmark_manifest_path() -> PathBuf {
+    bench_data_root().join(RELEASE_PATH).join("manifest.json")
 }
 
 fn bench_data_root() -> PathBuf {
@@ -349,40 +372,4 @@ fn ensure_file(path: &Path) {
         PREPARE_INSTRUCTION,
         path.display()
     );
-}
-
-fn ensure_dir(path: &Path) {
-    assert!(
-        path.join("manifest.json").is_file(),
-        "{} ({})",
-        PREPARE_INSTRUCTION,
-        path.display()
-    );
-}
-
-fn file_size_bytes(path: &Path) -> u64 {
-    fs::metadata(path)
-        .unwrap_or_else(|error| panic!("failed to stat {}: {error}", path.display()))
-        .len()
-}
-
-fn dir_size_bytes(path: &Path) -> u64 {
-    let mut total = 0_u64;
-    for entry in fs::read_dir(path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
-    {
-        let entry = entry.unwrap_or_else(|error| {
-            panic!("failed to read dir entry for {}: {error}", path.display())
-        });
-        let entry_path = entry.path();
-        let metadata = entry
-            .metadata()
-            .unwrap_or_else(|error| panic!("failed to stat {}: {error}", entry_path.display()));
-        if metadata.is_dir() {
-            total += dir_size_bytes(&entry_path);
-        } else {
-            total += metadata.len();
-        }
-    }
-    total
 }

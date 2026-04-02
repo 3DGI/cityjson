@@ -91,8 +91,8 @@ cjlib::parquet::to_file("tiles-out.cjparquet", &model)?;
 # }
 ```
 
-Format choice stays explicit at the call site. Both paths create package
-directories rooted at the given path.
+Format choice stays explicit at the call site. The Arrow path writes one live
+Arrow IPC stream file. The Parquet path writes one persistent package file.
 
 ## Drop Down To `cjlib::cityjson` For Model Work
 

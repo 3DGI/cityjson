@@ -1,22 +1,22 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     let args = parse_args(env::args().skip(1).collect());
     let model = cjlib::CityModel::from_file(&args.input)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
 
-    if let Some(path) = args.arrow_dir.as_ref() {
-        reset_output_dir(path);
-        cjlib::arrow::write_package_dir(path, &model)
+    if let Some(path) = args.arrow_file.as_ref() {
+        reset_output_path(path);
+        cjlib::arrow::to_file(path, &model)
             .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }
 
-    if let Some(path) = args.parquet_dir.as_ref() {
-        reset_output_dir(path);
-        cjlib::parquet::write_package_dir(path, &model)
+    if let Some(path) = args.parquet_file.as_ref() {
+        reset_output_path(path);
+        cjlib::parquet::to_file(path, &model)
             .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }
@@ -25,14 +25,14 @@ fn main() {
 #[derive(Debug)]
 struct Args {
     input: PathBuf,
-    arrow_dir: Option<PathBuf>,
-    parquet_dir: Option<PathBuf>,
+    arrow_file: Option<PathBuf>,
+    parquet_file: Option<PathBuf>,
 }
 
 fn parse_args(args: Vec<String>) -> Args {
     let mut input = None;
-    let mut arrow_dir = None;
-    let mut parquet_dir = None;
+    let mut arrow_file = None;
+    let mut parquet_file = None;
 
     let mut index = 0_usize;
     while index < args.len() {
@@ -41,13 +41,13 @@ fn parse_args(args: Vec<String>) -> Args {
                 index += 1;
                 input = Some(PathBuf::from(value(&args, index, "--input")));
             }
-            "--arrow-dir" => {
+            "--arrow-file" => {
                 index += 1;
-                arrow_dir = Some(PathBuf::from(value(&args, index, "--arrow-dir")));
+                arrow_file = Some(PathBuf::from(value(&args, index, "--arrow-file")));
             }
-            "--parquet-dir" => {
+            "--parquet-file" => {
                 index += 1;
-                parquet_dir = Some(PathBuf::from(value(&args, index, "--parquet-dir")));
+                parquet_file = Some(PathBuf::from(value(&args, index, "--parquet-file")));
             }
             "--help" | "-h" => {
                 print_usage();
@@ -60,14 +60,14 @@ fn parse_args(args: Vec<String>) -> Args {
 
     let input = input.unwrap_or_else(|| panic!("missing required --input argument"));
     assert!(
-        arrow_dir.is_some() || parquet_dir.is_some(),
-        "at least one of --arrow-dir or --parquet-dir is required"
+        arrow_file.is_some() || parquet_file.is_some(),
+        "at least one of --arrow-file or --parquet-file is required"
     );
 
     Args {
         input,
-        arrow_dir,
-        parquet_dir,
+        arrow_file,
+        parquet_file,
     }
 }
 
@@ -80,15 +80,21 @@ fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
 fn print_usage() {
     println!("Usage:");
     println!(
-        "  cargo run --bin bench_export_formats -- --input <cityjson> [--arrow-dir <dir>] [--parquet-dir <dir>]"
+        "  cargo run --bin bench_export_formats -- --input <cityjson> [--arrow-file <path>] [--parquet-file <path>]"
     );
 }
 
-fn reset_output_dir(path: &PathBuf) {
-    if path.exists() {
-        fs::remove_dir_all(path)
-            .unwrap_or_else(|error| panic!("failed to remove {}: {error}", path.display()));
+fn reset_output_path(path: &Path) {
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.is_dir() {
+            fs::remove_dir_all(path)
+                .unwrap_or_else(|error| panic!("failed to remove {}: {error}", path.display()));
+        } else {
+            fs::remove_file(path)
+                .unwrap_or_else(|error| panic!("failed to remove {}: {error}", path.display()));
+        }
     }
-    fs::create_dir_all(path.parent().unwrap_or_else(|| std::path::Path::new(".")))
+
+    fs::create_dir_all(path.parent().unwrap_or_else(|| Path::new(".")))
         .unwrap_or_else(|error| panic!("failed to create parent for {}: {error}", path.display()));
 }

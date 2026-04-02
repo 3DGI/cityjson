@@ -49,8 +49,8 @@ Current practical status:
 - `cjlib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cjlib::json`
-- explicit Arrow IPC package transport exists under `cjlib::arrow`
-- explicit Parquet package transport exists under `cjlib::parquet`
+- explicit live Arrow IPC stream transport exists under `cjlib::arrow`
+- explicit cityparquet package-file transport exists under `cjlib::parquet`
 - `tyler` 0.4.0 now dogfoods `cjlib` for CityJSON reading
 - higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
@@ -75,8 +75,8 @@ let feature_text = json::to_feature_string(&model)?;
 Alternative encodings and containers should live in explicit modules:
 
 - `cjlib::json`
-- `cjlib::arrow`, which owns the Arrow transport decomposition and Arrow IPC packages
-- `cjlib::parquet`, which owns Parquet package I/O over that same transport model
+- `cjlib::arrow`, which owns live Arrow IPC stream I/O
+- `cjlib::parquet`, which owns persistent package-file I/O
 
 That keeps the facade predictable:
 

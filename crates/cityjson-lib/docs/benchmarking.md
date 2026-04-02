@@ -15,7 +15,7 @@ Prepared inputs live under `target/bench-data/3dbag/v20250903/`.
 
 The shared corpus is the source of truth. If the sibling
 `../cityjson-benchmarks` checkout already contains the acquired CityJSON,
-Arrow IPC, and Parquet artifacts, `cjlib` reuses them directly.
+cityarrow, and cityparquet artifacts, `cjlib` reuses them directly.
 
 ## Prepare Inputs
 
@@ -25,11 +25,11 @@ just bench-prepare
 
 This will:
 
-- reuse the shared-corpus tile and native package directories if they are already available
+- reuse the shared-corpus tile and native format files if they are already available
 - reuse the shared-corpus `cluster_4x.*` artifacts if they are already available
 - download the missing pinned 3DBAG tiles
 - otherwise merge the four-tile stress case with `cjio`
-- otherwise export local Arrow IPC and Parquet package directories with `bench_export_formats`
+- otherwise export local cityarrow stream files and cityparquet package files with `bench_export_formats`
 
 ## Throughput Benchmarks
 
@@ -43,14 +43,13 @@ The Criterion suite benchmarks:
 - `serde_json::Value` JSON read/write
 - `serde_cityjson` JSON read/write
 - `cjlib::json` JSON read/write
-- `cityarrow` Arrow IPC package read/write
-- `cityparquet` Parquet package read/write
+- `cityarrow` live Arrow IPC stream read/write
+- `cityparquet` persistent package read/write
 
-The Arrow and Parquet timings are end-to-end package `<->` `CityModel`
-benchmarks. The read path consumes prebuilt package directories from the
-corpus; it does not convert from CityJSON inside the timed loop. It still calls
-`read_package_*` and then `from_parts`, so these timings include both native
-package IO and reconstruction of the heap `CityModel`.
+The Arrow and Parquet timings are end-to-end `format <-> CityModel`
+benchmarks. The read path consumes prebuilt native-format files from the
+corpus; it does not convert from CityJSON inside the timed loop. These timings
+therefore include both native IO and reconstruction of the heap `CityModel`.
 
 ## Profiling
 

@@ -16,18 +16,18 @@ merge_tiles=(
 )
 
 base_output="${output_root}/${base_tile}.city.json"
-base_arrow_output="${output_root}/${base_tile}.arrow-ipc"
-base_parquet_output="${output_root}/${base_tile}.parquet"
+base_cityarrow_output="${output_root}/${base_tile}.cjarrow"
+base_cityparquet_output="${output_root}/${base_tile}.cjparquet"
 merged_output="${output_root}/cluster_4x.city.json"
-merged_arrow_output="${output_root}/cluster_4x.arrow-ipc"
-merged_parquet_output="${output_root}/cluster_4x.parquet"
+merged_cityarrow_output="${output_root}/cluster_4x.cjarrow"
+merged_cityparquet_output="${output_root}/cluster_4x.cjparquet"
 manifest_output="${output_root}/manifest.json"
 shared_release_root="${shared_corpus_root}/artifacts/acquired/3dbag/${release_path}"
 shared_merged_output="${shared_release_root}/cluster_4x.city.json"
-shared_base_arrow_output="${shared_release_root}/${base_tile}.arrow-ipc"
-shared_base_parquet_output="${shared_release_root}/${base_tile}.parquet"
-shared_merged_arrow_output="${shared_release_root}/cluster_4x.arrow-ipc"
-shared_merged_parquet_output="${shared_release_root}/cluster_4x.parquet"
+shared_base_cityarrow_output="${shared_release_root}/${base_tile}.cjarrow"
+shared_base_cityparquet_output="${shared_release_root}/${base_tile}.cjparquet"
+shared_merged_cityarrow_output="${shared_release_root}/cluster_4x.cjarrow"
+shared_merged_cityparquet_output="${shared_release_root}/cluster_4x.cjparquet"
 
 for tool in cargo curl gunzip jq uvx; do
   if ! command -v "${tool}" >/dev/null 2>&1; then
@@ -61,44 +61,44 @@ copy_or_download_tile() {
   gunzip -f "${output_path}.gz"
 }
 
-copy_package_dir() {
-  local source_dir="$1"
-  local output_dir="$2"
-  rm -rf "${output_dir}"
-  cp -R "${source_dir}" "${output_dir}"
+copy_artifact() {
+  local source_path="$1"
+  local output_path="$2"
+  rm -rf "${output_path}"
+  cp -R "${source_path}" "${output_path}"
 }
 
-has_package_dir() {
+has_artifact() {
   local path="$1"
-  [[ -f "${path}/manifest.json" ]]
+  [[ -f "${path}" ]]
 }
 
 ensure_native_formats() {
   local input_json="$1"
-  local arrow_output="$2"
-  local parquet_output="$3"
-  local shared_arrow="$4"
-  local shared_parquet="$5"
+  local cityarrow_output="$2"
+  local cityparquet_output="$3"
+  local shared_cityarrow="$4"
+  local shared_cityparquet="$5"
   local export_args=()
 
-  if ! has_package_dir "${arrow_output}" && has_package_dir "${shared_arrow}"; then
-    copy_package_dir "${shared_arrow}" "${arrow_output}"
+  if ! has_artifact "${cityarrow_output}" && has_artifact "${shared_cityarrow}"; then
+    copy_artifact "${shared_cityarrow}" "${cityarrow_output}"
   fi
 
-  if ! has_package_dir "${parquet_output}" && has_package_dir "${shared_parquet}"; then
-    copy_package_dir "${shared_parquet}" "${parquet_output}"
+  if ! has_artifact "${cityparquet_output}" && has_artifact "${shared_cityparquet}"; then
+    copy_artifact "${shared_cityparquet}" "${cityparquet_output}"
   fi
 
-  if has_package_dir "${arrow_output}" && has_package_dir "${parquet_output}"; then
+  if has_artifact "${cityarrow_output}" && has_artifact "${cityparquet_output}"; then
     return
   fi
 
-  if ! has_package_dir "${arrow_output}"; then
-    export_args+=(--arrow-dir "${arrow_output}")
+  if ! has_artifact "${cityarrow_output}"; then
+    export_args+=(--arrow-file "${cityarrow_output}")
   fi
 
-  if ! has_package_dir "${parquet_output}"; then
-    export_args+=(--parquet-dir "${parquet_output}")
+  if ! has_artifact "${cityparquet_output}"; then
+    export_args+=(--parquet-file "${cityparquet_output}")
   fi
 
   cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_export_formats -- \
@@ -124,37 +124,37 @@ fi
 
 ensure_native_formats \
   "${base_output}" \
-  "${base_arrow_output}" \
-  "${base_parquet_output}" \
-  "${shared_base_arrow_output}" \
-  "${shared_base_parquet_output}"
+  "${base_cityarrow_output}" \
+  "${base_cityparquet_output}" \
+  "${shared_base_cityarrow_output}" \
+  "${shared_base_cityparquet_output}"
 
 ensure_native_formats \
   "${merged_output}" \
-  "${merged_arrow_output}" \
-  "${merged_parquet_output}" \
-  "${shared_merged_arrow_output}" \
-  "${shared_merged_parquet_output}"
+  "${merged_cityarrow_output}" \
+  "${merged_cityparquet_output}" \
+  "${shared_merged_cityarrow_output}" \
+  "${shared_merged_cityparquet_output}"
 
 jq -n -S \
   --arg release_path "${release_path}" \
   --arg base_case "io_3dbag_cityjson" \
   --arg base_description "Pinned real 3DBAG tile from the shared corpus release v20250903." \
   --arg base_path "${base_output}" \
-  --arg base_arrow_path "${base_arrow_output}" \
-  --arg base_parquet_path "${base_parquet_output}" \
+  --arg base_cityarrow_path "${base_cityarrow_output}" \
+  --arg base_cityparquet_path "${base_cityparquet_output}" \
   --arg merged_case "io_3dbag_cityjson_cluster_4x" \
   --arg merged_description "Merged four-tile real 3DBAG workload built from contiguous v20250903 tiles." \
   --arg merged_path "${merged_output}" \
-  --arg merged_arrow_path "${merged_arrow_output}" \
-  --arg merged_parquet_path "${merged_parquet_output}" \
+  --arg merged_cityarrow_path "${merged_cityarrow_output}" \
+  --arg merged_cityparquet_path "${merged_cityparquet_output}" \
   --argjson merged_tiles "$(printf '%s\n' "${base_tile}" "${merge_tiles[@]}" | jq -R . | jq -s .)" \
   --argjson base_size "$(stat -c '%s' "${base_output}")" \
-  --argjson base_arrow_size "$(du -sb "${base_arrow_output}" | awk '{print $1}')" \
-  --argjson base_parquet_size "$(du -sb "${base_parquet_output}" | awk '{print $1}')" \
+  --argjson base_cityarrow_size "$(stat -c '%s' "${base_cityarrow_output}")" \
+  --argjson base_cityparquet_size "$(stat -c '%s' "${base_cityparquet_output}")" \
   --argjson merged_size "$(stat -c '%s' "${merged_output}")" \
-  --argjson merged_arrow_size "$(du -sb "${merged_arrow_output}" | awk '{print $1}')" \
-  --argjson merged_parquet_size "$(du -sb "${merged_parquet_output}" | awk '{print $1}')" \
+  --argjson merged_cityarrow_size "$(stat -c '%s' "${merged_cityarrow_output}")" \
+  --argjson merged_cityparquet_size "$(stat -c '%s' "${merged_cityparquet_output}")" \
   '
   {
     release_path: $release_path,
@@ -167,13 +167,13 @@ jq -n -S \
             path: $base_path,
             byte_size: $base_size
           },
-          arrow_ipc: {
-            path: $base_arrow_path,
-            byte_size: $base_arrow_size
+          cityarrow: {
+            path: $base_cityarrow_path,
+            byte_size: $base_cityarrow_size
           },
-          parquet: {
-            path: $base_parquet_path,
-            byte_size: $base_parquet_size
+          cityparquet: {
+            path: $base_cityparquet_path,
+            byte_size: $base_cityparquet_size
           }
         }
       },
@@ -185,13 +185,13 @@ jq -n -S \
             path: $merged_path,
             byte_size: $merged_size
           },
-          arrow_ipc: {
-            path: $merged_arrow_path,
-            byte_size: $merged_arrow_size
+          cityarrow: {
+            path: $merged_cityarrow_path,
+            byte_size: $merged_cityarrow_size
           },
-          parquet: {
-            path: $merged_parquet_path,
-            byte_size: $merged_parquet_size
+          cityparquet: {
+            path: $merged_cityparquet_path,
+            byte_size: $merged_cityparquet_size
           }
         },
         source_tiles: $merged_tiles
@@ -201,9 +201,9 @@ jq -n -S \
   ' > "${manifest_output}"
 
 echo "prepared ${base_output}"
-echo "prepared ${base_arrow_output}"
-echo "prepared ${base_parquet_output}"
+echo "prepared ${base_cityarrow_output}"
+echo "prepared ${base_cityparquet_output}"
 echo "prepared ${merged_output}"
-echo "prepared ${merged_arrow_output}"
-echo "prepared ${merged_parquet_output}"
+echo "prepared ${merged_cityarrow_output}"
+echo "prepared ${merged_cityparquet_output}"
 echo "wrote ${manifest_output}"

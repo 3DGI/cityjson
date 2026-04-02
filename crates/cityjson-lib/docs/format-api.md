@@ -39,10 +39,16 @@ Those modules delegate to backend crates such as `serde_cityjson`,
 Sibling transport modules can stay smaller as long as they follow the same
 semantic rule.
 
-Within that family, `cjlib::arrow` is the canonical home for the
-`CityModelArrowParts` transport decomposition and related schema types.
-`cjlib::parquet` should stay narrower: explicit Parquet package read/write
-entry points that still trade in `CityModel` at the facade boundary.
+Within that family:
+
+- `cjlib::arrow` owns live Arrow IPC stream read and write helpers around
+  `CityModel`
+- `cjlib::parquet` owns persistent package-file read and write helpers around
+  `CityModel`
+
+Transport-native schema and package details stay in the backend crates. The
+`cjlib` facade should expose operations on `CityModel`, not transport parts or
+package internals.
 
 ## One Semantic Unit Across Formats
 
