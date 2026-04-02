@@ -4,15 +4,14 @@ use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use cityarrow::error::{Error, Result};
 use cityarrow::internal::{
-    CanonicalTable, build_parts, collect_tables, concat_record_batches, decode_parts, encode_parts,
-    schema_for_table, validate_schema,
+    CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables, emit_part_tables,
+    emit_tables, concat_record_batches, schema_for_table, validate_schema,
 };
-use cityarrow::schema::{PackageManifest, PackageTableRef, canonical_schema_set};
+use cityarrow::schema::{CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout, canonical_schema_set};
 use cityjson::v2_0::OwnedCityModel;
 use memmap2::Mmap;
-use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 const PACKAGE_MAGIC: &[u8] = b"CITYARROW_PKG_V2\0";
@@ -33,8 +32,7 @@ impl PackageWriter {
         path: impl AsRef<Path>,
         model: &OwnedCityModel,
     ) -> Result<PackageManifest> {
-        let parts = encode_parts(model)?;
-        write_package_file(path, &parts)
+        write_package_model_file(path, model)
     }
 }
 
@@ -48,8 +46,7 @@ impl PackageReader {
     ///
     /// Returns an error when the package cannot be read or decoded.
     pub fn read_file(&self, path: impl AsRef<Path>) -> Result<OwnedCityModel> {
-        let parts = read_package_file(path)?;
-        decode_parts(&parts)
+        read_package_model_file(path)
     }
 
     /// Reads only the package manifest from a single-file `CityArrow` package.
@@ -62,63 +59,77 @@ impl PackageReader {
     }
 }
 
-fn write_package_file(
-    path: impl AsRef<Path>,
-    parts: &cityarrow::schema::CityModelArrowParts,
-) -> Result<PackageManifest> {
-    let path = path.as_ref();
-    let mut payloads = Vec::new();
-    let mut offset = u64::try_from(PACKAGE_MAGIC.len())
-        .map_err(|_| Error::Conversion("package magic length overflow".to_string()))?;
+struct PackageSink {
+    file: File,
+    manifest: Option<PackageManifest>,
+}
 
-    for (table, batch) in collect_tables(parts) {
-        let bytes = serialize_file_batch(&batch)?;
-        let length = u64::try_from(bytes.len()).map_err(|_| {
-            Error::Conversion(format!("{} payload length overflow", table.as_str()))
+impl PackageSink {
+    fn new(file: File) -> Self {
+        Self {
+            file,
+            manifest: None,
+        }
+    }
+
+    fn finish(mut self) -> Result<PackageManifest> {
+        let manifest = self
+            .manifest
+            .take()
+            .ok_or_else(|| Error::Conversion("package manifest was not initialized".to_string()))?;
+        let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+        let manifest_offset = self.file.stream_position()?;
+        let manifest_length = u64::try_from(manifest_bytes.len())
+            .map_err(|_| Error::Conversion("manifest length overflow".to_string()))?;
+        self.file.write_all(&manifest_bytes)?;
+        self.file.write_all(&manifest_offset.to_le_bytes())?;
+        self.file.write_all(&manifest_length.to_le_bytes())?;
+        self.file.write_all(PACKAGE_FOOTER_MAGIC)?;
+        self.file.flush()?;
+        Ok(manifest)
+    }
+}
+
+impl CanonicalTableSink for PackageSink {
+    fn start(&mut self, header: &CityArrowHeader, projection: &ProjectionLayout) -> Result<()> {
+        self.file.write_all(PACKAGE_MAGIC)?;
+        self.manifest = Some(PackageManifest::new(
+            header.citymodel_id.clone(),
+            header.cityjson_version.clone(),
+            projection.clone(),
+        ));
+        Ok(())
+    }
+
+    fn push_batch(&mut self, table: CanonicalTable, batch: RecordBatch) -> Result<()> {
+        let offset = self.file.stream_position()?;
+        write_file_batch(&mut self.file, &batch)?;
+        let end = self.file.stream_position()?;
+        let length = end.checked_sub(offset).ok_or_else(|| {
+            Error::Conversion(format!("{} payload range underflow", table.as_str()))
         })?;
-        payloads.push((
-            PackageTableRef {
+        self.manifest
+            .as_mut()
+            .ok_or_else(|| Error::Conversion("package manifest was not initialized".to_string()))?
+            .tables
+            .push(PackageTableRef {
                 name: table.as_str().to_string(),
                 offset,
                 length,
                 rows: batch.num_rows(),
-            },
-            bytes,
-        ));
-        offset += length;
+            });
+        Ok(())
     }
-
-    let mut manifest = PackageManifest::new(
-        parts.header.citymodel_id.clone(),
-        parts.header.cityjson_version.clone(),
-        parts.projection.clone(),
-    );
-    manifest.tables = payloads.iter().map(|(entry, _)| entry.clone()).collect();
-    let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
-    let manifest_offset = offset;
-    let manifest_length = u64::try_from(manifest_bytes.len())
-        .map_err(|_| Error::Conversion("manifest length overflow".to_string()))?;
-
-    let mut file = File::create(path)?;
-    file.write_all(PACKAGE_MAGIC)?;
-    for (_, payload) in &payloads {
-        file.write_all(payload)?;
-    }
-    file.write_all(&manifest_bytes)?;
-    file.write_all(&manifest_offset.to_le_bytes())?;
-    file.write_all(&manifest_length.to_le_bytes())?;
-    file.write_all(PACKAGE_FOOTER_MAGIC)?;
-    file.flush()?;
-
-    Ok(manifest)
 }
 
-fn read_package_file(path: impl AsRef<Path>) -> Result<cityarrow::schema::CityModelArrowParts> {
-    let file = File::open(path)?;
+fn read_package_file(path: impl AsRef<Path>) -> Result<OwnedCityModel> {
+    let path = path.as_ref();
+    let mut file = File::open(path)?;
+    let manifest = read_manifest_from_file(&mut file)?;
     let mmap = unsafe { Mmap::map(&file)? };
-    let manifest = manifest_from_bytes(&mmap)?;
     let schemas = canonical_schema_set(&manifest.projection);
-    let mut tables = HashMap::new();
+    let mut decoder = IncrementalDecoder::new(CityArrowHeader::from(&manifest), manifest.projection.clone())?;
+
     for table in &manifest.tables {
         let kind = CanonicalTable::parse(&table.name)?;
         let batch = deserialize_file_batch(
@@ -127,10 +138,65 @@ fn read_package_file(path: impl AsRef<Path>) -> Result<cityarrow::schema::CityMo
             table.length,
             schema_for_table(&schemas, kind),
             kind,
+            table.rows,
         )?;
-        tables.insert(kind, batch);
+        decoder.push_batch(kind, &batch)?;
     }
-    build_parts(&manifest, tables)
+
+    decoder.finish()
+}
+
+#[doc(hidden)]
+pub fn write_package_model_file(
+    path: impl AsRef<Path>,
+    model: &OwnedCityModel,
+) -> Result<PackageManifest> {
+    let file = File::create(path)?;
+    let mut sink = PackageSink::new(file);
+    emit_tables(model, &mut sink)?;
+    sink.finish()
+}
+
+#[doc(hidden)]
+pub fn write_package_parts_file(
+    path: impl AsRef<Path>,
+    parts: &CityModelArrowParts,
+) -> Result<PackageManifest> {
+    let file = File::create(path)?;
+    let mut sink = PackageSink::new(file);
+    emit_part_tables(parts, &mut sink)?;
+    sink.finish()
+}
+
+#[doc(hidden)]
+pub fn read_package_model_file(path: impl AsRef<Path>) -> Result<OwnedCityModel> {
+    read_package_file(path)
+}
+
+#[doc(hidden)]
+pub fn read_package_parts_file(path: impl AsRef<Path>) -> Result<CityModelArrowParts> {
+    let path = path.as_ref();
+    let mut file = File::open(path)?;
+    let manifest = read_manifest_from_file(&mut file)?;
+    let mmap = unsafe { Mmap::map(&file)? };
+    let schemas = canonical_schema_set(&manifest.projection);
+    let mut tables = Vec::with_capacity(manifest.tables.len());
+
+    for table in &manifest.tables {
+        let kind = CanonicalTable::parse(&table.name)?;
+        let batch = deserialize_file_batch(
+            &mmap,
+            table.offset,
+            table.length,
+            schema_for_table(&schemas, kind),
+            kind,
+            table.rows,
+        )?;
+        tables.push((kind, batch));
+    }
+
+    let header = CityArrowHeader::from(&manifest);
+    build_parts_from_tables(&header, &manifest.projection, tables)
 }
 
 /// Reads only the manifest from a single-file package.
@@ -140,62 +206,68 @@ fn read_package_file(path: impl AsRef<Path>) -> Result<cityarrow::schema::CityMo
 /// Returns an error when the package footer or manifest cannot be read.
 pub fn read_package_manifest(path: impl AsRef<Path>) -> Result<PackageManifest> {
     let mut file = File::open(path)?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)?;
-    manifest_from_bytes(&bytes)
+    read_manifest_from_file(&mut file)
 }
 
-fn manifest_from_bytes(bytes: &[u8]) -> Result<PackageManifest> {
-    if bytes.len() < PACKAGE_MAGIC.len() + FOOTER_LEN {
+fn read_manifest_from_file(file: &mut File) -> Result<PackageManifest> {
+    let file_len = usize::try_from(file.metadata()?.len())
+        .map_err(|_| Error::Conversion("package file length does not fit in memory".to_string()))?;
+    if file_len < PACKAGE_MAGIC.len() + FOOTER_LEN {
         return Err(Error::Unsupported(
             "package is too small to be a cityarrow package".to_string(),
         ));
     }
-    if &bytes[..PACKAGE_MAGIC.len()] != PACKAGE_MAGIC {
+
+    let mut magic = vec![0_u8; PACKAGE_MAGIC.len()];
+    file.seek(SeekFrom::Start(0))?;
+    file.read_exact(&mut magic)?;
+    if magic != PACKAGE_MAGIC {
         return Err(Error::Unsupported(
             "package header magic is invalid".to_string(),
         ));
     }
 
-    let footer_start = bytes.len() - FOOTER_LEN;
-    if &bytes[footer_start + 16..] != PACKAGE_FOOTER_MAGIC {
+    let footer_start = u64::try_from(file_len - FOOTER_LEN)
+        .map_err(|_| Error::Conversion("package footer offset overflow".to_string()))?;
+    file.seek(SeekFrom::Start(footer_start))?;
+    let mut footer = [0_u8; FOOTER_LEN];
+    file.read_exact(&mut footer)?;
+    if &footer[16..] != PACKAGE_FOOTER_MAGIC {
         return Err(Error::Unsupported(
             "package footer magic is invalid".to_string(),
         ));
     }
 
-    let mut offset_bytes = [0_u8; 8];
-    offset_bytes.copy_from_slice(&bytes[footer_start..footer_start + 8]);
-    let manifest_offset = usize::try_from(u64::from_le_bytes(offset_bytes))
+    let manifest_offset = usize::try_from(u64::from_le_bytes(footer[..8].try_into().expect("footer slice")))
         .map_err(|_| Error::Conversion("manifest offset does not fit in memory".to_string()))?;
-
-    let mut length_bytes = [0_u8; 8];
-    length_bytes.copy_from_slice(&bytes[footer_start + 8..footer_start + 16]);
-    let manifest_length = usize::try_from(u64::from_le_bytes(length_bytes))
-        .map_err(|_| Error::Conversion("manifest length does not fit in memory".to_string()))?;
-
+    let manifest_length = usize::try_from(
+        u64::from_le_bytes(footer[8..16].try_into().expect("footer slice")),
+    )
+    .map_err(|_| Error::Conversion("manifest length does not fit in memory".to_string()))?;
+    let footer_start_usize = usize::try_from(footer_start)
+        .map_err(|_| Error::Conversion("footer offset does not fit in memory".to_string()))?;
     let manifest_end = manifest_offset
         .checked_add(manifest_length)
         .ok_or_else(|| Error::Conversion("manifest range overflow".to_string()))?;
-    if manifest_end > footer_start {
+    if manifest_end > footer_start_usize || manifest_offset < PACKAGE_MAGIC.len() {
         return Err(Error::Unsupported(
             "package manifest range is invalid".to_string(),
         ));
     }
 
-    Ok(serde_json::from_slice(
-        &bytes[manifest_offset..manifest_end],
-    )?)
+    let mut manifest_bytes = vec![0_u8; manifest_length];
+    file.seek(SeekFrom::Start(u64::try_from(manifest_offset).map_err(|_| {
+        Error::Conversion("manifest offset overflow".to_string())
+    })?))?;
+    file.read_exact(&mut manifest_bytes)?;
+    serde_json::from_slice(&manifest_bytes).map_err(Error::from)
 }
 
-fn serialize_file_batch(batch: &RecordBatch) -> Result<Vec<u8>> {
-    let mut cursor = Cursor::new(Vec::new());
-    {
-        let mut writer = FileWriter::try_new(&mut cursor, &batch.schema())?;
-        writer.write(batch)?;
-        writer.finish()?;
-    }
-    Ok(cursor.into_inner())
+fn write_file_batch<W: Write>(writer: &mut W, batch: &RecordBatch) -> Result<()> {
+    let mut file = FileWriter::try_new(writer, &batch.schema())?;
+    file.write(batch)?;
+    file.finish()?;
+    Ok(())
 }
 
 fn deserialize_file_batch(
@@ -204,6 +276,7 @@ fn deserialize_file_batch(
     length: u64,
     expected_schema: &SchemaRef,
     table: CanonicalTable,
+    expected_rows: usize,
 ) -> Result<RecordBatch> {
     let start = usize::try_from(offset).map_err(|_| {
         Error::Conversion(format!("{} offset does not fit in memory", table.as_str()))
@@ -221,5 +294,13 @@ fn deserialize_file_batch(
     let schema = reader.schema();
     validate_schema(expected_schema, &schema, table)?;
     let batches = reader.collect::<std::result::Result<Vec<_>, _>>()?;
-    concat_record_batches(expected_schema, &batches)
+    let batch = concat_record_batches(expected_schema, &batches)?;
+    if batch.num_rows() != expected_rows {
+        return Err(Error::Conversion(format!(
+            "{} table declared {expected_rows} rows but decoded {} rows",
+            table.as_str(),
+            batch.num_rows()
+        )));
+    }
+    Ok(batch)
 }

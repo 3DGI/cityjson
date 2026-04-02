@@ -6,7 +6,6 @@ public-surface refactor benchmark run.
 It complements:
 
 - [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md)
-- [ADR 3 implementation plan](adr-003-implementation-plan.md)
 - [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md)
 
 The purpose of this plan is narrower than the original ADR 3 implementation

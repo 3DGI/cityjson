@@ -1,129 +1,105 @@
 # cityarrow Design
 
-This document defines the transport design and invariants for `cityarrow`.
+This document records the current execution model for `cityarrow` and
+`cityparquet`.
 
-The detailed on-disk contracts live in
-[docs/cityjson-arrow-ipc-spec.md](cityjson-arrow-ipc-spec.md) and
-[docs/cityjson-parquet-spec.md](cityjson-parquet-spec.md).
-The shared summary lives in [docs/package-schema.md](package-schema.md).
-The accepted architectural position for the current implementation is recorded
-in [docs/adr/001-canonical-transport-boundary.md](adr/001-canonical-transport-boundary.md).
+## Core Boundary
 
-## Purpose
+- the semantic API is `cityjson::v2_0::OwnedCityModel`
+- canonical Arrow tables are internal, not public API
+- both live and persistent transport paths share the same canonical table
+  schemas and projection layout
 
-`cityarrow` moves `cityjson-rs` models across Arrow IPC boundaries.
-`cityparquet` handles the Parquet package boundary.
+## Public Surfaces
 
-It does not define a second semantic model family. The semantic core remains
-`cityjson::v2_0::OwnedCityModel`, and the transport decomposition is
-`CityModelArrowParts`.
+- `cityarrow::ModelEncoder` and `cityarrow::ModelDecoder` own the live Arrow
+  IPC stream boundary
+- `cityparquet::PackageWriter` and `cityparquet::PackageReader` own the
+  persistent single-file package boundary
+- `cityarrow::internal` keeps doc-hidden conversion and transport helpers for
+  sibling crates and benchmarks
 
-## Source Model
+## Canonical Table Order
 
-The transport design follows the ownership structure already present in
-`cityjson-rs`.
+The shared transport order is:
 
-- attributes remain attached to semantic owners such as metadata, cityobjects,
-  semantics, materials, and textures
-- shared resources remain pooled for geometries, semantics, materials,
-  textures, and template geometries
-- geometry boundaries remain offset-based and flattened for reconstruction
+1. metadata
+2. transform
+3. extensions
+4. vertices
+5. template vertices
+6. texture vertices
+7. semantics
+8. semantic children
+9. materials
+10. textures
+11. template geometry boundaries
+12. template geometry semantics
+13. template geometry materials
+14. template geometry ring textures
+15. template geometries
+16. geometry boundaries
+17. geometry surface semantics
+18. geometry point semantics
+19. geometry linestring semantics
+20. geometry surface materials
+21. geometry ring textures
+22. geometry instances
+23. geometries
+24. cityobjects
+25. cityobject children
 
-`cityarrow` preserves that semantic structure while normalizing it into a
-package shape that is explicit, schema-checkable, and reconstructible across
-both supported storage encodings.
+That order lets the incremental decoder reconstruct shared pools and geometry
+dependencies before cityobject attachment.
 
-## Design Rules
+## Live Stream
 
-1. `cityarrow` is a transport boundary, not a semantic fork.
-2. The public API trades in `OwnedCityModel`, package helpers, and explicit
-   transport structs.
-3. `CityModelArrowParts` is the canonical transport decomposition.
-4. Canonical package schemas must be valid for both Parquet and Arrow IPC file.
-5. Package changes must be deliberate, documented, and schema-locked in tests.
-6. Reconstruction must use explicit ids and ordinals instead of row order.
+The live stream format is sequential and does not require pre-buffering every
+serialized table payload.
 
-## Transport Decomposition
+- stream magic: `CITYARROW_STREAM_V3\0`
+- prelude: JSON with `{ header, projection }`
+- frame header: `table_tag: u8`, `rows: u64`
+- frame payload: one Arrow IPC stream payload for that canonical table batch
+- stream terminator: tag `255`
 
-The canonical package decomposes a model into component tables that mirror the
-main ownership boundaries in `cityjson-rs`:
+The reader validates schemas per table and feeds batches directly into the
+incremental decoder. It no longer uses whole-stream `read_to_end`.
 
-- metadata and transform
-- extensions
-- vertices and template vertices
-- cityobjects and parent/child relations
-- geometries, geometry boundaries, and geometry instances
-- semantics plus geometry/template assignment tables
-- materials plus geometry/template assignment tables
-- textures, texture vertices, geometry ring textures, and template ring
-  textures
+## Persistent Package
 
-This keeps shared resources explicit and keeps topology and appearance
-assignments reconstructible through joins and ordinals instead of opaque nested
-payloads.
+The persistent package is one seekable file.
 
-## Attribute Encoding
+- package magic: `CITYARROW_PKG_V2\0`
+- table payloads are written directly to the file in canonical order
+- manifest entries record table name, file offset, payload length, and row
+  count
+- the JSON manifest is appended near the end of the file
+- the footer stores `manifest_offset`, `manifest_length`, and
+  `CITYARROW_PKG_IDX\0`
 
-Attributes are projected into flat sibling columns on the owning table.
+Package reads are footer-first. The manifest is read without loading the whole
+file, and the package reader then maps the file and decodes only the referenced
+table payloads.
 
-- primitive values map to native Arrow scalar columns
-- nested arrays and maps fall back to JSON text columns
-- mixed-type logical keys fall back to lossless text instead of Arrow unions
-- geometry references may be carried as explicit geometry ids
+## Decoder Shape
 
-This keeps the canonical schema Parquet-safe while remaining losslessly
-reconstructible.
+The steady-state read path is incremental.
 
-## Geometry Encoding
+- metadata initializes the semantic model
+- shared pools and sidecars are loaded table by table
+- template geometries and geometries are reconstructed from ordered batches
+- cityobjects are attached after geometry handles exist
 
-Geometry remains offset-based in memory and is normalized at the transport
-boundary.
+The public read path no longer rebuilds a full canonical parts aggregate before
+semantic import.
 
-The canonical package writes boundary topology through explicit sidecars such as
-`vertex_indices`, `line_lengths`, `ring_lengths`, `surface_lengths`,
-`shell_lengths`, and `solid_lengths`.
+## Remaining Cost Centers
 
-Semantics, materials, and textures remain parallel sidecars over that topology:
+The current implementation still pays for:
 
-- point assignments align to point order
-- linestring assignments align to linestring order
-- surface assignments align to surface order
-- ring texture assignments align to ring order
-- template assignments use explicit primitive type plus primitive ordinal
+- conversion of `OwnedCityModel` into canonical rows and record batches
+- grouped sidecar staging keyed by canonical ids
+- eager whole-table batch materialization inside each individual payload
 
-## Coordinates And Transform
-
-`cityarrow` serializes the world-coordinate vertex buffers stored by
-`cityjson-rs` and round-trips `transform` as explicit metadata when present.
-
-The canonical package does not assume quantized integer vertices.
-
-## Reader And Writer Scope
-
-The implemented package path is symmetric:
-
-- `convert::to_parts`
-- package write/read through Arrow IPC in `cityarrow`
-- package write/read through Parquet in `cityparquet`
-- `convert::from_parts`
-
-All supported readers reconstruct the same `CityModelArrowParts` shape and then
-the same semantic `OwnedCityModel`.
-
-## Current Scalability Limits
-
-The implemented read and write paths are eager and fully materialized.
-
-- `to_parts` collects full canonical tables in memory before serialization
-- package readers load full tables into memory before reconstruction
-- bounded-memory package handling is not implemented in the current surface
-
-## Non-goals
-
-The canonical package does not try to:
-
-- create a second semantic model beside `OwnedCityModel`
-- force `cityjson-rs` to adopt a transport-native in-memory representation
-- make Arrow union types part of the canonical contract
-- collapse the full CityJSON model into one generic GIS table
-- hide format choice behind a registry or plugin abstraction
+Those are now isolated enough to benchmark separately.

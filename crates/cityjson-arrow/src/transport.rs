@@ -1,10 +1,9 @@
 use crate::error::{Error, Result};
-use crate::schema::{CanonicalSchemaSet, CityModelArrowParts, PackageManifest};
+use crate::schema::{CanonicalSchemaSet, CityArrowHeader, CityModelArrowParts, ProjectionLayout};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CanonicalTable {
     Metadata,
     Transform,
@@ -100,56 +99,185 @@ impl CanonicalTable {
             ))),
         }
     }
+
+    #[must_use]
+    pub const fn stream_tag(self) -> u8 {
+        match self {
+            Self::Metadata => 0,
+            Self::Transform => 1,
+            Self::Extensions => 2,
+            Self::Vertices => 3,
+            Self::TemplateVertices => 4,
+            Self::TextureVertices => 5,
+            Self::Semantics => 6,
+            Self::SemanticChildren => 7,
+            Self::Materials => 8,
+            Self::Textures => 9,
+            Self::TemplateGeometryBoundaries => 10,
+            Self::TemplateGeometrySemantics => 11,
+            Self::TemplateGeometryMaterials => 12,
+            Self::TemplateGeometryRingTextures => 13,
+            Self::TemplateGeometries => 14,
+            Self::GeometryBoundaries => 15,
+            Self::GeometrySurfaceSemantics => 16,
+            Self::GeometryPointSemantics => 17,
+            Self::GeometryLinestringSemantics => 18,
+            Self::GeometrySurfaceMaterials => 19,
+            Self::GeometryRingTextures => 20,
+            Self::GeometryInstances => 21,
+            Self::Geometries => 22,
+            Self::CityObjects => 23,
+            Self::CityObjectChildren => 24,
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when `tag` does not identify a canonical table frame.
+    pub fn from_stream_tag(tag: u8) -> Result<Self> {
+        match tag {
+            0 => Ok(Self::Metadata),
+            1 => Ok(Self::Transform),
+            2 => Ok(Self::Extensions),
+            3 => Ok(Self::Vertices),
+            4 => Ok(Self::TemplateVertices),
+            5 => Ok(Self::TextureVertices),
+            6 => Ok(Self::Semantics),
+            7 => Ok(Self::SemanticChildren),
+            8 => Ok(Self::Materials),
+            9 => Ok(Self::Textures),
+            10 => Ok(Self::TemplateGeometryBoundaries),
+            11 => Ok(Self::TemplateGeometrySemantics),
+            12 => Ok(Self::TemplateGeometryMaterials),
+            13 => Ok(Self::TemplateGeometryRingTextures),
+            14 => Ok(Self::TemplateGeometries),
+            15 => Ok(Self::GeometryBoundaries),
+            16 => Ok(Self::GeometrySurfaceSemantics),
+            17 => Ok(Self::GeometryPointSemantics),
+            18 => Ok(Self::GeometryLinestringSemantics),
+            19 => Ok(Self::GeometrySurfaceMaterials),
+            20 => Ok(Self::GeometryRingTextures),
+            21 => Ok(Self::GeometryInstances),
+            22 => Ok(Self::Geometries),
+            23 => Ok(Self::CityObjects),
+            24 => Ok(Self::CityObjectChildren),
+            other => Err(Error::Unsupported(format!(
+                "unknown canonical stream frame tag {other}"
+            ))),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_required(self) -> bool {
+        matches!(
+            self,
+            Self::Metadata
+                | Self::Vertices
+                | Self::CityObjects
+                | Self::Geometries
+                | Self::GeometryBoundaries
+        )
+    }
+}
+
+#[doc(hidden)]
+pub trait CanonicalTableSink {
+    /// # Errors
+    ///
+    /// Returns an error when the sink cannot initialize the table stream.
+    fn start(&mut self, header: &CityArrowHeader, projection: &ProjectionLayout) -> Result<()>;
+
+    /// # Errors
+    ///
+    /// Returns an error when the sink cannot accept the canonical table batch.
+    fn push_batch(&mut self, table: CanonicalTable, batch: RecordBatch) -> Result<()>;
+}
+
+#[must_use]
+pub const fn canonical_table_order() -> &'static [CanonicalTable] {
+    &[
+        CanonicalTable::Metadata,
+        CanonicalTable::Transform,
+        CanonicalTable::Extensions,
+        CanonicalTable::Vertices,
+        CanonicalTable::TemplateVertices,
+        CanonicalTable::TextureVertices,
+        CanonicalTable::Semantics,
+        CanonicalTable::SemanticChildren,
+        CanonicalTable::Materials,
+        CanonicalTable::Textures,
+        CanonicalTable::TemplateGeometryBoundaries,
+        CanonicalTable::TemplateGeometrySemantics,
+        CanonicalTable::TemplateGeometryMaterials,
+        CanonicalTable::TemplateGeometryRingTextures,
+        CanonicalTable::TemplateGeometries,
+        CanonicalTable::GeometryBoundaries,
+        CanonicalTable::GeometrySurfaceSemantics,
+        CanonicalTable::GeometryPointSemantics,
+        CanonicalTable::GeometryLinestringSemantics,
+        CanonicalTable::GeometrySurfaceMaterials,
+        CanonicalTable::GeometryRingTextures,
+        CanonicalTable::GeometryInstances,
+        CanonicalTable::Geometries,
+        CanonicalTable::CityObjects,
+        CanonicalTable::CityObjectChildren,
+    ]
+}
+
+#[must_use]
+pub fn canonical_table_position(table: CanonicalTable) -> usize {
+    canonical_table_order()
+        .iter()
+        .position(|candidate| *candidate == table)
+        .expect("canonical table order must list every table exactly once")
 }
 
 #[must_use]
 pub fn collect_tables(parts: &CityModelArrowParts) -> Vec<(CanonicalTable, RecordBatch)> {
-    let mut tables = vec![
-        (CanonicalTable::Metadata, parts.metadata.clone()),
-        (CanonicalTable::Vertices, parts.vertices.clone()),
-        (CanonicalTable::CityObjects, parts.cityobjects.clone()),
-        (CanonicalTable::Geometries, parts.geometries.clone()),
-        (
-            CanonicalTable::GeometryBoundaries,
-            parts.geometry_boundaries.clone(),
-        ),
-    ];
-
-    extend_optional_tables(&mut tables, parts);
-    tables
-}
-
-fn extend_optional_tables(
-    tables: &mut Vec<(CanonicalTable, RecordBatch)>,
-    parts: &CityModelArrowParts,
-) {
+    let mut tables = Vec::new();
     for (table, batch) in [
+        (CanonicalTable::Metadata, Some(parts.metadata.clone())),
         (CanonicalTable::Transform, parts.transform.clone()),
         (CanonicalTable::Extensions, parts.extensions.clone()),
-        (
-            CanonicalTable::CityObjectChildren,
-            parts.cityobject_children.clone(),
-        ),
-        (
-            CanonicalTable::GeometryInstances,
-            parts.geometry_instances.clone(),
-        ),
+        (CanonicalTable::Vertices, Some(parts.vertices.clone())),
         (
             CanonicalTable::TemplateVertices,
             parts.template_vertices.clone(),
+        ),
+        (
+            CanonicalTable::TextureVertices,
+            parts.texture_vertices.clone(),
+        ),
+        (CanonicalTable::Semantics, parts.semantics.clone()),
+        (
+            CanonicalTable::SemanticChildren,
+            parts.semantic_children.clone(),
+        ),
+        (CanonicalTable::Materials, parts.materials.clone()),
+        (CanonicalTable::Textures, parts.textures.clone()),
+        (
+            CanonicalTable::TemplateGeometryBoundaries,
+            parts.template_geometry_boundaries.clone(),
+        ),
+        (
+            CanonicalTable::TemplateGeometrySemantics,
+            parts.template_geometry_semantics.clone(),
+        ),
+        (
+            CanonicalTable::TemplateGeometryMaterials,
+            parts.template_geometry_materials.clone(),
+        ),
+        (
+            CanonicalTable::TemplateGeometryRingTextures,
+            parts.template_geometry_ring_textures.clone(),
         ),
         (
             CanonicalTable::TemplateGeometries,
             parts.template_geometries.clone(),
         ),
         (
-            CanonicalTable::TemplateGeometryBoundaries,
-            parts.template_geometry_boundaries.clone(),
-        ),
-        (CanonicalTable::Semantics, parts.semantics.clone()),
-        (
-            CanonicalTable::SemanticChildren,
-            parts.semantic_children.clone(),
+            CanonicalTable::GeometryBoundaries,
+            Some(parts.geometry_boundaries.clone()),
         ),
         (
             CanonicalTable::GeometrySurfaceSemantics,
@@ -164,34 +292,33 @@ fn extend_optional_tables(
             parts.geometry_linestring_semantics.clone(),
         ),
         (
-            CanonicalTable::TemplateGeometrySemantics,
-            parts.template_geometry_semantics.clone(),
-        ),
-        (CanonicalTable::Materials, parts.materials.clone()),
-        (
             CanonicalTable::GeometrySurfaceMaterials,
             parts.geometry_surface_materials.clone(),
-        ),
-        (
-            CanonicalTable::TemplateGeometryMaterials,
-            parts.template_geometry_materials.clone(),
-        ),
-        (CanonicalTable::Textures, parts.textures.clone()),
-        (
-            CanonicalTable::TextureVertices,
-            parts.texture_vertices.clone(),
         ),
         (
             CanonicalTable::GeometryRingTextures,
             parts.geometry_ring_textures.clone(),
         ),
         (
-            CanonicalTable::TemplateGeometryRingTextures,
-            parts.template_geometry_ring_textures.clone(),
+            CanonicalTable::GeometryInstances,
+            parts.geometry_instances.clone(),
+        ),
+        (
+            CanonicalTable::Geometries,
+            Some(parts.geometries.clone()),
+        ),
+        (
+            CanonicalTable::CityObjects,
+            Some(parts.cityobjects.clone()),
+        ),
+        (
+            CanonicalTable::CityObjectChildren,
+            parts.cityobject_children.clone(),
         ),
     ] {
-        push_optional(tables, table, batch);
+        push_optional(&mut tables, table, batch);
     }
+    tables
 }
 
 fn push_optional(
@@ -202,54 +329,6 @@ fn push_optional(
     if let Some(batch) = batch {
         tables.push((table, batch));
     }
-}
-
-pub fn build_parts<S: std::hash::BuildHasher>(
-    manifest: &PackageManifest,
-    mut tables: HashMap<CanonicalTable, RecordBatch, S>,
-) -> Result<CityModelArrowParts> {
-    Ok(CityModelArrowParts {
-        header: manifest.into(),
-        projection: manifest.projection.clone(),
-        metadata: required_table(&mut tables, CanonicalTable::Metadata)?,
-        transform: tables.remove(&CanonicalTable::Transform),
-        extensions: tables.remove(&CanonicalTable::Extensions),
-        vertices: required_table(&mut tables, CanonicalTable::Vertices)?,
-        cityobjects: required_table(&mut tables, CanonicalTable::CityObjects)?,
-        cityobject_children: tables.remove(&CanonicalTable::CityObjectChildren),
-        geometries: required_table(&mut tables, CanonicalTable::Geometries)?,
-        geometry_boundaries: required_table(&mut tables, CanonicalTable::GeometryBoundaries)?,
-        geometry_instances: tables.remove(&CanonicalTable::GeometryInstances),
-        template_vertices: tables.remove(&CanonicalTable::TemplateVertices),
-        template_geometries: tables.remove(&CanonicalTable::TemplateGeometries),
-        template_geometry_boundaries: tables.remove(&CanonicalTable::TemplateGeometryBoundaries),
-        semantics: tables.remove(&CanonicalTable::Semantics),
-        semantic_children: tables.remove(&CanonicalTable::SemanticChildren),
-        geometry_surface_semantics: tables.remove(&CanonicalTable::GeometrySurfaceSemantics),
-        geometry_point_semantics: tables.remove(&CanonicalTable::GeometryPointSemantics),
-        geometry_linestring_semantics: tables.remove(&CanonicalTable::GeometryLinestringSemantics),
-        template_geometry_semantics: tables.remove(&CanonicalTable::TemplateGeometrySemantics),
-        materials: tables.remove(&CanonicalTable::Materials),
-        geometry_surface_materials: tables.remove(&CanonicalTable::GeometrySurfaceMaterials),
-        template_geometry_materials: tables.remove(&CanonicalTable::TemplateGeometryMaterials),
-        textures: tables.remove(&CanonicalTable::Textures),
-        texture_vertices: tables.remove(&CanonicalTable::TextureVertices),
-        geometry_ring_textures: tables.remove(&CanonicalTable::GeometryRingTextures),
-        template_geometry_ring_textures: tables
-            .remove(&CanonicalTable::TemplateGeometryRingTextures),
-    })
-}
-
-fn required_table<S: std::hash::BuildHasher>(
-    tables: &mut HashMap<CanonicalTable, RecordBatch, S>,
-    table: CanonicalTable,
-) -> Result<RecordBatch> {
-    tables.remove(&table).ok_or_else(|| {
-        Error::Unsupported(format!(
-            "package manifest is missing required '{}' table",
-            table.as_str()
-        ))
-    })
 }
 
 #[must_use]

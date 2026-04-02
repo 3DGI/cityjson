@@ -1,127 +1,210 @@
+use crate::convert::{IncrementalDecoder, emit_tables};
 use crate::error::{Error, Result};
-use crate::schema::{CityModelArrowParts, PackageManifest, PackageTableRef, canonical_schema_set};
+use crate::internal::{build_parts_from_tables, emit_part_tables};
+use crate::schema::{CityArrowHeader, CityModelArrowParts, ProjectionLayout, canonical_schema_set};
 use crate::transport::{
-    CanonicalTable, build_parts, collect_tables, concat_record_batches, schema_for_table,
-    validate_schema,
+    CanonicalTable, CanonicalTableSink, concat_record_batches, schema_for_table, validate_schema,
 };
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use cityjson::v2_0::OwnedCityModel;
+use serde::{Deserialize, Serialize};
+use std::io::{ErrorKind, Read, Write};
 
-const STREAM_MAGIC: &[u8] = b"CITYARROW_STREAM_V2\0";
+const STREAM_MAGIC: &[u8] = b"CITYARROW_STREAM_V3\0";
+const STREAM_END_TAG: u8 = u8::MAX;
 
-pub(crate) fn write_model_stream<W: Write>(
-    parts: &CityModelArrowParts,
-    mut writer: W,
-) -> Result<()> {
-    let tables = collect_tables(parts);
-    let mut payloads = Vec::with_capacity(tables.len());
-    let mut manifest = PackageManifest::new(
-        parts.header.citymodel_id.clone(),
-        parts.header.cityjson_version.clone(),
-        parts.projection.clone(),
-    );
-
-    for (table, batch) in tables {
-        let payload = serialize_stream_batch(&batch)?;
-        manifest.tables.push(PackageTableRef {
-            name: table.as_str().to_string(),
-            offset: 0,
-            length: u64::try_from(payload.len()).map_err(|_| {
-                Error::Conversion(format!("{} payload length overflow", table.as_str()))
-            })?,
-            rows: batch.num_rows(),
-        });
-        payloads.push(payload);
-    }
-
-    let manifest_bytes = serde_json::to_vec(&manifest)?;
-    let manifest_len = u64::try_from(manifest_bytes.len())
-        .map_err(|_| Error::Conversion("stream manifest length overflow".to_string()))?;
-
-    writer.write_all(STREAM_MAGIC)?;
-    writer.write_all(&manifest_len.to_le_bytes())?;
-    writer.write_all(&manifest_bytes)?;
-    for payload in payloads {
-        writer.write_all(&payload)?;
-    }
-    Ok(())
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StreamPrelude {
+    header: CityArrowHeader,
+    projection: ProjectionLayout,
 }
 
-pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<CityModelArrowParts> {
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    if bytes.len() < STREAM_MAGIC.len() + 8 {
-        return Err(Error::Unsupported(
-            "stream is too short to be a cityarrow stream".to_string(),
-        ));
+type StreamFrames = Vec<(CanonicalTable, usize, RecordBatch)>;
+
+pub(crate) fn write_model_stream<W: Write>(model: &OwnedCityModel, writer: W) -> Result<()> {
+    let mut sink = StreamSink::new(writer);
+    emit_tables(model, &mut sink)?;
+    sink.finish()
+}
+
+pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<OwnedCityModel> {
+    let (prelude, tables) = read_stream_frames(&mut reader)?;
+    let schemas = canonical_schema_set(&prelude.projection);
+    let mut decoder = IncrementalDecoder::new(prelude.header, prelude.projection)?;
+
+    for (table, expected_rows, batch) in tables {
+        if batch.num_rows() != expected_rows {
+            return Err(Error::Conversion(format!(
+                "{} frame declared {expected_rows} rows but decoded {} rows",
+                table.as_str(),
+                batch.num_rows()
+            )));
+        }
+        validate_schema(schema_for_table(&schemas, table), batch.schema(), table)?;
+        decoder.push_batch(table, &batch)?;
     }
-    if &bytes[..STREAM_MAGIC.len()] != STREAM_MAGIC {
+
+    decoder.finish()
+}
+
+pub(crate) fn write_parts_stream<W: Write>(parts: &CityModelArrowParts, writer: W) -> Result<()> {
+    let mut sink = StreamSink::new(writer);
+    emit_part_tables(parts, &mut sink)?;
+    sink.finish()
+}
+
+pub(crate) fn read_parts_stream<R: Read>(mut reader: R) -> Result<CityModelArrowParts> {
+    let (prelude, tables) = read_stream_frames(&mut reader)?;
+    let ordered_tables = tables
+        .into_iter()
+        .map(|(table, expected_rows, batch)| {
+            if batch.num_rows() == expected_rows {
+                Ok((table, batch))
+            } else {
+                Err(Error::Conversion(format!(
+                    "{} frame declared {expected_rows} rows but decoded {} rows",
+                    table.as_str(),
+                    batch.num_rows()
+                )))
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    build_parts_from_tables(&prelude.header, &prelude.projection, ordered_tables)
+}
+
+struct StreamSink<W> {
+    writer: W,
+    started: bool,
+}
+
+impl<W> StreamSink<W> {
+    const fn new(writer: W) -> Self {
+        Self {
+            writer,
+            started: false,
+        }
+    }
+}
+
+impl<W: Write> StreamSink<W> {
+    fn finish(&mut self) -> Result<()> {
+        if self.started {
+            self.writer.write_all(&[STREAM_END_TAG])?;
+        }
+        Ok(())
+    }
+}
+
+impl<W: Write> CanonicalTableSink for StreamSink<W> {
+    fn start(&mut self, header: &CityArrowHeader, projection: &ProjectionLayout) -> Result<()> {
+        let prelude_bytes = serde_json::to_vec(&StreamPrelude {
+            header: header.clone(),
+            projection: projection.clone(),
+        })?;
+        let prelude_len = u64::try_from(prelude_bytes.len())
+            .map_err(|_| Error::Conversion("stream prelude length overflow".to_string()))?;
+
+        self.writer.write_all(STREAM_MAGIC)?;
+        self.writer.write_all(&prelude_len.to_le_bytes())?;
+        self.writer.write_all(&prelude_bytes)?;
+        self.started = true;
+        Ok(())
+    }
+
+    fn push_batch(&mut self, table: CanonicalTable, batch: RecordBatch) -> Result<()> {
+        if !self.started {
+            return Err(Error::Unsupported(
+                "stream sink must be started before writing table batches".to_string(),
+            ));
+        }
+        self.writer.write_all(&[table.stream_tag()])?;
+        self.writer.write_all(
+            &u64::try_from(batch.num_rows())
+                .map_err(|_| Error::Conversion("stream row count overflow".to_string()))?
+                .to_le_bytes(),
+        )?;
+        write_stream_batch(&mut self.writer, &batch)?;
+        Ok(())
+    }
+}
+
+fn read_stream_prelude<R: Read>(reader: &mut R) -> Result<StreamPrelude> {
+    let mut magic = vec![0_u8; STREAM_MAGIC.len()];
+    reader.read_exact(&mut magic)?;
+    if magic != STREAM_MAGIC {
         return Err(Error::Unsupported(
             "stream header magic is invalid".to_string(),
         ));
     }
 
-    let mut manifest_len_bytes = [0_u8; 8];
-    manifest_len_bytes.copy_from_slice(&bytes[STREAM_MAGIC.len()..STREAM_MAGIC.len() + 8]);
-    let manifest_len = usize::try_from(u64::from_le_bytes(manifest_len_bytes)).map_err(|_| {
-        Error::Conversion("stream manifest length does not fit in memory".to_string())
+    let prelude_len = usize::try_from(read_u64(reader)?)
+        .map_err(|_| Error::Conversion("stream prelude length does not fit in memory".to_string()))?;
+    let mut prelude_bytes = vec![0_u8; prelude_len];
+    reader.read_exact(&mut prelude_bytes)?;
+    serde_json::from_slice(&prelude_bytes).map_err(Error::from)
+}
+
+fn read_stream_frames<R: Read>(reader: &mut R) -> Result<(StreamPrelude, StreamFrames)> {
+    let prelude = read_stream_prelude(reader)?;
+    let schemas = canonical_schema_set(&prelude.projection);
+    let mut tables = Vec::new();
+    loop {
+        let tag = read_u8(reader)?;
+        if tag == STREAM_END_TAG {
+            break;
+        }
+        let table = CanonicalTable::from_stream_tag(tag)?;
+        let expected_rows = usize::try_from(read_u64(reader)?)
+            .map_err(|_| Error::Conversion("stream row count does not fit in memory".to_string()))?;
+        let batch = deserialize_stream_batch(
+            reader,
+            schema_for_table(&schemas, table),
+            table,
+            expected_rows,
+        )?;
+        tables.push((table, expected_rows, batch));
+    }
+    Ok((prelude, tables))
+}
+
+fn read_u8<R: Read>(reader: &mut R) -> Result<u8> {
+    let mut byte = [0_u8; 1];
+    reader.read_exact(&mut byte).map_err(|error| {
+        if error.kind() == ErrorKind::UnexpectedEof {
+            Error::Unsupported("stream ended before the final frame marker".to_string())
+        } else {
+            Error::from(error)
+        }
     })?;
-    let manifest_start = STREAM_MAGIC.len() + 8;
-    let manifest_end = manifest_start
-        .checked_add(manifest_len)
-        .ok_or_else(|| Error::Conversion("stream manifest range overflow".to_string()))?;
-    let manifest: PackageManifest = serde_json::from_slice(
-        bytes
-            .get(manifest_start..manifest_end)
-            .ok_or_else(|| Error::Unsupported("stream manifest range is invalid".to_string()))?,
-    )?;
-
-    let mut cursor = manifest_end;
-    let schemas = canonical_schema_set(&manifest.projection);
-    let mut tables = HashMap::new();
-    for entry in &manifest.tables {
-        let table = CanonicalTable::parse(&entry.name)?;
-        let payload_len = usize::try_from(entry.length).map_err(|_| {
-            Error::Conversion(format!(
-                "{} payload length does not fit in memory",
-                table.as_str()
-            ))
-        })?;
-        let payload_end = cursor.checked_add(payload_len).ok_or_else(|| {
-            Error::Conversion(format!("{} payload range overflow", table.as_str()))
-        })?;
-        let payload = bytes.get(cursor..payload_end).ok_or_else(|| {
-            Error::Unsupported(format!("{} payload range is invalid", table.as_str()))
-        })?;
-        let batch = deserialize_stream_batch(payload, schema_for_table(&schemas, table), table)?;
-        tables.insert(table, batch);
-        cursor = payload_end;
-    }
-
-    build_parts(&manifest, tables)
+    Ok(byte[0])
 }
 
-fn serialize_stream_batch(batch: &RecordBatch) -> Result<Vec<u8>> {
-    let mut cursor = Cursor::new(Vec::new());
-    {
-        let mut writer = StreamWriter::try_new(&mut cursor, &batch.schema())?;
-        writer.write(batch)?;
-        writer.finish()?;
-    }
-    Ok(cursor.into_inner())
+fn read_u64<R: Read>(reader: &mut R) -> Result<u64> {
+    let mut bytes = [0_u8; 8];
+    reader.read_exact(&mut bytes)?;
+    Ok(u64::from_le_bytes(bytes))
 }
 
-fn deserialize_stream_batch(
-    payload: &[u8],
+fn write_stream_batch<W: Write>(writer: &mut W, batch: &RecordBatch) -> Result<()> {
+    let mut stream = StreamWriter::try_new(writer, &batch.schema())?;
+    stream.write(batch)?;
+    stream.finish()?;
+    Ok(())
+}
+
+fn deserialize_stream_batch<R: Read>(
+    reader: &mut R,
     expected_schema: &arrow::datatypes::SchemaRef,
     table: CanonicalTable,
+    expected_rows: usize,
 ) -> Result<RecordBatch> {
-    let reader = StreamReader::try_new(Cursor::new(payload), None)?;
-    let schema = reader.schema();
+    let stream = StreamReader::try_new(reader.by_ref(), None)?;
+    let schema = stream.schema();
     validate_schema(expected_schema, &schema, table)?;
-    let batches = reader.collect::<std::result::Result<Vec<_>, _>>()?;
-    concat_record_batches(expected_schema, &batches)
+    let batches = stream.collect::<std::result::Result<Vec<_>, _>>()?;
+    let batch = concat_record_batches(expected_schema, &batches)?;
+    let _ = expected_rows;
+    Ok(batch)
 }

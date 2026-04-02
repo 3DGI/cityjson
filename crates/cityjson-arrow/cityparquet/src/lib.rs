@@ -11,3 +11,8 @@ pub use cityarrow::schema::{
     ProjectedValueType, ProjectionLayout, canonical_schema_set,
 };
 pub use package::{PackageReader, PackageWriter};
+#[doc(hidden)]
+pub use package::{
+    read_package_model_file, read_package_parts_file, write_package_model_file,
+    write_package_parts_file,
+};

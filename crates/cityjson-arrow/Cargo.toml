@@ -3,6 +3,10 @@ name = "cityarrow"
 version = "0.2.0"
 edition = "2024"
 
+[[bench]]
+name = "split"
+harness = false
+
 [workspace]
 members = ["cityparquet"]
 
@@ -25,3 +29,4 @@ parquet = "57.0.0"
 cityparquet = { path = "cityparquet" }
 serde_cityjson = { path = "../serde_cityjson" }
 rand = "0.9.0"
+criterion = "0.5.1"
