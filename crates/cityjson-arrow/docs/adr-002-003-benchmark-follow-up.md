@@ -264,3 +264,91 @@ Companion notes for that next slice:
 
 - [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md)
 - [ADR 2 and ADR 3 optimization plan](adr-002-003-optimization-plan.md)
+
+## Downstream Harness Correction On April 2, 2026
+
+After the implementation landed at `9f3d51e`, the downstream `cjlib`
+benchmark harness itself needed correction before the next run could be trusted.
+
+The first problem was corpus reuse validity. `cjlib` reused any existing
+`.cjarrow` or `.cjparquet` file on existence alone, which allowed stale native
+artifacts from an older stream/package format to survive the refactor. The read
+benchmark then failed with `stream header magic is invalid`.
+
+The second problem was write-path setup. The native write benchmarks created
+`tempdir()` instances inside the timed loop, which did not match the intended
+measurement rule for package or stream writing.
+
+The third problem was diagnostic visibility. `cjlib` had only the headline
+end-to-end suite, so even after the `cityarrow` split benches landed upstream,
+the downstream product harness still could not show a local conversion-vs-
+transport reading.
+
+Those issues are now corrected downstream:
+
+- native artifacts are validated with the current decoders before reuse
+- incompatible native files are regenerated during `bench-prepare`
+- native writes overwrite a fixed file path in a pre-created temp directory
+- `cjlib` now exposes a separate diagnostic Criterion target for conversion-only
+  and transport-only measurements
+
+## Corrected `9f3d51e` Snapshot
+
+With the corrected downstream harness, the full `cjlib` run was:
+
+- description: `cityarrow refactor 9f3d51e`
+- timestamp: `2026-04-02T12:45:56Z`
+
+Headline end-to-end numbers from that corrected run were:
+
+| Path | Tile | Cluster 4x |
+| --- | --- | --- |
+| `cityarrow` read | `28.59 ms` | `115.30 ms` |
+| `cityparquet` read | `28.42 ms` | `114.32 ms` |
+| `cityarrow` write | `59.59 ms` | `211.06 ms` |
+| `cityparquet` write | `58.13 ms` | `209.50 ms` |
+
+That keeps the same high-level result as the earlier refactor reading:
+
+- the native read side is materially better than the pre-refactor baseline
+- the native write side is still far slower than the shared-model JSON paths
+- end-to-end plots alone are still insufficient to localize the remaining cost
+
+## First Split Diagnostic Reading
+
+The first downstream diagnostic sanity run now makes the remaining bottleneck
+shape explicit.
+
+For the tile case:
+
+| Benchmark | Approximate time |
+| --- | --- |
+| `convert_encode_parts` | `42.1 ms` |
+| `convert_decode_parts` | `28.3 ms` |
+| `stream_write_parts` | `0.58 ms` |
+| `stream_read_parts` | `0.60 ms` |
+| `package_write_parts` | `3.26 ms` |
+| `package_read_parts` | `0.71 ms` |
+| `package_read_manifest` | `12 us` |
+
+For the cluster case:
+
+| Benchmark | Approximate time |
+| --- | --- |
+| `convert_encode_parts` | `191.8 ms` |
+| `convert_decode_parts` | `113.8 ms` |
+| `stream_write_parts` | `7.97 ms` |
+| `stream_read_parts` | `2.95 ms` |
+| `package_write_parts` | `12.5 ms` |
+| `package_read_parts` | `3.16 ms` |
+| `package_read_manifest` | `12.6 us` |
+
+Those split measurements support a sharper conclusion than the original
+follow-up note could justify at the time:
+
+- fixed manifest/footer overhead is negligible
+- steady-state stream/package transport cost is small relative to full
+  end-to-end read and write time
+- `encode_parts` and `decode_parts` dominate the remaining budget
+- the next optimization priority should stay on shared-model export/import
+  rather than on yet another container-format redesign

@@ -262,6 +262,13 @@ Work:
 - keep the split benchmarks pinned to:
   - `io_3dbag_cityjson`
   - `io_3dbag_cityjson_cluster_4x`
+- keep downstream `cjlib` headline and diagnostic suites separate so
+  end-to-end and split numbers are not collapsed into one benchmark target
+- require benchmark preparation code to validate native artifacts with the
+  current decoders before reuse; file existence alone is not a valid
+  compatibility check across stream/package revisions
+- require native write benchmarks to pre-create their temp directory once and
+  overwrite a fixed output path inside the timed loop
 - compare each step against the current refactor campaign, not only against the
   JSON-normalized plot summary
 - record allocation counters for:
@@ -279,6 +286,9 @@ Exit criteria:
 
 - split benchmarks can localize improvement to conversion, stream transport, or
   package transport
+- stale native benchmark artifacts cannot silently survive a format change in
+  the downstream harness
+- write-path benchmark timings do not include `tempdir()` churn
 - read-side allocation totals fall when the eager whole-parts path is removed
 - public end-to-end read performance improves without reopening the semantic
   boundary decision
