@@ -98,6 +98,11 @@ impl<T: VertexRef> VertexIndex<T> {
         self.0
     }
 
+    /// Converts this index to `usize`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index value does not fit in `usize` on the current target.
     #[inline]
     pub fn try_to_usize(&self) -> Result<usize> {
         self.0.try_into().map_err(|_| Error::IndexConversion {
@@ -112,6 +117,11 @@ impl<T: VertexRef> VertexIndex<T> {
     /// This is infallible for the crate's default `u32` model configuration.
     /// For wider index types on narrower platforms, prefer
     /// [`VertexIndex::try_to_usize`] and handle overflow explicitly.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the vertex index does not fit in `usize` on the current target.
+    /// Use [`VertexIndex::try_to_usize`] to handle this fallibly.
     #[inline]
     pub fn to_usize(&self) -> usize {
         self.try_to_usize().unwrap_or_else(|_| {
