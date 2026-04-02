@@ -8,9 +8,9 @@ single-file container rather than a directory tree.
 
 ## Version
 
-- package magic: `CITYARROW_PKG_V2\0`
-- footer magic: `CITYARROW_PKG_IDX\0`
-- package schema id: `cityarrow.package.v2alpha2`
+- package magic: `CITYARROW_PKG_V3\0`
+- footer magic: `CITYARROW_PKG_V3IDX\0`
+- package schema id: `cityarrow.package.v3alpha1`
 
 ## Layout
 

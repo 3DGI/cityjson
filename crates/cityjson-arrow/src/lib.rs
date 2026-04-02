@@ -16,5 +16,5 @@ pub mod transport;
 pub use convert::{ModelDecoder, ModelEncoder};
 pub use schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
-    ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    ProjectedStructSpec, ProjectedValueSpec, ProjectionLayout, canonical_schema_set,
 };

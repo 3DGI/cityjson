@@ -8,7 +8,7 @@ mod package;
 
 pub use cityarrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
-    ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    ProjectedStructSpec, ProjectedValueSpec, ProjectionLayout, canonical_schema_set,
 };
 pub use package::{PackageReader, PackageWriter};
 #[doc(hidden)]

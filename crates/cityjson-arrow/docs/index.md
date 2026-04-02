@@ -37,5 +37,6 @@ model itself.
 
 ## Implementation Notes
 
-The package format is currently `cityarrow.package.v2alpha2`.
-It is intentionally schema-locked and reconstructible from ids and ordinals.
+The package format is currently `cityarrow.package.v3alpha1`.
+It is intentionally schema-locked and reconstructible from ids, ordinals, and
+typed recursive projection layouts.

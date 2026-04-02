@@ -5,7 +5,7 @@ live `cityarrow` stream and the persistent `cityparquet` package.
 
 ## Summary
 
-- package schema id: `cityarrow.package.v2alpha2`
+- package schema id: `cityarrow.package.v3alpha1`
 - semantic boundary: `cityjson::v2_0::OwnedCityModel`
 - public transport APIs: `ModelEncoder` / `ModelDecoder`,
   `PackageWriter` / `PackageReader`
@@ -49,8 +49,8 @@ Both live and persistent transport carry:
 - `ProjectionLayout`
 
 The header identifies the package version, `citymodel_id`, and CityJSON
-version. The projection layout records projected attribute columns so the
-decoder can validate and reconstruct them consistently.
+version. The projection layout records typed recursive attribute layouts so the
+decoder can validate and reconstruct nested dynamic attributes consistently.
 
 ## Persistent Manifest
 

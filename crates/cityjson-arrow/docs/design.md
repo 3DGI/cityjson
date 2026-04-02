@@ -70,13 +70,13 @@ incremental decoder. It no longer uses whole-stream `read_to_end`.
 
 The persistent package is one seekable file.
 
-- package magic: `CITYARROW_PKG_V2\0`
+- package magic: `CITYARROW_PKG_V3\0`
 - table payloads are written directly to the file in canonical order
 - manifest entries record table name, file offset, payload length, and row
   count
 - the JSON manifest is appended near the end of the file
 - the footer stores `manifest_offset`, `manifest_length`, and
-  `CITYARROW_PKG_IDX\0`
+  `CITYARROW_PKG_V3IDX\0`
 
 Package reads are footer-first. The manifest is read without loading the whole
 file, and the package reader then maps the file and decodes only the referenced

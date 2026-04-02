@@ -10,7 +10,7 @@ uses the same canonical transport tables as `cityarrow`.
 - package write/read support for seekable single-file packages
 - the same canonical table layout as `cityarrow`
 - the same reconstruction rules and manifest contract
-- round-trip compatibility with the shared `cityarrow.package.v2alpha2` schema
+- round-trip compatibility with the shared `cityarrow.package.v3alpha1` schema
 
 ## Related Documents
 

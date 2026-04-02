@@ -17,8 +17,8 @@ use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-const PACKAGE_MAGIC: &[u8] = b"CITYARROW_PKG_V2\0";
-const PACKAGE_FOOTER_MAGIC: &[u8] = b"CITYARROW_PKG_IDX\0";
+const PACKAGE_MAGIC: &[u8] = b"CITYARROW_PKG_V3\0";
+const PACKAGE_FOOTER_MAGIC: &[u8] = b"CITYARROW_PKG_V3IDX\0";
 const FOOTER_LEN: usize = 8 + 8 + PACKAGE_FOOTER_MAGIC.len();
 
 #[derive(Debug, Default, Clone, Copy)]

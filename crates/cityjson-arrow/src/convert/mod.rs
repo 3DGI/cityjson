@@ -1,15 +1,17 @@
 use crate::error::{Error, Result};
 use crate::schema::{
     CanonicalSchemaSet, CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts,
-    ProjectedFieldSpec, ProjectedValueType, ProjectionLayout, canonical_schema_set,
+    ProjectedFieldSpec, ProjectedStructSpec, ProjectedValueSpec, ProjectionLayout,
+    canonical_schema_set,
 };
 use crate::transport::{
     CanonicalTable, CanonicalTableSink, canonical_table_order, canonical_table_position,
     collect_tables, schema_for_table, validate_schema,
 };
 use arrow::array::{
-    Array, ArrayRef, FixedSizeListArray, Float64Array, LargeStringArray, ListArray, RecordBatch,
-    StringArray, UInt32Array, UInt64Array,
+    Array, ArrayRef, BooleanArray, FixedSizeListArray, Float64Array, Int64Array,
+    LargeStringArray, ListArray, NullArray, RecordBatch, StringArray, StructArray, UInt32Array,
+    UInt64Array,
 };
 use arrow::datatypes::{DataType, FieldRef};
 use arrow_buffer::{NullBuffer, OffsetBuffer, ScalarBuffer};
@@ -25,20 +27,10 @@ use cityjson::v2_0::{
 };
 use serde_json::{Map as JsonMap, Number as JsonNumber, Value as JsonValue};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::Write as FmtWrite;
 use std::io::{Read, Write as IoWrite};
 use std::sync::Arc;
 
 const DEFAULT_CITYMODEL_ID: &str = "citymodel";
-const FIELD_ROOT_EXTRA_PREFIX: &str = "root_extra__";
-const FIELD_METADATA_EXTRA_PREFIX: &str = "metadata_extra__";
-const FIELD_METADATA_REFERENCE_DATE: &str = "metadata_field__referenceDate_json";
-const FIELD_METADATA_POINT_OF_CONTACT: &str = "metadata_field__pointOfContact_json";
-const FIELD_METADATA_DEFAULT_MATERIAL_THEME: &str = "metadata_field__defaultMaterialTheme_json";
-const FIELD_METADATA_DEFAULT_TEXTURE_THEME: &str = "metadata_field__defaultTextureTheme_json";
-const FIELD_ATTR_PREFIX: &str = "attr__";
-const FIELD_EXTRA_PREFIX: &str = "extra__";
-const FIELD_JSON_SUFFIX: &str = "_json";
 const FIELD_MATERIAL_NAME: &str = "payload.name";
 const FIELD_MATERIAL_AMBIENT_INTENSITY: &str = "payload.ambient_intensity";
 const FIELD_MATERIAL_DIFFUSE_COLOR: &str = "payload.diffuse_color_json";
@@ -92,7 +84,12 @@ struct MetadataRow {
     title: Option<String>,
     reference_system: Option<String>,
     geographical_extent: Option<[f64; 6]>,
-    projected: Vec<Option<String>>,
+    reference_date: Option<String>,
+    default_material_theme: Option<String>,
+    default_texture_theme: Option<String>,
+    point_of_contact_json: Option<String>,
+    root_extra: Option<cityjson::v2_0::OwnedAttributes>,
+    metadata_extra: Option<cityjson::v2_0::OwnedAttributes>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,8 +127,8 @@ struct CityObjectRow {
     cityobject_ix: u64,
     object_type: String,
     geographical_extent: Option<[f64; 6]>,
-    attributes: Vec<Option<String>>,
-    extra: Vec<Option<String>>,
+    attributes: Option<cityjson::v2_0::OwnedAttributes>,
+    extra: Option<cityjson::v2_0::OwnedAttributes>,
 }
 
 #[derive(Debug, Clone)]
@@ -194,7 +191,7 @@ struct TemplateGeometryBoundaryRow {
 struct SemanticRow {
     semantic_id: u64,
     semantic_type: String,
-    attributes: Vec<Option<String>>,
+    attributes: Option<cityjson::v2_0::OwnedAttributes>,
 }
 
 #[derive(Debug, Clone)]
@@ -503,14 +500,14 @@ struct CityObjectColumns<'a> {
     cityobject_ix: &'a UInt64Array,
     object_type: &'a StringArray,
     geographical_extent: &'a FixedSizeListArray,
-    attributes: Vec<&'a LargeStringArray>,
-    extra: Vec<&'a LargeStringArray>,
+    attributes: Option<&'a StructArray>,
+    extra: Option<&'a StructArray>,
 }
 
 struct SemanticColumns<'a> {
     semantic_id: &'a UInt64Array,
     semantic_type: &'a StringArray,
-    attributes: Vec<&'a LargeStringArray>,
+    attributes: Option<&'a StructArray>,
 }
 
 struct MaterialColumns<'a> {
@@ -567,7 +564,7 @@ pub(crate) fn emit_tables<S: CanonicalTableSink>(
     sink: &mut S,
 ) -> Result<()> {
     reject_unsupported_modules(model)?;
-    let context = build_export_context(model);
+    let context = build_export_context(model)?;
     sink.start(&context.header, &context.projection)?;
 
     let core = export_core_batches(&context)?;
@@ -703,13 +700,13 @@ pub(crate) fn build_parts_from_tables(
     sink.finish()
 }
 
-fn build_export_context(model: &OwnedCityModel) -> ExportContext<'_> {
+fn build_export_context(model: &OwnedCityModel) -> Result<ExportContext<'_>> {
     let citymodel_id = infer_citymodel_id(model);
-    let projection = discover_projection_layout(model);
-    ExportContext {
+    let projection = discover_projection_layout(model)?;
+    Ok(ExportContext {
         model,
         header: CityArrowHeader::new(
-            CityArrowPackageVersion::V2Alpha2,
+            CityArrowPackageVersion::V3Alpha1,
             citymodel_id,
             model
                 .version()
@@ -723,7 +720,7 @@ fn build_export_context(model: &OwnedCityModel) -> ExportContext<'_> {
         semantic_id_map: semantic_id_map(model),
         material_id_map: material_id_map(model),
         texture_id_map: texture_id_map(model),
-    }
+    })
 }
 
 fn push_optional_batch<S: CanonicalTableSink>(
@@ -845,12 +842,9 @@ fn required_batch(batch: Option<RecordBatch>, table: CanonicalTable) -> Result<R
 fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches> {
     let metadata = metadata_batch(
         &context.schemas.metadata,
-        metadata_row(
-            context.model,
-            &context.header,
-            &context.projection,
-            &context.geometry_id_map,
-        )?,
+        metadata_row(context.model, &context.header)?,
+        &context.projection,
+        &context.geometry_id_map,
     )?;
     let transform_row = context.model.transform().map(|transform| TransformRow {
         scale: transform.scale(),
@@ -870,6 +864,7 @@ fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches>
             &context.schemas.cityobjects,
             &cityobject_rows(context.model, &context.projection, &context.geometry_id_map)?,
             &context.projection,
+            &context.geometry_id_map,
         )?,
         cityobject_children: optional_batch(cityobject_child_rows(context.model), |rows| {
             cityobject_children_batch(&context.schemas.cityobject_children, rows)
@@ -919,7 +914,12 @@ fn export_semantic_batches(
 
     Ok(ExportSemanticBatches {
         semantics: optional_batch(semantic_rows, |rows| {
-            semantics_batch(&context.schemas.semantics, &rows, &context.projection)
+            semantics_batch(
+                &context.schemas.semantics,
+                &rows,
+                &context.projection,
+                &context.geometry_id_map,
+            )
         })?,
         semantic_children: optional_batch(
             semantic_child_rows(context.model, &context.semantic_id_map),
@@ -1300,7 +1300,6 @@ fn initialize_model_from_metadata(
     apply_metadata_row(
         &mut model,
         &metadata_row,
-        projection,
         &empty_geometry_handles,
     )?;
 
@@ -1330,17 +1329,17 @@ fn import_semantics_batch(
         previous_id = Some(semantic_id);
         let mut semantic =
             OwnedSemantic::new(parse_semantic_type(columns.semantic_type.value(row)));
-        apply_projected_attributes(
-            semantic.attributes_mut(),
-            &projection.semantic_attributes,
-            &columns
-                .attributes
-                .iter()
-                .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
-                .collect::<Vec<_>>(),
-            FIELD_ATTR_PREFIX,
+        let projected = projected_attributes_from_array(
+            projection.semantic_attributes.as_ref(),
+            columns.attributes,
+            row,
             &HashMap::new(),
         )?;
+        for (key, value) in projected.iter() {
+            semantic
+                .attributes_mut()
+                .insert(key.clone(), value.clone());
+        }
         semantic_handle_by_id.insert(semantic_id, model.add_semantic(semantic)?);
     }
     Ok(semantic_handle_by_id)
@@ -1811,28 +1810,24 @@ fn import_cityobjects_batch(
         )? {
             object.set_geographical_extent(Some(BBox::from(extent)));
         }
-        apply_projected_attributes(
-            object.attributes_mut(),
-            &projection.cityobject_attributes,
-            &columns
-                .attributes
-                .iter()
-                .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
-                .collect::<Vec<_>>(),
-            FIELD_ATTR_PREFIX,
+        let projected_attributes = projected_attributes_from_array(
+            projection.cityobject_attributes.as_ref(),
+            columns.attributes,
+            row,
             &state.geometry_handle_by_id,
         )?;
-        apply_projected_attributes(
-            object.extra_mut(),
-            &projection.cityobject_extra,
-            &columns
-                .extra
-                .iter()
-                .map(|column| (!column.is_null(row)).then(|| column.value(row).to_string()))
-                .collect::<Vec<_>>(),
-            FIELD_EXTRA_PREFIX,
+        for (key, value) in projected_attributes.iter() {
+            object.attributes_mut().insert(key.clone(), value.clone());
+        }
+        let projected_extra = projected_attributes_from_array(
+            projection.cityobject_extra.as_ref(),
+            columns.extra,
+            row,
             &state.geometry_handle_by_id,
         )?;
+        for (key, value) in projected_extra.iter() {
+            object.extra_mut().insert(key.clone(), value.clone());
+        }
         let handle = state.model.cityobjects_mut().add(object)?;
         register_cityobject_handle(state, object_index, handle)?;
     }
@@ -1976,231 +1971,297 @@ fn texture_id_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::TextureH
         .collect()
 }
 
-fn discover_projection_layout(model: &OwnedCityModel) -> ProjectionLayout {
-    ProjectionLayout {
-        metadata_extra: discover_metadata_projection(model),
+fn discover_projection_layout(model: &OwnedCityModel) -> Result<ProjectionLayout> {
+    Ok(ProjectionLayout {
+        root_extra: discover_optional_attribute_projection(model.extra())?,
+        metadata_extra: discover_optional_attribute_projection(
+            model.metadata().and_then(Metadata::extra),
+        )?,
         cityobject_attributes: discover_attribute_projection(
             model
                 .cityobjects()
                 .iter()
                 .filter_map(|(_, object)| object.attributes()),
-            FIELD_ATTR_PREFIX,
-        ),
+        )?,
         cityobject_extra: discover_attribute_projection(
             model
                 .cityobjects()
                 .iter()
                 .filter_map(|(_, object)| object.extra()),
-            FIELD_EXTRA_PREFIX,
-        ),
+        )?,
+        geometry_extra: None,
         semantic_attributes: discover_attribute_projection(
             model
                 .iter_semantics()
                 .filter_map(|(_, semantic)| semantic.attributes()),
-            FIELD_ATTR_PREFIX,
-        ),
-        material_payload: if model.material_count() > 0 {
-            canonical_material_projection()
-        } else {
-            Vec::new()
-        },
-        texture_payload: if model.texture_count() > 0 {
-            canonical_texture_projection()
-        } else {
-            Vec::new()
-        },
-        ..ProjectionLayout::default()
-    }
+        )?,
+        material_payload: (model.material_count() > 0).then(canonical_material_projection),
+        texture_payload: (model.texture_count() > 0).then(canonical_texture_projection),
+    })
 }
 
-fn canonical_material_projection() -> Vec<ProjectedFieldSpec> {
-    vec![
-        ProjectedFieldSpec::new(FIELD_MATERIAL_NAME, ProjectedValueType::LargeUtf8, false),
+fn canonical_material_projection() -> ProjectedStructSpec {
+    ProjectedStructSpec::new(vec![
+        ProjectedFieldSpec::new(FIELD_MATERIAL_NAME, ProjectedValueSpec::Utf8, false),
         ProjectedFieldSpec::new(
             FIELD_MATERIAL_AMBIENT_INTENSITY,
-            ProjectedValueType::Float64,
+            ProjectedValueSpec::Float64,
             true,
         ),
-        ProjectedFieldSpec::new(
-            FIELD_MATERIAL_DIFFUSE_COLOR,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ),
-        ProjectedFieldSpec::new(
-            FIELD_MATERIAL_EMISSIVE_COLOR,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ),
-        ProjectedFieldSpec::new(
-            FIELD_MATERIAL_SPECULAR_COLOR,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ),
-        ProjectedFieldSpec::new(FIELD_MATERIAL_SHININESS, ProjectedValueType::Float64, true),
-        ProjectedFieldSpec::new(
-            FIELD_MATERIAL_TRANSPARENCY,
-            ProjectedValueType::Float64,
-            true,
-        ),
-        ProjectedFieldSpec::new(FIELD_MATERIAL_IS_SMOOTH, ProjectedValueType::Boolean, true),
-    ]
+        ProjectedFieldSpec::new(FIELD_MATERIAL_DIFFUSE_COLOR, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_EMISSIVE_COLOR, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_SPECULAR_COLOR, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_SHININESS, ProjectedValueSpec::Float64, true),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_TRANSPARENCY, ProjectedValueSpec::Float64, true),
+        ProjectedFieldSpec::new(FIELD_MATERIAL_IS_SMOOTH, ProjectedValueSpec::Boolean, true),
+    ])
 }
 
-fn canonical_texture_projection() -> Vec<ProjectedFieldSpec> {
-    vec![
-        ProjectedFieldSpec::new(
-            FIELD_TEXTURE_IMAGE_TYPE,
-            ProjectedValueType::LargeUtf8,
-            false,
-        ),
-        ProjectedFieldSpec::new(FIELD_TEXTURE_WRAP_MODE, ProjectedValueType::LargeUtf8, true),
-        ProjectedFieldSpec::new(
-            FIELD_TEXTURE_TEXTURE_TYPE,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ),
-        ProjectedFieldSpec::new(
-            FIELD_TEXTURE_BORDER_COLOR,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ),
-    ]
+fn canonical_texture_projection() -> ProjectedStructSpec {
+    ProjectedStructSpec::new(vec![
+        ProjectedFieldSpec::new(FIELD_TEXTURE_IMAGE_TYPE, ProjectedValueSpec::Utf8, false),
+        ProjectedFieldSpec::new(FIELD_TEXTURE_WRAP_MODE, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(FIELD_TEXTURE_TEXTURE_TYPE, ProjectedValueSpec::Utf8, true),
+        ProjectedFieldSpec::new(FIELD_TEXTURE_BORDER_COLOR, ProjectedValueSpec::Utf8, true),
+    ])
 }
 
 fn validate_appearance_projection_layout(layout: &ProjectionLayout) -> Result<()> {
     let supported_material = canonical_material_projection()
+        .fields
         .into_iter()
         .map(|spec| spec.name)
         .collect::<BTreeSet<_>>();
-    for spec in &layout.material_payload {
-        if !supported_material.contains(&spec.name) {
-            return Err(Error::Unsupported(format!(
-                "material payload column {}",
-                spec.name
-            )));
+    if let Some(specs) = &layout.material_payload {
+        for spec in &specs.fields {
+            if !supported_material.contains(&spec.name) {
+                return Err(Error::Unsupported(format!(
+                    "material payload column {}",
+                    spec.name
+                )));
+            }
         }
     }
 
     let supported_texture = canonical_texture_projection()
+        .fields
         .into_iter()
         .map(|spec| spec.name)
         .collect::<BTreeSet<_>>();
-    for spec in &layout.texture_payload {
-        if !supported_texture.contains(&spec.name) {
-            return Err(Error::Unsupported(format!(
-                "texture payload column {}",
-                spec.name
-            )));
+    if let Some(specs) = &layout.texture_payload {
+        for spec in &specs.fields {
+            if !supported_texture.contains(&spec.name) {
+                return Err(Error::Unsupported(format!(
+                    "texture payload column {}",
+                    spec.name
+                )));
+            }
         }
     }
     Ok(())
 }
 
-fn discover_metadata_projection(model: &OwnedCityModel) -> Vec<ProjectedFieldSpec> {
-    let mut fields = Vec::new();
-
-    if model
-        .metadata()
-        .and_then(|metadata| metadata.reference_date())
-        .is_some()
-    {
-        fields.push(ProjectedFieldSpec::new(
-            FIELD_METADATA_REFERENCE_DATE,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
+fn discover_optional_attribute_projection(
+    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
+) -> Result<Option<ProjectedStructSpec>> {
+    match attributes {
+        Some(attributes) => discover_attribute_projection(std::iter::once(attributes)),
+        None => Ok(None),
     }
-    if model
-        .metadata()
-        .and_then(|metadata| metadata.point_of_contact())
-        .is_some()
-    {
-        fields.push(ProjectedFieldSpec::new(
-            FIELD_METADATA_POINT_OF_CONTACT,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
-    }
-    if model.default_material_theme().is_some() {
-        fields.push(ProjectedFieldSpec::new(
-            FIELD_METADATA_DEFAULT_MATERIAL_THEME,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
-    }
-    if model.default_texture_theme().is_some() {
-        fields.push(ProjectedFieldSpec::new(
-            FIELD_METADATA_DEFAULT_TEXTURE_THEME,
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
-    }
-
-    let mut root_keys: BTreeSet<String> = BTreeSet::new();
-    if let Some(extra) = model.extra() {
-        for key in extra.keys() {
-            root_keys.insert(key.clone());
-        }
-    }
-    for key in root_keys {
-        fields.push(ProjectedFieldSpec::new(
-            format!(
-                "{FIELD_ROOT_EXTRA_PREFIX}{}{FIELD_JSON_SUFFIX}",
-                encode_key(&key)
-            ),
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
-    }
-
-    let mut metadata_keys: BTreeSet<String> = BTreeSet::new();
-    if let Some(metadata) = model.metadata()
-        && let Some(extra) = metadata.extra()
-    {
-        for key in extra.keys() {
-            metadata_keys.insert(key.clone());
-        }
-    }
-    for key in metadata_keys {
-        fields.push(ProjectedFieldSpec::new(
-            format!(
-                "{FIELD_METADATA_EXTRA_PREFIX}{}{FIELD_JSON_SUFFIX}",
-                encode_key(&key)
-            ),
-            ProjectedValueType::LargeUtf8,
-            true,
-        ));
-    }
-
-    fields
 }
 
-fn discover_attribute_projection<'a, I>(attributes: I, prefix: &str) -> Vec<ProjectedFieldSpec>
+fn discover_attribute_projection<'a, I>(attributes: I) -> Result<Option<ProjectedStructSpec>>
 where
     I: IntoIterator<Item = &'a cityjson::v2_0::OwnedAttributes>,
 {
-    let mut keys: BTreeSet<String> = BTreeSet::new();
+    let mut layout = ProjectedStructSpec::new(Vec::new());
+    let mut seen_rows = 0_usize;
+
     for attrs in attributes {
-        for key in attrs.keys() {
-            keys.insert(key.clone());
+        merge_attribute_map_into_spec(&mut layout, attrs, seen_rows)?;
+        seen_rows += 1;
+    }
+
+    if seen_rows == 0 || layout.is_empty() {
+        Ok(None)
+    } else {
+        sort_projected_struct(&mut layout);
+        Ok(Some(layout))
+    }
+}
+
+fn merge_attribute_map_into_spec(
+    spec: &mut ProjectedStructSpec,
+    attributes: &cityjson::v2_0::OwnedAttributes,
+    seen_rows: usize,
+) -> Result<()> {
+    let present = attributes.keys().cloned().collect::<BTreeSet<_>>();
+    for field in &mut spec.fields {
+        if !present.contains(&field.name) {
+            field.nullable = true;
         }
     }
-    keys.into_iter()
-        .map(|key| {
-            ProjectedFieldSpec::new(
-                format!("{prefix}{}{FIELD_JSON_SUFFIX}", encode_key(&key)),
-                ProjectedValueType::LargeUtf8,
-                true,
-            )
-        })
-        .collect()
+
+    for (key, value) in attributes.iter() {
+        if let Some(field) = spec.fields.iter_mut().find(|field| field.name == *key) {
+            merge_projected_field(field, value)?;
+        } else {
+            spec.fields.push(ProjectedFieldSpec::new(
+                key.clone(),
+                infer_projected_value_spec(value)?,
+                seen_rows > 0 || matches!(value, AttributeValue::Null),
+            ));
+        }
+    }
+
+    sort_projected_struct(spec);
+    Ok(())
+}
+
+fn merge_projected_field(field: &mut ProjectedFieldSpec, value: &OwnedAttributeValue) -> Result<()> {
+    if matches!(value, AttributeValue::Null) {
+        field.nullable = true;
+        return Ok(());
+    }
+
+    let inferred = infer_projected_value_spec(value)?;
+    field.value = merge_projected_value_specs(field.value.clone(), inferred)?;
+    Ok(())
+}
+
+fn infer_projected_value_spec(value: &OwnedAttributeValue) -> Result<ProjectedValueSpec> {
+    Ok(match value {
+        AttributeValue::Null => ProjectedValueSpec::Null,
+        AttributeValue::Bool(_) => ProjectedValueSpec::Boolean,
+        AttributeValue::Unsigned(_) => ProjectedValueSpec::UInt64,
+        AttributeValue::Integer(_) => ProjectedValueSpec::Int64,
+        AttributeValue::Float(_) => ProjectedValueSpec::Float64,
+        AttributeValue::String(_) => ProjectedValueSpec::Utf8,
+        AttributeValue::Geometry(_) => ProjectedValueSpec::GeometryRef,
+        AttributeValue::Vec(values) => {
+            let mut item_nullable = false;
+            let mut item_spec = ProjectedValueSpec::Null;
+            let mut has_non_null = false;
+            for item in values {
+                if matches!(item, AttributeValue::Null) {
+                    item_nullable = true;
+                    continue;
+                }
+                let inferred = infer_projected_value_spec(item)?;
+                item_spec = if has_non_null {
+                    merge_projected_value_specs(item_spec, inferred)?
+                } else {
+                    inferred
+                };
+                has_non_null = true;
+            }
+            ProjectedValueSpec::List {
+                item_nullable,
+                item: Box::new(item_spec),
+            }
+        }
+        AttributeValue::Map(values) => {
+            let mut fields = ProjectedStructSpec::new(Vec::new());
+            let mut attributes = cityjson::v2_0::OwnedAttributes::default();
+            for (key, value) in values {
+                attributes.insert(key.clone(), value.clone());
+            }
+            merge_attribute_map_into_spec(&mut fields, &attributes, 0)?;
+            ProjectedValueSpec::Struct(fields)
+        }
+        other => {
+            return Err(Error::Unsupported(format!(
+                "unsupported attribute value variant {other}"
+            )));
+        }
+    })
+}
+
+fn merge_projected_value_specs(
+    current: ProjectedValueSpec,
+    incoming: ProjectedValueSpec,
+) -> Result<ProjectedValueSpec> {
+    Ok(match (current, incoming) {
+        (ProjectedValueSpec::Null, other) | (other, ProjectedValueSpec::Null) => other,
+        (ProjectedValueSpec::Boolean, ProjectedValueSpec::Boolean) => ProjectedValueSpec::Boolean,
+        (ProjectedValueSpec::UInt64, ProjectedValueSpec::UInt64) => ProjectedValueSpec::UInt64,
+        (ProjectedValueSpec::Int64, ProjectedValueSpec::Int64) => ProjectedValueSpec::Int64,
+        (ProjectedValueSpec::Float64, ProjectedValueSpec::Float64) => ProjectedValueSpec::Float64,
+        (ProjectedValueSpec::Utf8, ProjectedValueSpec::Utf8) => ProjectedValueSpec::Utf8,
+        (ProjectedValueSpec::GeometryRef, ProjectedValueSpec::GeometryRef) => {
+            ProjectedValueSpec::GeometryRef
+        }
+        (
+            ProjectedValueSpec::List {
+                item_nullable: left_nullable,
+                item: left_item,
+            },
+            ProjectedValueSpec::List {
+                item_nullable: right_nullable,
+                item: right_item,
+            },
+        ) => ProjectedValueSpec::List {
+            item_nullable: left_nullable || right_nullable,
+            item: Box::new(merge_projected_value_specs(*left_item, *right_item)?),
+        },
+        (ProjectedValueSpec::Struct(left), ProjectedValueSpec::Struct(right)) => {
+            ProjectedValueSpec::Struct(merge_projected_struct_specs(left, right)?)
+        }
+        (left, right) => {
+            return Err(Error::Conversion(format!(
+                "incompatible projected attribute shapes: {:?} versus {:?}",
+                left, right
+            )));
+        }
+    })
+}
+
+fn merge_projected_struct_specs(
+    mut left: ProjectedStructSpec,
+    right: ProjectedStructSpec,
+) -> Result<ProjectedStructSpec> {
+    let right_names = right
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<BTreeSet<_>>();
+    for field in &mut left.fields {
+        if !right_names.contains(&field.name) {
+            field.nullable = true;
+        }
+    }
+
+    for incoming in right.fields {
+        if let Some(existing) = left.fields.iter_mut().find(|field| field.name == incoming.name) {
+            existing.nullable |= incoming.nullable;
+            existing.value = merge_projected_value_specs(existing.value.clone(), incoming.value)?;
+        } else {
+            let mut incoming = incoming;
+            incoming.nullable = true;
+            left.fields.push(incoming);
+        }
+    }
+
+    sort_projected_struct(&mut left);
+    Ok(left)
+}
+
+fn sort_projected_struct(spec: &mut ProjectedStructSpec) {
+    spec.fields.sort_by(|left, right| left.name.cmp(&right.name));
+    for field in &mut spec.fields {
+        if let ProjectedValueSpec::Struct(child) = &mut field.value {
+            sort_projected_struct(child);
+        } else if let ProjectedValueSpec::List { item, .. } = &mut field.value
+            && let ProjectedValueSpec::Struct(child) = item.as_mut()
+        {
+            sort_projected_struct(child);
+        }
+    }
 }
 
 fn metadata_row(
     model: &OwnedCityModel,
     header: &CityArrowHeader,
-    layout: &ProjectionLayout,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<MetadataRow> {
     let metadata = model.metadata();
     Ok(MetadataRow {
@@ -2214,7 +2275,17 @@ fn metadata_row(
         geographical_extent: metadata
             .and_then(Metadata::geographical_extent)
             .map(|bbox| bbox.as_slice().try_into().expect("bbox is 6 long")),
-        projected: project_metadata_columns(model, layout, geometry_id_map)?,
+        reference_date: metadata
+            .and_then(Metadata::reference_date)
+            .map(ToString::to_string),
+        default_material_theme: model.default_material_theme().map(ToString::to_string),
+        default_texture_theme: model.default_texture_theme().map(ToString::to_string),
+        point_of_contact_json: metadata
+            .and_then(Metadata::point_of_contact)
+            .map(contact_to_json)
+            .transpose()?,
+        root_extra: cloned_attributes(model.extra()),
+        metadata_extra: metadata.and_then(Metadata::extra).cloned(),
     })
 }
 
@@ -2295,8 +2366,8 @@ fn vertex_rows(model: &OwnedCityModel) -> Vec<VertexRow> {
 
 fn cityobject_rows(
     model: &OwnedCityModel,
-    projection: &ProjectionLayout,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+    _projection: &ProjectionLayout,
+    _geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<Vec<CityObjectRow>> {
     model
         .cityobjects()
@@ -2310,18 +2381,8 @@ fn cityobject_rows(
                 geographical_extent: object
                     .geographical_extent()
                     .map(|bbox| bbox.as_slice().try_into().expect("bbox is 6 long")),
-                attributes: project_attribute_columns(
-                    object.attributes(),
-                    &projection.cityobject_attributes,
-                    FIELD_ATTR_PREFIX,
-                    geometry_id_map,
-                )?,
-                extra: project_attribute_columns(
-                    object.extra(),
-                    &projection.cityobject_extra,
-                    FIELD_EXTRA_PREFIX,
-                    geometry_id_map,
-                )?,
+                attributes: cloned_attributes(object.attributes()),
+                extra: cloned_attributes(object.extra()),
             })
         })
         .collect()
@@ -3273,8 +3334,8 @@ fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> Fl
 
 fn semantic_rows(
     model: &OwnedCityModel,
-    projection: &ProjectionLayout,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+    _projection: &ProjectionLayout,
+    _geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<Vec<SemanticRow>> {
     model
         .iter_semantics()
@@ -3283,12 +3344,7 @@ fn semantic_rows(
             Ok(SemanticRow {
                 semantic_id: index as u64,
                 semantic_type: encode_semantic_type(semantic.type_semantic()),
-                attributes: project_attribute_columns(
-                    semantic.attributes(),
-                    &projection.semantic_attributes,
-                    FIELD_ATTR_PREFIX,
-                    geometry_id_map,
-                )?,
+                attributes: cloned_attributes(semantic.attributes()),
             })
         })
         .collect()
@@ -3361,81 +3417,10 @@ fn offsets_to_lengths(raw: &cityjson::v2_0::RawVertexView<'_, u32>, child_len: u
     lengths
 }
 
-fn project_metadata_columns(
-    model: &OwnedCityModel,
-    layout: &ProjectionLayout,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<Vec<Option<String>>> {
-    let metadata = model.metadata();
-    let metadata_extra = metadata.and_then(Metadata::extra);
-    let root_extra = model.extra();
-    let point_of_contact = metadata.and_then(Metadata::point_of_contact);
-
-    layout
-        .metadata_extra
-        .iter()
-        .map(|spec| {
-            if spec.name == FIELD_METADATA_REFERENCE_DATE {
-                return Ok(metadata
-                    .and_then(Metadata::reference_date)
-                    .map(ToString::to_string)
-                    .map(json_string));
-            }
-            if spec.name == FIELD_METADATA_POINT_OF_CONTACT {
-                return point_of_contact.map(contact_to_json).transpose();
-            }
-            if spec.name == FIELD_METADATA_DEFAULT_MATERIAL_THEME {
-                return Ok(model
-                    .default_material_theme()
-                    .map(ToString::to_string)
-                    .map(json_string));
-            }
-            if spec.name == FIELD_METADATA_DEFAULT_TEXTURE_THEME {
-                return Ok(model
-                    .default_texture_theme()
-                    .map(ToString::to_string)
-                    .map(json_string));
-            }
-            if let Some(key) = decode_projection_name(&spec.name, FIELD_ROOT_EXTRA_PREFIX) {
-                return project_one_attribute(root_extra, &key, geometry_id_map);
-            }
-            if let Some(key) = decode_projection_name(&spec.name, FIELD_METADATA_EXTRA_PREFIX) {
-                return project_one_attribute(metadata_extra, &key, geometry_id_map);
-            }
-            Err(Error::Conversion(format!(
-                "unrecognized metadata projection column {}",
-                spec.name
-            )))
-        })
-        .collect()
-}
-
-fn project_attribute_columns(
+fn cloned_attributes(
     attributes: Option<&cityjson::v2_0::OwnedAttributes>,
-    layout: &[ProjectedFieldSpec],
-    prefix: &str,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<Vec<Option<String>>> {
-    layout
-        .iter()
-        .map(|spec| {
-            let key = decode_projection_name(&spec.name, prefix).ok_or_else(|| {
-                Error::Conversion(format!("invalid projection column {}", spec.name))
-            })?;
-            project_one_attribute(attributes, &key, geometry_id_map)
-        })
-        .collect()
-}
-
-fn project_one_attribute(
-    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
-    key: &str,
-    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
-) -> Result<Option<String>> {
-    attributes
-        .and_then(|attributes| attributes.get(key))
-        .map(|value| attribute_to_json(value, geometry_id_map).map(|json| json.to_string()))
-        .transpose()
+) -> Option<cityjson::v2_0::OwnedAttributes> {
+    attributes.cloned().filter(|attributes| !attributes.is_empty())
 }
 
 fn attribute_to_json(
@@ -3534,26 +3519,59 @@ fn json_to_attribute(
     })
 }
 
-fn json_string(value: String) -> String {
-    JsonValue::String(value).to_string()
-}
-
-fn metadata_batch(schema: &Arc<arrow::datatypes::Schema>, row: MetadataRow) -> Result<RecordBatch> {
+fn metadata_batch(
+    schema: &Arc<arrow::datatypes::Schema>,
+    row: MetadataRow,
+    projection: &ProjectionLayout,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<RecordBatch> {
+    let MetadataRow {
+        citymodel_id,
+        cityjson_version,
+        citymodel_kind,
+        identifier,
+        title,
+        reference_system,
+        geographical_extent,
+        reference_date,
+        default_material_theme,
+        default_texture_theme,
+        point_of_contact_json,
+        root_extra,
+        metadata_extra,
+    } = row;
     let mut arrays: Vec<ArrayRef> = vec![
-        Arc::new(LargeStringArray::from(vec![Some(row.citymodel_id)])),
-        Arc::new(StringArray::from(vec![Some(row.cityjson_version)])),
-        Arc::new(StringArray::from(vec![Some(row.citymodel_kind)])),
-        Arc::new(LargeStringArray::from(vec![row.identifier])),
-        Arc::new(LargeStringArray::from(vec![row.title])),
-        Arc::new(LargeStringArray::from(vec![row.reference_system])),
+        Arc::new(LargeStringArray::from(vec![Some(citymodel_id)])),
+        Arc::new(StringArray::from(vec![Some(cityjson_version)])),
+        Arc::new(StringArray::from(vec![Some(citymodel_kind)])),
+        Arc::new(LargeStringArray::from(vec![identifier])),
+        Arc::new(LargeStringArray::from(vec![title])),
+        Arc::new(LargeStringArray::from(vec![reference_system])),
         Arc::new(fixed_size_f64_array(
             &field_from_schema(schema, "geographical_extent")?,
             6,
-            vec![row.geographical_extent],
+            vec![geographical_extent],
         )?),
+        Arc::new(StringArray::from(vec![reference_date])),
+        Arc::new(StringArray::from(vec![default_material_theme])),
+        Arc::new(StringArray::from(vec![default_texture_theme])),
+        Arc::new(LargeStringArray::from(vec![point_of_contact_json])),
     ];
-    for value in row.projected {
-        arrays.push(Arc::new(LargeStringArray::from(vec![value])));
+    if let Some(spec) = projection.root_extra.as_ref() {
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "root_extra")?,
+            spec,
+            &[root_extra.as_ref()],
+            geometry_id_map,
+        )?);
+    }
+    if let Some(spec) = projection.metadata_extra.as_ref() {
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "metadata_extra")?,
+            spec,
+            &[metadata_extra.as_ref()],
+            geometry_id_map,
+        )?);
     }
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
@@ -3633,6 +3651,7 @@ fn cityobjects_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: &[CityObjectRow],
     projection: &ProjectionLayout,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<RecordBatch> {
     let mut arrays: Vec<ArrayRef> = vec![
         Arc::new(LargeStringArray::from(
@@ -3655,19 +3674,21 @@ fn cityobjects_batch(
         )?),
     ];
 
-    for column_index in 0..projection.cityobject_attributes.len() {
-        arrays.push(Arc::new(LargeStringArray::from(
-            rows.iter()
-                .map(|row| row.attributes[column_index].clone())
-                .collect::<Vec<_>>(),
-        )));
+    if let Some(spec) = projection.cityobject_attributes.as_ref() {
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "attributes")?,
+            spec,
+            &rows.iter().map(|row| row.attributes.as_ref()).collect::<Vec<_>>(),
+            geometry_id_map,
+        )?);
     }
-    for column_index in 0..projection.cityobject_extra.len() {
-        arrays.push(Arc::new(LargeStringArray::from(
-            rows.iter()
-                .map(|row| row.extra[column_index].clone())
-                .collect::<Vec<_>>(),
-        )));
+    if let Some(spec) = projection.cityobject_extra.as_ref() {
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "extra")?,
+            spec,
+            &rows.iter().map(|row| row.extra.as_ref()).collect::<Vec<_>>(),
+            geometry_id_map,
+        )?);
     }
 
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
@@ -3926,6 +3947,7 @@ fn semantics_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     rows: &[SemanticRow],
     projection: &ProjectionLayout,
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<RecordBatch> {
     let mut arrays: Vec<ArrayRef> = vec![
         Arc::new(UInt64Array::from(
@@ -3937,12 +3959,13 @@ fn semantics_batch(
                 .collect::<Vec<_>>(),
         )),
     ];
-    for column_index in 0..projection.semantic_attributes.len() {
-        arrays.push(Arc::new(LargeStringArray::from(
-            rows.iter()
-                .map(|row| row.attributes[column_index].clone())
-                .collect::<Vec<_>>(),
-        )));
+    if let Some(spec) = projection.semantic_attributes.as_ref() {
+        arrays.push(projected_struct_array_from_attributes(
+            &field_from_schema(schema, "attributes")?,
+            spec,
+            &rows.iter().map(|row| row.attributes.as_ref()).collect::<Vec<_>>(),
+            geometry_id_map,
+        )?);
     }
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
@@ -4077,8 +4100,10 @@ fn materials_batch(
     let mut arrays: Vec<ArrayRef> = vec![Arc::new(UInt64Array::from(
         rows.iter().map(|row| row.material_id).collect::<Vec<_>>(),
     ))];
-    for spec in &projection.material_payload {
-        arrays.push(material_payload_array(spec, rows)?);
+    if let Some(specs) = &projection.material_payload {
+        for spec in &specs.fields {
+            arrays.push(material_payload_array(spec, rows)?);
+        }
     }
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
@@ -4161,8 +4186,10 @@ fn textures_batch(
                 .collect::<Vec<_>>(),
         )),
     ];
-    for spec in &projection.texture_payload {
-        arrays.push(texture_payload_array(spec, rows)?);
+    if let Some(specs) = &projection.texture_payload {
+        for spec in &specs.fields {
+            arrays.push(texture_payload_array(spec, rows)?);
+        }
     }
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
@@ -4466,7 +4493,301 @@ fn list_child_field(field: &FieldRef) -> Result<FieldRef> {
     }
 }
 
+fn projected_struct_array_from_attributes(
+    field: &FieldRef,
+    spec: &ProjectedStructSpec,
+    rows: &[Option<&cityjson::v2_0::OwnedAttributes>],
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<ArrayRef> {
+    let values = rows
+        .iter()
+        .map(|row| row.map(|attributes| OwnedAttributeValue::Map(attributes_to_hash_map(attributes))))
+        .collect::<Vec<_>>();
+    let value_refs = values.iter().map(Option::as_ref).collect::<Vec<_>>();
+    projected_value_array(
+        field,
+        &ProjectedValueSpec::Struct(spec.clone()),
+        &value_refs,
+        geometry_id_map,
+    )
+}
+
+fn attributes_to_hash_map(
+    attributes: &cityjson::v2_0::OwnedAttributes,
+) -> HashMap<String, OwnedAttributeValue> {
+    attributes
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
+fn projected_value_array(
+    field: &FieldRef,
+    spec: &ProjectedValueSpec,
+    values: &[Option<&OwnedAttributeValue>],
+    geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
+) -> Result<ArrayRef> {
+    Ok(match spec {
+        ProjectedValueSpec::Null => {
+            for value in values {
+                if let Some(value) = value
+                    && !matches!(value, AttributeValue::Null)
+                {
+                    return Err(Error::Conversion(format!(
+                        "expected null projected value, found {value}"
+                    )));
+                }
+            }
+            Arc::new(NullArray::new(values.len())) as ArrayRef
+        }
+        ProjectedValueSpec::Boolean => Arc::new(BooleanArray::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::Bool(value)) => Ok(Some(*value)),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected bool projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::UInt64 => Arc::new(UInt64Array::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::Unsigned(value)) => Ok(Some(*value)),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected u64 projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::Int64 => Arc::new(Int64Array::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::Integer(value)) => Ok(Some(*value)),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected i64 projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::Float64 => Arc::new(Float64Array::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::Float(value)) => Ok(Some(*value)),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected f64 projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::Utf8 => Arc::new(LargeStringArray::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::String(value)) => Ok(Some(value.clone())),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected string projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::GeometryRef => Arc::new(UInt64Array::from(
+            values
+                .iter()
+                .map(|value| match value {
+                    None | Some(AttributeValue::Null) => Ok(None),
+                    Some(AttributeValue::Geometry(handle)) => geometry_id_map
+                        .get(handle)
+                        .copied()
+                        .map(Some)
+                        .ok_or_else(|| {
+                            Error::Conversion(
+                                "attribute geometry handle missing from id map".to_string(),
+                            )
+                        }),
+                    Some(other) => Err(Error::Conversion(format!(
+                        "expected geometry reference projected value, found {other}"
+                    ))),
+                })
+                .collect::<Result<Vec<_>>>()?,
+        )) as ArrayRef,
+        ProjectedValueSpec::List {
+            item_nullable: _,
+            item,
+        } => {
+            let mut offsets = vec![0_i32];
+            let mut flattened = Vec::new();
+            let mut validity = Vec::with_capacity(values.len());
+            for value in values {
+                match value {
+                    None | Some(AttributeValue::Null) => {
+                        offsets.push(usize_to_i32(flattened.len(), "projected list offset")?);
+                        validity.push(false);
+                    }
+                    Some(AttributeValue::Vec(items)) => {
+                        flattened.extend(items.iter().map(Some));
+                        offsets.push(usize_to_i32(flattened.len(), "projected list offset")?);
+                        validity.push(true);
+                    }
+                    Some(other) => {
+                        return Err(Error::Conversion(format!(
+                            "expected list projected value, found {other}"
+                        )));
+                    }
+                }
+            }
+            let child_field = list_child_field(field)?;
+            let child_values = projected_value_array(&child_field, item, &flattened, geometry_id_map)?;
+            let nulls = if validity.iter().all(|item| *item) {
+                None
+            } else {
+                Some(NullBuffer::from(validity))
+            };
+            Arc::new(ListArray::try_new(
+                child_field,
+                OffsetBuffer::new(ScalarBuffer::from(offsets)),
+                child_values,
+                nulls,
+            )?) as ArrayRef
+        }
+        ProjectedValueSpec::Struct(spec) => {
+            let mut validity = Vec::with_capacity(values.len());
+            let child_fields = spec.to_arrow_fields();
+            let mut child_arrays = Vec::with_capacity(spec.fields.len());
+
+            for child_spec in &spec.fields {
+                let child_values = values
+                    .iter()
+                    .map(|value| match value {
+                        None | Some(AttributeValue::Null) => Ok(None),
+                        Some(AttributeValue::Map(map)) => Ok(map.get(&child_spec.name)),
+                        Some(other) => Err(Error::Conversion(format!(
+                            "expected struct projected value, found {other}"
+                        ))),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                child_arrays.push(projected_value_array(
+                    &Arc::new(child_spec.to_arrow_field()),
+                    &child_spec.value,
+                    &child_values,
+                    geometry_id_map,
+                )?);
+            }
+
+            for value in values {
+                validity.push(matches!(value, Some(AttributeValue::Map(_))));
+            }
+            let nulls = if validity.iter().all(|item| *item) {
+                None
+            } else {
+                Some(NullBuffer::from(validity))
+            };
+            Arc::new(StructArray::try_new(child_fields, child_arrays, nulls)?) as ArrayRef
+        }
+    })
+}
+
+fn projected_attributes_from_array(
+    spec: Option<&ProjectedStructSpec>,
+    array: Option<&StructArray>,
+    row: usize,
+    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+) -> Result<cityjson::v2_0::OwnedAttributes> {
+    let mut attributes = cityjson::v2_0::OwnedAttributes::default();
+    let (Some(spec), Some(array)) = (spec, array) else {
+        return Ok(attributes);
+    };
+    if array.is_null(row) {
+        return Ok(attributes);
+    }
+    for (index, field_spec) in spec.fields.iter().enumerate() {
+        let value = projected_value_from_array(
+            array.column(index).as_ref(),
+            &field_spec.value,
+            row,
+            geometry_handles,
+        )?;
+        attributes.insert(field_spec.name.clone(), value);
+    }
+    Ok(attributes)
+}
+
+fn projected_value_from_array(
+    array: &dyn Array,
+    spec: &ProjectedValueSpec,
+    row: usize,
+    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
+) -> Result<OwnedAttributeValue> {
+    if array.is_null(row) {
+        return Ok(AttributeValue::Null);
+    }
+
+    Ok(match spec {
+        ProjectedValueSpec::Null => AttributeValue::Null,
+        ProjectedValueSpec::Boolean => {
+            AttributeValue::Bool(required_downcast::<BooleanArray>(array, "bool")?.value(row))
+        }
+        ProjectedValueSpec::UInt64 => {
+            AttributeValue::Unsigned(required_downcast::<UInt64Array>(array, "u64")?.value(row))
+        }
+        ProjectedValueSpec::Int64 => {
+            AttributeValue::Integer(required_downcast::<Int64Array>(array, "i64")?.value(row))
+        }
+        ProjectedValueSpec::Float64 => {
+            AttributeValue::Float(required_downcast::<Float64Array>(array, "f64")?.value(row))
+        }
+        ProjectedValueSpec::Utf8 => AttributeValue::String(
+            required_downcast::<LargeStringArray>(array, "large_utf8")?
+                .value(row)
+                .to_string(),
+        ),
+        ProjectedValueSpec::GeometryRef => {
+            let id = required_downcast::<UInt64Array>(array, "geometry_ref")?.value(row);
+            AttributeValue::Geometry(*geometry_handles.get(&id).ok_or_else(|| {
+                Error::Conversion(format!("missing geometry handle for projected geometry id {id}"))
+            })?)
+        }
+        ProjectedValueSpec::List { item, .. } => {
+            let list = required_downcast::<ListArray>(array, "list")?;
+            let offsets = list.value_offsets();
+            let start = usize::try_from(offsets[row]).expect("offset fits into usize");
+            let end = usize::try_from(offsets[row + 1]).expect("offset fits into usize");
+            let values = (start..end)
+                .map(|index| projected_value_from_array(list.values().as_ref(), item, index, geometry_handles))
+                .collect::<Result<Vec<_>>>()?;
+            AttributeValue::Vec(values)
+        }
+        ProjectedValueSpec::Struct(spec) => AttributeValue::Map(
+            attributes_to_hash_map(&projected_attributes_from_array(
+                Some(spec),
+                Some(required_downcast::<StructArray>(array, "struct")?),
+                row,
+                geometry_handles,
+            )?),
+        ),
+    })
+}
+
+fn required_downcast<'a, T: 'static>(
+    array: &'a dyn Array,
+    expected: &str,
+) -> Result<&'a T> {
+    array.as_any().downcast_ref::<T>().ok_or_else(|| {
+        Error::Conversion(format!("expected projected array type {expected}"))
+    })
+}
+
 fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Result<MetadataRow> {
+    let empty_geometry_handles = HashMap::new();
     Ok(MetadataRow {
         citymodel_id: read_large_string_scalar(batch, "citymodel_id", 0)?,
         cityjson_version: read_string_scalar(batch, "cityjson_version", 0)?,
@@ -4475,11 +4796,38 @@ fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Resu
         title: read_large_string_optional(batch, "title", 0)?,
         reference_system: read_large_string_optional(batch, "reference_system", 0)?,
         geographical_extent: read_fixed_size_f64_optional::<6>(batch, "geographical_extent", 0)?,
-        projected: projection
-            .metadata_extra
-            .iter()
-            .map(|spec| read_large_string_optional(batch, &spec.name, 0))
-            .collect::<Result<Vec<_>>>()?,
+        reference_date: read_string_optional(batch, "reference_date", 0)?,
+        default_material_theme: read_string_optional(batch, "default_material_theme", 0)?,
+        default_texture_theme: read_string_optional(batch, "default_texture_theme", 0)?,
+        point_of_contact_json: read_large_string_optional(batch, "point_of_contact_json", 0)?,
+        root_extra: {
+            let array = projection
+                .root_extra
+                .as_ref()
+                .map(|_| downcast_required::<StructArray>(batch, "root_extra"))
+                .transpose()?;
+            let attributes = projected_attributes_from_array(
+                projection.root_extra.as_ref(),
+                array,
+                0,
+                &empty_geometry_handles,
+            )?;
+            (!attributes.is_empty()).then_some(attributes)
+        },
+        metadata_extra: {
+            let array = projection
+                .metadata_extra
+                .as_ref()
+                .map(|_| downcast_required::<StructArray>(batch, "metadata_extra"))
+                .transpose()?;
+            let attributes = projected_attributes_from_array(
+                projection.metadata_extra.as_ref(),
+                array,
+                0,
+                &empty_geometry_handles,
+            )?;
+            (!attributes.is_empty()).then_some(attributes)
+        },
     })
 }
 
@@ -4764,7 +5112,6 @@ fn read_template_geometry_ring_texture_rows(
 fn apply_metadata_row(
     model: &mut OwnedCityModel,
     row: &MetadataRow,
-    projection: &ProjectionLayout,
     geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
 ) -> Result<()> {
     if let Some(identifier) = &row.identifier {
@@ -4786,77 +5133,36 @@ fn apply_metadata_row(
             .set_geographical_extent(BBox::from(extent));
     }
 
-    for (spec, value) in projection.metadata_extra.iter().zip(&row.projected) {
-        let Some(value) = value else {
-            continue;
-        };
+    if let Some(reference_date) = &row.reference_date {
+        model
+            .metadata_mut()
+            .set_reference_date(cityjson::v2_0::Date::new(reference_date.clone()));
+    }
+    if let Some(theme) = &row.default_material_theme {
+        model.set_default_material_theme(Some(ThemeName::new(theme.clone())));
+    }
+    if let Some(theme) = &row.default_texture_theme {
+        model.set_default_texture_theme(Some(ThemeName::new(theme.clone())));
+    }
+    if let Some(value) = &row.point_of_contact_json {
         let json: JsonValue = serde_json::from_str(value)?;
-        if spec.name == FIELD_METADATA_REFERENCE_DATE {
-            let date = json.as_str().ok_or_else(|| {
-                Error::Conversion("metadata referenceDate must be a JSON string".to_string())
-            })?;
-            model
-                .metadata_mut()
-                .set_reference_date(cityjson::v2_0::Date::new(date.to_string()));
-            continue;
+        let contact = contact_from_json(&json, geometry_handles)?;
+        model.metadata_mut().set_point_of_contact(Some(contact));
+    }
+    if let Some(extra) = &row.root_extra {
+        for (key, value) in extra.iter() {
+            model.extra_mut().insert(key.clone(), value.clone());
         }
-        if spec.name == FIELD_METADATA_POINT_OF_CONTACT {
-            let contact = contact_from_json(&json, geometry_handles)?;
-            model.metadata_mut().set_point_of_contact(Some(contact));
-            continue;
-        }
-        if spec.name == FIELD_METADATA_DEFAULT_MATERIAL_THEME {
-            let theme = json.as_str().ok_or_else(|| {
-                Error::Conversion("default material theme must be a JSON string".to_string())
-            })?;
-            model.set_default_material_theme(Some(ThemeName::new(theme.to_string())));
-            continue;
-        }
-        if spec.name == FIELD_METADATA_DEFAULT_TEXTURE_THEME {
-            let theme = json.as_str().ok_or_else(|| {
-                Error::Conversion("default texture theme must be a JSON string".to_string())
-            })?;
-            model.set_default_texture_theme(Some(ThemeName::new(theme.to_string())));
-            continue;
-        }
-        if let Some(key) = decode_projection_name(&spec.name, FIELD_ROOT_EXTRA_PREFIX) {
-            model
-                .extra_mut()
-                .insert(key, json_to_attribute(&json, geometry_handles)?);
-            continue;
-        }
-        if let Some(key) = decode_projection_name(&spec.name, FIELD_METADATA_EXTRA_PREFIX) {
+    }
+    if let Some(extra) = &row.metadata_extra {
+        for (key, value) in extra.iter() {
             model
                 .metadata_mut()
                 .extra_mut()
-                .insert(key, json_to_attribute(&json, geometry_handles)?);
-            continue;
-        }
-        return Err(Error::Conversion(format!(
-            "unrecognized metadata projection column {}",
-            spec.name
-        )));
-    }
-
-    Ok(())
-}
-
-fn apply_projected_attributes(
-    target: &mut cityjson::v2_0::OwnedAttributes,
-    specs: &[ProjectedFieldSpec],
-    values: &[Option<String>],
-    prefix: &str,
-    geometry_handles: &HashMap<u64, cityjson::prelude::GeometryHandle>,
-) -> Result<()> {
-    for (spec, value) in specs.iter().zip(values) {
-        if let Some(value) = value {
-            let key = decode_projection_name(&spec.name, prefix).ok_or_else(|| {
-                Error::Conversion(format!("invalid projection column {}", spec.name))
-            })?;
-            let json: JsonValue = serde_json::from_str(value)?;
-            target.insert(key, json_to_attribute(&json, geometry_handles)?);
+                .insert(key.clone(), value.clone());
         }
     }
+
     Ok(())
 }
 
@@ -5542,49 +5848,10 @@ fn template_surface_count(row: &TemplateGeometryBoundaryRow) -> usize {
     row.surface_lengths.as_ref().map_or(0, std::vec::Vec::len)
 }
 
-fn encode_key(value: &str) -> String {
-    let mut encoded = String::new();
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || byte == b'_' {
-            encoded.push(char::from(byte));
-        } else {
-            write!(encoded, "_x{byte:02X}_").expect("writing to String cannot fail");
-        }
-    }
-    encoded
-}
-
-fn decode_key(value: &str) -> Result<String> {
-    let mut decoded = String::new();
-    let bytes = value.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'_'
-            && index + 5 < bytes.len()
-            && bytes[index + 1] == b'x'
-            && bytes[index + 4] == b'_'
-        {
-            let hex = &value[index + 2..index + 4];
-            let byte = u8::from_str_radix(hex, 16)
-                .map_err(|_| Error::Conversion(format!("invalid encoded key segment {hex}")))?;
-            decoded.push(char::from(byte));
-            index += 5;
-        } else {
-            decoded.push(char::from(bytes[index]));
-            index += 1;
-        }
-    }
-    Ok(decoded)
-}
-
-fn decode_projection_name(name: &str, prefix: &str) -> Option<String> {
-    name.strip_prefix(prefix)
-        .and_then(|value| value.strip_suffix(FIELD_JSON_SUFFIX))
-        .and_then(|value| decode_key(value).ok())
-}
-
-fn has_projection_field(specs: &[ProjectedFieldSpec], name: &str) -> bool {
-    specs.iter().any(|spec| spec.name == name)
+fn has_projection_field(specs: Option<&ProjectedStructSpec>, name: &str) -> bool {
+    specs
+        .map(|specs| specs.fields.iter().any(|spec| spec.name == name))
+        .unwrap_or(false)
 }
 
 fn parse_geometry_type(value: &str) -> Result<GeometryType> {
@@ -5977,9 +6244,9 @@ fn bind_semantic_columns<'a>(
         semantic_type: downcast_required::<StringArray>(batch, "semantic_type")?,
         attributes: projection
             .semantic_attributes
-            .iter()
-            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
-            .collect::<Result<Vec<_>>>()?,
+            .as_ref()
+            .map(|_| downcast_required::<StructArray>(batch, "attributes"))
+            .transpose()?,
     })
 }
 
@@ -5991,39 +6258,39 @@ fn bind_material_columns<'a>(
         material_id: downcast_required::<UInt64Array>(batch, "material_id")?,
         name: downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_NAME)?,
         ambient_intensity: has_projection_field(
-            &projection.material_payload,
+            projection.material_payload.as_ref(),
             FIELD_MATERIAL_AMBIENT_INTENSITY,
         )
         .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_AMBIENT_INTENSITY))
         .transpose()?,
         diffuse_color: has_projection_field(
-            &projection.material_payload,
+            projection.material_payload.as_ref(),
             FIELD_MATERIAL_DIFFUSE_COLOR,
         )
         .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_DIFFUSE_COLOR))
         .transpose()?,
         emissive_color: has_projection_field(
-            &projection.material_payload,
+            projection.material_payload.as_ref(),
             FIELD_MATERIAL_EMISSIVE_COLOR,
         )
         .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_EMISSIVE_COLOR))
         .transpose()?,
         specular_color: has_projection_field(
-            &projection.material_payload,
+            projection.material_payload.as_ref(),
             FIELD_MATERIAL_SPECULAR_COLOR,
         )
         .then(|| downcast_required::<LargeStringArray>(batch, FIELD_MATERIAL_SPECULAR_COLOR))
         .transpose()?,
-        shininess: has_projection_field(&projection.material_payload, FIELD_MATERIAL_SHININESS)
+        shininess: has_projection_field(projection.material_payload.as_ref(), FIELD_MATERIAL_SHININESS)
             .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_SHININESS))
             .transpose()?,
         transparency: has_projection_field(
-            &projection.material_payload,
+            projection.material_payload.as_ref(),
             FIELD_MATERIAL_TRANSPARENCY,
         )
         .then(|| downcast_required::<Float64Array>(batch, FIELD_MATERIAL_TRANSPARENCY))
         .transpose()?,
-        is_smooth: has_projection_field(&projection.material_payload, FIELD_MATERIAL_IS_SMOOTH)
+        is_smooth: has_projection_field(projection.material_payload.as_ref(), FIELD_MATERIAL_IS_SMOOTH)
             .then(|| {
                 downcast_required::<arrow::array::BooleanArray>(batch, FIELD_MATERIAL_IS_SMOOTH)
             })
@@ -6039,13 +6306,13 @@ fn bind_texture_columns<'a>(
         texture_id: downcast_required::<UInt64Array>(batch, "texture_id")?,
         image_uri: downcast_required::<LargeStringArray>(batch, "image_uri")?,
         image_type: downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_IMAGE_TYPE)?,
-        wrap_mode: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_WRAP_MODE)
+        wrap_mode: has_projection_field(projection.texture_payload.as_ref(), FIELD_TEXTURE_WRAP_MODE)
             .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_WRAP_MODE))
             .transpose()?,
-        texture_type: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_TEXTURE_TYPE)
+        texture_type: has_projection_field(projection.texture_payload.as_ref(), FIELD_TEXTURE_TEXTURE_TYPE)
             .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_TEXTURE_TYPE))
             .transpose()?,
-        border_color: has_projection_field(&projection.texture_payload, FIELD_TEXTURE_BORDER_COLOR)
+        border_color: has_projection_field(projection.texture_payload.as_ref(), FIELD_TEXTURE_BORDER_COLOR)
             .then(|| downcast_required::<LargeStringArray>(batch, FIELD_TEXTURE_BORDER_COLOR))
             .transpose()?,
     })
@@ -6095,14 +6362,14 @@ fn bind_cityobject_columns<'a>(
         geographical_extent: downcast_required::<FixedSizeListArray>(batch, "geographical_extent")?,
         attributes: projection
             .cityobject_attributes
-            .iter()
-            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
-            .collect::<Result<Vec<_>>>()?,
+            .as_ref()
+            .map(|_| downcast_required::<StructArray>(batch, "attributes"))
+            .transpose()?,
         extra: projection
             .cityobject_extra
-            .iter()
-            .map(|spec| downcast_required::<LargeStringArray>(batch, &spec.name))
-            .collect::<Result<Vec<_>>>()?,
+            .as_ref()
+            .map(|_| downcast_required::<StructArray>(batch, "extra"))
+            .transpose()?,
     })
 }
 

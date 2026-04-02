@@ -1,16 +1,16 @@
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v2alpha2";
+pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v3alpha1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityarrow.package.v2alpha2")]
-    V2Alpha2,
+    #[serde(rename = "cityarrow.package.v3alpha1")]
+    V3Alpha1,
 }
 
 impl CityArrowPackageVersion {
@@ -53,7 +53,7 @@ impl FromStr for CityArrowPackageVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            PACKAGE_SCHEMA_ID => Ok(Self::V2Alpha2),
+            PACKAGE_SCHEMA_ID => Ok(Self::V3Alpha1),
             other => Err(PackageVersionParseError::new(other)),
         }
     }
@@ -81,67 +81,108 @@ impl CityArrowHeader {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProjectedValueType {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProjectedValueSpec {
+    Null,
     Boolean,
     UInt64,
     Int64,
     Float64,
-    LargeUtf8,
-    GeometryId,
-    WkbBinary,
+    Utf8,
+    GeometryRef,
+    List {
+        item_nullable: bool,
+        item: Box<ProjectedValueSpec>,
+    },
+    Struct(ProjectedStructSpec),
 }
 
-impl ProjectedValueType {
+impl ProjectedValueSpec {
     #[must_use]
-    pub fn to_arrow_type(self) -> DataType {
+    pub fn to_arrow_type(&self) -> DataType {
         match self {
+            Self::Null => DataType::Null,
             Self::Boolean => DataType::Boolean,
-            Self::UInt64 | Self::GeometryId => DataType::UInt64,
+            Self::UInt64 | Self::GeometryRef => DataType::UInt64,
             Self::Int64 => DataType::Int64,
             Self::Float64 => DataType::Float64,
-            Self::LargeUtf8 => DataType::LargeUtf8,
-            Self::WkbBinary => DataType::Binary,
+            Self::Utf8 => DataType::LargeUtf8,
+            Self::List {
+                item_nullable,
+                item,
+            } => DataType::List(Arc::new(Field::new_list_field(
+                item.to_arrow_type(),
+                *item_nullable,
+            ))),
+            Self::Struct(fields) => DataType::Struct(fields.to_arrow_fields()),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectedStructSpec {
+    pub fields: Vec<ProjectedFieldSpec>,
+}
+
+impl ProjectedStructSpec {
+    #[must_use]
+    pub fn new(fields: Vec<ProjectedFieldSpec>) -> Self {
+        Self { fields }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    #[must_use]
+    pub fn to_arrow_fields(&self) -> Fields {
+        self.fields
+            .iter()
+            .map(ProjectedFieldSpec::to_arrow_field)
+            .map(Arc::new)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<&ProjectedFieldSpec> {
+        self.fields.iter().find(|field| field.name == name)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectedFieldSpec {
     pub name: String,
-    pub data_type: ProjectedValueType,
+    pub value: ProjectedValueSpec,
     pub nullable: bool,
 }
 
 impl ProjectedFieldSpec {
     #[must_use]
-    pub fn new(name: impl Into<String>, data_type: ProjectedValueType, nullable: bool) -> Self {
+    pub fn new(name: impl Into<String>, value: ProjectedValueSpec, nullable: bool) -> Self {
         Self {
             name: name.into(),
-            data_type,
+            value,
             nullable,
         }
     }
 
     #[must_use]
     pub fn to_arrow_field(&self) -> Field {
-        Field::new(
-            self.name.clone(),
-            self.data_type.to_arrow_type(),
-            self.nullable,
-        )
+        Field::new(self.name.clone(), self.value.to_arrow_type(), self.nullable)
     }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionLayout {
-    pub metadata_extra: Vec<ProjectedFieldSpec>,
-    pub cityobject_attributes: Vec<ProjectedFieldSpec>,
-    pub cityobject_extra: Vec<ProjectedFieldSpec>,
-    pub geometry_extra: Vec<ProjectedFieldSpec>,
-    pub semantic_attributes: Vec<ProjectedFieldSpec>,
-    pub material_payload: Vec<ProjectedFieldSpec>,
-    pub texture_payload: Vec<ProjectedFieldSpec>,
+    pub root_extra: Option<ProjectedStructSpec>,
+    pub metadata_extra: Option<ProjectedStructSpec>,
+    pub cityobject_attributes: Option<ProjectedStructSpec>,
+    pub cityobject_extra: Option<ProjectedStructSpec>,
+    pub geometry_extra: Option<ProjectedStructSpec>,
+    pub semantic_attributes: Option<ProjectedStructSpec>,
+    pub material_payload: Option<ProjectedStructSpec>,
+    pub texture_payload: Option<ProjectedStructSpec>,
 }
 
 #[doc(hidden)]
@@ -201,7 +242,7 @@ impl PackageManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V2Alpha2,
+            package_schema: CityArrowPackageVersion::V3Alpha1,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,
@@ -315,11 +356,20 @@ fn list_field(name: &str, item_type: DataType, item_nullable: bool, nullable: bo
     )
 }
 
-fn projected_fields(fields: &[ProjectedFieldSpec]) -> Vec<Field> {
-    fields
-        .iter()
-        .map(ProjectedFieldSpec::to_arrow_field)
-        .collect()
+fn projected_struct_field(name: &str, layout: Option<&ProjectedStructSpec>) -> Option<Field> {
+    layout.map(|layout| Field::new(name, DataType::Struct(layout.to_arrow_fields()), true))
+}
+
+fn projected_payload_fields(layout: Option<&ProjectedStructSpec>) -> Vec<Field> {
+    layout
+        .map(|layout| {
+            layout
+                .fields
+                .iter()
+                .map(ProjectedFieldSpec::to_arrow_field)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
@@ -331,8 +381,17 @@ fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("title", DataType::LargeUtf8, true),
         Field::new("reference_system", DataType::LargeUtf8, true),
         fixed_size_list_field("geographical_extent", DataType::Float64, false, 6, true),
+        Field::new("reference_date", DataType::Utf8, true),
+        Field::new("default_material_theme", DataType::Utf8, true),
+        Field::new("default_texture_theme", DataType::Utf8, true),
+        Field::new("point_of_contact_json", DataType::LargeUtf8, true),
     ];
-    fields.extend(projected_fields(&layout.metadata_extra));
+    if let Some(field) = projected_struct_field("root_extra", layout.root_extra.as_ref()) {
+        fields.push(field);
+    }
+    if let Some(field) = projected_struct_field("metadata_extra", layout.metadata_extra.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -367,8 +426,14 @@ fn cityobjects_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("object_type", DataType::Utf8, false),
         fixed_size_list_field("geographical_extent", DataType::Float64, false, 6, true),
     ];
-    fields.extend(projected_fields(&layout.cityobject_attributes));
-    fields.extend(projected_fields(&layout.cityobject_extra));
+    if let Some(field) =
+        projected_struct_field("attributes", layout.cityobject_attributes.as_ref())
+    {
+        fields.push(field);
+    }
+    if let Some(field) = projected_struct_field("extra", layout.cityobject_extra.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -388,7 +453,9 @@ fn geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("geometry_type", DataType::Utf8, false),
         Field::new("lod", DataType::Utf8, true),
     ];
-    fields.extend(projected_fields(&layout.geometry_extra));
+    if let Some(field) = projected_struct_field("extra", layout.geometry_extra.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -414,7 +481,9 @@ fn geometry_instances_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("reference_point_vertex_id", DataType::UInt64, false),
         fixed_size_list_field("transform_matrix", DataType::Float64, false, 16, true),
     ];
-    fields.extend(projected_fields(&layout.geometry_extra));
+    if let Some(field) = projected_struct_field("extra", layout.geometry_extra.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -433,7 +502,9 @@ fn template_geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("geometry_type", DataType::Utf8, false),
         Field::new("lod", DataType::Utf8, true),
     ];
-    fields.extend(projected_fields(&layout.geometry_extra));
+    if let Some(field) = projected_struct_field("extra", layout.geometry_extra.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -454,7 +525,9 @@ fn semantics_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("semantic_id", DataType::UInt64, false),
         Field::new("semantic_type", DataType::Utf8, false),
     ];
-    fields.extend(projected_fields(&layout.semantic_attributes));
+    if let Some(field) = projected_struct_field("attributes", layout.semantic_attributes.as_ref()) {
+        fields.push(field);
+    }
     fields
 }
 
@@ -501,7 +574,7 @@ fn template_geometry_semantics_fields() -> Vec<Field> {
 
 fn materials_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![Field::new("material_id", DataType::UInt64, false)];
-    fields.extend(projected_fields(&layout.material_payload));
+    fields.extend(projected_payload_fields(layout.material_payload.as_ref()));
     fields
 }
 
@@ -529,7 +602,7 @@ fn textures_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("texture_id", DataType::UInt64, false),
         Field::new("image_uri", DataType::LargeUtf8, false),
     ];
-    fields.extend(projected_fields(&layout.texture_payload));
+    fields.extend(projected_payload_fields(layout.texture_payload.as_ref()));
     fields
 }
 
