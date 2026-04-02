@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "cityarrow"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -576,7 +576,8 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "cityarrow",
- "parquet",
+ "cityjson",
+ "memmap2",
  "serde_json",
 ]
 
