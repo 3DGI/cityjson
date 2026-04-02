@@ -2,6 +2,11 @@
 
 `cjlib` is the user-facing facade for the CityJSON crates in this repository.
 
+If you are new to the broader project family, start with
+[`docs/ecosystem-overview.md`](docs/ecosystem-overview.md).
+It explains what each repository does, how the responsibilities are split, and
+which crate to use for which kind of task.
+
 The current rewrite keeps the implemented surface deliberately small:
 
 - `cityjson-rs` owns the one semantic model

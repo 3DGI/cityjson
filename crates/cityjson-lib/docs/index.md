@@ -56,6 +56,9 @@ be idiomatic in its host environment.
 
 ## Documentation Map
 
+- [Ecosystem Overview](ecosystem-overview.md)
+  Plain-language map of the related repositories, how they fit together, and
+  where different users should start.
 - [CityJSON Ecosystem Naming Map](ecosystem-naming.md)
   Proposed repository naming scheme for the CityJSON family, including the
   current-to-target rename map.

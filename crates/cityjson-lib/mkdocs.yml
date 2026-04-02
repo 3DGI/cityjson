@@ -5,6 +5,7 @@ strict: true
 nav:
   - Overview:
       - Home: index.md
+      - Ecosystem Overview: ecosystem-overview.md
       - CityJSON Ecosystem Naming Map: ecosystem-naming.md
       - Architecture: architecture.md
       - Shared Corpus Migration Plan: shared-corpus-migration-plan.md
