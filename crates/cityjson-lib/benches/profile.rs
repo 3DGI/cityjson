@@ -16,7 +16,8 @@ enum ProfileMode {
 }
 
 fn main() {
-    let args = parse_args(env::args().skip(1).collect());
+    let raw_args: Vec<String> = env::args().skip(1).collect();
+    let args = parse_args(&raw_args);
     let case = load_case(&args.case_id);
     let prepared = prepare_workload(&case, args.workload);
 
@@ -39,8 +40,8 @@ fn main() {
     println!("  \"workload\": \"{}\",", args.workload.label());
     println!("  \"profile\": \"{}\",", args.profile_mode.label());
     println!("  \"iterations\": {},", args.iterations);
-    println!("  \"bytes_per_iteration\": {},", throughput_bytes);
-    println!("  \"elapsed_ns\": {},", elapsed_ns);
+    println!("  \"bytes_per_iteration\": {throughput_bytes},");
+    println!("  \"elapsed_ns\": {elapsed_ns},");
     println!(
         "  \"elapsed_per_iteration_ns\": {}",
         elapsed_ns / u128::from(args.iterations)
@@ -56,7 +57,7 @@ struct Args {
     profile_mode: ProfileMode,
 }
 
-fn parse_args(args: Vec<String>) -> Args {
+fn parse_args(args: &[String]) -> Args {
     let mut case_id = "io_3dbag_cityjson".to_string();
     let mut workload = None;
     let mut iterations = 1_u64;
@@ -67,26 +68,26 @@ fn parse_args(args: Vec<String>) -> Args {
         match args[index].as_str() {
             "--case" => {
                 index += 1;
-                case_id = value(&args, index, "--case").to_string();
+                case_id = value(args, index, "--case").to_string();
             }
             "--workload" => {
                 index += 1;
                 workload = Some(
-                    value(&args, index, "--workload")
+                    value(args, index, "--workload")
                         .parse()
                         .unwrap_or_else(|error: String| panic!("{error}")),
                 );
             }
             "--iterations" => {
                 index += 1;
-                iterations = value(&args, index, "--iterations")
+                iterations = value(args, index, "--iterations")
                     .parse()
                     .unwrap_or_else(|error| panic!("invalid iterations: {error}"));
                 assert!(iterations > 0, "iterations must be greater than zero");
             }
             "--profile" => {
                 index += 1;
-                profile_mode = match value(&args, index, "--profile") {
+                profile_mode = match value(args, index, "--profile") {
                     "none" => ProfileMode::None,
                     "dhat" => ProfileMode::Dhat,
                     other => panic!("unknown profile mode '{other}'"),
@@ -113,8 +114,7 @@ fn parse_args(args: Vec<String>) -> Args {
 
 fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
     args.get(index)
-        .map(String::as_str)
-        .unwrap_or_else(|| panic!("missing value for {flag}"))
+        .map_or_else(|| panic!("missing value for {flag}"), String::as_str)
 }
 
 fn print_usage() {

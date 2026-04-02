@@ -33,8 +33,8 @@ format's own encoded byte size. That is not a fair cross-format denominator.
 The benchmark suite is interpreted in three layers:
 
 1. Primary benchmark: end-to-end `format <-> CityModel`
-2. Secondary benchmark: package IO only
-3. Secondary benchmark: `parts <-> CityModel` conversion only
+2. Secondary benchmark: transport/package IO only
+3. Secondary benchmark: canonical-parts conversion only
 
 The primary benchmark remains the headline result because the shared
 `CityModel` is the ecosystem boundary.
@@ -51,7 +51,7 @@ throughput denominator.
 
 For Arrow and Parquet there are two distinct operations.
 
-### `to_parts` and `from_parts`
+### `encode_parts` and `decode_parts`
 
 These convert between the heap `CityModel` and a canonical in-memory columnar
 representation, `CityModelArrowParts`.
@@ -66,48 +66,52 @@ representation, `CityModelArrowParts`.
 - semantic tables
 - appearance tables
 
-`to_parts` does not write files. It walks the heap model, builds ID maps,
+`encode_parts` does not write files. It walks the heap model, builds ID maps,
 discovers projection layout, and exports the model into canonical tables.
 
-`from_parts` does not read files. It validates the table set, allocates a new
+`decode_parts` does not read files. It validates the table set, allocates a new
 heap model, imports metadata, vertices, semantics, materials, textures,
 geometries, and cityobjects, and reconstructs the shared `CityModel`.
 
 So:
 
-- `to_parts`: `CityModel -> CityModelArrowParts`
-- `from_parts`: `CityModelArrowParts -> CityModel`
+- `encode_parts`: `CityModel -> CityModelArrowParts`
+- `decode_parts`: `CityModelArrowParts -> CityModel`
 
-### `write_package_*` and `read_package_*`
+### Live Stream And Persistent Package IO
 
-These convert between `CityModelArrowParts` and an on-disk package directory.
+These convert between `CityModelArrowParts` and the current native file
+surfaces.
 
-A package is not one monolithic file. It is a directory with:
+For `cityarrow`, the native surface is one live framed Arrow IPC stream file.
 
-- `manifest.json`
-- one file per canonical table
+For `cityparquet`, the native surface is one seekable single-file package with:
 
-For Arrow, the table files are Arrow IPC files. For Parquet, the table files
-are Parquet files.
+- a package header
+- table payloads
+- a manifest footer and index at the end of the file
 
 So:
 
-- `write_package_*`: `CityModelArrowParts -> package directory on disk`
-- `read_package_*`: `package directory on disk -> CityModelArrowParts`
+- `write_stream_parts`: `CityModelArrowParts -> live stream bytes`
+- `read_stream_parts`: `live stream bytes -> CityModelArrowParts`
+- `write_package_parts`: `CityModelArrowParts -> package file`
+- `read_package_parts`: `package file -> CityModelArrowParts`
+- `read_package_manifest`: `package file -> footer/index metadata only`
 
 ### End-To-End Composition
 
 The current Arrow and Parquet benchmarks are intentionally end-to-end shared
 model benchmarks:
 
-- Arrow write: `CityModel -> to_parts -> write_package_ipc_dir`
-- Arrow read: `read_package_ipc_dir -> from_parts -> CityModel`
-- Parquet write: `CityModel -> to_parts -> write_package_dir`
-- Parquet read: `read_package_dir -> from_parts -> CityModel`
+- Arrow write: `CityModel -> ModelEncoder.encode -> live stream file`
+- Arrow read: `ModelDecoder.decode -> CityModel`
+- Parquet write: `CityModel -> PackageWriter.write_file -> package file`
+- Parquet read: `PackageReader.read_file -> CityModel`
 
 This means the measured cost includes both:
 
-- package IO, and
+- transport/package IO, and
 - reconstruction or flattening of the shared model
 
 That is the correct benchmark for the ecosystem promise, but it is not the same
@@ -190,6 +194,65 @@ So the dominant cost is not explained by one cache number alone. The main cost
 appears to be the total work required to flatten or reconstruct the shared
 model.
 
+## Harness Correction And Follow-Up Snapshot
+
+On April 2, 2026, the downstream `cjlib` harness was corrected in three ways:
+
+- native `.cjarrow` and `.cjparquet` artifacts are now validated with the
+  current decoders before reuse, rather than accepted on file existence alone
+- native write benchmarks pre-create the temp directory once and overwrite a
+  fixed file path inside the timed loop
+- the suite now exposes a separate `diagnostic` Criterion target for
+  conversion-only and transport-only measurements
+
+The corrected full snapshot is:
+
+- timestamp: `2026-04-02T12:45:56Z`
+- description: `cityarrow refactor 9f3d51e`
+
+Headline end-to-end numbers from that run:
+
+| Path | Tile | Cluster 4x |
+| --- | --- | --- |
+| `cityarrow` read | `28.59 ms` | `115.30 ms` |
+| `cityparquet` read | `28.42 ms` | `114.32 ms` |
+| `cityarrow` write | `59.59 ms` | `211.06 ms` |
+| `cityparquet` write | `58.13 ms` | `209.50 ms` |
+
+Those numbers keep the same overall product reading:
+
+- Arrow and Parquet reads are materially better than the original baseline
+- Arrow and Parquet writes are still far slower than the shared-model JSON
+  paths
+- the end-to-end benchmark remains the right headline benchmark for user-facing
+  claims
+
+The new diagnostic target adds the missing narrower view.
+
+On the first diagnostic sanity run, the tile case showed:
+
+- `encode_parts`: about `42.1 ms`
+- `decode_parts`: about `28.3 ms`
+- `stream_write_parts`: about `0.58 ms`
+- `stream_read_parts`: about `0.60 ms`
+- `package_write_parts`: about `3.26 ms`
+- `package_read_parts`: about `0.71 ms`
+- `package_read_manifest`: about `12 us`
+
+The cluster case showed the same shape at larger scale:
+
+- `encode_parts`: about `191.8 ms`
+- `decode_parts`: about `113.8 ms`
+- `stream_write_parts`: about `7.97 ms`
+- `stream_read_parts`: about `2.95 ms`
+- `package_write_parts`: about `12.5 ms`
+- `package_read_parts`: about `3.16 ms`
+- `package_read_manifest`: about `12.6 us`
+
+Those split numbers materially strengthen the ADR reading that the remaining
+cost is dominated by shared-model flattening and reconstruction, not by fixed
+stream or package overhead.
+
 ## Memory Growth Pattern
 
 The `cluster_4x` case is about `3.50x` larger than the base tile by logical
@@ -219,20 +282,30 @@ Tradeoffs:
 
 - Arrow and Parquet do not currently support the intended narrative of being
   faster end-to-end than JSON for `CityModel` materialization
-- the current suite still conflates format IO cost with `from_parts` and
-  `to_parts` cost inside the end-to-end numbers
+- the headline suite still intentionally conflates transport IO with
+  `encode_parts` and `decode_parts`
+- the diagnostic suite is now required context whenever a native-format change
+  is evaluated as an implementation optimization
 
 ## Follow-Up
 
-Keep the current end-to-end benchmark as the headline benchmark and add split
-diagnostic benchmarks for:
+Keep the current end-to-end benchmark as the headline benchmark and keep the
+split diagnostic benchmarks alongside it:
 
 - `read_package_*` only
 - `write_package_*` only
-- `from_parts` only
-- `to_parts` only
+- `read_stream_*` only
+- `write_stream_*` only
+- `decode_parts` only
+- `encode_parts` only
 
 Those secondary benchmarks should be used to answer a narrower question:
 
 - is the format layer itself expensive, or
 - is the shared-model conversion the dominant cost?
+
+Downstream harness rule:
+
+- benchmark preparation must validate native artifacts against the current
+  decoders before reuse; file existence alone is not a valid compatibility
+  check across transport-format revisions

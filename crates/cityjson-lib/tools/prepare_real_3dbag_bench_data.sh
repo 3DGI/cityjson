@@ -73,6 +73,35 @@ has_artifact() {
   [[ -f "${path}" ]]
 }
 
+validate_artifact() {
+  local kind="$1"
+  local path="$2"
+
+  case "${kind}" in
+    cityarrow)
+      cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_validate_formats -- \
+        --arrow-file "${path}" >/dev/null 2>&1
+      ;;
+    cityparquet)
+      cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_validate_formats -- \
+        --parquet-file "${path}" >/dev/null 2>&1
+      ;;
+    *)
+      echo "unknown artifact kind '${kind}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_valid_local_artifact() {
+  local kind="$1"
+  local path="$2"
+
+  if has_artifact "${path}" && ! validate_artifact "${kind}" "${path}"; then
+    rm -f "${path}"
+  fi
+}
+
 ensure_native_formats() {
   local input_json="$1"
   local cityarrow_output="$2"
@@ -81,11 +110,14 @@ ensure_native_formats() {
   local shared_cityparquet="$5"
   local export_args=()
 
-  if ! has_artifact "${cityarrow_output}" && has_artifact "${shared_cityarrow}"; then
+  ensure_valid_local_artifact cityarrow "${cityarrow_output}"
+  ensure_valid_local_artifact cityparquet "${cityparquet_output}"
+
+  if ! has_artifact "${cityarrow_output}" && has_artifact "${shared_cityarrow}" && validate_artifact cityarrow "${shared_cityarrow}"; then
     copy_artifact "${shared_cityarrow}" "${cityarrow_output}"
   fi
 
-  if ! has_artifact "${cityparquet_output}" && has_artifact "${shared_cityparquet}"; then
+  if ! has_artifact "${cityparquet_output}" && has_artifact "${shared_cityparquet}" && validate_artifact cityparquet "${shared_cityparquet}"; then
     copy_artifact "${shared_cityparquet}" "${cityparquet_output}"
   fi
 
@@ -104,6 +136,9 @@ ensure_native_formats() {
   cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_export_formats -- \
     --input "${input_json}" \
     "${export_args[@]}"
+
+  validate_artifact cityarrow "${cityarrow_output}"
+  validate_artifact cityparquet "${cityparquet_output}"
 }
 
 copy_or_download_tile "${base_tile}"

@@ -28,7 +28,7 @@ pub(crate) struct BenchmarkCase {
     pub(crate) cityparquet_bytes: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum PreparedWorkload {
     JsonRead {
         workload: Workload,
@@ -44,8 +44,18 @@ pub(crate) enum PreparedWorkload {
     ArrowRead {
         cityarrow_path: PathBuf,
     },
+    ArrowWrite {
+        model: CityModel,
+        output_path: PathBuf,
+        _output_dir: tempfile::TempDir,
+    },
     ParquetRead {
         cityparquet_path: PathBuf,
+    },
+    ParquetWrite {
+        model: CityModel,
+        output_path: PathBuf,
+        _output_dir: tempfile::TempDir,
     },
 }
 
@@ -102,19 +112,34 @@ pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> Prep
         Workload::JsonSerdeValueWrite => PreparedWorkload::JsonValueWrite {
             value: read_json_value(&case.json_path),
         },
-        Workload::JsonSerdeCityjsonWrite
-        | Workload::JsonCjlibWrite
-        | Workload::ArrowWrite
-        | Workload::ParquetWrite => PreparedWorkload::ModelWrite {
-            workload,
-            model: read_model(&case.json_path),
-        },
+        Workload::JsonSerdeCityjsonWrite | Workload::JsonCjlibWrite => {
+            PreparedWorkload::ModelWrite {
+                workload,
+                model: read_model(&case.json_path),
+            }
+        }
         Workload::ArrowRead => PreparedWorkload::ArrowRead {
             cityarrow_path: case.cityarrow_path.clone(),
         },
+        Workload::ArrowWrite => {
+            let output_dir = tempfile::tempdir().expect("benchmark tempdir should be creatable");
+            PreparedWorkload::ArrowWrite {
+                model: read_model(&case.json_path),
+                output_path: output_dir.path().join("model.cjarrow"),
+                _output_dir: output_dir,
+            }
+        }
         Workload::ParquetRead => PreparedWorkload::ParquetRead {
             cityparquet_path: case.cityparquet_path.clone(),
         },
+        Workload::ParquetWrite => {
+            let output_dir = tempfile::tempdir().expect("benchmark tempdir should be creatable");
+            PreparedWorkload::ParquetWrite {
+                model: read_model(&case.json_path),
+                output_path: output_dir.path().join("model.cjparquet"),
+                _output_dir: output_dir,
+            }
+        }
     }
 }
 
@@ -163,27 +188,21 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             let model = cjlib::arrow::from_file(black_box(cityarrow_path.as_path())).unwrap();
             black_box(model);
         }
-        PreparedWorkload::ModelWrite {
-            workload: Workload::ArrowWrite,
-            model,
+        PreparedWorkload::ArrowWrite {
+            model, output_path, ..
         } => {
-            let dir = tempfile::tempdir().unwrap();
-            let path = dir.path().join("model.cjarrow");
-            cjlib::arrow::to_file(&path, black_box(model)).unwrap();
-            black_box(dir);
+            cjlib::arrow::to_file(black_box(output_path.as_path()), black_box(model)).unwrap();
+            black_box(output_path);
         }
         PreparedWorkload::ParquetRead { cityparquet_path } => {
             let model = cjlib::parquet::from_file(black_box(cityparquet_path.as_path())).unwrap();
             black_box(model);
         }
-        PreparedWorkload::ModelWrite {
-            workload: Workload::ParquetWrite,
-            model,
+        PreparedWorkload::ParquetWrite {
+            model, output_path, ..
         } => {
-            let dir = tempfile::tempdir().unwrap();
-            let path = dir.path().join("model.cjparquet");
-            cjlib::parquet::to_file(&path, black_box(model)).unwrap();
-            black_box(dir);
+            cjlib::parquet::to_file(black_box(output_path.as_path()), black_box(model)).unwrap();
+            black_box(output_path);
         }
         PreparedWorkload::JsonRead { workload, .. }
         | PreparedWorkload::ModelWrite { workload, .. } => {

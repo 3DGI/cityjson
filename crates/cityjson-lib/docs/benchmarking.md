@@ -27,9 +27,11 @@ This will:
 
 - reuse the shared-corpus tile and native format files if they are already available
 - reuse the shared-corpus `cluster_4x.*` artifacts if they are already available
+- validate reused `.cjarrow` and `.cjparquet` files against the current decoders
 - download the missing pinned 3DBAG tiles
 - otherwise merge the four-tile stress case with `cjio`
-- otherwise export local cityarrow stream files and cityparquet package files with `bench_export_formats`
+- otherwise re-export incompatible or missing cityarrow stream files and
+  cityparquet package files with `bench_export_formats`
 
 ## Throughput Benchmarks
 
@@ -50,6 +52,30 @@ The Arrow and Parquet timings are end-to-end `format <-> CityModel`
 benchmarks. The read path consumes prebuilt native-format files from the
 corpus; it does not convert from CityJSON inside the timed loop. These timings
 therefore include both native IO and reconstruction of the heap `CityModel`.
+
+## Diagnostic Benchmarks
+
+Use the split diagnostic target when you need the narrower ADR 0010 view:
+
+```bash
+just bench-diagnostic -- --quick
+just bench-diagnostic
+```
+
+This target keeps the same pinned 3DBAG cases but measures the internal native
+layers separately from the headline end-to-end path:
+
+- `cityarrow/encode_parts`
+- `cityarrow/decode_parts`
+- `cityarrow/write_parts`
+- `cityarrow/read_parts`
+- `cityparquet/write_parts`
+- `cityparquet/read_parts`
+- `cityparquet/read_manifest`
+
+Use `throughput` for product-facing `format <-> CityModel` numbers and
+`diagnostic` to decide whether the remaining cost sits in shared-model
+conversion, live-stream transport, or package/container work.
 
 ## Profiling
 

@@ -75,6 +75,7 @@ echo "=== Preparing benchmark data ==="
 just -f "${repo_dir}/justfile" bench-prepare
 
 export CARGO_TARGET_DIR="${repo_dir}/target/bench"
+rm -rf "${criterion_dir}"
 
 bench_cmd=(cargo bench --bench throughput --manifest-path "${repo_dir}/Cargo.toml")
 if [[ "${mode}" == "fast" ]]; then

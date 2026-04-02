@@ -3,7 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let args = parse_args(env::args().skip(1).collect());
+    let raw_args: Vec<String> = env::args().skip(1).collect();
+    let args = parse_args(&raw_args);
     let model = cjlib::CityModel::from_file(&args.input)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
 
@@ -29,7 +30,7 @@ struct Args {
     parquet_file: Option<PathBuf>,
 }
 
-fn parse_args(args: Vec<String>) -> Args {
+fn parse_args(args: &[String]) -> Args {
     let mut input = None;
     let mut arrow_file = None;
     let mut parquet_file = None;
@@ -39,15 +40,15 @@ fn parse_args(args: Vec<String>) -> Args {
         match args[index].as_str() {
             "--input" => {
                 index += 1;
-                input = Some(PathBuf::from(value(&args, index, "--input")));
+                input = Some(PathBuf::from(value(args, index, "--input")));
             }
             "--arrow-file" => {
                 index += 1;
-                arrow_file = Some(PathBuf::from(value(&args, index, "--arrow-file")));
+                arrow_file = Some(PathBuf::from(value(args, index, "--arrow-file")));
             }
             "--parquet-file" => {
                 index += 1;
-                parquet_file = Some(PathBuf::from(value(&args, index, "--parquet-file")));
+                parquet_file = Some(PathBuf::from(value(args, index, "--parquet-file")));
             }
             "--help" | "-h" => {
                 print_usage();
@@ -73,8 +74,7 @@ fn parse_args(args: Vec<String>) -> Args {
 
 fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
     args.get(index)
-        .map(String::as_str)
-        .unwrap_or_else(|| panic!("missing value for {flag}"))
+        .map_or_else(|| panic!("missing value for {flag}"), String::as_str)
 }
 
 fn print_usage() {
