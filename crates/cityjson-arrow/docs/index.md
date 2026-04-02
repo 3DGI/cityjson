@@ -21,6 +21,10 @@ the shared package schema, and the language-agnostic layouts.
   the focused execution plan for stream, package, and conversion optimization
 - [ADR 4: reduce conversion cost with ordinal canonical relations](adr/004-reduce-conversion-cost-with-ordinal-canonical-relations.md):
   the `v2alpha2` schema cleanup, conversion rationale, and measured result
+- [ADR 005: cut `v3alpha1` schema for Arrow-native projection and batch-native conversion](adr/005-cut-v3-schema-for-arrow-native-projection-and-batch-native-conversion.md):
+  the hard schema break for recursive typed projections and batch-native conversion
+- [ADR 005 v3 implementation plan](adr-005-v3-implementation-plan.md):
+  the execution sequence for the `v3alpha1` schema cut and encode/decode refactor
 
 ## Scope
 
