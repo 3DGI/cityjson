@@ -128,6 +128,8 @@ Exit criteria:
 Current follow-up note:
 
 - [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md)
+- [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md)
+- [ADR 2 and ADR 3 optimization plan](adr-002-003-optimization-plan.md)
 
 First-wave split benchmark set:
 

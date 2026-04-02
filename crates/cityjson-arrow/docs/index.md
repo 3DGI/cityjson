@@ -15,6 +15,10 @@ the shared package schema, and the language-agnostic layouts.
 - [Parquet spec](cityjson-parquet-spec.md): Parquet layout specification
 - [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md):
   first post-refactor benchmark reading and the exact split benchmark matrix
+- [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md):
+  why the next optimization slice stays on the owned semantic boundary
+- [ADR 2 and ADR 3 optimization plan](adr-002-003-optimization-plan.md):
+  the focused execution plan for stream, package, and conversion optimization
 
 ## Scope
 

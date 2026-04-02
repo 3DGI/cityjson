@@ -259,3 +259,8 @@ That suggests this order:
 2. confirm whether `convert_decode_parts` dominates read time
 3. if confirmed, rewrite import around bound columns and span-based traversal
 4. then revisit export row construction and package/stream buffering
+
+Companion notes for that next slice:
+
+- [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md)
+- [ADR 2 and ADR 3 optimization plan](adr-002-003-optimization-plan.md)
