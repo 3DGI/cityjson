@@ -104,6 +104,25 @@ Trade-offs:
 - package specification work increases because the project now owns a new
   persistent container contract instead of a directory convention
 
+## Post-Acceptance Note: 2026-04-02
+
+The first post-refactor `cjlib` benchmark run shows that the ADR 3 cut line was
+useful but not sufficient on its own.
+
+The native read paths improved materially after the refactor, and both
+`cityarrow` and `cityparquet` now read the pinned 3DBAG cases faster than the
+current shared-model JSON path. That means the architectural cut did remove
+real overhead.
+
+The same run also showed that writes remain far behind JSON and that read
+allocation totals did not materially change. The current implementation still
+routes the hot path through full canonical-parts materialization and eager
+whole-input handling, so the intended stream-first and lazy-package execution
+model is not yet fully realized.
+
+That follow-up is recorded in
+[ADR 2 and ADR 3 benchmark follow-up](../adr-002-003-benchmark-follow-up.md).
+
 Follow-up work:
 
 - define the new public reader and writer API around streaming decode and

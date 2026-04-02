@@ -13,6 +13,8 @@ the shared package schema, and the language-agnostic layouts.
 - [Package schema](package-schema.md): shared canonical table contract
 - [Arrow IPC spec](cityjson-arrow-ipc-spec.md): Arrow IPC layout specification
 - [Parquet spec](cityjson-parquet-spec.md): Parquet layout specification
+- [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md):
+  first post-refactor benchmark reading and the exact split benchmark matrix
 
 ## Scope
 

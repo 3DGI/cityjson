@@ -125,6 +125,24 @@ Exit criteria:
 - benchmark harness runs independently for each layer named in ADR 2
 - the current implementation baseline is captured before any API demolition
 
+Current follow-up note:
+
+- [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md)
+
+First-wave split benchmark set:
+
+- `stream_write_model`
+- `stream_read_model`
+- `package_write_model`
+- `package_read_model`
+- `convert_encode_parts`
+- `convert_decode_parts`
+- `stream_write_parts`
+- `stream_read_parts`
+- `package_write_parts`
+- `package_read_parts`
+- `package_read_manifest`
+
 ## Phase 2: Public API Demolition
 
 Purpose:

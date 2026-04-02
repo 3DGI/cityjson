@@ -106,6 +106,23 @@ Trade-offs:
   layout carries fixed costs that are acceptable for interchange but poor for
   latency-sensitive end-to-end use
 
+## Post-Acceptance Note: 2026-04-02
+
+The first post-refactor `cjlib` run materially improved the native paths, so
+the current evidence still supports this ADR's core reading.
+
+- `cityarrow` read time improved by about `22%` on both pinned 3DBAG cases
+- `cityparquet` read time improved by about `26%` to `29%`
+- `cityarrow` write improved by about `16%`
+- `cityparquet` write improved by about `27%` to `30%`
+
+The same run also showed that the remaining write gap is still large and that
+read allocation totals did not meaningfully change, which means the benchmark
+story is still dominated by unsplit conversion and materialization cost.
+
+That follow-up is recorded in
+[ADR 2 and ADR 3 benchmark follow-up](../adr-002-003-benchmark-follow-up.md).
+
 Follow-up work:
 
 - add split benchmarks for `read_package_*`, `write_package_*`, `from_parts`,
