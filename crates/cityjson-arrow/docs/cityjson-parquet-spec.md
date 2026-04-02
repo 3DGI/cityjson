@@ -10,7 +10,7 @@ single-file container rather than a directory tree.
 
 - package magic: `CITYARROW_PKG_V2\0`
 - footer magic: `CITYARROW_PKG_IDX\0`
-- package schema id: `cityarrow.package.v2alpha1`
+- package schema id: `cityarrow.package.v2alpha2`
 
 ## Layout
 

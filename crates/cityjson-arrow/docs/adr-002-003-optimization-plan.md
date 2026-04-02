@@ -7,6 +7,7 @@ It complements:
 
 - [ADR 2 and ADR 3 benchmark follow-up](adr-002-003-benchmark-follow-up.md)
 - [ADR 2 and ADR 3 borrowed strings decision](adr-002-003-borrowed-strings-decision.md)
+- [ADR 4: reduce conversion cost with ordinal canonical relations](adr/004-reduce-conversion-cost-with-ordinal-canonical-relations.md)
 
 The purpose of this plan is narrower than the original ADR 3 implementation
 plan:

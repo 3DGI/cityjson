@@ -19,6 +19,8 @@ the shared package schema, and the language-agnostic layouts.
   why the next optimization slice stays on the owned semantic boundary
 - [ADR 2 and ADR 3 optimization plan](adr-002-003-optimization-plan.md):
   the focused execution plan for stream, package, and conversion optimization
+- [ADR 4: reduce conversion cost with ordinal canonical relations](adr/004-reduce-conversion-cost-with-ordinal-canonical-relations.md):
+  the `v2alpha2` schema cleanup, conversion rationale, and measured result
 
 ## Scope
 
@@ -31,5 +33,5 @@ model itself.
 
 ## Implementation Notes
 
-The package format is currently `cityarrow.package.v2alpha1`.
+The package format is currently `cityarrow.package.v2alpha2`.
 It is intentionally schema-locked and reconstructible from ids and ordinals.

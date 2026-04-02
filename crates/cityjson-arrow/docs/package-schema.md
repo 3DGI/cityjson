@@ -5,7 +5,7 @@ live `cityarrow` stream and the persistent `cityparquet` package.
 
 ## Summary
 
-- package schema id: `cityarrow.package.v2alpha1`
+- package schema id: `cityarrow.package.v2alpha2`
 - semantic boundary: `cityjson::v2_0::OwnedCityModel`
 - public transport APIs: `ModelEncoder` / `ModelDecoder`,
   `PackageWriter` / `PackageReader`

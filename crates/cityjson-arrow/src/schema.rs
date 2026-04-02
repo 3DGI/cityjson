@@ -5,12 +5,12 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v2alpha1";
+pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v2alpha2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityarrow.package.v2alpha1")]
-    V2Alpha1,
+    #[serde(rename = "cityarrow.package.v2alpha2")]
+    V2Alpha2,
 }
 
 impl CityArrowPackageVersion {
@@ -53,7 +53,7 @@ impl FromStr for CityArrowPackageVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            PACKAGE_SCHEMA_ID => Ok(Self::V2Alpha1),
+            PACKAGE_SCHEMA_ID => Ok(Self::V2Alpha2),
             other => Err(PackageVersionParseError::new(other)),
         }
     }
@@ -201,7 +201,7 @@ impl PackageManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V2Alpha1,
+            package_schema: CityArrowPackageVersion::V2Alpha2,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,
@@ -338,7 +338,6 @@ fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn transform_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         fixed_size_list_field("scale", DataType::Float64, false, 3, false),
         fixed_size_list_field("translate", DataType::Float64, false, 3, false),
     ]
@@ -346,7 +345,6 @@ fn transform_fields() -> Vec<Field> {
 
 fn extensions_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("extension_name", DataType::Utf8, false),
         Field::new("uri", DataType::LargeUtf8, false),
         Field::new("version", DataType::Utf8, true),
@@ -355,7 +353,6 @@ fn extensions_fields() -> Vec<Field> {
 
 fn vertices_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("vertex_id", DataType::UInt64, false),
         Field::new("x", DataType::Float64, false),
         Field::new("y", DataType::Float64, false),
@@ -365,7 +362,6 @@ fn vertices_fields() -> Vec<Field> {
 
 fn cityobjects_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("cityobject_id", DataType::LargeUtf8, false),
         Field::new("cityobject_ix", DataType::UInt64, false),
         Field::new("object_type", DataType::Utf8, false),
@@ -378,18 +374,16 @@ fn cityobjects_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn cityobject_children_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
-        Field::new("parent_cityobject_id", DataType::LargeUtf8, false),
+        Field::new("parent_cityobject_ix", DataType::UInt64, false),
         Field::new("child_ordinal", DataType::UInt32, false),
-        Field::new("child_cityobject_id", DataType::LargeUtf8, false),
+        Field::new("child_cityobject_ix", DataType::UInt64, false),
     ]
 }
 
 fn geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("cityobject_id", DataType::LargeUtf8, false),
+        Field::new("cityobject_ix", DataType::UInt64, false),
         Field::new("geometry_ordinal", DataType::UInt32, false),
         Field::new("geometry_type", DataType::Utf8, false),
         Field::new("lod", DataType::Utf8, true),
@@ -400,7 +394,6 @@ fn geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn geometry_boundaries_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         list_field("vertex_indices", DataType::UInt64, false, false),
         list_field("line_lengths", DataType::UInt32, false, true),
@@ -413,9 +406,8 @@ fn geometry_boundaries_fields() -> Vec<Field> {
 
 fn geometry_instances_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
-        Field::new("cityobject_id", DataType::LargeUtf8, false),
+        Field::new("cityobject_ix", DataType::UInt64, false),
         Field::new("geometry_ordinal", DataType::UInt32, false),
         Field::new("lod", DataType::Utf8, true),
         Field::new("template_geometry_id", DataType::UInt64, false),
@@ -428,7 +420,6 @@ fn geometry_instances_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn template_vertices_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_vertex_id", DataType::UInt64, false),
         Field::new("x", DataType::Float64, false),
         Field::new("y", DataType::Float64, false),
@@ -438,7 +429,6 @@ fn template_vertices_fields() -> Vec<Field> {
 
 fn template_geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("geometry_type", DataType::Utf8, false),
         Field::new("lod", DataType::Utf8, true),
@@ -449,7 +439,6 @@ fn template_geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn template_geometry_boundaries_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_geometry_id", DataType::UInt64, false),
         list_field("vertex_indices", DataType::UInt64, false, false),
         list_field("line_lengths", DataType::UInt32, false, true),
@@ -462,7 +451,6 @@ fn template_geometry_boundaries_fields() -> Vec<Field> {
 
 fn semantics_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("semantic_id", DataType::UInt64, false),
         Field::new("semantic_type", DataType::Utf8, false),
     ];
@@ -472,7 +460,6 @@ fn semantics_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn semantic_children_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("parent_semantic_id", DataType::UInt64, false),
         Field::new("child_ordinal", DataType::UInt32, false),
         Field::new("child_semantic_id", DataType::UInt64, false),
@@ -481,7 +468,6 @@ fn semantic_children_fields() -> Vec<Field> {
 
 fn geometry_surface_semantics_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
         Field::new("semantic_id", DataType::UInt64, true),
@@ -490,7 +476,6 @@ fn geometry_surface_semantics_fields() -> Vec<Field> {
 
 fn geometry_point_semantics_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("point_ordinal", DataType::UInt32, false),
         Field::new("semantic_id", DataType::UInt64, true),
@@ -499,7 +484,6 @@ fn geometry_point_semantics_fields() -> Vec<Field> {
 
 fn geometry_linestring_semantics_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("linestring_ordinal", DataType::UInt32, false),
         Field::new("semantic_id", DataType::UInt64, true),
@@ -508,7 +492,6 @@ fn geometry_linestring_semantics_fields() -> Vec<Field> {
 
 fn template_geometry_semantics_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("primitive_type", DataType::Utf8, false),
         Field::new("primitive_ordinal", DataType::UInt32, false),
@@ -517,17 +500,13 @@ fn template_geometry_semantics_fields() -> Vec<Field> {
 }
 
 fn materials_fields(layout: &ProjectionLayout) -> Vec<Field> {
-    let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
-        Field::new("material_id", DataType::UInt64, false),
-    ];
+    let mut fields = vec![Field::new("material_id", DataType::UInt64, false)];
     fields.extend(projected_fields(&layout.material_payload));
     fields
 }
 
 fn geometry_surface_materials_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
         Field::new("theme", DataType::Utf8, false),
@@ -537,7 +516,6 @@ fn geometry_surface_materials_fields() -> Vec<Field> {
 
 fn template_geometry_materials_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("primitive_type", DataType::Utf8, false),
         Field::new("primitive_ordinal", DataType::UInt32, false),
@@ -548,7 +526,6 @@ fn template_geometry_materials_fields() -> Vec<Field> {
 
 fn textures_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("texture_id", DataType::UInt64, false),
         Field::new("image_uri", DataType::LargeUtf8, false),
     ];
@@ -558,7 +535,6 @@ fn textures_fields(layout: &ProjectionLayout) -> Vec<Field> {
 
 fn texture_vertices_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("uv_id", DataType::UInt64, false),
         Field::new("u", DataType::Float64, false),
         Field::new("v", DataType::Float64, false),
@@ -567,7 +543,6 @@ fn texture_vertices_fields() -> Vec<Field> {
 
 fn geometry_ring_textures_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
         Field::new("ring_ordinal", DataType::UInt32, false),
@@ -579,7 +554,6 @@ fn geometry_ring_textures_fields() -> Vec<Field> {
 
 fn template_geometry_ring_textures_fields() -> Vec<Field> {
     vec![
-        Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("template_geometry_id", DataType::UInt64, false),
         Field::new("surface_ordinal", DataType::UInt32, false),
         Field::new("ring_ordinal", DataType::UInt32, false),

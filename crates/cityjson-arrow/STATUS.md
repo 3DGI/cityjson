@@ -7,7 +7,7 @@ while exposing only owned semantic APIs.
 
 - live Arrow transport is `ModelEncoder` / `ModelDecoder`
 - persistent package transport is `PackageWriter` / `PackageReader`
-- the package schema id is `cityarrow.package.v2alpha1`
+- the package schema id is `cityarrow.package.v2alpha2`
 - canonical tables are internal and doc-hidden
 
 ## What Changed In The Current Slice

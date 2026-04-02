@@ -4,6 +4,9 @@ This note records the first end-to-end benchmark run after the ADR 3 public
 surface refactor and defines the split benchmark matrix needed to drive the
 next optimization slice.
 
+The first delivered conversion-focused slice after this note is recorded in
+[ADR 4: reduce conversion cost with ordinal canonical relations](adr/004-reduce-conversion-cost-with-ordinal-canonical-relations.md).
+
 The source run is the `cjlib` campaign:
 
 - description: `cityarrow refactor e085b91e`

@@ -7,7 +7,7 @@ This document describes the current live transport format used by
 
 - stream magic: `CITYARROW_STREAM_V3\0`
 - package schema carried in the prelude header:
-  `cityarrow.package.v2alpha1`
+  `cityarrow.package.v2alpha2`
 
 ## Layout
 

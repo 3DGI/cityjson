@@ -98,11 +98,11 @@ fn single_file_package_roundtrips_a_model_and_exposes_manifest() {
     let path = dir.path().join("sample.cityarrow");
 
     let manifest = PackageWriter.write_file(&path, &model).unwrap();
-    assert_eq!(manifest.package_schema, CityArrowPackageVersion::V2Alpha1);
+    assert_eq!(manifest.package_schema, CityArrowPackageVersion::V2Alpha2);
     assert!(!manifest.tables.is_empty());
 
     let inspected = PackageReader.read_manifest(&path).unwrap();
-    assert_eq!(inspected.package_schema, CityArrowPackageVersion::V2Alpha1);
+    assert_eq!(inspected.package_schema, CityArrowPackageVersion::V2Alpha2);
     assert_eq!(inspected.citymodel_id, manifest.citymodel_id);
 
     let decoded = PackageReader.read_file(&path).unwrap();
