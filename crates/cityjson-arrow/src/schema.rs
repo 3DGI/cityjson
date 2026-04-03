@@ -449,8 +449,7 @@ fn cityobjects_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("object_type", DataType::Utf8, false),
         fixed_size_list_field("geographical_extent", DataType::Float64, false, 6, true),
     ];
-    if let Some(field) =
-        projected_struct_field("attributes", layout.cityobject_attributes.as_ref())
+    if let Some(field) = projected_struct_field("attributes", layout.cityobject_attributes.as_ref())
     {
         fields.push(field);
     }
