@@ -4,6 +4,9 @@ use std::io::{BufRead, Write};
 use std::path::Path;
 
 use serde::Deserialize;
+pub use serde_cityjson::v2_0::{
+    AutoTransformOptions, CityJSONSeqWriteOptions, CityJSONSeqWriteReport,
+};
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
 
@@ -250,6 +253,13 @@ where
     Ok(iter.map(|item| item.map(CityModel::from).map_err(Error::from)))
 }
 
+pub fn read_cityjsonseq<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
+where
+    R: BufRead,
+{
+    read_feature_stream(reader)
+}
+
 pub fn write_feature_stream<I, W>(mut writer: W, models: I) -> Result<()>
 where
     I: IntoIterator<Item = CityModel>,
@@ -272,6 +282,92 @@ where
         writer.write_all(b"\n")?;
     }
     Ok(())
+}
+
+pub fn write_cityjsonseq<I, W>(
+    writer: W,
+    base_root: &CityModel,
+    features: I,
+    transform: &cityjson::v2_0::Transform,
+    options: CityJSONSeqWriteOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    I: IntoIterator<Item = CityModel>,
+    W: Write,
+{
+    let features = features.into_iter().collect::<Vec<_>>();
+    write_cityjsonseq_refs(
+        writer,
+        base_root,
+        features.iter().collect::<Vec<_>>(),
+        transform,
+        options,
+    )
+}
+
+pub fn write_cityjsonseq_refs<'a, I, W>(
+    writer: W,
+    base_root: &CityModel,
+    features: I,
+    transform: &cityjson::v2_0::Transform,
+    options: CityJSONSeqWriteOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    I: IntoIterator<Item = &'a CityModel>,
+    W: Write,
+{
+    let features = features
+        .into_iter()
+        .map(CityModel::as_inner)
+        .collect::<Vec<_>>();
+    Ok(serde_cityjson::v2_0::write_cityjsonseq_with_transform_refs(
+        writer,
+        base_root.as_inner(),
+        features,
+        transform,
+        options,
+    )?)
+}
+
+pub fn write_cityjsonseq_auto_transform<I, W>(
+    writer: W,
+    base_root: &CityModel,
+    features: I,
+    options: AutoTransformOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    I: IntoIterator<Item = CityModel>,
+    W: Write,
+{
+    let features = features.into_iter().collect::<Vec<_>>();
+    write_cityjsonseq_auto_transform_refs(
+        writer,
+        base_root,
+        features.iter().collect::<Vec<_>>(),
+        options,
+    )
+}
+
+pub fn write_cityjsonseq_auto_transform_refs<'a, I, W>(
+    writer: W,
+    base_root: &CityModel,
+    features: I,
+    options: AutoTransformOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    I: IntoIterator<Item = &'a CityModel>,
+    W: Write,
+{
+    let features = features
+        .into_iter()
+        .map(CityModel::as_inner)
+        .collect::<Vec<_>>();
+    Ok(serde_cityjson::v2_0::write_cityjsonseq_auto_transform_refs(
+        writer,
+        base_root.as_inner(),
+        features,
+        options,
+    )?)
 }
 
 pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
@@ -377,6 +473,10 @@ pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<CityModel> {
     }
 
     crate::ops::merge(models)
+}
+
+pub fn merge_cityjsonseq_slice(bytes: &[u8]) -> Result<CityModel> {
+    merge_feature_stream_slice(bytes)
 }
 
 #[cfg(test)]

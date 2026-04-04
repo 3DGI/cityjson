@@ -2,6 +2,7 @@
 
 use std::io::Cursor;
 
+use cjlib::cityjson::v2_0::{BBox, Transform};
 use serde_json::value::RawValue;
 
 use cjlib::{CityJSONVersion, json};
@@ -38,6 +39,152 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
         .join("\n")
         + "\n";
     assert_eq!(output, expected);
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform() -> cjlib::Result<()>
+{
+    let base_root = json::from_slice(
+        br#"{
+            "type":"CityJSON",
+            "version":"2.0",
+            "metadata":{"title":"base-root"},
+            "CityObjects":{},
+            "vertices":[]
+        }"#,
+    )?;
+    let feature = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "metadata":{"title":"base-root"},
+            "CityObjects":{
+                "feature-1":{
+                    "type":"Building",
+                    "geometry":[{"type":"MultiPoint","boundaries":[0,1]}]
+                }
+            },
+            "vertices":[[10,20,30],[12,22,31]]
+        }"#,
+    )?;
+
+    let mut transform = Transform::new();
+    transform.set_scale([0.5, 0.5, 1.0]);
+    transform.set_translate([10.0, 20.0, 30.0]);
+
+    let mut output = Vec::new();
+    let report = json::write_cityjsonseq_refs(
+        &mut output,
+        &base_root,
+        [&feature],
+        &transform,
+        json::CityJSONSeqWriteOptions::default(),
+    )?;
+
+    assert_eq!(report.feature_count, 1);
+    assert_eq!(report.cityobject_count, 1);
+    assert_eq!(
+        report.geographical_extent,
+        Some(BBox::new(10.0, 20.0, 30.0, 12.0, 22.0, 31.0))
+    );
+
+    let items = serde_json::Deserializer::from_slice(&output)
+        .into_iter::<serde_json::Value>()
+        .collect::<serde_json::Result<Vec<_>>>()
+        .expect("strict CityJSONSeq output should parse");
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["type"], "CityJSON");
+    assert_eq!(items[0]["metadata"]["title"], "base-root");
+    assert_eq!(
+        items[0]["metadata"]["geographicalExtent"],
+        serde_json::json!([10.0, 20.0, 30.0, 12.0, 22.0, 31.0])
+    );
+    assert_eq!(items[1]["type"], "CityJSONFeature");
+    assert!(items[1].get("transform").is_none());
+    assert_eq!(
+        items[1]["vertices"],
+        serde_json::json!([[0, 0, 0], [4, 4, 1]])
+    );
+
+    let roundtrip =
+        json::read_cityjsonseq(Cursor::new(output))?.collect::<cjlib::Result<Vec<_>>>()?;
+    assert_eq!(roundtrip.len(), 1);
+    assert_eq!(
+        roundtrip[0]
+            .as_inner()
+            .metadata()
+            .and_then(|metadata| metadata.title()),
+        Some("base-root")
+    );
+
+    Ok(())
+}
+
+#[test]
+fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform() -> cjlib::Result<()> {
+    let base_root = json::from_slice(
+        br#"{
+            "type":"CityJSON",
+            "version":"2.0",
+            "metadata":{"title":"base-root"},
+            "CityObjects":{},
+            "vertices":[]
+        }"#,
+    )?;
+    let feature_a = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "metadata":{"title":"base-root"},
+            "CityObjects":{
+                "feature-a":{
+                    "type":"Building",
+                    "geometry":[{"type":"MultiPoint","boundaries":[0,1]}]
+                }
+            },
+            "vertices":[[10,20,30],[12,23,35]]
+        }"#,
+    )?;
+    let feature_b = json::from_feature_slice(
+        br#"{
+            "type":"CityJSONFeature",
+            "metadata":{"title":"base-root"},
+            "CityObjects":{
+                "feature-b":{
+                    "type":"BuildingPart",
+                    "geometry":[{"type":"MultiPoint","boundaries":[0]}]
+                }
+            },
+            "vertices":[[9,21,40]]
+        }"#,
+    )?;
+
+    let mut output = Vec::new();
+    let report = json::write_cityjsonseq_auto_transform_refs(
+        &mut output,
+        &base_root,
+        [&feature_a, &feature_b],
+        json::AutoTransformOptions {
+            scale: [0.5, 1.0, 5.0],
+            ..Default::default()
+        },
+    )?;
+
+    assert_eq!(
+        report.geographical_extent,
+        Some(BBox::new(9.0, 20.0, 30.0, 12.0, 23.0, 40.0))
+    );
+    assert_eq!(report.transform.scale(), [0.5, 1.0, 5.0]);
+    assert_eq!(report.transform.translate(), [9.0, 20.0, 30.0]);
+
+    let items = serde_json::Deserializer::from_slice(&output)
+        .into_iter::<serde_json::Value>()
+        .collect::<serde_json::Result<Vec<_>>>()
+        .expect("strict CityJSONSeq output should parse");
+    assert_eq!(
+        items[0]["transform"]["translate"],
+        serde_json::json!([9.0, 20.0, 30.0])
+    );
 
     Ok(())
 }
