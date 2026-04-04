@@ -5,7 +5,7 @@ use arrow::record_batch::RecordBatch;
 use cityarrow::error::{Error, Result};
 use cityarrow::internal::{
     CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables,
-    concat_record_batches, emit_part_tables, emit_tables, schema_for_table, validate_schema,
+    emit_part_tables, emit_tables, schema_for_table, single_or_concat_batches, validate_schema,
 };
 use cityarrow::schema::{
     CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout,
@@ -298,11 +298,10 @@ fn deserialize_file_batch(
     let slice = bytes.get(start..end).ok_or_else(|| {
         Error::Unsupported(format!("{} payload range is out of bounds", table.as_str()))
     })?;
-    let reader = FileReader::try_new(Cursor::new(slice), None)?;
+    let mut reader = FileReader::try_new(Cursor::new(slice), None)?;
     let schema = reader.schema();
     validate_schema(expected_schema, &schema, table)?;
-    let batches = reader.collect::<std::result::Result<Vec<_>, _>>()?;
-    let batch = concat_record_batches(expected_schema, &batches)?;
+    let batch = single_or_concat_batches(expected_schema, &mut reader)?;
     if batch.num_rows() != expected_rows {
         return Err(Error::Conversion(format!(
             "{} table declared {expected_rows} rows but decoded {} rows",

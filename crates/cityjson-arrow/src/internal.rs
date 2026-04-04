@@ -7,7 +7,8 @@ use cityjson::v2_0::OwnedCityModel;
 
 pub use crate::transport::{
     CanonicalTable, CanonicalTableSink, canonical_table_order, canonical_table_position,
-    collect_tables, concat_record_batches, schema_for_table, validate_schema,
+    collect_tables, concat_record_batches, schema_for_table, single_or_concat_batches,
+    validate_schema,
 };
 
 /// Internal bridge for sibling crates that need canonical transport parts.

@@ -369,6 +369,31 @@ pub fn concat_record_batches(schema: &SchemaRef, batches: &[RecordBatch]) -> Res
     arrow_select::concat::concat_batches(schema, batch_refs).map_err(Error::from)
 }
 
+/// Returns the first decoded batch directly when possible and only falls back
+/// to concatenation when an IPC payload actually contains multiple batches.
+///
+/// # Errors
+///
+/// Returns an error when Arrow cannot decode or concatenate the provided
+/// batches.
+pub fn single_or_concat_batches<I>(schema: &SchemaRef, mut batches: I) -> Result<RecordBatch>
+where
+    I: Iterator<Item = std::result::Result<RecordBatch, arrow::error::ArrowError>>,
+{
+    let Some(first) = batches.next().transpose()? else {
+        return Ok(RecordBatch::new_empty(schema.clone()));
+    };
+    let Some(second) = batches.next().transpose()? else {
+        return Ok(first);
+    };
+
+    let mut collected = vec![first, second];
+    for batch in batches {
+        collected.push(batch?);
+    }
+    concat_record_batches(schema, &collected)
+}
+
 /// Validates a batch schema against the canonical schema for one table.
 ///
 /// # Errors

@@ -3,7 +3,7 @@ use crate::error::{Error, Result};
 use crate::internal::{build_parts_from_tables, emit_part_tables};
 use crate::schema::{CityArrowHeader, CityModelArrowParts, ProjectionLayout, canonical_schema_set};
 use crate::transport::{
-    CanonicalTable, CanonicalTableSink, concat_record_batches, schema_for_table, validate_schema,
+    CanonicalTable, CanonicalTableSink, schema_for_table, single_or_concat_batches, validate_schema,
 };
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
@@ -30,11 +30,25 @@ pub(crate) fn write_model_stream<W: Write>(model: &OwnedCityModel, writer: W) ->
 }
 
 pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<OwnedCityModel> {
-    let (prelude, tables) = read_stream_frames(&mut reader)?;
+    let prelude = read_stream_prelude(&mut reader)?;
     let schemas = canonical_schema_set(&prelude.projection);
     let mut decoder = IncrementalDecoder::new(prelude.header, prelude.projection)?;
 
-    for (table, expected_rows, batch) in tables {
+    loop {
+        let tag = read_u8(&mut reader)?;
+        if tag == STREAM_END_TAG {
+            break;
+        }
+        let table = CanonicalTable::from_stream_tag(tag)?;
+        let expected_rows = usize::try_from(read_u64(&mut reader)?).map_err(|_| {
+            Error::Conversion("stream row count does not fit in memory".to_string())
+        })?;
+        let batch = deserialize_stream_batch(
+            &mut reader,
+            schema_for_table(&schemas, table),
+            table,
+            expected_rows,
+        )?;
         if batch.num_rows() != expected_rows {
             return Err(Error::Conversion(format!(
                 "{} frame declared {expected_rows} rows but decoded {} rows",
@@ -42,7 +56,6 @@ pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<OwnedCityModel
                 batch.num_rows()
             )));
         }
-        validate_schema(schema_for_table(&schemas, table), batch.schema(), table)?;
         decoder.push_batch(table, &batch)?;
     }
 
@@ -202,11 +215,10 @@ fn deserialize_stream_batch<R: Read>(
     table: CanonicalTable,
     expected_rows: usize,
 ) -> Result<RecordBatch> {
-    let stream = StreamReader::try_new(reader.by_ref(), None)?;
+    let mut stream = StreamReader::try_new(reader.by_ref(), None)?;
     let schema = stream.schema();
     validate_schema(expected_schema, &schema, table)?;
-    let batches = stream.collect::<std::result::Result<Vec<_>, _>>()?;
-    let batch = concat_record_batches(expected_schema, &batches)?;
+    let batch = single_or_concat_batches(expected_schema, &mut stream)?;
     let _ = expected_rows;
     Ok(batch)
 }
