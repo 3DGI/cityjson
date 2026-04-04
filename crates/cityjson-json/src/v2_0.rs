@@ -3,7 +3,7 @@ use std::io::BufRead;
 use std::io::Write;
 
 use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel, VertexRef};
+use cityjson::v2_0::{BBox, BorrowedCityModel, CityModel, OwnedCityModel, Transform, VertexRef};
 use cityjson::{CityJSONVersion, CityModelType};
 use serde::ser::SerializeMap;
 use serde::Serialize;
@@ -24,6 +24,50 @@ pub struct FeatureParts<'a> {
     pub id: &'a str,
     pub cityobjects: &'a [FeatureObject<'a>],
     pub vertices: &'a [[i64; 3]],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CityJSONSeqWriteOptions {
+    pub validate_default_themes: bool,
+    pub trailing_newline: bool,
+    pub update_metadata_geographical_extent: bool,
+}
+
+impl Default for CityJSONSeqWriteOptions {
+    fn default() -> Self {
+        Self {
+            validate_default_themes: true,
+            trailing_newline: true,
+            update_metadata_geographical_extent: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AutoTransformOptions {
+    pub scale: [f64; 3],
+    pub validate_default_themes: bool,
+    pub trailing_newline: bool,
+    pub update_metadata_geographical_extent: bool,
+}
+
+impl Default for AutoTransformOptions {
+    fn default() -> Self {
+        Self {
+            scale: [0.001, 0.001, 0.001],
+            validate_default_themes: true,
+            trailing_newline: true,
+            update_metadata_geographical_extent: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CityJSONSeqWriteReport {
+    pub transform: Transform,
+    pub geographical_extent: Option<BBox>,
+    pub feature_count: usize,
+    pub cityobject_count: usize,
 }
 
 /// Parse a `CityJSON` document into a [`CityModel`].
@@ -161,6 +205,72 @@ where
     }
 }
 
+/// Write a strict `CityJSONSeq` stream from a canonical base root and feature packages.
+///
+/// The output starts with one `CityJSON` header item followed by `CityJSONFeature`
+/// items quantized against the provided stream-level transform.
+///
+/// # Errors
+///
+/// Returns an error if the base root is not a valid canonical `CityJSON` root,
+/// if feature packages are invalid or incompatible, or if serialization fails.
+pub fn write_cityjsonseq_with_transform_refs<'a, W, I, VR, SS>(
+    writer: W,
+    base_root: &CityModel<VR, SS>,
+    features: I,
+    transform: &Transform,
+    options: CityJSONSeqWriteOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    W: Write,
+    I: IntoIterator<Item = &'a CityModel<VR, SS>>,
+    VR: VertexRef + Serialize + 'a,
+    SS: StringStorage + 'a,
+{
+    let features: Vec<_> = features.into_iter().collect();
+    write_cityjsonseq_with_transform_slice(writer, base_root, &features, transform, options)
+}
+
+/// Write a strict `CityJSONSeq` stream, deriving translation from the overall
+/// feature extent and taking the quantization scale from the provided options.
+///
+/// # Errors
+///
+/// Returns an error if the base root is invalid, feature packages are invalid,
+/// or serialization fails.
+pub fn write_cityjsonseq_auto_transform_refs<'a, W, I, VR, SS>(
+    writer: W,
+    base_root: &CityModel<VR, SS>,
+    features: I,
+    options: AutoTransformOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    W: Write,
+    I: IntoIterator<Item = &'a CityModel<VR, SS>>,
+    VR: VertexRef + Serialize + 'a,
+    SS: StringStorage + 'a,
+{
+    let features: Vec<_> = features.into_iter().collect();
+    let extent = collect_features_extent(&features);
+    let mut transform = Transform::new();
+    transform.set_scale(options.scale);
+    transform.set_translate(extent.as_ref().map_or([0.0, 0.0, 0.0], |bbox| {
+        [bbox.min_x(), bbox.min_y(), bbox.min_z()]
+    }));
+
+    write_cityjsonseq_with_transform_slice(
+        writer,
+        base_root,
+        &features,
+        &transform,
+        CityJSONSeqWriteOptions {
+            validate_default_themes: options.validate_default_themes,
+            trailing_newline: options.trailing_newline,
+            update_metadata_geographical_extent: options.update_metadata_geographical_extent,
+        },
+    )
+}
+
 /// Serialize a [`CityModel`] to a `CityJSON` string.
 ///
 /// # Errors
@@ -286,6 +396,28 @@ where
         S: serde::Serializer,
     {
         crate::ser::serialize_citymodel(serializer, self.model)
+    }
+}
+
+struct SerializableCityModelWithOptions<'a, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    model: &'a CityModel<VR, SS>,
+    options: crate::ser::CityModelSerializeOptions<'a>,
+}
+
+impl<VR, SS> Serialize for SerializableCityModelWithOptions<'_, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        crate::ser::serialize_citymodel_with_options(serializer, self.model, &self.options)
     }
 }
 
@@ -603,5 +735,255 @@ fn offset_boundary_indices(value: &mut Value, offset: usize) -> Result<()> {
         _ => Err(Error::MalformedRootObject(
             "geometry boundaries must be arrays of integer indices",
         )),
+    }
+}
+
+fn write_cityjsonseq_with_transform_slice<W, VR, SS>(
+    mut writer: W,
+    base_root: &CityModel<VR, SS>,
+    features: &[&CityModel<VR, SS>],
+    transform: &Transform,
+    options: CityJSONSeqWriteOptions,
+) -> Result<CityJSONSeqWriteReport>
+where
+    W: Write,
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    validate_strict_stream_assembly(base_root, features, options.validate_default_themes)?;
+
+    let geographical_extent = collect_features_extent(features);
+    let header_extent = if options.update_metadata_geographical_extent {
+        geographical_extent.as_ref()
+    } else {
+        None
+    };
+    let header = SerializableCityModelWithOptions {
+        model: base_root,
+        options: crate::ser::CityModelSerializeOptions {
+            type_name: CityModelType::CityJSON,
+            include_version: true,
+            transform: Some(transform),
+            include_transform: true,
+            include_metadata: true,
+            metadata_geographical_extent: header_extent,
+            include_extensions: true,
+            include_vertices: true,
+            include_appearance: true,
+            include_geometry_templates: true,
+            include_cityobjects: true,
+            include_extra: true,
+        },
+    };
+    serde_json::to_writer(&mut writer, &header)?;
+    if !features.is_empty() || options.trailing_newline {
+        write_newline(&mut writer)?;
+    }
+
+    let mut cityobject_count = 0;
+    for (index, feature) in features.iter().enumerate() {
+        cityobject_count += feature.cityobjects().len();
+        let feature_item = SerializableCityModelWithOptions {
+            model: feature,
+            options: crate::ser::CityModelSerializeOptions {
+                type_name: CityModelType::CityJSONFeature,
+                include_version: false,
+                transform: Some(transform),
+                include_transform: false,
+                include_metadata: false,
+                metadata_geographical_extent: None,
+                include_extensions: false,
+                include_vertices: true,
+                include_appearance: false,
+                include_geometry_templates: false,
+                include_cityobjects: true,
+                include_extra: false,
+            },
+        };
+        serde_json::to_writer(&mut writer, &feature_item)?;
+        if index + 1 < features.len() || options.trailing_newline {
+            write_newline(&mut writer)?;
+        }
+    }
+
+    Ok(CityJSONSeqWriteReport {
+        transform: transform.clone(),
+        geographical_extent,
+        feature_count: features.len(),
+        cityobject_count,
+    })
+}
+
+fn validate_strict_stream_assembly<VR, SS>(
+    base_root: &CityModel<VR, SS>,
+    features: &[&CityModel<VR, SS>],
+    validate_default_themes: bool,
+) -> Result<()>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    ensure_stream_base_root(base_root)?;
+    let base_signature = shared_root_signature(base_root)?;
+    let mut seen_ids = HashSet::new();
+
+    for feature in features {
+        ensure_stream_feature_root(feature)?;
+        if validate_default_themes {
+            feature.validate_default_themes()?;
+        }
+
+        if shared_root_signature(feature)? != base_signature {
+            return Err(Error::InvalidValue(
+                "feature stream carries incompatible root state".to_owned(),
+            ));
+        }
+
+        for (_, cityobject) in feature.cityobjects().iter() {
+            let id = cityobject.id().to_owned();
+            if !seen_ids.insert(id.clone()) {
+                return Err(Error::InvalidValue(format!(
+                    "duplicate CityObject id in feature stream: {id}"
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_stream_base_root<VR, SS>(base_root: &CityModel<VR, SS>) -> Result<()>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    if base_root.type_citymodel() != CityModelType::CityJSON {
+        return Err(Error::UnsupportedType(
+            base_root.type_citymodel().to_string(),
+        ));
+    }
+    if !base_root.cityobjects().is_empty() {
+        return Err(Error::InvalidValue(
+            "base root must have empty CityObjects".to_owned(),
+        ));
+    }
+    if !base_root.vertices().is_empty() {
+        return Err(Error::InvalidValue(
+            "base root must have empty vertices".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_stream_feature_root<VR, SS>(feature: &CityModel<VR, SS>) -> Result<()>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    if feature.type_citymodel() != CityModelType::CityJSONFeature {
+        return Err(Error::UnsupportedType(feature.type_citymodel().to_string()));
+    }
+    Ok(())
+}
+
+fn shared_root_signature<VR, SS>(model: &CityModel<VR, SS>) -> Result<Map<String, Value>>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    let value = serde_json::to_value(&SerializableCityModelWithOptions {
+        model,
+        options: crate::ser::CityModelSerializeOptions {
+            type_name: model.type_citymodel(),
+            include_version: true,
+            transform: model.transform(),
+            include_transform: model.transform().is_some(),
+            include_metadata: true,
+            metadata_geographical_extent: None,
+            include_extensions: true,
+            include_vertices: false,
+            include_appearance: true,
+            include_geometry_templates: true,
+            include_cityobjects: false,
+            include_extra: true,
+        },
+    })?;
+    let mut root = into_object(value)?;
+    root.remove("type");
+    root.remove("version");
+    root.remove("transform");
+    if let Some(metadata) = root.get_mut("metadata").and_then(Value::as_object_mut) {
+        metadata.remove("geographicalExtent");
+        if metadata.is_empty() {
+            root.remove("metadata");
+        }
+    }
+    Ok(root)
+}
+
+fn collect_features_extent<VR, SS>(features: &[&CityModel<VR, SS>]) -> Option<BBox>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    let mut extent = ExtentAccumulator::default();
+    for feature in features {
+        for vertex in feature.vertices().as_slice() {
+            extent.include([vertex.x(), vertex.y(), vertex.z()]);
+        }
+        for (_, cityobject) in feature.cityobjects().iter() {
+            if let Some(bbox) = cityobject.geographical_extent() {
+                extent.include_bbox(*bbox);
+            }
+        }
+    }
+    extent.finish()
+}
+
+fn write_newline<W>(writer: &mut W) -> Result<()>
+where
+    W: Write,
+{
+    writer
+        .write_all(b"\n")
+        .map_err(|err| Error::Json(serde_json::Error::io(err)))
+}
+
+#[derive(Default)]
+struct ExtentAccumulator {
+    min: Option<[f64; 3]>,
+    max: Option<[f64; 3]>,
+}
+
+impl ExtentAccumulator {
+    fn include(&mut self, coordinate: [f64; 3]) {
+        match (&mut self.min, &mut self.max) {
+            (Some(min), Some(max)) => {
+                for axis in 0..3 {
+                    min[axis] = min[axis].min(coordinate[axis]);
+                    max[axis] = max[axis].max(coordinate[axis]);
+                }
+            }
+            (None, None) => {
+                self.min = Some(coordinate);
+                self.max = Some(coordinate);
+            }
+            _ => unreachable!("extent accumulator stores min and max together"),
+        }
+    }
+
+    fn include_bbox(&mut self, bbox: BBox) {
+        self.include([bbox.min_x(), bbox.min_y(), bbox.min_z()]);
+        self.include([bbox.max_x(), bbox.max_y(), bbox.max_z()]);
+    }
+
+    fn finish(self) -> Option<BBox> {
+        match (self.min, self.max) {
+            (Some(min), Some(max)) => {
+                Some(BBox::new(min[0], min[1], min[2], max[0], max[1], max[2]))
+            }
+            (None, None) => None,
+            _ => unreachable!("extent accumulator stores min and max together"),
+        }
     }
 }

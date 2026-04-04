@@ -10,7 +10,11 @@ use common::*;
 use serde_cityjson::{
     from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
     read_feature_stream, to_string,
-    v2_0::{from_feature_parts_owned_with_base, FeatureObject, FeatureParts},
+    v2_0::{
+        from_feature_parts_owned_with_base, write_cityjsonseq_auto_transform_refs,
+        write_cityjsonseq_with_transform_refs, AutoTransformOptions, CityJSONSeqWriteOptions,
+        FeatureObject, FeatureParts,
+    },
 };
 
 mod common;
@@ -127,6 +131,13 @@ fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
     for (actual_coord, expected_coord) in actual.into_iter().zip(expected) {
         assert!((actual_coord - expected_coord).abs() < f64::EPSILON);
     }
+}
+
+fn stream_items(bytes: &[u8]) -> Vec<Value> {
+    serde_json::Deserializer::from_slice(bytes)
+        .into_iter::<Value>()
+        .collect::<serde_json::Result<Vec<_>>>()
+        .unwrap()
 }
 
 #[test]
@@ -396,6 +407,210 @@ fn strict_feature_stream_rejects_duplicate_ids() {
 
     let err = merge_feature_stream(std::io::Cursor::new(input)).unwrap_err();
     assert!(format!("{err}").contains("duplicate CityObject id"));
+}
+
+#[test]
+fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
+    let base_input = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "transform": {
+            "scale": [1.0, 1.0, 1.0],
+            "translate": [0.0, 0.0, 0.0]
+        },
+        "metadata": {
+            "title": "base-root"
+        },
+        "CityObjects": {},
+        "vertices": []
+    })
+    .to_string();
+    let feature_input = json!({
+        "type": "CityJSONFeature",
+        "CityObjects": {
+            "feature-1": {
+                "type": "Building",
+                "geometry": [{
+                    "type": "MultiPoint",
+                    "boundaries": [0, 1]
+                }]
+            }
+        },
+        "vertices": [[10, 20, 30], [12, 22, 31]]
+    })
+    .to_string();
+    let base_root = from_str_owned(&base_input).unwrap();
+    let feature =
+        serde_cityjson::from_feature_str_owned_with_base(&feature_input, &base_input).unwrap();
+    let mut transform = cityjson::v2_0::Transform::new();
+    transform.set_scale([0.5, 0.5, 1.0]);
+    transform.set_translate([10.0, 20.0, 30.0]);
+
+    let mut output = Vec::new();
+    let report = write_cityjsonseq_with_transform_refs(
+        &mut output,
+        &base_root,
+        [&feature],
+        &transform,
+        CityJSONSeqWriteOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(report.feature_count, 1);
+    assert_eq!(report.cityobject_count, 1);
+    assert_eq!(
+        report.geographical_extent,
+        Some(BBox::new(10.0, 20.0, 30.0, 12.0, 22.0, 31.0))
+    );
+
+    let items = stream_items(&output);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["type"], "CityJSON");
+    assert_eq!(items[0]["transform"]["scale"], json!([0.5, 0.5, 1.0]));
+    assert_eq!(
+        items[0]["transform"]["translate"],
+        json!([10.0, 20.0, 30.0])
+    );
+    assert_eq!(items[0]["metadata"]["title"], "base-root");
+    assert_eq!(
+        items[0]["metadata"]["geographicalExtent"],
+        json!([10.0, 20.0, 30.0, 12.0, 22.0, 31.0])
+    );
+
+    assert_eq!(items[1]["type"], "CityJSONFeature");
+    assert!(items[1].get("version").is_none());
+    assert!(items[1].get("transform").is_none());
+    assert!(items[1].get("metadata").is_none());
+    assert!(items[1].get("extensions").is_none());
+    assert!(items[1].get("appearance").is_none());
+    assert_eq!(items[1]["vertices"], json!([[0, 0, 0], [4, 4, 1]]));
+
+    let models = read_feature_stream(std::io::Cursor::new(output))
+        .unwrap()
+        .collect::<serde_cityjson::Result<Vec<_>>>()
+        .unwrap();
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].vertices().len(), 2);
+    assert_eq!(
+        models[0].metadata().and_then(|metadata| metadata.title()),
+        Some("base-root")
+    );
+}
+
+#[test]
+fn strict_cityjsonseq_writer_auto_transform_uses_extent_minima() {
+    let base_input = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "metadata": {
+            "title": "base-root"
+        },
+        "CityObjects": {},
+        "vertices": []
+    })
+    .to_string();
+    let feature_a = serde_cityjson::from_feature_str_owned_with_base(
+        &json!({
+            "type": "CityJSONFeature",
+            "CityObjects": {
+                "feature-a": {
+                    "type": "Building",
+                    "geometry": [{
+                        "type": "MultiPoint",
+                        "boundaries": [0, 1]
+                    }]
+                }
+            },
+            "vertices": [[10, 20, 30], [12, 23, 35]]
+        })
+        .to_string(),
+        &base_input,
+    )
+    .unwrap();
+    let feature_b = serde_cityjson::from_feature_str_owned_with_base(
+        &json!({
+            "type": "CityJSONFeature",
+            "CityObjects": {
+                "feature-b": {
+                    "type": "BuildingPart",
+                    "geometry": [{
+                        "type": "MultiPoint",
+                        "boundaries": [0]
+                    }]
+                }
+            },
+            "vertices": [[9, 21, 40]]
+        })
+        .to_string(),
+        &base_input,
+    )
+    .unwrap();
+    let base_root = from_str_owned(&base_input).unwrap();
+
+    let mut output = Vec::new();
+    let report = write_cityjsonseq_auto_transform_refs(
+        &mut output,
+        &base_root,
+        [&feature_a, &feature_b],
+        AutoTransformOptions {
+            scale: [0.5, 1.0, 5.0],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        report.geographical_extent,
+        Some(BBox::new(9.0, 20.0, 30.0, 12.0, 23.0, 40.0))
+    );
+    assert_eq!(report.transform.scale(), [0.5, 1.0, 5.0]);
+    assert_eq!(report.transform.translate(), [9.0, 20.0, 30.0]);
+
+    let items = stream_items(&output);
+    assert_eq!(items[0]["transform"]["translate"], json!([9.0, 20.0, 30.0]));
+    assert_eq!(
+        items[0]["metadata"]["geographicalExtent"],
+        json!([9.0, 20.0, 30.0, 12.0, 23.0, 40.0])
+    );
+}
+
+#[test]
+fn strict_cityjsonseq_writer_rejects_incompatible_root_state() {
+    let base_input = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "metadata": {
+            "title": "base-root"
+        },
+        "CityObjects": {},
+        "vertices": []
+    })
+    .to_string();
+    let feature_input = json!({
+        "type": "CityJSONFeature",
+        "metadata": {
+            "title": "different-root"
+        },
+        "CityObjects": {
+            "feature-1": {
+                "type": "Building"
+            }
+        },
+        "vertices": []
+    })
+    .to_string();
+    let base_root = from_str_owned(&base_input).unwrap();
+    let feature = from_str_owned(&feature_input).unwrap();
+
+    let err = write_cityjsonseq_with_transform_refs(
+        Vec::new(),
+        &base_root,
+        [&feature],
+        &cityjson::v2_0::Transform::new(),
+        CityJSONSeqWriteOptions::default(),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("incompatible root state"));
 }
 
 conformance_roundtrip_tests!(

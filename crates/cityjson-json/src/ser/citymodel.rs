@@ -24,13 +24,71 @@ where
     VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
+    serialize_citymodel_with_options(
+        serializer,
+        model,
+        &CityModelSerializeOptions::for_model(model),
+    )
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct CityModelSerializeOptions<'a> {
+    pub(crate) type_name: CityModelType,
+    pub(crate) include_version: bool,
+    pub(crate) transform: Option<&'a cityjson::v2_0::Transform>,
+    pub(crate) include_transform: bool,
+    pub(crate) include_metadata: bool,
+    pub(crate) metadata_geographical_extent: Option<&'a BBox>,
+    pub(crate) include_extensions: bool,
+    pub(crate) include_vertices: bool,
+    pub(crate) include_appearance: bool,
+    pub(crate) include_geometry_templates: bool,
+    pub(crate) include_cityobjects: bool,
+    pub(crate) include_extra: bool,
+}
+
+impl<'a> CityModelSerializeOptions<'a> {
+    pub(crate) fn for_model<VR, SS>(model: &'a CityModel<VR, SS>) -> Self
+    where
+        VR: VertexRef + serde::Serialize,
+        SS: StringStorage,
+    {
+        let type_name = model.type_citymodel();
+        Self {
+            type_name,
+            include_version: type_name != CityModelType::CityJSONFeature,
+            transform: model.transform(),
+            include_transform: model.transform().is_some(),
+            include_metadata: true,
+            metadata_geographical_extent: None,
+            include_extensions: true,
+            include_vertices: true,
+            include_appearance: true,
+            include_geometry_templates: type_name == CityModelType::CityJSON,
+            include_cityobjects: true,
+            include_extra: true,
+        }
+    }
+}
+
+pub(crate) fn serialize_citymodel_with_options<S, VR, SS>(
+    serializer: S,
+    model: &CityModel<VR, SS>,
+    options: &CityModelSerializeOptions<'_>,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    VR: VertexRef + serde::Serialize,
+    SS: StringStorage,
+{
     let context = WriteContext::new(model);
-    if model.type_citymodel() == CityModelType::CityJSON {
+    if options.include_geometry_templates {
         ensure_geometry_templates_supported(model, &context).map_err(S::Error::custom)?;
     }
     CityModelSerializer {
         model,
         context: &context,
+        options,
     }
     .serialize(serializer)
 }
@@ -42,6 +100,7 @@ where
 {
     model: &'a CityModel<VR, SS>,
     context: &'a WriteContext,
+    options: &'a CityModelSerializeOptions<'a>,
 }
 
 impl<VR, SS> Serialize for CityModelSerializer<'_, VR, SS>
@@ -54,31 +113,54 @@ where
         S: serde::Serializer,
     {
         let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry("type", &self.model.type_citymodel().to_string())?;
-        if self.model.type_citymodel() != CityModelType::CityJSONFeature {
+        map.serialize_entry("type", &self.options.type_name.to_string())?;
+        if self.options.include_version {
             map.serialize_entry(
                 "version",
                 &self.model.version().unwrap_or_default().to_string(),
             )?;
         }
-        if let Some(transform) = self.model.transform() {
+        if self.options.include_transform {
+            if let Some(transform) = self.options.transform {
+                map.serialize_entry(
+                    "transform",
+                    &TransformSerializer {
+                        scale: transform.scale(),
+                        translate: transform.translate(),
+                    },
+                )?;
+            }
+        }
+        if self.options.include_metadata
+            && (self.model.metadata().is_some()
+                || self.options.metadata_geographical_extent.is_some())
+        {
             map.serialize_entry(
-                "transform",
-                &TransformSerializer {
-                    scale: transform.scale(),
-                    translate: transform.translate(),
+                "metadata",
+                &MetadataSerializer {
+                    metadata: self.model.metadata(),
+                    geographical_extent: self.options.metadata_geographical_extent,
                 },
             )?;
         }
-        if let Some(metadata) = self.model.metadata() {
-            map.serialize_entry("metadata", &MetadataSerializer(metadata))?;
+        if self.options.include_extensions {
+            if let Some(extensions) = self.model.extensions() {
+                map.serialize_entry("extensions", &ExtensionsSerializer(extensions))?;
+            }
         }
-        if let Some(extensions) = self.model.extensions() {
-            map.serialize_entry("extensions", &ExtensionsSerializer(extensions))?;
+        if self.options.include_vertices {
+            map.serialize_entry(
+                "vertices",
+                &VerticesSerializer {
+                    model: self.model,
+                    transform: self.options.transform,
+                },
+            )?;
         }
-        map.serialize_entry("vertices", &VerticesSerializer { model: self.model })?;
-        map.serialize_entry("appearance", &AppearanceSerializer { model: self.model })?;
-        if self.model.type_citymodel() == CityModelType::CityJSON {
+        if self.options.include_appearance {
+            map.serialize_entry("appearance", &AppearanceSerializer { model: self.model })?;
+        }
+        if self.options.include_geometry_templates {
             map.serialize_entry(
                 "geometry-templates",
                 &GeometryTemplatesSerializer {
@@ -87,23 +169,31 @@ where
                 },
             )?;
         }
-        map.serialize_entry(
-            "CityObjects",
-            &CityObjectsSerializer {
-                model: self.model,
-                context: self.context,
-            },
-        )?;
-        if let Some(extra) = self.model.extra() {
-            serialize_attributes_entries(&mut map, extra)?;
+        if self.options.include_cityobjects {
+            map.serialize_entry(
+                "CityObjects",
+                &CityObjectsSerializer {
+                    model: self.model,
+                    context: self.context,
+                },
+            )?;
+        }
+        if self.options.include_extra {
+            if let Some(extra) = self.model.extra() {
+                serialize_attributes_entries(&mut map, extra)?;
+            }
         }
         map.end()
     }
 }
 
-struct MetadataSerializer<'a, SS>(&'a Metadata<SS>)
+struct MetadataSerializer<'a, SS>
 where
-    SS: StringStorage;
+    SS: StringStorage,
+{
+    metadata: Option<&'a Metadata<SS>>,
+    geographical_extent: Option<&'a BBox>,
+}
 
 impl<SS> Serialize for MetadataSerializer<'_, SS>
 where
@@ -113,28 +203,32 @@ where
     where
         S: serde::Serializer,
     {
-        let metadata = self.0;
         let mut map = serializer.serialize_map(None)?;
-        if let Some(extent) = metadata.geographical_extent() {
+        if let Some(extent) = self
+            .geographical_extent
+            .or_else(|| self.metadata.and_then(Metadata::geographical_extent))
+        {
             map.serialize_entry("geographicalExtent", &BBoxSerializer(extent))?;
         }
-        if let Some(identifier) = metadata.identifier() {
-            map.serialize_entry("identifier", &identifier.to_string())?;
-        }
-        if let Some(contact) = metadata.point_of_contact() {
-            map.serialize_entry("pointOfContact", &ContactSerializer(contact))?;
-        }
-        if let Some(reference_date) = metadata.reference_date() {
-            map.serialize_entry("referenceDate", &reference_date.to_string())?;
-        }
-        if let Some(reference_system) = metadata.reference_system() {
-            map.serialize_entry("referenceSystem", &reference_system.to_string())?;
-        }
-        if let Some(title) = metadata.title() {
-            map.serialize_entry("title", title)?;
-        }
-        if let Some(extra) = metadata.extra() {
-            serialize_attributes_entries(&mut map, extra)?;
+        if let Some(metadata) = self.metadata {
+            if let Some(identifier) = metadata.identifier() {
+                map.serialize_entry("identifier", &identifier.to_string())?;
+            }
+            if let Some(contact) = metadata.point_of_contact() {
+                map.serialize_entry("pointOfContact", &ContactSerializer(contact))?;
+            }
+            if let Some(reference_date) = metadata.reference_date() {
+                map.serialize_entry("referenceDate", &reference_date.to_string())?;
+            }
+            if let Some(reference_system) = metadata.reference_system() {
+                map.serialize_entry("referenceSystem", &reference_system.to_string())?;
+            }
+            if let Some(title) = metadata.title() {
+                map.serialize_entry("title", title)?;
+            }
+            if let Some(extra) = metadata.extra() {
+                serialize_attributes_entries(&mut map, extra)?;
+            }
         }
         map.end()
     }
@@ -365,6 +459,7 @@ where
     SS: StringStorage,
 {
     model: &'a CityModel<VR, SS>,
+    transform: Option<&'a cityjson::v2_0::Transform>,
 }
 
 impl<VR, SS> Serialize for VerticesSerializer<'_, VR, SS>
@@ -383,7 +478,7 @@ where
                 x: vertex.x(),
                 y: vertex.y(),
                 z: vertex.z(),
-                transform: self.model.transform(),
+                transform: self.transform,
             })?;
         }
         seq.end()
