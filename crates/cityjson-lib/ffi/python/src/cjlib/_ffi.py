@@ -140,6 +140,25 @@ class WriteOptionsStruct(Structure):
     _fields_ = [("pretty", c_bool), ("validate_default_themes", c_bool)]
 
 
+class CityJSONSeqWriteOptionsStruct(Structure):
+    _fields_ = [
+        ("validate_default_themes", c_bool),
+        ("trailing_newline", c_bool),
+        ("update_metadata_geographical_extent", c_bool),
+    ]
+
+
+class CityJSONSeqAutoTransformOptionsStruct(Structure):
+    _fields_ = [
+        ("scale_x", c_double),
+        ("scale_y", c_double),
+        ("scale_z", c_double),
+        ("validate_default_themes", c_bool),
+        ("trailing_newline", c_bool),
+        ("update_metadata_geographical_extent", c_bool),
+    ]
+
+
 class TransformStruct(Structure):
     _fields_ = [
         ("scale_x", c_double),
@@ -205,6 +224,21 @@ class GeometryBoundaryPayload:
 class WriteOptionsPayload:
     pretty: bool = False
     validate_default_themes: bool = False
+
+
+@dataclass(frozen=True)
+class CityJSONSeqWriteOptionsPayload:
+    validate_default_themes: bool = True
+    trailing_newline: bool = True
+    update_metadata_geographical_extent: bool = True
+
+
+@dataclass(frozen=True)
+class CityJSONSeqAutoTransformOptionsPayload:
+    scale: tuple[float, float, float] = (0.001, 0.001, 0.001)
+    validate_default_themes: bool = True
+    trailing_newline: bool = True
+    update_metadata_geographical_extent: bool = True
 
 
 def _candidate_library_paths() -> list[Path]:
@@ -401,6 +435,23 @@ class FfiLibrary:
             POINTER(BytesStruct),
         ]
         self._lib.cj_model_serialize_feature_stream.restype = c_int
+        self._lib.cj_model_serialize_cityjsonseq_with_transform.argtypes = [
+            c_void_p,
+            POINTER(c_void_p),
+            c_size_t,
+            TransformStruct,
+            CityJSONSeqWriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_cityjsonseq_with_transform.restype = c_int
+        self._lib.cj_model_serialize_cityjsonseq_auto_transform.argtypes = [
+            c_void_p,
+            POINTER(c_void_p),
+            c_size_t,
+            CityJSONSeqAutoTransformOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_cityjsonseq_auto_transform.restype = c_int
 
     def _raise_if_error(self, raw_status: int) -> None:
         status = Status(raw_status)
@@ -469,6 +520,27 @@ class FfiLibrary:
         return WriteOptionsStruct(
             pretty=options.pretty,
             validate_default_themes=options.validate_default_themes,
+        )
+
+    def _cityjsonseq_write_options(
+        self, options: CityJSONSeqWriteOptionsPayload
+    ) -> CityJSONSeqWriteOptionsStruct:
+        return CityJSONSeqWriteOptionsStruct(
+            validate_default_themes=options.validate_default_themes,
+            trailing_newline=options.trailing_newline,
+            update_metadata_geographical_extent=options.update_metadata_geographical_extent,
+        )
+
+    def _cityjsonseq_auto_transform_options(
+        self, options: CityJSONSeqAutoTransformOptionsPayload
+    ) -> CityJSONSeqAutoTransformOptionsStruct:
+        return CityJSONSeqAutoTransformOptionsStruct(
+            scale_x=options.scale[0],
+            scale_y=options.scale[1],
+            scale_z=options.scale[2],
+            validate_default_themes=options.validate_default_themes,
+            trailing_newline=options.trailing_newline,
+            update_metadata_geographical_extent=options.update_metadata_geographical_extent,
         )
 
     def _take_bytes(self, payload: BytesStruct) -> bytes:
@@ -682,6 +754,16 @@ class FfiLibrary:
     def write_options(self, payload: WriteOptionsPayload) -> WriteOptionsStruct:
         return self._write_options(payload)
 
+    def cityjsonseq_write_options(
+        self, payload: CityJSONSeqWriteOptionsPayload
+    ) -> CityJSONSeqWriteOptionsStruct:
+        return self._cityjsonseq_write_options(payload)
+
+    def cityjsonseq_auto_transform_options(
+        self, payload: CityJSONSeqAutoTransformOptionsPayload
+    ) -> CityJSONSeqAutoTransformOptionsStruct:
+        return self._cityjsonseq_auto_transform_options(payload)
+
     def set_metadata_title(self, handle: int, title: str) -> None:
         view, _buffer = self._string_view(title)
         self._raise_if_error(self._lib.cj_model_set_metadata_title(c_void_p(handle), view))
@@ -809,6 +891,48 @@ class FfiLibrary:
         self._raise_if_error(
             self._lib.cj_model_serialize_feature_stream(
                 array, len(handles), options, pointer(payload)
+            )
+        )
+        return self._take_bytes(payload)
+
+    def serialize_cityjsonseq_with_transform(
+        self,
+        base_root_handle: int,
+        feature_handles: list[int],
+        transform: TransformStruct,
+        options: CityJSONSeqWriteOptionsStruct,
+    ) -> bytes:
+        array_type = c_void_p * len(feature_handles)
+        array = array_type(*[c_void_p(handle) for handle in feature_handles])
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_cityjsonseq_with_transform(
+                c_void_p(base_root_handle),
+                array,
+                len(feature_handles),
+                transform,
+                options,
+                pointer(payload),
+            )
+        )
+        return self._take_bytes(payload)
+
+    def serialize_cityjsonseq_auto_transform(
+        self,
+        base_root_handle: int,
+        feature_handles: list[int],
+        options: CityJSONSeqAutoTransformOptionsStruct,
+    ) -> bytes:
+        array_type = c_void_p * len(feature_handles)
+        array = array_type(*[c_void_p(handle) for handle in feature_handles])
+        payload = BytesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_serialize_cityjsonseq_auto_transform(
+                c_void_p(base_root_handle),
+                array,
+                len(feature_handles),
+                options,
+                pointer(payload),
             )
         )
         return self._take_bytes(payload)

@@ -366,6 +366,29 @@ pub struct cj_json_write_options_t {
     pub validate_default_themes: bool,
 }
 
+/// Explicit strict `CityJSONSeq` write options.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_cityjsonseq_write_options_t {
+    pub validate_default_themes: bool,
+    pub trailing_newline: bool,
+    pub update_metadata_geographical_extent: bool,
+}
+
+/// Auto-transform options for strict `CityJSONSeq` writing.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct cj_cityjsonseq_auto_transform_options_t {
+    pub scale_x: f64,
+    pub scale_y: f64,
+    pub scale_z: f64,
+    pub validate_default_themes: bool,
+    pub trailing_newline: bool,
+    pub update_metadata_geographical_extent: bool,
+}
+
 /// Explicit root-transform state for JSON write and edit workflows.
 #[allow(non_camel_case_types)]
 #[repr(C)]

@@ -4,7 +4,9 @@ from pathlib import Path
 import unittest
 
 from cjlib import (
+    AutoTransformOptions,
     CityModel,
+    CityJSONSeqWriteOptions,
     GeometryBoundary,
     GeometryType,
     ModelCapacities,
@@ -19,6 +21,8 @@ from cjlib import (
     probe_bytes,
     serialize_feature_stream,
     serialize_feature_stream_bytes,
+    write_cityjsonseq_auto_transform_bytes,
+    write_cityjsonseq_with_transform_bytes,
 )
 
 
@@ -211,3 +215,36 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.addCleanup(merged.close)
         self.assertIn("feature-1", merged.cityobject_ids())
         self.assertEqual(merged.summary().cityobject_count, 3)
+
+    def test_strict_cityjsonseq_writer_helpers(self) -> None:
+        base_root = CityModel.parse_document_bytes(
+            b'{"type":"CityJSON","version":"2.0","metadata":{"title":"base-root"},"CityObjects":{},"vertices":[]}'
+        )
+        self.addCleanup(base_root.close)
+
+        feature_a = CityModel.parse_feature_bytes(
+            b'{"type":"CityJSONFeature","metadata":{"title":"base-root"},"CityObjects":{"feature-a":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[10,20,30],[12,22,31]]}'
+        )
+        self.addCleanup(feature_a.close)
+        feature_b = CityModel.parse_feature_bytes(
+            b'{"type":"CityJSONFeature","metadata":{"title":"base-root"},"CityObjects":{"feature-b":{"type":"BuildingPart","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[9,21,40]]}'
+        )
+        self.addCleanup(feature_b.close)
+
+        explicit = write_cityjsonseq_with_transform_bytes(
+            base_root,
+            [feature_a],
+            Transform(scale=(0.5, 0.5, 1.0), translate=(10.0, 20.0, 30.0)),
+            CityJSONSeqWriteOptions(),
+        )
+        self.assertIn(b'"type":"CityJSON"', explicit)
+        self.assertIn(b'"type":"CityJSONFeature"', explicit)
+        self.assertIn(b'"geographicalExtent":[10.0,20.0,30.0,12.0,22.0,31.0]', explicit)
+
+        auto = write_cityjsonseq_auto_transform_bytes(
+            base_root,
+            [feature_a, feature_b],
+            AutoTransformOptions(scale=(0.5, 1.0, 5.0)),
+        )
+        self.assertIn(b'"translate":[9.0,20.0,30.0]', auto)
+        self.assertIn(b'"type":"CityJSONFeature"', auto)

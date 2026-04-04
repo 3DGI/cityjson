@@ -7,6 +7,8 @@ from typing import Self
 
 from cjlib._ffi import (
     CjlibError,
+    CityJSONSeqAutoTransformOptionsPayload,
+    CityJSONSeqWriteOptionsPayload,
     FfiLibrary,
     GeometryType,
     GeometryBoundaryPayload,
@@ -88,6 +90,40 @@ class WriteOptions:
             WriteOptionsPayload(
                 pretty=self.pretty,
                 validate_default_themes=self.validate_default_themes,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class CityJSONSeqWriteOptions:
+    validate_default_themes: bool = True
+    trailing_newline: bool = True
+    update_metadata_geographical_extent: bool = True
+
+    def to_native(self):
+        return _ffi.cityjsonseq_write_options(
+            CityJSONSeqWriteOptionsPayload(
+                validate_default_themes=self.validate_default_themes,
+                trailing_newline=self.trailing_newline,
+                update_metadata_geographical_extent=self.update_metadata_geographical_extent,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class AutoTransformOptions:
+    scale: tuple[float, float, float] = (0.001, 0.001, 0.001)
+    validate_default_themes: bool = True
+    trailing_newline: bool = True
+    update_metadata_geographical_extent: bool = True
+
+    def to_native(self):
+        return _ffi.cityjsonseq_auto_transform_options(
+            CityJSONSeqAutoTransformOptionsPayload(
+                scale=self.scale,
+                validate_default_themes=self.validate_default_themes,
+                trailing_newline=self.trailing_newline,
+                update_metadata_geographical_extent=self.update_metadata_geographical_extent,
             )
         )
 
@@ -341,3 +377,67 @@ def serialize_feature_stream_bytes(
     payload = options.to_native() if options is not None else WriteOptions().to_native()
     handles = [model._handle for model in models]
     return _ffi.serialize_feature_stream(handles, payload)
+
+
+def write_cityjsonseq_with_transform(
+    base_root: CityModel,
+    features: list[CityModel],
+    transform: Transform,
+    options: CityJSONSeqWriteOptions | None = None,
+) -> str:
+    return write_cityjsonseq_with_transform_bytes(
+        base_root,
+        features,
+        transform,
+        options,
+    ).decode("utf-8")
+
+
+def write_cityjsonseq_with_transform_bytes(
+    base_root: CityModel,
+    features: list[CityModel],
+    transform: Transform,
+    options: CityJSONSeqWriteOptions | None = None,
+) -> bytes:
+    payload = (
+        options.to_native()
+        if options is not None
+        else CityJSONSeqWriteOptions().to_native()
+    )
+    handles = [model._handle for model in features]
+    return _ffi.serialize_cityjsonseq_with_transform(
+        base_root._handle,
+        handles,
+        transform.to_native(),
+        payload,
+    )
+
+
+def write_cityjsonseq_auto_transform(
+    base_root: CityModel,
+    features: list[CityModel],
+    options: AutoTransformOptions | None = None,
+) -> str:
+    return write_cityjsonseq_auto_transform_bytes(
+        base_root,
+        features,
+        options,
+    ).decode("utf-8")
+
+
+def write_cityjsonseq_auto_transform_bytes(
+    base_root: CityModel,
+    features: list[CityModel],
+    options: AutoTransformOptions | None = None,
+) -> bytes:
+    payload = (
+        options.to_native()
+        if options is not None
+        else AutoTransformOptions().to_native()
+    )
+    handles = [model._handle for model in features]
+    return _ffi.serialize_cityjsonseq_auto_transform(
+        base_root._handle,
+        handles,
+        payload,
+    )

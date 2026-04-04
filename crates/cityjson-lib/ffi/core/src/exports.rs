@@ -9,15 +9,16 @@ use cjlib::cityjson::v2_0::{
     Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
     CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Geometry, GeometryType,
-    LoD, StoredGeometryParts,
+    LoD, StoredGeometryParts, Transform,
 };
 use cjlib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
-    cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
-    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_bytes_t, cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t,
+    cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
+    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_model_capacities_t,
+    cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_status_t, cj_string_view_t,
+    cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
@@ -220,6 +221,38 @@ fn write_boundary(
     }
 
     Ok(())
+}
+
+fn required_model_refs<'a>(
+    models: *const *const cj_model_t,
+    model_count: usize,
+    name: &'static str,
+) -> Result<Vec<&'a CityModel>, AbiError> {
+    if model_count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let models_ptr = NonNull::new(models.cast_mut()).ok_or_else(|| {
+        invalid_argument(format!(
+            "{name} must not be null when model_count is non-zero"
+        ))
+    })?;
+    let models = unsafe { slice::from_raw_parts(models_ptr.as_ptr().cast_const(), model_count) };
+    models
+        .iter()
+        .map(|handle| required_model_ref(*handle))
+        .collect::<Result<Vec<_>, _>>()
+}
+
+fn transform_from_abi(transform: cj_transform_t) -> Transform {
+    let mut value = Transform::new();
+    value.set_scale([transform.scale_x, transform.scale_y, transform.scale_z]);
+    value.set_translate([
+        transform.translate_x,
+        transform.translate_y,
+        transform.translate_z,
+    ]);
+    value
 }
 
 fn copy_string_bytes(value: Option<&str>) -> Vec<u8> {
@@ -1106,13 +1139,10 @@ pub extern "C" fn cj_model_set_transform(
     transform: cj_transform_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let transform = transform_from_abi(transform);
         let transform_mut = required_model_mut(model)?.as_inner_mut().transform_mut();
-        transform_mut.set_scale([transform.scale_x, transform.scale_y, transform.scale_z]);
-        transform_mut.set_translate([
-            transform.translate_x,
-            transform.translate_y,
-            transform.translate_z,
-        ]);
+        transform_mut.set_scale(transform.scale());
+        transform_mut.set_translate(transform.translate());
         Ok(())
     }))
 }
@@ -1392,6 +1422,64 @@ pub extern "C" fn cj_model_serialize_feature_stream(
             }
             buffer.push(b'\n');
         }
+        write_bytes(out_bytes, buffer)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_cityjsonseq_with_transform(
+    base_root: *const cj_model_t,
+    features: *const *const cj_model_t,
+    feature_count: usize,
+    transform: cj_transform_t,
+    options: cj_cityjsonseq_write_options_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let base_root = required_model_ref(base_root)?;
+        let feature_refs = required_model_refs(features, feature_count, "features")?;
+        let transform = transform_from_abi(transform);
+
+        let mut buffer = Vec::new();
+        cjlib::json::write_cityjsonseq_refs(
+            &mut buffer,
+            base_root,
+            feature_refs,
+            &transform,
+            cjlib::json::CityJSONSeqWriteOptions {
+                validate_default_themes: options.validate_default_themes,
+                trailing_newline: options.trailing_newline,
+                update_metadata_geographical_extent: options.update_metadata_geographical_extent,
+            },
+        )?;
+        write_bytes(out_bytes, buffer)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_cityjsonseq_auto_transform(
+    base_root: *const cj_model_t,
+    features: *const *const cj_model_t,
+    feature_count: usize,
+    options: cj_cityjsonseq_auto_transform_options_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let base_root = required_model_ref(base_root)?;
+        let feature_refs = required_model_refs(features, feature_count, "features")?;
+
+        let mut buffer = Vec::new();
+        cjlib::json::write_cityjsonseq_auto_transform_refs(
+            &mut buffer,
+            base_root,
+            feature_refs,
+            cjlib::json::AutoTransformOptions {
+                scale: [options.scale_x, options.scale_y, options.scale_z],
+                validate_default_themes: options.validate_default_themes,
+                trailing_newline: options.trailing_newline,
+                update_metadata_geographical_extent: options.update_metadata_geographical_extent,
+            },
+        )?;
         write_bytes(out_bytes, buffer)
     }))
 }
