@@ -43,6 +43,10 @@ bench-cityjson:
 bench-ndjson:
     cargo bench --bench ndjson
 
+# Build the Python bindings wheel.
+build-python:
+    uv build python/ --wheel --out-dir python/dist
+
 # Run the investigation binary and the release-mode benchmarks used for reporting.
 bench-release:
     cargo run --release --bin investigate-read-performance
