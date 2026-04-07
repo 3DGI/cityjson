@@ -309,3 +309,71 @@ The implementation sequence after this ADR is:
    and appearance tables
 5. delete JSON projection helpers and row-materialization helpers from the hot
    path
+
+## Results Snapshot: 2026-04-07
+
+The downstream `cjlib` runs after the initial `v3` cut and later conversion
+remediation now give this ADR a concrete benchmark reading.
+
+Compared with the earlier downstream run `cityarrow optimize decode,encode`
+from `2026-04-04T20:42:15Z`, the `cityarrow optimize v0.5.0` run at
+`2026-04-07T22:36:17Z` moved the end-to-end numbers to:
+
+| Path | Previous | Current | Delta |
+| --- | --- | --- | --- |
+| `cityarrow` tile read | `25.72 ms` | `15.72 ms` | `-38.9%` |
+| `cityarrow` cluster read | `101.83 ms` | `66.09 ms` | `-35.1%` |
+| `cityarrow` tile write | `47.05 ms` | `35.85 ms` | `-23.8%` |
+| `cityarrow` cluster write | `166.59 ms` | `123.87 ms` | `-25.6%` |
+| `cityparquet` tile read | `25.42 ms` | `15.97 ms` | `-37.2%` |
+| `cityparquet` cluster read | `100.63 ms` | `65.40 ms` | `-35.0%` |
+| `cityparquet` tile write | `53.95 ms` | `44.72 ms` | `-17.1%` |
+| `cityparquet` cluster write | `168.54 ms` | `125.23 ms` | `-25.7%` |
+
+Against the same-run `serde_json::Value` baseline, the native read paths now
+win decisively on both pinned fixtures:
+
+| Case | Baseline read | `cityarrow` read | `cityparquet` read |
+| --- | --- | --- | --- |
+| tile | `25.04 ms` | `15.72 ms` | `15.97 ms` |
+| cluster | `104.51 ms` | `66.09 ms` | `65.40 ms` |
+
+Write improved materially, but it is still not competitive with the JSON
+baseline:
+
+| Case | Baseline write | `cityarrow` write | `cityparquet` write |
+| --- | --- | --- | --- |
+| tile | `7.89 ms` | `35.85 ms` | `44.72 ms` |
+| cluster | `36.71 ms` | `123.87 ms` | `125.23 ms` |
+
+The allocation reading is now strong evidence that the batch-native conversion
+work is paying off, not just the stream or package containers:
+
+- read total allocated bytes dropped by about `47%` to `49%` versus the
+  earlier `decode,encode` run
+- read peak heap also dropped by about `7%` to `9%`
+- in the `v0.5.0` run, read total allocated bytes are about `46%` to `47%`
+  below `cjlib::json` and about `11%` to `12%` below `serde_json::Value`
+  while peak heap stays only about `7%` to `11%` above `cjlib::json` and about
+  `37%` below `serde_json::Value`
+
+This newer `v3` line also now beats the last pre-`v3` high-water mark from ADR
+4, `cityarrow v2alpha2 conversion cleanup`, by another:
+
+- about `29%` to `30%` on native read time for both `cityarrow` and
+  `cityparquet`
+- about `33%` to `36%` on `cityarrow` write time
+- about `14%` on `cityparquet` tile write and about `33%` on `cityparquet`
+  cluster write
+
+The practical reading is now:
+
+- the `v3` schema and conversion redesign did eventually pay back the temporary
+  regression from the first schema-cut implementation pass
+- read performance is no longer merely close to the JSON baseline; it is now a
+  clear win on real end-to-end `OwnedCityModel` workloads
+- the latest gains are matched by a large reduction in read allocation churn,
+  which fits the ADR's goal of removing JSON projection and row-staging costs
+- write performance is improved but still dominated by export conversion work,
+  so the next optimization target remains write-side conversion rather than
+  transport framing
