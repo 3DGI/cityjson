@@ -105,6 +105,7 @@ impl From<serde_cityjson::Error> for Error {
     }
 }
 
+#[cfg(feature = "arrow")]
 impl From<cityarrow::error::Error> for Error {
     fn from(value: cityarrow::error::Error) -> Self {
         match value {

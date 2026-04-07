@@ -1,10 +1,15 @@
 [package]
 name = "cjlib"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.93"
 include = ["/resources"]
 exclude = ["/tests/output"]
+
+[features]
+default = ["arrow", "parquet"]
+arrow = ["dep:cityarrow"]
+parquet = ["arrow", "dep:cityparquet"]
 
 [workspace]
 members = [
@@ -22,8 +27,8 @@ path = "src/lib.rs"
 
 [dependencies]
 cityjson = { path = "../cityjson-rs" }
-cityarrow = { path = "../cityarrow" }
-cityparquet = { path = "../cityarrow/cityparquet" }
+cityarrow = { path = "../cityarrow", optional = true }
+cityparquet = { path = "../cityarrow/cityparquet", optional = true }
 serde_cityjson = { path = "../serde_cityjson" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -33,14 +38,27 @@ criterion = "0.7"
 dhat = "0.3"
 tempfile = "3.23"
 
+[[bin]]
+name = "bench_export_formats"
+path = "src/bin/bench_export_formats.rs"
+required-features = ["arrow", "parquet"]
+
+[[bin]]
+name = "bench_validate_formats"
+path = "src/bin/bench_validate_formats.rs"
+required-features = ["arrow", "parquet"]
+
 [[bench]]
 name = "throughput"
 harness = false
+required-features = ["arrow", "parquet"]
 
 [[bench]]
 name = "diagnostic"
 harness = false
+required-features = ["arrow", "parquet"]
 
 [[bench]]
 name = "profile"
 harness = false
+required-features = ["arrow", "parquet"]

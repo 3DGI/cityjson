@@ -29,5 +29,7 @@ notes.md
 # Data
 /tests/output/*.json
 /tests/output/*.jsonl
+/tests/output/*.*arrow
+/tests/output/*.*parquet
 experiments/data/*
 experiments/geometry-enum/benches/data/*
