@@ -9,3 +9,7 @@ arrow = { version = "57.0.0", features = ["ipc"] }
 cityjson = { path = "../../cityjson-rs" }
 memmap2 = "0.9.9"
 serde_json = "1.0"
+
+[dev-dependencies]
+serde_cityjson = { path = "../../serde_cityjson" }
+tempfile = "3"

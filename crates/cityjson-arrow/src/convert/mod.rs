@@ -91,6 +91,7 @@ struct MetadataRow {
     citymodel_id: String,
     cityjson_version: String,
     citymodel_kind: String,
+    feature_root_id: Option<String>,
     identifier: Option<String>,
     title: Option<String>,
     reference_system: Option<String>,
@@ -691,6 +692,7 @@ struct GroupedRowBatch {
 
 struct ImportState {
     model: OwnedCityModel,
+    pending_feature_root_id: Option<String>,
     semantic_handle_by_id: HashMap<u64, cityjson::prelude::SemanticHandle>,
     material_handle_by_id: HashMap<u64, cityjson::prelude::MaterialHandle>,
     texture_handle_by_id: HashMap<u64, cityjson::prelude::TextureHandle>,
@@ -1379,6 +1381,7 @@ impl IncrementalDecoder {
             Error::Unsupported("stream or package is missing metadata".to_string())
         })?;
         attach_cityobject_geometries(&mut state)?;
+        apply_feature_root_id(&mut state.model, state.pending_feature_root_id.as_deref())?;
         Ok(state.model)
     }
 
@@ -1658,10 +1661,24 @@ fn initialize_model_from_metadata(
             metadata_row.cityjson_version, header.cityjson_version
         )));
     }
+    match kind {
+        CityModelType::CityJSONFeature if metadata_row.feature_root_id.is_none() => {
+            return Err(Error::Conversion(
+                "metadata feature_root_id is required for CityJSONFeature".to_string(),
+            ));
+        }
+        CityModelType::CityJSON if metadata_row.feature_root_id.is_some() => {
+            return Err(Error::Conversion(
+                "metadata feature_root_id is only valid for CityJSONFeature".to_string(),
+            ));
+        }
+        _ => {}
+    }
     apply_metadata_row(&mut model, &metadata_row, &empty_geometry_handles)?;
 
     Ok(ImportState {
         model,
+        pending_feature_root_id: metadata_row.feature_root_id.clone(),
         semantic_handle_by_id: HashMap::new(),
         material_handle_by_id: HashMap::new(),
         texture_handle_by_id: HashMap::new(),
@@ -2383,6 +2400,23 @@ fn attach_cityobject_geometries(state: &mut ImportState) -> Result<()> {
     Ok(())
 }
 
+fn apply_feature_root_id(model: &mut OwnedCityModel, feature_root_id: Option<&str>) -> Result<()> {
+    let Some(feature_root_id) = feature_root_id else {
+        return Ok(());
+    };
+    let handle = model
+        .cityobjects()
+        .iter()
+        .find_map(|(handle, cityobject)| (cityobject.id() == feature_root_id).then_some(handle))
+        .ok_or_else(|| {
+            Error::Conversion(format!(
+                "feature_root_id does not resolve to a CityObject: {feature_root_id}"
+            ))
+        })?;
+    model.set_id(Some(handle));
+    Ok(())
+}
+
 fn import_cityobject_children_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
     let parents = downcast_required::<UInt64Array>(batch, "parent_cityobject_ix")?;
     let children = downcast_required::<UInt64Array>(batch, "child_cityobject_ix")?;
@@ -2834,6 +2868,11 @@ fn metadata_row(model: &OwnedCityModel, header: &CityArrowHeader) -> MetadataRow
         citymodel_id: header.citymodel_id.clone(),
         cityjson_version: header.cityjson_version.clone(),
         citymodel_kind: model.type_citymodel().to_string(),
+        feature_root_id: model.id().and_then(|handle| {
+            model.cityobjects()
+                .get(handle)
+                .map(|cityobject| cityobject.id().to_string())
+        }),
         identifier: metadata.and_then(|item| item.identifier().map(ToString::to_string)),
         title: metadata.and_then(Metadata::title).map(ToString::to_string),
         reference_system: metadata
@@ -4141,6 +4180,7 @@ fn metadata_batch(
         citymodel_id,
         cityjson_version,
         citymodel_kind,
+        feature_root_id,
         identifier,
         title,
         reference_system,
@@ -4156,6 +4196,7 @@ fn metadata_batch(
         Arc::new(LargeStringArray::from(vec![Some(citymodel_id)])),
         Arc::new(StringArray::from(vec![Some(cityjson_version)])),
         Arc::new(StringArray::from(vec![Some(citymodel_kind)])),
+        Arc::new(LargeStringArray::from(vec![feature_root_id])),
         Arc::new(LargeStringArray::from(vec![identifier])),
         Arc::new(LargeStringArray::from(vec![title])),
         Arc::new(LargeStringArray::from(vec![reference_system])),
@@ -5404,6 +5445,7 @@ fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Resu
         citymodel_id: read_large_string_scalar(batch, "citymodel_id", 0)?,
         cityjson_version: read_string_scalar(batch, "cityjson_version", 0)?,
         citymodel_kind: read_string_scalar(batch, "citymodel_kind", 0)?,
+        feature_root_id: read_large_string_optional(batch, "feature_root_id", 0)?,
         identifier: read_large_string_optional(batch, "identifier", 0)?,
         title: read_large_string_optional(batch, "title", 0)?,
         reference_system: read_large_string_optional(batch, "reference_system", 0)?,

@@ -400,6 +400,7 @@ fn metadata_fields(layout: &ProjectionLayout) -> Vec<Field> {
         Field::new("citymodel_id", DataType::LargeUtf8, false),
         Field::new("cityjson_version", DataType::Utf8, false),
         Field::new("citymodel_kind", DataType::Utf8, false),
+        Field::new("feature_root_id", DataType::LargeUtf8, true),
         Field::new("identifier", DataType::LargeUtf8, true),
         Field::new("title", DataType::LargeUtf8, true),
         Field::new("reference_system", DataType::LargeUtf8, true),
