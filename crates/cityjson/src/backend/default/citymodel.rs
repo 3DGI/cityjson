@@ -66,6 +66,8 @@ pub(crate) struct CityModelCore<
     version: Option<CityJSONVersion>,
     /// `CityJSON` Extension declarations
     extensions: Option<Extensions>,
+    /// Typed root `id` for `CityJSONFeature` documents.
+    id: Option<RR>,
     /// Extra root properties for the `CityModel`
     extra: Option<Attributes<SS>>,
     /// `CityModel` metadata
@@ -132,6 +134,7 @@ where
             type_citymodel,
             version,
             extensions: None,
+            id: None,
             extra: None,
             metadata: None,
             cityobjects: CityObjects::default(),
@@ -160,6 +163,7 @@ where
             type_citymodel,
             version,
             extensions: None,
+            id: None,
             extra: None,
             metadata: None,
             cityobjects: create_cityobjects(capacities.cityobjects),
@@ -486,6 +490,14 @@ where
     }
 
     // Extra methods
+    pub fn id(&self) -> Option<RR> {
+        self.id
+    }
+
+    pub fn set_id(&mut self, id: Option<RR>) {
+        self.id = id;
+    }
+
     pub fn extra(&self) -> Option<&Attributes<SS>> {
         self.extra.as_ref()
     }

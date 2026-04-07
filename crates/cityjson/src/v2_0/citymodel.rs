@@ -467,6 +467,19 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.metadata_mut()
     }
 
+    /// Typed feature root id.
+    ///
+    /// This is semantically meaningful for `CityJSONFeature`, where it identifies the
+    /// main feature `CityObject`. For plain `CityJSON`, root `id` remains an ordinary
+    /// extra property and this accessor returns `None`.
+    pub fn id(&self) -> Option<CityObjectHandle> {
+        self.inner.id().map(CityObjectHandle::from_raw)
+    }
+
+    pub fn set_id(&mut self, id: Option<CityObjectHandle>) {
+        self.inner.set_id(id.map(CityObjectHandle::to_raw));
+    }
+
     pub fn extra(&self) -> Option<&crate::v2_0::attributes::Attributes<SS>> {
         self.inner.extra()
     }
@@ -855,6 +868,7 @@ impl<VR: VertexRef, SS: StringStorage> fmt::Display for CityModel<VR, SS> {
             "\textensions: {{ {} }}",
             format_option(self.extensions())
         )?;
+        writeln!(f, "\tid: {}", format_option(self.id().as_ref()))?;
         writeln!(f, "\ttransform: {{ {} }}", format_option(self.transform()))?;
         writeln!(f, "\tmetadata: {}", format_option(self.metadata()))?;
         writeln!(
@@ -926,7 +940,9 @@ mod tests {
     use crate::v2_0::appearance::texture::Texture;
     use crate::v2_0::boundary::nested::BoundaryNestedMultiPoint32;
     use crate::v2_0::geometry::{AffineTransform3D, LoD, StoredGeometryParts};
-    use crate::v2_0::{GeometryDraft, RingDraft, SurfaceDraft};
+    use crate::v2_0::{
+        CityObject, CityObjectIdentifier, CityObjectType, GeometryDraft, RingDraft, SurfaceDraft,
+    };
 
     fn multi_point_geometry(
         vertices: BoundaryNestedMultiPoint32,
@@ -1115,5 +1131,37 @@ mod tests {
         assert!(model.has_material_theme("theme-a"));
         assert!(model.has_texture_theme("theme-a"));
         assert!(model.validate_default_themes().is_ok());
+    }
+
+    #[test]
+    fn cityjsonfeature_root_id_is_stored_as_typed_model_state() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSONFeature);
+        let handle = model
+            .cityobjects_mut()
+            .add(CityObject::new(
+                CityObjectIdentifier::new("feature-1".to_string()),
+                CityObjectType::Building,
+            ))
+            .unwrap();
+
+        model.set_id(Some(handle));
+
+        assert_eq!(model.id(), Some(handle));
+        assert!(model.extra().is_none());
+    }
+
+    #[test]
+    fn cityjson_root_extra_id_remains_independent_from_typed_feature_id() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model.extra_mut().insert(
+            "id".to_string(),
+            AttributeValue::String("document-root-id".to_string()),
+        );
+
+        assert_eq!(model.id(), None);
+        assert_eq!(
+            model.extra().and_then(|extra| extra.get("id")),
+            Some(&AttributeValue::String("document-root-id".to_string()))
+        );
     }
 }
