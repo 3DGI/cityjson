@@ -631,7 +631,7 @@ mod tests {
         .expect("pretty serialize should work");
         assert!(pretty.len() > compact.len());
 
-        let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+        let feature = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
         let feature_roundtrip = serialize_feature_with_options(
             feature,
             WriteOptions {
@@ -647,7 +647,7 @@ mod tests {
         );
 
         let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 "#;
         let merged = merge_feature_stream(
             stream,

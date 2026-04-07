@@ -11,6 +11,7 @@ list:
 
 clean:
     cargo clean
+    rm -rf ffi/python/dist ffi/python/build
 
 check:
     cargo check --workspace --all-targets --all-features
@@ -83,6 +84,9 @@ ffi-doc:
 ffi-header:
     mkdir -p ffi/core/include/cjlib
     cbindgen --config ffi/core/cbindgen.toml --crate cjlib-ffi-core --output ffi/core/include/cjlib/cjlib.h
+
+build-python:
+    uv build ffi/python/ --wheel --out-dir ffi/python/dist
 
 docs-build:
     uv run --with-requirements python-requirements-dev.txt mkdocs build --strict

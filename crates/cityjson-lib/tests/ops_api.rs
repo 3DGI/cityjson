@@ -5,11 +5,11 @@ use cjlib::{json, ops};
 #[test]
 fn ops_merge_combines_self_contained_models() {
     let first = json::from_feature_slice(
-        br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#,
+        br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#,
     )
     .expect("feature fixture should parse");
     let second = json::from_feature_slice(
-        br#"{"type":"CityJSONFeature","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}"#,
+        br#"{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}"#,
     )
     .expect("feature fixture should parse");
 

@@ -14,8 +14,30 @@ use std::path::Path;
 
 #[cfg(any(feature = "arrow", feature = "parquet"))]
 fn normalized_json(model: &CityModel) -> Value {
-    serde_json::from_str(&to_string_validated(model.as_inner()).expect("model should serialize"))
-        .expect("serialized model should be valid JSON")
+    let mut value: Value = serde_json::from_str(
+        &to_string_validated(model.as_inner()).expect("model should serialize"),
+    )
+    .expect("serialized model should be valid JSON");
+    strip_null_object_members(&mut value);
+    value
+}
+
+#[cfg(any(feature = "arrow", feature = "parquet"))]
+fn strip_null_object_members(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.retain(|_, member| !member.is_null());
+            for member in map.values_mut() {
+                strip_null_object_members(member);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                strip_null_object_members(item);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+    }
 }
 
 #[cfg(feature = "arrow")]

@@ -19,7 +19,7 @@ fn v1_document() -> &'static [u8] {
 }
 
 fn feature_payload() -> &'static [u8] {
-    br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
+    br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
 }
 
 fn bytes_to_string(bytes: cj_bytes_t) -> String {
@@ -705,7 +705,7 @@ fn append_extract_and_feature_stream_exports_work() {
     );
     assert_eq!(summary.cityobject_count, 2);
 
-    let ids = [string_view("feature-2")];
+    let ids = [string_view("feature-1")];
     let mut extracted = ptr::null_mut();
     assert_eq!(
         cj_model_extract_cityobjects(first, ids.as_ptr(), ids.len(), &raw mut extracted),

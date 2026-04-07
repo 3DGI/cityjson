@@ -11,10 +11,10 @@ use cjlib::{CityJSONVersion, json};
 fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<()> {
     let document = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
     let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
-{"type":"CityJSONFeature","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}
+{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
+{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}
 "#;
-    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+    let feature = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
 
     let probe = json::probe(document)?;
     assert_eq!(probe.kind(), json::RootKind::CityJSON);
@@ -58,6 +58,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform() -
     let feature = json::from_feature_slice(
         br#"{
             "type":"CityJSONFeature",
+            "id":"feature-1",
             "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-1":{
@@ -135,6 +136,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform() -> cj
     let feature_a = json::from_feature_slice(
         br#"{
             "type":"CityJSONFeature",
+            "id":"feature-a",
             "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-a":{
@@ -148,6 +150,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform() -> cj
     let feature_b = json::from_feature_slice(
         br#"{
             "type":"CityJSONFeature",
+            "id":"feature-b",
             "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-b":{
@@ -201,6 +204,7 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
     }"#;
     let feature = br#"{
         "type":"CityJSONFeature",
+        "id":"feature-1",
         "CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiSurface","boundaries":[[[0,1,2]]]}]}},
         "vertices":[[0,0,0],[2,0,0],[2,4,5]]
     }"#;
@@ -287,7 +291,7 @@ fn explicit_json_module_owns_serialization() -> cjlib::Result<()> {
 
 #[test]
 fn explicit_json_module_can_write_features_without_building_a_string() -> cjlib::Result<()> {
-    let feature = br#"{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
+    let feature = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
     let model = json::from_feature_slice(feature)?;
 
     let mut writer = Vec::new();

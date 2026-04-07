@@ -491,7 +491,7 @@ mod tests {
     }
 
     fn feature_document() -> &'static [u8] {
-        br#"{"type":"CityJSONFeature","version":"2.0","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
+        br#"{"type":"CityJSONFeature","id":"feature-1","version":"2.0","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
     }
 
     #[test]
