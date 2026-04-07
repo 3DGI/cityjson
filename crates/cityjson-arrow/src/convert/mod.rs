@@ -2869,7 +2869,8 @@ fn metadata_row(model: &OwnedCityModel, header: &CityArrowHeader) -> MetadataRow
         cityjson_version: header.cityjson_version.clone(),
         citymodel_kind: model.type_citymodel().to_string(),
         feature_root_id: model.id().and_then(|handle| {
-            model.cityobjects()
+            model
+                .cityobjects()
                 .get(handle)
                 .map(|cityobject| cityobject.id().to_string())
         }),
