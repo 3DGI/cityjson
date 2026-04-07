@@ -8,7 +8,7 @@ use cityjson::v2_0::{
     RealWorldCoordinate, ThemeName, Transform, UVCoordinate, CRS, RGB, RGBA,
 };
 
-use crate::de::attributes::attribute_map;
+use crate::de::attributes::{RawAttribute, attribute_map};
 use crate::de::cityobjects::import_cityobjects;
 use crate::de::geometry::{import_template_geometry, GeometryResources};
 use crate::de::parse::ParseStringStorage;
@@ -32,47 +32,95 @@ where
     SS: ParseStringStorage<'de>,
     SS::String: From<&'de str>,
 {
+    let PreparedRoot {
+        type_name,
+        version,
+        transform,
+        vertices,
+        metadata,
+        extensions,
+        cityobjects,
+        appearance,
+        geometry_templates,
+        id,
+        mut extra,
+    } = raw;
     let header = timed("build.parse_root_header", || {
-        parse_root_header(raw.type_name, raw.version)
+        parse_root_header(type_name, version)
     })?;
     let mut model = CityModel::<u32, SS>::new(header.type_citymodel);
-    let transform = timed("build.apply_transform", || {
-        apply_transform(raw.transform, &mut model)
-    });
+    let transform = timed("build.apply_transform", || apply_transform(transform, &mut model));
     let mut resources = GeometryResources::default();
 
-    if let Some(appearance) = raw.appearance {
+    if let Some(appearance) = appearance {
         timed("build.import_appearance", || {
             import_appearance::<SS>(appearance, &mut model, &mut resources)
         })?;
     }
-    if let Some(templates) = raw.geometry_templates {
+    if let Some(templates) = geometry_templates {
         timed("build.import_geometry_templates", || {
             import_geometry_templates::<SS>(templates, &mut model, &mut resources)
         })?;
     }
     timed("build.import_vertices", || {
-        import_vertices(&raw.vertices, transform.as_ref(), &mut model)
+        import_vertices(&vertices, transform.as_ref(), &mut model)
     })?;
 
-    if let Some(metadata) = raw.metadata {
+    if let Some(metadata) = metadata {
         *model.metadata_mut() = timed("build.metadata", || build_metadata::<SS>(metadata))?;
     }
-    if let Some(extensions) = raw.extensions {
+    if let Some(extensions) = extensions {
         *model.extensions_mut() = timed("build.extensions", || build_extensions::<SS>(extensions));
     }
-    if !raw.extra.is_empty() {
+    let feature_root_id = if header.type_citymodel == cityjson::CityModelType::CityJSONFeature {
+        Some(parse_feature_root_id(id.ok_or_else(|| {
+            crate::errors::Error::InvalidValue("CityJSONFeature root id is required".to_owned())
+        })?)?)
+    } else {
+        if let Some(id) = id {
+            extra.insert("id", id);
+        }
+        None
+    };
+    if !extra.is_empty() {
         *model.extra_mut() = timed("build.root_extra_attributes", || {
-            attribute_map::<SS>(raw.extra, "root extra properties")
+            attribute_map::<SS>(extra, "root extra properties")
         })?;
     }
 
     timed("build.import_cityobjects", || {
-        import_cityobjects::<SS>(raw.cityobjects, &mut model, &resources)
+        import_cityobjects::<SS>(cityobjects, &mut model, &resources)
     })?;
+    if let Some(feature_root_id) = feature_root_id {
+        model.set_id(Some(resolve_feature_root_handle(&model, &feature_root_id)?));
+    }
 
     debug_assert_eq!(model.version(), Some(header.version));
     Ok(model)
+}
+
+fn parse_feature_root_id(raw: RawAttribute<'_>) -> Result<String> {
+    match raw {
+        RawAttribute::String(value) => Ok(value.into_owned()),
+        _ => Err(crate::errors::Error::InvalidValue(
+            "CityJSONFeature root id must be a string".to_owned(),
+        )),
+    }
+}
+
+fn resolve_feature_root_handle<SS: StringStorage>(
+    model: &CityModel<u32, SS>,
+    feature_root_id: &str,
+) -> Result<cityjson::prelude::CityObjectHandle> {
+    model
+        .cityobjects()
+        .iter()
+        .find_map(|(handle, cityobject)| (cityobject.id() == feature_root_id).then_some(handle))
+        .ok_or_else(|| {
+            crate::errors::Error::InvalidValue(format!(
+                "feature root id does not resolve to a CityObject: {feature_root_id}"
+            ))
+        })
 }
 
 // ---------------------------------------------------------------------------

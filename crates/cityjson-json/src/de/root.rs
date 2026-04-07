@@ -21,6 +21,7 @@ pub(crate) struct PreparedRoot<'a> {
     pub(crate) cityobjects: &'a RawValue,
     pub(crate) appearance: Option<RawAppearanceSection<'a>>,
     pub(crate) geometry_templates: Option<RawGeometryTemplatesSection<'a>>,
+    pub(crate) id: Option<RawAttribute<'a>>,
     pub(crate) extra: HashMap<&'a str, RawAttribute<'a>>,
 }
 
@@ -74,6 +75,7 @@ impl<'de> Visitor<'de> for RootVisitor {
         let mut cityobjects = None;
         let mut appearance = None;
         let mut geometry_templates = None;
+        let mut id = None;
         let mut extra = HashMap::with_capacity(map.size_hint().unwrap_or(0));
 
         while let Some(key) = map.next_key::<&'de str>()? {
@@ -86,6 +88,7 @@ impl<'de> Visitor<'de> for RootVisitor {
                 "extensions" => set_once(&mut extensions, "extensions", map.next_value()?)?,
                 "CityObjects" => set_once(&mut cityobjects, "CityObjects", map.next_value()?)?,
                 "appearance" => set_once(&mut appearance, "appearance", map.next_value()?)?,
+                "id" => set_once(&mut id, "id", map.next_value()?)?,
                 "geometry-templates" => set_once(
                     &mut geometry_templates,
                     "geometry-templates",
@@ -107,6 +110,7 @@ impl<'de> Visitor<'de> for RootVisitor {
             cityobjects: cityobjects.ok_or_else(|| de::Error::missing_field("CityObjects"))?,
             appearance,
             geometry_templates,
+            id,
             extra,
         })
     }

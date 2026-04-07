@@ -34,6 +34,7 @@ where
 #[derive(Clone, Copy)]
 pub(crate) struct CityModelSerializeOptions<'a> {
     pub(crate) type_name: CityModelType,
+    pub(crate) include_id: bool,
     pub(crate) include_version: bool,
     pub(crate) transform: Option<&'a cityjson::v2_0::Transform>,
     pub(crate) include_transform: bool,
@@ -56,6 +57,7 @@ impl<'a> CityModelSerializeOptions<'a> {
         let type_name = model.type_citymodel();
         Self {
             type_name,
+            include_id: type_name == CityModelType::CityJSONFeature,
             include_version: type_name != CityModelType::CityJSONFeature,
             transform: model.transform(),
             include_transform: model.transform().is_some(),
@@ -114,6 +116,16 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("type", &self.options.type_name.to_string())?;
+        if self.options.include_id && self.options.type_name == CityModelType::CityJSONFeature {
+            if let Some(id_handle) = self.model.id() {
+                let id = self.context.id_by_handle.get(&id_handle).ok_or_else(|| {
+                    S::Error::custom(Error::InvalidValue(format!(
+                        "missing id for CityObject {id_handle}"
+                    )))
+                })?;
+                map.serialize_entry("id", id)?;
+            }
+        }
         if self.options.include_version {
             map.serialize_entry(
                 "version",

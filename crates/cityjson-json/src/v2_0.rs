@@ -498,6 +498,7 @@ where
 
 fn validate_feature_parts(parts: FeatureParts<'_>) -> Result<()> {
     let mut seen_ids = HashSet::with_capacity(parts.cityobjects.len());
+    let mut root_id_present = false;
     for object in parts.cityobjects {
         if !seen_ids.insert(object.id) {
             return Err(Error::InvalidValue(format!(
@@ -505,6 +506,15 @@ fn validate_feature_parts(parts: FeatureParts<'_>) -> Result<()> {
                 object.id
             )));
         }
+        if object.id == parts.id {
+            root_id_present = true;
+        }
+    }
+    if !root_id_present {
+        return Err(Error::InvalidValue(format!(
+            "feature root id does not resolve to a CityObject: {}",
+            parts.id
+        )));
     }
 
     Ok(())
@@ -669,7 +679,7 @@ fn ensure_compatible_feature_root(
     for (key, value) in feature {
         if matches!(
             key.as_str(),
-            "type" | "version" | "CityObjects" | "vertices"
+            "type" | "version" | "id" | "CityObjects" | "vertices"
         ) {
             continue;
         }
@@ -762,6 +772,7 @@ where
         model: base_root,
         options: crate::ser::CityModelSerializeOptions {
             type_name: CityModelType::CityJSON,
+            include_id: false,
             include_version: true,
             transform: Some(transform),
             include_transform: true,
@@ -787,6 +798,7 @@ where
             model: feature,
             options: crate::ser::CityModelSerializeOptions {
                 type_name: CityModelType::CityJSONFeature,
+                include_id: true,
                 include_version: false,
                 transform: Some(transform),
                 include_transform: false,
@@ -883,6 +895,11 @@ where
     if feature.type_citymodel() != CityModelType::CityJSONFeature {
         return Err(Error::UnsupportedType(feature.type_citymodel().to_string()));
     }
+    if feature.id().is_none() {
+        return Err(Error::InvalidValue(
+            "CityJSONFeature root id is required".to_owned(),
+        ));
+    }
     Ok(())
 }
 
@@ -895,6 +912,7 @@ where
         model,
         options: crate::ser::CityModelSerializeOptions {
             type_name: model.type_citymodel(),
+            include_id: false,
             include_version: true,
             transform: model.transform(),
             include_transform: model.transform().is_some(),
