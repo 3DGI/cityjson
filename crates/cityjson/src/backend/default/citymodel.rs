@@ -473,6 +473,19 @@ where
         self.vertices.push(coordinate)
     }
 
+    /// Add many vertices and return the contiguous index range assigned to them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex container cannot
+    /// represent more vertices for `VR`.
+    pub fn add_vertices(
+        &mut self,
+        coordinates: &[RealWorldCoordinate],
+    ) -> Result<std::ops::Range<VertexIndex<VR>>> {
+        self.vertices.extend_from_slice(coordinates)
+    }
+
     pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.vertices.get(index)
     }

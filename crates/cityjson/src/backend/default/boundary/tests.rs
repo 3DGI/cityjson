@@ -362,6 +362,64 @@ fn boundary_counter() {
     assert_eq!(counter.shell_offset().value(), 1);
     assert_eq!(counter.solid_offset().value(), 1);
 }
+
+#[test]
+fn from_parts_unchecked_matches_checked_layout_for_valid_input() {
+    let nested: BoundaryNestedMultiOrCompositeSolid32 = vec![
+        vec![
+            vec![
+                vec![vec![0, 1, 2, 0]],
+                vec![vec![3, 4, 5, 3], vec![6, 7, 8, 6]],
+            ],
+            vec![vec![vec![9, 10, 11, 9]]],
+        ],
+        vec![vec![vec![vec![12, 13, 14, 12]]]],
+    ];
+    let checked: Boundary<u32> = nested.clone().try_into().unwrap();
+
+    let unchecked = unsafe {
+        Boundary::from_parts_unchecked(
+            checked.vertices().to_vec(),
+            checked.rings().to_vec(),
+            checked.surfaces().to_vec(),
+            checked.shells().to_vec(),
+            checked.solids().to_vec(),
+        )
+    };
+
+    assert_eq!(unchecked, checked);
+    assert!(unchecked.is_consistent());
+    assert_eq!(
+        unchecked.to_nested_multi_or_composite_solid().unwrap(),
+        nested
+    );
+}
+
+#[test]
+fn from_parts_checked_rejects_invalid_offsets_but_unchecked_preserves_them() {
+    let vertices = vec![vi(0_u32), vi(1_u32), vi(2_u32), vi(3_u32)];
+    let rings = vec![vi(1_u32), vi(4_u32)];
+
+    let error = Boundary::from_parts(
+        vertices.clone(),
+        rings.clone(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, error::Error::InvalidGeometry(_)));
+
+    let unchecked = unsafe {
+        Boundary::from_parts_unchecked(vertices, rings, Vec::new(), Vec::new(), Vec::new())
+    };
+    assert_eq!(unchecked.check_type(), BoundaryType::MultiLineString);
+    assert!(!unchecked.is_consistent());
+    assert_eq!(&*unchecked.vertices_raw(), &[0, 1, 2, 3]);
+    assert_eq!(&*unchecked.rings_raw(), &[1, 4]);
+    assert!(unchecked.to_nested_multi_linestring().is_err());
+}
+
 #[cfg(test)]
 mod nested_tests {
     use super::*;

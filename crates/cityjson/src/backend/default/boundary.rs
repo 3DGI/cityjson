@@ -305,6 +305,40 @@ impl<VR: VertexRef> Boundary<VR> {
         Ok(boundary)
     }
 
+    /// Creates a boundary from owned flat parts without validating topology offsets.
+    ///
+    /// This is intended for trusted callers that have already validated the stored boundary
+    /// layout and want to avoid re-running the offset checks in the hot path.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that every non-empty offset buffer starts at zero, is monotonic, and
+    /// never points past the end of its child buffer:
+    ///
+    /// - `rings` into `vertices`
+    /// - `surfaces` into `rings`
+    /// - `shells` into `surfaces`
+    /// - `solids` into `shells`
+    ///
+    /// Passing malformed buffers is not memory-unsafe, but it produces a `Boundary` whose stored
+    /// topology invariants are broken and which may later fail checked conversions.
+    #[must_use]
+    pub unsafe fn from_parts_unchecked(
+        vertices: Vec<VertexIndex<VR>>,
+        rings: Vec<VertexIndex<VR>>,
+        surfaces: Vec<VertexIndex<VR>>,
+        shells: Vec<VertexIndex<VR>>,
+        solids: Vec<VertexIndex<VR>>,
+    ) -> Self {
+        Self {
+            vertices,
+            rings,
+            surfaces,
+            shells,
+            solids,
+        }
+    }
+
     #[must_use]
     pub fn vertices_raw(&self) -> RawVertexView<'_, VR> {
         RawVertexView(&self.vertices)

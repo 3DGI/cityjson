@@ -98,6 +98,42 @@ impl<VR: VertexRef, V: Coordinate> Vertices<VR, V> {
         Ok(index)
     }
 
+    /// Adds many coordinates at once and returns the contiguous index range assigned to them.
+    ///
+    /// The returned range is half-open: `start` is the index of the first inserted coordinate and
+    /// `end` is one past the final inserted coordinate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::VerticesContainerFull`] if appending `coordinates` would exceed the
+    /// maximum number of vertices representable by `VR`.
+    pub fn extend_from_slice(
+        &mut self,
+        coordinates: &[V],
+    ) -> Result<std::ops::Range<VertexIndex<VR>>> {
+        let start = VertexIndex::<VR>::try_from(self.coordinates.len())?;
+        let maximum = VR::MAX.try_into().unwrap_or(usize::MAX);
+        let Some(new_len) = self.coordinates.len().checked_add(coordinates.len()) else {
+            return Err(Error::VerticesContainerFull {
+                attempted: usize::MAX,
+                maximum,
+            });
+        };
+
+        if new_len > maximum {
+            return Err(Error::VerticesContainerFull {
+                attempted: new_len,
+                maximum,
+            });
+        }
+
+        self.coordinates.reserve(coordinates.len());
+        self.coordinates.extend_from_slice(coordinates);
+
+        let end = VertexIndex::<VR>::try_from(self.coordinates.len())?;
+        Ok(start..end)
+    }
+
     /// Returns a reference to the coordinate at the specified index.
     #[inline]
     pub fn get(&self, index: VertexIndex<VR>) -> Option<&V> {

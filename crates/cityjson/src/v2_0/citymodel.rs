@@ -455,6 +455,22 @@ impl<VR: VertexRef, SS: StringStorage> CityModel<VR, SS> {
         self.inner.add_vertex(coordinate)
     }
 
+    /// Add many vertices and return the contiguous index range assigned to them.
+    ///
+    /// The returned range is half-open: `start` is the first inserted vertex index and `end` is
+    /// one past the final inserted vertex.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::VerticesContainerFull`] when the vertex
+    /// container cannot represent more vertices for `VR`.
+    pub fn add_vertices(
+        &mut self,
+        coordinates: &[RealWorldCoordinate],
+    ) -> crate::error::Result<std::ops::Range<VertexIndex<VR>>> {
+        self.inner.add_vertices(coordinates)
+    }
+
     pub fn get_vertex(&self, index: VertexIndex<VR>) -> Option<&RealWorldCoordinate> {
         self.inner.get_vertex(index)
     }

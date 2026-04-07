@@ -18,6 +18,7 @@ fn assert_f64_slice_eq(actual: &[f64], expected: &[f64]) {
 
 mod basic {
     use super::{assert_f64_eq, assert_f64_slice_eq};
+    use cityjson::CityModelType;
     use cityjson::v2_0::*;
 
     #[test]
@@ -165,6 +166,70 @@ mod basic {
         assert_eq!(vertices.len(), 2);
         assert_f64_slice_eq(&vertices.as_slice()[0].to_array(), &[1.0, 2.0, 3.0]);
     }
+
+    #[test]
+    fn extend_from_slice_empty_returns_empty_range() {
+        let mut vertices = GeometryVertices32::new();
+        let range = vertices.extend_from_slice(&[]).unwrap();
+
+        assert_eq!(range.start, VertexIndex32::new(0));
+        assert_eq!(range.end, VertexIndex32::new(0));
+        assert!(vertices.is_empty());
+    }
+
+    #[test]
+    fn extend_from_slice_single_vertex_returns_inserted_range() {
+        let mut vertices = GeometryVertices32::new();
+        let input = [RealWorldCoordinate::new(1.0, 2.0, 3.0)];
+
+        let range = vertices.extend_from_slice(&input).unwrap();
+
+        assert_eq!(range.start, VertexIndex32::new(0));
+        assert_eq!(range.end, VertexIndex32::new(1));
+        assert_eq!(vertices.len(), 1);
+        assert_f64_slice_eq(&vertices.as_slice()[0].to_array(), &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn extend_from_slice_multiple_vertices_preserves_order_and_continuity() {
+        let mut vertices = GeometryVertices32::new();
+        vertices
+            .push(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+        let input = [
+            RealWorldCoordinate::new(1.0, 2.0, 3.0),
+            RealWorldCoordinate::new(4.0, 5.0, 6.0),
+            RealWorldCoordinate::new(7.0, 8.0, 9.0),
+        ];
+
+        let range = vertices.extend_from_slice(&input).unwrap();
+
+        assert_eq!(range.start, VertexIndex32::new(1));
+        assert_eq!(range.end, VertexIndex32::new(4));
+        assert_eq!(vertices.len(), 4);
+        assert_f64_eq(vertices.as_slice()[1].x(), 1.0);
+        assert_f64_eq(vertices.as_slice()[2].x(), 4.0);
+        assert_f64_eq(vertices.as_slice()[3].x(), 7.0);
+    }
+
+    #[test]
+    fn citymodel_add_vertices_returns_contiguous_range() {
+        let mut model = OwnedCityModel::new(CityModelType::CityJSON);
+        model
+            .add_vertex(RealWorldCoordinate::new(0.0, 0.0, 0.0))
+            .unwrap();
+
+        let input = [
+            RealWorldCoordinate::new(1.0, 0.0, 0.0),
+            RealWorldCoordinate::new(2.0, 0.0, 0.0),
+        ];
+        let range = model.add_vertices(&input).unwrap();
+
+        assert_eq!(range.start, VertexIndex32::new(1));
+        assert_eq!(range.end, VertexIndex32::new(3));
+        assert_f64_eq(model.get_vertex(VertexIndex32::new(1)).unwrap().x(), 1.0);
+        assert_f64_eq(model.get_vertex(VertexIndex32::new(2)).unwrap().x(), 2.0);
+    }
 }
 
 mod edge_cases {
@@ -212,6 +277,22 @@ mod edge_cases {
         let error = vertices
             .push(RealWorldCoordinate::new(0.0, 0.0, 0.0))
             .unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::VerticesContainerFull {
+                attempted,
+                maximum
+            } if attempted == usize::from(u16::MAX) + 1 && maximum == usize::from(u16::MAX)
+        ));
+    }
+
+    #[test]
+    fn extend_from_slice_rejects_more_than_the_index_type_can_store() {
+        let mut vertices = GeometryVertices16::new();
+        let batch = vec![RealWorldCoordinate::new(0.0, 0.0, 0.0); usize::from(u16::MAX) + 1];
+
+        let error = vertices.extend_from_slice(&batch).unwrap_err();
 
         assert!(matches!(
             error,

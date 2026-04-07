@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.6.0] - 2026-04-07
+
+### Added
+- Checked bulk vertex append APIs on `Vertices` and `CityModel`.
+- Unsafe trusted-construction support for flat `Boundary` buffers.
+- Serialization-oriented raw handle part access and trusted reconstruction helpers.
+- Low-level tests covering raw boundary offset layers and trusted import paths.
+
 ## [0.4.0] - 2026-02-11
 
 ### Added
