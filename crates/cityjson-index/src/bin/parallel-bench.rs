@@ -6,10 +6,10 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
-use cjindex::realistic_workload::{seeded_shuffle, WORKLOAD_SHUFFLE_SEED};
+use cjindex::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
 use cjindex::{CityIndex, IndexedFeatureRef, StorageLayout};
-use cjlib::json::staged;
 use cjlib::Result;
+use cjlib::json::staged;
 
 const WORKER_COUNT: usize = 6;
 const ADJACENTS_PER_BUILDING: usize = 4;
@@ -39,12 +39,18 @@ fn collect_all_refs(index: &CityIndex) -> Result<Vec<IndexedFeatureRef>> {
     Ok(all_refs)
 }
 
+fn reads_as_f64(total_reads: usize) -> f64 {
+    f64::from(u32::try_from(total_reads).expect("bench total reads should fit in u32"))
+}
+
 fn main() -> Result<()> {
     let feature_files_root = PathBuf::from("tests/data/feature-files");
     let ndjson_root = PathBuf::from("tests/data/ndjson");
 
     if !feature_files_root.exists() || !ndjson_root.exists() {
-        eprintln!("tests/data/{{feature-files,ndjson}} must exist; run `just prep-test-data` first");
+        eprintln!(
+            "tests/data/{{feature-files,ndjson}} must exist; run `just prep-test-data` first"
+        );
         std::process::exit(1);
     }
 
@@ -100,7 +106,10 @@ fn main() -> Result<()> {
 
     let n = target_ids.len();
     let mut adj_order = target_ids.clone();
-    seeded_shuffle(&mut adj_order, WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe);
+    seeded_shuffle(
+        &mut adj_order,
+        WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe,
+    );
 
     // Build work items
     let mut cjindex_work = Vec::with_capacity(n);
@@ -161,6 +170,7 @@ fn main() -> Result<()> {
 
     let metadata_cache = Arc::new(metadata_cache);
     let total_reads = n * (1 + ADJACENTS_PER_BUILDING);
+    let total_reads_f64 = reads_as_f64(total_reads);
 
     println!(
         "Setup: {:.2}s ({} buildings, {} reads/building, {} total reads, {} workers)",
@@ -174,7 +184,7 @@ fn main() -> Result<()> {
     // --- Baseline ---
     println!("\n=== Baseline (feature-files, direct fs::read + deser) ===");
     {
-        let chunk_size = (baseline_work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = baseline_work.len().div_ceil(WORKER_COUNT);
         let chunks: Vec<&[BaselineBuildingWork]> = baseline_work.chunks(chunk_size).collect();
 
         let start = Instant::now();
@@ -183,8 +193,7 @@ fn main() -> Result<()> {
                 let metadata_cache = metadata_cache.clone();
                 s.spawn(move || {
                     for item in *chunk {
-                        let target_bytes =
-                            fs::read(&item.target_path).expect("target read failed");
+                        let target_bytes = fs::read(&item.target_path).expect("target read failed");
                         let target_meta = metadata_cache
                             .get(&item.target_metadata_dir)
                             .expect("target metadata missing");
@@ -195,8 +204,9 @@ fn main() -> Result<()> {
 
                         for (adj_path, adj_meta_dir) in &item.adjacent_paths {
                             let adj_bytes = fs::read(adj_path).expect("adj read failed");
-                            let adj_meta =
-                                metadata_cache.get(adj_meta_dir).expect("adj metadata missing");
+                            let adj_meta = metadata_cache
+                                .get(adj_meta_dir)
+                                .expect("adj metadata missing");
                             let adj_model =
                                 staged::from_feature_slice_with_base(&adj_bytes, adj_meta)
                                     .expect("adj deser failed");
@@ -210,15 +220,15 @@ fn main() -> Result<()> {
         println!(
             "Time: {:.3}s ({:.1} reads/sec, {:.4}ms/read)",
             elapsed.as_secs_f64(),
-            total_reads as f64 / elapsed.as_secs_f64(),
-            elapsed.as_secs_f64() / total_reads as f64 * 1000.0,
+            total_reads_f64 / elapsed.as_secs_f64(),
+            elapsed.as_secs_f64() / total_reads_f64 * 1000.0,
         );
     }
 
     // --- cjindex ndjson ---
     println!("\n=== cjindex (ndjson, read_feature via refs) ===");
     {
-        let chunk_size = (cjindex_work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = cjindex_work.len().div_ceil(WORKER_COUNT);
         let chunks: Vec<&[BuildingWork]> = cjindex_work.chunks(chunk_size).collect();
 
         let start = Instant::now();
@@ -253,8 +263,8 @@ fn main() -> Result<()> {
         println!(
             "Time: {:.3}s ({:.1} reads/sec, {:.4}ms/read)",
             elapsed.as_secs_f64(),
-            total_reads as f64 / elapsed.as_secs_f64(),
-            elapsed.as_secs_f64() / total_reads as f64 * 1000.0,
+            total_reads_f64 / elapsed.as_secs_f64(),
+            elapsed.as_secs_f64() / total_reads_f64 * 1000.0,
         );
     }
 

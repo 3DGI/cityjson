@@ -2,7 +2,7 @@ mod common;
 
 use std::fs;
 
-use cjindex::{resolve_dataset, CityIndex, StorageLayout};
+use cjindex::{CityIndex, StorageLayout, resolve_dataset};
 use common::{
     bbox_for_model, cityjson_root, feature_files_root, find_first, model_contains_id,
     temp_fixture_root, temp_index_path,
@@ -128,12 +128,13 @@ fn cityjson_index_needs_reindex_after_adding_files() {
         &index_path,
     )
     .expect("index should open on empty dir");
-    index.reindex().expect("reindex on empty dir should succeed");
+    index
+        .reindex()
+        .expect("reindex on empty dir should succeed");
 
     // Add a CityJSON file to the directory after indexing.
     let fixture = find_first(&cityjson_root(), "city.json", true);
-    fs::copy(&fixture, dir.join("sample.city.json"))
-        .expect("fixture copy should succeed");
+    fs::copy(&fixture, dir.join("sample.city.json")).expect("fixture copy should succeed");
 
     // Inspect the dataset: the new file is unindexed so needs_reindex must be true.
     let resolved = resolve_dataset(&dir, Some(index_path))

@@ -5,10 +5,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
-use cjindex::realistic_workload::{seeded_shuffle, WORKLOAD_SHUFFLE_SEED};
+use cjindex::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
 use cjindex::{CityIndex, IndexedFeatureRef, StorageLayout};
-use cjlib::json::staged;
 use cjlib::Result;
+use cjlib::json::staged;
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -23,7 +23,7 @@ struct BuildingWork {
     adjacent_refs: Vec<IndexedFeatureRef>,
 }
 
-/// Baseline equivalent of BuildingWork using file paths.
+/// Baseline equivalent of `BuildingWork` using file paths.
 struct BaselineBuildingWork {
     target_path: PathBuf,
     target_metadata_dir: PathBuf,
@@ -51,6 +51,10 @@ fn collect_all_refs(index: &CityIndex) -> Result<Vec<IndexedFeatureRef>> {
         all_refs.extend(page);
     }
     Ok(all_refs)
+}
+
+fn chunk_size(len: usize) -> usize {
+    len.div_ceil(WORKER_COUNT)
 }
 
 fn temp_index_path(label: &str) -> PathBuf {
@@ -120,7 +124,10 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
     // by strided offset into the shuffled list.
     let n = target_ids.len();
     let mut adj_order = target_ids.clone();
-    seeded_shuffle(&mut adj_order, WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe);
+    seeded_shuffle(
+        &mut adj_order,
+        WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe,
+    );
 
     let mut cjindex_work = Vec::with_capacity(n);
     let mut baseline_work = Vec::with_capacity(n);
@@ -198,7 +205,7 @@ fn bench_parallel_get(c: &mut Criterion) {
         let metadata_cache = &fixture.metadata_cache;
         let work = &fixture.baseline_work;
 
-        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BaselineBuildingWork]> = work.chunks(chunk_size).collect();
 
         b.iter(|| {
@@ -242,7 +249,7 @@ fn bench_parallel_get(c: &mut Criterion) {
         let ndjson_root = &fixture.ndjson_root;
         let work = &fixture.cjindex_work;
 
-        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BuildingWork]> = work.chunks(chunk_size).collect();
 
         b.iter(|| {
@@ -288,7 +295,7 @@ fn bench_parallel_io_only(c: &mut Criterion) {
         let metadata_cache = &fixture.metadata_cache;
         let work = &fixture.baseline_work;
 
-        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BaselineBuildingWork]> = work.chunks(chunk_size).collect();
 
         b.iter(|| {
@@ -325,7 +332,7 @@ fn bench_parallel_io_only(c: &mut Criterion) {
         let ndjson_root = &fixture.ndjson_root;
         let work = &fixture.cjindex_work;
 
-        let chunk_size = (work.len() + WORKER_COUNT - 1) / WORKER_COUNT;
+        let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BuildingWork]> = work.chunks(chunk_size).collect();
 
         b.iter(|| {
