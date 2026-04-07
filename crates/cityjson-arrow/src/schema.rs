@@ -5,12 +5,12 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v3alpha1";
+pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v3alpha2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityarrow.package.v3alpha1")]
-    V3Alpha1,
+    #[serde(rename = "cityarrow.package.v3alpha2")]
+    V3Alpha2,
 }
 
 impl CityArrowPackageVersion {
@@ -53,7 +53,7 @@ impl FromStr for CityArrowPackageVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            PACKAGE_SCHEMA_ID => Ok(Self::V3Alpha1),
+            PACKAGE_SCHEMA_ID => Ok(Self::V3Alpha2),
             other => Err(PackageVersionParseError::new(other)),
         }
     }
@@ -243,7 +243,7 @@ impl PackageManifest {
         projection: ProjectionLayout,
     ) -> Self {
         Self {
-            package_schema: CityArrowPackageVersion::V3Alpha1,
+            package_schema: CityArrowPackageVersion::V3Alpha2,
             cityjson_version: cityjson_version.into(),
             citymodel_id: citymodel_id.into(),
             projection,
@@ -485,12 +485,12 @@ fn geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
 fn geometry_boundaries_fields() -> Vec<Field> {
     vec![
         Field::new("geometry_id", DataType::UInt64, false),
-        list_field("vertex_indices", DataType::UInt64, false, false),
-        list_field("line_lengths", DataType::UInt32, false, true),
-        list_field("ring_lengths", DataType::UInt32, false, true),
-        list_field("surface_lengths", DataType::UInt32, false, true),
-        list_field("shell_lengths", DataType::UInt32, false, true),
-        list_field("solid_lengths", DataType::UInt32, false, true),
+        list_field("vertex_indices", DataType::UInt32, false, false),
+        list_field("line_offsets", DataType::UInt32, false, true),
+        list_field("ring_offsets", DataType::UInt32, false, true),
+        list_field("surface_offsets", DataType::UInt32, false, true),
+        list_field("shell_offsets", DataType::UInt32, false, true),
+        list_field("solid_offsets", DataType::UInt32, false, true),
     ]
 }
 
@@ -534,12 +534,12 @@ fn template_geometries_fields(layout: &ProjectionLayout) -> Vec<Field> {
 fn template_geometry_boundaries_fields() -> Vec<Field> {
     vec![
         Field::new("template_geometry_id", DataType::UInt64, false),
-        list_field("vertex_indices", DataType::UInt64, false, false),
-        list_field("line_lengths", DataType::UInt32, false, true),
-        list_field("ring_lengths", DataType::UInt32, false, true),
-        list_field("surface_lengths", DataType::UInt32, false, true),
-        list_field("shell_lengths", DataType::UInt32, false, true),
-        list_field("solid_lengths", DataType::UInt32, false, true),
+        list_field("vertex_indices", DataType::UInt32, false, false),
+        list_field("line_offsets", DataType::UInt32, false, true),
+        list_field("ring_offsets", DataType::UInt32, false, true),
+        list_field("surface_offsets", DataType::UInt32, false, true),
+        list_field("shell_offsets", DataType::UInt32, false, true),
+        list_field("solid_offsets", DataType::UInt32, false, true),
     ]
 }
 
@@ -632,8 +632,8 @@ fn textures_fields(layout: &ProjectionLayout) -> Vec<Field> {
 fn texture_vertices_fields() -> Vec<Field> {
     vec![
         Field::new("uv_id", DataType::UInt64, false),
-        Field::new("u", DataType::Float64, false),
-        Field::new("v", DataType::Float64, false),
+        Field::new("u", DataType::Float32, false),
+        Field::new("v", DataType::Float32, false),
     ]
 }
 

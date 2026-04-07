@@ -27,7 +27,7 @@ and package implementations.
 
 ## Current Status
 
-- package schema id: `cityarrow.package.v2alpha2`
+- package schema id: `cityarrow.package.v3alpha2`
 - the public `to_parts` / `from_parts` surface is gone
 - live stream read no longer uses eager `read_to_end`
 - live stream and package writes no longer buffer every serialized table payload

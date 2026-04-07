@@ -9,11 +9,12 @@ use crate::transport::{
     collect_tables, schema_for_table, validate_schema,
 };
 use arrow::array::{
-    Array, ArrayRef, BooleanArray, FixedSizeListArray, Float64Array, Int64Array, LargeStringArray,
-    ListArray, NullArray, RecordBatch, StringArray, StructArray, UInt32Array, UInt64Array,
+    Array, ArrayRef, BooleanArray, FixedSizeListArray, Float32Array, Float64Array, Int64Array,
+    LargeStringArray, ListArray, NullArray, RecordBatch, StringArray, StructArray, UInt32Array,
+    UInt64Array,
 };
 use arrow::datatypes::{DataType, FieldRef};
-use arrow_buffer::{NullBuffer, OffsetBuffer, ScalarBuffer};
+use arrow_buffer::{MutableBuffer, NullBuffer, OffsetBuffer, ScalarBuffer};
 use cityjson::CityModelType;
 use cityjson::v2_0::geometry::{MaterialThemesView, TextureThemesView};
 use cityjson::v2_0::{
@@ -123,12 +124,12 @@ struct CityObjectRow {
 #[derive(Debug, Clone)]
 struct GeometryBoundaryRow {
     geometry_id: u64,
-    vertex_indices: Vec<u64>,
-    line_lengths: Option<Vec<u32>>,
-    ring_lengths: Option<Vec<u32>>,
-    surface_lengths: Option<Vec<u32>>,
-    shell_lengths: Option<Vec<u32>>,
-    solid_lengths: Option<Vec<u32>>,
+    vertex_indices: Vec<u32>,
+    line_offsets: Option<Vec<u32>>,
+    ring_offsets: Option<Vec<u32>>,
+    surface_offsets: Option<Vec<u32>>,
+    shell_offsets: Option<Vec<u32>>,
+    solid_offsets: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone)]
@@ -145,12 +146,12 @@ struct GeometryInstanceRow {
 #[derive(Debug, Clone)]
 struct TemplateGeometryBoundaryRow {
     template_geometry_id: u64,
-    vertex_indices: Vec<u64>,
-    line_lengths: Option<Vec<u32>>,
-    ring_lengths: Option<Vec<u32>>,
-    surface_lengths: Option<Vec<u32>>,
-    shell_lengths: Option<Vec<u32>>,
-    solid_lengths: Option<Vec<u32>>,
+    vertex_indices: Vec<u32>,
+    line_offsets: Option<Vec<u32>>,
+    ring_offsets: Option<Vec<u32>>,
+    surface_offsets: Option<Vec<u32>>,
+    shell_offsets: Option<Vec<u32>>,
+    solid_offsets: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,23 +264,23 @@ impl GeometryTableBuffer {
 #[derive(Default)]
 struct GeometryBoundaryTableBuffer {
     geometry_id: Vec<u64>,
-    vertex_indices: Vec<Vec<u64>>,
-    line_lengths: Vec<Option<Vec<u32>>>,
-    ring_lengths: Vec<Option<Vec<u32>>>,
-    surface_lengths: Vec<Option<Vec<u32>>>,
-    shell_lengths: Vec<Option<Vec<u32>>>,
-    solid_lengths: Vec<Option<Vec<u32>>>,
+    vertex_indices: Vec<Vec<u32>>,
+    line_offsets: Vec<Option<Vec<u32>>>,
+    ring_offsets: Vec<Option<Vec<u32>>>,
+    surface_offsets: Vec<Option<Vec<u32>>>,
+    shell_offsets: Vec<Option<Vec<u32>>>,
+    solid_offsets: Vec<Option<Vec<u32>>>,
 }
 
 impl GeometryBoundaryTableBuffer {
     fn push(&mut self, row: GeometryBoundaryRow) {
         self.geometry_id.push(row.geometry_id);
         self.vertex_indices.push(row.vertex_indices);
-        self.line_lengths.push(row.line_lengths);
-        self.ring_lengths.push(row.ring_lengths);
-        self.surface_lengths.push(row.surface_lengths);
-        self.shell_lengths.push(row.shell_lengths);
-        self.solid_lengths.push(row.solid_lengths);
+        self.line_offsets.push(row.line_offsets);
+        self.ring_offsets.push(row.ring_offsets);
+        self.surface_offsets.push(row.surface_offsets);
+        self.shell_offsets.push(row.shell_offsets);
+        self.solid_offsets.push(row.solid_offsets);
     }
 }
 
@@ -444,23 +445,23 @@ impl TemplateGeometryTableBuffer {
 #[derive(Default)]
 struct TemplateGeometryBoundaryTableBuffer {
     template_geometry_id: Vec<u64>,
-    vertex_indices: Vec<Vec<u64>>,
-    line_lengths: Vec<Option<Vec<u32>>>,
-    ring_lengths: Vec<Option<Vec<u32>>>,
-    surface_lengths: Vec<Option<Vec<u32>>>,
-    shell_lengths: Vec<Option<Vec<u32>>>,
-    solid_lengths: Vec<Option<Vec<u32>>>,
+    vertex_indices: Vec<Vec<u32>>,
+    line_offsets: Vec<Option<Vec<u32>>>,
+    ring_offsets: Vec<Option<Vec<u32>>>,
+    surface_offsets: Vec<Option<Vec<u32>>>,
+    shell_offsets: Vec<Option<Vec<u32>>>,
+    solid_offsets: Vec<Option<Vec<u32>>>,
 }
 
 impl TemplateGeometryBoundaryTableBuffer {
     fn push(&mut self, row: TemplateGeometryBoundaryRow) {
         self.template_geometry_id.push(row.template_geometry_id);
         self.vertex_indices.push(row.vertex_indices);
-        self.line_lengths.push(row.line_lengths);
-        self.ring_lengths.push(row.ring_lengths);
-        self.surface_lengths.push(row.surface_lengths);
-        self.shell_lengths.push(row.shell_lengths);
-        self.solid_lengths.push(row.solid_lengths);
+        self.line_offsets.push(row.line_offsets);
+        self.ring_offsets.push(row.ring_offsets);
+        self.surface_offsets.push(row.surface_offsets);
+        self.shell_offsets.push(row.shell_offsets);
+        self.solid_offsets.push(row.solid_offsets);
     }
 }
 
@@ -736,8 +737,8 @@ struct VertexColumns<'a> {
 
 struct UvColumns<'a> {
     uv_id: &'a UInt64Array,
-    u: &'a Float64Array,
-    v: &'a Float64Array,
+    u: &'a Float32Array,
+    v: &'a Float32Array,
 }
 
 struct GeometryColumns<'a> {
@@ -1014,7 +1015,7 @@ fn build_export_context(model: &OwnedCityModel) -> Result<ExportContext<'_>> {
     Ok(ExportContext {
         model,
         header: CityArrowHeader::new(
-            CityArrowPackageVersion::V3Alpha1,
+            CityArrowPackageVersion::V3Alpha2,
             citymodel_id,
             model
                 .version()
@@ -1439,8 +1440,12 @@ impl IncrementalDecoder {
                 import_texture_vertex_batch(batch, self.state_mut()?)?;
             }
             CanonicalTable::Semantics => {
-                let projection = self.projection.clone();
-                let state = self.state_mut()?;
+                let projection = &self.projection;
+                let state = self.state.as_mut().ok_or_else(|| {
+                    Error::Unsupported(
+                        "metadata table must arrive before other canonical tables".to_string(),
+                    )
+                })?;
                 reserve_model_import(
                     state,
                     CityModelCapacities {
@@ -1448,15 +1453,19 @@ impl IncrementalDecoder {
                         ..CityModelCapacities::default()
                     },
                 )?;
-                let handles = import_semantics_batch(batch, &projection, &mut state.model)?;
+                let handles = import_semantics_batch(batch, projection, &mut state.model)?;
                 state.semantic_handle_by_id = handles;
             }
             CanonicalTable::SemanticChildren => {
                 import_semantic_child_batch(batch, self.state_mut()?)?;
             }
             CanonicalTable::Materials => {
-                let projection = self.projection.clone();
-                let state = self.state_mut()?;
+                let projection = &self.projection;
+                let state = self.state.as_mut().ok_or_else(|| {
+                    Error::Unsupported(
+                        "metadata table must arrive before other canonical tables".to_string(),
+                    )
+                })?;
                 reserve_model_import(
                     state,
                     CityModelCapacities {
@@ -1464,12 +1473,16 @@ impl IncrementalDecoder {
                         ..CityModelCapacities::default()
                     },
                 )?;
-                let handles = import_materials_batch(batch, &projection, &mut state.model)?;
+                let handles = import_materials_batch(batch, projection, &mut state.model)?;
                 state.material_handle_by_id = handles;
             }
             CanonicalTable::Textures => {
-                let projection = self.projection.clone();
-                let state = self.state_mut()?;
+                let projection = &self.projection;
+                let state = self.state.as_mut().ok_or_else(|| {
+                    Error::Unsupported(
+                        "metadata table must arrive before other canonical tables".to_string(),
+                    )
+                })?;
                 reserve_model_import(
                     state,
                     CityModelCapacities {
@@ -1477,7 +1490,7 @@ impl IncrementalDecoder {
                         ..CityModelCapacities::default()
                     },
                 )?;
-                let handles = import_textures_batch(batch, &projection, &mut state.model)?;
+                let handles = import_textures_batch(batch, projection, &mut state.model)?;
                 state.texture_handle_by_id = handles;
             }
             CanonicalTable::TemplateGeometryBoundaries => {
@@ -1554,9 +1567,13 @@ impl IncrementalDecoder {
                 import_boundary_geometries_batch(batch, state, grouped_rows)?;
             }
             CanonicalTable::CityObjects => {
-                let projection = self.projection.clone();
-                let state = self.state_mut()?;
-                import_cityobjects_batch(batch, &projection, state)?;
+                let projection = &self.projection;
+                let state = self.state.as_mut().ok_or_else(|| {
+                    Error::Unsupported(
+                        "metadata table must arrive before other canonical tables".to_string(),
+                    )
+                })?;
+                import_cityobjects_batch(batch, projection, state)?;
             }
             CanonicalTable::CityObjectChildren => {
                 import_cityobject_children_batch(batch, self.state_mut()?)?;
@@ -1858,18 +1875,18 @@ fn import_vertex_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<(
     )?;
     let columns = bind_vertex_columns(batch, "vertex_id")?;
     let mut previous_id = None;
+    let mut vertices = Vec::with_capacity(batch.num_rows());
     for row in 0..batch.num_rows() {
         let vertex_id = columns.vertex_id.value(row);
         ensure_strictly_increasing_u64(previous_id, vertex_id, "vertex_id")?;
         previous_id = Some(vertex_id);
-        state
-            .model
-            .add_vertex(cityjson::v2_0::RealWorldCoordinate::new(
-                columns.x.value(row),
-                columns.y.value(row),
-                columns.z.value(row),
-            ))?;
+        vertices.push(cityjson::v2_0::RealWorldCoordinate::new(
+            columns.x.value(row),
+            columns.y.value(row),
+            columns.z.value(row),
+        ));
     }
+    let _ = state.model.add_vertices(&vertices)?;
     Ok(())
 }
 
@@ -1913,8 +1930,8 @@ fn import_texture_vertex_batch(batch: &RecordBatch, state: &mut ImportState) -> 
         ensure_strictly_increasing_u64(previous_id, uv_id, "uv_id")?;
         previous_id = Some(uv_id);
         state.model.add_uv_coordinate(UVCoordinate::new(
-            f64_to_f32_preserving_cast(columns.u.value(row))?,
-            f64_to_f32_preserving_cast(columns.v.value(row))?,
+            columns.u.value(row),
+            columns.v.value(row),
         ))?;
     }
     Ok(())
@@ -2972,41 +2989,7 @@ fn vertices_batch_from_model(
     schema: &Arc<arrow::datatypes::Schema>,
     model: &OwnedCityModel,
 ) -> Result<RecordBatch> {
-    RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                (0..model.vertices().as_slice().len())
-                    .map(|index| index as u64)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::x)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::y)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::z)
-                    .collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(Error::from)
+    vertex_batch_from_coordinates(schema, model.vertices().as_slice(), "vertex_id")
 }
 
 fn cityobjects_batch_from_model(
@@ -3067,39 +3050,10 @@ fn template_vertices_batch_from_model(
     if model.template_vertices().as_slice().is_empty() {
         return Ok(None);
     }
-    Ok(Some(RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(UInt64Array::from(
-                (0..model.template_vertices().as_slice().len())
-                    .map(|index| index as u64)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .template_vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::x)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .template_vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::y)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Float64Array::from(
-                model
-                    .template_vertices()
-                    .as_slice()
-                    .iter()
-                    .map(cityjson::v2_0::RealWorldCoordinate::z)
-                    .collect::<Vec<_>>(),
-            )),
-        ],
+    Ok(Some(vertex_batch_from_coordinates(
+        schema,
+        model.template_vertices().as_slice(),
+        "template_vertex_id",
     )?))
 }
 
@@ -3235,24 +3189,54 @@ fn texture_vertices_batch_from_model(
                     .map(|index| index as u64)
                     .collect::<Vec<_>>(),
             )),
-            Arc::new(Float64Array::from(
+            Arc::new(Float32Array::from(
                 model
                     .vertices_texture()
                     .as_slice()
                     .iter()
-                    .map(|uv| f64::from(uv.u()))
+                    .map(cityjson::v2_0::UVCoordinate::u)
                     .collect::<Vec<_>>(),
             )),
-            Arc::new(Float64Array::from(
+            Arc::new(Float32Array::from(
                 model
                     .vertices_texture()
                     .as_slice()
                     .iter()
-                    .map(|uv| f64::from(uv.v()))
+                    .map(cityjson::v2_0::UVCoordinate::v)
                     .collect::<Vec<_>>(),
             )),
         ],
     )?))
+}
+
+fn vertex_batch_from_coordinates(
+    schema: &Arc<arrow::datatypes::Schema>,
+    coordinates: &[cityjson::v2_0::RealWorldCoordinate],
+    _id_name: &str,
+) -> Result<RecordBatch> {
+    let count = coordinates.len();
+    let mut ids = MutableBuffer::new(count * std::mem::size_of::<u64>());
+    let mut x = MutableBuffer::new(count * std::mem::size_of::<f64>());
+    let mut y = MutableBuffer::new(count * std::mem::size_of::<f64>());
+    let mut z = MutableBuffer::new(count * std::mem::size_of::<f64>());
+
+    for (index, coordinate) in coordinates.iter().enumerate() {
+        ids.push(index as u64);
+        x.push(coordinate.x());
+        y.push(coordinate.y());
+        z.push(coordinate.z());
+    }
+
+    RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(UInt64Array::new(ScalarBuffer::from(ids), None)),
+            Arc::new(Float64Array::new(ScalarBuffer::from(x), None)),
+            Arc::new(Float64Array::new(ScalarBuffer::from(y), None)),
+            Arc::new(Float64Array::new(ScalarBuffer::from(z), None)),
+        ],
+    )
+    .map_err(Error::from)
 }
 
 fn geometry_tables(
@@ -3432,7 +3416,7 @@ fn append_geometry_semantic_rows(
         }
         GeometryType::MultiLineString => {
             let linestring_count =
-                required_lengths(boundary_row.line_lengths.as_ref(), "line_lengths")?.len();
+                required_offsets(boundary_row.line_offsets.as_ref(), "line_offsets")?.len();
             if semantics.linestrings().len() != linestring_count {
                 return Err(Error::Conversion(format!(
                     "linestring semantic row count {} does not match linestring count {}",
@@ -3675,90 +3659,88 @@ fn ensure_surface_backed_geometry(geometry_type: GeometryType, feature: &str) ->
 }
 
 fn ring_layouts(boundary_row: &GeometryBoundaryRow) -> Result<Vec<RingLayout>> {
-    let ring_lengths = required_lengths(boundary_row.ring_lengths.as_ref(), "ring_lengths")?;
-    let surface_lengths =
-        required_lengths(boundary_row.surface_lengths.as_ref(), "surface_lengths")?;
-    let mut layouts = Vec::with_capacity(ring_lengths.len());
-    let mut vertex_start = 0_usize;
-    let mut ring_index = 0_usize;
+    let ring_offsets = required_offsets(boundary_row.ring_offsets.as_ref(), "ring_offsets")?;
+    let surface_offsets =
+        required_offsets(boundary_row.surface_offsets.as_ref(), "surface_offsets")?;
+    validate_offsets(
+        ring_offsets,
+        boundary_row.vertex_indices.len(),
+        "ring_offsets",
+    )?;
+    validate_offsets(surface_offsets, ring_offsets.len(), "surface_offsets")?;
 
-    for (surface_ordinal, ring_count) in surface_lengths.iter().enumerate() {
-        for ring_ordinal in 0..*ring_count {
-            let len = *ring_lengths.get(ring_index).ok_or_else(|| {
-                Error::Conversion(format!(
-                    "surface topology references missing ring {ring_index}"
-                ))
-            })? as usize;
+    let mut layouts = Vec::with_capacity(ring_offsets.len());
+    for (surface_ordinal, surface_index) in surface_offsets.iter().enumerate() {
+        let surface_start = offset_to_usize(*surface_index, ring_offsets.len(), "surface_offsets")?;
+        let surface_end = offset_end(
+            surface_offsets,
+            surface_ordinal,
+            ring_offsets.len(),
+            "surface_offsets",
+        )?;
+        for (ring_ordinal, ring_index) in (surface_start..surface_end).enumerate() {
+            let start = offset_to_usize(
+                ring_offsets[ring_index],
+                boundary_row.vertex_indices.len(),
+                "ring_offsets",
+            )?;
+            let end = offset_end(
+                ring_offsets,
+                ring_index,
+                boundary_row.vertex_indices.len(),
+                "ring_offsets",
+            )?;
             layouts.push(RingLayout {
-                start: vertex_start,
-                len,
+                start,
+                len: end - start,
                 surface_ordinal: usize_to_u32(surface_ordinal, "surface ordinal")?,
-                ring_ordinal,
+                ring_ordinal: usize_to_u32(ring_ordinal, "ring ordinal")?,
             });
-            vertex_start += len;
-            ring_index += 1;
         }
     }
-
-    if ring_index != ring_lengths.len() {
-        return Err(Error::Conversion(format!(
-            "ring topology consumed {} rings, but {} ring lengths are present",
-            ring_index,
-            ring_lengths.len()
-        )));
-    }
-    if vertex_start != boundary_row.vertex_indices.len() {
-        return Err(Error::Conversion(format!(
-            "ring topology consumed {} vertices, but {} boundary vertices are present",
-            vertex_start,
-            boundary_row.vertex_indices.len()
-        )));
-    }
-
     Ok(layouts)
 }
 
 fn template_ring_layouts(boundary_row: &TemplateGeometryBoundaryRow) -> Result<Vec<RingLayout>> {
-    let ring_lengths = required_lengths(boundary_row.ring_lengths.as_ref(), "ring_lengths")?;
-    let surface_lengths =
-        required_lengths(boundary_row.surface_lengths.as_ref(), "surface_lengths")?;
-    let mut layouts = Vec::with_capacity(ring_lengths.len());
-    let mut vertex_start = 0_usize;
-    let mut ring_index = 0_usize;
+    let ring_offsets = required_offsets(boundary_row.ring_offsets.as_ref(), "ring_offsets")?;
+    let surface_offsets =
+        required_offsets(boundary_row.surface_offsets.as_ref(), "surface_offsets")?;
+    validate_offsets(
+        ring_offsets,
+        boundary_row.vertex_indices.len(),
+        "ring_offsets",
+    )?;
+    validate_offsets(surface_offsets, ring_offsets.len(), "surface_offsets")?;
 
-    for (surface_ordinal, ring_count) in surface_lengths.iter().enumerate() {
-        for ring_ordinal in 0..*ring_count {
-            let len = *ring_lengths.get(ring_index).ok_or_else(|| {
-                Error::Conversion(format!(
-                    "surface topology references missing ring {ring_index}"
-                ))
-            })? as usize;
+    let mut layouts = Vec::with_capacity(ring_offsets.len());
+    for (surface_ordinal, surface_index) in surface_offsets.iter().enumerate() {
+        let surface_start = offset_to_usize(*surface_index, ring_offsets.len(), "surface_offsets")?;
+        let surface_end = offset_end(
+            surface_offsets,
+            surface_ordinal,
+            ring_offsets.len(),
+            "surface_offsets",
+        )?;
+        for (ring_ordinal, ring_index) in (surface_start..surface_end).enumerate() {
+            let start = offset_to_usize(
+                ring_offsets[ring_index],
+                boundary_row.vertex_indices.len(),
+                "ring_offsets",
+            )?;
+            let end = offset_end(
+                ring_offsets,
+                ring_index,
+                boundary_row.vertex_indices.len(),
+                "ring_offsets",
+            )?;
             layouts.push(RingLayout {
-                start: vertex_start,
-                len,
+                start,
+                len: end - start,
                 surface_ordinal: usize_to_u32(surface_ordinal, "surface ordinal")?,
-                ring_ordinal,
+                ring_ordinal: usize_to_u32(ring_ordinal, "ring ordinal")?,
             });
-            vertex_start += len;
-            ring_index += 1;
         }
     }
-
-    if ring_index != ring_lengths.len() {
-        return Err(Error::Conversion(format!(
-            "ring topology consumed {} rings, but {} ring lengths are present",
-            ring_index,
-            ring_lengths.len()
-        )));
-    }
-    if vertex_start != boundary_row.vertex_indices.len() {
-        return Err(Error::Conversion(format!(
-            "ring topology consumed {} vertices, but {} boundary vertices are present",
-            vertex_start,
-            boundary_row.vertex_indices.len()
-        )));
-    }
-
     Ok(layouts)
 }
 
@@ -3789,12 +3771,12 @@ fn rgba_from_components(value: [f64; 4]) -> Result<RGBA> {
 
 #[derive(Debug, Clone)]
 struct FlattenedBoundary {
-    vertex_indices: Vec<u64>,
-    line_lengths: Option<Vec<u32>>,
-    ring_lengths: Option<Vec<u32>>,
-    surface_lengths: Option<Vec<u32>>,
-    shell_lengths: Option<Vec<u32>>,
-    solid_lengths: Option<Vec<u32>>,
+    vertex_indices: Vec<u32>,
+    line_offsets: Option<Vec<u32>>,
+    ring_offsets: Option<Vec<u32>>,
+    surface_offsets: Option<Vec<u32>>,
+    shell_offsets: Option<Vec<u32>>,
+    solid_offsets: Option<Vec<u32>>,
 }
 
 fn geometry_boundary_row(
@@ -3806,11 +3788,11 @@ fn geometry_boundary_row(
     GeometryBoundaryRow {
         geometry_id,
         vertex_indices: payload.vertex_indices,
-        line_lengths: payload.line_lengths,
-        ring_lengths: payload.ring_lengths,
-        surface_lengths: payload.surface_lengths,
-        shell_lengths: payload.shell_lengths,
-        solid_lengths: payload.solid_lengths,
+        line_offsets: payload.line_offsets,
+        ring_offsets: payload.ring_offsets,
+        surface_offsets: payload.surface_offsets,
+        shell_offsets: payload.shell_offsets,
+        solid_offsets: payload.solid_offsets,
     }
 }
 
@@ -3912,7 +3894,7 @@ fn append_template_semantic_rows(
         }
         GeometryType::MultiLineString => {
             let linestring_count =
-                required_lengths(boundary_row.line_lengths.as_ref(), "line_lengths")?.len();
+                required_offsets(boundary_row.line_offsets.as_ref(), "line_offsets")?.len();
             if semantics.linestrings().len() != linestring_count {
                 return Err(Error::Conversion(format!(
                     "template geometry {} has {} linestring semantics, expected {}",
@@ -3991,7 +3973,7 @@ fn append_template_material_rows(
             }
             GeometryType::MultiLineString => {
                 let linestring_count =
-                    required_lengths(boundary_row.line_lengths.as_ref(), "line_lengths")?.len();
+                    required_offsets(boundary_row.line_offsets.as_ref(), "line_offsets")?.len();
                 if map.linestrings().len() != linestring_count {
                     return Err(Error::Conversion(format!(
                         "template geometry {} material theme {} has {} linestring assignments, expected {}",
@@ -4064,46 +4046,41 @@ fn template_geometry_boundary_row(
     TemplateGeometryBoundaryRow {
         template_geometry_id,
         vertex_indices: payload.vertex_indices,
-        line_lengths: payload.line_lengths,
-        ring_lengths: payload.ring_lengths,
-        surface_lengths: payload.surface_lengths,
-        shell_lengths: payload.shell_lengths,
-        solid_lengths: payload.solid_lengths,
+        line_offsets: payload.line_offsets,
+        ring_offsets: payload.ring_offsets,
+        surface_offsets: payload.surface_offsets,
+        shell_offsets: payload.shell_offsets,
+        solid_offsets: payload.solid_offsets,
     }
 }
 
 fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> FlattenedBoundary {
-    let vertices = boundary
-        .vertices_raw()
-        .iter()
-        .copied()
-        .map(u64::from)
-        .collect();
-    let ring_lengths = offsets_to_lengths(&boundary.rings_raw(), boundary.vertices_raw().len());
-    let surface_lengths = offsets_to_lengths(&boundary.surfaces_raw(), boundary.rings_raw().len());
-    let shell_lengths = offsets_to_lengths(&boundary.shells_raw(), boundary.surfaces_raw().len());
-    let solid_lengths = offsets_to_lengths(&boundary.solids_raw(), boundary.shells_raw().len());
+    let vertices = boundary.vertices_raw().to_vec();
+    let ring_offsets = boundary.rings_raw().to_vec();
+    let surface_offsets = boundary.surfaces_raw().to_vec();
+    let shell_offsets = boundary.shells_raw().to_vec();
+    let solid_offsets = boundary.solids_raw().to_vec();
 
-    let (line_lengths, ring_lengths, surface_lengths, shell_lengths, solid_lengths) =
+    let (line_offsets, ring_offsets, surface_offsets, shell_offsets, solid_offsets) =
         match geometry_type {
             GeometryType::MultiPoint => (None, None, None, None, None),
-            GeometryType::MultiLineString => (Some(ring_lengths), None, None, None, None),
+            GeometryType::MultiLineString => (Some(ring_offsets), None, None, None, None),
             GeometryType::MultiSurface | GeometryType::CompositeSurface => {
-                (None, Some(ring_lengths), Some(surface_lengths), None, None)
+                (None, Some(ring_offsets), Some(surface_offsets), None, None)
             }
             GeometryType::Solid => (
                 None,
-                Some(ring_lengths),
-                Some(surface_lengths),
-                Some(shell_lengths),
+                Some(ring_offsets),
+                Some(surface_offsets),
+                Some(shell_offsets),
                 None,
             ),
             GeometryType::MultiSolid | GeometryType::CompositeSolid => (
                 None,
-                Some(ring_lengths),
-                Some(surface_lengths),
-                Some(shell_lengths),
-                Some(solid_lengths),
+                Some(ring_offsets),
+                Some(surface_offsets),
+                Some(shell_offsets),
+                Some(solid_offsets),
             ),
             GeometryType::GeometryInstance => unreachable!("instances rejected earlier"),
             _ => unreachable!("unsupported geometry type rejected earlier"),
@@ -4111,11 +4088,11 @@ fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> Fl
 
     FlattenedBoundary {
         vertex_indices: vertices,
-        line_lengths,
-        ring_lengths,
-        surface_lengths,
-        shell_lengths,
-        solid_lengths,
+        line_offsets,
+        ring_offsets,
+        surface_offsets,
+        shell_offsets,
+        solid_offsets,
     }
 }
 
@@ -4145,22 +4122,6 @@ fn encode_semantic_type(
         SemanticType::Extension(value) => value.clone(),
         other => other.to_string(),
     }
-}
-
-fn offsets_to_lengths(raw: &cityjson::v2_0::RawVertexView<'_, u32>, child_len: usize) -> Vec<u32> {
-    let raw = &**raw;
-    if raw.is_empty() {
-        return Vec::new();
-    }
-    let mut lengths = Vec::with_capacity(raw.len());
-    for window in raw.windows(2) {
-        lengths.push(window[1] - window[0]);
-    }
-    lengths.push(
-        usize_to_u32(child_len, "child length").expect("child length fits into u32")
-            - raw[raw.len() - 1],
-    );
-    lengths
 }
 
 fn cloned_attributes(
@@ -4193,6 +4154,7 @@ fn metadata_batch(
         root_extra,
         metadata_extra,
     } = row;
+    let mut fields = SchemaFieldLookup::new(schema);
     let mut arrays: Vec<ArrayRef> = vec![
         Arc::new(LargeStringArray::from(vec![Some(citymodel_id)])),
         Arc::new(StringArray::from(vec![Some(cityjson_version)])),
@@ -4202,7 +4164,7 @@ fn metadata_batch(
         Arc::new(LargeStringArray::from(vec![title])),
         Arc::new(LargeStringArray::from(vec![reference_system])),
         Arc::new(fixed_size_f64_array(
-            &field_from_schema(schema, "geographical_extent")?,
+            &fields.field("geographical_extent")?,
             6,
             vec![geographical_extent],
         )?),
@@ -4210,7 +4172,7 @@ fn metadata_batch(
         Arc::new(StringArray::from(vec![default_material_theme])),
         Arc::new(StringArray::from(vec![default_texture_theme])),
         point_of_contact_array(
-            &field_from_schema(schema, "point_of_contact")?,
+            &fields.field("point_of_contact")?,
             point_of_contact.as_ref(),
             projection.metadata_point_of_contact_address.as_ref(),
             geometry_id_map,
@@ -4218,7 +4180,7 @@ fn metadata_batch(
     ];
     if let Some(spec) = projection.root_extra.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
-            &field_from_schema(schema, "root_extra")?,
+            &fields.field("root_extra")?,
             spec,
             &[root_extra.as_ref()],
             geometry_id_map,
@@ -4226,7 +4188,7 @@ fn metadata_batch(
     }
     if let Some(spec) = projection.metadata_extra.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
-            &field_from_schema(schema, "metadata_extra")?,
+            &fields.field("metadata_extra")?,
             spec,
             &[metadata_extra.as_ref()],
             geometry_id_map,
@@ -4239,16 +4201,17 @@ fn transform_batch(
     schema: &Arc<arrow::datatypes::Schema>,
     row: TransformRow,
 ) -> Result<RecordBatch> {
+    let mut fields = SchemaFieldLookup::new(schema);
     RecordBatch::try_new(
         schema.clone(),
         vec![
             Arc::new(fixed_size_f64_array(
-                &field_from_schema(schema, "scale")?,
+                &fields.field("scale")?,
                 3,
                 vec![Some(row.scale)],
             )?),
             Arc::new(fixed_size_f64_array(
-                &field_from_schema(schema, "translate")?,
+                &fields.field("translate")?,
                 3,
                 vec![Some(row.translate)],
             )?),
@@ -4263,6 +4226,7 @@ fn cityobjects_batch(
     projection: &ProjectionLayout,
     geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<RecordBatch> {
+    let mut fields = SchemaFieldLookup::new(schema);
     let mut arrays: Vec<ArrayRef> = vec![
         Arc::new(LargeStringArray::from(
             rows.iter()
@@ -4278,7 +4242,7 @@ fn cityobjects_batch(
                 .collect::<Vec<_>>(),
         )),
         Arc::new(fixed_size_f64_array(
-            &field_from_schema(schema, "geographical_extent")?,
+            &fields.field("geographical_extent")?,
             6,
             rows.iter().map(|row| row.geographical_extent).collect(),
         )?),
@@ -4286,7 +4250,7 @@ fn cityobjects_batch(
 
     if let Some(spec) = projection.cityobject_attributes.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
-            &field_from_schema(schema, "attributes")?,
+            &fields.field("attributes")?,
             spec,
             &rows
                 .iter()
@@ -4297,7 +4261,7 @@ fn cityobjects_batch(
     }
     if let Some(spec) = projection.cityobject_extra.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
-            &field_from_schema(schema, "extra")?,
+            &fields.field("extra")?,
             spec,
             &rows
                 .iter()
@@ -4343,39 +4307,40 @@ fn geometry_boundaries_batch(
     let GeometryBoundaryTableBuffer {
         geometry_id,
         vertex_indices,
-        line_lengths,
-        ring_lengths,
-        surface_lengths,
-        shell_lengths,
-        solid_lengths,
+        line_offsets,
+        ring_offsets,
+        surface_offsets,
+        shell_offsets,
+        solid_offsets,
     } = rows;
+    let mut fields = SchemaFieldLookup::new(schema);
     RecordBatch::try_new(
         schema.clone(),
         vec![
             Arc::new(UInt64Array::from(geometry_id)),
-            Arc::new(list_u64_array(
-                &field_from_schema(schema, "vertex_indices")?,
+            Arc::new(list_u32_array(
+                &fields.field("vertex_indices")?,
                 vertex_indices.into_iter().map(Some).collect::<Vec<_>>(),
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "line_lengths")?,
-                line_lengths,
+                &fields.field("line_offsets")?,
+                line_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "ring_lengths")?,
-                ring_lengths,
+                &fields.field("ring_offsets")?,
+                ring_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "surface_lengths")?,
-                surface_lengths,
+                &fields.field("surface_offsets")?,
+                surface_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "shell_lengths")?,
-                shell_lengths,
+                &fields.field("shell_offsets")?,
+                shell_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "solid_lengths")?,
-                solid_lengths,
+                &fields.field("solid_offsets")?,
+                solid_offsets,
             )?),
         ],
     )
@@ -4395,6 +4360,7 @@ fn geometry_instances_batch(
         reference_point_vertex_id,
         transform_matrix,
     } = rows;
+    let mut fields = SchemaFieldLookup::new(schema);
     let arrays: Vec<ArrayRef> = vec![
         Arc::new(UInt64Array::from(geometry_id)),
         Arc::new(UInt64Array::from(cityobject_ix)),
@@ -4403,7 +4369,7 @@ fn geometry_instances_batch(
         Arc::new(UInt64Array::from(template_geometry_id)),
         Arc::new(UInt64Array::from(reference_point_vertex_id)),
         Arc::new(fixed_size_f64_array(
-            &field_from_schema(schema, "transform_matrix")?,
+            &fields.field("transform_matrix")?,
             16,
             transform_matrix,
         )?),
@@ -4440,39 +4406,40 @@ fn template_geometry_boundaries_batch(
     let TemplateGeometryBoundaryTableBuffer {
         template_geometry_id,
         vertex_indices,
-        line_lengths,
-        ring_lengths,
-        surface_lengths,
-        shell_lengths,
-        solid_lengths,
+        line_offsets,
+        ring_offsets,
+        surface_offsets,
+        shell_offsets,
+        solid_offsets,
     } = rows;
+    let mut fields = SchemaFieldLookup::new(schema);
     RecordBatch::try_new(
         schema.clone(),
         vec![
             Arc::new(UInt64Array::from(template_geometry_id)),
-            Arc::new(list_u64_array(
-                &field_from_schema(schema, "vertex_indices")?,
+            Arc::new(list_u32_array(
+                &fields.field("vertex_indices")?,
                 vertex_indices.into_iter().map(Some).collect::<Vec<_>>(),
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "line_lengths")?,
-                line_lengths,
+                &fields.field("line_offsets")?,
+                line_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "ring_lengths")?,
-                ring_lengths,
+                &fields.field("ring_offsets")?,
+                ring_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "surface_lengths")?,
-                surface_lengths,
+                &fields.field("surface_offsets")?,
+                surface_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "shell_lengths")?,
-                shell_lengths,
+                &fields.field("shell_offsets")?,
+                shell_offsets,
             )?),
             Arc::new(list_u32_array(
-                &field_from_schema(schema, "solid_lengths")?,
-                solid_lengths,
+                &fields.field("solid_offsets")?,
+                solid_offsets,
             )?),
         ],
     )
@@ -4666,6 +4633,7 @@ fn geometry_ring_textures_batch(
         texture_id,
         uv_indices,
     } = rows;
+    let mut fields = SchemaFieldLookup::new(schema);
     RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -4677,7 +4645,7 @@ fn geometry_ring_textures_batch(
             )),
             Arc::new(UInt64Array::from(texture_id)),
             Arc::new(list_u64_array(
-                &field_from_schema(schema, "uv_indices")?,
+                &fields.field("uv_indices")?,
                 uv_indices.into_iter().map(Some).collect::<Vec<_>>(),
             )?),
         ],
@@ -4697,6 +4665,7 @@ fn template_geometry_ring_textures_batch(
         texture_id,
         uv_indices,
     } = rows;
+    let mut fields = SchemaFieldLookup::new(schema);
     RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -4708,7 +4677,7 @@ fn template_geometry_ring_textures_batch(
             )),
             Arc::new(UInt64Array::from(texture_id)),
             Arc::new(list_u64_array(
-                &field_from_schema(schema, "uv_indices")?,
+                &fields.field("uv_indices")?,
                 uv_indices.into_iter().map(Some).collect::<Vec<_>>(),
             )?),
         ],
@@ -4802,6 +4771,29 @@ where
         Ok(None)
     } else {
         build().map(Some)
+    }
+}
+
+struct SchemaFieldLookup<'a> {
+    schema: &'a Arc<arrow::datatypes::Schema>,
+    fields: HashMap<String, FieldRef>,
+}
+
+impl<'a> SchemaFieldLookup<'a> {
+    fn new(schema: &'a Arc<arrow::datatypes::Schema>) -> Self {
+        Self {
+            schema,
+            fields: HashMap::new(),
+        }
+    }
+
+    fn field(&mut self, name: &str) -> Result<FieldRef> {
+        if let Some(field) = self.fields.get(name) {
+            return Ok(field.clone());
+        }
+        let field = Arc::new(self.schema.field_with_name(name)?.clone());
+        self.fields.insert(name.to_string(), field.clone());
+        Ok(field)
     }
 }
 
@@ -5027,19 +5019,39 @@ fn projected_struct_array_from_attributes(
     rows: &[Option<&cityjson::v2_0::OwnedAttributes>],
     geometry_id_map: &HashMap<cityjson::prelude::GeometryHandle, u64>,
 ) -> Result<ArrayRef> {
-    let values = rows
-        .iter()
-        .map(|row| {
-            row.map(|attributes| OwnedAttributeValue::Map(attributes_to_hash_map(attributes)))
-        })
-        .collect::<Vec<_>>();
-    let value_refs = values.iter().map(Option::as_ref).collect::<Vec<_>>();
-    projected_value_array(
-        field,
-        &ProjectedValueSpec::Struct(spec.clone()),
-        &value_refs,
-        geometry_id_map,
-    )
+    let child_fields = match field.data_type() {
+        DataType::Struct(fields) => fields.clone(),
+        other => {
+            return Err(Error::Conversion(format!(
+                "expected projected struct field, found {other:?}"
+            )));
+        }
+    };
+    let mut child_arrays = Vec::with_capacity(spec.fields.len());
+    for (index, child_spec) in spec.fields.iter().enumerate() {
+        let child_values = rows
+            .iter()
+            .map(|row| row.and_then(|attributes| attributes.get(&child_spec.name)))
+            .collect::<Vec<_>>();
+        let child_field = child_fields
+            .get(index)
+            .cloned()
+            .ok_or_else(|| Error::Conversion("projected struct field missing".to_string()))?;
+        child_arrays.push(projected_value_array(
+            &child_field,
+            &child_spec.value,
+            &child_values,
+            geometry_id_map,
+        )?);
+    }
+
+    let validity = rows.iter().map(Option::is_some).collect::<Vec<_>>();
+    let nulls = if validity.iter().all(|item| *item) {
+        None
+    } else {
+        Some(NullBuffer::from(validity))
+    };
+    Ok(Arc::new(StructArray::try_new(child_fields, child_arrays, nulls)?) as ArrayRef)
 }
 
 fn attributes_to_hash_map(
@@ -5479,28 +5491,28 @@ fn read_metadata_row(batch: &RecordBatch, projection: &ProjectionLayout) -> Resu
 fn read_geometry_boundary_row(batch: &RecordBatch, row: usize) -> Result<GeometryBoundaryRow> {
     Ok(GeometryBoundaryRow {
         geometry_id: downcast_required::<UInt64Array>(batch, "geometry_id")?.value(row),
-        vertex_indices: list_u64_value(
+        vertex_indices: list_u32_value(
             downcast_required::<ListArray>(batch, "vertex_indices")?,
             row,
         )?,
-        line_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "line_lengths")?,
+        line_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "line_offsets")?,
             row,
         )?,
-        ring_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "ring_lengths")?,
+        ring_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "ring_offsets")?,
             row,
         )?,
-        surface_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "surface_lengths")?,
+        surface_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "surface_offsets")?,
             row,
         )?,
-        shell_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "shell_lengths")?,
+        shell_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "shell_offsets")?,
             row,
         )?,
-        solid_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "solid_lengths")?,
+        solid_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "solid_offsets")?,
             row,
         )?,
     })
@@ -5513,28 +5525,28 @@ fn read_template_geometry_boundary_row(
     Ok(TemplateGeometryBoundaryRow {
         template_geometry_id: downcast_required::<UInt64Array>(batch, "template_geometry_id")?
             .value(row),
-        vertex_indices: list_u64_value(
+        vertex_indices: list_u32_value(
             downcast_required::<ListArray>(batch, "vertex_indices")?,
             row,
         )?,
-        line_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "line_lengths")?,
+        line_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "line_offsets")?,
             row,
         )?,
-        ring_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "ring_lengths")?,
+        ring_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "ring_offsets")?,
             row,
         )?,
-        surface_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "surface_lengths")?,
+        surface_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "surface_offsets")?,
             row,
         )?,
-        shell_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "shell_lengths")?,
+        shell_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "shell_offsets")?,
             row,
         )?,
-        solid_lengths: list_u32_optional_value(
-            downcast_required::<ListArray>(batch, "solid_lengths")?,
+        solid_offsets: list_u32_optional_value(
+            downcast_required::<ListArray>(batch, "solid_offsets")?,
             row,
         )?,
     })
@@ -5755,7 +5767,7 @@ fn build_semantic_map(
                 return Ok(None);
             };
             let linestring_count =
-                required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len();
+                required_offsets(boundary.line_offsets.as_ref(), "line_offsets")?.len();
             if rows.len() != linestring_count {
                 return Err(Error::Conversion(format!(
                     "linestring semantic row count {} does not match linestring count {}",
@@ -5983,7 +5995,7 @@ fn build_template_semantic_map(
             batch,
             rows,
             PRIMITIVE_TYPE_LINESTRING,
-            required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len(),
+            required_offsets(boundary.line_offsets.as_ref(), "line_offsets")?.len(),
             "linestring",
             handles,
         ),
@@ -6041,7 +6053,7 @@ fn build_template_material_maps(
         .map(Some),
         GeometryType::MultiLineString => grouped_material_maps(
             rows,
-            required_lengths(boundary.line_lengths.as_ref(), "line_lengths")?.len(),
+            required_offsets(boundary.line_offsets.as_ref(), "line_offsets")?.len(),
             |row| {
                 let row = read_template_geometry_material_row(&grouped.batch, row)?;
                 if row.primitive_type != PRIMITIVE_TYPE_LINESTRING {
@@ -6271,11 +6283,11 @@ fn build_texture_maps(
 fn boundary_from_row(row: &GeometryBoundaryRow, geometry_type: &str) -> Result<Boundary<u32>> {
     boundary_from_parts(
         &row.vertex_indices,
-        row.line_lengths.as_ref(),
-        row.ring_lengths.as_ref(),
-        row.surface_lengths.as_ref(),
-        row.shell_lengths.as_ref(),
-        row.solid_lengths.as_ref(),
+        row.line_offsets.as_ref(),
+        row.ring_offsets.as_ref(),
+        row.surface_offsets.as_ref(),
+        row.shell_offsets.as_ref(),
+        row.solid_offsets.as_ref(),
         geometry_type,
     )
 }
@@ -6286,63 +6298,75 @@ fn template_boundary_from_row(
 ) -> Result<Boundary<u32>> {
     boundary_from_parts(
         &row.vertex_indices,
-        row.line_lengths.as_ref(),
-        row.ring_lengths.as_ref(),
-        row.surface_lengths.as_ref(),
-        row.shell_lengths.as_ref(),
-        row.solid_lengths.as_ref(),
+        row.line_offsets.as_ref(),
+        row.ring_offsets.as_ref(),
+        row.surface_offsets.as_ref(),
+        row.shell_offsets.as_ref(),
+        row.solid_offsets.as_ref(),
         geometry_type,
     )
 }
 
 fn boundary_from_parts(
-    vertex_indices: &[u64],
-    line_lengths: Option<&Vec<u32>>,
-    ring_lengths: Option<&Vec<u32>>,
-    surface_lengths: Option<&Vec<u32>>,
-    shell_lengths: Option<&Vec<u32>>,
-    solid_lengths: Option<&Vec<u32>>,
+    vertex_indices: &[u32],
+    line_offsets: Option<&Vec<u32>>,
+    ring_offsets: Option<&Vec<u32>>,
+    surface_offsets: Option<&Vec<u32>>,
+    shell_offsets: Option<&Vec<u32>>,
+    solid_offsets: Option<&Vec<u32>>,
     geometry_type: &str,
 ) -> Result<Boundary<u32>> {
-    let vertices = vertex_indices
-        .iter()
-        .map(|value| {
-            u32::try_from(*value).map_err(|_| {
-                Error::Conversion(format!("vertex index {value} does not fit into u32"))
-            })
-        })
-        .collect::<Result<Vec<_>>>()?
-        .to_vertex_indices();
+    let vertices = vertex_indices.to_vec().to_vertex_indices();
 
     let boundary = match parse_geometry_type(geometry_type)? {
         GeometryType::MultiPoint => Boundary::from_parts(vertices, vec![], vec![], vec![], vec![])?,
         GeometryType::MultiLineString => Boundary::from_parts(
             vertices,
-            lengths_to_offsets(required_lengths(line_lengths, "line_lengths")?)?,
+            required_offsets(line_offsets, "line_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
             vec![],
             vec![],
             vec![],
         )?,
         GeometryType::MultiSurface | GeometryType::CompositeSurface => Boundary::from_parts(
             vertices,
-            lengths_to_offsets(required_lengths(ring_lengths, "ring_lengths")?)?,
-            lengths_to_offsets(required_lengths(surface_lengths, "surface_lengths")?)?,
+            required_offsets(ring_offsets, "ring_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(surface_offsets, "surface_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
             vec![],
             vec![],
         )?,
         GeometryType::Solid => Boundary::from_parts(
             vertices,
-            lengths_to_offsets(required_lengths(ring_lengths, "ring_lengths")?)?,
-            lengths_to_offsets(required_lengths(surface_lengths, "surface_lengths")?)?,
-            lengths_to_offsets(required_lengths(shell_lengths, "shell_lengths")?)?,
+            required_offsets(ring_offsets, "ring_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(surface_offsets, "surface_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(shell_offsets, "shell_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
             vec![],
         )?,
         GeometryType::MultiSolid | GeometryType::CompositeSolid => Boundary::from_parts(
             vertices,
-            lengths_to_offsets(required_lengths(ring_lengths, "ring_lengths")?)?,
-            lengths_to_offsets(required_lengths(surface_lengths, "surface_lengths")?)?,
-            lengths_to_offsets(required_lengths(shell_lengths, "shell_lengths")?)?,
-            lengths_to_offsets(required_lengths(solid_lengths, "solid_lengths")?)?,
+            required_offsets(ring_offsets, "ring_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(surface_offsets, "surface_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(shell_offsets, "shell_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
+            required_offsets(solid_offsets, "solid_offsets")?
+                .to_vec()
+                .to_vertex_indices(),
         )?,
         GeometryType::GeometryInstance => {
             return Err(Error::Unsupported("geometry instances".to_string()));
@@ -6354,37 +6378,61 @@ fn boundary_from_parts(
     Ok(boundary)
 }
 
-fn required_lengths<'a>(value: Option<&'a Vec<u32>>, name: &str) -> Result<&'a [u32]> {
+fn required_offsets<'a>(value: Option<&'a Vec<u32>>, name: &str) -> Result<&'a [u32]> {
     value
         .map(Vec::as_slice)
         .ok_or_else(|| Error::Conversion(format!("missing required {name}")))
 }
 
-fn lengths_to_offsets(lengths: &[u32]) -> Result<Vec<cityjson::v2_0::VertexIndex<u32>>> {
-    if lengths.is_empty() {
-        return Ok(Vec::<u32>::new().to_vertex_indices());
+fn offset_to_usize(value: u32, child_len: usize, name: &str) -> Result<usize> {
+    let offset = usize::try_from(value)
+        .map_err(|_| Error::Conversion(format!("{name} value {value} does not fit into usize")))?;
+    if offset > child_len {
+        return Err(Error::Conversion(format!(
+            "{name} value {value} exceeds child length {child_len}"
+        )));
     }
-    let mut offsets = Vec::with_capacity(lengths.len());
-    let mut total = 0_u32;
-    offsets.push(0);
-    for length in &lengths[..lengths.len() - 1] {
-        total = total
-            .checked_add(*length)
-            .ok_or_else(|| Error::Conversion("length offsets overflow u32".to_string()))?;
-        offsets.push(total);
+    Ok(offset)
+}
+
+fn offset_end(offsets: &[u32], index: usize, child_len: usize, name: &str) -> Result<usize> {
+    match offsets.get(index + 1).copied() {
+        Some(next) => offset_to_usize(next, child_len, name),
+        None => Ok(child_len),
     }
-    Ok(offsets.to_vertex_indices())
+}
+
+fn validate_offsets(offsets: &[u32], child_len: usize, name: &str) -> Result<()> {
+    if let Some(first) = offsets.first()
+        && *first != 0
+    {
+        return Err(Error::Conversion(format!(
+            "{name} must start at zero, found {first}"
+        )));
+    }
+
+    let mut previous = 0_u32;
+    for offset in offsets {
+        if *offset < previous {
+            return Err(Error::Conversion(format!(
+                "{name} must be monotonic, found {offset} after {previous}"
+            )));
+        }
+        let _ = offset_to_usize(*offset, child_len, name)?;
+        previous = *offset;
+    }
+    Ok(())
 }
 
 fn surface_count(row: &GeometryBoundaryRow) -> usize {
-    match row.surface_lengths.as_ref() {
+    match row.surface_offsets.as_ref() {
         Some(lengths) => lengths.len(),
         None => 0,
     }
 }
 
 fn template_surface_count(row: &TemplateGeometryBoundaryRow) -> usize {
-    row.surface_lengths.as_ref().map_or(0, std::vec::Vec::len)
+    row.surface_offsets.as_ref().map_or(0, std::vec::Vec::len)
 }
 
 fn has_projection_field(specs: Option<&ProjectedStructSpec>, name: &str) -> bool {
@@ -6676,8 +6724,8 @@ fn bind_vertex_columns<'a>(batch: &'a RecordBatch, id_name: &str) -> Result<Vert
 fn bind_uv_columns(batch: &RecordBatch) -> Result<UvColumns<'_>> {
     Ok(UvColumns {
         uv_id: downcast_required::<UInt64Array>(batch, "uv_id")?,
-        u: downcast_required::<Float64Array>(batch, "u")?,
-        v: downcast_required::<Float64Array>(batch, "v")?,
+        u: downcast_required::<Float32Array>(batch, "u")?,
+        v: downcast_required::<Float32Array>(batch, "v")?,
     })
 }
 
@@ -6838,6 +6886,15 @@ fn list_u64_value(array: &ListArray, row: usize) -> Result<Vec<u64>> {
         .as_any()
         .downcast_ref::<UInt64Array>()
         .ok_or_else(|| Error::Conversion("list child is not u64".to_string()))?;
+    Ok(values.values().to_vec())
+}
+
+fn list_u32_value(array: &ListArray, row: usize) -> Result<Vec<u32>> {
+    let values = array.value(row);
+    let values = values
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .ok_or_else(|| Error::Conversion("list child is not u32".to_string()))?;
     Ok(values.values().to_vec())
 }
 

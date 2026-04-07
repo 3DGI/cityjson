@@ -234,6 +234,9 @@ pub fn canonical_table_position(table: CanonicalTable) -> usize {
 
 #[must_use]
 pub fn collect_tables(parts: &CityModelArrowParts) -> Vec<(CanonicalTable, RecordBatch)> {
+    // `RecordBatch::clone` only bumps internal Arcs. Keep the owned return type here because the
+    // encoder/decoder sinks consume batches by value and the API stays simpler than threading
+    // lifetimes through every transport entry point.
     let mut tables = Vec::new();
     for (table, batch) in [
         (CanonicalTable::Metadata, Some(parts.metadata.clone())),
