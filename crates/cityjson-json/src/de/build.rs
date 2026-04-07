@@ -8,7 +8,7 @@ use cityjson::v2_0::{
     RealWorldCoordinate, ThemeName, Transform, UVCoordinate, CRS, RGB, RGBA,
 };
 
-use crate::de::attributes::{RawAttribute, attribute_map};
+use crate::de::attributes::{attribute_map, RawAttribute};
 use crate::de::cityobjects::import_cityobjects;
 use crate::de::geometry::{import_template_geometry, GeometryResources};
 use crate::de::parse::ParseStringStorage;
@@ -49,7 +49,9 @@ where
         parse_root_header(type_name, version)
     })?;
     let mut model = CityModel::<u32, SS>::new(header.type_citymodel);
-    let transform = timed("build.apply_transform", || apply_transform(transform, &mut model));
+    let transform = timed("build.apply_transform", || {
+        apply_transform(transform, &mut model)
+    });
     let mut resources = GeometryResources::default();
 
     if let Some(appearance) = appearance {

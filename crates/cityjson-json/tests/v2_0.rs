@@ -643,8 +643,8 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minima() {
         report.geographical_extent,
         Some(BBox::new(9.0, 20.0, 30.0, 12.0, 23.0, 40.0))
     );
-    assert_eq!(report.transform.scale(), [0.5, 1.0, 5.0]);
-    assert_eq!(report.transform.translate(), [9.0, 20.0, 30.0]);
+    assert_vertex_eq(report.transform.scale(), [0.5, 1.0, 5.0]);
+    assert_vertex_eq(report.transform.translate(), [9.0, 20.0, 30.0]);
 
     let items = stream_items(&output);
     assert_eq!(items[0]["transform"]["translate"], json!([9.0, 20.0, 30.0]));

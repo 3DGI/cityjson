@@ -32,6 +32,7 @@ where
 }
 
 #[derive(Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct CityModelSerializeOptions<'a> {
     pub(crate) type_name: CityModelType,
     pub(crate) include_id: bool,
