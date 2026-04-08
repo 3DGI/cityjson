@@ -5,6 +5,7 @@
 //! container backed by Arrow canonical tables.
 
 mod package;
+pub mod spatial;
 
 pub use cityarrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
