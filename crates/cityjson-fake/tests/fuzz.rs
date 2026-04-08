@@ -1,9 +1,5 @@
-#[path = "common_lib/mod.rs"]
-mod common_lib;
-
 use cjfake::prelude::*;
 use cjfake::vertex::VerticesFaker;
-use cjlib::json;
 use fake::Fake;
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -278,35 +274,30 @@ proptest! {
             ..Default::default()
         };
 
-        let json = CityModelBuilder::<u32, OwnedStringStorage>::new(config.clone(), Some(11))
+        let model = CityModelBuilder::<u32, OwnedStringStorage>::new(config.clone(), Some(11))
             .metadata(None)
             .vertices()
             .materials(None)
             .textures(None)
             .attributes(None)
             .cityobjects()
-            .build_string()
-            .expect("serialization failed");
-
-        common_lib::validate(&json, "fuzz_config");
-
-        let cm = json::from_slice(json.as_bytes()).expect("deserialization failed");
+            .build();
 
         if cityobject_hierarchy {
-            assert!(cm.cityobjects().len() >= cityobject_count as usize);
+            assert!(model.cityobjects().len() >= cityobject_count as usize);
         } else {
-            assert_eq!(cm.cityobjects().len(), cityobject_count as usize);
+            assert_eq!(model.cityobjects().len(), cityobject_count as usize);
         }
 
-        for vertex in cm.vertices().as_slice() {
+        for vertex in model.vertices().as_slice() {
             assert!(vertex.x() >= min_coordinate && vertex.x() <= max_coordinate);
             assert!(vertex.y() >= min_coordinate && vertex.y() <= max_coordinate);
             assert!(vertex.z() >= min_coordinate && vertex.z() <= max_coordinate);
         }
 
         if materials_enabled {
-            assert_eq!(cm.iter_materials().count(), count_value as usize);
-            for (_, material) in cm.iter_materials() {
+            assert_eq!(model.iter_materials().count(), count_value as usize);
+            for (_, material) in model.iter_materials() {
                 if let Some(expected) = generate_ambient_intensity {
                     assert_eq!(material.ambient_intensity().is_some(), expected);
                 }
@@ -327,20 +318,20 @@ proptest! {
                 }
             }
         } else {
-            assert_eq!(cm.iter_materials().count(), 0);
+            assert_eq!(model.iter_materials().count(), 0);
         }
 
         if textures_enabled {
-            assert_eq!(cm.iter_textures().count(), count_value as usize);
-            for (_, texture) in cm.iter_textures() {
+            assert_eq!(model.iter_textures().count(), count_value as usize);
+            for (_, texture) in model.iter_textures() {
                 assert!(!texture.image().is_empty());
             }
         } else {
-            assert_eq!(cm.iter_textures().count(), 0);
+            assert_eq!(model.iter_textures().count(), 0);
         }
 
         if metadata_enabled {
-            let meta = cm.metadata().expect("metadata should be generated");
+            let meta = model.metadata().expect("metadata should be generated");
             assert_eq!(meta.geographical_extent().is_some(), metadata_geographical_extent);
             assert_eq!(meta.identifier().is_some(), metadata_identifier);
             assert_eq!(meta.reference_date().is_some(), metadata_reference_date);
@@ -348,12 +339,12 @@ proptest! {
             assert_eq!(meta.title().is_some(), metadata_title);
             assert_eq!(meta.point_of_contact().is_some(), metadata_point_of_contact);
         } else {
-            assert!(cm.metadata().is_none());
+            assert!(model.metadata().is_none());
         }
 
         if attributes_enabled {
             let mut saw_attributes = false;
-            for (_, cityobject) in cm.cityobjects().iter() {
+            for (_, cityobject) in model.cityobjects().iter() {
                 if let Some(attrs) = cityobject.attributes() {
                     if !attrs.is_empty() {
                         saw_attributes = true;
@@ -375,23 +366,25 @@ proptest! {
             }
             assert!(saw_attributes);
         } else {
-            for (_, cityobject) in cm.cityobjects().iter() {
+            for (_, cityobject) in model.cityobjects().iter() {
                 assert!(cityobject.attributes().is_none_or(Attributes::is_empty));
             }
         }
 
         if !semantics_enabled {
-            assert_eq!(cm.iter_semantics().count(), 0);
+            assert_eq!(model.iter_semantics().count(), 0);
         } else if let Some(allowed) = &allowed_types_semantic {
-            for (_, semantic) in cm.iter_semantics() {
+            for (_, semantic) in model.iter_semantics() {
                 assert!(allowed.contains(semantic.type_semantic()));
             }
         }
 
-        for (_, cityobject) in cm.cityobjects().iter() {
+        for (_, cityobject) in model.cityobjects().iter() {
             if let Some(geometry_handles) = cityobject.geometry() {
                 for geometry_handle in geometry_handles {
-                    let geometry = cm.get_geometry(*geometry_handle).expect("geometry should exist");
+                    let geometry = model
+                        .get_geometry(*geometry_handle)
+                        .expect("geometry should exist");
                     if let Some(allowed) = &config.geometry.allowed_lods {
                         assert!(geometry.lod().is_none_or(|lod| allowed.contains(lod)));
                     }

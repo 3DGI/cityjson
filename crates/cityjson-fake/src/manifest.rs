@@ -27,7 +27,7 @@ impl Default for GenerationManifest {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct GenerationCase {
     pub id: String,
     pub description: Option<String>,
@@ -38,20 +38,8 @@ pub struct GenerationCase {
     pub config: CJFakeConfig,
 }
 
-impl Default for GenerationCase {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            description: None,
-            seed: None,
-            output: None,
-            count: None,
-            config: CJFakeConfig::default(),
-        }
-    }
-}
-
 impl GenerationManifest {
+    #[must_use]
     pub fn case(&self, id: &str) -> Option<&GenerationCase> {
         self.cases.iter().find(|case| case.id == id)
     }
@@ -69,6 +57,11 @@ pub fn default_schema_path(manifest_path: impl AsRef<Path>) -> PathBuf {
         .join(DEFAULT_SCHEMA_FILENAME)
 }
 
+/// Validate a manifest file against a JSON schema.
+///
+/// # Errors
+///
+/// Returns an error if either file cannot be read or the manifest fails schema validation.
 pub fn validate_manifest(
     manifest_path: impl AsRef<Path>,
     schema_path: impl AsRef<Path>,
@@ -80,6 +73,11 @@ pub fn validate_manifest(
     validate_manifest_json(manifest_path, schema_path, &manifest_json, &schema_json)
 }
 
+/// Load a manifest file from disk.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read or parsed as JSON.
 pub fn load_manifest(
     path: impl AsRef<Path>,
 ) -> Result<GenerationManifest, Box<dyn std::error::Error>> {
@@ -89,6 +87,12 @@ pub fn load_manifest(
     Ok(manifest)
 }
 
+/// Load and validate a manifest file against a JSON schema.
+///
+/// # Errors
+///
+/// Returns an error if either file cannot be read, the manifest fails schema validation, or the
+/// manifest cannot be parsed as JSON.
 pub fn load_manifest_validated(
     manifest_path: impl AsRef<Path>,
     schema_path: impl AsRef<Path>,

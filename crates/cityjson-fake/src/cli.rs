@@ -758,7 +758,9 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
         if let Some(output) = cli.output {
             if cases.len() == 1 {
-                let case = cases.pop().expect("single case should exist");
+                let case = cases
+                    .pop()
+                    .ok_or_else(|| io::Error::other("single manifest case should exist"))?;
                 let json = crate::generate_string(case.config.clone(), case.seed)?;
                 let resolved = output;
                 if let Some(parent) = resolved.parent() {
@@ -788,7 +790,9 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             return Err("a manifest with multiple cases requires --output <DIR>".into());
         }
 
-        let case = cases.pop().expect("single case should exist");
+        let case = cases
+            .pop()
+            .ok_or_else(|| io::Error::other("single manifest case should exist"))?;
         let json = crate::generate_string(case.config.clone(), case.seed)?;
         let mut stdout = io::stdout().lock();
         stdout.write_all(json.as_bytes())?;
