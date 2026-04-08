@@ -1,4 +1,3 @@
-# Adapted from https://github.com/serde-rs/json/blob/master/.github/workflows/ci.yml
 name: CI
 
 on:
@@ -13,26 +12,46 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  test:
-    name: Test
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: extractions/setup-just@v3
+      - run: cargo fmt --all --check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: extractions/setup-just@v3
+      - run: just lint
+
+  test:
+    name: Test (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --all-features
-      - run: cargo run --example cityjson_fake_complete_owned
-      - run: cargo run --example attributes
-      - run: cargo run --example streaming_geometry_instances
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: Cargo.lock
-          path: Cargo.lock
-        continue-on-error: true
+      - uses: extractions/setup-just@v3
+      - run: just test
 
   build:
-    name: Rust ${{matrix.rust}}
+    name: Build (MSRV ${{matrix.rust}})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -44,42 +63,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
-      - run: cargo build --all-targets --all-features
+      - uses: extractions/setup-just@v3
+      - run: just build
 
   nightly:
-    name: Rust nightly ${{matrix.os == 'windows' && '(windows)' || ''}}
-    runs-on: ${{matrix.os}}-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu]
+    name: Build (nightly)
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo build --all-targets --all-features
-
-#  miri:
-#    name: Miri
-#    runs-on: ubuntu-latest
-#    env:
-#      MIRIFLAGS: -Zmiri-strict-provenance
-#    timeout-minutes: 45
-#    steps:
-#      - uses: actions/checkout@v6
-#      - uses: dtolnay/rust-toolchain@miri
-#      - run: cargo miri setup
-#      - run: cargo miri test
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@clippy
-      - run: cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+      - uses: extractions/setup-just@v3
+      - run: just build
 
   doc:
     name: Documentation
@@ -90,4 +85,54 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo +nightly doc --all-features --no-deps -Zunstable-options -Zrustdoc-scrape-examples
+      - uses: extractions/setup-just@v3
+      - run: just doc
+
+  coverage:
+    name: Coverage gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-tarpaulin
+      - run: |
+          ALLOW=0
+          if ${{ contains(github.event.pull_request.labels.*.name, 'coverage-decrease-approved') }}; then
+            ALLOW=1
+          fi
+          BASE_REF="origin/${{ github.base_ref }}" ALLOW_DECREASE="$ALLOW" bash tools/ci_coverage_gate.sh
+
+  bench:
+    name: Benchmark gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v3
+      - run: sudo apt-get update && sudo apt-get install -y valgrind
+      - run: |
+          ALLOW=0
+          if ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-approved') }}; then
+            ALLOW=1
+          fi
+          BASE_REF="origin/${{ github.base_ref }}" ALLOW_REGRESSION="$ALLOW" bash tools/ci_bench_gate.sh
+
+#  miri:
+#    name: Miri
+#    runs-on: ubuntu-latest
+#    env:
+#      MIRIFLAGS: -Zmiri-strict-provenance
+#    timeout-minutes: 45
+#    steps:
+#      - uses: actions/checkout@v6
+#      - uses: dtolnay/rust-toolchain@miri
+#      - uses: extractions/setup-just@v3
+#      - run: just miri

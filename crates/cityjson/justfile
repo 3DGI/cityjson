@@ -36,12 +36,12 @@ coverage:
 
 # Run Miri on tests that exercise unsafe code (boundary, vertex, handles, geometry, raw_access)
 miri:
-    cargo +nightly miri test boundary
-    cargo +nightly miri test vertex
-    cargo +nightly miri test vertices
-    cargo +nightly miri test handles
-    cargo +nightly miri test raw_access
-    cargo +nightly miri test geometry
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test boundary
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test vertex
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test vertices
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test handles
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test raw_access
+    MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test geometry
 
 # Build the crate documentation
 doc:
