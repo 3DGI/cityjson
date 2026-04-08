@@ -29,8 +29,19 @@ test:
     cargo run --example streaming
     cargo run --example quick_start
 
+# Generate test coverage report using tarpaulin
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
+# Run Miri on tests that exercise unsafe code (boundary, vertex, handles, geometry, raw_access)
 miri:
-    cargo +nightly miri test
+    cargo +nightly miri test boundary
+    cargo +nightly miri test vertex
+    cargo +nightly miri test vertices
+    cargo +nightly miri test handles
+    cargo +nightly miri test raw_access
+    cargo +nightly miri test geometry
 
 # Build the crate documentation
 doc:

@@ -592,6 +592,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multilinestring_u16_max_vertices_roundtrips() {
         let nested: BoundaryNestedMultiLineString16 = vec![vec![0; U16_MAX]];
         let flattened = Boundary::<u16>::try_from(nested.clone()).unwrap();
@@ -603,6 +604,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multisurface_u16_max_rings_roundtrips() {
         let nested: BoundaryNestedMultiOrCompositeSurface16 = vec![vec![vec![]; U16_MAX], vec![]];
         let flattened = Boundary::<u16>::try_from(nested.clone()).unwrap();
@@ -620,6 +622,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_solid_u16_max_surfaces_roundtrips() {
         let nested: BoundaryNestedSolid16 = vec![vec![vec![]; U16_MAX], vec![]];
         let flattened = Boundary::<u16>::try_from(nested.clone()).unwrap();
@@ -631,6 +634,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multisolid_u16_max_shells_roundtrips() {
         let nested: BoundaryNestedMultiOrCompositeSolid16 = vec![vec![vec![]; U16_MAX], vec![]];
         let flattened = Boundary::<u16>::try_from(nested.clone()).unwrap();
@@ -645,6 +649,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multilinestring_overflow_returns_index_overflow() {
         let nested: BoundaryNestedMultiLineString16 = vec![vec![0; U16_MAX_PLUS_ONE]];
         let result = Boundary::<u16>::try_from(nested);
@@ -658,6 +663,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multisurface_overflow_returns_index_conversion() {
         let nested: BoundaryNestedMultiOrCompositeSurface16 =
             vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
@@ -673,6 +679,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_solid_overflow_returns_index_conversion() {
         let nested: BoundaryNestedSolid16 = vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
         let result = Boundary::<u16>::try_from(nested);
@@ -687,6 +694,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn nested_multisolid_overflow_returns_index_conversion() {
         let nested: BoundaryNestedMultiOrCompositeSolid16 =
             vec![vec![vec![]; U16_MAX_PLUS_ONE], vec![]];
@@ -702,6 +710,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn to_nested_multilinestring_overflow_returns_err_without_panic() {
         let mut boundary = Boundary::<u16>::new();
         boundary.vertices = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
@@ -713,6 +722,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn to_nested_multisurface_overflow_returns_err_without_panic() {
         let mut boundary = Boundary::<u16>::new();
         boundary.rings = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
@@ -724,6 +734,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn to_nested_solid_overflow_returns_err_without_panic() {
         let mut boundary = Boundary::<u16>::new();
         boundary.surfaces = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
@@ -735,6 +746,7 @@ mod nested_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K allocations too slow under Miri
     fn to_nested_multisolid_overflow_returns_err_without_panic() {
         let mut boundary = Boundary::<u16>::new();
         boundary.shells = vec![VertexIndex::new(0); U16_MAX_PLUS_ONE];
@@ -930,6 +942,9 @@ mod boundary_kind_shapes {
 }
 
 #[cfg(test)]
+// Proptest calls `getcwd` which is blocked by Miri's isolation mode,
+// and the generated test cases are too slow for interpreted execution.
+#[cfg(not(miri))]
 mod property_tests {
     use super::*;
     use crate::cityjson::core::boundary::nested::{

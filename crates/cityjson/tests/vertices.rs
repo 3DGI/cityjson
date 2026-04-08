@@ -259,6 +259,7 @@ mod edge_cases {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K push loop too slow under Miri
     fn push_rejects_more_than_the_index_type_can_store() {
         let mut vertices = GeometryVertices16::new();
 
@@ -288,6 +289,7 @@ mod edge_cases {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // 65K+ allocation too slow under Miri
     fn extend_from_slice_rejects_more_than_the_index_type_can_store() {
         let mut vertices = GeometryVertices16::new();
         let batch = vec![RealWorldCoordinate::new(0.0, 0.0, 0.0); usize::from(u16::MAX) + 1];
