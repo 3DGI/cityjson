@@ -25,7 +25,7 @@ use cityjson::prelude::*;  // handles, storage strategies, error types
 
 The `prelude` re-exports crate-wide types (handles, errors, storage strategies) but not the cityjson-domain types from `v2_0`.
 
-todo: do we need separate prelude and v2_0 modules for imports?
+todo: do we need separate prelude and `v2_0` modules for imports?
 
 ### Example
 
@@ -55,6 +55,12 @@ fn main() {
 }
 ```
 
+## Documentation
+
+- [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
+
+todo: link to docs.rs
+
 ## Library Layout
 
 | Module      | Contents                                                                                                                            |
@@ -63,6 +69,9 @@ fn main() {
 | `resources` | Typed handles, resource pools, and string storage strategies                                                                        |
 | `raw`       | Zero-copy read views for use in downstream serializers                                                                              |
 
+## Design
+
+todo: link to design docs
 
 ## API Stability
 
@@ -75,6 +84,10 @@ This crate follows semantic versioning (`MAJOR.MINOR.PATCH`):
 ## Minimum Rust Version
 
 The minimum supported rustc version is `1.93.0`.
+
+## Contributing
+
+todo: add contributing guidelines
 
 ## License
 
