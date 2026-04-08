@@ -5,25 +5,35 @@ use cityparquet::{PackageReader, PackageWriter};
 use tempfile::tempdir;
 
 #[test]
-fn package_roundtrip_preserves_curated_shared_corpus_transport_cases() {
+fn package_roundtrip_preserves_all_normative_shared_corpus_conformance_cases() {
     let dir = tempdir().unwrap();
+    let mut failures = Vec::new();
 
-    for case in shared_corpus::load_transport_roundtrip_cases() {
+    for case in shared_corpus::load_normative_conformance_cases() {
         let path = dir.path().join(format!("{}.cityarrow", case.id));
-        PackageWriter
-            .write_file(&path, &case.model)
-            .unwrap_or_else(|err| {
-                panic!("failed to write shared corpus case '{}': {err}", case.id)
-            });
-        let decoded = PackageReader
-            .read_file(&path)
-            .unwrap_or_else(|err| panic!("failed to read shared corpus case '{}': {err}", case.id));
+        if let Err(err) = PackageWriter.write_file(&path, &case.model) {
+            failures.push(format!("{}: write failed: {err}", case.id));
+            continue;
+        }
 
-        assert_eq!(
-            shared_corpus::normalized_json(&case.model),
-            shared_corpus::normalized_json(&decoded),
-            "shared corpus case '{}'",
-            case.id
-        );
+        let decoded = match PackageReader.read_file(&path) {
+            Ok(decoded) => decoded,
+            Err(err) => {
+                failures.push(format!("{}: read failed: {err}", case.id));
+                continue;
+            }
+        };
+
+        let expected = shared_corpus::normalized_json(&case.model);
+        let actual = shared_corpus::normalized_json(&decoded);
+        if expected != actual {
+            failures.push(format!("{}: roundtrip JSON mismatch", case.id));
+        }
     }
+
+    assert!(
+        failures.is_empty(),
+        "normative conformance package roundtrip failures:\n{}",
+        failures.join("\n")
+    );
 }

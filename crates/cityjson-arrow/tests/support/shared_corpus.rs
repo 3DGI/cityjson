@@ -13,25 +13,6 @@ use serde_json::Value as JsonValue;
 
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
 const SHARED_CORPUS_DIRNAME: &str = "cityjson-benchmarks";
-const TRANSPORT_ROUNDTRIP_CASES: &[&str] = &[
-    "appearance_empty",
-    "appearance_minimal_complete",
-    "cityjson_minimal_complete",
-    "cityjson_root_id_extra_property",
-    "cityjsonfeature_minimal_complete",
-    "cityjsonfeature_root_id_resolves",
-    "extension",
-    "geometry_complete_solid",
-    "geometry_instance",
-    "geometry_material_solid",
-    "geometry_semantics_multisurface",
-    "geometry_templates_reuse",
-    "geometry_texture_multisurface",
-    "material_complete",
-    "texture_complete",
-    "transform",
-    "vertices",
-];
 
 static CORRECTNESS_CASES: LazyLock<BTreeMap<String, CorrectnessCase>> =
     LazyLock::new(load_correctness_cases);
@@ -117,33 +98,8 @@ pub(crate) fn load_normative_conformance_cases() -> Vec<PreparedCorrectnessCase>
         .collect()
 }
 
-pub(crate) fn load_transport_roundtrip_cases() -> Vec<PreparedCorrectnessCase> {
-    TRANSPORT_ROUNDTRIP_CASES
-        .iter()
-        .map(|case_id| load_named_normative_conformance_case(case_id))
-        .collect()
-}
-
 pub(crate) fn normalized_json(model: &OwnedCityModel) -> JsonValue {
-    let mut value = serde_json::to_value(as_json(model)).unwrap();
-    prune_transport_equivalent_empty_root_objects(&mut value);
-    value
-}
-
-fn prune_transport_equivalent_empty_root_objects(value: &mut JsonValue) {
-    let JsonValue::Object(object) = value else {
-        return;
-    };
-
-    for key in ["metadata", "extensions"] {
-        let is_empty = object
-            .get(key)
-            .and_then(JsonValue::as_object)
-            .is_some_and(serde_json::Map::is_empty);
-        if is_empty {
-            object.remove(key);
-        }
-    }
+    serde_json::to_value(as_json(model)).unwrap()
 }
 
 fn correctness_case(case_id: &str) -> &'static CorrectnessCase {

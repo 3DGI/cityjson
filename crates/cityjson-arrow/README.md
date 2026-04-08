@@ -39,7 +39,7 @@ and package implementations.
 The repository currently keeps:
 
 - integration roundtrip tests for the live stream and package APIs
-- shared-corpus roundtrip tests for curated transport-safe conformance fixtures
+- shared-corpus roundtrip tests for all normative conformance fixtures
 - a split benchmark target in `benches/split.rs` for conversion-only,
   transport-only, and end-to-end measurements
 - `just lint`
