@@ -39,10 +39,18 @@ and package implementations.
 The repository currently keeps:
 
 - integration roundtrip tests for the live stream and package APIs
+- shared-corpus roundtrip tests for curated transport-safe conformance fixtures
 - a split benchmark target in `benches/split.rs` for conversion-only,
   transport-only, and end-to-end measurements
 - `just lint`
 - `just test`
+
+The shared-corpus test and bench helpers look for the sibling
+`cityjson-benchmarks` checkout by default. Override the defaults with:
+
+- `CITYARROW_SHARED_CORPUS_ROOT`
+- `CITYARROW_CORRECTNESS_INDEX`
+- `CITYARROW_BENCHMARK_INDEX`
 
 ## Repository Map
 
