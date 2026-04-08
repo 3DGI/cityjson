@@ -407,3 +407,110 @@ schema or transport rewrite.
 
 The remaining write bottleneck is still the projected attribute conversion
 layer, not `cityparquet` transport and not `cityjson-rs` geometry storage.
+
+## Results Analysis: 2026-04-08 (`v0.5.1`)
+
+The downstream full snapshot `cityarrow optimize v0.5.1` at
+`2026-04-08T12:12:16Z` and supplementary write-side `dhat` and `cachegrind`
+runs on the same worktree make the current reading more precise.
+
+### End-To-End Speed
+
+Compared with `cityarrow optimize v0.5.0`, the `v0.5.1` run moves the native
+paths by:
+
+| Backend | Tile Read | Cluster Read | Tile Write | Cluster Write |
+| --- | --- | --- | --- | --- |
+| `cityarrow` | `+4.4%` | `+2.5%` | `+93.9%` | `+17.1%` |
+| `cityparquet` | `+2.6%` | `+0.5%` | `+142.1%` | `+21.2%` |
+
+Against the original accepted `baseline` snapshot, `v0.5.1` is now about
+`2.37x` to `2.62x` faster on native reads and about `2.22x` to `3.62x` faster
+on native writes.
+
+That is a real step forward, but write is still not close to the same-run
+`serde_json::Value` baseline. In the downstream `cjlib` summary, the native
+write paths now land around `0.39x` on tile and `0.34x` to `0.35x` on cluster
+relative speed.
+
+### Read Allocation And Cache
+
+Relative to the original accepted `baseline`, the `v0.5.1` native read paths
+now show:
+
+| Path | Peak Heap Delta | Total Allocated Bytes Delta | Total Allocation Blocks Delta |
+| --- | --- | --- | --- |
+| `cityarrow` tile | `-30.9%` | `-54.5%` | `-68.2%` |
+| `cityparquet` tile | `-30.8%` | `-65.6%` | `-69.2%` |
+| `cityarrow` cluster | `-30.5%` | `-55.5%` | `-68.3%` |
+| `cityparquet` cluster | `-30.4%` | `-65.4%` | `-69.1%` |
+
+That is strong evidence that the `v3` redesign and the later write-path cleanup
+really did remove a large amount of heap churn and intermediate reconstruction
+work.
+
+The cache picture is different. Relative to the same baseline:
+
+- read `cache_d1_miss_rate` rises by about `23%` to `32%`
+- read `cache_ll_miss_rate` rises by about `30%` for `cityarrow` and by about
+  `1.2x` to `8.2x` for `cityparquet`
+- read `branch_miss_rate` improves by about `4%` to `11%`
+
+So the read win is not coming from uniformly better locality. It is coming
+from doing much less heap work overall, even though the surviving access
+patterns are not better on every cache metric.
+
+### Supplementary Write Allocation And Cache Profile
+
+The current `cjlib` `perf.sh` history records `dhat` and `cachegrind` metrics
+only for read workloads. To inspect the write side directly, supplementary
+single-iteration profiles were run on `2026-04-08` with
+`./tools/profile_bench.sh dhat ...` and
+`./tools/profile_bench.sh cachegrind ...`.
+
+For the native write paths, the resulting allocation footprint is:
+
+| Case | Path | Total Allocated Bytes | Peak Heap | Total Allocation Blocks |
+| --- | --- | --- | --- | --- |
+| tile | `cityarrow` | `48.9 MB` | `7.0 MB` | `163.7k` |
+| tile | `cityparquet` | `48.9 MB` | `7.0 MB` | `163.9k` |
+| cluster `4x` | `cityarrow` | `182.3 MB` | `26.4 MB` | `587.2k` |
+| cluster `4x` | `cityparquet` | `182.4 MB` | `26.4 MB` | `587.3k` |
+
+Compared with the two JSON write baselines in the same profile run:
+
+- native write total allocated bytes are about `52%` of `serde_json::Value`
+  and about `36%` to `37%` of `serde_cityjson`
+- native write peak heap is only about `12%` to `13%` of `serde_json::Value`
+  and about `21%` of `serde_cityjson`
+- native write total allocation blocks are about `44%` of
+  `serde_json::Value` and about `30%` to `31%` of `serde_cityjson`
+
+So the remaining write gap is not explained by allocator churn or resident heap
+blow-up. On the contrary, the native write paths are already materially more
+allocation-efficient than both JSON baselines.
+
+The supplementary write cache picture is mixed rather than pathological:
+
+- versus `serde_json::Value`, native writes show slightly lower
+  `cache_d1_miss_rate`, much lower `cache_ll_miss_rate`, and somewhat higher
+  `branch_miss_rate`
+- versus `serde_cityjson`, native writes show higher `cache_d1_miss_rate`,
+  near-equal or slightly higher `cache_ll_miss_rate`, and lower
+  `branch_miss_rate`
+
+That again points away from a single cache collapse as the explanation for the
+remaining write cost.
+
+Most importantly, `cityarrow` and `cityparquet` are nearly identical on the
+supplementary write profiles. Their total allocated bytes, peak heap,
+allocation blocks, and cache miss ratios are all effectively the same.
+
+The practical reading is now narrower and stronger:
+
+- `v0.5.1` materially fixed write-side allocation efficiency
+- the remaining write deficit is still shared conversion work, not package I/O
+- `cityparquet` transport is not the main problem
+- `cityjson-rs` geometry storage is not the main problem
+- the next target remains the common `cityarrow` export path, especially
+  projected attribute encoding and the remaining per-value structural work
