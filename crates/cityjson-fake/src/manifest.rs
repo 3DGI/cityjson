@@ -241,4 +241,42 @@ mod tests {
         assert!(message.contains("failed validation"));
         assert!(message.contains("extra"));
     }
+
+    #[test]
+    fn load_manifest_deserializes_flattened_case_config() {
+        let manifest: GenerationManifest = serde_json::from_str(
+            r#"{
+              "version": 1,
+              "cases": [
+                {
+                  "id": "stress-geometry",
+                  "seed": 2001,
+                  "min_cityobjects": 16,
+                  "max_cityobjects": 16,
+                  "allowed_types_geometry": ["MultiSurface"],
+                  "materials_enabled": false,
+                  "textures_enabled": false,
+                  "metadata_enabled": false,
+                  "attributes_enabled": false,
+                  "semantics_enabled": false
+                }
+              ]
+            }"#,
+        )
+        .expect("manifest should deserialize");
+
+        let case = manifest.case("stress-geometry").expect("case should exist");
+        assert_eq!(case.seed, Some(2001));
+        assert_eq!(case.config.cityobjects.min_cityobjects, 16);
+        assert_eq!(case.config.cityobjects.max_cityobjects, 16);
+        assert_eq!(
+            case.config.geometry.allowed_types_geometry,
+            Some(vec![cityjson::v2_0::GeometryType::MultiSurface])
+        );
+        assert!(!case.config.materials.materials_enabled);
+        assert!(!case.config.textures.textures_enabled);
+        assert!(!case.config.metadata.metadata_enabled);
+        assert!(!case.config.attributes.attributes_enabled);
+        assert!(!case.config.semantics.semantics_enabled);
+    }
 }

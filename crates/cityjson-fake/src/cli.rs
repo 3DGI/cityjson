@@ -479,30 +479,39 @@ pub struct CJFakeConfig {
     pub seed: Option<u64>,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub cityobjects: CityObjectConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub geometry: GeometryConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub vertices: VertexConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub materials: MaterialConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub textures: TextureConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub templates: TemplateConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub metadata: MetadataConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub attributes: AttributeConfig,
 
     #[clap(flatten)]
+    #[cfg_attr(feature = "serialize", serde(flatten))]
     pub semantics: SemanticConfig,
 }
 
