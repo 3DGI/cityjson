@@ -377,3 +377,33 @@ The practical reading is now:
 - write performance is improved but still dominated by export conversion work,
   so the next optimization target remains write-side conversion rather than
   transport framing
+
+## Implementation Notes: 2026-04-08
+
+The current `cityarrow`/`cityparquet` patch series tightens the write path
+without changing the ADR's main conclusion.
+
+The main code changes are:
+
+- geometry and template boundary tables now append borrowed slices directly
+  into flat batch buffers instead of staging `Vec<Vec<_>>` rows and flattening
+  them later
+- ring texture `uv_indices` use the same batch-native list buffer path
+- boundary payloads borrow `cityjson-rs` columnar views directly via
+  `Boundary::to_columnar()` instead of cloning boundary vectors first
+- cityobject projected attributes skip empty attribute maps before structural
+  projection
+
+The local split benchmark snapshot after these changes is:
+
+- `encode_parts`: about `2.27 ms -> 1.77 ms`
+- `stream_write_model`: about `2.61 ms -> 2.23 ms`
+- `stream_write_parts`: about `139 us -> 117 us`
+- `package_write_model`: about `3.17 ms -> 2.43 ms`
+
+The read-side timings stayed in the same general range, which is consistent
+with the change being a write-path conversion optimization rather than a
+schema or transport rewrite.
+
+The remaining write bottleneck is still the projected attribute conversion
+layer, not `cityparquet` transport and not `cityjson-rs` geometry storage.

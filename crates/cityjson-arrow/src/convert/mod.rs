@@ -111,6 +111,100 @@ struct TransformRow {
     translate: [f64; 3],
 }
 
+struct U32ListBatchBuffer {
+    offsets: Vec<i32>,
+    values: Vec<u32>,
+    validity: Vec<bool>,
+}
+
+impl Default for U32ListBatchBuffer {
+    fn default() -> Self {
+        Self {
+            offsets: vec![0],
+            values: Vec::new(),
+            validity: Vec::new(),
+        }
+    }
+}
+
+impl U32ListBatchBuffer {
+    fn push_required(&mut self, values: &[u32]) -> Result<()> {
+        self.values.extend_from_slice(values);
+        self.offsets
+            .push(usize_to_i32(self.values.len(), "list offset")?);
+        self.validity.push(true);
+        Ok(())
+    }
+
+    fn push_optional(&mut self, values: Option<&[u32]>) -> Result<()> {
+        if let Some(values) = values {
+            self.values.extend_from_slice(values);
+            self.validity.push(true);
+        } else {
+            self.validity.push(false);
+        }
+        self.offsets
+            .push(usize_to_i32(self.values.len(), "list offset")?);
+        Ok(())
+    }
+
+    fn into_array(self, field: &FieldRef) -> Result<ListArray> {
+        let nulls = if self.validity.iter().all(|item| *item) {
+            None
+        } else {
+            Some(NullBuffer::from(self.validity))
+        };
+        ListArray::try_new(
+            list_child_field(field)?,
+            OffsetBuffer::new(ScalarBuffer::from(self.offsets)),
+            Arc::new(UInt32Array::from(self.values)),
+            nulls,
+        )
+        .map_err(Error::from)
+    }
+}
+
+struct U64ListBatchBuffer {
+    offsets: Vec<i32>,
+    values: Vec<u64>,
+    validity: Vec<bool>,
+}
+
+impl Default for U64ListBatchBuffer {
+    fn default() -> Self {
+        Self {
+            offsets: vec![0],
+            values: Vec::new(),
+            validity: Vec::new(),
+        }
+    }
+}
+
+impl U64ListBatchBuffer {
+    fn push_required(&mut self, values: &[u64]) -> Result<()> {
+        self.values.extend_from_slice(values);
+        self.offsets
+            .push(usize_to_i32(self.values.len(), "list offset")?);
+        self.validity.push(true);
+        Ok(())
+    }
+
+    fn into_array(self, field: &FieldRef) -> Result<ListArray> {
+        let nulls = if self.validity.iter().all(|item| *item) {
+            None
+        } else {
+            Some(NullBuffer::from(self.validity))
+        };
+        ListArray::try_new(
+            list_child_field(field)?,
+            OffsetBuffer::new(ScalarBuffer::from(self.offsets)),
+            Arc::new(UInt64Array::from(self.values)),
+            nulls,
+        )
+        .map_err(Error::from)
+    }
+}
+
 #[derive(Default)]
 struct GeometryTableBuffer {
     geometry_id: Vec<u64>,
@@ -140,12 +234,12 @@ impl GeometryTableBuffer {
 #[derive(Default)]
 struct GeometryBoundaryTableBuffer {
     geometry_id: Vec<u64>,
-    vertex_indices: Vec<Vec<u32>>,
-    line_offsets: Vec<Option<Vec<u32>>>,
-    ring_offsets: Vec<Option<Vec<u32>>>,
-    surface_offsets: Vec<Option<Vec<u32>>>,
-    shell_offsets: Vec<Option<Vec<u32>>>,
-    solid_offsets: Vec<Option<Vec<u32>>>,
+    vertex_indices: U32ListBatchBuffer,
+    line_offsets: U32ListBatchBuffer,
+    ring_offsets: U32ListBatchBuffer,
+    surface_offsets: U32ListBatchBuffer,
+    shell_offsets: U32ListBatchBuffer,
+    solid_offsets: U32ListBatchBuffer,
 }
 
 impl GeometryBoundaryTableBuffer {
@@ -153,20 +247,21 @@ impl GeometryBoundaryTableBuffer {
     fn push(
         &mut self,
         geometry_id: u64,
-        vertex_indices: Vec<u32>,
-        line_offsets: Option<Vec<u32>>,
-        ring_offsets: Option<Vec<u32>>,
-        surface_offsets: Option<Vec<u32>>,
-        shell_offsets: Option<Vec<u32>>,
-        solid_offsets: Option<Vec<u32>>,
-    ) {
+        vertex_indices: &[u32],
+        line_offsets: Option<&[u32]>,
+        ring_offsets: Option<&[u32]>,
+        surface_offsets: Option<&[u32]>,
+        shell_offsets: Option<&[u32]>,
+        solid_offsets: Option<&[u32]>,
+    ) -> Result<()> {
         self.geometry_id.push(geometry_id);
-        self.vertex_indices.push(vertex_indices);
-        self.line_offsets.push(line_offsets);
-        self.ring_offsets.push(ring_offsets);
-        self.surface_offsets.push(surface_offsets);
-        self.shell_offsets.push(shell_offsets);
-        self.solid_offsets.push(solid_offsets);
+        self.vertex_indices.push_required(vertex_indices)?;
+        self.line_offsets.push_optional(line_offsets)?;
+        self.ring_offsets.push_optional(ring_offsets)?;
+        self.surface_offsets.push_optional(surface_offsets)?;
+        self.shell_offsets.push_optional(shell_offsets)?;
+        self.solid_offsets.push_optional(solid_offsets)?;
+        Ok(())
     }
 }
 
@@ -293,7 +388,7 @@ struct GeometryRingTextureTableBuffer {
     ring_ordinal: Vec<u32>,
     theme: Vec<String>,
     texture_id: Vec<u64>,
-    uv_indices: Vec<Vec<u64>>,
+    uv_indices: U64ListBatchBuffer,
 }
 
 impl GeometryRingTextureTableBuffer {
@@ -304,14 +399,15 @@ impl GeometryRingTextureTableBuffer {
         ring_ordinal: u32,
         theme: &str,
         texture_id: u64,
-        uv_indices: Vec<u64>,
-    ) {
+        uv_indices: &[u64],
+    ) -> Result<()> {
         self.geometry_id.push(geometry_id);
         self.surface_ordinal.push(surface_ordinal);
         self.ring_ordinal.push(ring_ordinal);
         self.theme.push(theme.to_string());
         self.texture_id.push(texture_id);
-        self.uv_indices.push(uv_indices);
+        self.uv_indices.push_required(uv_indices)?;
+        Ok(())
     }
 
     fn is_empty(&self) -> bool {
@@ -341,12 +437,12 @@ impl TemplateGeometryTableBuffer {
 #[derive(Default)]
 struct TemplateGeometryBoundaryTableBuffer {
     template_geometry_id: Vec<u64>,
-    vertex_indices: Vec<Vec<u32>>,
-    line_offsets: Vec<Option<Vec<u32>>>,
-    ring_offsets: Vec<Option<Vec<u32>>>,
-    surface_offsets: Vec<Option<Vec<u32>>>,
-    shell_offsets: Vec<Option<Vec<u32>>>,
-    solid_offsets: Vec<Option<Vec<u32>>>,
+    vertex_indices: U32ListBatchBuffer,
+    line_offsets: U32ListBatchBuffer,
+    ring_offsets: U32ListBatchBuffer,
+    surface_offsets: U32ListBatchBuffer,
+    shell_offsets: U32ListBatchBuffer,
+    solid_offsets: U32ListBatchBuffer,
 }
 
 impl TemplateGeometryBoundaryTableBuffer {
@@ -354,20 +450,25 @@ impl TemplateGeometryBoundaryTableBuffer {
     fn push(
         &mut self,
         template_geometry_id: u64,
-        vertex_indices: Vec<u32>,
-        line_offsets: Option<Vec<u32>>,
-        ring_offsets: Option<Vec<u32>>,
-        surface_offsets: Option<Vec<u32>>,
-        shell_offsets: Option<Vec<u32>>,
-        solid_offsets: Option<Vec<u32>>,
-    ) {
+        vertex_indices: &[u32],
+        line_offsets: Option<&[u32]>,
+        ring_offsets: Option<&[u32]>,
+        surface_offsets: Option<&[u32]>,
+        shell_offsets: Option<&[u32]>,
+        solid_offsets: Option<&[u32]>,
+    ) -> Result<()> {
         self.template_geometry_id.push(template_geometry_id);
-        self.vertex_indices.push(vertex_indices);
-        self.line_offsets.push(line_offsets);
-        self.ring_offsets.push(ring_offsets);
-        self.surface_offsets.push(surface_offsets);
-        self.shell_offsets.push(shell_offsets);
-        self.solid_offsets.push(solid_offsets);
+        self.vertex_indices.push_required(vertex_indices)?;
+        self.line_offsets.push_optional(line_offsets)?;
+        self.ring_offsets.push_optional(ring_offsets)?;
+        self.surface_offsets.push_optional(surface_offsets)?;
+        self.shell_offsets.push_optional(shell_offsets)?;
+        self.solid_offsets.push_optional(solid_offsets)?;
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.template_geometry_id.is_empty()
     }
 }
 
@@ -435,7 +536,7 @@ struct TemplateGeometryRingTextureTableBuffer {
     ring_ordinal: Vec<u32>,
     theme: Vec<String>,
     texture_id: Vec<u64>,
-    uv_indices: Vec<Vec<u64>>,
+    uv_indices: U64ListBatchBuffer,
 }
 
 impl TemplateGeometryRingTextureTableBuffer {
@@ -446,14 +547,15 @@ impl TemplateGeometryRingTextureTableBuffer {
         ring_ordinal: u32,
         theme: &str,
         texture_id: u64,
-        uv_indices: Vec<u64>,
-    ) {
+        uv_indices: &[u64],
+    ) -> Result<()> {
         self.template_geometry_id.push(template_geometry_id);
         self.surface_ordinal.push(surface_ordinal);
         self.ring_ordinal.push(ring_ordinal);
         self.theme.push(theme.to_string());
         self.texture_id.push(texture_id);
-        self.uv_indices.push(uv_indices);
+        self.uv_indices.push_required(uv_indices)?;
+        Ok(())
     }
 
     fn is_empty(&self) -> bool {
@@ -1187,7 +1289,7 @@ fn export_geometry_batches(
             template_geometries_batch(&context.schemas.template_geometries, template_geometries)
         })?,
         template_geometry_boundaries: optional_batch_from(
-            template_geometry_boundaries.template_geometry_id.is_empty(),
+            template_geometry_boundaries.is_empty(),
             || {
                 template_geometry_boundaries_batch(
                     &context.schemas.template_geometry_boundaries,
@@ -3038,8 +3140,8 @@ fn cityobjects_batch_from_model(
                 .geographical_extent()
                 .map(|bbox| bbox.as_slice().try_into().expect("bbox is 6 long")),
         );
-        attributes.push(cloned_attributes(object.attributes()));
-        extra.push(cloned_attributes(object.extra()));
+        attributes.push(non_empty_attributes(object.attributes()));
+        extra.push(non_empty_attributes(object.extra()));
     }
 
     let mut fields = SchemaFieldLookup::new(schema);
@@ -3058,17 +3160,14 @@ fn cityobjects_batch_from_model(
         arrays.push(projected_struct_array_from_attributes(
             &fields.field("attributes")?,
             spec,
-            &attributes
-                .iter()
-                .map(|value| value.as_ref())
-                .collect::<Vec<_>>(),
+            &attributes,
         )?);
     }
     if let Some(spec) = projection.cityobject_extra.as_ref() {
         arrays.push(projected_struct_array_from_attributes(
             &fields.field("extra")?,
             spec,
-            &extra.iter().map(|value| value.as_ref()).collect::<Vec<_>>(),
+            &extra,
         )?);
     }
 
@@ -3464,7 +3563,7 @@ fn append_boundary_geometry_tables(
     let boundary = geometry.boundaries().ok_or_else(|| {
         Error::Conversion("boundary-carrying geometry missing boundaries".to_string())
     })?;
-    let payload = flatten_boundary(*geometry.type_geometry(), boundary);
+    let payload = borrowed_boundary_payload(*geometry.type_geometry(), boundary);
     append_geometry_semantic_rows(geometry_id, geometry, &payload, exported)?;
     append_geometry_material_rows(
         geometry_id,
@@ -3495,7 +3594,7 @@ fn append_boundary_geometry_tables(
         payload.surface_offsets,
         payload.shell_offsets,
         payload.solid_offsets,
-    );
+    )?;
     Ok(())
 }
 
@@ -3675,8 +3774,8 @@ fn append_geometry_ring_texture_rows(
                 layout.ring_ordinal,
                 theme.as_ref(),
                 raw_id_from_handle(texture_handle),
-                uv_indices,
-            );
+                &uv_indices,
+            )?;
         }
     }
 
@@ -3733,8 +3832,8 @@ fn append_template_geometry_ring_texture_rows(
                 layout.ring_ordinal,
                 theme.as_ref(),
                 raw_id_from_handle(texture_handle),
-                uv_indices,
-            );
+                &uv_indices,
+            )?;
         }
     }
 
@@ -3856,16 +3955,6 @@ fn rgba_from_components(value: [f64; 4]) -> RGBA {
     RGBA::from(value.map(decode_payload_f32))
 }
 
-#[derive(Debug, Clone)]
-struct FlattenedBoundary {
-    vertex_indices: Vec<u32>,
-    line_offsets: Option<Vec<u32>>,
-    ring_offsets: Option<Vec<u32>>,
-    surface_offsets: Option<Vec<u32>>,
-    shell_offsets: Option<Vec<u32>>,
-    solid_offsets: Option<Vec<u32>>,
-}
-
 trait BoundaryPayloadView {
     fn vertex_indices(&self) -> &[u32];
     fn line_offsets(&self) -> Option<&[u32]>;
@@ -3892,7 +3981,7 @@ fn append_template_geometry_tables(
     let boundary = geometry
         .boundaries()
         .ok_or_else(|| Error::Conversion("template geometry missing boundaries".to_string()))?;
-    let payload = flatten_boundary(*geometry.type_geometry(), boundary);
+    let payload = borrowed_boundary_payload(*geometry.type_geometry(), boundary);
     exported.geometries.push(
         template_geometry_id,
         &geometry.type_geometry().to_string(),
@@ -3917,7 +4006,7 @@ fn append_template_geometry_tables(
         payload.surface_offsets,
         payload.shell_offsets,
         payload.solid_offsets,
-    );
+    )?;
     Ok(())
 }
 
@@ -4086,12 +4175,16 @@ fn append_template_material_rows(
     Ok(())
 }
 
-fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> FlattenedBoundary {
-    let vertices = boundary.vertices_raw().to_vec();
-    let ring_offsets = boundary.rings_raw().to_vec();
-    let surface_offsets = boundary.surfaces_raw().to_vec();
-    let shell_offsets = boundary.shells_raw().to_vec();
-    let solid_offsets = boundary.solids_raw().to_vec();
+fn borrowed_boundary_payload(
+    geometry_type: GeometryType,
+    boundary: &Boundary<u32>,
+) -> BorrowedBoundary<'_> {
+    let columnar = boundary.to_columnar();
+    let vertex_indices = raw_vertex_index_slice(columnar.vertices);
+    let ring_offsets = raw_vertex_index_slice(columnar.ring_offsets);
+    let surface_offsets = raw_vertex_index_slice(columnar.surface_offsets);
+    let shell_offsets = raw_vertex_index_slice(columnar.shell_offsets);
+    let solid_offsets = raw_vertex_index_slice(columnar.solid_offsets);
 
     let (line_offsets, ring_offsets, surface_offsets, shell_offsets, solid_offsets) =
         match geometry_type {
@@ -4118,8 +4211,8 @@ fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> Fl
             _ => unreachable!("unsupported geometry type rejected earlier"),
         };
 
-    FlattenedBoundary {
-        vertex_indices: vertices,
+    BorrowedBoundary {
+        vertex_indices,
         line_offsets,
         ring_offsets,
         surface_offsets,
@@ -4128,30 +4221,18 @@ fn flatten_boundary(geometry_type: GeometryType, boundary: &Boundary<u32>) -> Fl
     }
 }
 
-impl BoundaryPayloadView for FlattenedBoundary {
-    fn vertex_indices(&self) -> &[u32] {
-        self.vertex_indices.as_slice()
+fn raw_vertex_index_slice(values: &[cityjson::v2_0::VertexIndex<u32>]) -> &[u32] {
+    const {
+        assert!(
+            std::mem::size_of::<cityjson::v2_0::VertexIndex<u32>>() == std::mem::size_of::<u32>()
+        );
+        assert!(
+            std::mem::align_of::<cityjson::v2_0::VertexIndex<u32>>() == std::mem::align_of::<u32>()
+        );
     }
 
-    fn line_offsets(&self) -> Option<&[u32]> {
-        self.line_offsets.as_deref()
-    }
-
-    fn ring_offsets(&self) -> Option<&[u32]> {
-        self.ring_offsets.as_deref()
-    }
-
-    fn surface_offsets(&self) -> Option<&[u32]> {
-        self.surface_offsets.as_deref()
-    }
-
-    fn shell_offsets(&self) -> Option<&[u32]> {
-        self.shell_offsets.as_deref()
-    }
-
-    fn solid_offsets(&self) -> Option<&[u32]> {
-        self.solid_offsets.as_deref()
-    }
+    // SAFETY: `VertexIndex<u32>` is `#[repr(transparent)]` over `u32`.
+    unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u32>(), values.len()) }
 }
 
 impl BoundaryPayloadView for BorrowedBoundary<'_> {
@@ -4214,6 +4295,12 @@ fn cloned_attributes(
     attributes
         .cloned()
         .filter(|attributes| !attributes.is_empty())
+}
+
+fn non_empty_attributes(
+    attributes: Option<&cityjson::v2_0::OwnedAttributes>,
+) -> Option<&cityjson::v2_0::OwnedAttributes> {
+    attributes.filter(|attributes| !attributes.is_empty())
 }
 
 fn metadata_batch(
@@ -4344,30 +4431,12 @@ fn geometry_boundaries_batch(
         schema.clone(),
         vec![
             Arc::new(UInt64Array::from(geometry_id)),
-            Arc::new(list_u32_array(
-                &fields.field("vertex_indices")?,
-                vertex_indices.into_iter().map(Some).collect::<Vec<_>>(),
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("line_offsets")?,
-                line_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("ring_offsets")?,
-                ring_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("surface_offsets")?,
-                surface_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("shell_offsets")?,
-                shell_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("solid_offsets")?,
-                solid_offsets,
-            )?),
+            Arc::new(vertex_indices.into_array(&fields.field("vertex_indices")?)?),
+            Arc::new(line_offsets.into_array(&fields.field("line_offsets")?)?),
+            Arc::new(ring_offsets.into_array(&fields.field("ring_offsets")?)?),
+            Arc::new(surface_offsets.into_array(&fields.field("surface_offsets")?)?),
+            Arc::new(shell_offsets.into_array(&fields.field("shell_offsets")?)?),
+            Arc::new(solid_offsets.into_array(&fields.field("solid_offsets")?)?),
         ],
     )
     .map_err(Error::from)
@@ -4443,30 +4512,12 @@ fn template_geometry_boundaries_batch(
         schema.clone(),
         vec![
             Arc::new(UInt64Array::from(template_geometry_id)),
-            Arc::new(list_u32_array(
-                &fields.field("vertex_indices")?,
-                vertex_indices.into_iter().map(Some).collect::<Vec<_>>(),
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("line_offsets")?,
-                line_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("ring_offsets")?,
-                ring_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("surface_offsets")?,
-                surface_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("shell_offsets")?,
-                shell_offsets,
-            )?),
-            Arc::new(list_u32_array(
-                &fields.field("solid_offsets")?,
-                solid_offsets,
-            )?),
+            Arc::new(vertex_indices.into_array(&fields.field("vertex_indices")?)?),
+            Arc::new(line_offsets.into_array(&fields.field("line_offsets")?)?),
+            Arc::new(ring_offsets.into_array(&fields.field("ring_offsets")?)?),
+            Arc::new(surface_offsets.into_array(&fields.field("surface_offsets")?)?),
+            Arc::new(shell_offsets.into_array(&fields.field("shell_offsets")?)?),
+            Arc::new(solid_offsets.into_array(&fields.field("solid_offsets")?)?),
         ],
     )
     .map_err(Error::from)
@@ -4631,10 +4682,7 @@ fn geometry_ring_textures_batch(
                 theme.into_iter().map(Some).collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(texture_id)),
-            Arc::new(list_u64_array(
-                &fields.field("uv_indices")?,
-                uv_indices.into_iter().map(Some).collect::<Vec<_>>(),
-            )?),
+            Arc::new(uv_indices.into_array(&fields.field("uv_indices")?)?),
         ],
     )
     .map_err(Error::from)
@@ -4663,10 +4711,7 @@ fn template_geometry_ring_textures_batch(
                 theme.into_iter().map(Some).collect::<Vec<_>>(),
             )),
             Arc::new(UInt64Array::from(texture_id)),
-            Arc::new(list_u64_array(
-                &fields.field("uv_indices")?,
-                uv_indices.into_iter().map(Some).collect::<Vec<_>>(),
-            )?),
+            Arc::new(uv_indices.into_array(&fields.field("uv_indices")?)?),
         ],
     )
     .map_err(Error::from)
@@ -4734,64 +4779,6 @@ fn fixed_size_f64_array<const N: usize>(
     };
     FixedSizeListArray::try_new(fixed_list_child_field(field)?, size, values, nulls)
         .map_err(Error::from)
-}
-
-fn list_u64_array(field: &FieldRef, rows: Vec<Option<Vec<u64>>>) -> Result<ListArray> {
-    let mut offsets = vec![0_i32];
-    let mut flat: Vec<u64> = Vec::new();
-    let mut validity = Vec::with_capacity(rows.len());
-    for row in rows {
-        if let Some(values) = row {
-            flat.extend(&values);
-            offsets.push(usize_to_i32(flat.len(), "list offset")?);
-            validity.push(true);
-        } else {
-            offsets.push(usize_to_i32(flat.len(), "list offset")?);
-            validity.push(false);
-        }
-    }
-    let values: ArrayRef = Arc::new(UInt64Array::from(flat));
-    let nulls = if validity.iter().all(|item| *item) {
-        None
-    } else {
-        Some(NullBuffer::from(validity))
-    };
-    ListArray::try_new(
-        list_child_field(field)?,
-        OffsetBuffer::new(ScalarBuffer::from(offsets)),
-        values,
-        nulls,
-    )
-    .map_err(Error::from)
-}
-
-fn list_u32_array(field: &FieldRef, rows: Vec<Option<Vec<u32>>>) -> Result<ListArray> {
-    let mut offsets = vec![0_i32];
-    let mut flat: Vec<u32> = Vec::new();
-    let mut validity = Vec::with_capacity(rows.len());
-    for row in rows {
-        if let Some(values) = row {
-            flat.extend(&values);
-            offsets.push(usize_to_i32(flat.len(), "list offset")?);
-            validity.push(true);
-        } else {
-            offsets.push(usize_to_i32(flat.len(), "list offset")?);
-            validity.push(false);
-        }
-    }
-    let values: ArrayRef = Arc::new(UInt32Array::from(flat));
-    let nulls = if validity.iter().all(|item| *item) {
-        None
-    } else {
-        Some(NullBuffer::from(validity))
-    };
-    ListArray::try_new(
-        list_child_field(field)?,
-        OffsetBuffer::new(ScalarBuffer::from(offsets)),
-        values,
-        nulls,
-    )
-    .map_err(Error::from)
 }
 
 fn list_f64_array(field: &FieldRef, rows: Vec<Option<Vec<f64>>>) -> Result<ListArray> {

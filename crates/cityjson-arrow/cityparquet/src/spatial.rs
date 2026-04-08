@@ -373,13 +373,12 @@ fn col_u64<'a>(batch: &'a arrow::record_batch::RecordBatch, name: &str) -> &'a U
 // ---------------------------------------------------------------------------
 
 /// Normalize a world coordinate to a grid cell in `[0, n)`.
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_lossless)]
-fn normalize_to_grid(
-    x_coord: f64,
-    y_coord: f64,
-    extent: &BBox2D,
-    grid_size: u32,
-) -> (u32, u32) {
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless
+)]
+fn normalize_to_grid(x_coord: f64, y_coord: f64, extent: &BBox2D, grid_size: u32) -> (u32, u32) {
     let width = extent.max_x - extent.min_x;
     let height = extent.max_y - extent.min_y;
     let max_cell = grid_size - 1;

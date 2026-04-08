@@ -337,7 +337,11 @@ fn handle_request(
     out.flush()
 }
 
-fn route(path: &str, index: &SpatialIndex, scene: &SceneData) -> (&'static str, &'static str, String) {
+fn route(
+    path: &str,
+    index: &SpatialIndex,
+    scene: &SceneData,
+) -> (&'static str, &'static str, String) {
     let (path_base, query) = path.split_once('?').unwrap_or((path, ""));
 
     match path_base {
@@ -388,27 +392,28 @@ fn objects_json(index: &SpatialIndex, scene: &SceneData, params: &HashMap<&str, 
         .and_then(|v| v.parse().ok())
         .unwrap_or(5000);
 
-    let (entries, truncated): (Vec<_>, bool) = if let (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) = (
-        get_f64("minx"),
-        get_f64("miny"),
-        get_f64("maxx"),
-        get_f64("maxy"),
-    ) {
-        let query_box = BBox2D::new(
-            min_x + scene.centroid[0],
-            min_y + scene.centroid[1],
-            max_x + scene.centroid[0],
-            max_y + scene.centroid[1],
-        );
-        let mut hits = index.query(&query_box);
-        let truncated = hits.len() > limit;
-        hits.truncate(limit);
-        (hits, truncated)
-    } else {
-        // No bbox: return all (up to limit).
-        let entries: Vec<_> = index.entries().iter().take(limit).collect();
-        (entries, index.len() > limit)
-    };
+    let (entries, truncated): (Vec<_>, bool) =
+        if let (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) = (
+            get_f64("minx"),
+            get_f64("miny"),
+            get_f64("maxx"),
+            get_f64("maxy"),
+        ) {
+            let query_box = BBox2D::new(
+                min_x + scene.centroid[0],
+                min_y + scene.centroid[1],
+                max_x + scene.centroid[0],
+                max_y + scene.centroid[1],
+            );
+            let mut hits = index.query(&query_box);
+            let truncated = hits.len() > limit;
+            hits.truncate(limit);
+            (hits, truncated)
+        } else {
+            // No bbox: return all (up to limit).
+            let entries: Vec<_> = index.entries().iter().take(limit).collect();
+            (entries, index.len() > limit)
+        };
 
     let mut buf = String::from("{\"truncated\":");
     buf.push_str(if truncated { "true" } else { "false" });
