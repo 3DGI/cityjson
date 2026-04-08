@@ -3,21 +3,26 @@
 _git_ref := shell('git -C . rev-parse --short HEAD')
 _profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
 
-default:
+_default:
     just --list
 
+# Run cargo check on all targets and features
 check:
     cargo check --all-targets --all-features
 
+# Run cargo build for all targets and features, with optional arguments
 build *args:
     cargo build --all-targets --all-features {{args}}
 
+# Run cargo clippy on all targets and features, using a strict set of lints
 lint:
     cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Run cargo fmt on all crates
 fmt:
     cargo fmt --all
 
+# Run cargo test on all targets and features and examples
 test:
     cargo test --all-features
     cargo run --example attributes
@@ -25,21 +30,17 @@ test:
     cargo run --example quick_start
 
 miri:
-    cargo +nightly miri test --all-features
+    cargo +nightly miri test
 
-# Build and open the crate documentation
+# Build the crate documentation
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
-
-# Extract the crate signatures to target/doc/cityjson.json
-doc-signatures:
-    RUSTFLAGS="" RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo +nightly doc --document-private-items --no-deps
 
 # ============================================================================
 # Benchmark & Profiling
 # ============================================================================
 
-# Run benchmarks and memory profiling
+# Run benchmarks and memory profiling (massif, memcheck, cachegrind). Requires a case description.
 perf description mode="full" seed="" size="":
     ./tools/perf.sh "{{description}}" "{{mode}}" "{{seed}}" "{{size}}"
 
@@ -47,6 +48,7 @@ perf description mode="full" seed="" size="":
 perf-analyze *args:
     python3 tools/perf_analyze.py {{args}}
 
+# Build benchmarks without running them
 perf-check:
     cargo bench --benches --no-run
 
@@ -57,7 +59,7 @@ perf-check:
 _create_profile_dir:
     -@mkdir "{{ _profile_dir }}" > /dev/null 2>&1 || true
 
-# Profile a single benchmark workload (default: processor/compute_full_feature_stats)
+# Profile a single benchmark workload (default: PROFILE_BENCH=processor PROFILE_BENCH_ID=compute_full_feature_stats PROFILE_MODE=fast PROFILE_SEED= PROFILE_SIZE= PROFILE_TOOL=massif)
 profile-bench: _create_profile_dir
     #!/usr/bin/env bash
     set -euo pipefail
@@ -116,16 +118,17 @@ profile-bench: _create_profile_dir
             ;;
     esac
 
-profile-bench-massif:
+_profile-bench-massif:
     PROFILE_TOOL=massif just profile-bench
 
-profile-bench-memcheck:
+_profile-bench-memcheck:
     PROFILE_TOOL=memcheck just profile-bench
 
-profile-bench-cachegrind:
+_profile-bench-cachegrind:
     PROFILE_TOOL=cachegrind just profile-bench
 
+# Run default profile-bench with massif, cachegrind and memcheck
 profile-bench-all:
-    just profile-bench-massif
-    just profile-bench-cachegrind
-    just profile-bench-memcheck
+    just _profile-bench-massif
+    just _profile-bench-cachegrind
+    just _profile-bench-memcheck
