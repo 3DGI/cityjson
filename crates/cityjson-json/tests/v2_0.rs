@@ -198,6 +198,15 @@ fn serialize_quantizes_root_vertices_only() {
 }
 
 #[test]
+fn serialize_omits_empty_appearance_and_geometry_templates_sections() {
+    let model = OwnedCityModel::new(CityModelType::CityJSON);
+    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+
+    assert!(json.get("appearance").is_none());
+    assert!(json.get("geometry-templates").is_none());
+}
+
+#[test]
 fn serialize_geometry_instance_keeps_float_sections() {
     let mut model = OwnedCityModel::new(CityModelType::CityJSON);
 

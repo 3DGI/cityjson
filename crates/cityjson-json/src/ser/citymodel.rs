@@ -9,7 +9,8 @@ use serde::Serialize;
 
 use crate::errors::Error;
 use crate::ser::appearance::{
-    ensure_geometry_templates_supported, AppearanceSerializer, GeometryTemplatesSerializer,
+    ensure_geometry_templates_supported, has_appearance, has_geometry_templates,
+    AppearanceSerializer, GeometryTemplatesSerializer,
 };
 use crate::ser::attributes::{serialize_attributes_entries, AttributesSerializer};
 use crate::ser::context::WriteContext;
@@ -170,10 +171,10 @@ where
                 },
             )?;
         }
-        if self.options.include_appearance {
+        if self.options.include_appearance && has_appearance(self.model) {
             map.serialize_entry("appearance", &AppearanceSerializer { model: self.model })?;
         }
-        if self.options.include_geometry_templates {
+        if self.options.include_geometry_templates && has_geometry_templates(self.model) {
             map.serialize_entry(
                 "geometry-templates",
                 &GeometryTemplatesSerializer {

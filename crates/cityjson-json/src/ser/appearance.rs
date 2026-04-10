@@ -10,6 +10,26 @@ use crate::errors::Result;
 use crate::ser::context::WriteContext;
 use crate::ser::geometry::GeometrySerializer;
 
+pub(crate) fn has_appearance<VR, SS>(model: &CityModel<VR, SS>) -> bool
+where
+    VR: VertexRef + serde::Serialize,
+    SS: StringStorage,
+{
+    model.material_count() > 0
+        || model.texture_count() > 0
+        || !model.vertices_texture().is_empty()
+        || model.default_material_theme().is_some()
+        || model.default_texture_theme().is_some()
+}
+
+pub(crate) fn has_geometry_templates<VR, SS>(model: &CityModel<VR, SS>) -> bool
+where
+    VR: VertexRef + serde::Serialize,
+    SS: StringStorage,
+{
+    model.geometry_template_count() > 0 || !model.template_vertices().is_empty()
+}
+
 pub(crate) struct AppearanceSerializer<'a, VR, SS>
 where
     VR: VertexRef + serde::Serialize,
@@ -27,16 +47,14 @@ where
     where
         S: serde::Serializer,
     {
-        let has_any_appearance = self.model.material_count() > 0
-            || self.model.texture_count() > 0
-            || !self.model.vertices_texture().is_empty()
-            || self.model.default_material_theme().is_some()
-            || self.model.default_texture_theme().is_some();
-
         let mut map = serializer.serialize_map(None)?;
-        if has_any_appearance {
+        if self.model.material_count() > 0 {
             map.serialize_entry("materials", &MaterialsSerializer { model: self.model })?;
+        }
+        if self.model.texture_count() > 0 {
             map.serialize_entry("textures", &TexturesSerializer { model: self.model })?;
+        }
+        if !self.model.vertices_texture().is_empty() {
             map.serialize_entry(
                 "vertices-texture",
                 &TextureVerticesSerializer { model: self.model },
