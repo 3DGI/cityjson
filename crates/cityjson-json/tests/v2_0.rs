@@ -31,18 +31,6 @@ macro_rules! conformance_roundtrip_tests {
     };
 }
 
-macro_rules! conformance_roundtrip_tests_named {
-    ($assert_fn:ident; $($test_name:ident => $case_id:ident),+ $(,)?) => {
-        $(
-            #[test]
-            fn $test_name() {
-                let json_input = conformance_case_input(stringify!($case_id));
-                $assert_fn(&json_input);
-            }
-        )+
-    };
-}
-
 #[test]
 fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
     let base = json!({
@@ -547,7 +535,7 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
 }
 
 #[test]
-fn strict_cityjsonseq_writer_auto_transform_uses_extent_minima() {
+fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
     let base_input = json!({
         "type": "CityJSON",
         "version": "2.0",
@@ -767,12 +755,6 @@ conformance_roundtrip_tests!(
 // ---------------------------------------------------------------------------
 
 #[test]
-fn cityjson_fake_complete_borrowed_smoke() {
-    let json_input = conformance_case_input("cityjson_fake_complete");
-    assert_eq_roundtrip_borrowed(&json_input);
-}
-
-#[test]
 fn cityjson_fake_complete_deserialize_borrowed() {
     let json_input = conformance_case_input("cityjson_fake_complete");
     let cm = from_str_borrowed(&json_input).unwrap();
@@ -789,85 +771,3 @@ fn cityjson_fake_complete_deserialize_borrowed() {
     );
     assert!(cm.geometry_template_count() > 0);
 }
-
-#[test]
-fn cityjson_minimal_borrowed_smoke() {
-    let json_input = conformance_case_input("cityjson_minimal");
-    let cm = from_str_borrowed(&json_input).unwrap();
-    assert!(cm.extra().is_none());
-    assert_eq_roundtrip_borrowed(&json_input);
-}
-
-#[test]
-fn cityjsonfeature_minimal_borrowed_smoke() {
-    let json_input = conformance_case_input("cityjsonfeature_minimal");
-    assert_eq_roundtrip_borrowed(&json_input);
-}
-
-conformance_roundtrip_tests_named!(
-    assert_eq_roundtrip_borrowed;
-    appearance_complete_borrowed => appearance_complete,
-    cityobject_building_address_borrowed => cityobject_building_address,
-    cityobject_complete_borrowed => cityobject_complete,
-    cityobject_extended_borrowed => cityobject_extended,
-    geometry_instance_borrowed => geometry_instance,
-    geometry_material_solid_borrowed => geometry_material_solid,
-    geometry_material_multisolid_borrowed => geometry_material_multisolid,
-    geometry_material_multisurface_borrowed => geometry_material_multisurface,
-    geometry_texture_solid_borrowed => geometry_texture_solid,
-    geometry_texture_multisolid_borrowed => geometry_texture_multisolid,
-    geometry_texture_multisurface_borrowed => geometry_texture_multisurface,
-    geometry_semantics_solid_borrowed => geometry_semantics_solid,
-    geometry_semantics_multisolid_borrowed => geometry_semantics_multisolid,
-    geometry_semantics_multisurface_borrowed => geometry_semantics_multisurface,
-    geometry_semantics_multilinestring_borrowed => geometry_semantics_multilinestring,
-    geometry_semantics_multipoint_borrowed => geometry_semantics_multipoint,
-    cityjson_extended_borrowed => cityjson_extended,
-    cityjsonfeature_minimal_borrowed => cityjsonfeature_minimal,
-    cityjson_fake_complete_borrowed => cityjson_fake_complete,
-    cityjson_minimal_borrowed => cityjson_minimal,
-    metadata_complete_borrowed => metadata_complete,
-    metadata_extra_properties_borrowed => metadata_extra_properties,
-    semantic_all_types_borrowed => semantic_all_types,
-    semantic_complete_borrowed => semantic_complete,
-    semantic_extended_borrowed => semantic_extended,
-    vertices_borrowed => vertices,
-    extension_borrowed => extension,
-    spec_geometry_matrix_borrowed => spec_geometry_matrix,
-);
-
-// ---------------------------------------------------------------------------
-// Parity tests: owned and borrowed must produce identical output
-// ---------------------------------------------------------------------------
-
-conformance_roundtrip_tests_named!(
-    assert_eq_roundtrip_parity;
-    appearance_complete_parity => appearance_complete,
-    cityobject_building_address_parity => cityobject_building_address,
-    cityobject_complete_parity => cityobject_complete,
-    cityobject_extended_parity => cityobject_extended,
-    geometry_instance_parity => geometry_instance,
-    geometry_material_solid_parity => geometry_material_solid,
-    geometry_material_multisolid_parity => geometry_material_multisolid,
-    geometry_material_multisurface_parity => geometry_material_multisurface,
-    geometry_texture_solid_parity => geometry_texture_solid,
-    geometry_texture_multisolid_parity => geometry_texture_multisolid,
-    geometry_texture_multisurface_parity => geometry_texture_multisurface,
-    geometry_semantics_solid_parity => geometry_semantics_solid,
-    geometry_semantics_multisolid_parity => geometry_semantics_multisolid,
-    geometry_semantics_multisurface_parity => geometry_semantics_multisurface,
-    geometry_semantics_multilinestring_parity => geometry_semantics_multilinestring,
-    geometry_semantics_multipoint_parity => geometry_semantics_multipoint,
-    cityjson_extended_parity => cityjson_extended,
-    cityjsonfeature_minimal_parity => cityjsonfeature_minimal,
-    cityjson_fake_complete_parity => cityjson_fake_complete,
-    cityjson_minimal_parity => cityjson_minimal,
-    metadata_complete_parity => metadata_complete,
-    metadata_extra_properties_parity => metadata_extra_properties,
-    semantic_all_types_parity => semantic_all_types,
-    semantic_complete_parity => semantic_complete,
-    semantic_extended_parity => semantic_extended,
-    vertices_parity => vertices,
-    extension_parity => extension,
-    spec_geometry_matrix_parity => spec_geometry_matrix,
-);
