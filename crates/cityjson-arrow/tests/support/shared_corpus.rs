@@ -31,9 +31,6 @@ struct CorrectnessIndex {
 struct CorrectnessCase {
     id: String,
     layer: String,
-    representation: String,
-    #[serde(default = "default_correctness_class")]
-    correctness_class: String,
     #[serde(default)]
     cityjson_version: Option<String>,
     artifact_paths: CorrectnessArtifactPaths,
@@ -45,16 +42,9 @@ struct CorrectnessArtifactPaths {
     source: Option<PathBuf>,
 }
 
-fn default_correctness_class() -> String {
-    "normative".to_string()
-}
-
 impl CorrectnessCase {
-    fn is_normative_conformance(&self) -> bool {
-        self.layer == "conformance"
-            && self.correctness_class == "normative"
-            && self.cityjson_version.as_deref() == Some("2.0")
-            && matches!(self.representation.as_str(), "cityjson" | "cityjsonfeature")
+    fn is_conformance_case(&self) -> bool {
+        self.layer == "conformance" && self.cityjson_version.as_deref() == Some("2.0")
     }
 
     fn source_path(&self) -> PathBuf {
@@ -80,20 +70,20 @@ impl CorrectnessCase {
     }
 }
 
-pub(crate) fn load_named_normative_conformance_case(case_id: &str) -> PreparedCorrectnessCase {
+pub(crate) fn load_named_conformance_case(case_id: &str) -> PreparedCorrectnessCase {
     let case = correctness_case(case_id);
     assert!(
-        case.is_normative_conformance(),
-        "correctness case '{}' is not a normative CityJSON 2.0 conformance fixture",
+        case.is_conformance_case(),
+        "correctness case '{}' is not a CityJSON 2.0 conformance fixture",
         case_id
     );
     case.prepare()
 }
 
-pub(crate) fn load_normative_conformance_cases() -> Vec<PreparedCorrectnessCase> {
+pub(crate) fn load_conformance_cases() -> Vec<PreparedCorrectnessCase> {
     CORRECTNESS_CASES
         .values()
-        .filter(|case| case.is_normative_conformance())
+        .filter(|case| case.is_conformance_case())
         .map(CorrectnessCase::prepare)
         .collect()
 }

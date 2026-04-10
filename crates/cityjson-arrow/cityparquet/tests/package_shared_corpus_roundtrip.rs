@@ -5,11 +5,11 @@ use cityparquet::{PackageReader, PackageWriter};
 use tempfile::tempdir;
 
 #[test]
-fn package_roundtrip_preserves_all_normative_shared_corpus_conformance_cases() {
+fn package_roundtrip_preserves_all_shared_corpus_conformance_cases() {
     let dir = tempdir().unwrap();
     let mut failures = Vec::new();
 
-    for case in shared_corpus::load_normative_conformance_cases() {
+    for case in shared_corpus::load_conformance_cases() {
         let path = dir.path().join(format!("{}.cityarrow", case.id));
         if let Err(err) = PackageWriter.write_file(&path, &case.model) {
             failures.push(format!("{}: write failed: {err}", case.id));
@@ -33,7 +33,7 @@ fn package_roundtrip_preserves_all_normative_shared_corpus_conformance_cases() {
 
     assert!(
         failures.is_empty(),
-        "normative conformance package roundtrip failures:\n{}",
+        "conformance package roundtrip failures:\n{}",
         failures.join("\n")
     );
 }
