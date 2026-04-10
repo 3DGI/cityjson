@@ -1,7 +1,9 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::LazyLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use std::collections::BTreeMap;
 
@@ -35,6 +37,8 @@ struct CorrectnessCase {
 #[serde(default)]
 struct CorrectnessArtifactPaths {
     source: Option<PathBuf>,
+    generated: Option<PathBuf>,
+    profile: Option<PathBuf>,
 }
 
 /// # Panics
@@ -48,14 +52,31 @@ pub fn read_to_string(path: impl AsRef<Path>) -> String {
 }
 
 impl CorrectnessCase {
-    fn source_path(&self) -> PathBuf {
+    fn input_path(&self) -> PathBuf {
         let Some(source) = self.artifact_paths.source.clone() else {
+            return self.generated_input_path();
+        };
+        resolve_shared_path(source)
+    }
+
+    fn generated_input_path(&self) -> PathBuf {
+        if let Some(generated) = self.artifact_paths.generated.clone() {
+            let generated_path = resolve_shared_path(generated);
+            if generated_path.is_file() {
+                return generated_path;
+            }
+        }
+
+        let Some(profile) = self.artifact_paths.profile.clone() else {
             panic!(
-                "correctness case '{}' does not define artifact_paths.source",
+                "correctness case '{}' does not define artifact_paths.source or artifact_paths.profile",
                 self.id
             );
         };
-        resolve_shared_path(source)
+        let profile_path = resolve_shared_path(profile);
+        let output_path = generated_temp_path(&self.id);
+        generate_profile_artifact(&profile_path, &output_path);
+        output_path
     }
 }
 
@@ -71,7 +92,7 @@ pub fn conformance_case_input(case_id: &str) -> String {
         Some("2.0"),
         "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
     );
-    read_to_string(case.source_path())
+    read_to_string(case.input_path())
 }
 
 #[must_use]
@@ -86,7 +107,7 @@ pub fn invalid_case_input(case_id: &str) -> String {
         Some("2.0"),
         "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
     );
-    read_to_string(case.source_path())
+    read_to_string(case.input_path())
 }
 
 fn correctness_case(case_id: &str) -> &'static CorrectnessCase {
@@ -140,6 +161,71 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
     } else {
         shared_corpus_root().join(path)
     }
+}
+
+fn generated_temp_path(case_id: &str) -> PathBuf {
+    let mut path = env::temp_dir();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|err| panic!("system clock error: {err}"))
+        .as_nanos();
+    path.push(format!(
+        "cityjson-benchmarks-{case_id}-{pid}-{stamp}.city.json",
+        pid = std::process::id()
+    ));
+    path
+}
+
+fn generate_profile_artifact(profile: &Path, output: &Path) {
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .unwrap_or_else(|err| panic!("failed to create {}: {err}", parent.display()));
+    }
+
+    let cargo_manifest = cjfake_cargo_manifest();
+    let schema_path = cjfake_manifest_schema();
+    let status = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .arg("--manifest-path")
+        .arg(&cargo_manifest)
+        .arg("--")
+        .arg("--manifest")
+        .arg(profile)
+        .arg("--schema")
+        .arg(&schema_path)
+        .arg("--output")
+        .arg(output)
+        .status()
+        .unwrap_or_else(|err| panic!("failed to run cjfake via cargo: {err}"));
+
+    assert!(
+        status.success(),
+        "cjfake failed to generate {} using {}",
+        output.display(),
+        profile.display()
+    );
+}
+
+fn cjfake_cargo_manifest() -> PathBuf {
+    env::var_os("CJFAKE_CARGO_MANIFEST")
+        .map(PathBuf::from)
+        .map_or_else(
+            || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cjfake/Cargo.toml"),
+            |path| path,
+        )
+}
+
+fn cjfake_manifest_schema() -> PathBuf {
+    env::var_os("CJFAKE_MANIFEST_SCHEMA")
+        .map(PathBuf::from)
+        .map_or_else(
+            || {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../cjfake/src/data/cjfake-manifest.schema.json")
+            },
+            |path| path,
+        )
 }
 
 /// # Panics
