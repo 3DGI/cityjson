@@ -16,7 +16,7 @@ fmt:
     cargo fmt --all
 
 test:
-    cargo test --all-features
+    cargo test --workspace --all-features --no-fail-fast
 
 # Build the crate documentation
 doc:
