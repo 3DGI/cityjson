@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::LazyLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use cityjson::v2_0::OwnedCityModel;
 use serde::Deserialize;
@@ -40,6 +42,8 @@ struct CorrectnessCase {
 #[serde(default)]
 struct CorrectnessArtifactPaths {
     source: Option<PathBuf>,
+    generated: Option<PathBuf>,
+    profile: Option<PathBuf>,
 }
 
 impl CorrectnessCase {
@@ -47,18 +51,35 @@ impl CorrectnessCase {
         self.layer == "conformance" && self.cityjson_version.as_deref() == Some("2.0")
     }
 
-    fn source_path(&self) -> PathBuf {
+    fn input_path(&self) -> PathBuf {
         let Some(source) = self.artifact_paths.source.clone() else {
-            panic!(
-                "correctness case '{}' does not define artifact_paths.source",
-                self.id
-            );
+            return self.generated_input_path();
         };
         resolve_shared_path(source)
     }
 
+    fn generated_input_path(&self) -> PathBuf {
+        if let Some(generated) = self.artifact_paths.generated.clone() {
+            let generated_path = resolve_shared_path(generated);
+            if generated_path.is_file() {
+                return generated_path;
+            }
+        }
+
+        let Some(profile) = self.artifact_paths.profile.clone() else {
+            panic!(
+                "correctness case '{}' does not define artifact_paths.source or artifact_paths.profile",
+                self.id
+            );
+        };
+        let profile_path = resolve_shared_path(profile);
+        let output_path = generated_temp_path(&self.id);
+        generate_profile_artifact(&profile_path, &output_path);
+        output_path
+    }
+
     fn prepare(&self) -> PreparedCorrectnessCase {
-        let source = self.source_path();
+        let source = self.input_path();
         let input = read_to_string(&source);
         let model = from_str_owned(&input)
             .unwrap_or_else(|err| panic!("failed to parse {}: {err}", source.display()));
@@ -174,4 +195,76 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
 fn read_to_string(path: &Path) -> String {
     fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+}
+
+fn generated_temp_path(case_id: &str) -> PathBuf {
+    let mut path = env::temp_dir();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|err| panic!("system clock error: {err}"))
+        .as_nanos();
+    path.push(format!(
+        "cityjson-benchmarks-{case_id}-{pid}-{stamp}.city.json",
+        pid = std::process::id()
+    ));
+    path
+}
+
+fn generate_profile_artifact(profile: &Path, output: &Path) {
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .unwrap_or_else(|err| panic!("failed to create {}: {err}", parent.display()));
+    }
+
+    let cargo_manifest = cjfake_cargo_manifest();
+    let schema_path = cjfake_manifest_schema();
+    let status = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .arg("--manifest-path")
+        .arg(&cargo_manifest)
+        .arg("--")
+        .arg("--manifest")
+        .arg(profile)
+        .arg("--schema")
+        .arg(&schema_path)
+        .arg("--output")
+        .arg(output)
+        .status()
+        .unwrap_or_else(|err| panic!("failed to run cjfake via cargo: {err}"));
+
+    assert!(
+        status.success(),
+        "cjfake failed to generate {} using {}",
+        output.display(),
+        profile.display()
+    );
+}
+
+fn cjfake_cargo_manifest() -> PathBuf {
+    env::var_os("CJFAKE_CARGO_MANIFEST")
+        .map(PathBuf::from)
+        .map_or_else(
+            || {
+                shared_corpus_root()
+                    .parent()
+                    .unwrap()
+                    .join("cjfake/Cargo.toml")
+            },
+            |path| path,
+        )
+}
+
+fn cjfake_manifest_schema() -> PathBuf {
+    env::var_os("CJFAKE_MANIFEST_SCHEMA")
+        .map(PathBuf::from)
+        .map_or_else(
+            || {
+                shared_corpus_root()
+                    .parent()
+                    .unwrap()
+                    .join("cjfake/src/data/cjfake-manifest.schema.json")
+            },
+            |path| path,
+        )
 }
