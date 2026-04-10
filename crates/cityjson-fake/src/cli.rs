@@ -531,8 +531,7 @@ pub struct Cli {
 
     /// Optional JSON Schema file used to validate `--manifest`.
     ///
-    /// When omitted, `cjfake` looks for `cjfake-manifest.schema.json` next to
-    /// the manifest file.
+    /// When omitted, `cjfake` uses its bundled `cjfake-manifest.schema.json`.
     #[arg(long)]
     pub schema: Option<PathBuf>,
 
@@ -731,14 +730,21 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
     if let Some(manifest_path) = cli.manifest {
-        let schema_path = cli
-            .schema
-            .unwrap_or_else(|| crate::manifest::default_schema_path(&manifest_path));
         if cli.check_manifest {
-            crate::manifest::validate_manifest(&manifest_path, &schema_path)?;
+            match cli.schema.as_deref() {
+                Some(schema_path) => {
+                    crate::manifest::validate_manifest(&manifest_path, schema_path)?
+                }
+                None => crate::manifest::validate_manifest_with_bundled_schema(&manifest_path)?,
+            }
             return Ok(());
         }
-        let manifest = crate::manifest::load_manifest_validated(&manifest_path, &schema_path)?;
+        let manifest = match cli.schema.as_deref() {
+            Some(schema_path) => {
+                crate::manifest::load_manifest_validated(&manifest_path, schema_path)?
+            }
+            None => crate::manifest::load_manifest_validated_with_bundled_schema(&manifest_path)?,
+        };
         let manifest_dir = manifest_path.parent();
         let mut cases: Vec<&crate::manifest::GenerationCase> = if let Some(case_id) = cli.case {
             vec![manifest
@@ -1085,34 +1091,8 @@ mod tests {
             .as_nanos();
         let dir = std::env::temp_dir().join(format!("cjfake-manifest-run-{stamp}"));
         let output = dir.join("spec_complete_omnibus.city.json");
-        let schema_path = dir.join("schema.json");
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let manifest_path = dir.join("manifest.json");
-        let schema = r#"
-        {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "cases"],
-          "properties": {
-            "version": { "type": "integer", "const": 1 },
-            "cases": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "type": "object",
-                "additionalProperties": true,
-                "required": ["id"],
-                "properties": {
-                  "id": { "type": "string", "minLength": 1 },
-                  "seed": { "type": ["integer", "null"] }
-                }
-              }
-            }
-          }
-        }
-        "#;
-        fs::write(&schema_path, schema).expect("schema should be writable");
         let manifest = r#"
         {
           "version": 1,
@@ -1131,7 +1111,7 @@ mod tests {
         let cli = Cli {
             config: CJFakeConfig::default(),
             manifest: Some(manifest_path),
-            schema: Some(schema_path),
+            schema: None,
             case: None,
             check_manifest: false,
             output: Some(output.clone()),

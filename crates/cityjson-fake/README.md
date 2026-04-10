@@ -86,10 +86,10 @@ cjfake --output output.city.json
 cjfake --count 3 --output out/
 
 # Generate from a manifest-driven case catalog
-cjfake --manifest manifest.json --schema cjfake-manifest.schema.json --output out/
+cjfake --manifest manifest.json --output out/
 
 # Validate a manifest without generating output
-cjfake --manifest manifest.json --schema cjfake-manifest.schema.json --check-manifest
+cjfake --manifest manifest.json --check-manifest
 ```
 
 The available options are grouped below.
@@ -110,7 +110,7 @@ The available options are grouped below.
 
 Manifest mode accepts a JSON file whose cases flatten the normal `CJFakeConfig`
 fields at the top level. The manifest should validate against
-`cjfake-manifest.schema.json`:
+the bundled `cjfake-manifest.schema.json` schema:
 
 ```json
 {
@@ -128,9 +128,9 @@ fields at the top level. The manifest should validate against
 ```
 
 When `--manifest` is present, the manifest supplies the generation config.
-If `--schema` is not provided, `cjfake` looks for
-`cjfake-manifest.schema.json` next to the manifest file. Use
-`--check-manifest` to validate and exit without generating output.
+If `--schema` is not provided, `cjfake` uses the bundled schema.
+Use `--schema` to validate against a different copy, and `--check-manifest`
+to validate and exit without generating output.
 
 With multiple cases, `--output` must name a directory and each case is written
 as `<id>.city.json` unless the case defines its own output path.

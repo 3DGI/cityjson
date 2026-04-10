@@ -8,6 +8,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_SCHEMA_FILENAME: &str = "cjfake-manifest.schema.json";
+pub const BUNDLED_SCHEMA_NAME: &str = "embedded cjfake manifest schema";
+pub const BUNDLED_SCHEMA_JSON: &str = include_str!("data/cjfake-manifest.schema.json");
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -57,6 +59,11 @@ pub fn default_schema_path(manifest_path: impl AsRef<Path>) -> PathBuf {
         .join(DEFAULT_SCHEMA_FILENAME)
 }
 
+/// Return the bundled CJFake manifest schema.
+pub fn bundled_schema_json() -> &'static str {
+    BUNDLED_SCHEMA_JSON
+}
+
 /// Validate a manifest file against a JSON schema.
 ///
 /// # Errors
@@ -70,7 +77,26 @@ pub fn validate_manifest(
     let schema_path = schema_path.as_ref();
     let manifest_json = fs::read_to_string(manifest_path)?;
     let schema_json = fs::read_to_string(schema_path)?;
-    validate_manifest_json(manifest_path, schema_path, &manifest_json, &schema_json)
+    let schema_name = schema_path.display().to_string();
+    validate_manifest_json(manifest_path, &schema_name, &manifest_json, &schema_json)
+}
+
+/// Validate a manifest file against the bundled JSON schema.
+///
+/// # Errors
+///
+/// Returns an error if the manifest cannot be read or fails schema validation.
+pub fn validate_manifest_with_bundled_schema(
+    manifest_path: impl AsRef<Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let manifest_path = manifest_path.as_ref();
+    let manifest_json = fs::read_to_string(manifest_path)?;
+    validate_manifest_json(
+        manifest_path,
+        BUNDLED_SCHEMA_NAME,
+        &manifest_json,
+        BUNDLED_SCHEMA_JSON,
+    )
 }
 
 /// Load a manifest file from disk.
@@ -101,14 +127,36 @@ pub fn load_manifest_validated(
     let schema_path = schema_path.as_ref();
     let manifest_json = fs::read_to_string(manifest_path)?;
     let schema_json = fs::read_to_string(schema_path)?;
-    validate_manifest_json(manifest_path, schema_path, &manifest_json, &schema_json)?;
+    let schema_name = schema_path.display().to_string();
+    validate_manifest_json(manifest_path, &schema_name, &manifest_json, &schema_json)?;
+    let manifest = serde_json::from_str(&manifest_json)?;
+    Ok(manifest)
+}
+
+/// Load and validate a manifest file against the bundled JSON schema.
+///
+/// # Errors
+///
+/// Returns an error if the manifest cannot be read, fails schema validation, or cannot be
+/// parsed as JSON.
+pub fn load_manifest_validated_with_bundled_schema(
+    manifest_path: impl AsRef<Path>,
+) -> Result<GenerationManifest, Box<dyn std::error::Error>> {
+    let manifest_path = manifest_path.as_ref();
+    let manifest_json = fs::read_to_string(manifest_path)?;
+    validate_manifest_json(
+        manifest_path,
+        BUNDLED_SCHEMA_NAME,
+        &manifest_json,
+        BUNDLED_SCHEMA_JSON,
+    )?;
     let manifest = serde_json::from_str(&manifest_json)?;
     Ok(manifest)
 }
 
 fn validate_manifest_json(
     manifest_path: &Path,
-    schema_path: &Path,
+    schema_name: &str,
     manifest_json: &str,
     schema_json: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -119,11 +167,7 @@ fn validate_manifest_json(
         Err(error) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!(
-                    "manifest schema {} is invalid: {}",
-                    schema_path.display(),
-                    error
-                ),
+                format!("manifest schema {} is invalid: {}", schema_name, error),
             )
             .into());
         }
@@ -139,7 +183,7 @@ fn validate_manifest_json(
             format!(
                 "manifest {} failed validation against {}:\n{}",
                 manifest_path.display(),
-                schema_path.display(),
+                schema_name,
                 details
             ),
         )
@@ -166,40 +210,31 @@ mod tests {
     }
 
     #[test]
-    fn validate_manifest_against_schema() {
+    fn validate_manifest_against_bundled_schema() {
         let dir = temp_dir("manifest-valid");
-        let schema_path = dir.join("schema.json");
         let manifest_path = dir.join("manifest.json");
 
-        fs::write(
-            &schema_path,
-            r#"{
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["version", "cases"],
-              "properties": {
-                "version": { "type": "integer", "const": 1 },
-                "cases": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["id"],
-                    "properties": {
-                      "id": { "type": "string", "minLength": 1 }
-                    }
-                  }
-                }
-              }
-            }"#,
-        )
-        .expect("failed to write schema");
         fs::write(&manifest_path, r#"{"version":1,"cases":[{"id":"case-a"}]}"#)
             .expect("failed to write manifest");
 
-        validate_manifest(&manifest_path, &schema_path).expect("manifest should validate");
+        validate_manifest_with_bundled_schema(&manifest_path).expect("manifest should validate");
+    }
+
+    #[test]
+    fn load_manifest_validated_against_bundled_schema() {
+        let dir = temp_dir("manifest-load-valid");
+        let manifest_path = dir.join("manifest.json");
+
+        fs::write(
+            &manifest_path,
+            r#"{"version":1,"cases":[{"id":"case-a","seed":7}]}"#,
+        )
+        .expect("failed to write manifest");
+
+        let manifest = load_manifest_validated_with_bundled_schema(&manifest_path)
+            .expect("manifest should validate and load");
+        let case = manifest.case("case-a").expect("case should exist");
+        assert_eq!(case.seed, Some(7));
     }
 
     #[test]
