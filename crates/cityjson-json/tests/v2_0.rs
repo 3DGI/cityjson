@@ -724,6 +724,7 @@ conformance_roundtrip_tests!(
     cityobject_building_address,
     cityobject_complete,
     cityobject_extended,
+    cityobject_all_types,
     geometry_instance,
     geometry_material_solid,
     geometry_material_multisolid,
