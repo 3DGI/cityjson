@@ -573,6 +573,7 @@ where
                         dense_indices: self.dense_indices,
                         surface_start,
                         surface_end,
+                        compress_all_null_surface_rings: false,
                     })?;
                 }
                 seq.end()
@@ -629,6 +630,7 @@ where
                 dense_indices: self.dense_indices,
                 surface_start,
                 surface_end,
+                compress_all_null_surface_rings: true,
             })?;
         }
         seq.end()
@@ -644,6 +646,7 @@ where
     dense_indices: &'a HashMap<TextureHandle, usize>,
     surface_start: usize,
     surface_end: usize,
+    compress_all_null_surface_rings: bool,
 }
 
 impl<VR> Serialize for TextureSurfaceRangeSerializer<'_, VR>
@@ -658,12 +661,18 @@ where
             serializer.serialize_seq(Some(self.surface_end.saturating_sub(self.surface_start)))?;
         for surface_index in self.surface_start..self.surface_end {
             let (ring_start, ring_end) = ring_range_for_surface(self.boundary, surface_index);
-            seq.serialize_element(&TextureRingRangeSerializer {
-                texture_map: self.texture_map,
-                dense_indices: self.dense_indices,
-                ring_start,
-                ring_end,
-            })?;
+            if self.compress_all_null_surface_rings
+                && ring_range_has_no_textures(self.texture_map, ring_start, ring_end)
+            {
+                seq.serialize_element(&NullTextureSurfaceSerializer)?;
+            } else {
+                seq.serialize_element(&TextureRingRangeSerializer {
+                    texture_map: self.texture_map,
+                    dense_indices: self.dense_indices,
+                    ring_start,
+                    ring_end,
+                })?;
+            }
         }
         seq.end()
     }
@@ -696,6 +705,32 @@ where
                 ring_index,
             })?;
         }
+        seq.end()
+    }
+}
+
+struct NullTextureSurfaceSerializer;
+
+impl Serialize for NullTextureSurfaceSerializer {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(1))?;
+        seq.serialize_element(&NullTextureRingSerializer)?;
+        seq.end()
+    }
+}
+
+struct NullTextureRingSerializer;
+
+impl Serialize for NullTextureRingSerializer {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(1))?;
+        seq.serialize_element(&OptionalIndex(None))?;
         seq.end()
     }
 }
@@ -762,6 +797,24 @@ impl Serialize for OptionalIndex {
             None => serializer.serialize_none(),
         }
     }
+}
+
+fn ring_range_has_no_textures<VR>(
+    texture_map: TextureMapView<'_, VR>,
+    ring_start: usize,
+    ring_end: usize,
+) -> bool
+where
+    VR: VertexRef,
+{
+    (ring_start..ring_end).all(|ring_index| {
+        texture_map
+            .ring_textures()
+            .get(ring_index)
+            .copied()
+            .flatten()
+            .is_none()
+    })
 }
 
 fn collect_referenced_semantic_handles<VR, SS>(
