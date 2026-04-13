@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn discover_projection_layout(model: &OwnedCityModel) -> Result<ProjectionLayout> {

@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use crate::error::{Error, Result};
 use crate::schema::{
     CanonicalSchemaSet, CityArrowHeader, CityArrowPackageVersion, CityModelArrowParts,

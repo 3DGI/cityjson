@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn geometry_tables(model: &OwnedCityModel) -> Result<ExportedGeometryTables> {

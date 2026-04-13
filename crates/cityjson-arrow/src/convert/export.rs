@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(crate) fn encode_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
@@ -484,13 +486,6 @@ fn export_appearance_batches(
         )?,
     })
 }
-
-/// Reconstructs an in-memory `CityJSON` model from the canonical Arrow table set.
-///
-/// # Errors
-///
-/// Returns an error when the provided tables are inconsistent, use unsupported
-/// combinations, or contain values that cannot be converted back into `CityJSON`.
 
 fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
     for (_, geometry) in model.iter_geometries() {

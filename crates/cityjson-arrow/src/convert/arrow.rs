@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn optional_batch_from<F>(is_empty: bool, build: F) -> Result<Option<RecordBatch>>

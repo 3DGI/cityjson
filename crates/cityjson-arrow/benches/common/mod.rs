@@ -57,13 +57,12 @@ pub(crate) fn load_named_write_cases(case_ids: &[&str]) -> Vec<SharedWriteCase> 
 
 impl BenchmarkCase {
     fn prepare_write(&self) -> SharedWriteCase {
-        let source = self
-            .output
-            .clone()
-            .map(resolve_shared_path)
-            .unwrap_or_else(|| {
+        let source = self.output.clone().map_or_else(
+            || {
                 panic!("case '{}' does not have an output path", self.id);
-            });
+            },
+            resolve_shared_path,
+        );
         let input_json = read_file(&source);
         let input_bytes = u64::try_from(input_json.len()).expect("input size fits into u64");
         let model = from_str_owned(&input_json)

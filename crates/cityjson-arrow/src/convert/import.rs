@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(crate) fn decode_parts(parts: &CityModelArrowParts) -> Result<OwnedCityModel> {
@@ -1190,6 +1192,7 @@ fn import_cityobject_children_batch(batch: &RecordBatch, state: &mut ImportState
     Ok(())
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub(super) fn decode_payload_f32(value: f64) -> f32 {
     value as f32
 }

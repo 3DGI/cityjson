@@ -149,6 +149,7 @@ fn large_benchmark_model(building_count: usize) -> OwnedCityModel {
     model
 }
 
+#[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
 fn attribute_heavy_benchmark_building(
     building_index: usize,
     geometry_handle: cityjson::prelude::GeometryHandle,
@@ -185,7 +186,7 @@ fn attribute_heavy_benchmark_building(
             ),
             (
                 "district".to_string(),
-                if building_index % 4 == 0 {
+                if building_index.is_multiple_of(4) {
                     AttributeValue::Null
                 } else {
                     AttributeValue::String(format!("district-{}", building_index % 8))
@@ -212,7 +213,7 @@ fn attribute_heavy_benchmark_building(
                     ),
                     (
                         "audited".to_string(),
-                        AttributeValue::Bool(building_index % 2 == 0),
+                        AttributeValue::Bool(building_index.is_multiple_of(2)),
                     ),
                 ])),
             ),
@@ -229,9 +230,9 @@ fn attribute_heavy_benchmark_building(
     building.attributes_mut().insert(
         "flags".to_string(),
         AttributeValue::Vec(vec![
-            AttributeValue::Bool(building_index % 2 == 0),
-            AttributeValue::Bool(building_index % 3 == 0),
-            AttributeValue::Bool(building_index % 5 == 0),
+            AttributeValue::Bool(building_index.is_multiple_of(2)),
+            AttributeValue::Bool(building_index.is_multiple_of(3)),
+            AttributeValue::Bool(building_index.is_multiple_of(5)),
         ]),
     );
     building.attributes_mut().insert(
@@ -295,6 +296,7 @@ fn attribute_heavy_benchmark_model(building_count: usize) -> OwnedCityModel {
     model
 }
 
+#[allow(clippy::too_many_lines)]
 fn split_benches(c: &mut Criterion) {
     // Keep the benchmark model large enough to surface conversion overhead that does not show up
     // on the single-building correctness fixture used in roundtrip tests.

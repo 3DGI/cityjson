@@ -95,8 +95,7 @@ pub(crate) fn load_named_conformance_case(case_id: &str) -> PreparedCorrectnessC
     let case = correctness_case(case_id);
     assert!(
         case.is_conformance_case(),
-        "correctness case '{}' is not a CityJSON 2.0 conformance fixture",
-        case_id
+        "correctness case '{case_id}' is not a CityJSON 2.0 conformance fixture",
     );
     case.prepare()
 }
@@ -242,29 +241,25 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
 }
 
 fn cjfake_cargo_manifest() -> PathBuf {
-    env::var_os("CJFAKE_CARGO_MANIFEST")
-        .map(PathBuf::from)
-        .map_or_else(
-            || {
-                shared_corpus_root()
-                    .parent()
-                    .unwrap()
-                    .join("cjfake/Cargo.toml")
-            },
-            |path| path,
-        )
+    env::var_os("CJFAKE_CARGO_MANIFEST").map_or_else(
+        || {
+            shared_corpus_root()
+                .parent()
+                .unwrap()
+                .join("cjfake/Cargo.toml")
+        },
+        PathBuf::from,
+    )
 }
 
 fn cjfake_manifest_schema() -> PathBuf {
-    env::var_os("CJFAKE_MANIFEST_SCHEMA")
-        .map(PathBuf::from)
-        .map_or_else(
-            || {
-                shared_corpus_root()
-                    .parent()
-                    .unwrap()
-                    .join("cjfake/src/data/cjfake-manifest.schema.json")
-            },
-            |path| path,
-        )
+    env::var_os("CJFAKE_MANIFEST_SCHEMA").map_or_else(
+        || {
+            shared_corpus_root()
+                .parent()
+                .unwrap()
+                .join("cjfake/src/data/cjfake-manifest.schema.json")
+        },
+        PathBuf::from,
+    )
 }
