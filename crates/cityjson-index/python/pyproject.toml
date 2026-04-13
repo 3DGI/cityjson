@@ -3,14 +3,14 @@ requires = ["setuptools>=69", "wheel>=0.43"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cjindex"
+name = "cityjson-index"
 version = "0.3.0"
-description = "Python bindings for cjindex"
+description = "Python bindings for cityjson-index"
 requires-python = ">=3.11"
-dependencies = ["cjlib"]
+dependencies = ["cityjson-lib"]
 
 [tool.uv.sources]
-cjlib = { path = "../../cjlib/ffi/python", editable = true }
+cityjson-lib = { path = "../../cityjson-lib/ffi/python", editable = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]

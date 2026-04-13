@@ -1,18 +1,18 @@
 [package]
-name = "cjindex"
+name = "cityjson-index"
 version = "0.3.0"
 edition = "2024"
 rust-version = "1.93"
-description = "An indexing extension for cjlib."
+description = "An indexing extension for cityjson-lib."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/3DGI/cjindex"
+repository = "https://github.com/3DGI/cityjson-index"
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-cjlib = { path = "../cjlib" }
-cjlib-ffi-core = { path = "../cjlib/ffi/core" }
+cityjson-lib = { path = "../cityjson-lib" }
+cityjson-lib-ffi-core = { path = "../cityjson-lib/ffi/core" }
 clap = { version = "4.6.0", features = ["derive"] }
 flatgeobuf = { version = "6.0.1", default-features = false }
 flate2 = "1"

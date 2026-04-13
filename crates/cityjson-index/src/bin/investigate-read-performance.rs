@@ -8,9 +8,9 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use cjindex::realistic_workload::{QUERY_BATCH_COUNT, build_realistic_workload};
-use cjindex::{BBox, CityIndex, StorageLayout};
-use cjlib::{Error, Result};
+use cityjson_index::realistic_workload::{QUERY_BATCH_COUNT, build_realistic_workload};
+use cityjson_index::{BBox, CityIndex, StorageLayout};
+use cityjson_lib::{Error, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 
 #[allow(dead_code)]
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     println!("## Commands");
     println!();
     println!("- `cargo run --release --bin investigate-read-performance`");
-    println!("- realistic workload source: `cjindex::realistic_workload`");
+    println!("- realistic workload source: `cityjson_index::realistic_workload`");
     println!();
     print_dataset_summary();
 
@@ -293,7 +293,10 @@ fn prepare_layout(
     get_ids: &[String],
     query_bboxes: &[BBox],
 ) -> Result<PreparedLayout> {
-    let index_path = unique_temp_file(&format!("cjindex-investigate-{}", kind.label()), "sqlite");
+    let index_path = unique_temp_file(
+        &format!("cityjson-index-investigate-{}", kind.label()),
+        "sqlite",
+    );
     let mut index = CityIndex::open(kind.storage_layout(&root), &index_path)?;
     index.reindex()?;
     drop(index);
@@ -1040,7 +1043,7 @@ fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time must be after the unix epoch")
         .as_nanos();
-    let path = std::env::temp_dir().join(format!("cjindex-{label}-{unique}.{suffix}"));
+    let path = std::env::temp_dir().join(format!("cityjson-index-{label}-{unique}.{suffix}"));
     if path.exists() {
         fs::remove_file(&path).expect("temp file should be removable");
     }

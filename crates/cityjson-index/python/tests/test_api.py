@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cjindex import OpenedIndex
-from cjlib import ModelType
+from cityjson_index import OpenedIndex
+from cityjson_lib import ModelType
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -15,7 +15,7 @@ CITYJSON_DATASET = REPO_ROOT / "tests" / "data" / "cityjson"
 class OpenedIndexApiTests(unittest.TestCase):
     def test_cityjson_get_and_read_feature_return_actionable_feature_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            index_path = Path(tmpdir) / ".cjindex.sqlite"
+            index_path = Path(tmpdir) / ".cityjson_index.sqlite"
             with OpenedIndex.open(CITYJSON_DATASET, index_path) as index:
                 index.reindex()
                 refs = index.feature_ref_page(0, 1)

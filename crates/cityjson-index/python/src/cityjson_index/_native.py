@@ -53,10 +53,10 @@ class _FeatureRef(Structure):
 
 def _library_name() -> str:
     if sys.platform.startswith("win"):
-        return "cjindex.dll"
+        return "cityjson_index.dll"
     if sys.platform == "darwin":
-        return "libcjindex.dylib"
-    return "libcjindex.so"
+        return "libcityjson_index.dylib"
+    return "libcityjson_index.so"
 
 
 def _candidate_paths() -> list[Path]:
@@ -64,7 +64,7 @@ def _candidate_paths() -> list[Path]:
     package_dir = Path(__file__).resolve().parent
 
     candidates = []
-    env = os.environ.get("CJINDEX_LIBRARY_PATH")
+    env = os.environ.get("CITYJSON_INDEX_LIBRARY_PATH")
     if env:
         candidates.append(Path(env))
 
@@ -144,7 +144,7 @@ if LIB is not None:
 
 def _last_error_message() -> str:
     if LIB is None:
-        return "cjindex native library is not available"
+        return "cityjson-index native library is not available"
 
     length = LIB.cjx_last_error_message_len()
     if length == 0:
@@ -154,7 +154,7 @@ def _last_error_message() -> str:
     out_len = c_size_t()
     status = LIB.cjx_last_error_message_copy(buffer, len(buffer), byref(out_len))
     if status != SUCCESS:
-        return "cjindex native call failed"
+        return "cityjson-index native call failed"
     return buffer.value.decode("utf-8", errors="replace")
 
 
@@ -164,7 +164,7 @@ def check_status(status: int) -> None:
     message = _last_error_message()
     if message:
         raise RuntimeError(message)
-    raise RuntimeError(f"cjindex native call failed with status {status}")
+    raise RuntimeError(f"cityjson-index native call failed with status {status}")
 
 
 def clear_error() -> None:
@@ -175,7 +175,7 @@ def clear_error() -> None:
 
 def open_index(dataset_dir: str, index_path: str | None) -> c_void_p:
     if LIB is None:
-        raise RuntimeError("cjindex native library is not available")
+        raise RuntimeError("cityjson-index native library is not available")
 
     handle = c_void_p()
     dataset_bytes = dataset_dir.encode("utf-8")

@@ -11,17 +11,17 @@ from setuptools.command.build_py import build_py as _build_py
 
 def _shared_library_name() -> str:
     if sys.platform.startswith("win"):
-        return "cjindex.dll"
+        return "cityjson_index.dll"
     if sys.platform == "darwin":
-        return "libcjindex.dylib"
-    return "libcjindex.so"
+        return "libcityjson_index.dylib"
+    return "libcityjson_index.so"
 
 
 class build_py(_build_py):
     def run(self) -> None:
         built_library = self._build_native_library()
         super().run()
-        target_dir = Path(self.build_lib) / "cjindex"
+        target_dir = Path(self.build_lib) / "cityjson_index"
         target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(built_library, target_dir / built_library.name)
 
@@ -35,12 +35,12 @@ class build_py(_build_py):
         built_library = repo_root / "target" / "release" / _shared_library_name()
         if not built_library.exists():
             raise FileNotFoundError(
-                f"expected cjindex shared library at {built_library}, but cargo build did not produce it"
+                f"expected cityjson-index shared library at {built_library}, but cargo build did not produce it"
             )
         return built_library
 
 
 setup(
     cmdclass={"build_py": build_py},
-    package_data={"cjindex": ["*.so", "*.dylib", "*.dll"]},
+    package_data={"cityjson_index": ["*.so", "*.dylib", "*.dll"]},
 )

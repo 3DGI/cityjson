@@ -5,10 +5,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
-use cjindex::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
-use cjindex::{CityIndex, IndexedFeatureRef, StorageLayout};
-use cjlib::Result;
-use cjlib::json::staged;
+use cityjson_index::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
+use cityjson_index::{CityIndex, IndexedFeatureRef, StorageLayout};
+use cityjson_lib::Result;
+use cityjson_lib::json::staged;
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -32,7 +32,7 @@ struct BaselineBuildingWork {
 
 struct ParallelBenchFixture {
     baseline_work: Vec<BaselineBuildingWork>,
-    cjindex_work: Vec<BuildingWork>,
+    cityjson_index_work: Vec<BuildingWork>,
     metadata_cache: Arc<HashMap<PathBuf, Vec<u8>>>,
     ndjson_index_path: PathBuf,
     ndjson_root: PathBuf,
@@ -59,7 +59,7 @@ fn chunk_size(len: usize) -> usize {
 
 fn temp_index_path(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
-        "cjindex-parallel-{label}-{}.sqlite",
+        "cityjson-index-parallel-{label}-{}.sqlite",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -72,7 +72,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
     let ndjson_root = PathBuf::from("tests/data/ndjson");
 
     if !feature_files_root.exists() || !ndjson_root.exists() {
-        return Err(cjlib::Error::Import(
+        return Err(cityjson_lib::Error::Import(
             "tests/data/{feature-files,ndjson} must exist; run `just prep-test-data` first".into(),
         ));
     }
@@ -90,7 +90,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
     ff_index.reindex()?;
     let ff_refs = collect_all_refs(&ff_index)?;
 
-    // Build ndjson index for the cjindex case
+    // Build ndjson index for the cityjson-index case
     let ndjson_index_path = temp_index_path("ndjson");
     let mut ndjson_index = CityIndex::open(
         StorageLayout::Ndjson {
@@ -129,7 +129,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
         WORKLOAD_SHUFFLE_SEED ^ 0xdead_beef_cafe_babe,
     );
 
-    let mut cjindex_work = Vec::with_capacity(n);
+    let mut cityjson_index_work = Vec::with_capacity(n);
     let mut baseline_work = Vec::with_capacity(n);
     let mut metadata_cache: HashMap<PathBuf, Vec<u8>> = HashMap::new();
 
@@ -179,7 +179,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
             adjacent_paths,
         });
 
-        cjindex_work.push(BuildingWork {
+        cityjson_index_work.push(BuildingWork {
             target_ref: ndjson_target_ref,
             adjacent_refs: ndjson_adjacent_refs,
         });
@@ -191,7 +191,7 @@ fn prepare_fixture() -> Result<ParallelBenchFixture> {
 
     Ok(ParallelBenchFixture {
         baseline_work,
-        cjindex_work,
+        cityjson_index_work,
         metadata_cache: Arc::new(metadata_cache),
         ndjson_index_path,
         ndjson_root,
@@ -244,10 +244,10 @@ fn bench_parallel_get(c: &mut Criterion) {
         });
     });
 
-    c.bench_function("parallel_get_cjindex_ndjson", |b| {
+    c.bench_function("parallel_get_cityjson-index_ndjson", |b| {
         let index_path = &fixture.ndjson_index_path;
         let ndjson_root = &fixture.ndjson_root;
-        let work = &fixture.cjindex_work;
+        let work = &fixture.cityjson_index_work;
 
         let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BuildingWork]> = work.chunks(chunk_size).collect();
@@ -327,10 +327,10 @@ fn bench_parallel_io_only(c: &mut Criterion) {
         });
     });
 
-    c.bench_function("parallel_io_cjindex_ndjson", |b| {
+    c.bench_function("parallel_io_cityjson-index_ndjson", |b| {
         let index_path = &fixture.ndjson_index_path;
         let ndjson_root = &fixture.ndjson_root;
-        let work = &fixture.cjindex_work;
+        let work = &fixture.cityjson_index_work;
 
         let chunk_size = chunk_size(work.len());
         let chunks: Vec<&[BuildingWork]> = work.chunks(chunk_size).collect();

@@ -11,7 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cjindex::{CityIndex, StorageLayout};
+use cityjson_index::{CityIndex, StorageLayout};
 use common::{
     bbox_for_model, cityjson_root, feature_files_root, find_first, materialize_subset, ndjson_root,
     temp_index_path,
@@ -291,7 +291,7 @@ fn cli_dataset_mode_get_query_and_metadata_work() {
 
     run_cli(["index", root.to_str().expect("root path must be utf-8")]);
 
-    let index_path = root.join(".cjindex.sqlite");
+    let index_path = root.join(".cityjson-index.sqlite");
     assert!(
         index_path.exists(),
         "dataset-mode index should use sidecar path"
@@ -419,7 +419,7 @@ fn cli_inspect_and_validate_report_missing_and_stale_indexes() {
     );
 }
 
-fn load_model(root: &Path, index_path: &Path, feature_id: &str) -> cjlib::CityModel {
+fn load_model(root: &Path, index_path: &Path, feature_id: &str) -> cityjson_lib::CityModel {
     let index = CityIndex::open(
         StorageLayout::FeatureFiles {
             root: root.to_path_buf(),
@@ -461,10 +461,10 @@ where
     let output = run_cli_output(args);
     assert!(
         output.status.success(),
-        "cjindex command failed: {}",
+        "cityjson-index command failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout).expect("cjindex stdout should be utf-8")
+    String::from_utf8(output.stdout).expect("cityjson-index stdout should be utf-8")
 }
 
 fn run_cli_output<I, S>(args: I) -> std::process::Output
@@ -472,17 +472,18 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
 {
-    let binary = std::env::var_os("CARGO_BIN_EXE_cjindex").expect("cjindex binary path");
+    let binary =
+        std::env::var_os("CARGO_BIN_EXE_cityjson-index").expect("cityjson-index binary path");
     let output = Command::new(binary)
         .args(args)
         .output()
-        .expect("cjindex command should run");
+        .expect("cityjson-index command should run");
     output
 }
 
 fn temp_output_path(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
-        "cjindex-{label}-{}.jsonl",
+        "cityjson-index-{label}-{}.jsonl",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time should be after unix epoch")
@@ -492,7 +493,7 @@ fn temp_output_path(label: &str) -> PathBuf {
 
 fn temp_fixture_root(label: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
-        "cjindex-{label}-{}.dir",
+        "cityjson-index-{label}-{}.dir",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time should be after unix epoch")

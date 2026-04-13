@@ -5,15 +5,15 @@ Date: 2026-03-30
 ## Problem
 
 Tyler currently builds its world extent by calling `CityIndex::query_iter()` with an
-all-covering bbox. That drives `cjindex` through the spatial lookup path even though the
+all-covering bbox. That drives `cityjson-index` through the spatial lookup path even though the
 caller is asking for a full corpus scan.
 
 The investigation on `/home/balazs/Data/3DBAG_3dtiles_test/input` showed:
 
-- `world_from_cjindex`: about `111s`
+- `world_from_cityjson_index`: about `111s`
 - Tyler geometry work inside that phase: about `0.4s`
-- `cjindex` fetch before Tyler sees the model: about `111s`
-- inside `cjindex` fetch:
+- `cityjson-index` fetch before Tyler sees the model: about `111s`
+- inside `cityjson-index` fetch:
   - `location_lookup`: about `93.8s`
   - `metadata_lookup`: about `0.0s`
   - `read_one`: about `17.1s`
@@ -23,7 +23,7 @@ So the main regression is not feature decoding. It is the use of the paginated b
 
 ## Goal
 
-Add a non-spatial full-scan iterator to `cjindex` that can enumerate all indexed features
+Add a non-spatial full-scan iterator to `cityjson-index` that can enumerate all indexed features
 without using the RTree lookup path, `DISTINCT`, or `ORDER BY` over the bbox result set.
 
 The iterator should support the current three read shapes:
@@ -137,7 +137,7 @@ moving it around.
 
 ## Tyler integration plan
 
-After the `cjindex` API exists, switch Tyler's full dataset passes away from:
+After the `cityjson-index` API exists, switch Tyler's full dataset passes away from:
 
 - `query_iter(all_features_bbox())`
 
@@ -150,7 +150,7 @@ This applies at least to:
 - world extent construction
 - grid indexing pass
 
-That change should be done in a follow-up patch so the `cjindex` improvement can be measured on
+That change should be done in a follow-up patch so the `cityjson-index` improvement can be measured on
 its own first.
 
 ## Expected outcome

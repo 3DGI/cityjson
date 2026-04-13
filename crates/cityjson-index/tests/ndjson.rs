@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::path::Path;
 
-use cjindex::{CityIndex, StorageLayout};
+use cityjson_index::{CityIndex, StorageLayout};
 use common::{bbox_for_model, find_first, model_contains_id, ndjson_root, temp_index_path};
 
 #[test]
@@ -42,7 +42,7 @@ fn ndjson_cityindex_supports_end_to_end_queries() {
     let iter_hits = index
         .query_iter(&bbox)
         .expect("ndjson query_iter should succeed")
-        .collect::<cjlib::Result<Vec<_>>>()
+        .collect::<cityjson_lib::Result<Vec<_>>>()
         .expect("ndjson query_iter items should succeed");
     assert!(
         iter_hits
@@ -54,7 +54,7 @@ fn ndjson_cityindex_supports_end_to_end_queries() {
     let iter_hits_with_ids = index
         .query_iter_with_ids(&bbox)
         .expect("ndjson query_iter_with_ids should succeed")
-        .collect::<cjlib::Result<Vec<_>>>()
+        .collect::<cityjson_lib::Result<Vec<_>>>()
         .expect("ndjson query_iter_with_ids items should succeed");
     assert!(
         iter_hits_with_ids
@@ -78,7 +78,7 @@ fn derive_small_ndjson_fixture(source: &Path) -> std::path::PathBuf {
     let mut lines = contents.lines();
     let metadata = lines.next().expect("sample tile must contain metadata");
     let path = std::env::temp_dir().join(format!(
-        "cjindex-ndjson-sample-{}.jsonl",
+        "cityjson-index-ndjson-sample-{}.jsonl",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time must be after the unix epoch")

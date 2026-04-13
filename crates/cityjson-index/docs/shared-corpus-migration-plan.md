@@ -1,6 +1,6 @@
 # Shared Corpus Migration Plan
 
-`cjindex` is the reusable real-data preparation path for the shared CityJSON
+`cityjson-index` is the reusable real-data preparation path for the shared CityJSON
 corpus.
 
 ## Role In The Ecosystem
@@ -18,7 +18,7 @@ the shared corpus itself.
 
 The shared corpus repo needs a reproducible real-data acquisition path for
 3DBAG-derived cases. `cityjson-benchmarks` now owns the acquisition contract,
-and `cjindex` remains the layout builder:
+and `cityjson-index` remains the layout builder:
 
 - `tests/common/data_prep.rs`
 - `justfile`'s `prep-test-data` recipe
@@ -33,7 +33,7 @@ real-data release.
 ## Migration Boundary
 
 The shared corpus should absorb the acquisition contract and the published
-artifacts. `cjindex` should remain the implementation behind the layout
+artifacts. `cityjson-index` should remain the implementation behind the layout
 conversion, not the release contract.
 
 In practical terms:
@@ -47,5 +47,5 @@ In practical terms:
 
 ## Consumer Expectation
 
-Other crates should use `cjindex` as a reusable preparation source during the
+Other crates should use `cityjson-index` as a reusable preparation source during the
 transition, not as the owner of a separate benchmark corpus.

@@ -1,6 +1,6 @@
-# Performance Testing Guide for cjindex
+# Performance Testing Guide for cityjson-index
 
-This guide explains how to use the simple performance testing script to benchmark cjindex on large datasets.
+This guide explains how to use the simple performance testing script to benchmark cityjson-index on large datasets.
 
 ## Overview
 
@@ -30,9 +30,9 @@ The binary will be available at `target/release/perf-test`.
 
 ### Arguments
 
-- `DATASET_DIR`: Path to a cjindex dataset directory
+- `DATASET_DIR`: Path to a cityjson-index dataset directory
   - The script auto-detects the storage layout (NDJSON, CityJSON, or feature-files)
-  - Creates/uses a sidecar SQLite index at `<DATASET_DIR>/.cjindex.sqlite`
+  - Creates/uses a sidecar SQLite index at `<DATASET_DIR>/.cityjson-index.sqlite`
 
 ## How It Works
 
@@ -101,7 +101,7 @@ Output might look like:
 ```
 Loading dataset from: /data/cityobjects
 Storage layout: ndjson
-Index path: /data/cityobjects/.cjindex.sqlite
+Index path: /data/cityobjects/.cityjson-index.sqlite
 
 Reindex took: 45.32s
 Building test workload...
@@ -163,7 +163,7 @@ To compare performance across all three supported layouts:
 ## Troubleshooting
 
 ### "No features found in dataset"
-- The dataset directory might not be recognized as a valid cjindex dataset
+- The dataset directory might not be recognized as a valid cityjson-index dataset
 - Check that it contains valid CityJSON files in one of the supported layouts
 - Verify the path is correct
 

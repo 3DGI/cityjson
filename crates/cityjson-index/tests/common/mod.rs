@@ -4,8 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cjindex::BBox;
-use cjlib::{CityModel, Result};
+use cityjson_index::BBox;
+use cityjson_lib::{CityModel, Result};
 use serde_json::Value;
 use walkdir::WalkDir;
 
@@ -59,7 +59,7 @@ fn unique_temp_path(label: &str, suffix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time must be after the unix epoch")
         .as_nanos();
-    std::env::temp_dir().join(format!("cjindex-{label}-{unique}.{suffix}"))
+    std::env::temp_dir().join(format!("cityjson-index-{label}-{unique}.{suffix}"))
 }
 
 pub fn find_first(root: &std::path::Path, suffix: &str, require_nonempty: bool) -> PathBuf {
@@ -89,11 +89,11 @@ pub fn bbox_for_model(model: &CityModel) -> Result<BBox> {
     let vertices = value
         .get("vertices")
         .and_then(Value::as_array)
-        .ok_or_else(|| cjlib::Error::Import("model JSON is missing vertices".into()))?;
+        .ok_or_else(|| cityjson_lib::Error::Import("model JSON is missing vertices".into()))?;
     let transform = value
         .get("transform")
         .and_then(Value::as_object)
-        .ok_or_else(|| cjlib::Error::Import("model JSON is missing transform".into()))?;
+        .ok_or_else(|| cityjson_lib::Error::Import("model JSON is missing transform".into()))?;
     let scale = parse_transform_component(transform, "scale")?;
     let translate = parse_transform_component(transform, "translate")?;
 
@@ -105,9 +105,9 @@ pub fn bbox_for_model(model: &CityModel) -> Result<BBox> {
     for vertex in vertices {
         let coords = vertex
             .as_array()
-            .ok_or_else(|| cjlib::Error::Import("vertex must be an array".into()))?;
+            .ok_or_else(|| cityjson_lib::Error::Import("vertex must be an array".into()))?;
         if coords.len() != 3 {
-            return Err(cjlib::Error::Import(
+            return Err(cityjson_lib::Error::Import(
                 "vertex must have three coordinates".into(),
             ));
         }
@@ -120,7 +120,7 @@ pub fn bbox_for_model(model: &CityModel) -> Result<BBox> {
     }
 
     if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
-        return Err(cjlib::Error::Import(
+        return Err(cityjson_lib::Error::Import(
             "could not compute a finite bbox from the model".into(),
         ));
     }
@@ -134,7 +134,7 @@ pub fn bbox_for_model(model: &CityModel) -> Result<BBox> {
 }
 
 fn model_json(model: &CityModel) -> Result<Value> {
-    let text = cjlib::json::to_string(model)?;
+    let text = cityjson_lib::json::to_string(model)?;
     Ok(serde_json::from_str(&text)?)
 }
 
@@ -145,9 +145,9 @@ fn parse_transform_component(
     let values = transform
         .get(key)
         .and_then(Value::as_array)
-        .ok_or_else(|| cjlib::Error::Import(format!("transform is missing {key}")))?;
+        .ok_or_else(|| cityjson_lib::Error::Import(format!("transform is missing {key}")))?;
     if values.len() != 3 {
-        return Err(cjlib::Error::Import(format!(
+        return Err(cityjson_lib::Error::Import(format!(
             "transform {key} must contain three values"
         )));
     }
@@ -161,5 +161,5 @@ fn parse_transform_component(
 fn value_as_f64(value: &Value) -> Result<f64> {
     value
         .as_f64()
-        .ok_or_else(|| cjlib::Error::Import("expected a numeric value".into()))
+        .ok_or_else(|| cityjson_lib::Error::Import("expected a numeric value".into()))
 }

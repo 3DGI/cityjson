@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Self
 from . import _native
 
 if TYPE_CHECKING:
-    from cjlib import CityModel
+    from cityjson_lib import CityModel
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,20 +55,20 @@ class IndexStatus:
 
 def _require_citymodel_type() -> type["CityModel"]:
     try:
-        from cjlib import CityModel
+        from cityjson_lib import CityModel
     except ImportError as exc:
         raise RuntimeError(
-            "cjindex model APIs require the cjlib Python package to be importable"
+            "cityjson-index model APIs require the cityjson-lib Python package to be importable"
         ) from exc
     return CityModel
 
 
 def _parse_citymodel_bytes(payload: bytes) -> "CityModel":
     try:
-        from cjlib import RootKind, probe_bytes
+        from cityjson_lib import RootKind, probe_bytes
     except ImportError as exc:
         raise RuntimeError(
-            "cjindex model APIs require the cjlib Python package to be importable"
+            "cityjson-index model APIs require the cityjson-lib Python package to be importable"
         ) from exc
 
     citymodel_type = _require_citymodel_type()

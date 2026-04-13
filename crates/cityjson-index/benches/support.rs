@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cjindex::realistic_workload::{QUERY_BATCH_COUNT, build_realistic_workload};
-use cjindex::{BBox, CityIndex, StorageLayout};
-use cjlib::{Error, Result};
+use cityjson_index::realistic_workload::{QUERY_BATCH_COUNT, build_realistic_workload};
+use cityjson_index::{BBox, CityIndex, StorageLayout};
+use cityjson_lib::{Error, Result};
 use criterion::{BatchSize, Criterion};
 use serde_json::Value;
 
@@ -202,7 +202,10 @@ fn bench_root() -> PathBuf {
 }
 
 fn build_index(kind: LayoutKind, root: &Path) -> CityIndex {
-    let index_path = unique_temp_file(&format!("cjindex-bench-{}-build", kind.label()), "sqlite");
+    let index_path = unique_temp_file(
+        &format!("cityjson-index-bench-{}-build", kind.label()),
+        "sqlite",
+    );
     let mut index = CityIndex::open(kind.storage_layout(root), &index_path)
         .expect("benchmark index should open");
     index.reindex().expect("benchmark index should reindex");
@@ -210,7 +213,10 @@ fn build_index(kind: LayoutKind, root: &Path) -> CityIndex {
 }
 
 fn empty_index(kind: LayoutKind, root: &Path) -> CityIndex {
-    let index_path = unique_temp_file(&format!("cjindex-bench-{}-empty", kind.label()), "sqlite");
+    let index_path = unique_temp_file(
+        &format!("cityjson-index-bench-{}-empty", kind.label()),
+        "sqlite",
+    );
     CityIndex::open(kind.storage_layout(root), &index_path).expect("benchmark index should open")
 }
 
@@ -272,7 +278,7 @@ fn unique_temp_file(label: &str, suffix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time must be after the unix epoch")
         .as_nanos();
-    let path = std::env::temp_dir().join(format!("cjindex-{label}-{unique}.{suffix}"));
+    let path = std::env::temp_dir().join(format!("cityjson-index-{label}-{unique}.{suffix}"));
     if path.exists() {
         fs::remove_file(&path).expect("benchmark temp file should be removable");
     }

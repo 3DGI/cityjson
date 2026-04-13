@@ -6,7 +6,7 @@ use std::io::copy;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use cjlib::{Error, Result};
+use cityjson_lib::{Error, Result};
 use flate2::read::GzDecoder;
 use flatgeobuf::{FallibleStreamingIterator, FeatureProperties, FgbReader};
 use ignore::WalkBuilder;
@@ -89,7 +89,7 @@ pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedD
     fs::create_dir_all(feature_files_root.join("features"))?;
 
     let http_client = reqwest::blocking::Client::builder()
-        .user_agent("cjindex/3dbag-benchmark-prep")
+        .user_agent("cityjson-index/3dbag-benchmark-prep")
         .build()
         .map_err(|error| import_error(error.to_string()))?;
 
@@ -676,7 +676,8 @@ fn validate_cjval(path: &Path) -> Result<()> {
 
 fn validate_feature_file(path: &Path, metadata_bytes: &[u8]) -> Result<()> {
     let bytes = fs::read(path)?;
-    let _feature = cjlib::json::staged::from_feature_slice_with_base(&bytes, metadata_bytes)?;
+    let _feature =
+        cityjson_lib::json::staged::from_feature_slice_with_base(&bytes, metadata_bytes)?;
     Ok(())
 }
 

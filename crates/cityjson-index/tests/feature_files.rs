@@ -2,7 +2,7 @@ mod common;
 
 use std::fs;
 
-use cjindex::{CityIndex, StorageLayout};
+use cityjson_index::{CityIndex, StorageLayout};
 use common::{
     bbox_for_model, feature_files_root, find_first, materialize_subset, model_contains_id,
     temp_index_path,
@@ -61,7 +61,7 @@ fn feature_files_cityindex_supports_end_to_end_queries() {
     let iter_hits = index
         .query_iter(&bbox)
         .expect("feature-files query_iter should succeed")
-        .collect::<cjlib::Result<Vec<_>>>()
+        .collect::<cityjson_lib::Result<Vec<_>>>()
         .expect("feature-files query_iter items should succeed");
     assert!(
         iter_hits

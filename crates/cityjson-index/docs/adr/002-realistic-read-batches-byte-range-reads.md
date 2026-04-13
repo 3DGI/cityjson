@@ -98,7 +98,7 @@ At read time, regular `CityJSON` now rebuilds a full feature package:
 ### Shared workload builder
 
 The deterministic workload builder now lives in
-[/home/balazs/Development/cjindex/src/realistic_workload.rs](/home/balazs/Development/cjindex/src/realistic_workload.rs)
+[/home/balazs/Development/cityjson-index/src/realistic_workload.rs](/home/balazs/Development/cityjson-index/src/realistic_workload.rs)
 and is shared by:
 
 - the Criterion harness
@@ -110,7 +110,7 @@ contract.
 ### Benchmark harness
 
 The current Criterion harness lives in
-[/home/balazs/Development/cjindex/benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs).
+[/home/balazs/Development/cityjson-index/benches/support.rs](/home/balazs/Development/cityjson-index/benches/support.rs).
 
 Key points:
 
@@ -124,7 +124,7 @@ Key points:
 ### `CityJSON` feature-package indexing
 
 The hot-path and index-structure changes live in
-[/home/balazs/Development/cjindex/src/lib.rs](/home/balazs/Development/cjindex/src/lib.rs).
+[/home/balazs/Development/cityjson-index/src/lib.rs](/home/balazs/Development/cityjson-index/src/lib.rs).
 
 Key points:
 

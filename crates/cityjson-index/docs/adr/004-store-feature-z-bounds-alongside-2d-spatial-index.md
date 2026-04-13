@@ -10,8 +10,8 @@ Accepted
 
 ## Context
 
-`cjindex` currently persists only `x/y` feature bounds in its SQLite index.
-The RTree in [/home/balazs/Development/cjindex/src/lib.rs](/home/balazs/Development/cjindex/src/lib.rs)
+`cityjson-index` currently persists only `x/y` feature bounds in its SQLite index.
+The RTree in [/home/balazs/Development/cityjson-index/src/lib.rs](/home/balazs/Development/cityjson-index/src/lib.rs)
 stores:
 
 - `min_x`
@@ -30,25 +30,25 @@ Tyler:
 - page-based full scan before feature decoding in
   [/home/balazs/Development/tyler/src/parser.rs](/home/balazs/Development/tyler/src/parser.rs)
 
-Because `cjindex` exposes only 2D bounds there, Tyler currently converts them
+Because `cityjson-index` exposes only 2D bounds there, Tyler currently converts them
 to a 3D bbox with `z = 0` and later repairs the grid `z` range from decoded
 features. That workaround exists in:
 
 - [/home/balazs/Development/tyler/src/parser.rs](/home/balazs/Development/tyler/src/parser.rs)
 - [/home/balazs/Development/tyler/src/spatial_structs.rs](/home/balazs/Development/tyler/src/spatial_structs.rs)
 
-This is unnecessary. `cjindex` already derives feature bounds from decoded
+This is unnecessary. `cityjson-index` already derives feature bounds from decoded
 vertices at import time, so missing `z` in the full-scan APIs is a persistence
 and API-shape gap, not a fundamental capability gap.
 
 ## Decision
 
-`cjindex` will keep its spatial query key 2D, but it will also persist
+`cityjson-index` will keep its spatial query key 2D, but it will also persist
 per-feature `min_z` and `max_z` as normal indexed metadata.
 
 The design is:
 
-- keep `cjindex::BBox` as the 2D spatial query type
+- keep `cityjson_index::BBox` as the 2D spatial query type
 - add a separate public `FeatureBounds` type containing full 3D feature bounds
 - store `min_z` and `max_z` alongside feature metadata in the `features` table
 - expose `FeatureBounds` from page-oriented full-scan APIs through
@@ -70,7 +70,7 @@ That is the right tradeoff because:
 
 ## Implementation
 
-### `cjindex`
+### `cityjson-index`
 
 - Add `FeatureBounds { min_x, max_x, min_y, max_y, min_z, max_z }`
 - Extend import-time bounds extraction to compute all three axes
@@ -80,7 +80,7 @@ That is the right tradeoff because:
 
 ### Tyler
 
-- Replace the current `cjindex` fast-path `z = 0` conversion with direct use of
+- Replace the current `cityjson-index` fast-path `z = 0` conversion with direct use of
   indexed 3D bounds
 - Remove the post-index grid `z` repair that existed only because indexed
   bounds were incomplete
@@ -90,13 +90,13 @@ That is the right tradeoff because:
 ### Positive
 
 - Tyler gets correct indexed `z` bounds on the fast path
-- `cjindex` keeps a clear separation between 2D query keys and full 3D feature
+- `cityjson-index` keeps a clear separation between 2D query keys and full 3D feature
   metadata
 - the schema change is additive and can be handled by normal sidecar upgrades
 
 ### Negative
 
-- `cjindex` gains another public bounds type
+- `cityjson-index` gains another public bounds type
 - older sidecars need a reindex before they can supply indexed `z` bounds
 
 ### Neutral tradeoff

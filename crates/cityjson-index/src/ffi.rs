@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::ptr::{self, NonNull};
 use std::slice;
 
-use cjlib::json;
-use cjlib_ffi_core::{
+use cityjson_lib::json;
+use cityjson_lib_ffi_core::{
     AbiError, bytes_free, bytes_from_string, bytes_from_vec, cj_bytes_t, cj_error_kind_t,
     cj_status_t, clear_last_error, copy_last_error_message, last_error_kind,
     last_error_message_len, run_ffi,

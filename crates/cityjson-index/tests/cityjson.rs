@@ -2,7 +2,7 @@ mod common;
 
 use std::fs;
 
-use cjindex::{CityIndex, StorageLayout, resolve_dataset};
+use cityjson_index::{CityIndex, StorageLayout, resolve_dataset};
 use common::{
     bbox_for_model, cityjson_root, feature_files_root, find_first, model_contains_id,
     temp_fixture_root, temp_index_path,
@@ -75,7 +75,7 @@ fn cityjson_cityindex_supports_end_to_end_queries() {
     let iter_hits = index
         .query_iter(&bbox)
         .expect("cityjson query_iter should succeed")
-        .collect::<cjlib::Result<Vec<_>>>()
+        .collect::<cityjson_lib::Result<Vec<_>>>()
         .expect("cityjson query_iter items should succeed");
     assert!(
         iter_hits
@@ -87,7 +87,7 @@ fn cityjson_cityindex_supports_end_to_end_queries() {
     let iter_hits_with_ids = index
         .query_iter_with_ids(&bbox)
         .expect("cityjson query_iter_with_ids should succeed")
-        .collect::<cjlib::Result<Vec<_>>>()
+        .collect::<cityjson_lib::Result<Vec<_>>>()
         .expect("cityjson query_iter_with_ids items should succeed");
     assert!(
         iter_hits_with_ids

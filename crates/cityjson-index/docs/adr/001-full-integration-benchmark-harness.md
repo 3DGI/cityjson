@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-`cjindex` supports three storage layouts:
+`cityjson-index` supports three storage layouts:
 
 - feature-files
 - regular `CityJSON`
@@ -84,7 +84,7 @@ cache-cold or many-ID lookup claims.
 ### 1. Shared harness retained
 
 The main implementation still lives in
-[benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs).
+[benches/support.rs](/home/balazs/Development/cityjson-index/benches/support.rs).
 
 It still exposes:
 
@@ -93,9 +93,9 @@ It still exposes:
 
 The per-layout bench files remain thin wrappers:
 
-- [benches/feature_files.rs](/home/balazs/Development/cjindex/benches/feature_files.rs)
-- [benches/cityjson.rs](/home/balazs/Development/cjindex/benches/cityjson.rs)
-- [benches/ndjson.rs](/home/balazs/Development/cjindex/benches/ndjson.rs)
+- [benches/feature_files.rs](/home/balazs/Development/cityjson-index/benches/feature_files.rs)
+- [benches/cityjson.rs](/home/balazs/Development/cityjson-index/benches/cityjson.rs)
+- [benches/ndjson.rs](/home/balazs/Development/cityjson-index/benches/ndjson.rs)
 
 ### 2. Full prepared corpus instead of a subset
 
@@ -113,7 +113,7 @@ version.
 ### 3. Deterministic 1,000-feature spatial workload
 
 The selector in
-[benches/support.rs](/home/balazs/Development/cjindex/benches/support.rs)
+[benches/support.rs](/home/balazs/Development/cityjson-index/benches/support.rs)
 now groups feature files by tile and picks the first lexicographically ordered
 tile that contains at least 1,000 feature files.
 
@@ -148,7 +148,7 @@ unrunnable.
 ### 5. Interpretation anchored in the current read implementations
 
 The benchmark results need to be read together with the current backend read
-paths in [src/lib.rs](/home/balazs/Development/cjindex/src/lib.rs).
+paths in [src/lib.rs](/home/balazs/Development/cityjson-index/src/lib.rs).
 
 For steady-state reads:
 
@@ -157,7 +157,7 @@ For steady-state reads:
   slices out the indexed feature span
 - CityJSON currently rereads the entire `.city.json` tile per hit, slices out
   one `CityObject`, localizes vertices, remaps boundaries, and rebuilds a
-  one-object feature package before handing it to `cjlib`
+  one-object feature package before handing it to `cityjson-lib`
 
 This means the benchmark is not just measuring abstract storage-layout
 properties. It is also measuring the current implementation strategy for each

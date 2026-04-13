@@ -1,6 +1,6 @@
-# cjindex
+# cityjson-index
 
-`cjindex` provides random-access retrieval of CityJSON features by identifier or bounding box, backed by a persistent SQLite index.
+`cityjson-index` provides random-access retrieval of CityJSON features by identifier or bounding box, backed by a persistent SQLite index.
 
 It supports three on-disk storage layouts behind one API:
 
@@ -8,7 +8,7 @@ It supports three on-disk storage layouts behind one API:
 - regular CityJSON
 - individual CityJSONFeature files
 
-The library returns `cjlib::CityModel` values for reads. For `get` and `query`, the intended CLI output is a line-oriented CityJSON stream: the first record is a `CityJSON` document containing metadata and an empty `CityObjects` object, and every following record is a `CityJSONFeature`. File output uses the same record shape, newline-delimited.
+The library returns `cityjson_lib::CityModel` values for reads. For `get` and `query`, the intended CLI output is a line-oriented CityJSON stream: the first record is a `CityJSON` document containing metadata and an empty `CityObjects` object, and every following record is a `CityJSONFeature`. File output uses the same record shape, newline-delimited.
 
 ## CLI
 
@@ -23,7 +23,7 @@ The CLI now has a dataset-oriented mode as the default workflow:
 - `metadata DATASET_DIR`
 
 Dataset mode auto-detects one of the supported layouts under `DATASET_DIR` and
-uses `<DATASET_DIR>/.cjindex.sqlite` as the default index sidecar. `inspect`
+uses `<DATASET_DIR>/.cityjson-index.sqlite` as the default index sidecar. `inspect`
 reports layout, counts, index presence, freshness, and coverage. `validate`
 performs the same checks but exits non-zero when the index is missing, stale,
 or no longer matches the dataset.
@@ -36,10 +36,10 @@ up front.
 The explicit low-level mode still exists as an escape hatch:
 
 ```text
-cjindex get \
+cityjson-index get \
   --layout feature-files \
   --root /data/feature-files \
-  --index /data/feature-files/.cjindex.sqlite \
+  --index /data/feature-files/.cityjson-index.sqlite \
   --id NL.IMBAG.Pand.0503100000012869-0
 ```
 
@@ -124,12 +124,12 @@ The prep tool writes a manifest under the output root that records the exact
 tile list, counts, and checksums for the prepared corpus.
 
 The shared `cityjson-benchmarks` repository now owns the acquisition contract
-for the raw 3DBAG inputs. `cjindex` keeps the layout-building prep pipeline and
+for the raw 3DBAG inputs. `cityjson-index` keeps the layout-building prep pipeline and
 consumes that shared source data when it needs a local benchmark tree.
 
 The concrete prep implementation lives in
-[tests/common/data_prep.rs](/home/balazs/Development/cjindex/tests/common/data_prep.rs)
-and the `prep-test-data` recipe in [justfile](/home/balazs/Development/cjindex/justfile).
+[tests/common/data_prep.rs](/home/balazs/Development/cityjson-index/tests/common/data_prep.rs)
+and the `prep-test-data` recipe in [justfile](/home/balazs/Development/cityjson-index/justfile).
 
 The prep pipeline downloads `tile_index.fgb` from `https://data.3dbag.nl/v20250903/`
 and parses every tile entry for the `cj_download` URL. It downloads tiles in
@@ -159,8 +159,8 @@ The current steady-state read benchmarks use hot, repeated workloads rather than
 See the benchmark ADRs for the current read-path contract and the historical
 benchmark harness:
 
-- [docs/adr/001-full-integration-benchmark-harness.md](/home/balazs/Development/cjindex/docs/adr/001-full-integration-benchmark-harness.md)
-- [docs/adr/002-realistic-read-batches-byte-range-reads.md](/home/balazs/Development/cjindex/docs/adr/002-realistic-read-batches-byte-range-reads.md)
+- [docs/adr/001-full-integration-benchmark-harness.md](/home/balazs/Development/cityjson-index/docs/adr/001-full-integration-benchmark-harness.md)
+- [docs/adr/002-realistic-read-batches-byte-range-reads.md](/home/balazs/Development/cityjson-index/docs/adr/002-realistic-read-batches-byte-range-reads.md)
 
 Current read ranking in the benchmark ADRs:
 
@@ -174,7 +174,7 @@ Shared corpus migration:
 
 ## Status
 
-`cjindex` now has a working indexing and read library plus a dataset-first CLI
+`cityjson-index` now has a working indexing and read library plus a dataset-first CLI
 with inspect/validate support. The remaining work is mostly incremental index
 maintenance and further read-path performance work rather than missing core
 functionality.

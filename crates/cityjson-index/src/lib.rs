@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
-use cjlib::json::staged;
-use cjlib::{CityModel, Error, Result};
+use cityjson_lib::json::staged;
+use cityjson_lib::{CityModel, Error, Result};
 use globset::GlobMatcher;
 use ignore::WalkBuilder;
 use lru::LruCache;
@@ -253,7 +253,7 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
             status.needs_reindex = true;
             status
                 .issues
-                .push("index is missing persisted z bounds; run cjindex reindex".to_owned());
+                .push("index is missing persisted z bounds; run cityjson-index reindex".to_owned());
         }
 
         let indexed_sources = index.indexed_sources()?;
@@ -359,7 +359,8 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
         }
         if status.needs_reindex {
             status.issues.push(
-                "index is missing persisted freshness metadata; run cjindex reindex".to_owned(),
+                "index is missing persisted freshness metadata; run cityjson-index reindex"
+                    .to_owned(),
             );
         }
 
@@ -617,7 +618,7 @@ pub fn resolve_dataset(
 
     Ok(ResolvedDataset {
         dataset_root: dataset_root.clone(),
-        index_path: index_override.unwrap_or_else(|| dataset_root.join(".cjindex.sqlite")),
+        index_path: index_override.unwrap_or_else(|| dataset_root.join(".cityjson-index.sqlite")),
         layout,
         manifest: resolve_manifest_summary(&dataset_root)?,
         storage_layout,
@@ -3202,7 +3203,7 @@ mod tests {
             .read_one(&loc, base_document_bytes)
             .expect("CityJSON read should succeed");
         let output: Value =
-            serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
+            serde_json::from_str(&cityjson_lib::json::to_string(&model).expect("serialize result"))
                 .expect("valid output JSON");
 
         let cityobjects = output["CityObjects"]
@@ -3294,7 +3295,7 @@ mod tests {
             .read_one(&loc, metadata_bytes)
             .expect("CityJSON read should succeed");
         let output: Value =
-            serde_json::from_str(&cjlib::json::to_string(&model).expect("serialize result"))
+            serde_json::from_str(&cityjson_lib::json::to_string(&model).expect("serialize result"))
                 .expect("valid output JSON");
         let cityobjects = output["CityObjects"]
             .as_object()
@@ -3614,7 +3615,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("cjindex-cityjson-read-one-{unique}.json"));
+        let path =
+            std::env::temp_dir().join(format!("cityjson-index-cityjson-read-one-{unique}.json"));
         fs::write(&path, bytes).expect("write temp cityjson");
         path
     }
@@ -3624,7 +3626,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("cjindex-ndjson-{unique}.jsonl"));
+        let path = std::env::temp_dir().join(format!("cityjson-index-ndjson-{unique}.jsonl"));
         let contents = format!(
             "{}\n{}\n",
             serde_json::to_string(metadata).expect("metadata JSON"),
@@ -3639,7 +3641,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("cjindex-ndjson-{unique}.sqlite"));
+        let path = std::env::temp_dir().join(format!("cityjson-index-ndjson-{unique}.sqlite"));
         if path.exists() {
             fs::remove_file(&path).expect("remove temp sqlite");
         }
@@ -3651,7 +3653,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("cjindex-{prefix}-{unique}.sqlite"));
+        let path = std::env::temp_dir().join(format!("cityjson-index-{prefix}-{unique}.sqlite"));
         if path.exists() {
             fs::remove_file(&path).expect("remove temp sqlite");
         }
@@ -3659,7 +3661,7 @@ mod tests {
     }
 
     fn write_temp_feature_files_root(ids: &[&str]) -> PathBuf {
-        let root = write_temp_dir("cjindex-feature-files");
+        let root = write_temp_dir("cityjson-index-feature-files");
         fs::write(
             root.join("metadata.json"),
             serde_json::to_vec(&base_document()).expect("metadata JSON"),
@@ -3681,7 +3683,7 @@ mod tests {
     }
 
     fn write_temp_cityjson_root(ids: &[&str]) -> PathBuf {
-        let root = write_temp_dir("cjindex-cityjson");
+        let root = write_temp_dir("cityjson-index-cityjson");
         let mut cityobjects = Map::new();
         for id in ids {
             cityobjects.insert((*id).to_owned(), feature_object(0));
@@ -3712,7 +3714,7 @@ mod tests {
     }
 
     fn write_temp_ndjson_root(ids: &[&str]) -> PathBuf {
-        let root = write_temp_dir("cjindex-ndjson-root");
+        let root = write_temp_dir("cityjson-index-ndjson-root");
         let mut contents = serde_json::to_string(&base_document()).expect("metadata JSON");
         contents.push('\n');
         for (idx, id) in ids.iter().enumerate() {
@@ -3846,7 +3848,7 @@ mod tests {
 
     fn model_contains_id(model: &CityModel, id: &str) -> bool {
         let value: Value =
-            serde_json::from_str(&cjlib::json::to_string(model).expect("serialize model"))
+            serde_json::from_str(&cityjson_lib::json::to_string(model).expect("serialize model"))
                 .expect("model JSON");
         value["CityObjects"]
             .as_object()
@@ -3855,7 +3857,7 @@ mod tests {
 
     fn feature_bounds_for_model(model: &CityModel) -> Result<FeatureBounds> {
         let value: Value =
-            serde_json::from_str(&cjlib::json::to_string(model).expect("serialize model"))
+            serde_json::from_str(&cityjson_lib::json::to_string(model).expect("serialize model"))
                 .expect("model JSON");
         let vertices = value
             .get("vertices")
@@ -3946,7 +3948,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("cjindex-range-read-{unique}.bin"));
+        let path = std::env::temp_dir().join(format!("cityjson-index-range-read-{unique}.bin"));
         fs::write(&path, bytes).expect("write temp bytes");
         path
     }

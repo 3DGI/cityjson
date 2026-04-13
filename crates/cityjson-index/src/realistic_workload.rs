@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cjlib::{Error, Result};
+use cityjson_lib::{Error, Result};
 use ignore::WalkBuilder;
 use serde_json::Value;
 

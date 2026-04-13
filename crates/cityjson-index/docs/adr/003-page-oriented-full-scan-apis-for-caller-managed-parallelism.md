@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-`cjindex` now has an efficient non-spatial full-scan iterator based on ordered
+`cityjson-index` now has an efficient non-spatial full-scan iterator based on ordered
 `features.id` paging. That removed the worst `DISTINCT` and bbox-query costs
 from Tyler's full-corpus scans.
 
@@ -22,7 +22,7 @@ still reconstructs the full corpus twice:
 2. once to assign features to grid cells in
    [/home/balazs/Development/tyler/src/parser.rs](/home/balazs/Development/tyler/src/parser.rs)
 
-On the current full-scan path, `cjindex` exposes one-item-at-a-time iterators:
+On the current full-scan path, `cityjson-index` exposes one-item-at-a-time iterators:
 
 - `iter_all()`
 - `iter_all_with_ids()`
@@ -35,18 +35,18 @@ Those are intentionally simple, but they are also inherently serial:
 - one decoded `CityModel` delivered at a time
 
 Tyler still uses `rayon` in other parts of the pipeline, but not in the
-`cjindex` full-scan hot path. The benchmark on
+`cityjson-index` full-scan hot path. The benchmark on
 `/home/balazs/Data/3DBAG_3dtiles_test/input` showed the current head running at
 roughly one core, while the historical baseline used more than one core.
 
-At the same time, adding a `rayon::ParallelIterator` directly to `cjindex`
+At the same time, adding a `rayon::ParallelIterator` directly to `cityjson-index`
 would be the wrong abstraction:
 
 - SQLite paging itself should remain serial and deterministic
 - callers may want different concurrency models, not necessarily `rayon`
 - a `ParallelIterator` API would make ordering and error behavior harder to
   reason about
-- `cjindex` should stay focused on index lookup and reconstruction, not act as
+- `cityjson-index` should stay focused on index lookup and reconstruction, not act as
   a scheduling framework
 
 The relevant Tyler call sites are:
@@ -58,7 +58,7 @@ The relevant Tyler call sites are:
 
 ## Decision
 
-We will add page-oriented, non-spatial full-scan APIs to `cjindex` and keep
+We will add page-oriented, non-spatial full-scan APIs to `cityjson-index` and keep
 parallelism in the caller.
 
 The new API family will expose materialized pages of indexed feature
@@ -84,7 +84,7 @@ or remain as wrappers around the same lookup logic.
 
 ## Implementation
 
-### `cjindex`
+### `cityjson-index`
 
 The core `Index` paging query stays on ordered `features.id`, but the result row
 shape expands to include the indexed bbox columns already stored in
@@ -102,7 +102,7 @@ contain:
 That lets callers choose between:
 
 - bbox-only processing
-- full reconstruction by calling back into `cjindex`
+- full reconstruction by calling back into `cityjson-index`
 
 ### Tyler
 
@@ -114,7 +114,7 @@ The intended usage is:
   indexed bboxes without decoding features
 - otherwise decode features page-by-page and parallelize the geometry work with
   `rayon`
-- for grid indexing, fetch a page of feature references from `cjindex`, decode
+- for grid indexing, fetch a page of feature references from `cityjson-index`, decode
   them in parallel, then integrate the results serially into the world grid
 
 This keeps correctness intact for filtered workloads while avoiding unnecessary
@@ -124,7 +124,7 @@ decode for the common unfiltered case.
 
 ### Positive
 
-- `cjindex` remains storage- and lookup-focused instead of becoming tied to
+- `cityjson-index` remains storage- and lookup-focused instead of becoming tied to
   `rayon`
 - callers can recover multicore decode performance without giving up ordered
   deterministic index scans
@@ -134,7 +134,7 @@ decode for the common unfiltered case.
 
 ### Negative
 
-- `cjindex` gains another layer of public API surface
+- `cityjson-index` gains another layer of public API surface
 - Tyler has to do slightly more orchestration work per page
 - there are now two ways to consume full scans: item-by-item and page-based
 

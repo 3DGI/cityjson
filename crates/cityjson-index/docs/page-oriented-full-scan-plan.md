@@ -4,17 +4,17 @@ Date: 2026-03-30
 
 ## Goal
 
-Add page-oriented non-spatial full-scan APIs to `cjindex`, then switch Tyler to
+Add page-oriented non-spatial full-scan APIs to `cityjson-index`, then switch Tyler to
 use them for:
 
 - bbox-only extent construction when no feature-type filtering is active
-- page-level parallel feature decode for cjindex-backed world indexing
+- page-level parallel feature decode for cityjson-index-backed world indexing
 
 ## Constraints
 
 - preserve deterministic feature order
 - keep SQLite paging serial
-- do not require `rayon` inside `cjindex`
+- do not require `rayon` inside `cityjson-index`
 - preserve Tyler correctness when `cityobject_types` filtering is active
 - keep the existing item-at-a-time APIs working
 
@@ -87,7 +87,7 @@ place.
 If convenient, refactor them to reuse the same internal row mapper, but do not
 change their observable order or semantics.
 
-### 5. Add `cjindex` tests
+### 5. Add `cityjson-index` tests
 
 Add focused tests that verify:
 
@@ -99,7 +99,7 @@ Add focused tests that verify:
 
 ### 6. Update Tyler
 
-Change Tyler's cjindex path to:
+Change Tyler's cityjson-index path to:
 
 - compute extent from indexed bbox pages when no `cityobject_types` filter is
   active
@@ -130,7 +130,7 @@ This should improve Tyler in two ways:
 ## Non-goals
 
 - replacing Tyler's two-pass architecture in this patch
-- adding `rayon` as a dependency of `cjindex`
+- adding `rayon` as a dependency of `cityjson-index`
 - changing spatial bbox query APIs
 - changing the SQLite schema beyond what is needed to expose already indexed
   bbox data through the full-scan query

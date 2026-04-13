@@ -6,10 +6,10 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
-use cjindex::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
-use cjindex::{CityIndex, IndexedFeatureRef, StorageLayout};
-use cjlib::Result;
-use cjlib::json::staged;
+use cityjson_index::realistic_workload::{WORKLOAD_SHUFFLE_SEED, seeded_shuffle};
+use cityjson_index::{CityIndex, IndexedFeatureRef, StorageLayout};
+use cityjson_lib::Result;
+use cityjson_lib::json::staged;
 
 const WORKER_COUNT: usize = 6;
 const ADJACENTS_PER_BUILDING: usize = 4;
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
     let setup_start = Instant::now();
 
     // Build feature-files index
-    let ff_index_path = std::env::temp_dir().join("cjindex-parallel-bench-ff.sqlite");
+    let ff_index_path = std::env::temp_dir().join("cityjson-index-parallel-bench-ff.sqlite");
     let _ = fs::remove_file(&ff_index_path);
     let mut ff_index = CityIndex::open(
         StorageLayout::FeatureFiles {
@@ -73,7 +73,8 @@ fn main() -> Result<()> {
     let ff_refs = collect_all_refs(&ff_index)?;
 
     // Build ndjson index
-    let ndjson_index_path = std::env::temp_dir().join("cjindex-parallel-bench-ndjson.sqlite");
+    let ndjson_index_path =
+        std::env::temp_dir().join("cityjson-index-parallel-bench-ndjson.sqlite");
     let _ = fs::remove_file(&ndjson_index_path);
     let mut ndjson_index = CityIndex::open(
         StorageLayout::Ndjson {
@@ -112,7 +113,7 @@ fn main() -> Result<()> {
     );
 
     // Build work items
-    let mut cjindex_work = Vec::with_capacity(n);
+    let mut cityjson_index_work = Vec::with_capacity(n);
     let mut baseline_work = Vec::with_capacity(n);
     let mut metadata_cache: HashMap<PathBuf, Vec<u8>> = HashMap::new();
 
@@ -159,7 +160,7 @@ fn main() -> Result<()> {
             adjacent_paths,
         });
 
-        cjindex_work.push(BuildingWork {
+        cityjson_index_work.push(BuildingWork {
             target_ref: ndjson_target_ref,
             adjacent_refs: ndjson_adjacent_refs,
         });
@@ -225,11 +226,11 @@ fn main() -> Result<()> {
         );
     }
 
-    // --- cjindex ndjson ---
-    println!("\n=== cjindex (ndjson, read_feature via refs) ===");
+    // --- cityjson-index ndjson ---
+    println!("\n=== cityjson-index (ndjson, read_feature via refs) ===");
     {
-        let chunk_size = cjindex_work.len().div_ceil(WORKER_COUNT);
-        let chunks: Vec<&[BuildingWork]> = cjindex_work.chunks(chunk_size).collect();
+        let chunk_size = cityjson_index_work.len().div_ceil(WORKER_COUNT);
+        let chunks: Vec<&[BuildingWork]> = cityjson_index_work.chunks(chunk_size).collect();
 
         let start = Instant::now();
         thread::scope(|s| {

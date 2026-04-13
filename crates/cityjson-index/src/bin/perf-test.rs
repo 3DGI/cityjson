@@ -2,8 +2,8 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use cjindex::{BBox, CityIndex, realistic_workload, resolve_dataset};
-use cjlib::Result;
+use cityjson_index::{BBox, CityIndex, realistic_workload, resolve_dataset};
+use cityjson_lib::Result;
 use rusqlite::Connection;
 
 fn main() -> Result<()> {
@@ -53,7 +53,7 @@ fn parse_dataset_dir() -> PathBuf {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: perf-test <DATASET_DIR>");
-        eprintln!("  DATASET_DIR: Path to the cjindex dataset (auto-detects layout)");
+        eprintln!("  DATASET_DIR: Path to the cityjson-index dataset (auto-detects layout)");
         std::process::exit(1);
     }
     PathBuf::from(&args[1])
@@ -199,13 +199,13 @@ fn count_to_f64(count: usize) -> f64 {
 
 fn sample_ids_and_bboxes(index_path: &Path) -> Result<realistic_workload::RealisticWorkload> {
     let conn = Connection::open(index_path)
-        .map_err(|error| cjlib::Error::Import(format!("Failed to open index: {error}")))?;
+        .map_err(|error| cityjson_lib::Error::Import(format!("Failed to open index: {error}")))?;
 
     let mut stmt = conn
         .prepare(
             "SELECT feature_id, min_x, max_x, min_y, max_y FROM feature_bbox JOIN bbox_map ON feature_rowid = feature_rowid LIMIT 1000",
         )
-        .map_err(|error| cjlib::Error::Import(format!("Failed to prepare query: {error}")))?;
+        .map_err(|error| cityjson_lib::Error::Import(format!("Failed to prepare query: {error}")))?;
 
     let mut ids = Vec::new();
     let mut bboxes = Vec::new();
@@ -227,11 +227,11 @@ fn sample_ids_and_bboxes(index_path: &Path) -> Result<realistic_workload::Realis
                 },
             ))
         })
-        .map_err(|error| cjlib::Error::Import(format!("Failed to query rows: {error}")))?;
+        .map_err(|error| cityjson_lib::Error::Import(format!("Failed to query rows: {error}")))?;
 
     for row in rows {
-        let (id, bbox) =
-            row.map_err(|error| cjlib::Error::Import(format!("Failed to read row: {error}")))?;
+        let (id, bbox) = row
+            .map_err(|error| cityjson_lib::Error::Import(format!("Failed to read row: {error}")))?;
         ids.push(id);
         bboxes.push(bbox);
     }

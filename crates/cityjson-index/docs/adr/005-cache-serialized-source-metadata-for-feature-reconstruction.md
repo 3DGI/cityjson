@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-`cjindex` reconstructs feature packages by combining:
+`cityjson-index` reconstructs feature packages by combining:
 
 - indexed feature bytes or fragments from the storage backend
 - source-level base metadata from the SQLite `sources.metadata` column
@@ -40,7 +40,7 @@ serialization after the bytes have already been persisted and loaded once.
 
 ## Decision
 
-`cjindex` will cache source metadata in two forms at the same time:
+`cityjson-index` will cache source metadata in two forms at the same time:
 
 - parsed JSON as `Arc<Meta>` for APIs that return metadata to callers
 - serialized bytes as `Arc<[u8]>` for backend feature reconstruction
@@ -51,13 +51,13 @@ instead of a parsed metadata value.
 Public API behavior remains the same:
 
 - methods that expose metadata still return `Arc<Meta>`
-- feature reconstruction still uses the same staged `cjlib` helpers
+- feature reconstruction still uses the same staged `cityjson-lib` helpers
 - no on-disk schema changes are required
 
 ## Implementation
 
 The implementation lives in
-[/home/balazs/Development/cjindex/src/lib.rs](/home/balazs/Development/cjindex/src/lib.rs).
+[/home/balazs/Development/cityjson-index/src/lib.rs](/home/balazs/Development/cityjson-index/src/lib.rs).
 
 Key points:
 

@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use cjlib::Result;
+use cityjson_lib::Result;
 
 #[path = "../../tests/common/data_prep.rs"]
 #[allow(dead_code)]
