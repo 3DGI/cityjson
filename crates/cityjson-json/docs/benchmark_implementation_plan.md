@@ -10,7 +10,7 @@ The benchmark harness should:
 - read the shared benchmark index directly
 - prepare input outside the timed closure
 - measure read and write paths separately
-- keep local bootstrap data only for 3D Basisvoorziening
+- consume shared benchmark artifacts only
 - avoid maintaining a local benchmark corpus mirror
 
 ## Current Shape
@@ -23,8 +23,8 @@ The shared repo publishes:
 - synthetic workload benchmark outputs
 - published raw 3DBAG workload artifact paths
 
-This crate only keeps the local 3D Basisvoorziening bootstrap data under
-`tests/data/downloaded/`.
+This crate benchmarks the shared CityJSON artifacts listed in the benchmark
+index and does not keep local bootstrap data for performance inputs.
 
 ## Benchmark Cases
 
@@ -56,7 +56,7 @@ benchmark index instead of a local `tests/data/generated/` mirror.
 ## Rollout Notes
 
 - remove the local `cjfake` benchmark dependency
-- keep the 3D Basisvoorziening bootstrap flow local
+- keep the benchmark harness limited to the shared corpus
 - load benchmark inputs from the shared corpus checkout
 
 ## Acceptance Criteria

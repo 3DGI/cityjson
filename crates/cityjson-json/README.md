@@ -113,22 +113,20 @@ the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
 ### Running Benchmarks
 
 The benchmark corpus now lives in the shared `cityjson-benchmarks` repository.
-`serde_cityjson` reads the shared correctness index for conformance tests and
-the shared benchmark index for workload benches. It only keeps the local 3D
-Basisvoorziening bootstrap data.
-
-Prepare the local bootstrap data and run the benches:
+`serde_cityjson` benchmarks the CityJSON artifacts listed in each workload's
+`artifacts[]` array and reads the shared benchmark index from
+`../cityjson-benchmarks/artifacts/benchmark-index.json` by default. Override
+the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
+`SERDE_CITYJSON_BENCHMARK_INDEX` if your checkout lives elsewhere.
 
 ```bash
-just download
 just bench-read
 just bench-write
 just bench-report
 ```
 
 The benchmarks use Criterion. Read throughput is based on input bytes and write
-throughput is based on output bytes. The bench harness reads the shared corpus
-index from `../cityjson-benchmarks/artifacts/benchmark-index.json`.
+throughput is based on output bytes.
 
 The README benchmark tables are now generated from the shared corpus and
 should be refreshed from current benchmark output, not edited by hand.

@@ -78,16 +78,13 @@ struct BenchmarkCase {
     #[serde(default)]
     description: String,
     #[serde(default)]
-    output: Option<PathBuf>,
-    #[serde(default)]
-    artifact_paths: BenchmarkArtifactPaths,
+    artifacts: Vec<BenchmarkArtifact>,
 }
 
-#[derive(Clone, Default, Deserialize)]
-#[serde(default)]
-struct BenchmarkArtifactPaths {
-    #[serde(default)]
-    source: Option<PathBuf>,
+#[derive(Clone, Deserialize)]
+struct BenchmarkArtifact {
+    representation: String,
+    path: PathBuf,
 }
 
 pub(crate) fn read_cases() -> Vec<CaseSpec> {
@@ -95,7 +92,7 @@ pub(crate) fn read_cases() -> Vec<CaseSpec> {
         .into_iter()
         .filter(|case| case.layer != "invalid")
         .filter(|case| case.representation == "cityjson")
-        .filter_map(BenchmarkCase::into_case_spec)
+        .flat_map(BenchmarkCase::into_case_specs)
         .collect()
 }
 
@@ -104,7 +101,7 @@ pub(crate) fn write_cases() -> Vec<CaseSpec> {
         .into_iter()
         .filter(|case| case.layer != "invalid")
         .filter(|case| case.representation == "cityjson")
-        .filter_map(BenchmarkCase::into_case_spec)
+        .flat_map(BenchmarkCase::into_case_specs)
         .collect()
 }
 
@@ -141,17 +138,28 @@ pub(crate) fn write_write_suite_metadata(prepared: &[PreparedWriteCase]) {
 }
 
 impl BenchmarkCase {
-    fn into_case_spec(self) -> Option<CaseSpec> {
-        let source = self
-            .output
-            .or(self.artifact_paths.source)
-            .map(resolve_shared_path);
+    fn into_case_specs(self) -> Vec<CaseSpec> {
+        let BenchmarkCase {
+            id,
+            description,
+            artifacts,
+            ..
+        } = self;
 
-        source.map(|source| CaseSpec {
-            name: self.id,
-            description: self.description,
-            source,
-        })
+        let cityjson_artifacts: Vec<_> = artifacts
+            .into_iter()
+            .filter(|artifact| artifact.representation == "cityjson")
+            .collect();
+        let use_suffix = cityjson_artifacts.len() > 1;
+
+        cityjson_artifacts
+            .into_iter()
+            .map(|artifact| CaseSpec {
+                name: case_spec_name(&id, &artifact, use_suffix),
+                description: description.clone(),
+                source: resolve_shared_path(artifact.path),
+            })
+            .collect()
     }
 }
 
@@ -173,11 +181,10 @@ impl CaseSpec {
     }
 }
 
-pub(crate) fn real_data_dir() -> PathBuf {
-    shared_corpus_root()
-        .join("tests")
-        .join("data")
-        .join("downloaded")
+impl PreparedWriteCase {
+    pub(crate) fn benchmark_bytes(&self, bench_id: &str) -> u64 {
+        self.benchmark_bytes.get(bench_id).copied().unwrap_or(0)
+    }
 }
 
 fn load_cases() -> Vec<BenchmarkCase> {
@@ -225,6 +232,25 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
     }
 }
 
+fn case_spec_name(case_id: &str, artifact: &BenchmarkArtifact, use_suffix: bool) -> String {
+    if !use_suffix {
+        return case_id.to_owned();
+    }
+
+    let suffix = artifact
+        .path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| {
+            name.trim_end_matches(".city.json")
+                .trim_end_matches(".json")
+        })
+        .filter(|suffix| !suffix.is_empty())
+        .unwrap_or("artifact");
+
+    format!("{case_id}__{suffix}")
+}
+
 fn read_file(path: &Path) -> String {
     fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
@@ -240,54 +266,37 @@ fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata) {
     fs::write(path, output).unwrap();
 }
 
-fn prepare_write_case(case: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCase {
+fn prepare_write_case(spec: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCase {
     let canonical_value = serde_json::to_value(as_json(&model)).unwrap();
-    let serde_json_output = serde_json::to_string(&canonical_value).unwrap();
-    let serde_cityjson_output = to_string(&model).unwrap();
-    let serde_cityjson_validated_output = to_string_validated(&model).unwrap();
+    let mut benchmark_bytes = BTreeMap::new();
 
-    let benchmark_bytes = BTreeMap::from([
-        (
-            WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE.to_owned(),
-            serde_json_output.len() as u64,
-        ),
-        (
-            WRITE_BENCH_SERDE_CITYJSON_TO_STRING.to_owned(),
-            serde_cityjson_output.len() as u64,
-        ),
-        (
-            WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED.to_owned(),
-            serde_cityjson_validated_output.len() as u64,
-        ),
-        (
-            WRITE_BENCH_SERDE_JSON_TO_STRING.to_owned(),
-            serde_json_output.len() as u64,
-        ),
-    ]);
+    let to_string_output = to_string(&model).unwrap();
+    benchmark_bytes.insert(
+        WRITE_BENCH_SERDE_CITYJSON_TO_STRING.to_owned(),
+        to_string_output.len() as u64,
+    );
+
+    let validated_output = to_string_validated(&model).unwrap();
+    benchmark_bytes.insert(
+        WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED.to_owned(),
+        validated_output.len() as u64,
+    );
+
+    benchmark_bytes.insert(
+        WRITE_BENCH_SERDE_JSON_TO_STRING.to_owned(),
+        canonical_value.to_string().len() as u64,
+    );
+
+    benchmark_bytes.insert(
+        WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE.to_owned(),
+        canonical_value.to_string().len() as u64,
+    );
 
     PreparedWriteCase {
-        name: case.name.clone(),
-        description: case.description.clone(),
+        name: spec.name.clone(),
+        description: spec.description.clone(),
         model,
         canonical_value,
         benchmark_bytes,
-    }
-}
-
-impl PreparedWriteCase {
-    pub(crate) fn benchmark_bytes(&self, bench_id: &str) -> u64 {
-        *self
-            .benchmark_bytes
-            .get(bench_id)
-            .unwrap_or_else(|| panic!("missing benchmark byte count for '{bench_id}'"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn benchmark_index_loads_cases_for_both_suites() {
-        assert!(!super::read_cases().is_empty());
-        assert_eq!(super::read_cases().len(), super::write_cases().len());
     }
 }

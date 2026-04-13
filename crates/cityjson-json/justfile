@@ -1,5 +1,4 @@
 set dotenv-load := true
-datadir := "tests" / "data" / "downloaded"
 shared_corpus_root := "../cityjson-benchmarks"
 shared_benchmark_index := shared_corpus_root / "artifacts" / "benchmark-index.json"
 
@@ -7,85 +6,28 @@ shared_benchmark_index := shared_corpus_root / "artifacts" / "benchmark-index.js
 _default:
     just --list
 
-# Create dir for downloaded files
-_prepare:
-    #!/usr/bin/env bash
-    set -euxo pipefail
-    if [ ! -d {{datadir}} ]; then
-      mkdir -p {{datadir}}
-    fi
+# Verify the shared benchmark corpus is available for the benchmark suites.
+_check-shared-benchmark-index:
+    test -f {{shared_benchmark_index}}
 
-# Verify the shared benchmark corpus is available for 3DBAG-backed cases.
-_check-shared-3dbag:
-    test -f {{shared_benchmark_index}} && test -f {{shared_corpus_root}}/artifacts/acquired/3dbag/v20231008/10-356-724.city.json
-
-# Download local bootstrap test data for the benchmarks from the 3D Basivoorziening
-_download-3dbasisvoorziening: _prepare
-    #!/usr/bin/env bash
-    set -euxo pipefail
-    version="2020"
-    tiles=( "30gz1" )
-    download_url="https://download.pdok.nl/kadaster/basisvoorziening-3d/v1_0//"$version"/volledig"
-    for tile_id in "${tiles[@]}" ;
-    do
-      tile_filename=$tile_id"_"$version"_volledig.zip"
-      wget $download_url"/"$tile_filename -O {{datadir}}"/"$tile_filename
-      unzip {{datadir}}"/"$tile_filename -d {{datadir}}
-      rm {{datadir}}"/"$tile_filename
-    done
-
-# Verify the shared benchmark corpus is available for the 3DBAG-backed cases.
-download-3dbag: _check-shared-3dbag
-
-# Download local bootstrap test data for the benchmarks from the 3D Basisvoorziening.
-download-3dbasisvoorziening: _download-3dbasisvoorziening _upgrade
-
-# Upgrade downloaded CityJSON files from v1.1 to v2.0
-_upgrade:
-    uvx cjio@0.10.1 {{datadir}}/30gz1_04.city.json upgrade save {{datadir}}/30gz1_04.city.json
-
-# Download local bootstrap test data for the benchmarks
-download: download-3dbag download-3dbasisvoorziening
-
-# Delete all downloaded files
+# Run cargo clean and delete benchmark outputs and legacy local bootstrap data.
 clean:
-    rm -rf {{datadir}}
+    cargo clean
 
-# Run all benchmarks and generate the comparison plots.
-bench: bench-read bench-write bench-plot
+# Run all benchmarks and generate the comparison report.
+bench: bench-read bench-write bench-report
 
 # Run the read benchmark suite.
-bench-read:
+bench-read: _check-shared-benchmark-index
     cargo bench --bench read --
 
 # Run the write benchmark suite.
-bench-write:
+bench-write: _check-shared-benchmark-index
     cargo bench --bench write --
 
-# Generate the benchmark comparison plots.
-bench-plot:
-    uv run resources/compare_benchmarks/compare_benchmarks.py
-
-# Generate the markdown benchmark summary.
+# Generate the benchmark comparison plots and markdown summary.
 bench-report:
     uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
-
-# Describe the synthetic benchmark profiles.
-synthetic-bench-specs:
-    @printf '%s\n' \
-      'Shared benchmark index:' \
-      '  repo: {{shared_corpus_root}}' \
-      '  index: {{shared_benchmark_index}}' \
-      '' \
-      'serde_cityjson consumes the shared corpus index directly.'
-
-# Print the shared benchmark index.
-synthetic-bench-manifest:
-    cat {{shared_benchmark_index}}
-
-# Print the shared benchmark README.
-synthetic-bench-readme:
-    cat {{shared_corpus_root}}/README.md
 
 # Run cargo check across the workspace.
 check:
