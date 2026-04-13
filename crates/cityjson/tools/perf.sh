@@ -138,42 +138,28 @@ python3 tools/parse_dhat.py \
     --rustc "$RUSTC_VERSION" \
     --out "$CSV_OUT"
 
-stream_mode="e2e"
-stream_size="$SIZE_ARG"
-if [ -z "$stream_size" ]; then
-    if [ "$MODE" = "fast" ]; then
-        stream_size="1000"
-    else
-        stream_size="10000"
-    fi
+dhat_file_streaming="$dhat_dir/memory_streaming.json"
+DHAT_OUTPUT="$(pwd)/$dhat_file_streaming" BENCH_STREAMING=1 \
+    cargo bench --bench memory
+
+dhat_input_streaming="$dhat_file_streaming"
+if [ ! -f "$dhat_input_streaming" ] && [ -f "dhat-heap.json" ]; then
+    cp "dhat-heap.json" "$dhat_file_streaming"
+    dhat_input_streaming="$dhat_file_streaming"
 fi
-stream_batch="${STREAM_BATCH:-1000}"
-stream_out="$target_dir/streaming-metrics.json"
 
-stream_cmd=(cargo bench --bench streaming)
-
-STREAM_MODE="$stream_mode" \
-STREAM_SIZE="$stream_size" \
-STREAM_BATCH="$stream_batch" \
-STREAM_OUT="$stream_out" \
-"${stream_cmd[@]}"
-
-if [ -f "$stream_out" ]; then
-    python3 tools/parse_streaming.py \
-        --stream-json "$stream_out" \
-        --timestamp "$TIMESTAMP" \
-        --commit "$COMMIT" \
-        --description "$DESCRIPTION" \
-        --mode "$MODE" \
-        --backend "$BACKEND" \
-        --bench "streaming/$stream_mode" \
-        --seed "$SEED" \
-        --bench-version "$BENCH_VERSION" \
-        --rustc "$RUSTC_VERSION" \
-        --out "$CSV_OUT"
-else
-    echo "streaming metrics not found at $stream_out" >&2
-fi
+python3 tools/parse_dhat.py \
+    --dhat-json "$dhat_input_streaming" \
+    --timestamp "$TIMESTAMP" \
+    --commit "$COMMIT" \
+    --description "$DESCRIPTION" \
+    --mode "$MODE" \
+    --backend "$BACKEND" \
+    --bench "memory/build_model_streaming/$memory_size" \
+    --seed "$SEED" \
+    --bench-version "$BENCH_VERSION" \
+    --rustc "$RUSTC_VERSION" \
+    --out "$CSV_OUT"
 
 echo "=== Valgrind profiling: backend=$BACKEND bench=processor/compute_full_feature_stats ==="
 PROFILE_BENCH="processor" \
