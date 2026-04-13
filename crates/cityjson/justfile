@@ -26,7 +26,6 @@ fmt:
 test:
     cargo test --all-features
     cargo run --example attributes
-    cargo run --example streaming
     cargo run --example quick_start
 
 # Generate test coverage report using tarpaulin

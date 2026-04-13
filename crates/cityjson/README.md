@@ -54,7 +54,7 @@ fn main() {
 
 ## Data Model
 
-`cityjson-rs` uses a flat, columnar internal representation that differs from the nested JSON structure of the CityJSON specification:
+`cityjson-rs` uses a flat, columnar internal representation that differs from the nested JSON structure of the `CityJSON` specification:
 
 - **Geometry boundaries**: stored as sibling offset arrays (`surfaces`, `shells`, `solids` with corresponding vertex/ring/surface/shell offsets) instead of nested coordinate arrays
 - **Resource pools**: global pools for semantics, materials, textures, and UV coordinates; geometry-local maps store handle references into these pools instead of dense array indices
@@ -114,6 +114,6 @@ without additional terms or conditions.
 ## Use of AI in this project
 
 This crate was originally developed without the use of AI.
-Since then, it underwent multiple significant refactors and various LLM models (Claude, ChatGPT) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
+Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
 LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
-Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire CityJSON 2.0 specification.
+Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire `CityJSON` 2.0 specification.
