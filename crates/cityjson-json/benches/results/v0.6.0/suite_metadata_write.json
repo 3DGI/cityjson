@@ -1,0 +1,105 @@
+{
+  "suite": "write",
+  "cases": [
+    {
+      "id": "stress_appearance_and_validation",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 34968,
+        "serde_cityjson/to_string": 34968,
+        "serde_cityjson/to_string_validated": 34968,
+        "serde_json::to_string": 34968
+      }
+    },
+    {
+      "id": "stress_attribute_tree",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 20026,
+        "serde_cityjson/to_string": 20026,
+        "serde_cityjson/to_string_validated": 20026,
+        "serde_json::to_string": 20026
+      }
+    },
+    {
+      "id": "stress_composite_value",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 26306,
+        "serde_cityjson/to_string": 26306,
+        "serde_cityjson/to_string_validated": 26306,
+        "serde_json::to_string": 26306
+      }
+    },
+    {
+      "id": "stress_deep_boundary",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 25075,
+        "serde_cityjson/to_string": 25075,
+        "serde_cityjson/to_string_validated": 25075,
+        "serde_json::to_string": 25075
+      }
+    },
+    {
+      "id": "stress_geometry_flattening",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 90028,
+        "serde_cityjson/to_string": 90028,
+        "serde_cityjson/to_string_validated": 90028,
+        "serde_json::to_string": 90028
+      }
+    },
+    {
+      "id": "stress_relation_graph",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 40408,
+        "serde_cityjson/to_string": 40408,
+        "serde_cityjson/to_string_validated": 40408,
+        "serde_json::to_string": 40408
+      }
+    },
+    {
+      "id": "stress_vertex_transform",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 21134,
+        "serde_cityjson/to_string": 21134,
+        "serde_cityjson/to_string_validated": 21134,
+        "serde_json::to_string": 21134
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 5908757,
+        "serde_cityjson/to_string": 5908757,
+        "serde_cityjson/to_string_validated": 5908757,
+        "serde_json::to_string": 5908757
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 20480672,
+        "serde_cityjson/to_string": 20480672,
+        "serde_cityjson/to_string_validated": 20480672,
+        "serde_json::to_string": 20480672
+      }
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "serde_cityjson/as_json_to_value": 176832206,
+        "serde_cityjson/to_string": 176832206,
+        "serde_cityjson/to_string_validated": 176832206,
+        "serde_json::to_string": 176832206
+      }
+    }
+  ]
+}

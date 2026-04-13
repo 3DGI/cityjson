@@ -1,0 +1,55 @@
+{
+  "suite": "read",
+  "cases": [
+    {
+      "id": "stress_appearance_and_validation",
+      "description": "",
+      "input_bytes": 34981
+    },
+    {
+      "id": "stress_attribute_tree",
+      "description": "",
+      "input_bytes": 20047
+    },
+    {
+      "id": "stress_composite_value",
+      "description": "",
+      "input_bytes": 26318
+    },
+    {
+      "id": "stress_deep_boundary",
+      "description": "",
+      "input_bytes": 25100
+    },
+    {
+      "id": "stress_geometry_flattening",
+      "description": "",
+      "input_bytes": 90057
+    },
+    {
+      "id": "stress_relation_graph",
+      "description": "",
+      "input_bytes": 40437
+    },
+    {
+      "id": "stress_vertex_transform",
+      "description": "",
+      "input_bytes": 21150
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "input_bytes": 6008573
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "input_bytes": 21040983
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "input_bytes": 177949687
+    }
+  ]
+}
