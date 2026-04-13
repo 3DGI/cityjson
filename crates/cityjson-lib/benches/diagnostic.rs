@@ -4,7 +4,7 @@ mod support;
 use std::fs;
 use std::time::Duration;
 
-use cityarrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
+use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 use support::{BenchmarkCase, benchmark_cases};
 
@@ -18,7 +18,7 @@ fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurem
 struct PreparedDiagnosticCase {
     case: BenchmarkCase,
     model: cityjson_lib::CityModel,
-    parts: cityarrow::schema::CityModelArrowParts,
+    parts: cityjson_arrow::schema::CityModelArrowParts,
     stream_bytes: Vec<u8>,
     package_write_path: std::path::PathBuf,
     _package_write_dir: tempfile::TempDir,
@@ -90,7 +90,7 @@ fn bench_diagnostics(c: &mut Criterion) {
         package_group.throughput(Throughput::Bytes(prepared.case.cityparquet_bytes));
         package_group.bench_function("cityparquet/write_parts", |b| {
             b.iter(|| {
-                let _ = cityparquet::write_package_parts_file(
+                let _ = cityjson_parquet::write_package_parts_file(
                     &prepared.package_write_path,
                     &prepared.parts,
                 )
@@ -99,13 +99,13 @@ fn bench_diagnostics(c: &mut Criterion) {
         });
         package_group.bench_function("cityparquet/read_parts", |b| {
             b.iter(|| {
-                let _ = cityparquet::read_package_parts_file(&prepared.case.cityparquet_path)
+                let _ = cityjson_parquet::read_package_parts_file(&prepared.case.cityparquet_path)
                     .expect("read package parts");
             });
         });
         package_group.bench_function("cityparquet/read_manifest", |b| {
             b.iter(|| {
-                let _ = cityparquet::PackageReader
+                let _ = cityjson_parquet::PackageReader
                     .read_manifest(&prepared.case.cityparquet_path)
                     .expect("read package manifest");
             });

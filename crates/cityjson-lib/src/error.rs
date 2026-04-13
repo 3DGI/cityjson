@@ -106,13 +106,13 @@ impl From<cityjson_json::Error> for Error {
 }
 
 #[cfg(feature = "arrow")]
-impl From<cityarrow::error::Error> for Error {
-    fn from(value: cityarrow::error::Error) -> Self {
+impl From<cityjson_arrow::error::Error> for Error {
+    fn from(value: cityjson_arrow::error::Error) -> Self {
         match value {
-            cityarrow::error::Error::Io(error) => Self::Io(error),
-            cityarrow::error::Error::Json(error) => Self::Json(error),
-            cityarrow::error::Error::CityJSON(error) => Self::CityJSON(error),
-            cityarrow::error::Error::Unsupported(message) => Self::UnsupportedFeature(message),
+            cityjson_arrow::error::Error::Io(error) => Self::Io(error),
+            cityjson_arrow::error::Error::Json(error) => Self::Json(error),
+            cityjson_arrow::error::Error::CityJSON(error) => Self::CityJSON(error),
+            cityjson_arrow::error::Error::Unsupported(message) => Self::UnsupportedFeature(message),
             other => Self::Import(other.to_string()),
         }
     }

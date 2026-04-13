@@ -8,8 +8,8 @@ exclude = ["/tests/output"]
 
 [features]
 default = ["arrow", "parquet"]
-arrow = ["dep:cityarrow"]
-parquet = ["arrow", "dep:cityparquet"]
+arrow = ["dep:cityjson-arrow"]
+parquet = ["arrow", "dep:cityjson-parquet"]
 
 [workspace]
 members = [
@@ -27,9 +27,9 @@ path = "src/lib.rs"
 
 [dependencies]
 cityjson = { path = "../cityjson-rs" }
-cityarrow = { path = "../cityarrow", optional = true }
-cityparquet = { path = "../cityarrow/cityparquet", optional = true }
-cityjson_json = { package = "cityjson-json", path = "../cityjson-json" }
+cityjson-arrow = { path = "../cityjson-arrow", optional = true }
+cityjson-parquet = { path = "../cityjson-arrow/cityjson-parquet", optional = true }
+cityjson-json = { path = "../cityjson-json" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 

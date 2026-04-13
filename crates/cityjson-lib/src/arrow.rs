@@ -6,7 +6,7 @@ use crate::{CityModel, Error, Result};
 
 /// Decode a `CityModel` from a live Arrow IPC stream.
 pub fn from_reader<R: Read>(reader: R) -> Result<CityModel> {
-    cityarrow::ModelDecoder
+    cityjson_arrow::ModelDecoder
         .decode(reader)
         .map(CityModel::from)
         .map_err(Error::from)
@@ -14,7 +14,7 @@ pub fn from_reader<R: Read>(reader: R) -> Result<CityModel> {
 
 /// Encode a `CityModel` as a live Arrow IPC stream.
 pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
-    cityarrow::ModelEncoder
+    cityjson_arrow::ModelEncoder
         .encode(model.as_inner(), writer)
         .map_err(Error::from)
 }
