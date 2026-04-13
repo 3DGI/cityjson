@@ -24,8 +24,6 @@ use cityjson::prelude::*;  // handles, storage strategies, error types
 
 The `prelude` re-exports crate-wide types (handles, errors, storage strategies) but not the cityjson-domain types from `v2_0`.
 
-todo: do we need separate prelude and `v2_0` modules for imports?
-
 ### Example
 
 ```rust
@@ -54,9 +52,21 @@ fn main() {
 }
 ```
 
+## Data Model
+
+`cityjson-rs` uses a flat, columnar internal representation that differs from the nested JSON structure of the CityJSON specification:
+
+- **Geometry boundaries**: stored as sibling offset arrays (`surfaces`, `shells`, `solids` with corresponding vertex/ring/surface/shell offsets) instead of nested coordinate arrays
+- **Resource pools**: global pools for semantics, materials, textures, and UV coordinates; geometry-local maps store handle references into these pools instead of dense array indices
+- **Semantic and material assignments**: flat primitive-assignment arrays (one per surface/point/linestring) instead of nested index structures
+- **Texture assignments**: per-ring resource references with flat UV coordinate arrays, rather than nested per-ring texture entries
+
+This representation is more efficient for traversal and serialization to columnar formats (Arrow, Parquet) while maintaining round-trip fidelity with the spec format. See [Geometry Mappings](docs/dev/geometry_mappings.md) for detailed layout rules and examples.
+
 ## Documentation
 
 - [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
+- [Geometry Boundaries, Semantics, and Appearance](docs/dev/geometry_mappings.md)
 
 todo: link to docs.rs
 
