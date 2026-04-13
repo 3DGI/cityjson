@@ -573,11 +573,9 @@ fn import_semantics_batch(
 
 fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> Result<()> {
     let parents = downcast_required::<UInt64Array>(batch, "parent_semantic_id")?;
-    let ordinals = downcast_required::<UInt32Array>(batch, "child_ordinal")?;
     let children = downcast_required::<UInt64Array>(batch, "child_semantic_id")?;
     for row in 0..batch.num_rows() {
         let parent_semantic_id = parents.value(row);
-        let child_ordinal = ordinals.value(row);
         let child_semantic_id = children.value(row);
         let parent = *state
             .semantic_handle_by_id
@@ -601,7 +599,6 @@ fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> 
             .ok_or_else(|| Error::Conversion("semantic parent handle missing".to_string()))?
             .children_mut()
             .push(child);
-        let _ = child_ordinal;
     }
     Ok(())
 }

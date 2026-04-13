@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`cityarrow` is a Rust transport library for moving `cityjson-rs` models across
+`cityjson-arrow` is a Rust transport library for moving `cityjson-rs` models across
 Arrow IPC and Parquet package boundaries.
 
 The semantic unit remains `cityjson::v2_0::OwnedCityModel`.
@@ -59,7 +59,7 @@ Important coverage layers:
 
 ## Development Notes
 
-- The canonical package schema id is `cityarrow.package.v1alpha1`.
+- The canonical package schema id is `cityjson-arrow.package.v1alpha1`.
 - Keep docs aligned with the code in `src/schema.rs` and `src/package/`.
 - Avoid introducing claims about formats, modules, or views that are not
   implemented in this repository.

@@ -25,8 +25,8 @@ This plan is about execution-model optimization, not architectural reversal.
 Keep:
 
 - `OwnedCityModel` as the semantic source and sink
-- one live stream surface in `cityarrow`
-- one persistent package surface in `cityparquet`
+- one live stream surface in `cityjson-arrow`
+- one persistent package surface in `cityjson-parquet`
 - the canonical table decomposition as an internal contract
 
 Do not add in this slice:
@@ -72,7 +72,7 @@ Work:
   batches to a sink without first assembling a full `CityModelArrowParts`
 - define a matching canonical-table consumer interface that can accept batches
   from a source without first rebuilding a full `CityModelArrowParts`
-- add the split benchmarks from the follow-up note in the `cityarrow`
+- add the split benchmarks from the follow-up note in the `cityjson-arrow`
   workspace itself:
   - `convert_encode_parts`
   - `convert_decode_parts`

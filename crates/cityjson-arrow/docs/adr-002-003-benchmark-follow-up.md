@@ -9,7 +9,7 @@ The first delivered conversion-focused slice after this note is recorded in
 
 The source run is the `cjlib` campaign:
 
-- description: `cityarrow refactor e085b91e`
+- description: `cityjson-arrow refactor e085b91e`
 - timestamp: `2026-04-02T09:08:03Z`
 - baseline comparison: `2026-04-01T21:21:02Z`
 - source data: `cjlib/bench_results/history.csv`
@@ -18,7 +18,7 @@ The source run is the `cjlib` campaign:
 
 The refactor did improve the native paths.
 
-For `cityarrow`:
+For `cityjson-arrow`:
 
 | Path | Baseline | Refactor | Delta |
 | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ For `cityarrow`:
 | tile write | `56.81 ms` | `47.45 ms` | `-16.5%` |
 | cluster write | `235.26 ms` | `197.16 ms` | `-16.2%` |
 
-For `cityparquet`:
+For `cityjson-parquet`:
 
 | Path | Baseline | Refactor | Delta |
 | --- | --- | --- | --- |
@@ -60,14 +60,14 @@ The generated plot summary in `cjlib` is normalized against the same-run
 `serde_json::Value` baseline.
 
 That is the correct denominator for cross-format end-to-end plots, but it is
-not the right lens for judging whether the `cityarrow` refactor itself moved
+not the right lens for judging whether the `cityjson-arrow` refactor itself moved
 anything. In the refactor run the JSON baseline also became faster, so ratios
 such as `0.15x -> 0.15x` can hide real absolute improvements.
 
 For refactor evaluation, the comparison that matters is:
 
-- new `cityarrow` vs old `cityarrow`
-- new `cityparquet` vs old `cityparquet`
+- new `cityjson-arrow` vs old `cityjson-arrow`
+- new `cityjson-parquet` vs old `cityjson-parquet`
 - new native path vs current `serde_cityjson`
 
 On that basis, the read side did move materially.
@@ -108,9 +108,9 @@ problem in transport conversion and package I/O, not as proof that the shared
 
 The post-refactor numbers support that reading:
 
-- read performance improved enough to erase the previous `cityarrow` read loss
+- read performance improved enough to erase the previous `cityjson-arrow` read loss
   against `serde_cityjson`
-- `cityparquet` moved even more, which indicates that reducing format and
+- `cityjson-parquet` moved even more, which indicates that reducing format and
   container overhead matters
 - unchanged allocation totals strongly suggest that the remaining gap is now
   concentrated in conversion and materialization work rather than in the new
@@ -153,7 +153,7 @@ Use these two cases only:
 Prepare these artifacts once per case outside the measured loop:
 
 - `OwnedCityModel`
-- canonical parts from `cityarrow::internal::encode_parts`
+- canonical parts from `cityjson_arrow::internal::encode_parts`
 - live stream bytes from `ModelEncoder`
 - package file from `PackageWriter`
 
@@ -230,7 +230,7 @@ Use these decision rules after the first split run:
 
 ## Recommended Benchmark Harness Shape
 
-Add the split suite in `cityarrow` itself rather than keeping it only in
+Add the split suite in `cityjson-arrow` itself rather than keeping it only in
 `cjlib`.
 
 The clean shape is:
@@ -283,7 +283,7 @@ The second problem was write-path setup. The native write benchmarks created
 measurement rule for package or stream writing.
 
 The third problem was diagnostic visibility. `cjlib` had only the headline
-end-to-end suite, so even after the `cityarrow` split benches landed upstream,
+end-to-end suite, so even after the `cityjson-arrow` split benches landed upstream,
 the downstream product harness still could not show a local conversion-vs-
 transport reading.
 
@@ -299,17 +299,17 @@ Those issues are now corrected downstream:
 
 With the corrected downstream harness, the full `cjlib` run was:
 
-- description: `cityarrow refactor 9f3d51e`
+- description: `cityjson-arrow refactor 9f3d51e`
 - timestamp: `2026-04-02T12:45:56Z`
 
 Headline end-to-end numbers from that corrected run were:
 
 | Path | Tile | Cluster 4x |
 | --- | --- | --- |
-| `cityarrow` read | `28.59 ms` | `115.30 ms` |
-| `cityparquet` read | `28.42 ms` | `114.32 ms` |
-| `cityarrow` write | `59.59 ms` | `211.06 ms` |
-| `cityparquet` write | `58.13 ms` | `209.50 ms` |
+| `cityjson-arrow` read | `28.59 ms` | `115.30 ms` |
+| `cityjson-parquet` read | `28.42 ms` | `114.32 ms` |
+| `cityjson-arrow` write | `59.59 ms` | `211.06 ms` |
+| `cityjson-parquet` write | `58.13 ms` | `209.50 ms` |
 
 That keeps the same high-level result as the earlier refactor reading:
 

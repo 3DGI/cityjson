@@ -1,8 +1,8 @@
 #[path = "support/shared_corpus.rs"]
 mod shared_corpus;
 
-use cityarrow::{ModelDecoder, ModelEncoder};
 use cityjson::CityModelType;
+use cityjson_arrow::{ModelDecoder, ModelEncoder};
 
 macro_rules! conformance_roundtrip_tests {
     ($assert_fn:ident; $($case_id:ident),+ $(,)?) => {

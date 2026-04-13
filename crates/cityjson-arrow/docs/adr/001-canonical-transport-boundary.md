@@ -6,8 +6,8 @@ Accepted
 
 ## Related Commits
 
-- `77c8bfb` Implement cityarrow package schema
-- `f35a37b` Implement core cityarrow conversion
+- `77c8bfb` Implement cityjson-arrow package schema
+- `f35a37b` Implement core cityjson-arrow conversion
 - `6ba321d` Implement package I/O layer
 - `e8057d6` Integrate package roundtrip and remove prototype tree
 - `09e9b0a` Implement Arrow IPC package IO
@@ -15,7 +15,7 @@ Accepted
 
 ## Context
 
-`cityarrow` exists to move full-fidelity `cityjson-rs` models across Arrow
+`cityjson-arrow` exists to move full-fidelity `cityjson-rs` models across Arrow
 storage boundaries.
 
 The crate needed a transport architecture that was explicit enough to support
@@ -34,7 +34,7 @@ The main pressure points were:
 
 ## Decision
 
-`cityarrow` now uses a single canonical transport decomposition:
+`cityjson-arrow` now uses a single canonical transport decomposition:
 `CityModelArrowParts`.
 
 The architecture is:
@@ -60,7 +60,7 @@ The canonical transport rules are:
 - unsupported nested or mixed attribute shapes fall back to lossless text
   encodings instead of Arrow union-based schemas
 
-`cityarrow` therefore remains a transport layer, not a semantic fork of
+`cityjson-arrow` therefore remains a transport layer, not a semantic fork of
 `cityjson-rs`.
 
 ## Consequences

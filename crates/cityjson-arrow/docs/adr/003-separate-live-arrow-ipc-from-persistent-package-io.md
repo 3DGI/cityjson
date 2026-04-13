@@ -46,7 +46,7 @@ old and new transport architectures alive.
 
 ## Decision
 
-`cityarrow` will separate live Arrow transport from persistent package IO.
+`cityjson-arrow` will separate live Arrow transport from persistent package IO.
 
 The new architecture is:
 
@@ -110,7 +110,7 @@ The first post-refactor `cjlib` benchmark run shows that the ADR 3 cut line was
 useful but not sufficient on its own.
 
 The native read paths improved materially after the refactor, and both
-`cityarrow` and `cityparquet` now read the pinned 3DBAG cases faster than the
+`cityjson-arrow` and `cityjson-parquet` now read the pinned 3DBAG cases faster than the
 current shared-model JSON path. That means the architectural cut did remove
 real overhead.
 

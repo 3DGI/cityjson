@@ -1,24 +1,24 @@
-use arrow::datatypes::SchemaRef;
-use arrow::ipc::reader::FileReader;
-use arrow::ipc::writer::FileWriter;
-use arrow::record_batch::RecordBatch;
-use cityarrow::error::{Error, Result};
-use cityarrow::internal::{
+use arrow_array::RecordBatch;
+use arrow_ipc::reader::FileReader;
+use arrow_ipc::writer::FileWriter;
+use arrow_schema::SchemaRef;
+use cityjson::v2_0::OwnedCityModel;
+use cityjson_arrow::error::{Error, Result};
+use cityjson_arrow::internal::{
     CanonicalTable, CanonicalTableSink, IncrementalDecoder, build_parts_from_tables,
     emit_part_tables, emit_tables, schema_for_table, single_or_concat_batches, validate_schema,
 };
-use cityarrow::schema::{
+use cityjson_arrow::schema::{
     CityArrowHeader, CityModelArrowParts, PackageManifest, PackageTableRef, ProjectionLayout,
     canonical_schema_set,
 };
-use cityjson::v2_0::OwnedCityModel;
 use memmap2::Mmap;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-const PACKAGE_MAGIC: &[u8] = b"CITYARROW_PKG_V3\0";
-const PACKAGE_FOOTER_MAGIC: &[u8] = b"CITYARROW_PKG_V3IDX\0";
+const PACKAGE_MAGIC: &[u8] = b"CITYJSON_ARROW_PKG_V3\0";
+const PACKAGE_FOOTER_MAGIC: &[u8] = b"CITYJSON_ARROW_PKG_V3IDX\0";
 const FOOTER_LEN: usize = 8 + 8 + PACKAGE_FOOTER_MAGIC.len();
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -220,7 +220,7 @@ fn read_manifest_from_file(file: &mut File) -> Result<PackageManifest> {
         .map_err(|_| Error::Conversion("package file length does not fit in memory".to_string()))?;
     if file_len < PACKAGE_MAGIC.len() + FOOTER_LEN {
         return Err(Error::Unsupported(
-            "package is too small to be a cityarrow package".to_string(),
+            "package is too small to be a cityjson-arrow package".to_string(),
         ));
     }
 

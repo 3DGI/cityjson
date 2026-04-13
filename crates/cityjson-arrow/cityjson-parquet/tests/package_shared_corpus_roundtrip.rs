@@ -2,7 +2,7 @@
 mod shared_corpus;
 
 use cityjson::CityModelType;
-use cityparquet::{PackageReader, PackageWriter};
+use cityjson_parquet::{PackageReader, PackageWriter};
 use tempfile::tempdir;
 
 macro_rules! conformance_roundtrip_tests {
@@ -27,7 +27,7 @@ fn assert_package_roundtrip(case_id: &str) {
         })
         .flatten();
     let dir = tempdir().unwrap();
-    let path = dir.path().join(format!("{case_id}.cityarrow"));
+    let path = dir.path().join(format!("{case_id}.cityjson-arrow"));
 
     PackageWriter
         .write_file(&path, &case.model)

@@ -2,12 +2,12 @@
 
 ## Current State
 
-`cityarrow` and `cityparquet` now share one internal canonical table contract
+`cityjson-arrow` and `cityjson-parquet` now share one internal canonical table contract
 while exposing only owned semantic APIs.
 
 - live Arrow transport is `ModelEncoder` / `ModelDecoder`
 - persistent package transport is `PackageWriter` / `PackageReader`
-- the package schema id is `cityarrow.package.v2alpha2`
+- the package schema id is `cityjson-arrow.package.v2alpha2`
 - canonical tables are internal and doc-hidden
 
 ## What Changed In The Current Slice

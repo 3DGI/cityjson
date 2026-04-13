@@ -1,11 +1,11 @@
 //! Simple 3D web viewer for CityParquet files.
 //!
-//! Opens a `.cityparquet` file, builds a Hilbert-curve spatial index, and
+//! Opens a `.cityjson-parquet` file, builds a Hilbert-curve spatial index, and
 //! serves a three.js viewer on `http://localhost:8080`.  The viewer requests
 //! geometry for the visible area only, using the spatial index for culling.
 //!
 //! ```text
-//! cargo run --example viewer -- path/to/model.cityparquet
+//! cargo run --example viewer -- path/to/model.cityjson-parquet
 //! ```
 
 use std::collections::HashMap;
@@ -17,8 +17,8 @@ use arrow::array::{
     Array, Float64Array, LargeStringArray, ListArray, StringArray, UInt32Array, UInt64Array,
 };
 use arrow::record_batch::RecordBatch;
-use cityarrow::schema::CityModelArrowParts;
-use cityparquet::spatial::{BBox2D, SpatialIndex};
+use cityjson_arrow::schema::CityModelArrowParts;
+use cityjson_parquet::spatial::{BBox2D, SpatialIndex};
 
 // ---------------------------------------------------------------------------
 // Scene data — precomputed geometry lookup tables
@@ -262,12 +262,12 @@ fn col_u64<'a>(batch: &'a RecordBatch, name: &str) -> &'a UInt64Array {
 
 fn main() {
     let path = std::env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Usage: viewer <file.cityparquet>");
+        eprintln!("Usage: viewer <file.cityjson-parquet>");
         std::process::exit(1);
     });
 
     eprintln!("Reading {path} ...");
-    let parts = cityparquet::read_package_parts_file(&path).expect("failed to read package");
+    let parts = cityjson_parquet::read_package_parts_file(&path).expect("failed to read package");
 
     eprintln!("Building spatial index ...");
     let index = SpatialIndex::build(&parts);

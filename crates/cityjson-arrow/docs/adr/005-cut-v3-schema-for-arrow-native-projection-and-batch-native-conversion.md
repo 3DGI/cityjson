@@ -52,8 +52,8 @@ schema break, not another incremental cleanup on top of `v2alpha2`.
 
 ## Decision
 
-`cityarrow` and `cityparquet` will cut a new canonical transport schema:
-`cityarrow.package.v3alpha1`.
+`cityjson-arrow` and `cityjson-parquet` will cut a new canonical transport schema:
+`cityjson-arrow.package.v3alpha1`.
 
 `v3alpha1` keeps the public semantic boundary from ADR 3:
 
@@ -69,7 +69,7 @@ payloads and conversion.
 
 The implementation rules are:
 
-1. the package schema id becomes `cityarrow.package.v3alpha1`
+1. the package schema id becomes `cityjson-arrow.package.v3alpha1`
 2. the mainline encoder writes only `v3alpha1`
 3. the mainline decoder reads only `v3alpha1`
 4. no compatibility reader, migration helper, or JSON fallback lane will be
@@ -315,25 +315,25 @@ The implementation sequence after this ADR is:
 The downstream `cjlib` runs after the initial `v3` cut and later conversion
 remediation now give this ADR a concrete benchmark reading.
 
-Compared with the earlier downstream run `cityarrow optimize decode,encode`
-from `2026-04-04T20:42:15Z`, the `cityarrow optimize v0.5.0` run at
+Compared with the earlier downstream run `cityjson-arrow optimize decode,encode`
+from `2026-04-04T20:42:15Z`, the `cityjson-arrow optimize v0.5.0` run at
 `2026-04-07T22:36:17Z` moved the end-to-end numbers to:
 
 | Path | Previous | Current | Delta |
 | --- | --- | --- | --- |
-| `cityarrow` tile read | `25.72 ms` | `15.72 ms` | `-38.9%` |
-| `cityarrow` cluster read | `101.83 ms` | `66.09 ms` | `-35.1%` |
-| `cityarrow` tile write | `47.05 ms` | `35.85 ms` | `-23.8%` |
-| `cityarrow` cluster write | `166.59 ms` | `123.87 ms` | `-25.6%` |
-| `cityparquet` tile read | `25.42 ms` | `15.97 ms` | `-37.2%` |
-| `cityparquet` cluster read | `100.63 ms` | `65.40 ms` | `-35.0%` |
-| `cityparquet` tile write | `53.95 ms` | `44.72 ms` | `-17.1%` |
-| `cityparquet` cluster write | `168.54 ms` | `125.23 ms` | `-25.7%` |
+| `cityjson-arrow` tile read | `25.72 ms` | `15.72 ms` | `-38.9%` |
+| `cityjson-arrow` cluster read | `101.83 ms` | `66.09 ms` | `-35.1%` |
+| `cityjson-arrow` tile write | `47.05 ms` | `35.85 ms` | `-23.8%` |
+| `cityjson-arrow` cluster write | `166.59 ms` | `123.87 ms` | `-25.6%` |
+| `cityjson-parquet` tile read | `25.42 ms` | `15.97 ms` | `-37.2%` |
+| `cityjson-parquet` cluster read | `100.63 ms` | `65.40 ms` | `-35.0%` |
+| `cityjson-parquet` tile write | `53.95 ms` | `44.72 ms` | `-17.1%` |
+| `cityjson-parquet` cluster write | `168.54 ms` | `125.23 ms` | `-25.7%` |
 
 Against the same-run `serde_json::Value` baseline, the native read paths now
 win decisively on both pinned fixtures:
 
-| Case | Baseline read | `cityarrow` read | `cityparquet` read |
+| Case | Baseline read | `cityjson-arrow` read | `cityjson-parquet` read |
 | --- | --- | --- | --- |
 | tile | `25.04 ms` | `15.72 ms` | `15.97 ms` |
 | cluster | `104.51 ms` | `66.09 ms` | `65.40 ms` |
@@ -341,7 +341,7 @@ win decisively on both pinned fixtures:
 Write improved materially, but it is still not competitive with the JSON
 baseline:
 
-| Case | Baseline write | `cityarrow` write | `cityparquet` write |
+| Case | Baseline write | `cityjson-arrow` write | `cityjson-parquet` write |
 | --- | --- | --- | --- |
 | tile | `7.89 ms` | `35.85 ms` | `44.72 ms` |
 | cluster | `36.71 ms` | `123.87 ms` | `125.23 ms` |
@@ -358,12 +358,12 @@ work is paying off, not just the stream or package containers:
   `37%` below `serde_json::Value`
 
 This newer `v3` line also now beats the last pre-`v3` high-water mark from ADR
-4, `cityarrow v2alpha2 conversion cleanup`, by another:
+4, `cityjson-arrow v2alpha2 conversion cleanup`, by another:
 
-- about `29%` to `30%` on native read time for both `cityarrow` and
-  `cityparquet`
-- about `33%` to `36%` on `cityarrow` write time
-- about `14%` on `cityparquet` tile write and about `33%` on `cityparquet`
+- about `29%` to `30%` on native read time for both `cityjson-arrow` and
+  `cityjson-parquet`
+- about `33%` to `36%` on `cityjson-arrow` write time
+- about `14%` on `cityjson-parquet` tile write and about `33%` on `cityjson-parquet`
   cluster write
 
 The practical reading is now:
@@ -380,7 +380,7 @@ The practical reading is now:
 
 ## Implementation Notes: 2026-04-08
 
-The current `cityarrow`/`cityparquet` patch series tightens the write path
+The current `cityjson-arrow`/`cityjson-parquet` patch series tightens the write path
 without changing the ADR's main conclusion.
 
 The main code changes are:
@@ -406,23 +406,23 @@ with the change being a write-path conversion optimization rather than a
 schema or transport rewrite.
 
 The remaining write bottleneck is still the projected attribute conversion
-layer, not `cityparquet` transport and not `cityjson-rs` geometry storage.
+layer, not `cityjson-parquet` transport and not `cityjson-rs` geometry storage.
 
 ## Results Analysis: 2026-04-08 (`v0.5.1`)
 
-The downstream full snapshot `cityarrow optimize v0.5.1` at
+The downstream full snapshot `cityjson-arrow optimize v0.5.1` at
 `2026-04-08T12:12:16Z` and supplementary write-side `dhat` and `cachegrind`
 runs on the same worktree make the current reading more precise.
 
 ### End-To-End Speed
 
-Compared with `cityarrow optimize v0.5.0`, the `v0.5.1` run moves the native
+Compared with `cityjson-arrow optimize v0.5.0`, the `v0.5.1` run moves the native
 paths by:
 
 | Backend | Tile Read | Cluster Read | Tile Write | Cluster Write |
 | --- | --- | --- | --- | --- |
-| `cityarrow` | `+4.4%` | `+2.5%` | `+93.9%` | `+17.1%` |
-| `cityparquet` | `+2.6%` | `+0.5%` | `+142.1%` | `+21.2%` |
+| `cityjson-arrow` | `+4.4%` | `+2.5%` | `+93.9%` | `+17.1%` |
+| `cityjson-parquet` | `+2.6%` | `+0.5%` | `+142.1%` | `+21.2%` |
 
 Against the original accepted `baseline` snapshot, `v0.5.1` is now about
 `2.37x` to `2.62x` faster on native reads and about `2.22x` to `3.62x` faster
@@ -440,10 +440,10 @@ now show:
 
 | Path | Peak Heap Delta | Total Allocated Bytes Delta | Total Allocation Blocks Delta |
 | --- | --- | --- | --- |
-| `cityarrow` tile | `-30.9%` | `-54.5%` | `-68.2%` |
-| `cityparquet` tile | `-30.8%` | `-65.6%` | `-69.2%` |
-| `cityarrow` cluster | `-30.5%` | `-55.5%` | `-68.3%` |
-| `cityparquet` cluster | `-30.4%` | `-65.4%` | `-69.1%` |
+| `cityjson-arrow` tile | `-30.9%` | `-54.5%` | `-68.2%` |
+| `cityjson-parquet` tile | `-30.8%` | `-65.6%` | `-69.2%` |
+| `cityjson-arrow` cluster | `-30.5%` | `-55.5%` | `-68.3%` |
+| `cityjson-parquet` cluster | `-30.4%` | `-65.4%` | `-69.1%` |
 
 That is strong evidence that the `v3` redesign and the later write-path cleanup
 really did remove a large amount of heap churn and intermediate reconstruction
@@ -452,8 +452,8 @@ work.
 The cache picture is different. Relative to the same baseline:
 
 - read `cache_d1_miss_rate` rises by about `23%` to `32%`
-- read `cache_ll_miss_rate` rises by about `30%` for `cityarrow` and by about
-  `1.2x` to `8.2x` for `cityparquet`
+- read `cache_ll_miss_rate` rises by about `30%` for `cityjson-arrow` and by about
+  `1.2x` to `8.2x` for `cityjson-parquet`
 - read `branch_miss_rate` improves by about `4%` to `11%`
 
 So the read win is not coming from uniformly better locality. It is coming
@@ -472,10 +472,10 @@ For the native write paths, the resulting allocation footprint is:
 
 | Case | Path | Total Allocated Bytes | Peak Heap | Total Allocation Blocks |
 | --- | --- | --- | --- | --- |
-| tile | `cityarrow` | `48.9 MB` | `7.0 MB` | `163.7k` |
-| tile | `cityparquet` | `48.9 MB` | `7.0 MB` | `163.9k` |
-| cluster `4x` | `cityarrow` | `182.3 MB` | `26.4 MB` | `587.2k` |
-| cluster `4x` | `cityparquet` | `182.4 MB` | `26.4 MB` | `587.3k` |
+| tile | `cityjson-arrow` | `48.9 MB` | `7.0 MB` | `163.7k` |
+| tile | `cityjson-parquet` | `48.9 MB` | `7.0 MB` | `163.9k` |
+| cluster `4x` | `cityjson-arrow` | `182.3 MB` | `26.4 MB` | `587.2k` |
+| cluster `4x` | `cityjson-parquet` | `182.4 MB` | `26.4 MB` | `587.3k` |
 
 Compared with the two JSON write baselines in the same profile run:
 
@@ -502,7 +502,7 @@ The supplementary write cache picture is mixed rather than pathological:
 That again points away from a single cache collapse as the explanation for the
 remaining write cost.
 
-Most importantly, `cityarrow` and `cityparquet` are nearly identical on the
+Most importantly, `cityjson-arrow` and `cityjson-parquet` are nearly identical on the
 supplementary write profiles. Their total allocated bytes, peak heap,
 allocation blocks, and cache miss ratios are all effectively the same.
 
@@ -510,7 +510,7 @@ The practical reading is now narrower and stronger:
 
 - `v0.5.1` materially fixed write-side allocation efficiency
 - the remaining write deficit is still shared conversion work, not package I/O
-- `cityparquet` transport is not the main problem
+- `cityjson-parquet` transport is not the main problem
 - `cityjson-rs` geometry storage is not the main problem
-- the next target remains the common `cityarrow` export path, especially
+- the next target remains the common `cityjson-arrow` export path, especially
   projected attribute encoding and the remaining per-value structural work

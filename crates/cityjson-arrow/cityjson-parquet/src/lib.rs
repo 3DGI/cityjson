@@ -1,13 +1,13 @@
-//! Persistent package IO for `cityarrow`.
+//! Persistent package IO for `cityjson-arrow`.
 //!
-//! `cityparquet` owns the durable package/container boundary in the ADR 3
+//! `cityjson-parquet` owns the durable package/container boundary in the ADR 3
 //! architecture. The current package format is a seekable single-file
 //! container backed by Arrow canonical tables.
 
 mod package;
 pub mod spatial;
 
-pub use cityarrow::schema::{
+pub use cityjson_arrow::schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
     ProjectedStructSpec, ProjectedValueSpec, ProjectionLayout, canonical_schema_set,
 };

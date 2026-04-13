@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-`cityarrow` and `cityparquet` exist to move `cityjson-rs` data through Arrow-
+`cityjson-arrow` and `cityjson-parquet` exist to move `cityjson-rs` data through Arrow-
 shaped transport while keeping `cityjson::v2_0::OwnedCityModel` as the shared
 semantic boundary.
 
@@ -17,14 +17,14 @@ JSON and still has to build the same shared model.
 End-to-end benchmarks from the `cjlib` benchmark campaign on real 3DBAG data
 show that the current implementation does lose:
 
-- base tile read: `serde_cityjson` `33.48 ms`, `cityarrow` `37.46 ms`,
-  `cityparquet` `40.78 ms`
-- base tile write: `serde_cityjson` `9.19 ms`, `cityarrow` `56.81 ms`,
-  `cityparquet` `66.86 ms`
-- 4x cluster read: `serde_cityjson` `132.74 ms`, `cityarrow` `152.79 ms`,
-  `cityparquet` `160.57 ms`
-- 4x cluster write: `serde_cityjson` `41.92 ms`, `cityarrow` `235.26 ms`,
-  `cityparquet` `271.72 ms`
+- base tile read: `serde_cityjson` `33.48 ms`, `cityjson-arrow` `37.46 ms`,
+  `cityjson-parquet` `40.78 ms`
+- base tile write: `serde_cityjson` `9.19 ms`, `cityjson-arrow` `56.81 ms`,
+  `cityjson-parquet` `66.86 ms`
+- 4x cluster read: `serde_cityjson` `132.74 ms`, `cityjson-arrow` `152.79 ms`,
+  `cityjson-parquet` `160.57 ms`
+- 4x cluster write: `serde_cityjson` `41.92 ms`, `cityjson-arrow` `235.26 ms`,
+  `cityjson-parquet` `271.72 ms`
 
 An implementation review found that these results are not just a property of
 the benchmark definition. The current transport implementation is leaving clear
@@ -56,7 +56,7 @@ problem is broader than a single duplicated traversal.
 
 ## Decision
 
-`cityarrow` will treat the current benchmark shortfall as an implementation
+`cityjson-arrow` will treat the current benchmark shortfall as an implementation
 problem in transport conversion and package IO, not as evidence that the shared
 `OwnedCityModel` boundary or the columnar transport decomposition is
 conceptually wrong.
@@ -111,10 +111,10 @@ Trade-offs:
 The first post-refactor `cjlib` run materially improved the native paths, so
 the current evidence still supports this ADR's core reading.
 
-- `cityarrow` read time improved by about `22%` on both pinned 3DBAG cases
-- `cityparquet` read time improved by about `26%` to `29%`
-- `cityarrow` write improved by about `16%`
-- `cityparquet` write improved by about `27%` to `30%`
+- `cityjson-arrow` read time improved by about `22%` on both pinned 3DBAG cases
+- `cityjson-parquet` read time improved by about `26%` to `29%`
+- `cityjson-arrow` write improved by about `16%`
+- `cityjson-parquet` write improved by about `27%` to `30%`
 
 The same run also showed that the remaining write gap is still large and that
 read allocation totals did not meaningfully change, which means the benchmark

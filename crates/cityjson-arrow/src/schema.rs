@@ -2,14 +2,13 @@ use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
 use std::sync::Arc;
 
-pub const PACKAGE_SCHEMA_ID: &str = "cityarrow.package.v3alpha2";
+pub const PACKAGE_SCHEMA_ID: &str = "cityjson-arrow.package.v3alpha2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CityArrowPackageVersion {
-    #[serde(rename = "cityarrow.package.v3alpha2")]
+    #[serde(rename = "cityjson-arrow.package.v3alpha2")]
     V3Alpha2,
 }
 
@@ -23,39 +22,6 @@ impl CityArrowPackageVersion {
 impl Display for CityArrowPackageVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageVersionParseError {
-    found: String,
-}
-
-impl PackageVersionParseError {
-    #[must_use]
-    pub fn new(found: impl Into<String>) -> Self {
-        Self {
-            found: found.into(),
-        }
-    }
-}
-
-impl Display for PackageVersionParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "unsupported cityarrow package schema id: {}", self.found)
-    }
-}
-
-impl std::error::Error for PackageVersionParseError {}
-
-impl FromStr for CityArrowPackageVersion {
-    type Err = PackageVersionParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            PACKAGE_SCHEMA_ID => Ok(Self::V3Alpha2),
-            other => Err(PackageVersionParseError::new(other)),
-        }
     }
 }
 
@@ -142,11 +108,6 @@ impl ProjectedStructSpec {
             .map(ProjectedFieldSpec::to_arrow_field)
             .map(Arc::new)
             .collect()
-    }
-
-    #[must_use]
-    pub fn field(&self, name: &str) -> Option<&ProjectedFieldSpec> {
-        self.fields.iter().find(|field| field.name == name)
     }
 }
 
@@ -289,12 +250,6 @@ pub struct CanonicalSchemaSet {
     pub texture_vertices: SchemaRef,
     pub geometry_ring_textures: SchemaRef,
     pub template_geometry_ring_textures: SchemaRef,
-}
-
-impl Default for CanonicalSchemaSet {
-    fn default() -> Self {
-        canonical_schema_set(&ProjectionLayout::default())
-    }
 }
 
 #[must_use]

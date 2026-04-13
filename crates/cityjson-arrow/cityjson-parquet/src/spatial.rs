@@ -8,16 +8,17 @@
 //! # Example
 //!
 //! ```ignore
-//! let parts = cityparquet::read_package_parts_file("model.cityparquet")?;
+//! let parts = cityjson_parquet::read_package_parts_file("model.cityjson-parquet")?;
 //! let index = SpatialIndex::build(&parts);
 //! let visible = index.query(&BBox2D::new(80_000.0, 440_000.0, 81_000.0, 441_000.0));
 //! ```
 
-use arrow::array::{
+use arrow_array::RecordBatch;
+use arrow_array::{
     Array, FixedSizeListArray, Float64Array, LargeStringArray, ListArray, StringArray, UInt32Array,
     UInt64Array,
 };
-use cityarrow::schema::CityModelArrowParts;
+use cityjson_arrow::schema::CityModelArrowParts;
 use std::collections::HashMap;
 
 /// Hilbert curve order — grid resolution is 2^ORDER per axis.
@@ -350,7 +351,7 @@ fn compute_fallback_bboxes(parts: &CityModelArrowParts) -> HashMap<u64, [f64; 6]
 // Arrow column helpers
 // ---------------------------------------------------------------------------
 
-fn col_f64<'a>(batch: &'a arrow::record_batch::RecordBatch, name: &str) -> &'a Float64Array {
+fn col_f64<'a>(batch: &'a RecordBatch, name: &str) -> &'a Float64Array {
     batch
         .column_by_name(name)
         .unwrap_or_else(|| panic!("{name} column"))
@@ -359,7 +360,7 @@ fn col_f64<'a>(batch: &'a arrow::record_batch::RecordBatch, name: &str) -> &'a F
         .unwrap_or_else(|| panic!("{name} as Float64"))
 }
 
-fn col_u64<'a>(batch: &'a arrow::record_batch::RecordBatch, name: &str) -> &'a UInt64Array {
+fn col_u64<'a>(batch: &'a RecordBatch, name: &str) -> &'a UInt64Array {
     batch
         .column_by_name(name)
         .unwrap_or_else(|| panic!("{name} column"))

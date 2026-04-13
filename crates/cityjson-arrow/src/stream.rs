@@ -12,7 +12,7 @@ use cityjson::v2_0::OwnedCityModel;
 use serde::{Deserialize, Serialize};
 use std::io::{ErrorKind, Read, Write};
 
-const STREAM_MAGIC: &[u8] = b"CITYARROW_STREAM_V3\0";
+const STREAM_MAGIC: &[u8] = b"CITYJSON_ARROW_STREAM_V3\0";
 const STREAM_END_TAG: u8 = u8::MAX;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,12 +43,8 @@ pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<OwnedCityModel
         let expected_rows = usize::try_from(read_u64(&mut reader)?).map_err(|_| {
             Error::Conversion("stream row count does not fit in memory".to_string())
         })?;
-        let batch = deserialize_stream_batch(
-            &mut reader,
-            schema_for_table(&schemas, table),
-            table,
-            expected_rows,
-        )?;
+        let batch =
+            deserialize_stream_batch(&mut reader, schema_for_table(&schemas, table), table)?;
         if batch.num_rows() != expected_rows {
             return Err(Error::Conversion(format!(
                 "{} frame declared {expected_rows} rows but decoded {} rows",
@@ -173,12 +169,7 @@ fn read_stream_frames<R: Read>(reader: &mut R) -> Result<(StreamPrelude, StreamF
         let expected_rows = usize::try_from(read_u64(reader)?).map_err(|_| {
             Error::Conversion("stream row count does not fit in memory".to_string())
         })?;
-        let batch = deserialize_stream_batch(
-            reader,
-            schema_for_table(&schemas, table),
-            table,
-            expected_rows,
-        )?;
+        let batch = deserialize_stream_batch(reader, schema_for_table(&schemas, table), table)?;
         tables.push((table, expected_rows, batch));
     }
     Ok((prelude, tables))
@@ -213,12 +204,10 @@ fn deserialize_stream_batch<R: Read>(
     reader: &mut R,
     expected_schema: &arrow::datatypes::SchemaRef,
     table: CanonicalTable,
-    expected_rows: usize,
 ) -> Result<RecordBatch> {
     let mut stream = StreamReader::try_new(reader.by_ref(), None)?;
     let schema = stream.schema();
     validate_schema(expected_schema, &schema, table)?;
     let batch = single_or_concat_batches(expected_schema, &mut stream)?;
-    let _ = expected_rows;
     Ok(batch)
 }

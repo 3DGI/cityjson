@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cityjson::v2_0::OwnedCityModel;
+use cityjson_json::from_str_owned;
 use serde::Deserialize;
-use serde_cityjson::from_str_owned;
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";
@@ -94,7 +94,7 @@ fn load_benchmark_index() -> BenchmarkIndex {
 }
 
 fn benchmark_index_path() -> PathBuf {
-    let path = std::env::var_os("CITYARROW_BENCHMARK_INDEX").map_or_else(
+    let path = std::env::var_os("CITYJSON_ARROW_BENCHMARK_INDEX").map_or_else(
         || shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH),
         PathBuf::from,
     );
@@ -107,7 +107,7 @@ fn benchmark_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("CITYARROW_SHARED_CORPUS_ROOT").map_or_else(
+    std::env::var_os("CITYJSON_ARROW_SHARED_CORPUS_ROOT").map_or_else(
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
         PathBuf::from,
     )

@@ -1,6 +1,6 @@
-# cityarrow
+# cityjson-arrow
 
-`cityarrow` is the live Arrow IPC transport crate for `cityjson-rs`.
+`cityjson-arrow` is the live Arrow IPC transport crate for `cityjson-rs`.
 
 It converts `OwnedCityModel` values into canonical Arrow transport tables and
 streams them between processes without changing the semantic model.
@@ -9,7 +9,7 @@ streams them between processes without changing the semantic model.
 
 - `ModelEncoder` and `ModelDecoder` for live Arrow IPC stream transport
 - schema definitions for the canonical tables and manifest
-- the shared package contract used by `cityparquet`
+- the shared package contract used by `cityjson-parquet`
 
 ## Related Documents
 

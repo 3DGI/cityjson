@@ -1,7 +1,7 @@
-# cityarrow
+# cityjson-arrow
 
-`cityarrow` is the live Arrow IPC transport layer for `cityjson-rs`.
-`cityparquet` is the sibling crate for the persistent single-file package
+`cityjson-arrow` is the live Arrow IPC transport layer for `cityjson-rs`.
+`cityjson-parquet` is the sibling crate for the persistent single-file package
 boundary.
 
 The semantic API stays centered on `cityjson::v2_0::OwnedCityModel`.
@@ -10,9 +10,9 @@ and package implementations.
 
 ## Public Surface
 
-- `cityarrow::ModelEncoder` and `cityarrow::ModelDecoder`
-- `cityparquet::PackageWriter` and `cityparquet::PackageReader`
-- shared schema and manifest types from `cityarrow::schema`
+- `cityjson_arrow::ModelEncoder` and `cityjson_arrow::ModelDecoder`
+- `cityjson_parquet::PackageWriter` and `cityjson_parquet::PackageReader`
+- shared schema and manifest types from `cityjson_arrow::schema`
 
 ## Current Architecture
 
@@ -22,12 +22,12 @@ and package implementations.
   manifest-at-end metadata, and a footer index
 - both readers drive the same incremental decoder over ordered canonical table
   batches
-- `cityarrow::internal` keeps doc-hidden conversion and transport hooks for
+- `cityjson_arrow::internal` keeps doc-hidden conversion and transport hooks for
   sibling crates and split benchmarks
 
 ## Current Status
 
-- package schema id: `cityarrow.package.v3alpha2`
+- package schema id: `cityjson-arrow.package.v3alpha2`
 - the public `to_parts` / `from_parts` surface is gone
 - live stream read no longer uses eager `read_to_end`
 - live stream and package writes no longer buffer every serialized table payload
@@ -48,9 +48,9 @@ The repository currently keeps:
 The shared-corpus test and bench helpers look for the sibling
 `cityjson-benchmarks` checkout by default. Override the defaults with:
 
-- `CITYARROW_SHARED_CORPUS_ROOT`
-- `CITYARROW_CORRECTNESS_INDEX`
-- `CITYARROW_BENCHMARK_INDEX`
+- `CITYJSON_ARROW_SHARED_CORPUS_ROOT`
+- `CITYJSON_ARROW_CORRECTNESS_INDEX`
+- `CITYJSON_ARROW_BENCHMARK_INDEX`
 
 ## Repository Map
 
@@ -58,6 +58,6 @@ The shared-corpus test and bench helpers look for the sibling
 - `src/stream.rs`: live stream framing
 - `src/transport.rs`: canonical table ids and transport helpers
 - `src/schema.rs`: shared schema and manifest definitions
-- `cityparquet/src/package/mod.rs`: persistent package implementation
+- `cityjson-parquet/src/package/mod.rs`: persistent package implementation
 - `tests/`: roundtrip tests
 - `docs/`: ADRs, design notes, and format docs

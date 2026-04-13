@@ -1,5 +1,5 @@
-site_name: cityarrow
-site_description: User-facing documentation for cityarrow and cityparquet
+site_name: cityjson-arrow
+site_description: User-facing documentation for cityjson-arrow and cityjson-parquet
 docs_dir: docs
 site_dir: site
 strict: true
@@ -20,8 +20,8 @@ theme:
 nav:
   - Home: index.md
   - Products:
-      - cityarrow: cityarrow.md
-      - cityparquet: cityparquet.md
+      - cityjson-arrow: cityjson-arrow.md
+      - cityjson-parquet: cityjson-parquet.md
   - Specifications:
       - Package schema: package-schema.md
       - Arrow IPC layout: cityjson-arrow-ipc-spec.md

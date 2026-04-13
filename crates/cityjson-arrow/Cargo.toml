@@ -1,5 +1,5 @@
 [package]
-name = "cityarrow"
+name = "cityjson-arrow"
 version = "0.5.2"
 edition = "2024"
 
@@ -8,13 +8,13 @@ name = "split"
 harness = false
 
 [workspace]
-members = ["cityparquet"]
+members = ["cityjson-parquet"]
 
 [dependencies]
-arrow = { version = "57.0.0", features = ["ipc", "csv", "json"] }
-arrow-buffer = "57.0.0"
-arrow-json = "57.0.0"
-arrow-select = "57.0.0"
+arrow = { version = "58.1.0", features = ["ipc", "csv", "json"] }
+arrow-buffer = "58.1.0"
+arrow-json = "58.1.0"
+arrow-select = "58.1.0"
 cityjson = { path = "../cityjson-rs" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -23,10 +23,10 @@ tempfile = "3.23.0"
 nanoserde = { version = "0.2.1", features = ["json", "std"] }
 memmap2 = "0.9.9"
 bytes = "1.10.1"
-parquet = "57.0.0"
+parquet = "58.1.0"
 
 [dev-dependencies]
-cityparquet = { path = "cityparquet" }
-serde_cityjson = { path = "../serde_cityjson" }
-rand = "0.9.0"
-criterion = "0.5.1"
+cityjson-parquet = { path = "cityjson-parquet" }
+cityjson-json = { path = "../cityjson-json" }
+rand = "0.10.1"
+criterion = "0.8.2"

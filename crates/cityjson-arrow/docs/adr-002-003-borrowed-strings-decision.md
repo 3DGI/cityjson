@@ -1,7 +1,7 @@
 # ADR 2 And ADR 3 Borrowed Strings Decision
 
-This note records the decision on whether the next `cityarrow` and
-`cityparquet` optimization slice should adopt
+This note records the decision on whether the next `cityjson-arrow` and
+`cityjson-parquet` optimization slice should adopt
 `cityjson::v2_0::BorrowedCityModel<'a>` or otherwise move the semantic boundary
 to borrowed string storage.
 
@@ -13,7 +13,7 @@ optimization program.
 For the current architecture:
 
 - `OwnedCityModel` remains the semantic source and sink
-- `cityarrow` and `cityparquet` do not gain parallel borrowed-model APIs
+- `cityjson-arrow` and `cityjson-parquet` do not gain parallel borrowed-model APIs
 - `cjlib` stays centered on one owned semantic wrapper
 - borrowed `&str` values are still allowed as short-lived internal references
   inside binders, builders, and table walkers, but they must not become the
@@ -79,7 +79,7 @@ downstream wrappers.
 
 ### 5. Lifetime Coupling Would Spread Across Crate Boundaries
 
-If `cityarrow` or `cityparquet` returned a borrowed semantic model, the model
+If `cityjson-arrow` or `cityjson-parquet` returned a borrowed semantic model, the model
 lifetime would need to be tied to:
 
 - the input byte buffer for live stream reads

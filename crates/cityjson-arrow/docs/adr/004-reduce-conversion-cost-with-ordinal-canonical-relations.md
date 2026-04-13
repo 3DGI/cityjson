@@ -42,7 +42,7 @@ schema and conversion code:
 
 ## Decision
 
-`cityarrow` and `cityparquet` will make the internal canonical transport
+`cityjson-arrow` and `cityjson-parquet` will make the internal canonical transport
 contract more ordinal and less string-keyed.
 
 The implementation rules are:
@@ -60,7 +60,7 @@ The implementation rules are:
    rather than `HashMap<String, ...>`
 5. consume semantic and template-semantic rows in canonical ordinal order
    without clone-and-sort rebuilds
-6. cut the package schema to `cityarrow.package.v2alpha2`
+6. cut the package schema to `cityjson-arrow.package.v2alpha2`
 
 This is an internal transport-schema change, not a public semantic API change.
 No compatibility reader will be kept for the previous alpha package schema.
@@ -89,32 +89,32 @@ Trade-offs:
 ## Results Snapshot: 2026-04-02
 
 The first run after this slice was the downstream `cjlib` campaign
-`cityarrow v2alpha2 conversion cleanup`.
+`cityjson-arrow v2alpha2 conversion cleanup`.
 
-Compared with the previous campaign `cityarrow refactor 9f3d51e`:
+Compared with the previous campaign `cityjson-arrow refactor 9f3d51e`:
 
 | Path | Previous | Current | Delta |
 | --- | --- | --- | --- |
-| `cityarrow` tile read | `28.59 ms` | `22.56 ms` | `-21.1%` |
-| `cityarrow` cluster read | `115.30 ms` | `93.46 ms` | `-18.9%` |
-| `cityarrow` tile write | `59.59 ms` | `56.35 ms` | `-5.4%` |
-| `cityarrow` cluster write | `211.06 ms` | `185.85 ms` | `-11.9%` |
-| `cityparquet` tile read | `28.42 ms` | `22.68 ms` | `-20.2%` |
-| `cityparquet` cluster read | `114.32 ms` | `92.20 ms` | `-19.3%` |
-| `cityparquet` tile write | `58.13 ms` | `52.16 ms` | `-10.3%` |
-| `cityparquet` cluster write | `209.50 ms` | `186.51 ms` | `-10.9%` |
+| `cityjson-arrow` tile read | `28.59 ms` | `22.56 ms` | `-21.1%` |
+| `cityjson-arrow` cluster read | `115.30 ms` | `93.46 ms` | `-18.9%` |
+| `cityjson-arrow` tile write | `59.59 ms` | `56.35 ms` | `-5.4%` |
+| `cityjson-arrow` cluster write | `211.06 ms` | `185.85 ms` | `-11.9%` |
+| `cityjson-parquet` tile read | `28.42 ms` | `22.68 ms` | `-20.2%` |
+| `cityjson-parquet` cluster read | `114.32 ms` | `92.20 ms` | `-19.3%` |
+| `cityjson-parquet` tile write | `58.13 ms` | `52.16 ms` | `-10.3%` |
+| `cityjson-parquet` cluster write | `209.50 ms` | `186.51 ms` | `-10.9%` |
 
 Against the same-run `serde_json::Value` baseline, the native read paths now
 beat the shared-model JSON path on both pinned fixtures:
 
-| Case | Baseline read | `cityarrow` read | `cityparquet` read |
+| Case | Baseline read | `cityjson-arrow` read | `cityjson-parquet` read |
 | --- | --- | --- | --- |
 | tile | `25.06 ms` | `22.56 ms` | `22.68 ms` |
 | cluster | `103.77 ms` | `93.46 ms` | `92.20 ms` |
 
 Write improved, but it remains far behind the baseline:
 
-| Case | Baseline write | `cityarrow` write | `cityparquet` write |
+| Case | Baseline write | `cityjson-arrow` write | `cityjson-parquet` write |
 | --- | --- | --- | --- |
 | tile | `7.63 ms` | `56.35 ms` | `52.16 ms` |
 | cluster | `35.83 ms` | `185.85 ms` | `186.51 ms` |

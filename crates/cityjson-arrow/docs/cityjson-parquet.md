@@ -1,16 +1,16 @@
-# cityparquet
+# cityjson-parquet
 
-`cityparquet` is the persistent package crate for `cityjson-rs`.
+`cityjson-parquet` is the persistent package crate for `cityjson-rs`.
 
 It owns the durable package/container boundary in the ADR 3 architecture and
-uses the same canonical transport tables as `cityarrow`.
+uses the same canonical transport tables as `cityjson-arrow`.
 
 ## What It Provides
 
 - package write/read support for seekable single-file packages
-- the same canonical table layout as `cityarrow`
+- the same canonical table layout as `cityjson-arrow`
 - the same reconstruction rules and manifest contract
-- round-trip compatibility with the shared `cityarrow.package.v3alpha1` schema
+- round-trip compatibility with the shared `cityjson-arrow.package.v3alpha1` schema
 
 ## Related Documents
 

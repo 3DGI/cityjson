@@ -2,14 +2,14 @@ mod common;
 
 use std::collections::HashMap;
 
-use cityarrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
-use cityarrow::{ModelDecoder, ModelEncoder};
 use cityjson::CityModelType;
 use cityjson::v2_0::{
     AttributeValue, Boundary, CityObject, CityObjectIdentifier, CityObjectType, Geometry, LoD,
     OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
 };
-use cityparquet::{
+use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
+use cityjson_arrow::{ModelDecoder, ModelEncoder};
+use cityjson_parquet::{
     PackageReader, PackageWriter, read_package_parts_file, write_package_parts_file,
 };
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
@@ -312,8 +312,8 @@ fn split_benches(c: &mut Criterion) {
     write_stream_parts(&parts, &mut stream_parts_bytes).expect("encode stream parts");
 
     let dir = tempdir().expect("tempdir");
-    let model_path = dir.path().join("model.cityarrow");
-    let parts_path = dir.path().join("parts.cityarrow");
+    let model_path = dir.path().join("model.cityjson-arrow");
+    let parts_path = dir.path().join("parts.cityjson-arrow");
     PackageWriter
         .write_file(&model_path, &model)
         .expect("write model package");
@@ -437,8 +437,8 @@ fn bench_write_case(
 
     let dir = tempdir().expect("tempdir");
     let file_stem = group_name.replace('/', "-");
-    let model_path = dir.path().join(format!("{file_stem}.cityarrow"));
-    let parts_path = dir.path().join(format!("{file_stem}-parts.cityarrow"));
+    let model_path = dir.path().join(format!("{file_stem}.cityjson-arrow"));
+    let parts_path = dir.path().join(format!("{file_stem}-parts.cityjson-arrow"));
 
     group.bench_function("encode_parts", |b| {
         b.iter(|| {

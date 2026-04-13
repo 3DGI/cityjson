@@ -9,8 +9,8 @@ use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cityjson::v2_0::OwnedCityModel;
+use cityjson_json::{as_json, from_str_owned};
 use serde::Deserialize;
-use serde_cityjson::{as_json, from_str_owned};
 use serde_json::Value as JsonValue;
 
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
@@ -127,7 +127,7 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessCase> {
 }
 
 fn correctness_index_path() -> PathBuf {
-    let path = env::var_os("CITYARROW_CORRECTNESS_INDEX")
+    let path = env::var_os("CITYJSON_ARROW_CORRECTNESS_INDEX")
         .or_else(|| env::var_os("CITYPARQUET_CORRECTNESS_INDEX"))
         .or_else(|| env::var_os("SERDE_CITYJSON_CORRECTNESS_INDEX"))
         .map_or_else(
@@ -143,7 +143,7 @@ fn correctness_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    let path = env::var_os("CITYARROW_SHARED_CORPUS_ROOT")
+    let path = env::var_os("CITYJSON_ARROW_SHARED_CORPUS_ROOT")
         .or_else(|| env::var_os("CITYPARQUET_SHARED_CORPUS_ROOT"))
         .or_else(|| env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT"))
         .map_or_else(discover_shared_corpus_root, PathBuf::from);
@@ -203,8 +203,8 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
             .unwrap_or_else(|err| panic!("failed to create {}: {err}", parent.display()));
     }
 
-    let cargo_manifest = cjfake_cargo_manifest();
-    let schema_path = cjfake_manifest_schema();
+    let cargo_manifest = cityjson_fake_cargo_manifest();
+    let schema_path = cityjson_fake_manifest_schema();
     let status = Command::new("cargo")
         .arg("run")
         .arg("--quiet")
@@ -218,36 +218,47 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
         .arg("--output")
         .arg(output)
         .status()
-        .unwrap_or_else(|err| panic!("failed to run cjfake via cargo: {err}"));
+        .unwrap_or_else(|err| panic!("failed to run cityjson-fake via cargo: {err}"));
 
     assert!(
         status.success(),
-        "cjfake failed to generate {} using {}",
+        "cityjson-fake failed to generate {} using {}",
         output.display(),
         profile.display()
     );
 }
 
-fn cjfake_cargo_manifest() -> PathBuf {
-    env::var_os("CJFAKE_CARGO_MANIFEST").map_or_else(
-        || {
-            shared_corpus_root()
-                .parent()
-                .unwrap()
-                .join("cjfake/Cargo.toml")
-        },
-        PathBuf::from,
-    )
+fn cityjson_fake_cargo_manifest() -> PathBuf {
+    env::var_os("CITYJSON_FAKE_CARGO_MANIFEST")
+        .or_else(|| env::var_os("CJFAKE_CARGO_MANIFEST"))
+        .map_or_else(default_cityjson_fake_cargo_manifest, PathBuf::from)
 }
 
-fn cjfake_manifest_schema() -> PathBuf {
-    env::var_os("CJFAKE_MANIFEST_SCHEMA").map_or_else(
-        || {
-            shared_corpus_root()
-                .parent()
-                .unwrap()
-                .join("cjfake/src/data/cjfake-manifest.schema.json")
-        },
-        PathBuf::from,
-    )
+fn cityjson_fake_manifest_schema() -> PathBuf {
+    env::var_os("CITYJSON_FAKE_MANIFEST_SCHEMA")
+        .or_else(|| env::var_os("CJFAKE_MANIFEST_SCHEMA"))
+        .map_or_else(default_cityjson_fake_manifest_schema, PathBuf::from)
+}
+
+fn default_cityjson_fake_cargo_manifest() -> PathBuf {
+    let shared_corpus_root = shared_corpus_root();
+    let workspace_root = shared_corpus_root.parent().unwrap();
+    let cityjson_fake = workspace_root.join("cityjson-fake/Cargo.toml");
+    if cityjson_fake.is_file() {
+        cityjson_fake
+    } else {
+        workspace_root.join("cjfake/Cargo.toml")
+    }
+}
+
+fn default_cityjson_fake_manifest_schema() -> PathBuf {
+    let shared_corpus_root = shared_corpus_root();
+    let workspace_root = shared_corpus_root.parent().unwrap();
+    let cityjson_fake =
+        workspace_root.join("cityjson-fake/src/data/cityjson-fake-manifest.schema.json");
+    if cityjson_fake.is_file() {
+        cityjson_fake
+    } else {
+        workspace_root.join("cjfake/src/data/cjfake-manifest.schema.json")
+    }
 }

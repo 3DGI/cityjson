@@ -1,11 +1,11 @@
-# cityarrow Package Schema
+# cityjson-arrow Package Schema
 
 This document summarizes the shared canonical transport contract used by the
-live `cityarrow` stream and the persistent `cityparquet` package.
+live `cityjson-arrow` stream and the persistent `cityjson-parquet` package.
 
 ## Summary
 
-- package schema id: `cityarrow.package.v3alpha1`
+- package schema id: `cityjson-arrow.package.v3alpha1`
 - semantic boundary: `cityjson::v2_0::OwnedCityModel`
 - public transport APIs: `ModelEncoder` / `ModelDecoder`,
   `PackageWriter` / `PackageReader`

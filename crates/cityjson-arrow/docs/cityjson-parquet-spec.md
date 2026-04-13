@@ -1,16 +1,16 @@
-# cityparquet Persistent Package Specification
+# cityjson-parquet Persistent Package Specification
 
 This document describes the current persistent single-file package format used
-by `cityparquet::PackageWriter` and `cityparquet::PackageReader`.
+by `cityjson_parquet::PackageWriter` and `cityjson_parquet::PackageReader`.
 
 The historical filename is retained, but the current package is a seekable
 single-file container rather than a directory tree.
 
 ## Version
 
-- package magic: `CITYARROW_PKG_V3\0`
-- footer magic: `CITYARROW_PKG_V3IDX\0`
-- package schema id: `cityarrow.package.v3alpha1`
+- package magic: `CITYJSON_ARROW_PKG_V3\0`
+- footer magic: `CITYJSON_ARROW_PKG_V3IDX\0`
+- package schema id: `cityjson-arrow.package.v3alpha1`
 
 ## Layout
 

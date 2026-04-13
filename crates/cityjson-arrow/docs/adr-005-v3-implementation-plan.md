@@ -13,8 +13,8 @@ This plan is about one clean breaking refactor.
 Keep:
 
 - the public semantic boundary centered on `OwnedCityModel`
-- one live stream surface in `cityarrow`
-- one persistent package surface in `cityparquet`
+- one live stream surface in `cityjson-arrow`
+- one persistent package surface in `cityjson-parquet`
 - the canonical table set and ordinal relation rules established by ADR 4
 
 Do not add in this slice:
@@ -35,7 +35,7 @@ The implementation must deliver these end-state properties:
    whole `Vec<Row>` staging
 3. `decode_parts` consumes bound arrays and cheap indices instead of
    reconstructing row vectors
-4. the only supported package version is `cityarrow.package.v3alpha1`
+4. the only supported package version is `cityjson-arrow.package.v3alpha1`
 5. the old stringified projection model is removed rather than preserved behind
    branches
 
@@ -50,13 +50,13 @@ Primary targets:
 - `src/schema.rs`
 - `src/convert/mod.rs`
 - `src/stream.rs`
-- `cityparquet/src/package/mod.rs`
+- `cityjson-parquet/src/package/mod.rs`
 - docs that name the current schema id
 
 Work:
 
-- replace `cityarrow.package.v2alpha2` in `src/schema.rs` with
-  `cityarrow.package.v3alpha1`
+- replace `cityjson-arrow.package.v2alpha2` in `src/schema.rs` with
+  `cityjson-arrow.package.v3alpha1`
 - add `V3Alpha1` to `CityArrowPackageVersion`
 - make manifest and header construction default to `V3Alpha1`
 - remove `V2Alpha2` from `FromStr`, display, and serde-facing mainline paths
@@ -65,7 +65,7 @@ Work:
 
 Deliverables:
 
-- one schema id in the codebase: `cityarrow.package.v3alpha1`
+- one schema id in the codebase: `cityjson-arrow.package.v3alpha1`
 - one mainline read/write format
 
 Exit criteria:
@@ -413,7 +413,7 @@ Acceptance:
 1. there is no generic attribute JSON stringify or parse path anywhere in
    encode or decode
 2. there are no `Vec<Row>` staging structures in the conversion pipeline
-3. the only supported package version is `cityarrow.package.v3alpha1`
+3. the only supported package version is `cityjson-arrow.package.v3alpha1`
 4. split benchmarks in `benches/split.rs` show material improvement in
    `convert_encode_parts` and `convert_decode_parts`
 
