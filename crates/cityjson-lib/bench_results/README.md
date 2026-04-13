@@ -1,6 +1,6 @@
 # Benchmark Results
 
-`bench_results/history.csv` is the persistent benchmark history for `cjlib`.
+`bench_results/history.csv` is the persistent benchmark history for `cityjson_lib`.
 
 Schema:
 

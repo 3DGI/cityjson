@@ -1,8 +1,8 @@
 # JSON API
 
-This document defines the intended public shape of `cjlib::json`.
+This document defines the intended public shape of `cityjson_lib::json`.
 
-`cjlib::json` is not a second JSON implementation.
+`cityjson_lib::json` is not a second JSON implementation.
 It is the explicit boundary layer over `serde_cityjson` for callers that need
 more than the default document-oriented `CityModel::from_*` path.
 

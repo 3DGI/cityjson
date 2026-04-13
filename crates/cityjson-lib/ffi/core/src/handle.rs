@@ -5,24 +5,24 @@ use crate::abi::{
     cj_vertices_t,
 };
 
-pub fn model_into_handle(model: cjlib::CityModel) -> *mut cj_model_t {
+pub fn model_into_handle(model: cityjson_lib::CityModel) -> *mut cj_model_t {
     Box::into_raw(Box::new(model)).cast::<cj_model_t>()
 }
 
-pub unsafe fn model_take(handle: *mut cj_model_t) -> Option<Box<cjlib::CityModel>> {
+pub unsafe fn model_take(handle: *mut cj_model_t) -> Option<Box<cityjson_lib::CityModel>> {
     if handle.is_null() {
         return None;
     }
 
-    Some(unsafe { Box::from_raw(handle.cast::<cjlib::CityModel>()) })
+    Some(unsafe { Box::from_raw(handle.cast::<cityjson_lib::CityModel>()) })
 }
 
-pub unsafe fn model_as_ref<'a>(handle: *const cj_model_t) -> Option<&'a cjlib::CityModel> {
-    unsafe { handle.cast::<cjlib::CityModel>().as_ref() }
+pub unsafe fn model_as_ref<'a>(handle: *const cj_model_t) -> Option<&'a cityjson_lib::CityModel> {
+    unsafe { handle.cast::<cityjson_lib::CityModel>().as_ref() }
 }
 
-pub unsafe fn model_as_mut<'a>(handle: *mut cj_model_t) -> Option<&'a mut cjlib::CityModel> {
-    unsafe { handle.cast::<cjlib::CityModel>().as_mut() }
+pub unsafe fn model_as_mut<'a>(handle: *mut cj_model_t) -> Option<&'a mut cityjson_lib::CityModel> {
+    unsafe { handle.cast::<cityjson_lib::CityModel>().as_mut() }
 }
 
 pub unsafe fn model_free(handle: *mut cj_model_t) {

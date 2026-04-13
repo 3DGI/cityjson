@@ -16,7 +16,7 @@ first item is a `CityJSON` root object and whose later items are
 `CityJSONFeature` objects. That is the strict stream shape already enforced by
 the reader.
 
-On the write side, `cjlib::json::write_feature_stream(...)` currently writes
+On the write side, `cityjson_lib::json::write_feature_stream(...)` currently writes
 newline-delimited self-contained `CityJSONFeature` payloads only. That is a
 useful loose JSONL contract, but it is not a strict `CityJSONSeq` writer
 because it does not emit:
@@ -61,7 +61,7 @@ The design split is:
 
 - `cityjson-rs` remains the semantic model crate
 - `serde_cityjson` owns strict `CityJSON` / `CityJSONSeq` wire-format writing
-- `cjlib::json` exposes the strict writer as the stable facade
+- `cityjson_lib::json` exposes the strict writer as the stable facade
 
 The primitive write path is explicit-transform writing.
 Automatic-transform writing is a convenience wrapper around it.
@@ -111,7 +111,7 @@ So the automatic-transform path:
 
 ### 4. Keep Loose Feature-Only JSONL Writing
 
-The existing `cjlib::json::write_feature_stream(...)` contract remains valid
+The existing `cityjson_lib::json::write_feature_stream(...)` contract remains valid
 and unchanged.
 
 It continues to mean:
@@ -181,9 +181,9 @@ where
     SS: StringStorage + 'a;
 ```
 
-### `cjlib`
+### `cityjson_lib`
 
-`cjlib::json` should expose facade-level wrappers over the strict writer:
+`cityjson_lib::json` should expose facade-level wrappers over the strict writer:
 
 ```rust
 pub struct CityJSONSeqWriteOptions {
@@ -228,7 +228,7 @@ where
     W: std::io::Write;
 ```
 
-Owned-value convenience overloads may be added in `cjlib`, but reference-based
+Owned-value convenience overloads may be added in `cityjson_lib`, but reference-based
 variants are the core shape because many write paths already hold borrowed model
 handles.
 
@@ -373,11 +373,11 @@ boundary crate.
 The likely implementation sequence is:
 
 1. add strict writer serializers in `serde_cityjson`
-2. add facade wrappers in `cjlib::json`
+2. add facade wrappers in `cityjson_lib::json`
 3. keep `write_feature_stream(...)` as the loose writer
 4. later expose the strict writer through the shared FFI once the Rust surface
    has stabilized
 
-The current `cjlib::ops` merge and append helpers remain separate concerns.
+The current `cityjson_lib::ops` merge and append helpers remain separate concerns.
 They may later provide semantic remap or localization workflows, but the strict
 writer itself should not hide those semantics behind implicit repair logic.

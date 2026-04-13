@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <cjlib/cjlib.h>
+#include <cityjson_lib/cityjson_lib.h>
 
 struct cj_string_view_t {
   const std::uint8_t* data;

@@ -1,8 +1,8 @@
 # Operations API
 
-This document pins down the intended public shape of `cjlib::ops`.
+This document pins down the intended public shape of `cityjson_lib::ops`.
 
-`cjlib::ops` is the place for higher-level reusable workflows that are useful
+`cityjson_lib::ops` is the place for higher-level reusable workflows that are useful
 to applications but do not belong in the semantic model crate itself.
 
 ## Why `ops` Exists
@@ -13,7 +13,7 @@ to applications but do not belong in the semantic model crate itself.
 - invariants and validated mutation
 - extraction, localization, remapping, and merge semantics
 
-`cjlib::ops` can then provide reusable workflows above that model, for example:
+`cityjson_lib::ops` can then provide reusable workflows above that model, for example:
 
 - filtering by LoD
 - cleaning vertices
@@ -64,7 +64,7 @@ This keeps the facade split clean:
 
 - `CityModel` for loading and wrapper access
 - explicit modules for explicit formats
-- `cjlib::ops` for reusable workflows
+- `cityjson_lib::ops` for reusable workflows
 
 ## Prefer Free Functions
 
@@ -79,19 +79,19 @@ Subsetting needs a structured selector type, but the selector should start
 small:
 
 ```rust
-let selection = cjlib::ops::Selection::from_ids(["id-1", "id-2"]);
-let subset = cjlib::ops::subset(&model, selection)?;
-# Ok::<(), cjlib::Error>(())
+let selection = cityjson_lib::ops::Selection::from_ids(["id-1", "id-2"]);
+let subset = cityjson_lib::ops::subset(&model, selection)?;
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
 Avoid:
 
 - many overlapping `subset_*` entry points
 - ad hoc string mini-languages
-- a large query DSL at the `cjlib` boundary
+- a large query DSL at the `cityjson_lib` boundary
 
 ## Relationship To `cityjson-rs`
 
-`cjlib::ops` should build on `cityjson-rs`, not compete with it.
+`cityjson_lib::ops` should build on `cityjson-rs`, not compete with it.
 When `merge`, `subset`, cleanup, or upgrade helpers exist, they should delegate
 to semantic-model capabilities where correctness depends on model invariants.

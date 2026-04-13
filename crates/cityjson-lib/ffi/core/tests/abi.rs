@@ -1,8 +1,8 @@
 use std::ptr;
 use std::slice;
 
-use cjlib_ffi_core::exports::*;
-use cjlib_ffi_core::{
+use cityjson_lib_ffi_core::exports::*;
+use cityjson_lib_ffi_core::{
     AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
     cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
     cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,

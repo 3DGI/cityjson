@@ -1,6 +1,6 @@
 # Benchmarking
 
-`cjlib` now carries a consolidated benchmark slice for real 3DBAG data, with a
+`cityjson_lib` now carries a consolidated benchmark slice for real 3DBAG data, with a
 persisted reporting flow modeled after `cityjson-rs`.
 
 ## Pinned Workloads
@@ -15,7 +15,7 @@ Prepared inputs live under `target/bench-data/3dbag/v20250903/`.
 
 The shared corpus is the source of truth. If the sibling
 `../cityjson-benchmarks` checkout already contains the acquired CityJSON,
-cityarrow, and cityparquet artifacts, `cjlib` reuses them directly.
+cityarrow, and cityparquet artifacts, `cityjson_lib` reuses them directly.
 
 ## Prepare Inputs
 
@@ -43,8 +43,8 @@ just bench
 The Criterion suite benchmarks:
 
 - `serde_json::Value` JSON read/write
-- `serde_cityjson` JSON read/write
-- `cjlib::json` JSON read/write
+- `cityjson_lib` JSON read/write
+- `cityjson_lib::json` JSON read/write
 - `cityarrow` live Arrow IPC stream read/write
 - `cityparquet` persistent package read/write
 
@@ -82,10 +82,10 @@ conversion, live-stream transport, or package/container work.
 Run a single workload on a single case:
 
 ```bash
-just bench-profile time serde_cityjson-read io_3dbag_cityjson
-just bench-profile dhat serde_cityjson-read io_3dbag_cityjson
-just bench-profile cachegrind serde_cityjson-read io_3dbag_cityjson
-just bench-profile massif serde_cityjson-read io_3dbag_cityjson
+just bench-profile time cityjson_lib-read io_3dbag_cityjson
+just bench-profile dhat cityjson_lib-read io_3dbag_cityjson
+just bench-profile cachegrind cityjson_lib-read io_3dbag_cityjson
+just bench-profile massif cityjson_lib-read io_3dbag_cityjson
 ```
 
 Outputs are written under `target/bench-profile/<tool>/<case>/<workload>/`.
@@ -128,15 +128,15 @@ This keeps the scatter plots comparable across formats.
 The default profiled workloads are:
 
 - `serde_json-read`
-- `serde_cityjson-read`
-- `cjlib-json-read`
+- `cityjson_lib-read`
+- `cityjson-lib-json-read`
 - `cityarrow-read`
 - `cityparquet-read`
 
 Massif remains available as an explicit deep-dive tool:
 
 ```bash
-just bench-profile massif serde_cityjson-read io_3dbag_cityjson_cluster_4x
+just bench-profile massif cityjson_lib-read io_3dbag_cityjson_cluster_4x
 PERF_RUN_MASSIF=1 just perf "cluster massif capture" fast
 ```
 
@@ -145,7 +145,7 @@ Analyze the recorded history with:
 ```bash
 just perf-analyze --list
 just perf-analyze --description "baseline before refactor"
-just perf-analyze --description "baseline before refactor" --series --bench "deserialize/io_3dbag_cityjson/serde_cityjson/read" --metric heap_max_bytes
+just perf-analyze --description "baseline before refactor" --series --bench "deserialize/io_3dbag_cityjson/cityjson_lib/read" --metric heap_max_bytes
 ```
 
 Generate baseline-relative throughput plots from the recorded history with:

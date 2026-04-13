@@ -3,10 +3,10 @@ use std::fs::File;
 use std::io::{BufRead, Write};
 use std::path::Path;
 
-use serde::Deserialize;
-pub use serde_cityjson::v2_0::{
+pub use cityjson_json::v2_0::{
     AutoTransformOptions, CityJSONSeqWriteOptions, CityJSONSeqWriteReport,
 };
+use serde::Deserialize;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
 
@@ -54,7 +54,7 @@ pub mod staged {
                     )))
                 })?;
                 Ok(CityModel(
-                    serde_cityjson::v2_0::from_feature_str_owned_with_base(
+                    cityjson_json::v2_0::from_feature_str_owned_with_base(
                         feature_input,
                         base_input,
                     )?,
@@ -70,7 +70,7 @@ pub mod staged {
         let feature_input = super::decode_utf8_input(feature_bytes, "CityJSONFeature document")?;
         let base_input = super::decode_utf8_input(base_document_bytes, "CityJSON document")?;
         Ok(CityModel(
-            serde_cityjson::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
+            cityjson_json::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
         ))
     }
 
@@ -87,18 +87,18 @@ pub mod staged {
         let cityobjects = assembly
             .cityobjects
             .iter()
-            .map(|cityobject| serde_cityjson::FeatureObject {
+            .map(|cityobject| cityjson_json::FeatureObject {
                 id: cityobject.id,
                 object: cityobject.object,
             })
             .collect::<Vec<_>>();
-        let parts = serde_cityjson::FeatureParts {
+        let parts = cityjson_json::FeatureParts {
             id: assembly.id,
             cityobjects: &cityobjects,
             vertices: assembly.vertices,
         };
         Ok(CityModel(
-            serde_cityjson::from_feature_parts_owned_with_base(parts, base_input)?,
+            cityjson_json::from_feature_parts_owned_with_base(parts, base_input)?,
         ))
     }
 
@@ -112,7 +112,7 @@ pub mod staged {
     pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
         match model.as_inner().type_citymodel() {
             cityjson::CityModelType::CityJSONFeature => {
-                serde_cityjson::to_writer_validated(writer, model.as_inner())?;
+                cityjson_json::to_writer_validated(writer, model.as_inner())?;
                 Ok(())
             }
             other => Err(Error::UnsupportedType(other.to_string())),
@@ -197,7 +197,7 @@ pub struct WriteOptions {
 
 pub fn from_slice_assume_cityjson_v2_0(bytes: &[u8]) -> Result<CityModel> {
     let input = decode_utf8_input(bytes, "CityJSON document")?;
-    Ok(CityModel(serde_cityjson::v2_0::from_str_owned(input)?))
+    Ok(CityModel(cityjson_json::v2_0::from_str_owned(input)?))
 }
 
 pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
@@ -240,7 +240,7 @@ pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 
 pub fn from_feature_slice_assume_cityjson_feature_v2_0(bytes: &[u8]) -> Result<CityModel> {
     let input = decode_utf8_input(bytes, "CityJSONFeature document")?;
-    Ok(CityModel(serde_cityjson::v2_0::from_feature_str_owned(
+    Ok(CityModel(cityjson_json::v2_0::from_feature_str_owned(
         input,
     )?))
 }
@@ -249,7 +249,7 @@ pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<C
 where
     R: BufRead,
 {
-    let iter = serde_cityjson::v2_0::read_feature_stream(reader)?;
+    let iter = cityjson_json::v2_0::read_feature_stream(reader)?;
     Ok(iter.map(|item| item.map(CityModel::from).map_err(Error::from)))
 }
 
@@ -320,7 +320,7 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(serde_cityjson::v2_0::write_cityjsonseq_with_transform_refs(
+    Ok(cityjson_json::v2_0::write_cityjsonseq_with_transform_refs(
         writer,
         base_root.as_inner(),
         features,
@@ -362,7 +362,7 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(serde_cityjson::v2_0::write_cityjsonseq_auto_transform_refs(
+    Ok(cityjson_json::v2_0::write_cityjsonseq_auto_transform_refs(
         writer,
         base_root.as_inner(),
         features,
@@ -379,7 +379,7 @@ pub fn to_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<V
 }
 
 pub fn to_string(model: &CityModel) -> Result<String> {
-    Ok(serde_cityjson::to_string_validated(model.as_inner())?)
+    Ok(cityjson_json::to_string_validated(model.as_inner())?)
 }
 
 pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
@@ -387,7 +387,7 @@ pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Resul
         model.as_inner().validate_default_themes()?;
     }
 
-    let value = serde_cityjson::as_json(model.as_inner());
+    let value = cityjson_json::as_json(model.as_inner());
     if options.pretty {
         Ok(serde_json::to_string_pretty(&value)?)
     } else {
@@ -410,7 +410,7 @@ pub fn to_writer_with_options(
 }
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
-    Ok(serde_cityjson::v2_0::to_string_feature(model.as_inner())?)
+    Ok(cityjson_json::v2_0::to_string_feature(model.as_inner())?)
 }
 
 pub fn to_feature_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<Vec<u8>> {
@@ -424,7 +424,7 @@ pub fn to_feature_string_with_options(model: &CityModel, options: WriteOptions) 
                 model.as_inner().validate_default_themes()?;
             }
 
-            let value = serde_cityjson::as_json(model.as_inner());
+            let value = cityjson_json::as_json(model.as_inner());
             if options.pretty {
                 Ok(serde_json::to_string_pretty(&value)?)
             } else {

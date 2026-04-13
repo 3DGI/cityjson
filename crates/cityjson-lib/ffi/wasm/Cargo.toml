@@ -1,15 +1,15 @@
 [package]
-name = "cjlib-wasm"
+name = "cityjson-lib-wasm"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.93"
 
 [lib]
-name = "cjlib_wasm"
+name = "cityjson_lib_wasm"
 path = "src/lib.rs"
 
 [dependencies]
-cjlib-ffi-core = { path = "../core" }
+cityjson-lib-ffi-core = { path = "../core" }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.3.4", features = ["wasm_js"] }

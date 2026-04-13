@@ -33,18 +33,18 @@ to 30x more than a Rust call".
 
 The shared C ABI parse path does an explicit probe before the full parse.
 
-In [exports.rs](/home/balazs/Development/cjlib/ffi/core/src/exports.rs#L735),
+In [exports.rs](/home/balazs/Development/cityjson-lib/ffi/core/src/exports.rs#L735),
 `cj_model_parse_document_bytes`:
 
-- calls `cjlib::json::probe(input)`
+- calls `cityjson_lib::json::probe(input)`
 - validates root kind and version
-- then calls `cjlib::json::from_slice(input)`
+- then calls `cityjson_lib::json::from_slice(input)`
 
 The same shape exists for feature parsing.
 
 By contrast, the Rust benchmark baseline for `summary` and `roundtrip` goes
 straight to `CityModel::from_slice(...)` in
-[main.rs](/home/balazs/Development/cjlib-benchmarks/drivers/rust/src/main.rs#L162).
+[main.rs](/home/balazs/Development/cityjson-lib-benchmarks/drivers/rust/src/main.rs#L162).
 
 That means every FFI parse currently pays for an extra front pass over the
 input before the real parse starts.
@@ -60,14 +60,14 @@ The low-level ABI is intentionally simple and stable:
 That shape is reasonable, but it means serialized payloads are copied into
 ABI-owned buffers.
 
-In [handle.rs](/home/balazs/Development/cjlib/ffi/core/src/handle.rs#L32),
+In [handle.rs](/home/balazs/Development/cityjson-lib/ffi/core/src/handle.rs#L32),
 `bytes_from_vec` turns a Rust `Vec<u8>` into owned ABI memory.
 
 The consumer then copies those bytes again into host-language memory before
 freeing the ABI buffer:
 
-- C++ copies in [cjlib.hpp](/home/balazs/Development/cjlib/ffi/cpp/include/cjlib/cjlib.hpp#L119)
-- Python copies in [_ffi.py](/home/balazs/Development/cjlib/ffi/python/src/cjlib/_ffi.py#L471)
+- C++ copies in [cityjson_lib.hpp](/home/balazs/Development/cityjson-lib/ffi/cpp/include/cityjson_lib/cityjson_lib.hpp#L119)
+- Python copies in [_ffi.py](/home/balazs/Development/cityjson-lib/ffi/python/src/cityjson_lib/_ffi.py#L471)
 
 So the path is not "serialize once and hand out a borrow". It is "serialize,
 allocate, copy out, free".
@@ -80,22 +80,22 @@ copies and conversions.
 Input copy:
 
 - `_data_pointer` uses `from_buffer_copy` in
-  [_ffi.py](/home/balazs/Development/cjlib/ffi/python/src/cjlib/_ffi.py#L420)
+  [_ffi.py](/home/balazs/Development/cityjson-lib/ffi/python/src/cityjson_lib/_ffi.py#L420)
 
 Output copy:
 
 - `_take_bytes` reconstructs the payload one element at a time in
-  [_ffi.py](/home/balazs/Development/cjlib/ffi/python/src/cjlib/_ffi.py#L471)
+  [_ffi.py](/home/balazs/Development/cityjson-lib/ffi/python/src/cityjson_lib/_ffi.py#L471)
 
 String conversion:
 
 - `serialize_document()` returns decoded `str` in
-  [__init__.py](/home/balazs/Development/cjlib/ffi/python/src/cjlib/__init__.py#L299)
+  [__init__.py](/home/balazs/Development/cityjson-lib/ffi/python/src/cityjson_lib/__init__.py#L299)
 
 Benchmark conversion back to bytes:
 
 - the benchmark immediately `.encode("utf-8")`s that string in
-  [benchmark.py](/home/balazs/Development/cjlib-benchmarks/drivers/python/benchmark.py#L167)
+  [benchmark.py](/home/balazs/Development/cityjson-lib-benchmarks/drivers/python/benchmark.py#L167)
 
 That means the roundtrip path effectively does:
 
@@ -114,11 +114,11 @@ C++ avoids Python interpreter overhead, but it still pays unnecessary copying on
 large serialized outputs.
 
 `serialize_document()` returns `std::string` in
-[cjlib.hpp](/home/balazs/Development/cjlib/ffi/cpp/include/cjlib/cjlib.hpp#L378),
+[cityjson_lib.hpp](/home/balazs/Development/cityjson-lib/ffi/cpp/include/cityjson_lib/cityjson_lib.hpp#L378),
 which copies the ABI buffer into a C++ string.
 
 The benchmark then copies that string again into `output_payload` in
-[main.cpp](/home/balazs/Development/cjlib-benchmarks/drivers/cpp/main.cpp#L435).
+[main.cpp](/home/balazs/Development/cityjson-lib-benchmarks/drivers/cpp/main.cpp#L435).
 
 C++ also pays the same explicit `probe + parse` cost that the other shared-ABI
 targets pay.
@@ -138,9 +138,9 @@ boundary is not itself the dominant problem.
 Even the wasm benchmark still performs wrapper-side work:
 
 - Rust serializes summary data to JSON strings in
-  [lib.rs](/home/balazs/Development/cjlib-benchmarks/drivers/wasm/src/lib.rs#L55)
+  [lib.rs](/home/balazs/Development/cityjson-lib-benchmarks/drivers/wasm/src/lib.rs#L55)
 - Node parses those JSON strings in
-  [run_wasm_benchmark.cjs](/home/balazs/Development/cjlib-benchmarks/drivers/wasm/run_wasm_benchmark.cjs#L62)
+  [run_wasm_benchmark.cjs](/home/balazs/Development/cityjson-lib-benchmarks/drivers/wasm/run_wasm_benchmark.cjs#L62)
 
 Despite that, the wasm overhead stays far below Python and below the current
 C++ wrapper on the large end-to-end cases.

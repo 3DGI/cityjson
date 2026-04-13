@@ -17,7 +17,7 @@ introduce drift between the implementation, the docs, and the generated ABI.
 manual editing.
 
 The developer workflow will expose a dedicated `just ffi-header` recipe that
-refreshes `ffi/core/include/cjlib/cjlib.h` from the current `ffi/core` crate
+refreshes `ffi/core/include/cityjson_lib/cityjson_lib.h` from the current `ffi/core` crate
 state.
 
 ## Consequences

@@ -25,7 +25,7 @@ The bindings then decide how to present that core idiomatically.
 The intended layering is:
 
 ```text
-cityjson-rs + serde_cityjson + cjlib
+cityjson-rs + serde_cityjson + cityjson_lib
     -> shared low-level FFI core
     -> { C++ wrapper, Python binding, wasm adapter }
 ```

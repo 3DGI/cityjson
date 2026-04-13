@@ -5,13 +5,13 @@ use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::FromStr;
 
-use cjlib::cityjson::v2_0::{
+use cityjson_lib::cityjson::v2_0::{
     Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
     CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Geometry, GeometryType,
     LoD, StoredGeometryParts, Transform,
 };
-use cjlib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
+use cityjson_lib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
     cj_bytes_t, cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t,
@@ -31,8 +31,10 @@ use crate::handle::{
     vertices_from_vec,
 };
 
-type OwnedGeometry =
-    cjlib::cityjson::v2_0::Geometry<u32, cjlib::cityjson::resources::storage::OwnedStringStorage>;
+type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
+    u32,
+    cityjson_lib::cityjson::resources::storage::OwnedStringStorage,
+>;
 
 fn invalid_argument(message: impl Into<String>) -> AbiError {
     AbiError::invalid_argument(message)
@@ -259,7 +261,7 @@ fn copy_string_bytes(value: Option<&str>) -> Vec<u8> {
     value.unwrap_or_default().as_bytes().to_vec()
 }
 
-fn index_values(indices: &[cjlib::cityjson::v2_0::VertexIndex<u32>]) -> Vec<usize> {
+fn index_values(indices: &[cityjson_lib::cityjson::v2_0::VertexIndex<u32>]) -> Vec<usize> {
     indices.iter().map(|index| index.to_usize()).collect()
 }
 
@@ -317,7 +319,10 @@ fn geometry_boundary_coordinates(
 fn find_cityobject_mut<'a>(
     model: &'a mut CityModel,
     id: &str,
-) -> Result<&'a mut CityObject<cjlib::cityjson::resources::storage::OwnedStringStorage>, AbiError> {
+) -> Result<
+    &'a mut CityObject<cityjson_lib::cityjson::resources::storage::OwnedStringStorage>,
+    AbiError,
+> {
     model
         .as_inner_mut()
         .cityobjects_mut()
@@ -329,7 +334,7 @@ fn find_cityobject_mut<'a>(
 fn find_geometry_handle(
     model: &CityModel,
     index: usize,
-) -> Result<cjlib::cityjson::resources::handles::GeometryHandle, AbiError> {
+) -> Result<cityjson_lib::cityjson::resources::handles::GeometryHandle, AbiError> {
     model
         .as_inner()
         .iter_geometries()
@@ -466,7 +471,7 @@ fn boundary_from_view(
             }
             Some(
                 Boundary::try_from(BoundaryNestedMultiLineString::from(rings))
-                    .map_err(cjlib::Error::from)
+                    .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?,
             )
         }
@@ -484,7 +489,7 @@ fn boundary_from_view(
                 .collect::<Vec<_>>();
             Some(
                 Boundary::try_from(BoundaryNestedMultiOrCompositeSurface::from(surfaces))
-                    .map_err(cjlib::Error::from)
+                    .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?,
             )
         }
@@ -506,7 +511,7 @@ fn boundary_from_view(
                 .collect::<Vec<_>>();
             Some(
                 Boundary::try_from(BoundaryNestedSolid::from(shells))
-                    .map_err(cjlib::Error::from)
+                    .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?,
             )
         }
@@ -529,7 +534,7 @@ fn boundary_from_view(
                 .collect::<Vec<_>>();
             Some(
                 Boundary::try_from(BoundaryNestedMultiOrCompositeSolid::from(solids))
-                    .map_err(cjlib::Error::from)
+                    .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?,
             )
         }
@@ -542,7 +547,8 @@ fn boundary_from_view(
 fn geometry_from_boundary_view(
     view: cj_geometry_boundary_view_t,
     lod: Option<LoD>,
-) -> Result<Geometry<u32, cjlib::cityjson::resources::storage::OwnedStringStorage>, AbiError> {
+) -> Result<Geometry<u32, cityjson_lib::cityjson::resources::storage::OwnedStringStorage>, AbiError>
+{
     let boundary = boundary_from_view(view)?;
     Ok(Geometry::from_stored_parts(StoredGeometryParts {
         type_geometry: geometry_type_from_abi(view.geometry_type),
@@ -759,7 +765,7 @@ pub extern "C" fn cj_probe_bytes(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let input = required_bytes(data, len, "data")?;
-        let probe = cjlib::json::probe(input)?;
+        let probe = cityjson_lib::json::probe(input)?;
         write_value(out_probe, "out_probe", cj_probe_t::from_probe(&probe))
     }))
 }
@@ -772,7 +778,7 @@ pub extern "C" fn cj_model_parse_document_bytes(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let input = required_bytes(data, len, "data")?;
-        let probe = cjlib::json::probe(input)?;
+        let probe = cityjson_lib::json::probe(input)?;
         if probe.kind() != RootKind::CityJSON {
             return Err(AbiError::from(Error::ExpectedCityJSON(
                 probe.kind().to_string(),
@@ -780,7 +786,7 @@ pub extern "C" fn cj_model_parse_document_bytes(
         }
 
         reject_unsupported_document_version(probe.version())?;
-        let model = cjlib::json::from_slice_assume_cityjson_v2_0(input)?;
+        let model = cityjson_lib::json::from_slice_assume_cityjson_v2_0(input)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -793,7 +799,7 @@ pub extern "C" fn cj_model_parse_feature_bytes(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let input = required_bytes(data, len, "data")?;
-        let probe = cjlib::json::probe(input)?;
+        let probe = cityjson_lib::json::probe(input)?;
         if probe.kind() != RootKind::CityJSONFeature {
             return Err(AbiError::from(Error::ExpectedCityJSONFeature(
                 probe.kind().to_string(),
@@ -801,7 +807,7 @@ pub extern "C" fn cj_model_parse_feature_bytes(
         }
 
         reject_unsupported_feature_version(probe.version())?;
-        let model = cjlib::json::from_feature_slice_assume_cityjson_feature_v2_0(input)?;
+        let model = cityjson_lib::json::from_feature_slice_assume_cityjson_feature_v2_0(input)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -818,7 +824,7 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
         let feature = required_bytes(feature_data, feature_len, "feature_data")?;
         let base = required_bytes(base_data, base_len, "base_data")?;
 
-        let feature_probe = cjlib::json::probe(feature)?;
+        let feature_probe = cityjson_lib::json::probe(feature)?;
         if feature_probe.kind() != RootKind::CityJSONFeature {
             return Err(AbiError::from(Error::ExpectedCityJSONFeature(
                 feature_probe.kind().to_string(),
@@ -827,7 +833,7 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
 
         reject_unsupported_feature_version(feature_probe.version())?;
 
-        let base_probe = cjlib::json::probe(base)?;
+        let base_probe = cityjson_lib::json::probe(base)?;
         if base_probe.kind() != RootKind::CityJSON {
             return Err(AbiError::from(Error::ExpectedCityJSON(
                 base_probe.kind().to_string(),
@@ -835,9 +841,10 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
         }
 
         reject_unsupported_document_version(base_probe.version())?;
-        let model = cjlib::json::staged::from_feature_slice_with_base_assume_cityjson_feature_v2_0(
-            feature, base,
-        )?;
+        let model =
+            cityjson_lib::json::staged::from_feature_slice_with_base_assume_cityjson_feature_v2_0(
+                feature, base,
+            )?;
         write_model_handle(out_model, model)
     }))
 }
@@ -849,7 +856,7 @@ pub extern "C" fn cj_model_serialize_document(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
-        let bytes = cjlib::json::to_vec(model)?;
+        let bytes = cityjson_lib::json::to_vec(model)?;
         write_bytes(out_bytes, bytes)
     }))
 }
@@ -861,8 +868,10 @@ pub extern "C" fn cj_model_serialize_feature(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
-        let bytes =
-            cjlib::json::to_feature_vec_with_options(model, cjlib::json::WriteOptions::default())?;
+        let bytes = cityjson_lib::json::to_feature_vec_with_options(
+            model,
+            cityjson_lib::json::WriteOptions::default(),
+        )?;
         write_bytes(out_bytes, bytes)
     }))
 }
@@ -1054,7 +1063,7 @@ pub extern "C" fn cj_model_reserve_import(
         required_model_mut(model)?
             .as_inner_mut()
             .reserve_import(capacities.into())
-            .map_err(cjlib::Error::from)?;
+            .map_err(cityjson_lib::Error::from)?;
         Ok(())
     }))
 }
@@ -1069,7 +1078,7 @@ pub extern "C" fn cj_model_add_vertex(
         let index = required_model_mut(model)?
             .as_inner_mut()
             .add_vertex(vertex.into())
-            .map_err(cjlib::Error::from)?
+            .map_err(cityjson_lib::Error::from)?
             .to_usize();
         write_value(out_index, "out_index", index)
     }))
@@ -1085,7 +1094,7 @@ pub extern "C" fn cj_model_add_template_vertex(
         let index = required_model_mut(model)?
             .as_inner_mut()
             .add_template_vertex(vertex.into())
-            .map_err(cjlib::Error::from)?
+            .map_err(cityjson_lib::Error::from)?
             .to_usize();
         write_value(out_index, "out_index", index)
     }))
@@ -1101,7 +1110,7 @@ pub extern "C" fn cj_model_add_uv_coordinate(
         let index = required_model_mut(model)?
             .as_inner_mut()
             .add_uv_coordinate(uv.into())
-            .map_err(cjlib::Error::from)?
+            .map_err(cityjson_lib::Error::from)?
             .to_usize();
         write_value(out_index, "out_index", index)
     }))
@@ -1151,9 +1160,9 @@ pub extern "C" fn cj_model_set_transform(
 pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model_ref = required_model_ref(model)?;
-        let bytes = cjlib::json::to_vec_with_options(
+        let bytes = cityjson_lib::json::to_vec_with_options(
             model_ref,
-            cjlib::json::WriteOptions {
+            cityjson_lib::json::WriteOptions {
                 pretty: false,
                 validate_default_themes: false,
             },
@@ -1174,8 +1183,8 @@ pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_
             .map_err(Error::from)
             .map_err(AbiError::from)?;
         let replacement = match model_ref.as_inner().type_citymodel() {
-            CityModelType::CityJSON => cjlib::json::from_slice(&bytes)?,
-            CityModelType::CityJSONFeature => cjlib::json::from_feature_slice(&bytes)?,
+            CityModelType::CityJSON => cityjson_lib::json::from_slice(&bytes)?,
+            CityModelType::CityJSONFeature => cityjson_lib::json::from_feature_slice(&bytes)?,
             other => return Err(AbiError::from(Error::UnsupportedType(other.to_string()))),
         };
         *required_model_mut(model)? = replacement;
@@ -1193,13 +1202,13 @@ pub extern "C" fn cj_model_add_cityobject(
         let id = view_utf8(id, "id")?;
         let cityobject_type = view_utf8(cityobject_type, "cityobject_type")?;
         let cityobject_type =
-            CityObjectType::from_str(&cityobject_type).map_err(cjlib::Error::from)?;
+            CityObjectType::from_str(&cityobject_type).map_err(cityjson_lib::Error::from)?;
         let cityobject = CityObject::new(CityObjectIdentifier::new(id), cityobject_type);
         required_model_mut(model)?
             .as_inner_mut()
             .cityobjects_mut()
             .add(cityobject)
-            .map_err(cjlib::Error::from)?;
+            .map_err(cityjson_lib::Error::from)?;
         Ok(())
     }))
 }
@@ -1265,7 +1274,7 @@ pub extern "C" fn cj_model_add_geometry_from_boundary(
         model
             .as_inner_mut()
             .add_geometry(geometry)
-            .map_err(cjlib::Error::from)?;
+            .map_err(cityjson_lib::Error::from)?;
         write_value(out_index, "out_index", index)
     }))
 }
@@ -1273,7 +1282,7 @@ pub extern "C" fn cj_model_add_geometry_from_boundary(
 #[unsafe(no_mangle)]
 pub extern "C" fn cj_model_cleanup(model: *mut cj_model_t) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let cleaned = cjlib::ops::cleanup(required_model_ref(model)?)?;
+        let cleaned = cityjson_lib::ops::cleanup(required_model_ref(model)?)?;
         *required_model_mut(model)? = cleaned;
         Ok(())
     }))
@@ -1286,7 +1295,7 @@ pub extern "C" fn cj_model_append_model(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let source = required_model_ref(source_model)?.clone();
-        cjlib::ops::append(required_model_mut(target_model)?, &source)?;
+        cityjson_lib::ops::append(required_model_mut(target_model)?, &source)?;
         Ok(())
     }))
 }
@@ -1305,7 +1314,7 @@ pub extern "C" fn cj_model_extract_cityobjects(
             .map(|view| view_utf8(*view, "cityobject_ids[]"))
             .collect::<Result<Vec<_>, _>>()?;
         let borrowed = ids.iter().map(String::as_str).collect::<Vec<_>>();
-        let extracted = cjlib::ops::extract(required_model_ref(model)?, borrowed)?;
+        let extracted = cityjson_lib::ops::extract(required_model_ref(model)?, borrowed)?;
         write_model_handle(out_model, extracted)
     }))
 }
@@ -1317,9 +1326,9 @@ pub extern "C" fn cj_model_serialize_document_with_options(
     out_bytes: *mut cj_bytes_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let bytes = cjlib::json::to_vec_with_options(
+        let bytes = cityjson_lib::json::to_vec_with_options(
             required_model_ref(model)?,
-            cjlib::json::WriteOptions {
+            cityjson_lib::json::WriteOptions {
                 pretty: options.pretty,
                 validate_default_themes: options.validate_default_themes,
             },
@@ -1335,9 +1344,9 @@ pub extern "C" fn cj_model_serialize_feature_with_options(
     out_bytes: *mut cj_bytes_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let bytes = cjlib::json::to_feature_vec_with_options(
+        let bytes = cityjson_lib::json::to_feature_vec_with_options(
             required_model_ref(model)?,
-            cjlib::json::WriteOptions {
+            cityjson_lib::json::WriteOptions {
                 pretty: options.pretty,
                 validate_default_themes: options.validate_default_themes,
             },
@@ -1354,7 +1363,7 @@ pub extern "C" fn cj_model_parse_feature_stream_merge_bytes(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let input = required_bytes(data, len, "data")?;
-        let model = cjlib::json::merge_feature_stream_slice(input)?;
+        let model = cityjson_lib::json::merge_feature_stream_slice(input)?;
         write_model_handle(out_model, model)
     }))
 }
@@ -1392,7 +1401,7 @@ pub extern "C" fn cj_model_serialize_feature_stream(
                 model
                     .as_inner()
                     .validate_default_themes()
-                    .map_err(cjlib::Error::from)
+                    .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?;
             }
         }
@@ -1406,17 +1415,17 @@ pub extern "C" fn cj_model_serialize_feature_stream(
                             "only the first feature-stream item may be CityJSON".into(),
                         )));
                     }
-                    cjlib::json::to_writer_with_options(
+                    cityjson_lib::json::to_writer_with_options(
                         &mut buffer,
                         model,
-                        cjlib::json::WriteOptions {
+                        cityjson_lib::json::WriteOptions {
                             pretty: false,
                             validate_default_themes: options.validate_default_themes,
                         },
                     )?;
                 }
                 CityModelType::CityJSONFeature => {
-                    cjlib::json::to_feature_writer(&mut buffer, model)?;
+                    cityjson_lib::json::to_feature_writer(&mut buffer, model)?;
                 }
                 other => return Err(AbiError::from(Error::UnsupportedType(other.to_string()))),
             }
@@ -1441,12 +1450,12 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_with_transform(
         let transform = transform_from_abi(transform);
 
         let mut buffer = Vec::new();
-        cjlib::json::write_cityjsonseq_refs(
+        cityjson_lib::json::write_cityjsonseq_refs(
             &mut buffer,
             base_root,
             feature_refs,
             &transform,
-            cjlib::json::CityJSONSeqWriteOptions {
+            cityjson_lib::json::CityJSONSeqWriteOptions {
                 validate_default_themes: options.validate_default_themes,
                 trailing_newline: options.trailing_newline,
                 update_metadata_geographical_extent: options.update_metadata_geographical_extent,
@@ -1469,11 +1478,11 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_auto_transform(
         let feature_refs = required_model_refs(features, feature_count, "features")?;
 
         let mut buffer = Vec::new();
-        cjlib::json::write_cityjsonseq_auto_transform_refs(
+        cityjson_lib::json::write_cityjsonseq_auto_transform_refs(
             &mut buffer,
             base_root,
             feature_refs,
-            cjlib::json::AutoTransformOptions {
+            cityjson_lib::json::AutoTransformOptions {
                 scale: [options.scale_x, options.scale_y, options.scale_z],
                 validate_default_themes: options.validate_default_themes,
                 trailing_newline: options.trailing_newline,

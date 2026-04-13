@@ -1,6 +1,6 @@
-# cjlib
+# cityjson-lib
 
-`cjlib` is the user-facing facade for the CityJSON crates in this repository.
+`cityjson_lib` is the user-facing facade for the CityJSON crates in this repository.
 
 If you are new to the broader project family, start with
 [`docs/ecosystem-overview.md`](docs/ecosystem-overview.md).
@@ -11,13 +11,13 @@ The current rewrite keeps the implemented surface deliberately small:
 
 - `cityjson-rs` owns the one semantic model
 - `serde_cityjson` owns the CityJSON JSON and JSONL boundary
-- `cjlib` owns the ergonomic facade, explicit format modules, and version-level
+- `cityjson_lib` owns the ergonomic facade, explicit format modules, and version-level
   dispatch where needed
 
 The semantic rule is:
 
 - one semantic model: `cityjson::v2_0::OwnedCityModel`
-- one facade wrapper: `cjlib::CityModel`
+- one facade wrapper: `cityjson_lib::CityModel`
 - one semantic interchange unit: a self-contained `CityModel`
 - many format boundaries: JSON, JSONL, Arrow, Parquet, and future raw/staged
   APIs
@@ -26,15 +26,15 @@ For the full synthesis, see [`docs/architecture.md`](docs/architecture.md).
 
 The future public API is centered on:
 
-- `cjlib::CityModel`
-- `cjlib::CityJSONVersion`
-- `cjlib::Error`
-- `cjlib::ErrorKind`
-- `cjlib::json`
-- `cjlib::ops`, currently one illustrative `todo!()` function
-- `cjlib::arrow`, backed by the sibling `cityarrow` transport crate
-- `cjlib::parquet`, backed by the sibling `cityparquet` transport crate
-- `cjlib::cityjson` for advanced model access
+- `cityjson_lib::CityModel`
+- `cityjson_lib::CityJSONVersion`
+- `cityjson_lib::Error`
+- `cityjson_lib::ErrorKind`
+- `cityjson_lib::json`
+- `cityjson_lib::ops`, currently one illustrative `todo!()` function
+- `cityjson_lib::arrow`, backed by the sibling `cityarrow` transport crate
+- `cityjson_lib::parquet`, backed by the sibling `cityparquet` transport crate
+- `cityjson_lib::cityjson` for advanced model access
 
 ## Default Path
 
@@ -42,21 +42,21 @@ For single-document CityJSON input, the default entry points stay on
 `CityModel`:
 
 ```rust
-use cjlib::CityModel;
+use cityjson_lib::CityModel;
 
 let document = CityModel::from_file("rotterdam.city.json")?;
 let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
-# Ok::<(), cjlib::Error>(())
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
 Current practical status:
 
-- `cjlib` is usable today for ordinary `CityJSON` document files
+- `cityjson_lib` is usable today for ordinary `CityJSON` document files
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
-- explicit feature and feature-stream helpers exist under `cjlib::json`
-- explicit live Arrow IPC stream transport exists under `cjlib::arrow`
-- explicit cityparquet package-file transport exists under `cjlib::parquet`
-- `tyler` 0.4.0 now dogfoods `cjlib` for CityJSON reading
+- explicit feature and feature-stream helpers exist under `cityjson_lib::json`
+- explicit live Arrow IPC stream transport exists under `cityjson_lib::arrow`
+- explicit cityparquet package-file transport exists under `cityjson_lib::parquet`
+- `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
 - higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
 ## Explicit Format Modules
@@ -67,28 +67,28 @@ Serialization, feature handling, and model streams should be explicit and
 format-qualified:
 
 ```rust
-use cjlib::{json, CityModel};
+use cityjson_lib::{json, CityModel};
 
 let model = CityModel::from_file("rotterdam.city.json")?;
 let bytes = json::to_vec(&model)?;
 let text = json::to_string(&model)?;
 let feature_text = json::to_feature_string(&model)?;
 # let _ = (bytes, text, feature_text);
-# Ok::<(), cjlib::Error>(())
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
 Alternative encodings and containers should live in explicit modules:
 
-- `cjlib::json`
-- `cjlib::arrow`, which owns live Arrow IPC stream I/O
-- `cjlib::parquet`, which owns persistent package-file I/O
+- `cityjson_lib::json`
+- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O
+- `cityjson_lib::parquet`, which owns persistent package-file I/O
 
 That keeps the facade predictable:
 
 - `CityModel::from_*` means the common single-document CityJSON path
 - explicit modules mean explicit formats
 
-Within `cjlib::json`, the intended surface is:
+Within `cityjson_lib::json`, the intended surface is:
 
 - `probe`
 - `from_slice`
@@ -103,7 +103,7 @@ Within `cjlib::json`, the intended surface is:
 - `to_feature_string`
 - `to_feature_writer`
 
-Advanced staged reconstruction paths live under `cjlib::json::staged`:
+Advanced staged reconstruction paths live under `cityjson_lib::json::staged`:
 
 - `from_feature_slice_with_base`
 - `from_feature_file_with_base`
@@ -115,23 +115,23 @@ Feature streams should be handled explicitly through
 
 ## Higher-level Operations
 
-Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cjlib::ops`.
+Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cityjson_lib::ops`.
 Right now that namespace is intentionally reduced to one unimplemented
 illustrative function so the intended boundary is visible without hiding the
 missing work behind no-op behavior.
 
 ## Relationship To `cjfake`
 
-`cjfake` should remain a sibling crate above `cjlib`, not part of the `cjlib` root API.
+`cjfake` should remain a sibling crate above `cityjson_lib`, not part of the `cityjson_lib` root API.
 
 That keeps the dependency direction clean:
 
 - `cjfake` generates model data
-- `cjfake` uses `cjlib` format modules to emit JSON, Arrow, Parquet, and future formats
-- `cjlib` stays focused on facade, format integration, and operations
+- `cjfake` uses `cityjson_lib` format modules to emit JSON, Arrow, Parquet, and future formats
+- `cityjson_lib` stays focused on facade, format integration, and operations
 
-For advanced model work, `cjlib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.
-The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, `AsMut`, and then work through `cjlib::cityjson`.
+For advanced model work, `cityjson_lib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.
+The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, `AsMut`, and then work through `cityjson_lib::cityjson`.
 
 `ErrorKind` should also stay intentionally small. The intended stable categories are:
 

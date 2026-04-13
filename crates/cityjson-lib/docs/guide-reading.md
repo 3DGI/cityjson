@@ -9,7 +9,7 @@ The simplest entry point is a file path or a byte slice already in memory.
 
 === "Rust"
     ```rust
-    use cjlib::CityModel;
+    use cityjson_lib::CityModel;
 
     // from a file path
     let model = CityModel::from_file("amsterdam.city.json")?;
@@ -21,19 +21,19 @@ The simplest entry point is a file path or a byte slice already in memory.
 
 === "C++"
     ```cpp
-    #include <cjlib/cjlib.hpp>
+    #include <cityjson_lib/cityjson_lib.hpp>
     #include <fstream>
     #include <iterator>
 
     std::ifstream file("amsterdam.city.json", std::ios::binary);
     std::vector<uint8_t> bytes(std::istreambuf_iterator<char>(file), {});
 
-    auto model = cjlib::Model::parse_document(bytes);
+    auto model = cityjson_lib::Model::parse_document(bytes);
     ```
 
 === "Python"
     ```python
-    from cjlib import CityModel
+    from cityjson_lib import CityModel
 
     data = open("amsterdam.city.json", "rb").read()
     model = CityModel.parse_document_bytes(data)
@@ -59,7 +59,7 @@ Query summary fields without descending into the geometry tree.
 
 === "C++"
     ```cpp
-    cjlib::ModelSummary s = model.summary();
+    cityjson_lib::ModelSummary s = model.summary();
     printf("%zu city objects\n", s.cityobject_count);
     printf("%zu vertices\n",     s.vertex_count);
     printf("title: %s\n",        model.metadata_title().c_str());
@@ -127,7 +127,7 @@ Query summary fields without descending into the geometry tree.
 
 === "C++"
     ```cpp
-    for (const cjlib::Vertex& v : model.vertices()) {
+    for (const cityjson_lib::Vertex& v : model.vertices()) {
         printf("%.3f  %.3f  %.3f\n", v.x, v.y, v.z);
     }
     ```
@@ -162,7 +162,7 @@ one at a time or merge them into a single model.
     use std::io::BufReader;
 
     let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-    for result in cjlib::json::read_feature_stream(reader)? {
+    for result in cityjson_lib::json::read_feature_stream(reader)? {
         let model = result?;
         println!("{} objects in tile", model.as_inner().cityobjects().len());
     }
@@ -174,13 +174,13 @@ one at a time or merge them into a single model.
     std::ifstream file("tiles.city.jsonl", std::ios::binary);
     std::vector<uint8_t> stream_bytes(std::istreambuf_iterator<char>(file), {});
 
-    auto merged = cjlib::Model::merge_feature_stream(stream_bytes);
+    auto merged = cityjson_lib::Model::merge_feature_stream(stream_bytes);
     printf("%zu objects after merge\n", merged.summary().cityobject_count);
     ```
 
 === "Python"
     ```python
-    from cjlib import merge_feature_stream_bytes
+    from cityjson_lib import merge_feature_stream_bytes
 
     data = open("tiles.city.jsonl", "rb").read()
     merged = merge_feature_stream_bytes(data)

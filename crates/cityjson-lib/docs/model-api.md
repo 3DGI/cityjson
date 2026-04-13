@@ -1,7 +1,7 @@
 # Model Boundary API
 
-This document pins down the boundary between `cjlib::CityModel` and
-`cjlib::cityjson`.
+This document pins down the boundary between `cityjson_lib::CityModel` and
+`cityjson_lib::cityjson`.
 
 `CityModel` should stay small and explicit.
 It is a wrapper, not a shadow copy of the whole `cityjson-rs` API.
@@ -42,14 +42,14 @@ points.
 
 `Deref` and `DerefMut` blur the boundary in the wrong direction:
 
-- they make `cjlib` look larger than it is
+- they make `cityjson_lib` look larger than it is
 - they encourage root-level method sprawl
 - they make later wrapper changes harder to reason about
 
 Explicit access is clearer:
 
 ```rust
-let mut model = cjlib::CityModel::from_file("amsterdam.city.json")?;
+let mut model = cityjson_lib::CityModel::from_file("amsterdam.city.json")?;
 let inner = model.as_inner();
 let inner_mut = model.as_inner_mut();
 # let _ = (inner, inner_mut);
@@ -60,7 +60,7 @@ let inner_mut = model.as_inner_mut();
 The advanced path should be:
 
 ```rust
-use cjlib::cityjson;
+use cityjson_lib::cityjson;
 ```
 
 That is cleaner than re-exporting a long list of model items at the crate root.
@@ -74,5 +74,5 @@ The following do not belong as inherent `CityModel` methods:
 - backend-specific transport helpers
 - large workflow method bags
 
-Those belong in explicit modules such as `cjlib::json`, sibling format modules,
-or `cjlib::ops`.
+Those belong in explicit modules such as `cityjson_lib::json`, sibling format modules,
+or `cityjson_lib::ops`.

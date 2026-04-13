@@ -3,10 +3,10 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-shared_corpus_root="${CJLIB_BENCH_SHARED_CORPUS_ROOT:-${repo_dir}/../cityjson-benchmarks}"
-output_root="${CJLIB_BENCH_DATA_ROOT:-${repo_dir}/target/bench-data}/3dbag/v20250903"
+shared_corpus_root="${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT:-${repo_dir}/../cityjson-benchmarks}"
+output_root="${CITYJSON_LIB_BENCH_DATA_ROOT:-${repo_dir}/target/bench-data}/3dbag/v20250903"
 release_path="v20250903"
-cjlib_cargo_manifest="${CJLIB_BENCH_EXPORT_CARGO_MANIFEST:-${repo_dir}/Cargo.toml}"
+cityjson_lib_cargo_manifest="${CITYJSON_LIB_BENCH_EXPORT_CARGO_MANIFEST:-${repo_dir}/Cargo.toml}"
 
 base_tile="10-758-50"
 merge_tiles=(
@@ -79,11 +79,11 @@ validate_artifact() {
 
   case "${kind}" in
     cityarrow)
-      cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_validate_formats -- \
+      cargo run --quiet --manifest-path "${cityjson_lib_cargo_manifest}" --bin bench_validate_formats -- \
         --arrow-file "${path}" >/dev/null 2>&1
       ;;
     cityparquet)
-      cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_validate_formats -- \
+      cargo run --quiet --manifest-path "${cityjson_lib_cargo_manifest}" --bin bench_validate_formats -- \
         --parquet-file "${path}" >/dev/null 2>&1
       ;;
     *)
@@ -133,7 +133,7 @@ ensure_native_formats() {
     export_args+=(--parquet-file "${cityparquet_output}")
   fi
 
-  cargo run --quiet --manifest-path "${cjlib_cargo_manifest}" --bin bench_export_formats -- \
+  cargo run --quiet --manifest-path "${cityjson_lib_cargo_manifest}" --bin bench_export_formats -- \
     --input "${input_json}" \
     "${export_args[@]}"
 

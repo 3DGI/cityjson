@@ -12,11 +12,11 @@ The short version is:
 
 - `cityjson-rs` is the semantic model
 - `serde_cityjson` is the JSON and JSONL boundary
-- `cjlib` is the user-facing Rust facade
+- `cityjson_lib` is the user-facing Rust facade
 - `cityarrow` and `cityparquet` are non-JSON transport layers
 - `cjindex` adds indexing and random-access retrieval
 - `cjfake` generates synthetic data for tests and fixtures
-- `cjlib-benchmarks` keeps the shared benchmark corpus and workload contract
+- `cityjson-benchmarks` keeps the shared benchmark corpus and workload contract
 
 ## The Big Picture
 
@@ -34,16 +34,16 @@ In dependency terms, the ecosystem currently looks like this:
 
 ```text
 cjfake
-  -> cjlib
+  -> cityjson_lib
   -> { serde_cityjson, cityarrow, cityparquet }
   -> cityjson-rs
 
 cjindex
-  -> cjlib
+  -> cityjson_lib
   -> { serde_cityjson, cityarrow, cityparquet }
   -> cityjson-rs
 
-cjlib-benchmarks
+cityjson-benchmarks
   -> shared corpus and workload definitions consumed by the other projects
 ```
 
@@ -52,10 +52,10 @@ That means each layer has a job:
 - `cityjson-rs` answers "what is a valid in-memory CityJSON model?"
 - `serde_cityjson` answers "how do JSON and JSONL map to that model?"
 - `cityarrow` and `cityparquet` answer "how do Arrow and package-file transports map to that model?"
-- `cjlib` answers "what is the ergonomic Rust entry point for users?"
+- `cityjson_lib` answers "what is the ergonomic Rust entry point for users?"
 - `cjindex` answers "how do I query large CityJSON datasets efficiently?"
 - `cjfake` answers "how do I generate controlled synthetic models for tests?"
-- `cjlib-benchmarks` answers "how do all of these projects benchmark against the same corpus?"
+- `cityjson-benchmarks` answers "how do all of these projects benchmark against the same corpus?"
 
 ## Projects At A Glance
 
@@ -63,12 +63,12 @@ That means each layer has a job:
 | --- | --- | --- | --- |
 | `cityjson-rs` | <https://github.com/3DGI/cityjson-rs> | Semantic CityJSON model types, invariants, and correctness-critical model operations | Library authors and advanced Rust users |
 | `serde_cityjson` | <https://github.com/3DGI/serde_cityjson> | Parsing, probing, and serializing CityJSON JSON and JSONL | Format-boundary code and lower-level integrations |
-| `cjlib` | <https://github.com/3DGI/cjlib> | User-facing facade that ties the model and format crates together | Most Rust users who just want to load, write, and work with models |
+| `cityjson_lib` | <https://github.com/3DGI/cityjson-lib> | User-facing facade that ties the model and format crates together | Most Rust users who just want to load, write, and work with models |
 | `cityarrow` | <https://github.com/3DGI/cityarrow> | Live Arrow IPC transport for the CityJSON model | Users moving CityJSON data into columnar or Arrow-based workflows |
 | `cityparquet` | bundled in the `cityarrow` repository | Persistent single-file package boundary built alongside `cityarrow` | Users who need a file-oriented columnar package format |
 | `cjindex` | <https://github.com/3DGI/cjindex> | SQLite-backed indexing and random-access retrieval for CityJSON datasets | Users serving or querying larger local corpora |
 | `cjfake` | <https://github.com/3DGI/cjfake> | Synthetic CityJSON generation for tests, fixtures, and workload shaping | Test authors and benchmark authors |
-| `cjlib-benchmarks` | <https://github.com/3DGI/cjlib-benchmarks> | Shared benchmark corpus, cases, acquisition rules, and generated artifacts | Maintainers comparing performance and correctness across repos |
+| `cityjson-benchmarks` | <https://github.com/3DGI/cityjson-benchmarks> | Shared benchmark corpus, cases, acquisition rules, and generated artifacts | Maintainers comparing performance and correctness across repos |
 
 ## What Each Project Owns
 
@@ -102,17 +102,17 @@ You reach for `serde_cityjson` when:
 - you need lower-level control over CityJSON or CityJSONSeq handling
 - you are writing tooling that sits at the serialization boundary
 
-### `cjlib`
+### `cityjson_lib`
 
 Use this project when you want the normal Rust entry point.
 
-`cjlib` is the integration layer.
+`cityjson_lib` is the integration layer.
 It does not try to replace `cityjson-rs`, but it gives users one small,
-predictable place to start: `cjlib::CityModel` for the common document path,
-plus explicit modules such as `cjlib::json`, `cjlib::arrow`, and
-`cjlib::parquet` when the format matters.
+predictable place to start: `cityjson_lib::CityModel` for the common document path,
+plus explicit modules such as `cityjson_lib::json`, `cityjson_lib::arrow`, and
+`cityjson_lib::parquet` when the format matters.
 
-You reach for `cjlib` when:
+You reach for `cityjson_lib` when:
 
 - you want to read or write CityJSON without assembling the stack yourself
 - you want one owned wrapper type for day-to-day Rust use
@@ -163,11 +163,11 @@ You reach for `cjfake` when:
 - you want rare CityObject or geometry combinations
 - you want to generate many shaped cases from one manifest
 
-### `cjlib-benchmarks`
+### `cityjson-benchmarks`
 
 Use this when you want one shared benchmark story across the ecosystem.
 
-The repository currently named `cjlib-benchmarks` is the shared corpus and
+The repository currently named `cityjson-benchmarks` is the shared corpus and
 workload contract.
 Its job is to stop each crate from inventing a separate benchmark universe.
 It keeps benchmark cases, acquisition metadata, invariants, and derived
@@ -183,7 +183,7 @@ You reach for it when:
 
 ### I just want to read and write CityJSON in Rust
 
-Start with `cjlib`.
+Start with `cityjson_lib`.
 
 That gives you the small, user-facing API.
 Under the hood it still relies on `serde_cityjson` for the JSON boundary and
@@ -195,7 +195,7 @@ Start with `cityjson-rs`.
 
 If the algorithm changes or depends on model semantics, that is the correct
 layer.
-`cjlib` can expose convenience wrappers later, but it should not own the
+`cityjson_lib` can expose convenience wrappers later, but it should not own the
 semantic truth.
 
 ### I need lower-level JSON or JSONL control
@@ -207,8 +207,8 @@ feature streams are parsed and serialized.
 
 ### I need a non-JSON transport
 
-Start with `cityarrow` or `cityparquet`, or use `cjlib::arrow` /
-`cjlib::parquet` if you want the higher-level facade.
+Start with `cityarrow` or `cityparquet`, or use `cityjson_lib::arrow` /
+`cityjson_lib::parquet` if you want the higher-level facade.
 
 ### I need to query a large dataset by id or bbox
 
@@ -222,7 +222,7 @@ repeatable.
 Start with `cjfake`.
 
 If you also want those cases to become part of the shared benchmark story, tie
-them into `cjlib-benchmarks`.
+them into `cityjson-benchmarks`.
 
 ## How The Pieces Reinforce Each Other
 
@@ -231,10 +231,10 @@ The projects work better together than apart:
 - `cityjson-rs` gives the whole ecosystem one semantic center
 - `serde_cityjson` keeps JSON concerns out of the model crate
 - `cityarrow` and `cityparquet` add other boundaries without creating a second model
-- `cjlib` gives users one predictable on-ramp
+- `cityjson_lib` gives users one predictable on-ramp
 - `cjindex` builds higher-level dataset retrieval on top of the shared stack
 - `cjfake` feeds tests and corpus generation with controlled synthetic data
-- `cjlib-benchmarks` gives the ecosystem one common benchmark language
+- `cityjson-benchmarks` gives the ecosystem one common benchmark language
 
 That synergy matters because it avoids a common failure mode:
 every tool quietly grows its own partial model, its own fixtures, and its own
@@ -246,13 +246,13 @@ This ecosystem is stronger when the projects stay specialized but compatible.
 
 If you are new to the ecosystem, start here:
 
-1. `cjlib` if you want to use the stack
+1. `cityjson_lib` if you want to use the stack
 2. `cityjson-rs` if you want to understand the semantic core
 3. `serde_cityjson` if you care about JSON and JSONL details
-4. `cjindex`, `cjfake`, and `cjlib-benchmarks` if you are working on tooling,
+4. `cjindex`, `cjfake`, and `cityjson-benchmarks` if you are working on tooling,
    datasets, testing, or benchmarking
 
 If you only remember one rule, remember this:
 
 `cityjson-rs` is the model, `serde_cityjson` is the JSON boundary, and
-`cjlib` is the user-facing facade that makes the ecosystem practical to use.
+`cityjson_lib` is the user-facing facade that makes the ecosystem practical to use.

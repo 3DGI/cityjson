@@ -23,11 +23,11 @@ The map below treats the current names as the source of truth and the
 | --- | --- | --- |
 | `cityjson-rs` | `cityjson-rs` | Semantic CityJSON model family and invariants |
 | `serde_cityjson` | `cityjson-json` | JSON and JSONL parsing, probing, and serialization |
-| `cjlib` | `cityjson-lib` | Central Rust-facing library, explicit format modules, and shared FFI core |
+| `cityjson_lib` | `cityjson-lib` | Central Rust-facing library, explicit format modules, and shared FFI core |
 | `cityarrow` / `cityparquet` | `cityjson-arrow` / `cityjson-parquet` | Columnar transport and storage layers |
 | `cjfake` | `cityjson-fake` | Synthetic data generation and fixture shaping |
 | `cjindex` | `cityjson-index` | Corpus shaping, reshaping, and indexing |
-| `cjlib-benchmarks` | `cityjson-benchmarks` | Benchmark drivers, workloads, and corpus harnesses |
+| `cityjson-benchmarks` | `cityjson-benchmarks` | Benchmark drivers, workloads, and corpus harnesses |
 
 ## Why These Names
 

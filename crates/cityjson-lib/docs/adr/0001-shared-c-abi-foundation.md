@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-`cjlib` needs one stable low-level foreign-function surface for C++, Python,
+`cityjson_lib` needs one stable low-level foreign-function surface for C++, Python,
 and wasm. The shared core must survive across host languages without exposing
 Rust-specific ownership, error, or panic behavior.
 

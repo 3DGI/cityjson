@@ -14,7 +14,7 @@ compile_error!("This crate only supports 64-bit platforms");
 ```
 
 That failure was useful signal, not just a benchmark inconvenience. It meant
-the current `cjlib` wasm story was not blocked by wrappers alone; the semantic
+the current `cityjson_lib` wasm story was not blocked by wrappers alone; the semantic
 core still assumed a 64-bit host in at least one low-level geometry/indexing
 path.
 
@@ -37,7 +37,7 @@ That means we should not treat wasm64 as a near-term replacement for wasm32, but
 we also should not ignore it. For large CityJSON datasets, 64-bit addressing may
 eventually become the better fit once the portability work lands.
 
-There is also a `cjlib`-specific reason not to conflate wasm32 portability with
+There is also a `cityjson_lib`-specific reason not to conflate wasm32 portability with
 wasm64 support: the shared FFI core already uses `usize`/`uintptr_t` heavily in
 its ABI for lengths, indices, and counts. wasm64 is therefore interesting for
 ABI alignment inside Rust and C-like layers, but it still does not make the
@@ -46,9 +46,9 @@ assumptions disappear.
 
 ## Decision
 
-`cjlib` should treat wasm portability as a staged effort:
+`cityjson_lib` should treat wasm portability as a staged effort:
 
-1. Keep the wasm-facing `cjlib` adapter narrow and benchmark the real wasm32
+1. Keep the wasm-facing `cityjson_lib` adapter narrow and benchmark the real wasm32
    boundary.
 2. Evaluate wasm64 only after the wasm32 baseline is green and only if the
    dataset size or memory pressure makes it materially useful.
@@ -59,7 +59,7 @@ The original portability pass focused on the code that assumed
 - `vertex.rs`
 - any storage or conversion code that converts vertex indices through `usize`
 - any bulk-copy or buffer export logic that depends on 64-bit host assumptions
-- the `cjlib-ffi-core` ABI surfaces that currently expose pointer-sized index
+- the `cityjson-lib-ffi-core` ABI surfaces that currently expose pointer-sized index
   and length fields
 
 The type system being parameterizable is an advantage, but it is not enough by
@@ -87,7 +87,7 @@ module instead of a native fallback.
 - Measure parse, summary, and roundtrip costs again so the benchmark captures
   the actual JS or host boundary cost rather than a host-side adapter surrogate.
 
-Status: complete in `cjlib-benchmarks`.
+Status: complete in `cityjson-benchmarks`.
 
 ### Phase 3: decide whether wasm64 is worth a first-class target
 
@@ -112,7 +112,7 @@ Positive:
 Tradeoffs:
 
 - the first portability pass may touch low-level storage code in `cityjson-rs`
-- a later wasm64 path may still require ABI review in `cjlib-ffi-core`, even if
+- a later wasm64 path may still require ABI review in `cityjson-lib-ffi-core`, even if
   `cityjson-rs` becomes pointer-width-neutral
 - wasm64 remains a moving target and should not be used as the immediate
   production baseline

@@ -12,7 +12,7 @@ pub mod error;
 pub mod exports;
 pub mod handle;
 
-pub use cjlib;
+pub use cityjson_lib;
 
 pub use abi::{
     cj_bytes_t, cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t,
@@ -23,7 +23,7 @@ pub use abi::{
 };
 pub use error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
-    last_error_status, run_ffi, set_last_error, set_last_error_from_cjlib_error,
+    last_error_status, run_ffi, set_last_error, set_last_error_from_cityjson_lib_error,
 };
 pub use handle::{
     bytes_free, bytes_from_string, bytes_from_vec, geometry_boundary_free, indices_free,

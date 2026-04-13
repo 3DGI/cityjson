@@ -11,10 +11,10 @@
 #include <utility>
 #include <vector>
 
-#include <cjlib/cjlib.h>
-#include <cjlib/extended_c_abi.hpp>
+#include <cityjson_lib/cityjson_lib.h>
+#include <cityjson_lib/extended_c_abi.hpp>
 
-namespace cjlib {
+namespace cityjson_lib {
 
 using Status = cj_status_t;
 using ErrorKind = cj_error_kind_t;
@@ -71,7 +71,7 @@ inline std::string last_error_message() {
   std::size_t copied = 0U;
   const auto status = cj_last_error_message_copy(buffer.data(), buffer.size(), &copied);
   if (status != CJ_STATUS_SUCCESS) {
-    return "failed to retrieve cjlib last-error message";
+    return "failed to retrieve cityjson_lib last-error message";
   }
 
   return std::string(reinterpret_cast<const char*>(buffer.data()), copied);
@@ -470,4 +470,4 @@ class Model final {
   cj_model_t* handle_ = nullptr;
 };
 
-}  // namespace cjlib
+}  // namespace cityjson_lib

@@ -1,6 +1,6 @@
 # FFI and Bindings
 
-These pages describe how `cjlib` should serve non-Rust targets.
+These pages describe how `cityjson_lib` should serve non-Rust targets.
 
 The key architectural decision is:
 
@@ -45,7 +45,7 @@ The FFI section is split into:
   bytes-based feature-stream contract.
 - [Wasm32 portability note and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
   Historical note on the wasm32 portability issue that was resolved in
-  `cjlib-benchmarks`, plus the later wasm64 evaluation path.
+  `cityjson-benchmarks`, plus the later wasm64 evaluation path.
 - [FFI performance analysis](ffi-performance-analysis.md)
   Analysis of why the current end-to-end wrapper benchmarks are much slower
   than the direct Rust baseline and which costs come from wrapper design rather

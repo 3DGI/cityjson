@@ -1,6 +1,6 @@
 # Format Module API
 
-This document pins down how `cjlib` should expose sibling format crates.
+This document pins down how `cityjson_lib` should expose sibling format crates.
 
 ## Core Rule
 
@@ -10,7 +10,7 @@ The facade should stay explicit:
 - explicit modules own explicit formats
 - every format boundary speaks in terms of `CityModel` or streams of
   `CityModel`
-- `cjlib` does not grow a generic format registry
+- `cityjson_lib` does not grow a generic format registry
 
 ## Intended Modules
 
@@ -27,7 +27,7 @@ Those modules delegate to backend crates such as `serde_cityjson`,
 
 ## JSON Is Richer
 
-`cjlib::json` is the richest boundary module because it has to cover:
+`cityjson_lib::json` is the richest boundary module because it has to cover:
 
 - probing
 - document parsing
@@ -41,18 +41,18 @@ semantic rule.
 
 Within that family:
 
-- `cjlib::arrow` owns live Arrow IPC stream read and write helpers around
+- `cityjson_lib::arrow` owns live Arrow IPC stream read and write helpers around
   `CityModel`
-- `cjlib::parquet` owns persistent package-file read and write helpers around
+- `cityjson_lib::parquet` owns persistent package-file read and write helpers around
   `CityModel`
 
 Transport-native schema and package details stay in the backend crates. The
-`cjlib` facade should expose operations on `CityModel`, not transport parts or
+`cityjson_lib` facade should expose operations on `CityModel`, not transport parts or
 package internals.
 
 ## One Semantic Unit Across Formats
 
-Arrow and Parquet must not invent separate semantic units at the `cjlib`
+Arrow and Parquet must not invent separate semantic units at the `cityjson_lib`
 boundary.
 Even if the backend format uses batches, row groups, or other transport-native
 chunks internally, the public facade still trades in:
@@ -78,25 +78,25 @@ The same idea applies to Parquet and future backends.
 
 Avoid APIs such as:
 
-- `cjlib::read(path)`
-- `cjlib::write(path, &model)`
-- `cjlib::Format`
-- `cjlib::Codec`
+- `cityjson_lib::read(path)`
+- `cityjson_lib::write(path, &model)`
+- `cityjson_lib::Format`
+- `cityjson_lib::Codec`
 
 Those compact interfaces push format detection and backend-specific policy into
 one place. The explicit-module rule is clearer:
 
-- if you mean JSON, write `cjlib::json`
-- if you mean Arrow, write `cjlib::arrow`
-- if you mean Parquet, write `cjlib::parquet`
+- if you mean JSON, write `cityjson_lib::json`
+- if you mean Arrow, write `cityjson_lib::arrow`
+- if you mean Parquet, write `cityjson_lib::parquet`
 
 ## Relationship To `cjfake`
 
-`cjfake` should remain above `cjlib`.
+`cjfake` should remain above `cityjson_lib`.
 
 ```text
-cjfake -> cjlib -> { serde_cityjson, cityarrow, cityjson-rs }
+cjfake -> cityjson_lib -> { serde_cityjson, cityarrow, cityjson-rs }
 ```
 
-That lets `cjfake` reuse every format that `cjlib` exposes without making fake
+That lets `cjfake` reuse every format that `cityjson_lib` exposes without making fake
 data generation part of the facade itself.

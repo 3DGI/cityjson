@@ -1,12 +1,12 @@
 # Python Binding Layout
 
 This directory holds the Python package built on top of the shared low-level
-`cjlib` FFI core.
+`cityjson_lib` FFI core.
 
 Current layout:
 
 - `pyproject.toml`: Python package metadata
-- `src/cjlib/`: Python package
+- `src/cityjson_lib/`: Python package
 - `tests/`: Python-facing smoke and integration tests
 
 The current binding is intentionally small and explicit:

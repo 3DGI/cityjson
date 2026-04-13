@@ -5,19 +5,19 @@ use std::path::{Path, PathBuf};
 fn main() {
     let raw_args: Vec<String> = env::args().skip(1).collect();
     let args = parse_args(&raw_args);
-    let model = cjlib::CityModel::from_file(&args.input)
+    let model = cityjson_lib::CityModel::from_file(&args.input)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
 
     if let Some(path) = args.arrow_file.as_ref() {
         reset_output_path(path);
-        cjlib::arrow::to_file(path, &model)
+        cityjson_lib::arrow::to_file(path, &model)
             .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }
 
     if let Some(path) = args.parquet_file.as_ref() {
         reset_output_path(path);
-        cjlib::parquet::to_file(path, &model)
+        cityjson_lib::parquet::to_file(path, &model)
             .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }

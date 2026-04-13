@@ -7,22 +7,22 @@ serialize to JSON. Each section shows the same operation across all four APIs.
 
 === "Rust"
     ```rust
-    use cjlib::CityModel;
-    use cjlib::cityjson::CityModelType;
+    use cityjson_lib::CityModel;
+    use cityjson_lib::cityjson::CityModelType;
 
     let mut model = CityModel::new(CityModelType::CityJSON);
     ```
 
 === "C++"
     ```cpp
-    #include <cjlib/cjlib.hpp>
+    #include <cityjson_lib/cityjson_lib.hpp>
 
-    auto model = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
+    auto model = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
     ```
 
 === "Python"
     ```python
-    from cjlib import CityModel, ModelType
+    from cityjson_lib import CityModel, ModelType
 
     model = CityModel.create(model_type=ModelType.CJ_MODEL_TYPE_CITY_JSON)
     ```
@@ -72,7 +72,7 @@ These four points form a square footprint in the XY plane.
 
 === "Rust"
     ```rust
-    use cjlib::cityjson::v2_0::RealWorldCoordinate;
+    use cityjson_lib::cityjson::v2_0::RealWorldCoordinate;
 
     let inner = model.as_inner_mut();
     inner.add_vertex(RealWorldCoordinate::new(10.0, 20.0, 0.0)).unwrap();
@@ -91,7 +91,7 @@ These four points form a square footprint in the XY plane.
 
 === "Python"
     ```python
-    from cjlib import Vertex
+    from cityjson_lib import Vertex
 
     model.add_vertex(Vertex(10.0, 20.0, 0.0))
     model.add_vertex(Vertex(11.0, 20.0, 0.0))
@@ -119,7 +119,7 @@ Add the city object first, then build a geometry boundary and attach it by index
 
 === "Rust"
     ```rust
-    use cjlib::cityjson::v2_0::{
+    use cityjson_lib::cityjson::v2_0::{
         CityObject, CityObjectIdentifier, CityObjectType,
         GeometryDraft, LoD, RingDraft, SurfaceDraft,
     };
@@ -147,7 +147,7 @@ Add the city object first, then build a geometry boundary and attach it by index
     ```cpp
     model.add_cityobject("building-1", "Building");
 
-    cjlib::GeometryBoundary boundary{
+    cityjson_lib::GeometryBoundary boundary{
         .geometry_type   = CJ_GEOMETRY_TYPE_MULTI_SURFACE,
         .vertex_indices  = {0, 1, 2, 3, 0},
         .ring_offsets    = {0},
@@ -159,7 +159,7 @@ Add the city object first, then build a geometry boundary and attach it by index
 
 === "Python"
     ```python
-    from cjlib import GeometryBoundary, GeometryType
+    from cityjson_lib import GeometryBoundary, GeometryType
 
     model.add_cityobject("building-1", "Building")
 
@@ -208,13 +208,13 @@ control pretty-printing.
 
 === "Rust"
     ```rust
-    use cjlib::json::WriteOptions;
+    use cityjson_lib::json::WriteOptions;
 
     // compact
-    let json = cjlib::json::to_string(&model)?;
+    let json = cityjson_lib::json::to_string(&model)?;
 
     // pretty-printed
-    let json = cjlib::json::to_string_with_options(
+    let json = cityjson_lib::json::to_string_with_options(
         &model,
         WriteOptions { pretty: true, ..Default::default() },
     )?;
@@ -225,14 +225,14 @@ control pretty-printing.
     ```cpp
     model.cleanup();
     std::string json = model.serialize_document(
-        cjlib::WriteOptions{.pretty = true}
+        cityjson_lib::WriteOptions{.pretty = true}
     );
     printf("%s\n", json.c_str());
     ```
 
 === "Python"
     ```python
-    from cjlib import WriteOptions
+    from cityjson_lib import WriteOptions
 
     model.cleanup()
     json_str = model.serialize_document(WriteOptions(pretty=True))

@@ -132,7 +132,7 @@ metrics are in `bench_results/history.csv`.
 
 Using a common logical dataset-size denominator:
 
-| Case | `serde_json::Value` | `serde_cityjson` | `cjlib::json` | `cityarrow` | `cityparquet` |
+| Case | `serde_json::Value` | `serde_cityjson` | `cityjson_lib::json` | `cityarrow` | `cityparquet` |
 | --- | --- | --- | --- | --- | --- |
 | 3DBAG tile | 225.0 MiB/s | 171.2 MiB/s | 151.0 MiB/s | 153.0 MiB/s | 140.5 MiB/s |
 | 3DBAG cluster 4x | 186.7 MiB/s | 151.2 MiB/s | 138.0 MiB/s | 131.3 MiB/s | 125.0 MiB/s |
@@ -141,21 +141,21 @@ Using a common logical dataset-size denominator:
 
 Using the same logical denominator:
 
-| Case | `serde_json::Value` | `serde_cityjson` | `cjlib::json` | `cityarrow` | `cityparquet` |
+| Case | `serde_json::Value` | `serde_cityjson` | `cityjson_lib::json` | `cityarrow` | `cityparquet` |
 | --- | --- | --- | --- | --- | --- |
 | 3DBAG tile | 695.2 MiB/s | 623.9 MiB/s | 594.3 MiB/s | 100.9 MiB/s | 85.7 MiB/s |
 | 3DBAG cluster 4x | 552.4 MiB/s | 478.7 MiB/s | 473.9 MiB/s | 85.3 MiB/s | 73.8 MiB/s |
 
 ### Read Peak Heap
 
-| Case | `serde_json::Value` | `serde_cityjson` | `cjlib::json` | `cityarrow` | `cityparquet` |
+| Case | `serde_json::Value` | `serde_cityjson` | `cityjson_lib::json` | `cityarrow` | `cityparquet` |
 | --- | --- | --- | --- | --- | --- |
 | 3DBAG tile | 47.5 MB | 26.9 MB | 26.9 MB | 43.1 MB | 43.1 MB |
 | 3DBAG cluster 4x | 172.9 MB | 100.7 MB | 100.7 MB | 155.1 MB | 154.8 MB |
 
 ### Read Total Allocated Bytes
 
-| Case | `serde_json::Value` | `serde_cityjson` | `cjlib::json` | `cityarrow` | `cityparquet` |
+| Case | `serde_json::Value` | `serde_cityjson` | `cityjson_lib::json` | `cityarrow` | `cityparquet` |
 | --- | --- | --- | --- | --- | --- |
 | 3DBAG tile | 54.4 MB | 88.9 MB | 88.9 MB | 105.9 MB | 140.0 MB |
 | 3DBAG cluster 4x | 198.8 MB | 329.1 MB | 329.1 MB | 391.4 MB | 503.5 MB |
@@ -167,7 +167,7 @@ The current results say:
 - `serde_json::Value` is still the fastest end-to-end baseline for both read
   and write.
 - `serde_cityjson` is the strongest shared-model JSON path.
-- `serde_cityjson` and `cjlib::json` materially reduce peak heap relative to
+- `serde_cityjson` and `cityjson_lib::json` materially reduce peak heap relative to
   `serde_json::Value`.
 - Arrow and Parquet do not currently win on end-to-end `format <-> CityModel`.
 - Parquet is consistently the heaviest path in both write cost and allocation
@@ -177,14 +177,14 @@ The memory story is not one-dimensional:
 
 - `serde_json::Value` is fastest, but carries the highest resident read
   footprint.
-- `serde_cityjson` and `cjlib::json` minimize peak heap for the shared model,
+- `serde_cityjson` and `cityjson_lib::json` minimize peak heap for the shared model,
   but allocate more total bytes than `serde_json::Value`.
 - Arrow and Parquet have peak heap closer to `serde_json::Value` than to
   `serde_cityjson`, and they allocate substantially more total bytes.
 
 The cache results do not reverse the overall ranking:
 
-- `serde_cityjson` and `cjlib::json` show the best D1 miss rates on read.
+- `serde_cityjson` and `cityjson_lib::json` show the best D1 miss rates on read.
 - Arrow and Parquet show lower branch miss rates than the shared-model JSON
   paths.
 - `serde_json::Value` remains fastest overall despite not having the best cache
@@ -196,7 +196,7 @@ model.
 
 ## Harness Correction And Follow-Up Snapshot
 
-On April 2, 2026, the downstream `cjlib` harness was corrected in three ways:
+On April 2, 2026, the downstream `cityjson_lib` harness was corrected in three ways:
 
 - native `.cjarrow` and `.cjparquet` artifacts are now validated with the
   current decoders before reuse, rather than accepted on file existence alone

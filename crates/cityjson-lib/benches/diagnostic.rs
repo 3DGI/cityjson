@@ -17,7 +17,7 @@ fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurem
 
 struct PreparedDiagnosticCase {
     case: BenchmarkCase,
-    model: cjlib::CityModel,
+    model: cityjson_lib::CityModel,
     parts: cityarrow::schema::CityModelArrowParts,
     stream_bytes: Vec<u8>,
     package_write_path: std::path::PathBuf,
@@ -26,7 +26,7 @@ struct PreparedDiagnosticCase {
 
 impl PreparedDiagnosticCase {
     fn new(case: BenchmarkCase) -> Self {
-        let model = cjlib::CityModel::from_file(&case.json_path)
+        let model = cityjson_lib::CityModel::from_file(&case.json_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", case.json_path.display()));
         let parts = encode_parts(model.as_inner())
             .unwrap_or_else(|error| panic!("failed to encode parts for {}: {error}", case.id));

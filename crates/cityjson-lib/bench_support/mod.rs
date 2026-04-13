@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::OnceLock;
 
-use cjlib::CityModel;
+use cityjson_lib::CityModel;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -62,11 +62,11 @@ pub(crate) enum PreparedWorkload {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Workload {
     JsonSerdeValueRead,
-    JsonSerdeCityjsonRead,
-    JsonCjlibRead,
+    JsonCityjsonRead,
+    JsonCityjsonLibRead,
     JsonSerdeValueWrite,
-    JsonSerdeCityjsonWrite,
-    JsonCjlibWrite,
+    JsonCityjsonWrite,
+    JsonCityjsonLibWrite,
     ArrowRead,
     ArrowWrite,
     ParquetRead,
@@ -75,16 +75,16 @@ pub(crate) enum Workload {
 
 pub(crate) const READ_WORKLOADS: [Workload; 5] = [
     Workload::JsonSerdeValueRead,
-    Workload::JsonSerdeCityjsonRead,
-    Workload::JsonCjlibRead,
+    Workload::JsonCityjsonRead,
+    Workload::JsonCityjsonLibRead,
     Workload::ArrowRead,
     Workload::ParquetRead,
 ];
 
 pub(crate) const WRITE_WORKLOADS: [Workload; 5] = [
     Workload::JsonSerdeValueWrite,
-    Workload::JsonSerdeCityjsonWrite,
-    Workload::JsonCjlibWrite,
+    Workload::JsonCityjsonWrite,
+    Workload::JsonCityjsonLibWrite,
     Workload::ArrowWrite,
     Workload::ParquetWrite,
 ];
@@ -104,15 +104,15 @@ pub(crate) fn load_case(case_id: &str) -> BenchmarkCase {
 pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> PreparedWorkload {
     match workload {
         Workload::JsonSerdeValueRead
-        | Workload::JsonSerdeCityjsonRead
-        | Workload::JsonCjlibRead => PreparedWorkload::JsonRead {
+        | Workload::JsonCityjsonRead
+        | Workload::JsonCityjsonLibRead => PreparedWorkload::JsonRead {
             workload,
             input_json: read_text(&case.json_path),
         },
         Workload::JsonSerdeValueWrite => PreparedWorkload::JsonValueWrite {
             value: read_json_value(&case.json_path),
         },
-        Workload::JsonSerdeCityjsonWrite | Workload::JsonCjlibWrite => {
+        Workload::JsonCityjsonWrite | Workload::JsonCityjsonLibWrite => {
             PreparedWorkload::ModelWrite {
                 workload,
                 model: read_model(&case.json_path),
@@ -153,17 +153,17 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             black_box(value);
         }
         PreparedWorkload::JsonRead {
-            workload: Workload::JsonSerdeCityjsonRead,
+            workload: Workload::JsonCityjsonRead,
             input_json,
         } => {
-            let model = serde_cityjson::from_str_owned(black_box(input_json)).unwrap();
+            let model = cityjson_json::from_str_owned(black_box(input_json)).unwrap();
             black_box(model);
         }
         PreparedWorkload::JsonRead {
-            workload: Workload::JsonCjlibRead,
+            workload: Workload::JsonCityjsonLibRead,
             input_json,
         } => {
-            let model = cjlib::json::from_slice(black_box(input_json.as_bytes())).unwrap();
+            let model = cityjson_lib::json::from_slice(black_box(input_json.as_bytes())).unwrap();
             black_box(model);
         }
         PreparedWorkload::JsonValueWrite { value } => {
@@ -171,37 +171,41 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             black_box(output);
         }
         PreparedWorkload::ModelWrite {
-            workload: Workload::JsonSerdeCityjsonWrite,
+            workload: Workload::JsonCityjsonWrite,
             model,
         } => {
-            let output = serde_cityjson::to_string_validated(black_box(model.as_inner())).unwrap();
+            let output = cityjson_json::to_string_validated(black_box(model.as_inner())).unwrap();
             black_box(output);
         }
         PreparedWorkload::ModelWrite {
-            workload: Workload::JsonCjlibWrite,
+            workload: Workload::JsonCityjsonLibWrite,
             model,
         } => {
-            let output = cjlib::json::to_vec(black_box(model)).unwrap();
+            let output = cityjson_lib::json::to_vec(black_box(model)).unwrap();
             black_box(output);
         }
         PreparedWorkload::ArrowRead { cityarrow_path } => {
-            let model = cjlib::arrow::from_file(black_box(cityarrow_path.as_path())).unwrap();
+            let model =
+                cityjson_lib::arrow::from_file(black_box(cityarrow_path.as_path())).unwrap();
             black_box(model);
         }
         PreparedWorkload::ArrowWrite {
             model, output_path, ..
         } => {
-            cjlib::arrow::to_file(black_box(output_path.as_path()), black_box(model)).unwrap();
+            cityjson_lib::arrow::to_file(black_box(output_path.as_path()), black_box(model))
+                .unwrap();
             black_box(output_path);
         }
         PreparedWorkload::ParquetRead { cityparquet_path } => {
-            let model = cjlib::parquet::from_file(black_box(cityparquet_path.as_path())).unwrap();
+            let model =
+                cityjson_lib::parquet::from_file(black_box(cityparquet_path.as_path())).unwrap();
             black_box(model);
         }
         PreparedWorkload::ParquetWrite {
             model, output_path, ..
         } => {
-            cjlib::parquet::to_file(black_box(output_path.as_path()), black_box(model)).unwrap();
+            cityjson_lib::parquet::to_file(black_box(output_path.as_path()), black_box(model))
+                .unwrap();
             black_box(output_path);
         }
         PreparedWorkload::JsonRead { workload, .. }
@@ -217,17 +221,17 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
 pub(crate) fn throughput_bytes(case: &BenchmarkCase, workload: Workload) -> u64 {
     match workload {
         Workload::JsonSerdeValueRead
-        | Workload::JsonSerdeCityjsonRead
-        | Workload::JsonCjlibRead => case.input_bytes,
+        | Workload::JsonCityjsonRead
+        | Workload::JsonCityjsonLibRead => case.input_bytes,
         Workload::JsonSerdeValueWrite => serde_json::to_vec(&read_json_value(&case.json_path))
             .unwrap()
             .len() as u64,
-        Workload::JsonSerdeCityjsonWrite => {
-            serde_cityjson::to_string_validated(read_model(&case.json_path).as_inner())
+        Workload::JsonCityjsonWrite => {
+            cityjson_json::to_string_validated(read_model(&case.json_path).as_inner())
                 .unwrap()
                 .len() as u64
         }
-        Workload::JsonCjlibWrite => cjlib::json::to_vec(&read_model(&case.json_path))
+        Workload::JsonCityjsonLibWrite => cityjson_lib::json::to_vec(&read_model(&case.json_path))
             .unwrap()
             .len() as u64,
         Workload::ArrowRead | Workload::ArrowWrite => case.cityarrow_bytes,
@@ -239,11 +243,11 @@ impl Workload {
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::JsonSerdeValueRead => "serde_json::Value/read",
-            Self::JsonSerdeCityjsonRead => "serde_cityjson/read",
-            Self::JsonCjlibRead => "cjlib::json/read",
+            Self::JsonCityjsonRead => "cityjson_lib/read",
+            Self::JsonCityjsonLibRead => "cityjson_lib::json/read",
             Self::JsonSerdeValueWrite => "serde_json::Value/write",
-            Self::JsonSerdeCityjsonWrite => "serde_cityjson/write",
-            Self::JsonCjlibWrite => "cjlib::json/write",
+            Self::JsonCityjsonWrite => "cityjson_lib/write",
+            Self::JsonCityjsonLibWrite => "cityjson_lib::json/write",
             Self::ArrowRead => "cityarrow/read",
             Self::ArrowWrite => "cityarrow/write",
             Self::ParquetRead => "cityparquet/read",
@@ -258,11 +262,11 @@ impl FromStr for Workload {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "serde_json-read" => Ok(Self::JsonSerdeValueRead),
-            "serde_cityjson-read" => Ok(Self::JsonSerdeCityjsonRead),
-            "cjlib-json-read" => Ok(Self::JsonCjlibRead),
+            "cityjson_lib-read" | "serde_cityjson-read" => Ok(Self::JsonCityjsonRead),
+            "cityjson-lib-json-read" => Ok(Self::JsonCityjsonLibRead),
             "serde_json-write" => Ok(Self::JsonSerdeValueWrite),
-            "serde_cityjson-write" => Ok(Self::JsonSerdeCityjsonWrite),
-            "cjlib-json-write" => Ok(Self::JsonCjlibWrite),
+            "cityjson_lib-write" | "serde_cityjson-write" => Ok(Self::JsonCityjsonWrite),
+            "cityjson-lib-json-write" => Ok(Self::JsonCityjsonLibWrite),
             "cityarrow-read" => Ok(Self::ArrowRead),
             "cityarrow-write" => Ok(Self::ArrowWrite),
             "cityparquet-read" => Ok(Self::ParquetRead),
@@ -355,7 +359,7 @@ fn benchmark_manifest_path() -> PathBuf {
 }
 
 fn bench_data_root() -> PathBuf {
-    std::env::var_os("CJLIB_BENCH_DATA_ROOT").map_or_else(
+    std::env::var_os("CITYJSON_LIB_BENCH_DATA_ROOT").map_or_else(
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_BENCH_DATA_ROOT),
         PathBuf::from,
     )
@@ -367,7 +371,7 @@ fn read_text(path: &Path) -> String {
 }
 
 fn read_model(path: &Path) -> CityModel {
-    cjlib::json::from_slice(read_text(path).as_bytes()).unwrap_or_else(|error| {
+    cityjson_lib::json::from_slice(read_text(path).as_bytes()).unwrap_or_else(|error| {
         panic!(
             "failed to parse benchmark input {}: {error}",
             path.display()

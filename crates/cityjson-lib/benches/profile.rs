@@ -129,11 +129,11 @@ fn print_usage() {
     println!();
     println!("Workloads:");
     println!("  serde_json-read");
-    println!("  serde_cityjson-read");
-    println!("  cjlib-json-read");
+    println!("  cityjson_lib-read");
+    println!("  cityjson-lib-json-read");
     println!("  serde_json-write");
-    println!("  serde_cityjson-write");
-    println!("  cjlib-json-write");
+    println!("  cityjson_lib-write");
+    println!("  cityjson-lib-json-write");
     println!("  cityarrow-read");
     println!("  cityarrow-write");
     println!("  cityparquet-read");

@@ -1,7 +1,7 @@
 # Architecture
 
 This document describes the intended split between `cityjson-rs`,
-`serde_cityjson`, `cjlib`, and future bindings.
+`serde_cityjson`, `cityjson_lib`, and future bindings.
 
 The aim is to keep one semantic core, explicit boundary crates, and one shared
 low-level story for foreign languages.
@@ -9,7 +9,7 @@ low-level story for foreign languages.
 ## Core Rules
 
 1. `cityjson-rs` owns the semantic CityJSON model family and its invariants.
-2. `cjlib` owns the stable facade and chooses how that model family is exposed
+2. `cityjson_lib` owns the stable facade and chooses how that model family is exposed
    as an owned default wrapper.
 3. JSON, JSONL, Arrow, Parquet, and future transports are explicit format
    boundaries, not separate semantic model families.
@@ -54,7 +54,7 @@ The dependency direction is:
 
 ```text
 cjfake
-  -> cjlib
+  -> cityjson_lib
   -> { serde_cityjson, cityarrow, cityparquet }
   -> cityjson-rs
 ```
@@ -77,7 +77,7 @@ Responsibilities split as follows:
   - CityJSON JSON and JSONL wire format
   - document parsing, feature parsing, stream parsing, and serialization
   - raw or staged JSON boundary work
-- `cjlib`
+- `cityjson_lib`
   - stable Rust facade
   - explicit format modules
   - higher-level reusable operations above the semantic model
@@ -86,20 +86,20 @@ Responsibilities split as follows:
   - host-language ergonomics
   - host-native value types, views, iterators, and convenience helpers
 
-## API Consequences For `cjlib`
+## API Consequences For `cityjson_lib`
 
-`cjlib` should expose one owned default wrapper:
+`cityjson_lib` should expose one owned default wrapper:
 
-- `cjlib::CityModel`
+- `cityjson_lib::CityModel`
 
 The root remains small:
 
 - `CityModel::from_slice`
 - `CityModel::from_file`
-- `cjlib::json`
-- optional transport modules such as `cjlib::arrow` and `cjlib::parquet`
-- `cjlib::ops`
-- `cjlib::cityjson`
+- `cityjson_lib::json`
+- optional transport modules such as `cityjson_lib::arrow` and `cityjson_lib::parquet`
+- `cityjson_lib::ops`
+- `cityjson_lib::cityjson`
 
 Format modules speak in terms of:
 
@@ -111,7 +111,7 @@ Arrow batches, or Parquet row groups into the semantic API surface.
 
 ## JSON Boundary Direction
 
-`cjlib::json` should own the explicit JSON boundary:
+`cityjson_lib::json` should own the explicit JSON boundary:
 
 - probing
 - document parsing
@@ -161,11 +161,11 @@ What should stay target-specific:
 - validating edits that affect model invariants
 
 Those are not JSON concerns and they should not be reimplemented separately in
-`cjlib` or in bindings.
+`cityjson_lib` or in bindings.
 
-## What Belongs In `cjlib::ops`
+## What Belongs In `cityjson_lib::ops`
 
-`cjlib::ops` lives above the semantic core.
+`cityjson_lib::ops` lives above the semantic core.
 It can offer workflow helpers, but it should delegate correctness-critical
 semantics to `cityjson-rs`.
 
@@ -182,7 +182,7 @@ Good candidates include:
 
 The architecture should not:
 
-- reintroduce a second semantic model in `cjlib`
+- reintroduce a second semantic model in `cityjson_lib`
 - treat storage-generic implementation choices as the main public abstraction
 - hide format choice behind a generic registry
 - force C++, Python, and wasm to share one identical host-language API

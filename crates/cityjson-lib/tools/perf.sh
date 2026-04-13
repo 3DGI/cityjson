@@ -20,7 +20,7 @@ esac
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 csv_out="${repo_dir}/bench_results/history.csv"
-bench_version="${CJLIB_BENCH_VERSION:-v2}"
+bench_version="${CITYJSON_LIB_BENCH_VERSION:-v2}"
 backend="default"
 seed="real-3dbag-v20250903"
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -30,11 +30,11 @@ criterion_dir="${repo_dir}/target/bench/criterion"
 profile_root="${repo_dir}/target/bench-profile"
 
 profile_cases_raw="${PERF_PROFILE_CASES:-io_3dbag_cityjson io_3dbag_cityjson_cluster_4x}"
-profile_workloads_raw="${PERF_PROFILE_WORKLOADS:-serde_json-read serde_cityjson-read cjlib-json-read cityarrow-read cityparquet-read}"
+profile_workloads_raw="${PERF_PROFILE_WORKLOADS:-serde_json-read cityjson_lib-read cityjson-lib-json-read cityarrow-read cityparquet-read}"
 profile_iterations="${PERF_PROFILE_ITERATIONS:-1}"
 run_massif="${PERF_RUN_MASSIF:-0}"
 massif_case="${PERF_MASSIF_CASE:-io_3dbag_cityjson_cluster_4x}"
-massif_workload="${PERF_MASSIF_WORKLOAD:-serde_cityjson-read}"
+massif_workload="${PERF_MASSIF_WORKLOAD:-cityjson_lib-read}"
 
 read -r -a profile_cases <<<"${profile_cases_raw}"
 read -r -a profile_workloads <<<"${profile_workloads_raw}"
@@ -55,13 +55,13 @@ workload_bench_id() {
   local workload="$2"
   case "${workload}" in
     serde_json-read) echo "deserialize/${case_id}/serde_json::Value/read" ;;
-    serde_cityjson-read) echo "deserialize/${case_id}/serde_cityjson/read" ;;
-    cjlib-json-read) echo "deserialize/${case_id}/cjlib::json/read" ;;
+    cityjson_lib-read) echo "deserialize/${case_id}/cityjson_lib/read" ;;
+    cityjson-lib-json-read) echo "deserialize/${case_id}/cityjson_lib::json/read" ;;
     cityarrow-read) echo "deserialize/${case_id}/cityarrow/read" ;;
     cityparquet-read) echo "deserialize/${case_id}/cityparquet/read" ;;
     serde_json-write) echo "serialize/${case_id}/serde_json::Value/write" ;;
-    serde_cityjson-write) echo "serialize/${case_id}/serde_cityjson/write" ;;
-    cjlib-json-write) echo "serialize/${case_id}/cjlib::json/write" ;;
+    cityjson_lib-write) echo "serialize/${case_id}/cityjson_lib/write" ;;
+    cityjson-lib-json-write) echo "serialize/${case_id}/cityjson_lib::json/write" ;;
     cityarrow-write) echo "serialize/${case_id}/cityarrow/write" ;;
     cityparquet-write) echo "serialize/${case_id}/cityparquet/write" ;;
     *)

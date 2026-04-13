@@ -99,8 +99,8 @@ impl From<cityjson::error::Error> for Error {
     }
 }
 
-impl From<serde_cityjson::Error> for Error {
-    fn from(value: serde_cityjson::Error) -> Self {
+impl From<cityjson_json::Error> for Error {
+    fn from(value: cityjson_json::Error) -> Self {
         Self::Import(value.to_string())
     }
 }

@@ -1,9 +1,9 @@
-//! Public API contract for the `cjlib::CityModel` boundary.
+//! Public API contract for the `cityjson_lib::CityModel` boundary.
 
-use cjlib::{CityJSONVersion, CityModel};
+use cityjson_lib::{CityJSONVersion, CityModel};
 
 #[test]
-fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cjlib::Result<()> {
+fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cityjson_lib::Result<()> {
     let bytes = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 
     let _ = CityModel::from_slice(bytes)?;
@@ -14,23 +14,25 @@ fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cjlib::Result<()>
 
 #[test]
 fn citymodel_is_a_thin_owned_wrapper_over_cityjson_rs() {
-    let inner =
-        cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+    let inner = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson::CityModelType::CityJSON,
+    );
     let mut model = CityModel::from(inner);
 
-    let _: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner();
-    let _: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
-    let _: &cjlib::cityjson::v2_0::OwnedCityModel = model.as_ref();
-    let _: &mut cjlib::cityjson::v2_0::OwnedCityModel = model.as_mut();
+    let _: &cityjson_lib::cityjson::v2_0::OwnedCityModel = model.as_inner();
+    let _: &mut cityjson_lib::cityjson::v2_0::OwnedCityModel = model.as_inner_mut();
+    let _: &cityjson_lib::cityjson::v2_0::OwnedCityModel = model.as_ref();
+    let _: &mut cityjson_lib::cityjson::v2_0::OwnedCityModel = model.as_mut();
 }
 
 #[test]
 fn advanced_model_access_flows_through_the_cityjson_crate_reexport() {
-    let inner =
-        cjlib::cityjson::v2_0::OwnedCityModel::new(cjlib::cityjson::CityModelType::CityJSON);
+    let inner = cityjson_lib::cityjson::v2_0::OwnedCityModel::new(
+        cityjson_lib::cityjson::CityModelType::CityJSON,
+    );
     let model = CityModel::from(inner);
 
-    let owned: cjlib::cityjson::v2_0::OwnedCityModel = model.into_inner();
+    let owned: cityjson_lib::cityjson::v2_0::OwnedCityModel = model.into_inner();
     let _ = owned;
 }
 

@@ -38,57 +38,56 @@ impl AbiError {
     }
 }
 
-impl From<&cjlib::Error> for AbiError {
-    fn from(error: &cjlib::Error) -> Self {
+impl From<&cityjson_lib::Error> for AbiError {
+    fn from(error: &cityjson_lib::Error) -> Self {
         match error {
-            cjlib::Error::Io(inner) => Self::new(
+            cityjson_lib::Error::Io(inner) => Self::new(
                 cj_status_t::CJ_STATUS_IO,
                 cj_error_kind_t::CJ_ERROR_KIND_IO,
                 inner.to_string(),
             ),
-            cjlib::Error::Json(inner) => Self::new(
+            cityjson_lib::Error::Json(inner) => Self::new(
                 cj_status_t::CJ_STATUS_SYNTAX,
                 cj_error_kind_t::CJ_ERROR_KIND_SYNTAX,
                 inner.to_string(),
             ),
-            cjlib::Error::CityJSON(inner) => Self::new(
+            cityjson_lib::Error::CityJSON(inner) => Self::new(
                 cj_status_t::CJ_STATUS_MODEL,
                 cj_error_kind_t::CJ_ERROR_KIND_MODEL,
                 inner.to_string(),
             ),
-            cjlib::Error::MissingVersion => Self::new(
+            cityjson_lib::Error::MissingVersion => Self::new(
                 cj_status_t::CJ_STATUS_VERSION,
                 cj_error_kind_t::CJ_ERROR_KIND_VERSION,
                 error.to_string(),
             ),
-            cjlib::Error::ExpectedCityJSON(_) | cjlib::Error::ExpectedCityJSONFeature(_) => {
-                Self::new(
-                    cj_status_t::CJ_STATUS_SHAPE,
-                    cj_error_kind_t::CJ_ERROR_KIND_SHAPE,
-                    error.to_string(),
-                )
-            }
-            cjlib::Error::UnsupportedType(_) => Self::new(
-                cj_status_t::CJ_STATUS_UNSUPPORTED,
-                cj_error_kind_t::CJ_ERROR_KIND_UNSUPPORTED,
-                error.to_string(),
-            ),
-            cjlib::Error::UnsupportedVersion { .. } => Self::new(
-                cj_status_t::CJ_STATUS_VERSION,
-                cj_error_kind_t::CJ_ERROR_KIND_VERSION,
-                error.to_string(),
-            ),
-            cjlib::Error::Streaming(_) => Self::new(
+            cityjson_lib::Error::ExpectedCityJSON(_)
+            | cityjson_lib::Error::ExpectedCityJSONFeature(_) => Self::new(
                 cj_status_t::CJ_STATUS_SHAPE,
                 cj_error_kind_t::CJ_ERROR_KIND_SHAPE,
                 error.to_string(),
             ),
-            cjlib::Error::Import(_) => Self::new(
+            cityjson_lib::Error::UnsupportedType(_) => Self::new(
+                cj_status_t::CJ_STATUS_UNSUPPORTED,
+                cj_error_kind_t::CJ_ERROR_KIND_UNSUPPORTED,
+                error.to_string(),
+            ),
+            cityjson_lib::Error::UnsupportedVersion { .. } => Self::new(
+                cj_status_t::CJ_STATUS_VERSION,
+                cj_error_kind_t::CJ_ERROR_KIND_VERSION,
+                error.to_string(),
+            ),
+            cityjson_lib::Error::Streaming(_) => Self::new(
+                cj_status_t::CJ_STATUS_SHAPE,
+                cj_error_kind_t::CJ_ERROR_KIND_SHAPE,
+                error.to_string(),
+            ),
+            cityjson_lib::Error::Import(_) => Self::new(
                 cj_status_t::CJ_STATUS_MODEL,
                 cj_error_kind_t::CJ_ERROR_KIND_MODEL,
                 error.to_string(),
             ),
-            cjlib::Error::UnsupportedFeature(_) => Self::new(
+            cityjson_lib::Error::UnsupportedFeature(_) => Self::new(
                 cj_status_t::CJ_STATUS_UNSUPPORTED,
                 cj_error_kind_t::CJ_ERROR_KIND_UNSUPPORTED,
                 error.to_string(),
@@ -97,34 +96,34 @@ impl From<&cjlib::Error> for AbiError {
     }
 }
 
-impl From<cjlib::Error> for AbiError {
-    fn from(error: cjlib::Error) -> Self {
+impl From<cityjson_lib::Error> for AbiError {
+    fn from(error: cityjson_lib::Error) -> Self {
         Self::from(&error)
     }
 }
 
-impl From<cjlib::ErrorKind> for cj_error_kind_t {
-    fn from(value: cjlib::ErrorKind) -> Self {
+impl From<cityjson_lib::ErrorKind> for cj_error_kind_t {
+    fn from(value: cityjson_lib::ErrorKind) -> Self {
         match value {
-            cjlib::ErrorKind::Io => Self::CJ_ERROR_KIND_IO,
-            cjlib::ErrorKind::Syntax => Self::CJ_ERROR_KIND_SYNTAX,
-            cjlib::ErrorKind::Version => Self::CJ_ERROR_KIND_VERSION,
-            cjlib::ErrorKind::Shape => Self::CJ_ERROR_KIND_SHAPE,
-            cjlib::ErrorKind::Unsupported => Self::CJ_ERROR_KIND_UNSUPPORTED,
-            cjlib::ErrorKind::Model => Self::CJ_ERROR_KIND_MODEL,
+            cityjson_lib::ErrorKind::Io => Self::CJ_ERROR_KIND_IO,
+            cityjson_lib::ErrorKind::Syntax => Self::CJ_ERROR_KIND_SYNTAX,
+            cityjson_lib::ErrorKind::Version => Self::CJ_ERROR_KIND_VERSION,
+            cityjson_lib::ErrorKind::Shape => Self::CJ_ERROR_KIND_SHAPE,
+            cityjson_lib::ErrorKind::Unsupported => Self::CJ_ERROR_KIND_UNSUPPORTED,
+            cityjson_lib::ErrorKind::Model => Self::CJ_ERROR_KIND_MODEL,
         }
     }
 }
 
-impl From<cjlib::ErrorKind> for cj_status_t {
-    fn from(value: cjlib::ErrorKind) -> Self {
+impl From<cityjson_lib::ErrorKind> for cj_status_t {
+    fn from(value: cityjson_lib::ErrorKind) -> Self {
         match value {
-            cjlib::ErrorKind::Io => Self::CJ_STATUS_IO,
-            cjlib::ErrorKind::Syntax => Self::CJ_STATUS_SYNTAX,
-            cjlib::ErrorKind::Version => Self::CJ_STATUS_VERSION,
-            cjlib::ErrorKind::Shape => Self::CJ_STATUS_SHAPE,
-            cjlib::ErrorKind::Unsupported => Self::CJ_STATUS_UNSUPPORTED,
-            cjlib::ErrorKind::Model => Self::CJ_STATUS_MODEL,
+            cityjson_lib::ErrorKind::Io => Self::CJ_STATUS_IO,
+            cityjson_lib::ErrorKind::Syntax => Self::CJ_STATUS_SYNTAX,
+            cityjson_lib::ErrorKind::Version => Self::CJ_STATUS_VERSION,
+            cityjson_lib::ErrorKind::Shape => Self::CJ_STATUS_SHAPE,
+            cityjson_lib::ErrorKind::Unsupported => Self::CJ_STATUS_UNSUPPORTED,
+            cityjson_lib::ErrorKind::Model => Self::CJ_STATUS_MODEL,
         }
     }
 }
@@ -166,7 +165,7 @@ pub fn set_last_error(error: AbiError) {
     });
 }
 
-pub fn set_last_error_from_cjlib_error(error: cjlib::Error) -> cj_status_t {
+pub fn set_last_error_from_cityjson_lib_error(error: cityjson_lib::Error) -> cj_status_t {
     let abi_error = AbiError::from(error);
     let status = abi_error.status;
     set_last_error(abi_error);

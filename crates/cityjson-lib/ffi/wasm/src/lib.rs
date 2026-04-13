@@ -1,6 +1,6 @@
 #![allow(clippy::all, clippy::pedantic)]
 
-//! Narrow wasm-oriented adapter over the shared `cjlib-ffi-core` substrate.
+//! Narrow wasm-oriented adapter over the shared `cityjson-lib-ffi-core` substrate.
 //!
 //! The public surface here stays task-oriented: probe input, summarize parsed
 //! models, and extract flat coordinate and boundary buffers. Deep editable
@@ -9,9 +9,9 @@
 use std::ptr;
 use std::slice;
 
-pub use cjlib_ffi_core as core;
+pub use cityjson_lib_ffi_core as core;
 
-use cjlib_ffi_core::exports::{
+use cityjson_lib_ffi_core::exports::{
     cj_bytes_free, cj_geometry_boundary_free, cj_last_error_message_copy,
     cj_last_error_message_len, cj_model_add_cityobject, cj_model_add_geometry_from_boundary,
     cj_model_add_vertex, cj_model_attach_geometry_to_cityobject, cj_model_cleanup,
@@ -24,7 +24,7 @@ use cjlib_ffi_core::exports::{
     cj_model_set_metadata_title, cj_model_set_transform, cj_probe_bytes, cj_uvs_free,
     cj_vertices_free,
 };
-use cjlib_ffi_core::{
+use cityjson_lib_ffi_core::{
     cj_bytes_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
     cj_indices_view_t, cj_json_write_options_t, cj_model_summary_t, cj_model_t, cj_model_type_t,
     cj_probe_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
@@ -91,7 +91,7 @@ fn last_error_message() -> String {
     let mut copied = 0usize;
     let status = cj_last_error_message_copy(buffer.as_mut_ptr(), buffer.len(), &raw mut copied);
     if status != cj_status_t::CJ_STATUS_SUCCESS {
-        return "failed to retrieve cjlib last-error message".to_string();
+        return "failed to retrieve cityjson_lib last-error message".to_string();
     }
 
     String::from_utf8_lossy(&buffer[..copied]).into_owned()

@@ -6,13 +6,13 @@ fn main() {
     let args = parse_args(&raw_args);
 
     for path in &args.arrow_files {
-        cjlib::arrow::from_file(path)
+        cityjson_lib::arrow::from_file(path)
             .unwrap_or_else(|error| panic!("failed to validate {}: {error}", path.display()));
         println!("validated {}", path.display());
     }
 
     for path in &args.parquet_files {
-        cjlib::parquet::from_file(path)
+        cityjson_lib::parquet::from_file(path)
             .unwrap_or_else(|error| panic!("failed to validate {}: {error}", path.display()));
         println!("validated {}", path.display());
     }

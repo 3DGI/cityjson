@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
-from cjlib import (
+from cityjson_lib import (
     AutoTransformOptions,
     CityModel,
     CityJSONSeqWriteOptions,

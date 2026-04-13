@@ -1,6 +1,6 @@
 # FFI Layout
 
-This directory holds the non-Rust binding work for `cjlib`.
+This directory holds the non-Rust binding work for `cityjson_lib`.
 
 The intended layering is:
 

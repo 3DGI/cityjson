@@ -32,20 +32,20 @@ CASE_LABELS = {
 }
 FORMAT_LABELS = {
     "serde_json::Value": "serde_json::Value",
-    "serde_cityjson": "serde_cityjson",
-    "cjlib::json": "cjlib::json",
+    "cityjson_lib": "cityjson_lib",
+    "cityjson_lib::json": "cityjson_lib::json",
     "cityarrow": "cityarrow",
     "cityparquet": "cityparquet",
 }
 FORMAT_ORDER = (
-    "serde_cityjson",
-    "cjlib::json",
+    "cityjson_lib",
+    "cityjson_lib::json",
     "cityarrow",
     "cityparquet",
 )
 FORMAT_COLORS = {
-    "serde_cityjson": "#1b9e77",
-    "cjlib::json": "#7570b3",
+    "cityjson_lib": "#1b9e77",
+    "cityjson_lib::json": "#7570b3",
     "cityarrow": "#d95f02",
     "cityparquet": "#e7298a",
 }
@@ -121,10 +121,13 @@ def parse_bench(bench: str) -> ParsedBench | None:
     suite_key, case_id, format_id, operation = parts
     if suite_key not in SUITE_NAMES:
         return None
+    format_aliases = {
+        "serde_cityjson": "cityjson_lib",
+    }
     return ParsedBench(
         suite_key=suite_key,
         case_id=case_id,
-        format_id=format_id,
+        format_id=format_aliases.get(format_id, format_id),
         operation=operation,
     )
 
@@ -320,7 +323,7 @@ def markdown_summary(
             [
                 f"## {suite_name.capitalize()}",
                 "",
-                "| Case | Baseline | serde_cityjson | cjlib::json | cityarrow | cityparquet |",
+                "| Case | Baseline | cityjson_lib | cityjson_lib::json | cityarrow | cityparquet |",
                 "| --- | --- | --- | --- | --- | --- |",
             ]
         )

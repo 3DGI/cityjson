@@ -1,14 +1,14 @@
-//! Public API contract for the explicit `cjlib::json` boundary layer.
+//! Public API contract for the explicit `cityjson_lib::json` boundary layer.
 
 use std::io::Cursor;
 
-use cjlib::cityjson::v2_0::{BBox, Transform};
+use cityjson_lib::cityjson::v2_0::{BBox, Transform};
 use serde_json::value::RawValue;
 
-use cjlib::{CityJSONVersion, json};
+use cityjson_lib::{CityJSONVersion, json};
 
 #[test]
-fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<()> {
+fn explicit_json_module_supports_document_and_stream_loading() -> cityjson_lib::Result<()> {
     let document = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
     let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
@@ -24,8 +24,8 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
     let _ = json::from_feature_slice(feature)?;
     let _ = json::from_file("tests/data/v2_0/minimal.city.json")?;
     let _ = json::from_feature_file("tests/data/v2_0/minimal.city.jsonl")?;
-    let models =
-        json::read_feature_stream(Cursor::new(stream))?.collect::<cjlib::Result<Vec<_>>>()?;
+    let models = json::read_feature_stream(Cursor::new(stream))?
+        .collect::<cityjson_lib::Result<Vec<_>>>()?;
     assert_eq!(models.len(), 2);
 
     let mut writer = Vec::new();
@@ -35,7 +35,7 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
     let expected = models
         .iter()
         .map(json::to_feature_string)
-        .collect::<cjlib::Result<Vec<_>>>()?
+        .collect::<cityjson_lib::Result<Vec<_>>>()?
         .join("\n")
         + "\n";
     assert_eq!(output, expected);
@@ -44,8 +44,8 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cjlib::Result<
 }
 
 #[test]
-fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform() -> cjlib::Result<()>
-{
+fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
+-> cityjson_lib::Result<()> {
     let base_root = json::from_slice(
         br#"{
             "type":"CityJSON",
@@ -109,7 +109,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform() -
     );
 
     let roundtrip =
-        json::read_cityjsonseq(Cursor::new(output))?.collect::<cjlib::Result<Vec<_>>>()?;
+        json::read_cityjsonseq(Cursor::new(output))?.collect::<cityjson_lib::Result<Vec<_>>>()?;
     assert_eq!(roundtrip.len(), 1);
     assert_eq!(
         roundtrip[0]
@@ -123,7 +123,8 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform() -
 }
 
 #[test]
-fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform() -> cjlib::Result<()> {
+fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform()
+-> cityjson_lib::Result<()> {
     let base_root = json::from_slice(
         br#"{
             "type":"CityJSON",
@@ -194,7 +195,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform() -> cj
 
 #[test]
 fn explicit_json_module_can_materialize_standalone_features_with_a_base_document()
--> cjlib::Result<()> {
+-> cityjson_lib::Result<()> {
     let document = br#"{
         "type":"CityJSON",
         "version":"2.0",
@@ -221,7 +222,8 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
 }
 
 #[test]
-fn explicit_json_module_can_materialize_feature_parts_with_a_base_document() -> cjlib::Result<()> {
+fn explicit_json_module_can_materialize_feature_parts_with_a_base_document()
+-> cityjson_lib::Result<()> {
     let document = br#"{
         "type":"CityJSON",
         "version":"2.0",
@@ -264,16 +266,17 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document() -> 
 
 #[test]
 fn citymodel_constructors_are_aliases_for_the_default_json_path() {
-    let citymodel_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> =
-        cjlib::CityModel::from_slice;
-    let json_from_slice: fn(&[u8]) -> cjlib::Result<cjlib::CityModel> = json::from_slice;
+    let citymodel_from_slice: fn(&[u8]) -> cityjson_lib::Result<cityjson_lib::CityModel> =
+        cityjson_lib::CityModel::from_slice;
+    let json_from_slice: fn(&[u8]) -> cityjson_lib::Result<cityjson_lib::CityModel> =
+        json::from_slice;
 
     let _ = citymodel_from_slice;
     let _ = json_from_slice;
 }
 
 #[test]
-fn explicit_json_module_owns_serialization() -> cjlib::Result<()> {
+fn explicit_json_module_owns_serialization() -> cityjson_lib::Result<()> {
     let model = json::from_file("tests/data/v2_0/minimal.city.json")?;
 
     let bytes = json::to_vec(&model)?;
@@ -290,7 +293,7 @@ fn explicit_json_module_owns_serialization() -> cjlib::Result<()> {
 }
 
 #[test]
-fn explicit_json_module_can_write_features_without_building_a_string() -> cjlib::Result<()> {
+fn explicit_json_module_can_write_features_without_building_a_string() -> cityjson_lib::Result<()> {
     let feature = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
     let model = json::from_feature_slice(feature)?;
 
@@ -308,5 +311,5 @@ fn explicit_json_module_can_write_features_without_building_a_string() -> cjlib:
 #[test]
 fn document_loading_rejects_jsonl_streams() {
     let error = json::from_file("tests/data/v1_1/fake.city.jsonl").unwrap_err();
-    assert_eq!(error.kind(), cjlib::ErrorKind::Unsupported);
+    assert_eq!(error.kind(), cityjson_lib::ErrorKind::Unsupported);
 }

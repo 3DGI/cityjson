@@ -1,12 +1,12 @@
 //! Public API contract for explicit cityarrow and cityparquet boundaries.
 
-use cjlib::CityModel;
-#[cfg(feature = "arrow")]
-use cjlib::arrow;
-#[cfg(feature = "parquet")]
-use cjlib::parquet;
 #[cfg(any(feature = "arrow", feature = "parquet"))]
-use serde_cityjson::to_string_validated;
+use cityjson_json::to_string_validated;
+use cityjson_lib::CityModel;
+#[cfg(feature = "arrow")]
+use cityjson_lib::arrow;
+#[cfg(feature = "parquet")]
+use cityjson_lib::parquet;
 #[cfg(any(feature = "arrow", feature = "parquet"))]
 use serde_json::Value;
 #[cfg(any(feature = "arrow", feature = "parquet"))]

@@ -1,4 +1,4 @@
-"""Low-level ctypes bridge for the shared cjlib C ABI."""
+"""Low-level ctypes bridge for the shared cityjson_lib C ABI."""
 
 from __future__ import annotations
 
@@ -243,11 +243,11 @@ class CityJSONSeqAutoTransformOptionsPayload:
 
 def _candidate_library_paths() -> list[Path]:
     package_dir = Path(__file__).resolve().parent
-    names = ["libcjlib_ffi_core.so", "libcjlib_ffi_core.dylib", "cjlib_ffi_core.dll"]
+    names = ["libcityjson_lib_ffi_core.so", "libcityjson_lib_ffi_core.dylib", "cityjson_lib_ffi_core.dll"]
 
     candidates: list[Path] = []
-    if "CJLIB_FFI_CORE_LIB" in os.environ:
-        candidates.append(Path(os.environ["CJLIB_FFI_CORE_LIB"]))
+    if "CITYJSON_LIB_FFI_CORE_LIB" in os.environ:
+        candidates.append(Path(os.environ["CITYJSON_LIB_FFI_CORE_LIB"]))
 
     for name in names:
         candidates.append(package_dir / name)
@@ -270,7 +270,7 @@ def _load_cdll() -> CDLL:
             return CDLL(str(candidate))
 
     searched = ", ".join(str(candidate) for candidate in _candidate_library_paths())
-    raise FileNotFoundError(f"could not locate cjlib ffi shared library; searched: {searched}")
+    raise FileNotFoundError(f"could not locate cityjson_lib ffi shared library; searched: {searched}")
 
 
 class FfiLibrary:

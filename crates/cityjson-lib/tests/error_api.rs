@@ -1,7 +1,7 @@
 //! Public API contract for structured error handling.
 //! The goal is a stable category surface, not string matching.
 
-use cjlib::{ErrorKind, json};
+use cityjson_lib::{ErrorKind, json};
 
 #[test]
 fn invalid_json_is_a_structured_syntax_error() {

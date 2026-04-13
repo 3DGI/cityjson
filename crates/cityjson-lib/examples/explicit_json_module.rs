@@ -1,6 +1,6 @@
-use cjlib::{CityJSONVersion, json};
+use cityjson_lib::{CityJSONVersion, json};
 
-fn main() -> cjlib::Result<()> {
+fn main() -> cityjson_lib::Result<()> {
     let bytes = std::fs::read("tests/data/v2_0/minimal.city.json")?;
 
     let probe = json::probe(&bytes)?;

@@ -1,5 +1,5 @@
-#ifndef CJLIB_FFI_CORE_H
-#define CJLIB_FFI_CORE_H
+#ifndef CITYJSON_LIB_FFI_CORE_H
+#define CITYJSON_LIB_FFI_CORE_H
 
 #pragma once
 
@@ -84,7 +84,7 @@ typedef enum cj_model_type_t {
  * Opaque model handle type.
  *
  * The ABI only ever passes pointers to this marker type. The actual storage is
- * a boxed `cjlib::CityModel` allocated by the Rust side.
+ * a boxed `cityjson_lib::CityModel` allocated by the Rust side.
  */
 typedef struct cj_model_t {
   uint8_t _private[0];
@@ -301,4 +301,4 @@ enum cj_status_t cj_model_add_uv_coordinate(struct cj_model_t *model,
 }  // extern "C"
 #endif  // __cplusplus
 
-#endif  /* CJLIB_FFI_CORE_H */
+#endif  /* CITYJSON_LIB_FFI_CORE_H */

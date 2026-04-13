@@ -10,7 +10,7 @@ The remaining FFI slices need append, extract, remap, and cleanup behavior.
 There were two plausible implementation models:
 
 - define a separate foreign import/remap ABI and let wrappers manage it
-- keep `cjlib` authoritative and express the workflows as explicit model
+- keep `cityjson_lib` authoritative and express the workflows as explicit model
   operations over Rust-owned state
 
 The latter better matches the existing Rust model and keeps serialization and

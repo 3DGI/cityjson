@@ -1,7 +1,7 @@
 # C++ Binding Layout
 
 This directory holds the first public C++ wrapper over the shared low-level
-`cjlib` FFI core.
+`cityjson_lib` FFI core.
 
 Current layout:
 
@@ -21,6 +21,6 @@ The current wrapper is intentionally small:
 The C++ layer stays RAII-oriented and STL-friendly while compiling down to the
 shared low-level core.
 
-The shared C ABI header is generated into `../core/include/cjlib/cjlib.h` via
+The shared C ABI header is generated into `../core/include/cityjson_lib/cityjson_lib.h` via
 `just ffi-header`. The C++ wrapper should treat that header as its canonical
 low-level contract rather than duplicating the declarations.

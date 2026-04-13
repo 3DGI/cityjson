@@ -1,4 +1,4 @@
-site_name: cjlib
+site_name: cityjson_lib
 site_description: User-facing facade docs for the CityJSON crate ecosystem
 docs_dir: docs
 strict: true

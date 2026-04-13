@@ -1,6 +1,6 @@
-//! Public API contract for the future `cjlib::ops` boundary.
+//! Public API contract for the future `cityjson_lib::ops` boundary.
 
-use cjlib::{json, ops};
+use cityjson_lib::{json, ops};
 
 #[test]
 fn ops_merge_combines_self_contained_models() {

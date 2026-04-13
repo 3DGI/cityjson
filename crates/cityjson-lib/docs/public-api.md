@@ -1,6 +1,6 @@
 # Public API Overview
 
-This page summarizes the stable Rust-facing shape that `cjlib` is trying to
+This page summarizes the stable Rust-facing shape that `cityjson_lib` is trying to
 preserve.
 
 ## Root Surface
@@ -20,7 +20,7 @@ The public rule is:
 
 - common document loading lives on `CityModel`
 - explicit boundary work lives in explicit modules
-- advanced model work happens through `cjlib::cityjson`
+- advanced model work happens through `cityjson_lib::cityjson`
 
 ## `CityModel`
 
@@ -35,7 +35,7 @@ helps implementation, but the facade contract stays the same:
   subset, or a feature-sized package
 
 ```rust
-use cjlib::CityModel;
+use cityjson_lib::CityModel;
 
 let from_file = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 let from_slice = CityModel::from_slice(
@@ -45,12 +45,12 @@ let from_slice = CityModel::from_slice(
 let borrowed = from_file.as_inner();
 let _owned = from_slice.into_inner();
 # let _ = borrowed;
-# Ok::<(), cjlib::Error>(())
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
 ## Explicit Boundary Modules
 
-`cjlib::json` owns explicit JSON and JSONL work:
+`cityjson_lib::json` owns explicit JSON and JSONL work:
 
 - probing
 - document parsing
@@ -62,7 +62,7 @@ let _owned = from_slice.into_inner();
 Sibling format modules follow the same rule: explicit module, explicit format,
 semantic item type still `CityModel`.
 
-## `cjlib::ops`
+## `cityjson_lib::ops`
 
 `ops` is the home for reusable workflows above the semantic model:
 
@@ -75,22 +75,22 @@ semantic item type still `CityModel`.
 Those operations should build on `cityjson-rs` semantics rather than redefine
 them.
 
-## `cjlib::cityjson`
+## `cityjson_lib::cityjson`
 
 The advanced escape hatch is the re-exported model crate:
 
 ```rust
-use cjlib::cityjson;
+use cityjson_lib::cityjson;
 ```
 
-That keeps the facade teachable without pretending that `cjlib` owns the whole
+That keeps the facade teachable without pretending that `cityjson_lib` owns the whole
 semantic surface.
 
 ## Relationship To FFI
 
 The Rust facade and the FFI work are parallel layers, not competing ones:
 
-- Rust users call `cjlib` directly.
+- Rust users call `cityjson_lib` directly.
 - Foreign bindings share one low-level core documented under
   [FFI and Bindings](ffi/index.md).
 - Binding-specific APIs are free to be more C++-like, Python-like, or

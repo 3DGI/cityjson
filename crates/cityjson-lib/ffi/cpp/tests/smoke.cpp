@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-#include <cjlib/cjlib.hpp>
+#include <cityjson_lib/cityjson_lib.hpp>
 
 namespace {
 
@@ -22,15 +22,15 @@ std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path) {
 }  // namespace
 
 int main() {
-  const auto fixture_path = std::filesystem::path{CJLIB_FIXTURE_PATH};
+  const auto fixture_path = std::filesystem::path{CITYJSON_LIB_FIXTURE_PATH};
   const auto bytes = read_file_bytes(fixture_path);
 
-  const auto probe = cjlib::Model::probe(bytes);
+  const auto probe = cityjson_lib::Model::probe(bytes);
   assert(probe.root_kind == CJ_ROOT_KIND_CITY_JSON);
   assert(probe.version == CJ_VERSION_V2_0);
   assert(probe.has_version);
 
-  auto model = cjlib::Model::parse_document(bytes);
+  auto model = cityjson_lib::Model::parse_document(bytes);
   const auto summary = model.summary();
   assert(summary.model_type == CJ_MODEL_TYPE_CITY_JSON);
   assert(summary.cityobject_count == 2U);
@@ -100,17 +100,17 @@ int main() {
   const auto serialized_bytes = model.serialize_document_bytes();
   assert(!serialized_bytes.empty());
 
-  auto created = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
-  cjlib::ModelCapacities capacities{};
+  auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  cityjson_lib::ModelCapacities capacities{};
   capacities.cityobjects = 2U;
   capacities.vertices = 2U;
   capacities.geometries = 2U;
   capacities.template_vertices = 1U;
   capacities.uv_coordinates = 1U;
   created.reserve_import(capacities);
-  assert(created.add_vertex(cjlib::Vertex{1.0, 2.0, 3.0}) == 0U);
-  assert(created.add_template_vertex(cjlib::Vertex{4.0, 5.0, 6.0}) == 0U);
-  assert(created.add_uv_coordinate(cjlib::UV{0.25F, 0.75F}) == 0U);
+  assert(created.add_vertex(cityjson_lib::Vertex{1.0, 2.0, 3.0}) == 0U);
+  assert(created.add_template_vertex(cityjson_lib::Vertex{4.0, 5.0, 6.0}) == 0U);
+  assert(created.add_uv_coordinate(cityjson_lib::UV{0.25F, 0.75F}) == 0U);
   const auto created_summary = created.summary();
   assert(created_summary.model_type == CJ_MODEL_TYPE_CITY_JSON_FEATURE);
   assert(created_summary.vertex_count == 1U);
@@ -119,7 +119,7 @@ int main() {
 
   created.set_metadata_title("Wrapper Smoke");
   created.set_metadata_identifier("wrapper-smoke");
-  created.set_transform(cjlib::Transform{
+  created.set_transform(cityjson_lib::Transform{
       .scale = {2.0, 2.0, 1.0},
       .translate = {1.0, 2.0, 3.0},
   });
@@ -127,7 +127,7 @@ int main() {
   created.add_cityobject("cityobject-temp", "BuildingPart");
   created.remove_cityobject("cityobject-temp");
 
-  const auto point_boundary = cjlib::GeometryBoundary{
+  const auto point_boundary = cityjson_lib::GeometryBoundary{
       .geometry_type = CJ_GEOMETRY_TYPE_MULTI_POINT,
       .has_boundaries = true,
       .vertex_indices = {0U},
@@ -139,7 +139,7 @@ int main() {
   const auto point_geometry_index = created.add_geometry_from_boundary(point_boundary);
   created.attach_geometry_to_cityobject("cityobject-1", point_geometry_index);
 
-  const auto transformed_feature = created.serialize_feature(cjlib::WriteOptions{
+  const auto transformed_feature = created.serialize_feature(cityjson_lib::WriteOptions{
       .pretty = true,
       .validate_default_themes = false,
   });
@@ -157,24 +157,24 @@ int main() {
   assert(cleaned_summary.cityobject_count == 1U);
   assert(cleaned_summary.geometry_count == 1U);
 
-  auto left = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
-  cjlib::ModelCapacities left_capacities{};
+  auto left = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  cityjson_lib::ModelCapacities left_capacities{};
   left_capacities.cityobjects = 1U;
   left_capacities.vertices = 1U;
   left_capacities.geometries = 1U;
   left.reserve_import(left_capacities);
-  static_cast<void>(left.add_vertex(cjlib::Vertex{0.0, 0.0, 0.0}));
+  static_cast<void>(left.add_vertex(cityjson_lib::Vertex{0.0, 0.0, 0.0}));
   left.add_cityobject("left", "Building");
   const auto left_geometry = left.add_geometry_from_boundary(point_boundary);
   left.attach_geometry_to_cityobject("left", left_geometry);
 
-  auto right = cjlib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
-  cjlib::ModelCapacities right_capacities{};
+  auto right = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  cityjson_lib::ModelCapacities right_capacities{};
   right_capacities.cityobjects = 1U;
   right_capacities.vertices = 1U;
   right_capacities.geometries = 1U;
   right.reserve_import(right_capacities);
-  static_cast<void>(right.add_vertex(cjlib::Vertex{1.0, 0.0, 0.0}));
+  static_cast<void>(right.add_vertex(cityjson_lib::Vertex{1.0, 0.0, 0.0}));
   right.add_cityobject("right", "BuildingPart");
   const auto right_geometry = right.add_geometry_from_boundary(point_boundary);
   right.attach_geometry_to_cityobject("right", right_geometry);
@@ -190,8 +190,8 @@ int main() {
   assert(extracted_summary.cityobject_count == 1U);
   assert(extracted.cityobject_ids()[0] == "right");
 
-  const std::array<const cjlib::Model* const, 2> stream_models{&created, &right};
-  const auto stream = cjlib::Model::serialize_feature_stream(stream_models);
+  const std::array<const cityjson_lib::Model* const, 2> stream_models{&created, &right};
+  const auto stream = cityjson_lib::Model::serialize_feature_stream(stream_models);
   assert(!stream.empty());
   assert(stream.back() == '\n');
 

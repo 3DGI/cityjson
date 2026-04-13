@@ -1,11 +1,11 @@
-"""Python bindings for cjlib built on top of the shared C ABI."""
+"""Python bindings for cityjson_lib built on top of the shared C ABI."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Self
 
-from cjlib._ffi import (
+from cityjson_lib._ffi import (
     CjlibError,
     CityJSONSeqAutoTransformOptionsPayload,
     CityJSONSeqWriteOptionsPayload,

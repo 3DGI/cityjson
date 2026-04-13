@@ -1,6 +1,6 @@
 # FFI Implementation Plan
 
-This page is the single implementation plan for `cjlib`'s non-Rust surface.
+This page is the single implementation plan for `cityjson_lib`'s non-Rust surface.
 It replaces the earlier split between:
 
 - shared C ABI foundation
@@ -26,20 +26,20 @@ The shared C ABI is no longer just a plan. It already exposes:
 - vertex, template-vertex, and UV insertion
 - targeted model mutation and model-authoritative workflows
 
-The generated header is [cjlib.h](/home/balazs/Development/cjlib/ffi/core/include/cjlib/cjlib.h).
+The generated header is [cityjson_lib.h](/home/balazs/Development/cityjson-lib/ffi/core/include/cityjson_lib/cityjson_lib.h).
 
 The wrapper layers already exist:
 
-- C++ wrapper in [ffi/cpp](/home/balazs/Development/cjlib/ffi/cpp)
-- Python wrapper in [ffi/python](/home/balazs/Development/cjlib/ffi/python)
-- wasm adapter in [ffi/wasm](/home/balazs/Development/cjlib/ffi/wasm)
+- C++ wrapper in [ffi/cpp](/home/balazs/Development/cityjson-lib/ffi/cpp)
+- Python wrapper in [ffi/python](/home/balazs/Development/cityjson-lib/ffi/python)
+- wasm adapter in [ffi/wasm](/home/balazs/Development/cityjson-lib/ffi/wasm)
 
 The benchmark work also produced useful reality checks:
 
 - native FFI performance is close to direct Rust when the bindings load release
   artifacts
 - the benchmark work now exercises a real `wasm32-unknown-unknown` module in
-  `cjlib-benchmarks`
+  `cityjson-benchmarks`
 - the remaining large overhead is wasm, not C++ or Python, and it now reflects
   the real JS/Wasm boundary rather than a fallback path
 
@@ -52,7 +52,7 @@ This plan covers:
 - benchmark-driven follow-up work that materially affects FFI design
 
 This plan does not invent new public use cases or low-level exports that are
-not already backed by `cjlib` or `cityjson-rs`.
+not already backed by `cityjson_lib` or `cityjson-rs`.
 
 ## Target Shape
 
@@ -203,15 +203,15 @@ they define the contract shape future work should preserve.
 
 ### JSON Surface
 
-These additions are already backed by `cjlib::json` and are implemented in the
+These additions are already backed by `cityjson_lib::json` and are implemented in the
 shared C ABI.
 
 #### Slice B1: Write Options
 
 Rust support already exists in:
 
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `to_vec_with_options`
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `to_feature_vec_with_options`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `to_vec_with_options`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `to_feature_vec_with_options`
 
 The shared C ABI exposes:
 
@@ -226,10 +226,10 @@ semantics.
 
 Rust support already exists in:
 
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `read_feature_stream`
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `write_feature_stream`
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `write_feature_stream_refs`
-- [json.rs](/home/balazs/Development/cjlib/src/json.rs): `merge_feature_stream_slice`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `read_feature_stream`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `write_feature_stream`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `write_feature_stream_refs`
+- [json.rs](/home/balazs/Development/cityjson-lib/src/json.rs): `merge_feature_stream_slice`
 
 The ABI stays conservative:
 
@@ -242,15 +242,15 @@ The first cut should prefer bytes-based APIs over callback-heavy ones.
 
 ### Model-Authoritative Operations
 
-These additions are already backed by `cjlib::ops` and are implemented in the
+These additions are already backed by `cityjson_lib::ops` and are implemented in the
 shared C ABI.
 
 Rust support already exists in:
 
-- [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `cleanup`
-- [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `extract`
-- [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `append`
-- [ops.rs](/home/balazs/Development/cjlib/src/ops.rs): `merge`
+- [ops.rs](/home/balazs/Development/cityjson-lib/src/ops.rs): `cleanup`
+- [ops.rs](/home/balazs/Development/cityjson-lib/src/ops.rs): `extract`
+- [ops.rs](/home/balazs/Development/cityjson-lib/src/ops.rs): `append`
+- [ops.rs](/home/balazs/Development/cityjson-lib/src/ops.rs): `merge`
 
 The shared C ABI exposes these as explicit model-authoritative workflows:
 
@@ -278,7 +278,7 @@ The remaining work splits into infrastructure and any future ABI expansion.
 
 This is not an ABI expansion track, but it protects all of the others.
 
-1. Add CI coverage in `cjlib-benchmarks` for a small release-mode slice.
+1. Add CI coverage in `cityjson-benchmarks` for a small release-mode slice.
 2. Add a dedicated low-level C ABI microbenchmark to separate:
    - raw boundary cost
    - wrapper cost
@@ -374,7 +374,7 @@ Own:
 
 - `ffi/core/src/**`
 - `ffi/core/tests/**`
-- `ffi/core/include/cjlib/cjlib.h`
+- `ffi/core/include/cityjson_lib/cityjson_lib.h`
 - `ffi/core/cbindgen.toml`
 
 Deliver:

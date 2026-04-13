@@ -1,6 +1,6 @@
-use cjlib::{CityModel, json};
+use cityjson_lib::{CityModel, json};
 
-fn main() -> cjlib::Result<()> {
+fn main() -> cityjson_lib::Result<()> {
     let model = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
 
     let bytes = json::to_vec(&model)?;

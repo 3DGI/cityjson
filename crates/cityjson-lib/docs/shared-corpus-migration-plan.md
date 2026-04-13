@@ -8,7 +8,7 @@ shared case identifiable, reproducible, and consumable by multiple crates.
 
 ## Goals
 
-1. make correctness fixtures reusable across `serde_cityjson`, `cjlib`,
+1. make correctness fixtures reusable across `serde_cityjson`, `cityjson_lib`,
    `arrow`, `parquet`, and future format crates
 2. keep benchmark case identity and correctness expectations in one canonical
    place
@@ -356,7 +356,7 @@ Suggested shape:
 
 This is the missing bridge between correctness and benchmarking.
 
-`serde_cityjson`, `cjlib`, `arrow`, and `parquet` should all read the same
+`serde_cityjson`, `cityjson_lib`, `arrow`, and `parquet` should all read the same
 case id and the same invariant set, then apply format-specific assertions only
 where unavoidable.
 
@@ -423,7 +423,7 @@ Downstream crates should consume the corpus in three different ways.
 - use invalid fixtures for negative tests
 - use workloads only for benchmarks
 
-### `cjlib`
+### `cityjson_lib`
 
 - use the same conformance fixtures for facade-level JSON and operation tests
 - use operation fixtures for `ops` correctness tests
@@ -480,7 +480,7 @@ Exit criteria:
 
 ### Phase 4. Add multi-format consumers
 
-- wire `cjlib` tests to shared conformance fixtures
+- wire `cityjson_lib` tests to shared conformance fixtures
 - add `arrow` import/export checks against the same ids
 - add `parquet` import/export checks against the same ids
 - document format-specific loss budgets where exact preservation is impossible
@@ -551,4 +551,4 @@ The existing generated stress profiles already map naturally to:
 5. decide whether the real-data prep path will call into `cjindex` directly or
    be extracted from it
 6. switch one consumer first: `serde_cityjson`
-7. then wire `cjlib`, followed by `arrow` and `parquet`
+7. then wire `cityjson_lib`, followed by `arrow` and `parquet`
