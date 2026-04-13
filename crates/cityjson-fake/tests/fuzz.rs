@@ -1,5 +1,5 @@
-use cjfake::prelude::*;
-use cjfake::vertex::VerticesFaker;
+use cityjson_fake::prelude::*;
+use cityjson_fake::vertex::VerticesFaker;
 use fake::Fake;
 use proptest::collection::vec;
 use proptest::prelude::*;

@@ -1,4 +1,4 @@
-use cjfake::prelude::*;
+use cityjson_fake::prelude::*;
 
 // ─── Basic construction ───────────────────────────────────────────────────────
 

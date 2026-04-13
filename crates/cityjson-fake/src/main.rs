@@ -1,8 +1,8 @@
 use clap::Parser;
 
 fn main() {
-    let cli = cjfake::cli::Cli::parse();
-    if let Err(err) = cjfake::cli::run(cli) {
+    let cli = cityjson_fake::cli::Cli::parse();
+    if let Err(err) = cityjson_fake::cli::run(cli) {
         eprintln!("{err}");
         std::process::exit(1);
     }

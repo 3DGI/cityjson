@@ -1,9 +1,9 @@
 //! City model assembly helpers.
 //!
 //! ```rust
-//! use cjfake::cli::CJFakeConfig;
-//! use cjfake::citymodel::CityModelBuilder;
-//! use cjfake::prelude::*;
+//! use cityjson_fake::cli::CJFakeConfig;
+//! use cityjson_fake::citymodel::CityModelBuilder;
+//! use cityjson_fake::prelude::*;
 //!
 //! let model = CityModelBuilder::<u32, OwnedStringStorage>::new(CJFakeConfig::default(), Some(6))
 //!     .metadata(None)
@@ -33,7 +33,7 @@ use cityjson::v2_0::{
     VertexDraft, VertexIndex, VertexRef, RGB,
 };
 #[cfg(feature = "serialize")]
-use cjlib::{json as cjjson, CityModel as FacadeCityModel};
+use cityjson_lib::{json as cjjson, CityModel as FacadeCityModel};
 use fake::Fake;
 use rand::prelude::SmallRng;
 use rand::seq::{IndexedRandom, SliceRandom};
@@ -750,7 +750,7 @@ fn bbox_from_vertex_range<VR: VertexRef, SS: StringStorage>(
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 ///
 /// // Create a basic CityJSON model with default settings
 /// let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default().build();
@@ -771,9 +771,9 @@ fn bbox_from_vertex_range<VR: VertexRef, SS: StringStorage>(
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::citymodel::CityModelBuilder;
-/// use cjfake::cli::CJFakeConfig;
-/// use cjfake::prelude::*;
+/// use cityjson_fake::citymodel::CityModelBuilder;
+/// use cityjson_fake::cli::CJFakeConfig;
+/// use cityjson_fake::prelude::*;
 ///
 /// let model = CityModelBuilder::<u32, OwnedStringStorage>::new(CJFakeConfig::default(), Some(6))
 ///     .metadata(None)
@@ -1040,7 +1040,7 @@ impl CityModelBuilder<u32, OwnedStringStorage> {
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    pub fn build_string(self) -> cjlib::Result<String> {
+    pub fn build_string(self) -> cityjson_lib::Result<String> {
         let model = FacadeCityModel::from(self.build());
         cjjson::to_string(&model)
     }
@@ -1050,7 +1050,7 @@ impl CityModelBuilder<u32, OwnedStringStorage> {
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    pub fn build_vec(self) -> cjlib::Result<Vec<u8>> {
+    pub fn build_vec(self) -> cityjson_lib::Result<Vec<u8>> {
         let model = FacadeCityModel::from(self.build());
         cjjson::to_vec(&model)
     }

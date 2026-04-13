@@ -1,4 +1,4 @@
-//! # cjfake
+//! # cityjson-fake
 //!
 //! ## Modules
 //!
@@ -9,29 +9,29 @@
 //!
 //! Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 //!
-//! `cjfake` is useful when you need schema-valid `CityJSON` documents without depending on large
+//! `cityjson-fake` is useful when you need schema-valid `CityJSON` documents without depending on large
 //! real-world datasets. It can generate complete models, or you can use the lower-level builders
 //! to generate individual pieces such as metadata, materials, textures, attributes, or vertices.
 //!
 //! ## Quick Start
 //!
 //! ```rust
-//! use cjfake::prelude::*;
+//! use cityjson_fake::prelude::*;
 //!
 //! let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default().build();
 //! assert_eq!(model.cityobjects().len(), 1);
 //! ```
 //!
 //! ```rust
-//! use cjfake::prelude::*;
+//! use cityjson_fake::prelude::*;
 //!
-//! let json = cjfake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
+//! let json = cityjson_fake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
 //! assert!(json.starts_with('{'));
 //! ```
 //!
 //! ## What It Can Generate
 //!
-//! `cjfake` focuses on the `CityJSON` v2.0 generation surface that is most useful for automated
+//! `cityjson-fake` focuses on the `CityJSON` v2.0 generation surface that is most useful for automated
 //! testing:
 //!
 //! - city objects and parent-child hierarchy
@@ -54,7 +54,7 @@
 //! ## Example Config
 //!
 //! ```rust
-//! use cjfake::prelude::*;
+//! use cityjson_fake::prelude::*;
 //!
 //! let config = CJFakeConfig {
 //!     cityobjects: CityObjectConfig {
@@ -105,10 +105,10 @@ use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-/// Convenient re-exports for common `cjfake` use cases.
+/// Convenient re-exports for common `cityjson-fake` use cases.
 ///
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 ///
 /// let config = CJFakeConfig::default();
 /// let model = generate_model(config, Some(9));
@@ -137,7 +137,7 @@ pub mod prelude {
     pub use crate::{generate_string, generate_vec};
 }
 
-// TODO: use Coordinate instead of array (also implement in cjlib/cityjson serialization)
+// TODO: use Coordinate instead of array (also implement in cityjson_lib/cityjson serialization)
 // todo scj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exe/docker/server
 // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
@@ -163,8 +163,8 @@ type IndexType = u32;
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::cli::CJFakeConfig;
-/// use cjfake::generate_model;
+/// use cityjson_fake::cli::CJFakeConfig;
+/// use cityjson_fake::generate_model;
 ///
 /// let model = generate_model(CJFakeConfig::default(), Some(11));
 /// assert_eq!(model.cityobjects().len(), 1);
@@ -189,8 +189,8 @@ pub fn generate_model(
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::cli::CJFakeConfig;
-/// use cjfake::generate_string;
+/// use cityjson_fake::cli::CJFakeConfig;
+/// use cityjson_fake::generate_string;
 ///
 /// let json = generate_string(CJFakeConfig::default(), Some(12)).unwrap();
 /// assert!(json.starts_with('{'));
@@ -198,9 +198,9 @@ pub fn generate_model(
 ///
 /// # Errors
 ///
-/// Returns any serialization error from `cjlib`.
+/// Returns any serialization error from `cityjson_lib`.
 #[cfg(feature = "serialize")]
-pub fn generate_string(config: cli::CJFakeConfig, seed: Option<u64>) -> cjlib::Result<String>
+pub fn generate_string(config: cli::CJFakeConfig, seed: Option<u64>) -> cityjson_lib::Result<String>
 where
     u32: serde::Serialize,
 {
@@ -219,8 +219,8 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::cli::CJFakeConfig;
-/// use cjfake::generate_vec;
+/// use cityjson_fake::cli::CJFakeConfig;
+/// use cityjson_fake::generate_vec;
 ///
 /// let bytes = generate_vec(CJFakeConfig::default(), Some(13)).unwrap();
 /// assert!(bytes.starts_with(b"{"));
@@ -228,9 +228,9 @@ where
 ///
 /// # Errors
 ///
-/// Returns any serialization error from `cjlib`.
+/// Returns any serialization error from `cityjson_lib`.
 #[cfg(feature = "serialize")]
-pub fn generate_vec(config: cli::CJFakeConfig, seed: Option<u64>) -> cjlib::Result<Vec<u8>>
+pub fn generate_vec(config: cli::CJFakeConfig, seed: Option<u64>) -> cityjson_lib::Result<Vec<u8>>
 where
     u32: serde::Serialize,
 {

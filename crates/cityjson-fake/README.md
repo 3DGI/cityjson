@@ -1,4 +1,4 @@
-# cjfake
+# cityjson-fake
 
 Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 
@@ -13,7 +13,7 @@ Generate fake [CityJSON](https://www.cityjson.org/) data for testing.
 
 ## What It Does
 
-cjfake aims to:
+cityjson-fake aims to:
 
 - Generate valid CityJSON test data quickly and efficiently
 - Allow precise control over the model contents and structure
@@ -31,17 +31,17 @@ The output is schema-valid CityJSON, but the geometry is random and not intended
 
 ## Installation
 
-Add cjfake to your `Cargo.toml`:
+Add `cityjson-fake` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cjfake = "0.1.0"
+cityjson-fake = "0.3.1"
 ```
 
 Or install the CLI tool:
 
 ```bash
-cargo install cjfake
+cargo install cityjson-fake
 ```
 
 ## Usage
@@ -49,47 +49,47 @@ cargo install cjfake
 ### As a Library
 
 ```rust
-use cjfake::prelude::*;
+use cityjson_fake::prelude::*;
 
 // Create a basic CityJSON model
 let model: CityModel<u32, OwnedStringStorage> = CityModelBuilder::default ().build();
 assert_eq!(model.cityobjects().len(), 1);
 
 // Generate a serialized CityJSON document
-let json = cjfake::generate_string(CJFakeConfig::default (), Some(42)).unwrap();
+let json = cityjson_fake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
 assert!(json.starts_with('{'));
 ```
 
-See the [API documentation](https://docs.rs/cjfake) for more details.
+See the [API documentation](https://docs.rs/cityjson-fake) for more details.
 
 ### Command Line Interface
 
 The CLI exposes the same generation controls as the library API. The top-level command is:
 
 ```bash
-cjfake [OPTIONS]
+cityjson-fake [OPTIONS]
 ```
 
 Common examples:
 
 ```bash
 # Write a single document to stdout
-cjfake > output.city.json
+cityjson-fake > output.city.json
 
 # Restrict the generated CityObject types
-cjfake --allowed-types-cityobject Building,Bridge > output.city.json
+cityjson-fake --allowed-types-cityobject Building,Bridge > output.city.json
 
 # Write a single document to a file
-cjfake --output output.city.json
+cityjson-fake --output output.city.json
 
 # Write multiple documents into a directory
-cjfake --count 3 --output out/
+cityjson-fake --count 3 --output out/
 
 # Generate from a manifest-driven case catalog
-cjfake --manifest manifest.json --output out/
+cityjson-fake --manifest manifest.json --output out/
 
 # Validate a manifest without generating output
-cjfake --manifest manifest.json --check-manifest
+cityjson-fake --manifest manifest.json --check-manifest
 ```
 
 The available options are grouped below.
@@ -110,7 +110,7 @@ The available options are grouped below.
 
 Manifest mode accepts a JSON file whose cases flatten the normal `CJFakeConfig`
 fields at the top level. The manifest should validate against
-the bundled `cjfake-manifest.schema.json` schema:
+the bundled `cityjson-fake-manifest.schema.json` schema:
 
 ```json
 {
@@ -128,24 +128,24 @@ the bundled `cjfake-manifest.schema.json` schema:
 ```
 
 When `--manifest` is present, the manifest supplies the generation config.
-If `--schema` is not provided, `cjfake` uses the bundled schema.
+If `--schema` is not provided, `cityjson-fake` uses the bundled schema.
 Use `--schema` to validate against a different copy, and `--check-manifest`
 to validate and exit without generating output.
 
 With multiple cases, `--output` must name a directory and each case is written
 as `<id>.city.json` unless the case defines its own output path.
 
-Use `cjfake --help` for the exact defaults and the full clap-generated help text.
+Use `cityjson-fake --help` for the exact defaults and the full clap-generated help text.
 
 ## API Shape
 
 The easiest entry points are:
 
-- `cjfake::generate_model(config, seed)` for a `CityModel`
-- `cjfake::generate_string(config, seed)` for a serialized CityJSON string
-- `cjfake::generate_vec(config, seed)` for UTF-8 encoded bytes
-- `cjfake::manifest::load_manifest(path)` for raw manifest loading
-- `cjfake::manifest::load_manifest_validated(path, schema)` when you want
+- `cityjson_fake::generate_model(config, seed)` for a `CityModel`
+- `cityjson_fake::generate_string(config, seed)` for a serialized CityJSON string
+- `cityjson_fake::generate_vec(config, seed)` for UTF-8 encoded bytes
+- `cityjson_fake::manifest::load_manifest(path)` for raw manifest loading
+- `cityjson_fake::manifest::load_manifest_validated(path, schema)` when you want
   schema validation before generation
 - `CityModelBuilder` when you need fine-grained control over generation
 

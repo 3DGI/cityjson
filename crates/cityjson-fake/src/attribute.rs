@@ -1,7 +1,7 @@
 //! Attribute generation helpers.
 //!
 //! ```rust
-//! use cjfake::attribute::AttributesBuilder;
+//! use cityjson_fake::attribute::AttributesBuilder;
 //!
 //! let attributes = AttributesBuilder::new().build();
 //! assert!(attributes.is_empty());
@@ -20,7 +20,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::attribute::AttributesBuilder;
+/// use cityjson_fake::attribute::AttributesBuilder;
 ///
 /// let attributes = AttributesBuilder::new().build();
 /// assert!(attributes.is_empty());
@@ -69,7 +69,7 @@ impl AttributesBuilder {
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::attribute::AttributesFaker;
+/// use cityjson_fake::attribute::AttributesFaker;
 /// use rand::SeedableRng;
 ///
 /// let faker = AttributesFaker::default();

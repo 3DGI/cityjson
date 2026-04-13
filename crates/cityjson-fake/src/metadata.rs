@@ -1,8 +1,8 @@
 //! Metadata generation helpers.
 //!
 //! ```rust
-//! use cjfake::metadata::MetadataBuilder;
-//! use cjfake::prelude::*;
+//! use cityjson_fake::metadata::MetadataBuilder;
+//! use cityjson_fake::prelude::*;
 //! use rand::SeedableRng;
 //! use cityjson::prelude::OwnedStringStorage;
 //!
@@ -37,7 +37,7 @@ use rand::Rng;
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 /// use rand::SeedableRng;
 ///
 /// let config = CJFakeConfig::default();
@@ -57,7 +57,7 @@ use rand::Rng;
 pub struct MetadataBuilder<'cmbuild, SS: StringStorage> {
     rng: &'cmbuild mut SmallRng,
     #[allow(dead_code)]
-    cjfake: &'cmbuild CJFakeConfig,
+    config: &'cmbuild CJFakeConfig,
     metadata: Metadata<SS>,
 }
 
@@ -77,10 +77,10 @@ impl<'cmbuild, SS: StringStorage> MetadataBuilder<'cmbuild, SS> {
     ///
     /// A new `MetadataBuilder` instance
     #[must_use]
-    pub fn new(cjfake_config: &'cmbuild CJFakeConfig, rng: &'cmbuild mut SmallRng) -> Self {
+    pub fn new(config: &'cmbuild CJFakeConfig, rng: &'cmbuild mut SmallRng) -> Self {
         MetadataBuilder {
             rng,
-            cjfake: cjfake_config,
+            config,
             metadata: Metadata::new(),
         }
     }

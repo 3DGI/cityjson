@@ -7,9 +7,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const DEFAULT_SCHEMA_FILENAME: &str = "cjfake-manifest.schema.json";
-pub const BUNDLED_SCHEMA_NAME: &str = "embedded cjfake manifest schema";
-pub const BUNDLED_SCHEMA_JSON: &str = include_str!("data/cjfake-manifest.schema.json");
+pub const DEFAULT_SCHEMA_FILENAME: &str = "cityjson-fake-manifest.schema.json";
+pub const BUNDLED_SCHEMA_NAME: &str = "embedded cityjson-fake manifest schema";
+pub const BUNDLED_SCHEMA_JSON: &str = include_str!("data/cityjson-fake-manifest.schema.json");
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -59,7 +59,8 @@ pub fn default_schema_path(manifest_path: impl AsRef<Path>) -> PathBuf {
         .join(DEFAULT_SCHEMA_FILENAME)
 }
 
-/// Return the bundled CJFake manifest schema.
+/// Return the bundled `CJFake` manifest schema.
+#[must_use]
 pub fn bundled_schema_json() -> &'static str {
     BUNDLED_SCHEMA_JSON
 }
@@ -167,7 +168,7 @@ fn validate_manifest_json(
         Err(error) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("manifest schema {} is invalid: {}", schema_name, error),
+                format!("manifest schema {schema_name} is invalid: {error}"),
             )
             .into());
         }
@@ -204,7 +205,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock before unix epoch")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("cjfake-{prefix}-{stamp}"));
+        let dir = std::env::temp_dir().join(format!("cityjson-fake-{prefix}-{stamp}"));
         fs::create_dir_all(&dir).expect("failed to create temp dir");
         dir
     }

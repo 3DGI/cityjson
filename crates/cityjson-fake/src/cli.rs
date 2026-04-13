@@ -1,7 +1,7 @@
-//! Command-line configuration for `cjfake`.
+//! Command-line configuration for `cityjson-fake`.
 //!
 //! ```rust
-//! use cjfake::cli::{CJFakeConfig, Cli};
+//! use cityjson_fake::cli::{CJFakeConfig, Cli};
 //!
 //! let config = CJFakeConfig::default();
 //! let cli = Cli {
@@ -531,7 +531,7 @@ pub struct Cli {
 
     /// Optional JSON Schema file used to validate `--manifest`.
     ///
-    /// When omitted, `cjfake` uses its bundled `cjfake-manifest.schema.json`.
+    /// When omitted, `cityjson-fake` uses its bundled `cityjson-fake-manifest.schema.json`.
     #[arg(long)]
     pub schema: Option<PathBuf>,
 
@@ -733,7 +733,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         if cli.check_manifest {
             match cli.schema.as_deref() {
                 Some(schema_path) => {
-                    crate::manifest::validate_manifest(&manifest_path, schema_path)?
+                    crate::manifest::validate_manifest(&manifest_path, schema_path)?;
                 }
                 None => crate::manifest::validate_manifest_with_bundled_schema(&manifest_path)?,
             }
@@ -822,7 +822,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(&output)?;
             for idx in 0..cli.count {
                 let json = crate::generate_string(config.clone(), seed)?;
-                let file_name = format!("cjfake-{idx:04}.city.json");
+                let file_name = format!("cityjson-fake-{idx:04}.city.json");
                 fs::write(output.join(file_name), json)?;
             }
         }
@@ -858,7 +858,7 @@ mod tests {
     #[test]
     #[allow(clippy::float_cmp)]
     fn test_cli_defaults() {
-        let cli = Cli::parse_from(["cjfake"]);
+        let cli = Cli::parse_from(["cityjson-fake"]);
         let config = cli.config;
 
         assert_eq!(config.seed, None);
@@ -907,7 +907,7 @@ mod tests {
     #[allow(clippy::float_cmp)]
     fn test_cli_argument_parsing() {
         let args = vec![
-            "cjfake",
+            "cityjson-fake",
             "--allowed-types-cityobject",
             "Building,Bridge",
             "--allowed-types-geometry",
@@ -1028,7 +1028,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be valid")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("cjfake-cli-{stamp}"));
+        let dir = std::env::temp_dir().join(format!("cityjson-fake-cli-{stamp}"));
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let output = dir.join("model.city.json");
 
@@ -1053,7 +1053,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be valid")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("cjfake-manifest-{stamp}"));
+        let dir = std::env::temp_dir().join(format!("cityjson-fake-manifest-{stamp}"));
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let manifest_path = dir.join("manifest.json");
 
@@ -1089,7 +1089,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be valid")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("cjfake-manifest-run-{stamp}"));
+        let dir = std::env::temp_dir().join(format!("cityjson-fake-manifest-run-{stamp}"));
         let output = dir.join("spec_complete_omnibus.city.json");
         fs::create_dir_all(&dir).expect("temp dir should be creatable");
         let manifest_path = dir.join("manifest.json");
@@ -1129,7 +1129,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be valid")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("cjfake-manifest-dir-{stamp}"));
+        let dir = std::env::temp_dir().join(format!("cityjson-fake-manifest-dir-{stamp}"));
         let output = dir.join("out");
         let schema_path = dir.join("schema.json");
         fs::create_dir_all(&dir).expect("temp dir should be creatable");

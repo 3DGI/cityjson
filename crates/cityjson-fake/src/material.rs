@@ -1,7 +1,7 @@
 //! Material generation helpers.
 //!
 //! ```rust
-//! use cjfake::material::MaterialBuilder;
+//! use cityjson_fake::material::MaterialBuilder;
 //! use cityjson::prelude::OwnedStringStorage;
 //!
 //! let material: cityjson::v2_0::Material<OwnedStringStorage> =
@@ -20,7 +20,7 @@ use rand::{Rng, SeedableRng};
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::material::RgbFaker;
+/// use cityjson_fake::material::RgbFaker;
 /// use fake::Dummy;
 /// use rand::SeedableRng;
 ///
@@ -44,7 +44,7 @@ impl Dummy<RgbFaker> for RGB {
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 ///
 /// let material: cityjson::v2_0::Material<OwnedStringStorage> = MaterialBuilder::default()
 ///     .name()

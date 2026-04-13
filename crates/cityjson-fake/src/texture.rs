@@ -1,7 +1,7 @@
 //! Texture generation helpers.
 //!
 //! ```rust
-//! use cjfake::texture::TextureBuilder;
+//! use cityjson_fake::texture::TextureBuilder;
 //!
 //! let texture = TextureBuilder::default().build();
 //! assert!(!texture.image().is_empty());
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 ///
 /// let texture: cityjson::v2_0::Texture<OwnedStringStorage> = TextureBuilder::default()
 ///     .image()

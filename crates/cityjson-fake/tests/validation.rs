@@ -1,7 +1,7 @@
 #[path = "common_lib/mod.rs"]
 mod common_lib;
 
-use cjfake::prelude::*;
+use cityjson_fake::prelude::*;
 
 fn build_and_validate(config: CJFakeConfig, test_name: &str) {
     let json = CityModelBuilder::<u32, OwnedStringStorage>::new(config, Some(42))

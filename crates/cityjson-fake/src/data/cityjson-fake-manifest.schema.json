@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/3DGI/cjfake/raw/main/src/data/cjfake-manifest.schema.json",
-  "title": "CJFake Generation Manifest",
+  "$id": "https://github.com/3DGI/cityjson-fake/raw/main/src/data/cityjson-fake-manifest.schema.json",
+  "title": "CityJSON Fake Generation Manifest",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "cases"],

@@ -1,8 +1,8 @@
 //! Vertex generation helpers.
 //!
 //! ```rust
-//! use cjfake::vertex::VerticesFaker;
-//! use cjfake::prelude::*;
+//! use cityjson_fake::vertex::VerticesFaker;
+//! use cityjson_fake::prelude::*;
 //! use fake::{Fake, Faker};
 //! use rand::SeedableRng;
 //! use cityjson::v2_0::{RealWorldCoordinate, Vertices};
@@ -24,13 +24,13 @@ use rand::Rng;
 ///
 /// # Examples
 /// ```rust
-/// use cjfake::prelude::*;
+/// use cityjson_fake::prelude::*;
 /// use fake::{Fake, Faker};
 /// use cityjson::v2_0::{Vertices, RealWorldCoordinate, VertexRef};
 /// use rand;
 ///
 /// // Example CJFakeConfig with arbitrary values
-/// let cjfake = CJFakeConfig {
+/// let config = CJFakeConfig {
 ///     vertices: VertexConfig {
 ///         min_coordinate: 0.0,
 ///         max_coordinate: 100.0,
@@ -41,19 +41,17 @@ use rand::Rng;
 ///     ..Default::default()
 /// };
 /// let mut rng = rand::rng();
-/// let vertices: Vertices<u32, RealWorldCoordinate> = VerticesFaker::new(&cjfake).fake_with_rng(&mut rng);
+/// let vertices: Vertices<u32, RealWorldCoordinate> = VerticesFaker::new(&config).fake_with_rng(&mut rng);
 /// assert!(vertices.len() >= 3 && vertices.len() <= 5);
 /// ```
 pub struct VerticesFaker<'cmbuild> {
-    cjfake: &'cmbuild CJFakeConfig,
+    config: &'cmbuild CJFakeConfig,
 }
 
 impl<'cmbuild> VerticesFaker<'cmbuild> {
     #[must_use]
-    pub fn new(cjfake_config: &'cmbuild CJFakeConfig) -> Self {
-        Self {
-            cjfake: cjfake_config,
-        }
+    pub fn new(config: &'cmbuild CJFakeConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -62,7 +60,7 @@ impl<'cmbuild> VerticesFaker<'cmbuild> {
 /// # Examples
 ///
 /// ```rust
-/// use cjfake::vertex::RealWorldCoordinateFaker;
+/// use cityjson_fake::vertex::RealWorldCoordinateFaker;
 /// use fake::Dummy;
 /// use rand::SeedableRng;
 ///
@@ -89,11 +87,11 @@ impl RealWorldCoordinateFaker {
 impl<VR: VertexRef> Dummy<VerticesFaker<'_>> for Vertices<VR, RealWorldCoordinate> {
     fn dummy_with_rng<R: Rng + ?Sized>(config: &VerticesFaker, rng: &mut R) -> Self {
         let cf = RealWorldCoordinateFaker {
-            min: config.cjfake.vertices.min_coordinate,
-            max: config.cjfake.vertices.max_coordinate,
+            min: config.config.vertices.min_coordinate,
+            max: config.config.vertices.max_coordinate,
         };
         let nr_vertices = get_nr_items(
-            config.cjfake.vertices.min_vertices..=config.cjfake.vertices.max_vertices,
+            config.config.vertices.min_vertices..=config.config.vertices.max_vertices,
             rng,
         );
         let coords: Vec<RealWorldCoordinate> = (cf, nr_vertices).fake_with_rng(rng);
