@@ -2,6 +2,7 @@
 mod shared_corpus;
 
 use cityarrow::{ModelDecoder, ModelEncoder};
+use cityjson::CityModelType;
 
 macro_rules! conformance_roundtrip_tests {
     ($assert_fn:ident; $($case_id:ident),+ $(,)?) => {
@@ -16,6 +17,14 @@ macro_rules! conformance_roundtrip_tests {
 
 fn assert_arrow_roundtrip(case_id: &str) {
     let case = shared_corpus::load_named_conformance_case(case_id);
+    let expected_root_id = (case_id == "cityjsonfeature_minimal")
+        .then(|| {
+            case.model
+                .id()
+                .and_then(|handle| case.model.cityobjects().get(handle))
+                .map(|cityobject| cityobject.id().to_string())
+        })
+        .flatten();
     let mut bytes = Vec::new();
 
     ModelEncoder
@@ -28,6 +37,18 @@ fn assert_arrow_roundtrip(case_id: &str) {
     let expected = shared_corpus::normalized_json(&case.model);
     let actual = shared_corpus::normalized_json(&decoded);
     assert_eq!(actual, expected, "{case_id}: roundtrip JSON mismatch");
+
+    if case_id == "cityjsonfeature_minimal" {
+        assert_eq!(decoded.type_citymodel(), CityModelType::CityJSONFeature);
+        assert_eq!(
+            decoded
+                .id()
+                .and_then(|handle| decoded.cityobjects().get(handle))
+                .map(|cityobject| cityobject.id().to_string()),
+            expected_root_id
+        );
+        assert!(decoded.extra().and_then(|extra| extra.get("id")).is_none());
+    }
 }
 
 conformance_roundtrip_tests!(
