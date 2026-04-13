@@ -20,7 +20,6 @@ static CORRECTNESS_CASES: LazyLock<BTreeMap<String, CorrectnessCase>> =
     LazyLock::new(load_correctness_cases);
 
 pub(crate) struct PreparedCorrectnessCase {
-    pub(crate) id: String,
     pub(crate) model: OwnedCityModel,
 }
 
@@ -84,10 +83,7 @@ impl CorrectnessCase {
         let model = from_str_owned(&input)
             .unwrap_or_else(|err| panic!("failed to parse {}: {err}", source.display()));
 
-        PreparedCorrectnessCase {
-            id: self.id.clone(),
-            model,
-        }
+        PreparedCorrectnessCase { model }
     }
 }
 
@@ -98,14 +94,6 @@ pub(crate) fn load_named_conformance_case(case_id: &str) -> PreparedCorrectnessC
         "correctness case '{case_id}' is not a CityJSON 2.0 conformance fixture",
     );
     case.prepare()
-}
-
-pub(crate) fn load_conformance_cases() -> Vec<PreparedCorrectnessCase> {
-    CORRECTNESS_CASES
-        .values()
-        .filter(|case| case.is_conformance_case())
-        .map(CorrectnessCase::prepare)
-        .collect()
 }
 
 pub(crate) fn normalized_json(model: &OwnedCityModel) -> JsonValue {
