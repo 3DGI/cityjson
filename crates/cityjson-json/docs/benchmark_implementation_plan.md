@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep the `serde_cityjson` benchmark suite small, deterministic, and fully
+Keep the `cityjson-json` benchmark suite small, deterministic, and fully
 driven by the shared `cityjson-benchmarks` repository.
 
 The benchmark harness should:
@@ -43,8 +43,8 @@ The harness should:
 
 - prepare input outside the timed closure
 - use `Criterion` throughput reporting for every benchmark group
-- benchmark `serde_cityjson` against `serde_json::Value` on the read side
-- benchmark `serde_cityjson` against `serde_json::to_string` on the write side
+  - benchmark `cityjson-json` against `serde_json::Value` on the read side
+  - benchmark `cityjson-json` against `serde_json::to_string` on the write side
 - avoid measuring fixture generation
 
 ## Reporting

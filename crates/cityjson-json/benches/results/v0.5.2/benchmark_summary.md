@@ -4,7 +4,7 @@ Generated from Criterion results.
 
 ### Read Benchmarks
 
-| Case | Description | serde_cityjson | serde_json::Value | Factor |
+| Case | Description | cityjson-json | serde_json::Value | Factor |
 | --- | --- | --- | --- | --- |
 | 3D Basisvoorziening | Large real-world dataset dominated by geometry flattening and vertex import | owned 847.122 ms (440.4 MiB/s) | 1.328 s (280.9 MiB/s) | 0.64x |
 | 3DBAG | Real-world medium-size dataset with two geometries per object and parent-child links | owned 35.206 ms (206.5 MiB/s); borrowed 34.153 ms (212.8 MiB/s) | 25.303 ms (287.3 MiB/s) | 1.39x |
@@ -17,7 +17,7 @@ Generated from Criterion results.
 
 ### Write Benchmarks
 
-| Case | Description | serde_cityjson | serde_json::to_string | Factor |
+| Case | Description | cityjson-json | serde_json::to_string | Factor |
 | --- | --- | --- | --- | --- |
 | 3D Basisvoorziening | Large real-world dataset dominated by geometry flattening and vertex import | as_json_to_value 646.119 ms (577.0 MiB/s); to_string 392.985 ms (948.6 MiB/s); to_string_validated 393.093 ms (948.4 MiB/s) | 471.668 ms (790.4 MiB/s) | 0.83x |
 | 3DBAG | Real-world medium-size dataset with two geometries per object and parent-child links | as_json_to_value 18.268 ms (383.9 MiB/s); to_string 9.807 ms (715.2 MiB/s); to_string_validated 9.831 ms (713.5 MiB/s) | 9.547 ms (734.7 MiB/s) | 1.03x |

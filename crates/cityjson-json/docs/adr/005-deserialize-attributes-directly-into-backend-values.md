@@ -134,7 +134,7 @@ In other words, on very large regular geometry payloads, the normalized
 - about `24.5` attributes per object
 - mostly `Solid`
 
-That means the fixed semantic work in `serde_cityjson` matters much more:
+That means the fixed semantic work in `cityjson-json` matters much more:
 
 - direct attribute deserialization still builds backend `Attributes<SS>`
 - relation resolution still runs after object import
@@ -142,5 +142,5 @@ That means the fixed semantic work in `serde_cityjson` matters much more:
 - `Solid` boundaries are deeper than `MultiSurface` boundaries
 
 For a small file, `serde_json::Value` can remain faster simply because building
-a generic JSON tree is cheap enough, while `serde_cityjson` still performs the
+a generic JSON tree is cheap enough, while `cityjson-json` still performs the
 extra domain-specific normalization that the backend needs.

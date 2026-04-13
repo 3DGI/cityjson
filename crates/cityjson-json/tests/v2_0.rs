@@ -6,8 +6,7 @@ use cityjson::v2_0::{
     GeometryDraft, ImageType, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture,
     UVCoordinate,
 };
-use common::*;
-use serde_cityjson::{
+use cityjson_json::{
     from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
     read_feature_stream, to_string,
     v2_0::{
@@ -16,6 +15,7 @@ use serde_cityjson::{
         FeatureObject, FeatureParts,
     },
 };
+use common::*;
 
 mod common;
 
@@ -364,7 +364,7 @@ fn strict_feature_stream_reads_self_contained_models() {
 
     let mut models = read_feature_stream(std::io::Cursor::new(input))
         .unwrap()
-        .collect::<serde_cityjson::Result<Vec<_>>>()
+        .collect::<cityjson_json::Result<Vec<_>>>()
         .unwrap();
     assert_eq!(models.len(), 1);
 
@@ -441,7 +441,7 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
     .to_string();
     let base_root = from_str_owned(&base_input).unwrap();
     let feature =
-        serde_cityjson::from_feature_str_owned_with_base(&feature_input, &base_input).unwrap();
+        cityjson_json::from_feature_str_owned_with_base(&feature_input, &base_input).unwrap();
     let mut transform = cityjson::v2_0::Transform::new();
     transform.set_scale([0.5, 0.5, 1.0]);
     transform.set_translate([10.0, 20.0, 30.0]);
@@ -488,7 +488,7 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
 
     let models = read_feature_stream(std::io::Cursor::new(output))
         .unwrap()
-        .collect::<serde_cityjson::Result<Vec<_>>>()
+        .collect::<cityjson_json::Result<Vec<_>>>()
         .unwrap();
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].vertices().len(), 2);
@@ -517,7 +517,7 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
         "vertices": []
     })
     .to_string();
-    let feature_a = serde_cityjson::from_feature_str_owned_with_base(
+    let feature_a = cityjson_json::from_feature_str_owned_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "feature-a",
@@ -536,7 +536,7 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
         &base_input,
     )
     .unwrap();
-    let feature_b = serde_cityjson::from_feature_str_owned_with_base(
+    let feature_b = cityjson_json::from_feature_str_owned_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "feature-b",

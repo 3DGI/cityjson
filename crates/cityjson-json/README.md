@@ -1,11 +1,11 @@
-# serde_cityjson
+# cityjson-json
 
-`serde_cityjson` is a CityJSON 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of CityJSON documents with both owned and borrowed string storage options.
+`cityjson-json` is a CityJSON 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of CityJSON documents with both owned and borrowed string storage options.
 
 ## Installation
 
 ```shell
-cargo add serde_cityjson
+cargo add cityjson-json
 ```
 
 ## Getting Started
@@ -13,8 +13,8 @@ cargo add serde_cityjson
 ### Imports
 
 ```rust
-use serde_cityjson::{from_str_owned, from_str_borrowed, to_string, to_string_validated};
-use serde_cityjson::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
+use cityjson_json::{from_str_owned, from_str_borrowed, to_string, to_string_validated};
+use cityjson_json::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
 ```
 
 ### Owned Deserialization
@@ -22,7 +22,7 @@ use serde_cityjson::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
 For simple use cases, deserialize into an owned model:
 
 ```rust
-use serde_cityjson::from_str_owned;
+use cityjson_json::from_str_owned;
 
 let json_str = r#"{
   "type": "CityJSON",
@@ -39,7 +39,7 @@ let model = from_str_owned(json_str)?;
 For performance-critical applications, use borrowed deserialization to avoid allocations:
 
 ```rust
-use serde_cityjson::from_str_borrowed;
+use cityjson_json::from_str_borrowed;
 
 let json_str = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 let model = from_str_borrowed(json_str)?;
@@ -51,7 +51,7 @@ let model = from_str_borrowed(json_str)?;
 Serialize models back to JSON:
 
 ```rust
-use serde_cityjson::to_string;
+use cityjson_json::to_string;
 
 let json_output = to_string(&model)?;
 ```
@@ -59,7 +59,7 @@ let json_output = to_string(&model)?;
 For validated serialization (checks default theme references):
 
 ```rust
-use serde_cityjson::to_string_validated;
+use cityjson_json::to_string_validated;
 
 let json_output = to_string_validated(&model)?;
 ```
@@ -121,17 +121,17 @@ cargo test --test v2_0
 The corpus-backed correctness tests read fixture IDs from the shared
 `cityjson-benchmarks` checkout at
 `../cityjson-benchmarks/artifacts/correctness-index.json` by default. Override
-the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
-`SERDE_CITYJSON_CORRECTNESS_INDEX` if your checkout lives elsewhere.
+the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
+`CITYJSON_JSON_CORRECTNESS_INDEX` if your checkout lives elsewhere.
 
 ### Running Benchmarks
 
 The benchmark corpus lives in the shared `cityjson-benchmarks` repository.
-`serde_cityjson` benchmarks the CityJSON artifacts listed in each workload's
+`cityjson-json` benchmarks the CityJSON artifacts listed in each workload's
 `artifacts[]` array and reads the shared benchmark index from
 `../cityjson-benchmarks/artifacts/benchmark-index.json` by default. Override
-the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
-`SERDE_CITYJSON_BENCHMARK_INDEX` if your checkout lives elsewhere.
+the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
+`CITYJSON_JSON_BENCHMARK_INDEX` if your checkout lives elsewhere.
 
 ```bash
 just bench-read
@@ -158,7 +158,7 @@ Licensed under either:
 at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
-serde_cityjson by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+cityjson-json by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
 without additional terms or conditions.
 
 ## Use of AI in this project

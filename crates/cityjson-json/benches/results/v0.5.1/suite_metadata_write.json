@@ -6,9 +6,9 @@
       "description": "Real-world medium-size dataset with two geometries per object and parent-child links",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 7354602,
-        "serde_cityjson/to_string": 7354602,
-        "serde_cityjson/to_string_validated": 7354602,
+        "cityjson-json/as_json_to_value": 7354602,
+        "cityjson-json/to_string": 7354602,
+        "cityjson-json/to_string_validated": 7354602,
         "serde_json::to_string": 7354602
       }
     },
@@ -17,9 +17,9 @@
       "description": "Large real-world dataset dominated by geometry flattening and vertex import",
       "borrowed": false,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 390914053,
-        "serde_cityjson/to_string": 390914053,
-        "serde_cityjson/to_string_validated": 390914053,
+        "cityjson-json/as_json_to_value": 390914053,
+        "cityjson-json/to_string": 390914053,
+        "cityjson-json/to_string_validated": 390914053,
         "serde_json::to_string": 390914053
       }
     },
@@ -28,9 +28,9 @@
       "description": "Large MultiSurface payload with no relation graph or attribute tree",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 13935257,
-        "serde_cityjson/to_string": 13935257,
-        "serde_cityjson/to_string_validated": 13935257,
+        "cityjson-json/as_json_to_value": 13935257,
+        "cityjson-json/to_string": 13935257,
+        "cityjson-json/to_string_validated": 13935257,
         "serde_json::to_string": 13935257
       }
     },
@@ -39,9 +39,9 @@
       "description": "Large vertex pool with very little object-level normalization",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 749073,
-        "serde_cityjson/to_string": 749073,
-        "serde_cityjson/to_string_validated": 749073,
+        "cityjson-json/as_json_to_value": 749073,
+        "cityjson-json/to_string": 749073,
+        "cityjson-json/to_string_validated": 749073,
         "serde_json::to_string": 749073
       }
     },
@@ -50,9 +50,9 @@
       "description": "Deep nested attributes with minimal geometry work",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 5839716,
-        "serde_cityjson/to_string": 5839716,
-        "serde_cityjson/to_string_validated": 5839716,
+        "cityjson-json/as_json_to_value": 5839716,
+        "cityjson-json/to_string": 5839716,
+        "cityjson-json/to_string_validated": 5839716,
         "serde_json::to_string": 5839716
       }
     },
@@ -61,9 +61,9 @@
       "description": "Dense parent-child graph with small geometry payloads",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 2278339,
-        "serde_cityjson/to_string": 2278339,
-        "serde_cityjson/to_string_validated": 2278339,
+        "cityjson-json/as_json_to_value": 2278339,
+        "cityjson-json/to_string": 2278339,
+        "cityjson-json/to_string_validated": 2278339,
         "serde_json::to_string": 2278339
       }
     },
@@ -72,9 +72,9 @@
       "description": "Solid-heavy geometry that exercises nested boundary flattening",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 2772867,
-        "serde_cityjson/to_string": 2772867,
-        "serde_cityjson/to_string_validated": 2772867,
+        "cityjson-json/as_json_to_value": 2772867,
+        "cityjson-json/to_string": 2772867,
+        "cityjson-json/to_string_validated": 2772867,
         "serde_json::to_string": 2772867
       }
     },
@@ -83,9 +83,9 @@
       "description": "Mixed geometry and normalization workload that is smaller but denser",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 3640295,
-        "serde_cityjson/to_string": 3640295,
-        "serde_cityjson/to_string_validated": 3640295,
+        "cityjson-json/as_json_to_value": 3640295,
+        "cityjson-json/to_string": 3640295,
+        "cityjson-json/to_string_validated": 3640295,
         "serde_json::to_string": 3640295
       }
     },
@@ -94,9 +94,9 @@
       "description": "Serializer-heavy case with materials, textures, templates, and semantics",
       "borrowed": true,
       "benchmark_bytes": {
-        "serde_cityjson/as_json_to_value": 1653911,
-        "serde_cityjson/to_string": 1653911,
-        "serde_cityjson/to_string_validated": 1653911,
+        "cityjson-json/as_json_to_value": 1653911,
+        "cityjson-json/to_string": 1653911,
+        "cityjson-json/to_string_validated": 1653911,
         "serde_json::to_string": 1653911
       }
     }

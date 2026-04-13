@@ -1,5 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! `serde_cityjson` is a [`cityjson::CityJSON`] v2.0 serde adapter around [`cityjson`].
+//! `cityjson-json` is a [`cityjson::CityJSON`] v2.0 serde adapter around [`cityjson`].
 
 mod de;
 pub mod errors;

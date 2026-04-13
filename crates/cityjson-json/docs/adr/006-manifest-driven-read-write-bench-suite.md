@@ -36,12 +36,12 @@ The benchmark suite was restructured around a manifest-driven catalog plus two
 separate Criterion entrypoints:
 
 1. `benches/read.rs` measures deserialization with:
-   - `serde_cityjson::from_str_owned`
-   - `serde_cityjson::from_str_borrowed` where valid
+   - `cityjson-json::from_str_owned`
+   - `cityjson-json::from_str_borrowed` where valid
    - `serde_json::Value` as the baseline
 2. `benches/write.rs` measures serialization with:
-   - `serde_cityjson::to_string`
-   - `serde_cityjson::to_string_validated`
+   - `cityjson-json::to_string`
+   - `cityjson-json::to_string_validated`
    - `serde_json::to_string` as the baseline
 
 The shared benchmark index in
@@ -54,7 +54,7 @@ benchmark workload cases. It declares:
 - whether the case came from a generated or acquired source
 
 The benchmark harness reads those files directly. Synthetic cases are already
-materialized by the shared corpus repo, so `serde_cityjson` no longer needs a
+materialized by the shared corpus repo, so `cityjson-json` no longer needs a
 local `cjfake` generation step.
 
 The shared benchmark module prepares data outside the timed closure and writes

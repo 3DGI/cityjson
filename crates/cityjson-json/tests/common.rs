@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use serde_json::Value;
 
-use serde_cityjson::{from_str_owned, to_string};
+use cityjson_json::{from_str_owned, to_string};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
@@ -137,7 +137,7 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessCase> {
 }
 
 fn correctness_index_path() -> PathBuf {
-    let path = env::var_os("SERDE_CITYJSON_CORRECTNESS_INDEX").map_or_else(
+    let path = env::var_os("CITYJSON_JSON_CORRECTNESS_INDEX").map_or_else(
         || shared_corpus_root().join(DEFAULT_CORRECTNESS_INDEX_PATH),
         PathBuf::from,
     );
@@ -150,7 +150,7 @@ fn correctness_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT").map_or_else(
+    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
         PathBuf::from,
     )

@@ -1,5 +1,5 @@
 [package]
-name = "serde_cityjson"
+name = "cityjson-json"
 version = "0.6.0"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 categories = ["data-structures", "science::geo", "encoding"]
@@ -7,7 +7,7 @@ keywords = ["cityjson", "serde", "json", "geospatial", "3d"]
 edition = "2021"
 description = "Serde adapter for CityJSON 2.0, providing (de)serialization on top of the `cityjson` crate."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/3DGI/serde_cityjson"
+repository = "https://github.com/balazsdukai/cityjson-json"
 exclude = ["benches/", "tests/", "docs/", ".github/", "tools/", "resources/", "justfile"]
 
 [package.metadata.docs.rs]
@@ -15,7 +15,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
-name = "serde_cityjson"
+name = "cityjson_json"
 path = "src/lib.rs"
 
 [dependencies]

@@ -6,8 +6,8 @@ use std::time::Duration;
 use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
 
 use common::{
-    write_cases, write_write_suite_metadata, WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE,
-    WRITE_BENCH_SERDE_CITYJSON_TO_STRING, WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED,
+    write_cases, write_write_suite_metadata, WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE,
+    WRITE_BENCH_CITYJSON_JSON_TO_STRING, WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED,
     WRITE_BENCH_SERDE_JSON_TO_STRING,
 };
 
@@ -30,29 +30,29 @@ fn bench_write(c: &mut Criterion) {
         configure_group(&mut group);
 
         group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE),
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE),
         ));
-        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE, |b| {
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE, |b| {
             b.iter_with_large_drop(|| {
-                serde_json::to_value(serde_cityjson::as_json(black_box(&prepared.model))).unwrap()
+                serde_json::to_value(cityjson_json::as_json(black_box(&prepared.model))).unwrap()
             });
         });
 
         group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_TO_STRING),
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_STRING),
         ));
-        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_TO_STRING, |b| {
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING, |b| {
             b.iter_with_large_drop(|| {
-                serde_cityjson::to_string(black_box(&prepared.model)).unwrap()
+                cityjson_json::to_string(black_box(&prepared.model)).unwrap()
             });
         });
 
         group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED),
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED),
         ));
-        group.bench_function(WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED, |b| {
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED, |b| {
             b.iter_with_large_drop(|| {
-                serde_cityjson::to_string_validated(black_box(&prepared.model)).unwrap()
+                cityjson_json::to_string_validated(black_box(&prepared.model)).unwrap()
             });
         });
 
