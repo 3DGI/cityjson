@@ -6,6 +6,10 @@ _profile_dir := "./profiling" / datetime("%Y-%m-%d") + "_" + _git_ref
 _default:
     just --list
 
+# Run cargo clean
+clean:
+    cargo clean
+
 # Run cargo check on all targets and features
 check:
     cargo check --all-targets --all-features
