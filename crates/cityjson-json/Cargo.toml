@@ -1,9 +1,18 @@
 [package]
 name = "serde_cityjson"
 version = "0.6.0"
+authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
+categories = ["data-structures", "science::geo", "encoding"]
+keywords = ["cityjson", "serde", "json", "geospatial", "3d"]
 edition = "2021"
+description = "Serde adapter for CityJSON 2.0, providing (de)serialization on top of the `cityjson` crate."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/serde_cityjson"
+exclude = ["benches/", "tests/", "docs/", ".github/", "tools/", "resources/", "justfile"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 name = "serde_cityjson"
@@ -27,7 +36,3 @@ harness = false
 [[bench]]
 name = "write"
 harness = false
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

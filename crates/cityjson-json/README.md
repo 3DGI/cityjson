@@ -1,21 +1,20 @@
 # serde_cityjson
 
-`serde_cityjson` is a CityJSON v2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of CityJSON documents with both owned and borrowed string storage options.
+`serde_cityjson` is a CityJSON 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of CityJSON documents with both owned and borrowed string storage options.
 
-## Features
+## Installation
 
-- **v2.0 Support**: Full support for CityJSON v2.0 specification
-- **Flexible Memory Models**: Choose between owned deserialization (`from_str_owned`) for simplicity or borrowed deserialization (`from_str_borrowed`) for performance
-- **Efficient Serialization**: Convert models back to JSON with optional validation
-- **Zero-Copy Parsing**: Borrowed deserialization maintains references to the original input
+```shell
+cargo add serde_cityjson
+```
 
-## Quick Start
+## Getting Started
 
-Add `serde_cityjson` to your `Cargo.toml`:
+### Imports
 
-```toml
-[dependencies]
-serde_cityjson = "0.4"
+```rust
+use serde_cityjson::{from_str_owned, from_str_borrowed, to_string, to_string_validated};
+use serde_cityjson::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
 ```
 
 ### Owned Deserialization
@@ -65,35 +64,50 @@ use serde_cityjson::to_string_validated;
 let json_output = to_string_validated(&model)?;
 ```
 
-## API Overview
-
-### Core Functions
-
-- **`from_str_owned(input: &str) -> Result<OwnedCityModel>`**: Parse JSON into an owned model. Use this when you need simple, self-contained data structures.
-
-- **`from_str_borrowed(input: &str) -> Result<BorrowedCityModel>`**: Parse JSON into a borrowed model. Use this for performance-critical code where the model lifetime doesn't exceed the input string.
-
-- **`to_string(model: &SerializableCityModel) -> Result<String>`**: Serialize to JSON. Fast path that doesn't validate theme references.
-
-- **`to_string_validated(model: &SerializableCityModel) -> Result<String>`**: Serialize to JSON with validation. Ensures all default theme names reference existing themes.
-
-### Model Types
-
-- **`OwnedCityModel`**: A CityJSON model with owned String storage. Self-contained and doesn't depend on external lifetimes.
-
-- **`BorrowedCityModel`**: A CityJSON model with borrowed string references. More memory efficient but requires careful lifetime management.
-
-Both types implement the same interface through the underlying `cityjson::v2_0::CityModel`.
-
 ## Validation Policy
 
 The library provides two serialization paths to balance performance and safety:
 
-- **`to_string()`**: The fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
-
-- **`to_string_validated()`**: The strict path. Validates default theme references before serialization to ensure document consistency.
+- **`to_string()`**: Fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
+- **`to_string_validated()`**: Strict path. Validates default theme references before serialization to ensure document consistency.
 
 Use `to_string_validated()` when you need guaranteed valid CityJSON output, especially when serializing user-provided models.
+
+## Documentation
+
+- [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
+- [`cityjson` crate documentation](https://docs.rs/cityjson/)
+
+todo: link to docs.rs
+
+## Library Layout
+
+| Module   | Contents                                                                                       |
+|----------|------------------------------------------------------------------------------------------------|
+| `v2_0`   | CityJSON 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
+| `errors` | `Error` and `Result` types surfaced by the adapter                                             |
+| (root)   | Convenience re-exports: `from_str_*`, `to_string*`, `to_vec*`, `to_writer*`, model types       |
+
+Core types re-exported from `cityjson`:
+
+- **`OwnedCityModel`**: A CityJSON model with owned `String` storage. Self-contained and doesn't depend on external lifetimes.
+- **`BorrowedCityModel`**: A CityJSON model with borrowed string references. More memory efficient but requires careful lifetime management.
+
+## Design
+
+todo: link to design docs
+
+## API Stability
+
+This crate follows semantic versioning (`MAJOR.MINOR.PATCH`):
+
+- `MAJOR`: incompatible API changes
+- `MINOR`: backwards-compatible feature additions
+- `PATCH`: backwards-compatible fixes
+
+## Minimum Rust Version
+
+The minimum supported rustc version is `1.93.0`.
 
 ## Development
 
@@ -112,7 +126,7 @@ the shared root with `SERDE_CITYJSON_SHARED_CORPUS_ROOT` or the index path with
 
 ### Running Benchmarks
 
-The benchmark corpus now lives in the shared `cityjson-benchmarks` repository.
+The benchmark corpus lives in the shared `cityjson-benchmarks` repository.
 `serde_cityjson` benchmarks the CityJSON artifacts listed in each workload's
 `artifacts[]` array and reads the shared benchmark index from
 `../cityjson-benchmarks/artifacts/benchmark-index.json` by default. Override
@@ -125,25 +139,31 @@ just bench-write
 just bench-report
 ```
 
-The benchmarks use Criterion. Read throughput is based on input bytes and write
-throughput is based on output bytes.
+The benchmarks use Criterion. Read throughput is based on input bytes; write
+throughput is based on output bytes. README benchmark tables are generated
+from the shared corpus and should be refreshed from current benchmark output,
+not edited by hand.
 
-The README benchmark tables are now generated from the shared corpus and
-should be refreshed from current benchmark output, not edited by hand.
+## Contributing
 
-## Dependencies
-
-- **cityjson**: Core CityJSON v2.0 data structures and validation
-- **serde**: Serialization framework
-- **serde_json**: JSON parsing and generation
-- **serde_json_borrow**: Zero-copy JSON parsing for borrowed deserialization
+todo: add contributing guidelines
 
 ## License
 
-This crate is part of the serde-cityjson project.
+Licensed under either:
 
-## See Also
+- Apache License, Version 2.0 (`LICENSE-APACHE`)
+- MIT license (`LICENSE-MIT`)
 
-- [CityJSON Specification](https://www.cityjson.org/)
-- [cityjson-rs crate documentation](https://docs.rs/cityjson/)
-- [Shared corpus migration plan](docs/shared-corpus-migration-plan.md)
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
+serde_cityjson by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without additional terms or conditions.
+
+## Use of AI in this project
+
+This crate was originally developed without the use of AI.
+Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the (de)serialization strategies and borrowed-parsing paths.
+LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
+Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the CityJSON 2.0 specification.
