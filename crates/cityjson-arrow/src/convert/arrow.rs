@@ -250,7 +250,9 @@ pub(super) fn projected_map_from_array(
             row,
             geometry_handles,
         )?;
-        attributes.insert(field_spec.name.clone(), value);
+        if !matches!(value, AttributeValue::Null) {
+            attributes.insert(field_spec.name.clone(), value);
+        }
     }
     Ok(attributes)
 }
@@ -483,7 +485,9 @@ pub(super) fn projected_attributes_from_array(
             row,
             geometry_handles,
         )?;
-        attributes.insert(field_spec.name.clone(), value);
+        if !matches!(value, AttributeValue::Null) {
+            attributes.insert(field_spec.name.clone(), value);
+        }
     }
     Ok(attributes)
 }
@@ -1029,6 +1033,7 @@ pub(super) fn bind_semantic_columns<'a>(
     Ok(SemanticColumns {
         semantic_id: downcast_required::<UInt64Array>(batch, "semantic_id")?,
         semantic_type: downcast_required::<StringArray>(batch, "semantic_type")?,
+        parent_semantic_id: downcast_required::<UInt64Array>(batch, "parent_semantic_id")?,
         attributes: projection
             .semantic_attributes
             .as_ref()

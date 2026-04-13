@@ -787,6 +787,7 @@ struct CityObjectColumns<'a> {
 struct SemanticColumns<'a> {
     semantic_id: &'a UInt64Array,
     semantic_type: &'a StringArray,
+    parent_semantic_id: &'a UInt64Array,
     attributes: Option<&'a StructArray>,
 }
 

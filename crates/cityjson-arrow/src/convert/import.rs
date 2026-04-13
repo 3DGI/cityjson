@@ -546,6 +546,17 @@ fn import_semantics_batch(
         previous_id = Some(semantic_id);
         let mut semantic =
             OwnedSemantic::new(parse_semantic_type(columns.semantic_type.value(row)));
+        if !columns.parent_semantic_id.is_null(row) {
+            let parent_semantic_id = columns.parent_semantic_id.value(row);
+            let parent = *semantic_handle_by_id
+                .get(&parent_semantic_id)
+                .ok_or_else(|| {
+                    Error::Conversion(format!(
+                        "missing semantic {parent_semantic_id} for parent relation"
+                    ))
+                })?;
+            semantic.set_parent(parent);
+        }
         let projected = projected_attributes_from_array(
             projection.semantic_attributes.as_ref(),
             columns.attributes,
@@ -590,11 +601,6 @@ fn import_semantic_child_batch(batch: &RecordBatch, state: &mut ImportState) -> 
             .ok_or_else(|| Error::Conversion("semantic parent handle missing".to_string()))?
             .children_mut()
             .push(child);
-        state
-            .model
-            .get_semantic_mut(child)
-            .ok_or_else(|| Error::Conversion("semantic child handle missing".to_string()))?
-            .set_parent(parent);
         let _ = child_ordinal;
     }
     Ok(())

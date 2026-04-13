@@ -785,9 +785,14 @@ fn semantics_batch_from_model(
         .iter_semantics()
         .map(|(handle, _)| raw_id_from_handle(handle))
         .collect::<Vec<_>>();
+    let parent_semantic_id = model
+        .iter_semantics()
+        .map(|(_, semantic)| semantic.parent().map(raw_id_from_handle))
+        .collect::<Vec<_>>();
     let mut arrays: Vec<ArrayRef> = vec![
         Arc::new(UInt64Array::from(semantic_id)),
         Arc::new(StringArray::from(semantic_type)),
+        Arc::new(UInt64Array::from(parent_semantic_id)),
     ];
     if let Some(spec) = projection.semantic_attributes.as_ref() {
         let attrs = model

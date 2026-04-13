@@ -547,6 +547,7 @@ fn semantics_fields(layout: &ProjectionLayout) -> Vec<Field> {
     let mut fields = vec![
         Field::new("semantic_id", DataType::UInt64, false),
         Field::new("semantic_type", DataType::Utf8, false),
+        Field::new("parent_semantic_id", DataType::UInt64, true),
     ];
     if let Some(field) = projected_struct_field("attributes", layout.semantic_attributes.as_ref()) {
         fields.push(field);
