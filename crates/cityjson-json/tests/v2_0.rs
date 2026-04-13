@@ -734,6 +734,12 @@ conformance_roundtrip_tests!(
     cityobject_complete,
     cityobject_extended,
     cityobject_all_types,
+    coordinates_precision_ecef,
+    coordinates_precision_local,
+    coordinates_precision_stateplane,
+    coordinates_precision_utm,
+    coordinates_precision_wgs84,
+    coordinates_precision_worst,
     geometry_instance,
     geometry_material_solid,
     geometry_material_multisolid,
@@ -759,10 +765,6 @@ conformance_roundtrip_tests!(
     extension,
     spec_geometry_matrix,
 );
-
-// ---------------------------------------------------------------------------
-// Borrowed-mode mirrors: same fixtures, same assertions, borrowed storage
-// ---------------------------------------------------------------------------
 
 #[test]
 fn cityjson_fake_complete_deserialize_borrowed() {
