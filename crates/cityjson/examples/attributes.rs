@@ -38,15 +38,13 @@ fn main() -> Result<()> {
         OwnedAttributeValue::Unsigned(5),
     );
     // Bool
-    building.attributes_mut().insert(
-        "isMonument".to_string(),
-        OwnedAttributeValue::Bool(true),
-    );
+    building
+        .attributes_mut()
+        .insert("isMonument".to_string(), OwnedAttributeValue::Bool(true));
     // Null
-    building.attributes_mut().insert(
-        "demolitionDate".to_string(),
-        OwnedAttributeValue::Null,
-    );
+    building
+        .attributes_mut()
+        .insert("demolitionDate".to_string(), OwnedAttributeValue::Null);
     // Vec
     building.attributes_mut().insert(
         "alternateNames".to_string(),

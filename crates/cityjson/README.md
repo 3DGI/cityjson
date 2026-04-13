@@ -1,12 +1,11 @@
 # cityjson-rs
 
-`cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in
-Rust. The types map directly to the spec's object hierarchy: `CityModel` is the root object,
-`CityObject` is each entry in the `CityObjects` map, and `Geometry` covers all eight geometry
-types.
+`cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in Rust.
 
-JSON encoding and decoding, and upgrades from older `CityJSON` versions, are handled in the
-separate `serde_cityjson` crate.
+Serialization is implemented by downstream crates:
+- json: [cityjson-json]
+- arrow: [cityjson-arrow]
+- parquet: [cityjson-parquet]
 
 ## Installation
 
@@ -101,3 +100,10 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
 cityjson-rs by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
 without additional terms or conditions.
+
+## Use of AI in this project
+
+This crate was originally developed without the use of AI.
+Since then, it underwent multiple significant refactors and various LLM models (Claude, ChatGPT) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
+LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
+Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire CityJSON 2.0 specification.
