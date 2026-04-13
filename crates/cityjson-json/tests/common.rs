@@ -15,6 +15,7 @@ use serde_cityjson::{from_str_owned, to_string};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
+const CONFORMANCE_SCHEMA_VERSION: &str = "2.0";
 
 static CORRECTNESS_CASES: LazyLock<BTreeMap<String, CorrectnessCase>> =
     LazyLock::new(load_correctness_cases);
@@ -89,7 +90,7 @@ pub fn conformance_case_input(case_id: &str) -> String {
     );
     assert_eq!(
         case.cityjson_version.as_deref(),
-        Some("2.0"),
+        Some(CONFORMANCE_SCHEMA_VERSION),
         "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
     );
     read_to_string(case.input_path())
@@ -104,7 +105,7 @@ pub fn invalid_case_input(case_id: &str) -> String {
     );
     assert_eq!(
         case.cityjson_version.as_deref(),
-        Some("2.0"),
+        Some(CONFORMANCE_SCHEMA_VERSION),
         "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
     );
     read_to_string(case.input_path())
@@ -208,24 +209,20 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
 }
 
 fn cjfake_cargo_manifest() -> PathBuf {
-    env::var_os("CJFAKE_CARGO_MANIFEST")
-        .map(PathBuf::from)
-        .map_or_else(
-            || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cjfake/Cargo.toml"),
-            |path| path,
-        )
+    env::var_os("CJFAKE_CARGO_MANIFEST").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cjfake/Cargo.toml"),
+        PathBuf::from,
+    )
 }
 
 fn cjfake_manifest_schema() -> PathBuf {
-    env::var_os("CJFAKE_MANIFEST_SCHEMA")
-        .map(PathBuf::from)
-        .map_or_else(
-            || {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("../cjfake/src/data/cjfake-manifest.schema.json")
-            },
-            |path| path,
-        )
+    env::var_os("CJFAKE_MANIFEST_SCHEMA").map_or_else(
+        || {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../cjfake/src/data/cjfake-manifest.schema.json")
+        },
+        PathBuf::from,
+    )
 }
 
 /// # Panics

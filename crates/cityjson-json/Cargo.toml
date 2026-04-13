@@ -9,9 +9,6 @@ edition = "2021"
 name = "serde_cityjson"
 path = "src/lib.rs"
 
-[features]
-simd = []
-
 [dependencies]
 cityjson = { path = "../cityjson-rs" }
 derive_more = { version = "2.0.1", features = ["display", "add_assign", "deref", "deref_mut", "from", "into_iterator"] }

@@ -288,44 +288,6 @@ fn serialize_geometry_instance_keeps_float_sections() {
 }
 
 #[test]
-fn cityjson_fake_complete_smoke() {
-    let json_input = conformance_case_input("cityjson_fake_complete");
-    assert_eq_roundtrip(&json_input);
-}
-
-#[test]
-fn cityjson_fake_complete_deserialize() {
-    let json_input = conformance_case_input("cityjson_fake_complete");
-    let cm = from_str_owned(&json_input).unwrap();
-    assert!(!cm.vertices().is_empty());
-    assert!(cm.extensions().is_some());
-    assert!(cm.metadata().is_some());
-    assert!(!cm.cityobjects().is_empty());
-    assert!(
-        cm.material_count() > 0
-            || cm.texture_count() > 0
-            || cm.default_material_theme().is_some()
-            || cm.default_texture_theme().is_some()
-            || !cm.vertices_texture().is_empty()
-    );
-    assert!(cm.geometry_template_count() > 0);
-}
-
-#[test]
-fn cityjson_minimal_smoke() {
-    let json_input = conformance_case_input("cityjson_minimal");
-    let cm = from_str_owned(&json_input).unwrap();
-    assert!(cm.extra().is_none());
-    assert_eq_roundtrip(&json_input);
-}
-
-#[test]
-fn cityjsonfeature_minimal_smoke() {
-    let json_input = conformance_case_input("cityjsonfeature_minimal");
-    assert_eq_roundtrip(&json_input);
-}
-
-#[test]
 fn feature_constructor_rejects_full_documents() {
     let json_input = conformance_case_input("cityjson_minimal");
     let err = from_feature_str_owned(&json_input).unwrap_err();
@@ -767,7 +729,7 @@ conformance_roundtrip_tests!(
 );
 
 #[test]
-fn cityjson_fake_complete_deserialize_borrowed() {
+fn cityjson_fake_complete_borrowed() {
     let json_input = conformance_case_input("cityjson_fake_complete");
     let cm = from_str_borrowed(&json_input).unwrap();
     assert!(!cm.vertices().is_empty());
