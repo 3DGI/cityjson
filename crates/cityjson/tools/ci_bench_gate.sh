@@ -132,8 +132,9 @@ out.write_text(json.dumps(results, indent=2))
 print(f'  Wrote {len(results)} cachegrind results to {out}')
 " || echo "  Warning: cachegrind extraction failed"
 
-    unset CARGO_TARGET_DIR BENCH_MODE BENCH_SEED
+    unset CARGO_TARGET_DIR
 }
+
 
 echo "=== Running benchmarks on PR head ==="
 run_benchmarks "pr"
