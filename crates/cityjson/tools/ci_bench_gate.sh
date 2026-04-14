@@ -246,10 +246,7 @@ else:
     print("No regressions detected.")
     sys.exit(0)
 PYEOF
-
-if [ $? -ne 0 ]; then
-    REGRESSION_FOUND=1
-fi
+|| REGRESSION_FOUND=1
 
 if [ "$REGRESSION_FOUND" = "1" ]; then
     if [ "$ALLOW_REGRESSION" = "1" ]; then
