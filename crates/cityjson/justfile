@@ -50,6 +50,9 @@ miri:
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
 
+# Run all checks and tests
+ci: fmt lint check test coverage miri perf-check
+
 # ============================================================================
 # Benchmark & Profiling
 # ============================================================================
