@@ -9,11 +9,8 @@ use cityjson::v2_0::{
 use cityjson_json::{
     as_json, from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
     read_feature_stream,
-    v2_0::{
-        AutoTransformOptions, CityJSONSeqWriteOptions, FeatureObject, FeatureParts,
-        from_feature_parts_owned_with_base, write_cityjsonseq_auto_transform_refs,
-        write_cityjsonseq_with_transform_refs,
-    },
+    v2_0::{FeatureObject, FeatureParts, from_feature_parts_owned_with_base},
+    write_cityjsonseq,
 };
 use common::*;
 
@@ -459,14 +456,10 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
     transform.set_translate([10.0, 20.0, 30.0]);
 
     let mut output = Vec::new();
-    let report = write_cityjsonseq_with_transform_refs(
-        &mut output,
-        &base_root,
-        [&feature],
-        &transform,
-        CityJSONSeqWriteOptions::default(),
-    )
-    .unwrap();
+    let report = write_cityjsonseq(&base_root, [&feature])
+        .with_transform(&transform)
+        .write(&mut output)
+        .unwrap();
 
     assert_eq!(report.feature_count, 1);
     assert_eq!(report.cityobject_count, 1);
@@ -570,16 +563,10 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
     let base_root = from_str_owned(&base_input).unwrap();
 
     let mut output = Vec::new();
-    let report = write_cityjsonseq_auto_transform_refs(
-        &mut output,
-        &base_root,
-        [&feature_a, &feature_b],
-        AutoTransformOptions {
-            scale: [0.5, 1.0, 5.0],
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let report = write_cityjsonseq(&base_root, [&feature_a, &feature_b])
+        .auto_transform([0.5, 1.0, 5.0])
+        .write(&mut output)
+        .unwrap();
 
     assert_eq!(
         report.geographical_extent,
@@ -625,14 +612,10 @@ fn strict_cityjsonseq_writer_rejects_incompatible_root_state() {
     let base_root = from_str_owned(&base_input).unwrap();
     let feature = from_str_owned(&feature_input).unwrap();
 
-    let err = write_cityjsonseq_with_transform_refs(
-        Vec::new(),
-        &base_root,
-        [&feature],
-        &cityjson::v2_0::Transform::new(),
-        CityJSONSeqWriteOptions::default(),
-    )
-    .unwrap_err();
+    let err = write_cityjsonseq(&base_root, [&feature])
+        .with_transform(&cityjson::v2_0::Transform::new())
+        .write(Vec::new())
+        .unwrap_err();
     assert!(err.to_string().contains("incompatible root state"));
 }
 
@@ -687,14 +670,10 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
     .unwrap();
 
     let mut output = Vec::new();
-    write_cityjsonseq_with_transform_refs(
-        &mut output,
-        &base_root,
-        [&feature_a, &feature_b],
-        &cityjson::v2_0::Transform::new(),
-        CityJSONSeqWriteOptions::default(),
-    )
-    .unwrap();
+    write_cityjsonseq(&base_root, [&feature_a, &feature_b])
+        .with_transform(&cityjson::v2_0::Transform::new())
+        .write(&mut output)
+        .unwrap();
 
     let items = stream_items(&output);
     assert_eq!(items[1]["id"], "building-1");

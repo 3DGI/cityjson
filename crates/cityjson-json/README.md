@@ -97,7 +97,7 @@ todo: link to docs.rs
 |----------|------------------------------------------------------------------------------------------------|
 | `v2_0`   | `CityJSON` 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
 | `errors` | `Error` and `Result` types surfaced by the adapter                                             |
-| (root)   | Convenience re-exports: `from_str_*`, `as_json`, `to_string_feature`, model types              |
+| (root)   | Convenience re-exports: `from_str_*`, `as_json`, `write_cityjsonseq`, model types              |
 
 Core types re-exported from `cityjson`:
 
@@ -188,14 +188,13 @@ texture theme names reference themes that actually exist in the appearance
 section.
 
 **`CityJSONSeq` stream writing.**
-`write_cityjsonseq_with_transform_refs` and
-`write_cityjsonseq_auto_transform_refs` write a compliant newline-delimited
-stream. The first line is a `CityJSON` header serialized with
-`CityModelSerializeOptions` that suppresses city objects and vertices; each
-subsequent line is a `CityJSONFeature` serialized with options that suppress
-metadata, extensions, appearance, and geometry templates. The auto-transform
-variant computes the translate from the bounding box of all feature vertices
-and writes it as part of the header.
+`write_cityjsonseq(base_root, features)` returns a `CityJSONSeqWriter` builder.
+The first line is a `CityJSON` header serialized with `CityModelSerializeOptions`
+that suppresses city objects and vertices; each subsequent line is a
+`CityJSONFeature` serialized with options that suppress metadata, extensions,
+appearance, and geometry templates. By default the transform translation is
+derived from the bounding box of all feature vertices (`auto_transform`). Use
+`with_transform` to supply an explicit transform instead.
 
 ## API Stability
 
