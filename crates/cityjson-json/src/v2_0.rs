@@ -106,7 +106,7 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// ```
 /// use cityjson_json::from_feature_str;
 ///
-/// let json = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let json = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let model = from_feature_str(json)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
@@ -135,7 +135,7 @@ pub fn from_feature_str(input: &str) -> Result<OwnedCityModel> {
 /// use cityjson_json::from_feature_str_with_base;
 ///
 /// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
-/// let feature = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let feature = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let model = from_feature_str_with_base(feature, base)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
@@ -223,7 +223,7 @@ pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
 ///
 /// let seq = concat!(
 ///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
-///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
 /// for result in read_cityjsonseq(BufReader::new(seq.as_bytes()))? {
 ///     let _model = result?;
@@ -259,7 +259,7 @@ where
 ///
 /// let seq = concat!(
 ///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
-///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
 /// let model = merge_cityjsonseq(BufReader::new(seq.as_bytes()))?;
 /// # Ok::<(), cityjson_json::Error>(())
@@ -299,7 +299,7 @@ where
 /// use cityjson_json::{from_str_owned, from_feature_str, write_cityjsonseq};
 ///
 /// let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
-/// let feature_input = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let feature_input = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let base_root = from_str_owned(base_input)?;
 /// let feature = from_feature_str(feature_input)?;
 /// let mut output = Vec::new();

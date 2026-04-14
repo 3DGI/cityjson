@@ -397,7 +397,7 @@ fn strict_feature_stream_reads_self_contained_models() {
 fn strict_feature_stream_merges_into_one_document() {
     let input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
-{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart","parents":["feature-1"],"geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
+{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"Building","geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
 "#;
 
     let model = merge_cityjsonseq(std::io::Cursor::new(input)).unwrap();
@@ -546,7 +546,7 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
             "id": "feature-b",
             "CityObjects": {
                 "feature-b": {
-                    "type": "BuildingPart",
+                    "type": "Building",
                     "geometry": [{
                         "type": "MultiPoint",
                         "boundaries": [0]
@@ -620,26 +620,21 @@ fn strict_cityjsonseq_writer_rejects_incompatible_root_state() {
 
 #[test]
 fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
-    let base_root = from_str_owned(
-        &json!({
-            "type": "CityJSON",
-            "version": "2.0",
-            "metadata": {
-                "title": "base-root"
-            },
-            "CityObjects": {},
-            "vertices": []
-        })
-        .to_string(),
-    )
-    .unwrap();
-    let feature_a = from_feature_str(
+    let base_input = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "metadata": {
+            "title": "base-root"
+        },
+        "CityObjects": {},
+        "vertices": []
+    })
+    .to_string();
+    let base_root = from_str_owned(&base_input).unwrap();
+    let feature_a = cityjson_json::from_feature_str_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-1",
-            "metadata": {
-                "title": "base-root"
-            },
             "CityObjects": {
                 "building-1": {
                     "type": "Building"
@@ -648,23 +643,22 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
             "vertices": []
         })
         .to_string(),
+        &base_input,
     )
     .unwrap();
-    let feature_b = from_feature_str(
+    let feature_b = cityjson_json::from_feature_str_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-2",
-            "metadata": {
-                "title": "base-root"
-            },
             "CityObjects": {
                 "building-2": {
-                    "type": "BuildingPart"
+                    "type": "Building"
                 }
             },
             "vertices": []
         })
         .to_string(),
+        &base_input,
     )
     .unwrap();
 
