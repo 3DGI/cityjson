@@ -1,12 +1,22 @@
 # cityjson-rs
 
-`cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in
-Rust. The types map directly to the spec's object hierarchy: `CityModel` is the root object,
-`CityObject` is each entry in the `CityObjects` map, and `Geometry` covers all eight geometry
-types.
+`cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in Rust.
+This crate provides types and accessor methods for working with a flattened, columnar representation of the `CityJSON` data model.
+`cityjson-rs` is meant to be a core library for downstream specialized libraries that implement serialization, indexing, geometry processing, and other features.
 
-JSON encoding and decoding, and upgrades from older `CityJSON` versions, are handled in the
-separate `serde_cityjson` crate.
+## Overview of downstream crates in the cityjson ecosystem
+
+Serialization is implemented by:
+
+- json: [cityjson-json](https://github.com/3DGI/cityjson-json)
+- arrow: [cityjson-arrow](https://github.com/3DGI/cityjson-arrow)
+- parquet: [cityjson-parquet](https://github.com/3DGI/cityjson-arrow/tree/master/cityjson-parquet)
+
+For a higher-level library that integrates serialization, implements geometry processing, and other features into a single crate, see [cityjson-lib](https://github.com/3DGI/cityjson-lib).
+
+For generating fake, schema-valid data for any combination of the `CityJSON` specs, see [cityjson-fake](https://github.com/3DGI/cityjson-fake).
+
+For efficient indexing and querying individual `CityObjects` across multiple files, see [cityjson-index](https://github.com/3DGI/cityjson-index).
 
 ## Installation
 
@@ -24,8 +34,6 @@ use cityjson::prelude::*;  // handles, storage strategies, error types
 ```
 
 The `prelude` re-exports crate-wide types (handles, errors, storage strategies) but not the cityjson-domain types from `v2_0`.
-
-todo: do we need separate prelude and v2_0 modules for imports?
 
 ### Example
 
@@ -55,6 +63,24 @@ fn main() {
 }
 ```
 
+## Data Model
+
+`cityjson-rs` uses a flat, columnar internal representation that differs from the nested JSON structure of the `CityJSON` specification:
+
+- **Geometry boundaries**: stored as sibling offset arrays (`surfaces`, `shells`, `solids` with corresponding vertex/ring/surface/shell offsets) instead of nested coordinate arrays
+- **Resource pools**: global pools for semantics, materials, textures, and UV coordinates; geometry-local maps store handle references into these pools instead of dense array indices
+- **Semantic and material assignments**: flat primitive-assignment arrays (one per surface/point/linestring) instead of nested index structures
+- **Texture assignments**: per-ring resource references with flat UV coordinate arrays, rather than nested per-ring texture entries
+
+This representation is more efficient for traversal and serialization to columnar formats (Arrow, Parquet) while maintaining round-trip fidelity with the spec format. See [Geometry Mappings](docs/dev/geometry_mappings.md) for detailed layout rules and examples.
+
+## Documentation
+
+- [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
+- [Geometry Boundaries, Semantics, and Appearance](docs/dev/geometry_mappings.md)
+
+todo: link to docs.rs
+
 ## Library Layout
 
 | Module      | Contents                                                                                                                            |
@@ -62,7 +88,6 @@ fn main() {
 | `v2_0`      | Domain types: `CityModel`, `CityObject`, `Geometry`, `GeometryDraft`, `Metadata`, `Transform`, `Semantic`, `Material`, `Texture`, … |
 | `resources` | Typed handles, resource pools, and string storage strategies                                                                        |
 | `raw`       | Zero-copy read views for use in downstream serializers                                                                              |
-
 
 ## API Stability
 
@@ -76,6 +101,20 @@ This crate follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 The minimum supported rustc version is `1.93.0`.
 
+## Contributing
+
+Contributions are welcome in all forms.
+Please open an issue to discuss any potential changes before working on a patch.
+You can submit LLM-generated PRs for bug fixes and documentation improvements.
+Regardless of handwritten or LLM-generated code, the PR should follow these guidelines:
+
+- relatively small, focused changes, otherwise I won't be able to review it,
+- follow the existing style and conventions,
+- include unit tests and documentation for new features and bug fixes,
+- the patched code should pass:
+  - `just check / lint / fmt / test / docs / miri / perf-check`
+- if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
+
 ## License
 
 Licensed under either:
@@ -88,3 +127,15 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
 cityjson-rs by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
 without additional terms or conditions.
+
+## Use of AI in this project
+
+This crate was originally developed without the use of AI.
+Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
+LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
+Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire `CityJSON` 2.0 specification.
+
+## Roadmap
+
+There are no major features planned for the near future, beyond bug fixes, test coverage, documentation improvements.
+

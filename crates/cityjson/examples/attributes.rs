@@ -1,4 +1,4 @@
-//! Small example of inline attributes.
+//! Small example exercising every `OwnedAttributeValue` variant once.
 
 use std::collections::HashMap;
 
@@ -16,23 +16,48 @@ fn main() -> Result<()> {
         CityObjectIdentifier::new("building-001".to_string()),
         CityObjectType::Building,
     );
-    building.attributes_mut().insert(
-        "measuredHeight".to_string(),
-        OwnedAttributeValue::Float(25.5),
-    );
+
+    // String
     building.attributes_mut().insert(
         "buildingName".to_string(),
         OwnedAttributeValue::String("City Hall".to_string()),
     );
-
+    // Float
+    building.attributes_mut().insert(
+        "measuredHeight".to_string(),
+        OwnedAttributeValue::Float(25.5),
+    );
+    // Integer
+    building.attributes_mut().insert(
+        "yearOfConstruction".to_string(),
+        OwnedAttributeValue::Integer(-50),
+    );
+    // Unsigned
+    building.attributes_mut().insert(
+        "storeysAboveGround".to_string(),
+        OwnedAttributeValue::Unsigned(5),
+    );
+    // Bool
+    building
+        .attributes_mut()
+        .insert("isMonument".to_string(), OwnedAttributeValue::Bool(true));
+    // Null
+    building
+        .attributes_mut()
+        .insert("demolitionDate".to_string(), OwnedAttributeValue::Null);
+    // Vec
+    building.attributes_mut().insert(
+        "alternateNames".to_string(),
+        OwnedAttributeValue::Vec(vec![
+            OwnedAttributeValue::String("Stadhuis".to_string()),
+            OwnedAttributeValue::String("Town Hall".to_string()),
+        ]),
+    );
+    // Map
     let mut address = HashMap::new();
     address.insert(
         "city".to_string(),
         OwnedAttributeValue::String("Amsterdam".to_string()),
-    );
-    address.insert(
-        "country".to_string(),
-        OwnedAttributeValue::String("Netherlands".to_string()),
     );
     building
         .extra_mut()
@@ -40,11 +65,7 @@ fn main() -> Result<()> {
 
     let building_ref = model.cityobjects_mut().add(building)?;
 
-    let mut roof = Semantic::new(SemanticType::RoofSurface);
-    roof.attributes_mut().insert(
-        "material".to_string(),
-        OwnedAttributeValue::String("tile".to_string()),
-    );
+    let roof = Semantic::new(SemanticType::RoofSurface);
     model.add_semantic(roof)?;
 
     println!(

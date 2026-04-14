@@ -132,8 +132,9 @@ out.write_text(json.dumps(results, indent=2))
 print(f'  Wrote {len(results)} cachegrind results to {out}')
 " || echo "  Warning: cachegrind extraction failed"
 
-    unset CARGO_TARGET_DIR BENCH_MODE BENCH_SEED
+    unset CARGO_TARGET_DIR
 }
+
 
 echo "=== Running benchmarks on PR head ==="
 run_benchmarks "pr"
@@ -157,7 +158,7 @@ echo "=== Comparing results ==="
 
 REGRESSION_FOUND=0
 
-python3 - "$TARGET_DIR" "$SPEED_THRESHOLD" "$ALLOC_THRESHOLD" "$CACHE_THRESHOLD" <<'PYEOF'
+(python3 - "$TARGET_DIR" "$SPEED_THRESHOLD" "$ALLOC_THRESHOLD" "$CACHE_THRESHOLD" <<'PYEOF'
 import json, pathlib, sys
 
 target_dir = pathlib.Path(sys.argv[1])
@@ -245,10 +246,7 @@ else:
     print("No regressions detected.")
     sys.exit(0)
 PYEOF
-
-if [ $? -ne 0 ]; then
-    REGRESSION_FOUND=1
-fi
+) || REGRESSION_FOUND=1
 
 if [ "$REGRESSION_FOUND" = "1" ]; then
     if [ "$ALLOW_REGRESSION" = "1" ]; then

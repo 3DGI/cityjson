@@ -1,4 +1,13 @@
 //! Memory-focused benchmarks that capture heap usage with dhat.
+//!
+//! Two paths are selectable via the `BENCH_STREAMING` env var:
+//!
+//! - unset or `0` (default): bulk path — build one `CityModel` holding N
+//!   features, then drop. Measures the memory profile of an in-memory model.
+//! - `1`: streaming path — for each of N features, build a mini `CityModel`
+//!   holding exactly one `CityObject`, consume it with a cheap traversal, drop
+//!   it, repeat. Peak heap stays ~O(1 feature); total bytes allocated exposes
+//!   allocator reuse behavior under build+drop churn.
 
 #[allow(dead_code)]
 mod support;
@@ -228,6 +237,49 @@ mod benches {
             .expect("failed to add cityobject to model");
     }
 
+    /// Build a fresh single-feature `CityModel` (one `CityObject` with cube
+    /// geometry, semantics, material, texture, UVs, and attributes). Used by
+    /// the streaming path: build → consume → drop, N times.
+    fn build_one_feature_model<R: Rng + ?Sized>(
+        rng: &mut R,
+        index: usize,
+        seed: u32,
+    ) -> OwnedModel {
+        let mut model = CityModel::<u32, OwnedStringStorage>::new(CityModelType::CityJSON);
+        configure_model_metadata(&mut model);
+        let (material_ref, texture_ref) =
+            create_material_and_texture(&mut model).expect("failed to create shared resources");
+        add_cityobject(&mut model, rng, index, seed, material_ref, texture_ref);
+        model
+    }
+
+    /// Cheap traversal over one feature's data so the compiler cannot elide
+    /// the model. Mirrors the accumulator pattern in `benches/processor.rs`.
+    fn consume_feature(model: &OwnedModel) -> u64 {
+        let mut acc: u64 = 0;
+        for (_id, cityobject) in model.cityobjects().iter() {
+            if let Some(attributes) = cityobject.attributes() {
+                acc = acc.wrapping_add(attributes.iter().count() as u64);
+            }
+            if let Some(geometries) = cityobject.geometry() {
+                for geometry_ref in geometries {
+                    if let Some(geometry) = model.get_geometry(*geometry_ref)
+                        && let Some(boundary) = geometry.boundaries()
+                    {
+                        for vertex_idx in boundary.vertices() {
+                            if let Some(vertex) = model.get_vertex(*vertex_idx) {
+                                acc = acc.wrapping_add(vertex.x().to_bits());
+                                acc = acc.wrapping_add(vertex.y().to_bits());
+                                acc = acc.wrapping_add(vertex.z().to_bits());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        acc
+    }
+
     /// Build a `CityModel` with the specified vertex index type and number of cityobjects.
     /// Each cityobject will have a solid geometry with 8 vertices (a cube).
     fn build_model(n_cityobjects: usize, seed: u64) -> OwnedModel {
@@ -257,9 +309,29 @@ mod benches {
         black_box(&model);
         drop(model);
     }
+
+    pub fn run_streaming(params: BenchParams) {
+        let _profiler = dhat::Profiler::new_heap();
+        let seed_u32 = u32::try_from(params.seed).expect("seed exceeds u32 range");
+        let mut rng = rng_from_seed(params.seed);
+        let mut acc: u64 = 0;
+        for index in 0..black_box(params.size) {
+            let model = build_one_feature_model(&mut rng, index, seed_u32);
+            acc = acc.wrapping_add(consume_feature(&model));
+            drop(model);
+        }
+        black_box(acc);
+    }
 }
 
 fn main() {
     let params = params_from_env(DEFAULT_SIZE_MEMORY, FAST_SIZE_MEMORY);
-    benches::run(params);
+    let streaming = std::env::var("BENCH_STREAMING")
+        .ok()
+        .is_some_and(|value| value == "1");
+    if streaming {
+        benches::run_streaming(params);
+    } else {
+        benches::run(params);
+    }
 }

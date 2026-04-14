@@ -44,7 +44,7 @@ Benchmark coverage:
 
 - `builder/build_minimal_geometry` builds cityobjects with a minimal solid geometry.
 - `builder/build_full_feature` builds cityobjects with attributes, semantics, materials, and textures.
-- `memory` builds a **full‑feature** model (materials, textures, semantics, cityobject attributes).
+- `memory` builds a **full‑feature** model (materials, textures, semantics, cityobject attributes). Set `BENCH_STREAMING=1` to switch from the bulk path (one model holding N features) to the streaming path (build one-feature model → consume → drop, N times). `just perf` records both as separate rows — `memory/build_model/<size>` and `memory/build_model_streaming/<size>` — so you can compare `heap_max_bytes` (streaming should collapse to ~O(1 feature)) and `heap_total_bytes` (if streaming stays close to bulk, the allocator is reusing freed slabs under build/drop churn).
 - `processor/compute_mean_coordinates` is geometry traversal.
 - `processor/compute_full_feature_stats` walks attributes, semantics, materials, and textures.
 - Geometry-typed attributes are intentionally excluded to avoid backend-specific representation costs.

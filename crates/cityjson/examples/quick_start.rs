@@ -1,3 +1,5 @@
+//! A quick start example on the main parts of a `CityJSON` model.
+
 use cityjson::v2_0::{CityJSONVersion, CityModel, CityModelType};
 fn main() {
     let model = CityModel::<u32>::new(CityModelType::CityJSON);
