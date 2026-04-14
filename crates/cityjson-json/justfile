@@ -49,6 +49,11 @@ fmt:
 test:
     cargo test --lib --tests --all-features
 
+# Generate test coverage report using tarpaulin
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
 # Build the documentation.
 doc:
-    cargo doc --all-features --no-deps --open
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use cityjson_json::{as_json, from_str_owned, to_string, to_string_validated, OwnedCityModel};
+use cityjson_json::{OwnedCityModel, as_json, from_str_owned, to_string, to_string_validated};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
 
-use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
 use cityjson::resources::handles::CityObjectHandle;
@@ -11,7 +11,7 @@ use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{Attributes, BBox, CityModel, CityObject, CityObjectIdentifier};
 
 use crate::de::attributes::{AttributeValueSeed, OptionalAttributesSeed};
-use crate::de::geometry::{import_stream_geometry, GeometryResources, StreamingGeometry};
+use crate::de::geometry::{GeometryResources, StreamingGeometry, import_stream_geometry};
 use crate::de::parse::ParseStringStorage;
 use crate::de::profiling::timed;
 use crate::de::validation::parse_cityobject_type;

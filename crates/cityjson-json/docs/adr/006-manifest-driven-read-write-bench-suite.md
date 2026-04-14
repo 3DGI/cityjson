@@ -55,7 +55,7 @@ benchmark workload cases. It declares:
 
 The benchmark harness reads those files directly. Synthetic cases are already
 materialized by the shared corpus repo, so `cityjson-json` no longer needs a
-local `cjfake` generation step.
+local `cityjson-fake` generation step.
 
 The shared benchmark module prepares data outside the timed closure and writes
 suite metadata into `benches/results/suite_metadata_*.json`. The reporting

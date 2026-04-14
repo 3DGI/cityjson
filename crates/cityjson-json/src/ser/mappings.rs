@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use cityjson::resources::handles::{SemanticHandle, TextureHandle};
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
+    CityModel, Geometry, GeometryType, Semantic, SemanticType, VertexRef,
     boundary::Boundary,
     geometry::{SemanticMapView, TextureMapView},
-    CityModel, Geometry, GeometryType, Semantic, SemanticType, VertexRef,
 };
-use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 use serde::Serialize;
+use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 
 use crate::errors::Error;
 use crate::ser::attributes::serialize_attributes_entries;
@@ -262,10 +262,10 @@ where
                 map.serialize_entry("children", &local_children)?;
             }
         }
-        if let Some(parent) = self.semantic.parent() {
-            if let Some(index) = self.handle_to_local.get(&parent).copied() {
-                map.serialize_entry("parent", &index)?;
-            }
+        if let Some(parent) = self.semantic.parent()
+            && let Some(index) = self.handle_to_local.get(&parent).copied()
+        {
+            map.serialize_entry("parent", &index)?;
         }
         if let Some(attributes) = self.semantic.attributes() {
             serialize_attributes_entries(&mut map, attributes)?;

@@ -4,13 +4,13 @@ use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::appearance::material::Material;
 use cityjson::v2_0::appearance::texture::Texture;
 use cityjson::v2_0::{
-    BBox, CityModel, CityModelIdentifier, Contact, Date, Extension, Extensions, Metadata,
-    RealWorldCoordinate, ThemeName, Transform, UVCoordinate, CRS, RGB, RGBA,
+    BBox, CRS, CityModel, CityModelIdentifier, Contact, Date, Extension, Extensions, Metadata, RGB,
+    RGBA, RealWorldCoordinate, ThemeName, Transform, UVCoordinate,
 };
 
-use crate::de::attributes::{attribute_map, RawAttribute};
+use crate::de::attributes::{RawAttribute, attribute_map};
 use crate::de::cityobjects::import_cityobjects;
-use crate::de::geometry::{import_template_geometry, GeometryResources};
+use crate::de::geometry::{GeometryResources, import_template_geometry};
 use crate::de::parse::ParseStringStorage;
 use crate::de::profiling::timed;
 use crate::de::root::{PreparedRoot, RawTransform};

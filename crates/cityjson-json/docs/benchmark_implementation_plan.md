@@ -55,7 +55,7 @@ benchmark index instead of a local `tests/data/generated/` mirror.
 
 ## Rollout Notes
 
-- remove the local `cjfake` benchmark dependency
+- remove the local `cityjson-fake` benchmark dependency
 - keep the benchmark harness limited to the shared corpus
 - load benchmark inputs from the shared corpus checkout
 
@@ -63,7 +63,7 @@ benchmark index instead of a local `tests/data/generated/` mirror.
 
 The implementation is done when:
 
-- the benchmark suite no longer depends on `cjfake`
+- the benchmark suite no longer depends on `cityjson-fake`
 - the suite reads benchmark inputs from the shared corpus repository
 - read and write benchmarks remain separate and deterministic
 - the repository no longer needs `tests/data/generated/`

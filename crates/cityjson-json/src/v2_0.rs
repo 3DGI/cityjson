@@ -5,8 +5,8 @@ use std::io::Write;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BBox, BorrowedCityModel, CityModel, OwnedCityModel, Transform, VertexRef};
 use cityjson::{CityJSONVersion, CityModelType};
-use serde::ser::SerializeMap;
 use serde::Serialize;
+use serde::ser::SerializeMap;
 use serde_json::value::RawValue;
 use serde_json::{Map, Value};
 

@@ -1,5 +1,5 @@
 use serde_json::value::RawValue;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use cityjson::v2_0::{
     AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
@@ -10,9 +10,9 @@ use cityjson_json::{
     from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
     read_feature_stream, to_string,
     v2_0::{
+        AutoTransformOptions, CityJSONSeqWriteOptions, FeatureObject, FeatureParts,
         from_feature_parts_owned_with_base, write_cityjsonseq_auto_transform_refs,
-        write_cityjsonseq_with_transform_refs, AutoTransformOptions, CityJSONSeqWriteOptions,
-        FeatureObject, FeatureParts,
+        write_cityjsonseq_with_transform_refs,
     },
 };
 use common::*;
@@ -110,9 +110,11 @@ fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
     };
 
     let error = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("duplicate CityObject id in feature parts"));
+    assert!(
+        error
+            .to_string()
+            .contains("duplicate CityObject id in feature parts")
+    );
 }
 
 fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
@@ -155,11 +157,13 @@ fn serialize_quantizes_root_vertices_only() {
         .and_then(Value::as_array)
         .expect("root vertices should be present");
     assert_eq!(root_vertices.len(), 1);
-    assert!(root_vertices[0]
-        .as_array()
-        .expect("vertex should be an array")
-        .iter()
-        .all(|coordinate| coordinate.is_i64() || coordinate.is_u64()));
+    assert!(
+        root_vertices[0]
+            .as_array()
+            .expect("vertex should be an array")
+            .iter()
+            .all(|coordinate| coordinate.is_i64() || coordinate.is_u64())
+    );
 
     let template_vertices = json
         .get("geometry-templates")
@@ -168,11 +172,13 @@ fn serialize_quantizes_root_vertices_only() {
         .and_then(Value::as_array)
         .expect("template vertices should be present");
     assert_eq!(template_vertices.len(), 1);
-    assert!(template_vertices[0]
-        .as_array()
-        .expect("template vertex should be an array")
-        .iter()
-        .all(Value::is_f64));
+    assert!(
+        template_vertices[0]
+            .as_array()
+            .expect("template vertex should be an array")
+            .iter()
+            .all(Value::is_f64)
+    );
 
     let texture_vertices = json
         .get("appearance")
@@ -181,11 +187,13 @@ fn serialize_quantizes_root_vertices_only() {
         .and_then(Value::as_array)
         .expect("texture vertices should be present");
     assert_eq!(texture_vertices.len(), 1);
-    assert!(texture_vertices[0]
-        .as_array()
-        .expect("texture vertex should be an array")
-        .iter()
-        .all(Value::is_f64));
+    assert!(
+        texture_vertices[0]
+            .as_array()
+            .expect("texture vertex should be an array")
+            .iter()
+            .all(Value::is_f64)
+    );
 
     let extent = json
         .get("metadata")
@@ -238,11 +246,13 @@ fn serialize_geometry_instance_keeps_float_sections() {
         .and_then(Value::as_array)
         .expect("root vertices should be present");
     assert_eq!(root_vertices.len(), 1);
-    assert!(root_vertices[0]
-        .as_array()
-        .expect("root vertex should be an array")
-        .iter()
-        .all(|coordinate| coordinate.is_i64() || coordinate.is_u64()));
+    assert!(
+        root_vertices[0]
+            .as_array()
+            .expect("root vertex should be an array")
+            .iter()
+            .all(|coordinate| coordinate.is_i64() || coordinate.is_u64())
+    );
 
     let geometry = json
         .get("CityObjects")
@@ -280,11 +290,13 @@ fn serialize_geometry_instance_keeps_float_sections() {
         .and_then(Value::as_array)
         .expect("template vertices should be present");
     assert_eq!(template_vertices.len(), 1);
-    assert!(template_vertices[0]
-        .as_array()
-        .expect("template vertex should be an array")
-        .iter()
-        .all(Value::is_f64));
+    assert!(
+        template_vertices[0]
+            .as_array()
+            .expect("template vertex should be an array")
+            .iter()
+            .all(Value::is_f64)
+    );
 }
 
 #[test]

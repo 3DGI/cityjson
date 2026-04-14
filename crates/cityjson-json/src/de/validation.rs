@@ -151,7 +151,7 @@ where
         _ => {
             return Err(Error::InvalidValue(format!(
                 "invalid Semantic type: {value}"
-            )))
+            )));
         }
     })
 }
@@ -201,7 +201,7 @@ where
         _ => {
             return Err(Error::InvalidValue(format!(
                 "invalid CityObject type '{value}'"
-            )))
+            )));
         }
     })
 }

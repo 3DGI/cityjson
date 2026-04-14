@@ -183,8 +183,8 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
             .unwrap_or_else(|err| panic!("failed to create {}: {err}", parent.display()));
     }
 
-    let cargo_manifest = cjfake_cargo_manifest();
-    let schema_path = cjfake_manifest_schema();
+    let cargo_manifest = cityjson_fake_cargo_manifest();
+    let schema_path = cityjson_fake_manifest_schema();
     let status = Command::new("cargo")
         .arg("run")
         .arg("--quiet")
@@ -198,28 +198,28 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
         .arg("--output")
         .arg(output)
         .status()
-        .unwrap_or_else(|err| panic!("failed to run cjfake via cargo: {err}"));
+        .unwrap_or_else(|err| panic!("failed to run cityjson-fake via cargo: {err}"));
 
     assert!(
         status.success(),
-        "cjfake failed to generate {} using {}",
+        "cityjson-fake failed to generate {} using {}",
         output.display(),
         profile.display()
     );
 }
 
-fn cjfake_cargo_manifest() -> PathBuf {
+fn cityjson_fake_cargo_manifest() -> PathBuf {
     env::var_os("CJFAKE_CARGO_MANIFEST").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cjfake/Cargo.toml"),
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-fake/Cargo.toml"),
         PathBuf::from,
     )
 }
 
-fn cjfake_manifest_schema() -> PathBuf {
+fn cityjson_fake_manifest_schema() -> PathBuf {
     env::var_os("CJFAKE_MANIFEST_SCHEMA").map_or_else(
         || {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../cjfake/src/data/cjfake-manifest.schema.json")
+                .join("../cityjson-fake/src/data/cityjson-fake-manifest.schema.json")
         },
         PathBuf::from,
     )

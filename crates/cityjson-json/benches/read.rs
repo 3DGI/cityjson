@@ -3,11 +3,11 @@ mod common;
 use std::hint::black_box;
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
-    read_cases, write_read_suite_metadata, READ_BENCH_CITYJSON_JSON_BORROWED,
-    READ_BENCH_CITYJSON_JSON_OWNED, READ_BENCH_SERDE_JSON_VALUE,
+    READ_BENCH_CITYJSON_JSON_BORROWED, READ_BENCH_CITYJSON_JSON_OWNED, READ_BENCH_SERDE_JSON_VALUE,
+    read_cases, write_read_suite_metadata,
 };
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
