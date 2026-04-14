@@ -78,10 +78,6 @@ todo: link to docs.rs
 | `resources` | Typed handles, resource pools, and string storage strategies                                                                        |
 | `raw`       | Zero-copy read views for use in downstream serializers                                                                              |
 
-## Design
-
-todo: link to design docs
-
 ## API Stability
 
 This crate follows semantic versioning (`MAJOR.MINOR.PATCH`):
