@@ -255,7 +255,7 @@ Regardless of handwritten or LLM-generated code, the PR should follow these guid
 - follow the existing style and conventions,
 - include unit tests and documentation for new features and bug fixes,
 - the patched code should pass:
-  - `just check / lint / fmt / test / docs / bench-check`
+  - `just ci`
 - if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
 
 ## License

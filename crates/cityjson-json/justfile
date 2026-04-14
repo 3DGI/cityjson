@@ -61,3 +61,6 @@ coverage:
 # Build the documentation.
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
+
+# Run fmt, check, lint, test, bench-check, and doc.
+ci: fmt check lint test bench-check doc
