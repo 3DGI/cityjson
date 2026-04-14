@@ -245,8 +245,7 @@ if regressions:
 else:
     print("No regressions detected.")
     sys.exit(0)
-PYEOF
-|| REGRESSION_FOUND=1
+PYEOF || REGRESSION_FOUND=1
 
 if [ "$REGRESSION_FOUND" = "1" ]; then
     if [ "$ALLOW_REGRESSION" = "1" ]; then
