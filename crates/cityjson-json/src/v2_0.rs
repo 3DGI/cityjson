@@ -104,13 +104,13 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// # Examples
 ///
 /// ```
-/// use cityjson_json::from_feature_str_owned;
+/// use cityjson_json::from_feature_str;
 ///
 /// let json = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
-/// let model = from_feature_str_owned(json)?;
+/// let model = from_feature_str(json)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
-pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
+pub fn from_feature_str(input: &str) -> Result<OwnedCityModel> {
     let model = from_str_owned(input)?;
     match model.type_citymodel() {
         CityModelType::CityJSONFeature => Ok(model),
@@ -121,7 +121,7 @@ pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// Parse a standalone `CityJSONFeature` object using the non-feature root state
 /// from a companion `CityJSON` document.
 ///
-/// This mirrors [`read_feature_stream`] for deployments where the metadata
+/// This mirrors [`read_cityjsonseq`] for deployments where the metadata
 /// document and feature files live separately on disk.
 ///
 /// # Errors
@@ -132,14 +132,14 @@ pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// # Examples
 ///
 /// ```
-/// use cityjson_json::from_feature_str_owned_with_base;
+/// use cityjson_json::from_feature_str_with_base;
 ///
 /// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 /// let feature = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
-/// let model = from_feature_str_owned_with_base(feature, base)?;
+/// let model = from_feature_str_with_base(feature, base)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
-pub fn from_feature_str_owned_with_base(
+pub fn from_feature_str_with_base(
     feature_input: &str,
     base_document_input: &str,
 ) -> Result<OwnedCityModel> {
@@ -151,7 +151,7 @@ pub fn from_feature_str_owned_with_base(
     let input = serde_json::to_string(&Value::Object(materialize_feature_document(
         &base_root, feature,
     )))?;
-    from_feature_str_owned(&input)
+    from_feature_str(&input)
 }
 
 /// Parse a standalone `CityJSONFeature` assembled from typed feature parts and
@@ -165,15 +165,15 @@ pub fn from_feature_str_owned_with_base(
 /// # Examples
 ///
 /// ```no_run
-/// use cityjson_json::{from_feature_parts_owned_with_base, FeatureObject, FeatureParts};
+/// use cityjson_json::{from_feature_parts_with_base, FeatureObject, FeatureParts};
 ///
 /// // city_objects would be pre-parsed RawValue slices from the feature file
 /// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 /// let parts = FeatureParts { id: "f1", cityobjects: &[], vertices: &[] };
-/// let model = from_feature_parts_owned_with_base(parts, base)?;
+/// let model = from_feature_parts_with_base(parts, base)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
-pub fn from_feature_parts_owned_with_base(
+pub fn from_feature_parts_with_base(
     parts: FeatureParts<'_>,
     base_document_input: &str,
 ) -> Result<OwnedCityModel> {
@@ -185,7 +185,7 @@ pub fn from_feature_parts_owned_with_base(
         base_root: &base_root,
         parts,
     })?;
-    from_feature_str_owned(&input)
+    from_feature_str(&input)
 }
 
 /// Parse a `CityJSON` document into a [`BorrowedCityModel`].
@@ -207,7 +207,7 @@ pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
     crate::de::from_str_borrowed(input)
 }
 
-/// Read a strict `CityJSON` + `CityJSONFeature` stream into self-contained feature models.
+/// Read a strict `CityJSONSeq` stream into self-contained feature models.
 ///
 /// # Errors
 ///
@@ -219,18 +219,18 @@ pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
 ///
 /// ```
 /// use std::io::BufReader;
-/// use cityjson_json::read_feature_stream;
+/// use cityjson_json::read_cityjsonseq;
 ///
 /// let seq = concat!(
 ///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
 ///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
-/// for result in read_feature_stream(BufReader::new(seq.as_bytes()))? {
+/// for result in read_cityjsonseq(BufReader::new(seq.as_bytes()))? {
 ///     let _model = result?;
 /// }
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
-pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
+pub fn read_cityjsonseq<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
 where
     R: BufRead,
 {
@@ -239,12 +239,12 @@ where
     for feature in parsed.features {
         let feature = materialize_feature_document(&parsed.base_root, feature);
         let input = serde_json::to_string(&Value::Object(feature))?;
-        models.push(from_feature_str_owned(&input));
+        models.push(from_feature_str(&input));
     }
     Ok(models.into_iter())
 }
 
-/// Merge a strict `CityJSON` + `CityJSONFeature` stream into one [`OwnedCityModel`].
+/// Merge a strict `CityJSONSeq` stream into one [`OwnedCityModel`].
 ///
 /// # Errors
 ///
@@ -255,16 +255,16 @@ where
 ///
 /// ```
 /// use std::io::BufReader;
-/// use cityjson_json::merge_feature_stream;
+/// use cityjson_json::merge_cityjsonseq;
 ///
 /// let seq = concat!(
 ///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
 ///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
-/// let model = merge_feature_stream(BufReader::new(seq.as_bytes()))?;
+/// let model = merge_cityjsonseq(BufReader::new(seq.as_bytes()))?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
-pub fn merge_feature_stream<R>(reader: R) -> Result<OwnedCityModel>
+pub fn merge_cityjsonseq<R>(reader: R) -> Result<OwnedCityModel>
 where
     R: BufRead,
 {
@@ -296,12 +296,12 @@ where
 /// # Examples
 ///
 /// ```
-/// use cityjson_json::{from_str_owned, from_feature_str_owned, write_cityjsonseq};
+/// use cityjson_json::{from_str_owned, from_feature_str, write_cityjsonseq};
 ///
 /// let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 /// let feature_input = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let base_root = from_str_owned(base_input)?;
-/// let feature = from_feature_str_owned(feature_input)?;
+/// let feature = from_feature_str(feature_input)?;
 /// let mut output = Vec::new();
 /// let report = write_cityjsonseq(&base_root, [&feature]).write(&mut output)?;
 /// # Ok::<(), cityjson_json::Error>(())

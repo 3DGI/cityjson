@@ -7,9 +7,9 @@ use cityjson::v2_0::{
     UVCoordinate,
 };
 use cityjson_json::{
-    as_json, from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
-    read_feature_stream,
-    v2_0::{FeatureObject, FeatureParts, from_feature_parts_owned_with_base},
+    as_json, from_feature_str, from_str_borrowed, from_str_owned, merge_cityjsonseq,
+    read_cityjsonseq,
+    v2_0::{FeatureObject, FeatureParts, from_feature_parts_with_base},
     write_cityjsonseq,
 };
 use common::*;
@@ -66,7 +66,7 @@ fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
         vertices: &vertices,
     };
 
-    let model = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap();
+    let model = from_feature_parts_with_base(parts, &base.to_string()).unwrap();
     let vertices = model.vertices();
     let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
@@ -106,7 +106,7 @@ fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
         vertices: &[],
     };
 
-    let error = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap_err();
+    let error = from_feature_parts_with_base(parts, &base.to_string()).unwrap_err();
     assert!(
         error
             .to_string()
@@ -299,7 +299,7 @@ fn serialize_geometry_instance_keeps_float_sections() {
 #[test]
 fn feature_constructor_rejects_full_documents() {
     let json_input = conformance_case_input("cityjson_minimal");
-    let err = from_feature_str_owned(&json_input).unwrap_err();
+    let err = from_feature_str(&json_input).unwrap_err();
     assert!(format!("{err}").contains("CityJSON"));
 }
 
@@ -343,7 +343,7 @@ fn invalid_cityjsonfeature_root_id_unresolved_is_rejected() {
 #[test]
 fn cityjsonfeature_minimal_is_typed_not_extra() {
     let json_input = conformance_case_input("cityjsonfeature_minimal");
-    let model = from_feature_str_owned(&json_input).unwrap();
+    let model = from_feature_str(&json_input).unwrap();
     let serialized: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
     assert_eq!(model.type_citymodel(), CityModelType::CityJSONFeature);
@@ -361,7 +361,7 @@ fn cityjsonfeature_minimal_is_typed_not_extra() {
 #[test]
 fn cityjsonfeature_root_id_must_resolve_to_a_cityobject() {
     let json_input = invalid_case_input("invalid_cityjsonfeature_root_id_unresolved");
-    let err = from_feature_str_owned(&json_input).unwrap_err();
+    let err = from_feature_str(&json_input).unwrap_err();
     assert!(err.to_string().contains("feature root id"));
 }
 
@@ -371,7 +371,7 @@ fn strict_feature_stream_reads_self_contained_models() {
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
 "#;
 
-    let mut models = read_feature_stream(std::io::Cursor::new(input))
+    let mut models = read_cityjsonseq(std::io::Cursor::new(input))
         .unwrap()
         .collect::<cityjson_json::Result<Vec<_>>>()
         .unwrap();
@@ -400,7 +400,7 @@ fn strict_feature_stream_merges_into_one_document() {
 {"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart","parents":["feature-1"],"geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
 "#;
 
-    let model = merge_feature_stream(std::io::Cursor::new(input)).unwrap();
+    let model = merge_cityjsonseq(std::io::Cursor::new(input)).unwrap();
     assert_eq!(model.type_citymodel(), cityjson::CityModelType::CityJSON);
     assert_eq!(model.cityobjects().len(), 2);
     assert_eq!(model.vertices().len(), 5);
@@ -413,7 +413,7 @@ fn strict_feature_stream_rejects_duplicate_ids() {
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 "#;
 
-    let err = merge_feature_stream(std::io::Cursor::new(input)).unwrap_err();
+    let err = merge_cityjsonseq(std::io::Cursor::new(input)).unwrap_err();
     assert!(format!("{err}").contains("duplicate CityObject id"));
 }
 
@@ -449,8 +449,7 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
     })
     .to_string();
     let base_root = from_str_owned(&base_input).unwrap();
-    let feature =
-        cityjson_json::from_feature_str_owned_with_base(&feature_input, &base_input).unwrap();
+    let feature = cityjson_json::from_feature_str_with_base(&feature_input, &base_input).unwrap();
     let mut transform = cityjson::v2_0::Transform::new();
     transform.set_scale([0.5, 0.5, 1.0]);
     transform.set_translate([10.0, 20.0, 30.0]);
@@ -491,7 +490,7 @@ fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
     assert!(items[1].get("appearance").is_none());
     assert_eq!(items[1]["vertices"], json!([[0, 0, 0], [4, 4, 1]]));
 
-    let models = read_feature_stream(std::io::Cursor::new(output))
+    let models = read_cityjsonseq(std::io::Cursor::new(output))
         .unwrap()
         .collect::<cityjson_json::Result<Vec<_>>>()
         .unwrap();
@@ -522,7 +521,7 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
         "vertices": []
     })
     .to_string();
-    let feature_a = cityjson_json::from_feature_str_owned_with_base(
+    let feature_a = cityjson_json::from_feature_str_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "feature-a",
@@ -541,7 +540,7 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
         &base_input,
     )
     .unwrap();
-    let feature_b = cityjson_json::from_feature_str_owned_with_base(
+    let feature_b = cityjson_json::from_feature_str_with_base(
         &json!({
             "type": "CityJSONFeature",
             "id": "feature-b",
@@ -634,7 +633,7 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
         .to_string(),
     )
     .unwrap();
-    let feature_a = from_feature_str_owned(
+    let feature_a = from_feature_str(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-1",
@@ -651,7 +650,7 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
         .to_string(),
     )
     .unwrap();
-    let feature_b = from_feature_str_owned(
+    let feature_b = from_feature_str(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-2",

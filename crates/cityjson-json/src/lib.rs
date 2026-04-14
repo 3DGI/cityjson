@@ -16,7 +16,7 @@ pub use cityjson::{CityJSONVersion, CityModelType};
 pub use errors::{Error, Result};
 pub use v2_0::{
     CityJSONSeqWriteReport, CityJSONSeqWriter, FeatureObject, FeatureParts, ParseStringStorage,
-    SerializableCityModel, as_json, from_feature_parts_owned_with_base, from_feature_str_owned,
-    from_feature_str_owned_with_base, from_str, from_str_borrowed, from_str_owned,
-    merge_feature_stream, read_feature_stream, write_cityjsonseq,
+    SerializableCityModel, as_json, from_feature_parts_with_base, from_feature_str,
+    from_feature_str_with_base, from_str, from_str_borrowed, from_str_owned, merge_cityjsonseq,
+    read_cityjsonseq, write_cityjsonseq,
 };
