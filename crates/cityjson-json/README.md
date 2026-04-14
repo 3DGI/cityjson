@@ -13,7 +13,7 @@ cargo add cityjson-json
 ### Imports
 
 ```rust
-use cityjson_json::{from_str_owned, from_str_borrowed, to_string, to_string_validated};
+use cityjson_json::{from_str_owned, from_str_borrowed, as_json};
 use cityjson_json::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
 ```
 
@@ -32,6 +32,7 @@ let json_str = r#"{
 }"#;
 
 let model = from_str_owned(json_str)?;
+# Ok::<(), cityjson_json::Error>(())
 ```
 
 ### Borrowed Deserialization
@@ -44,34 +45,44 @@ use cityjson_json::from_str_borrowed;
 let json_str = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
 let model = from_str_borrowed(json_str)?;
 // model holds references to json_str
+# Ok::<(), cityjson_json::Error>(())
 ```
 
 ### Serialization
 
-Serialize models back to JSON:
+Serialize models back to JSON using the `as_json` builder:
 
-```rust
-use cityjson_json::to_string;
+```rust,ignore
+use cityjson_json::as_json;
 
-let json_output = to_string(&model)?;
+let json_output = as_json(&model).to_string()?;
 ```
 
-For validated serialization (checks default theme references):
+For validated serialization (checks default theme references), chain `.validate()`:
 
-```rust
-use cityjson_json::to_string_validated;
+```rust,ignore
+use cityjson_json::as_json;
 
-let json_output = to_string_validated(&model)?;
+let json_output = as_json(&model).validate().to_string()?;
+```
+
+The same builder works for other output targets:
+
+```rust,ignore
+use cityjson_json::as_json;
+
+let bytes = as_json(&model).to_vec()?;
+as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
 ## Validation Policy
 
 The library provides two serialization paths to balance performance and safety:
 
-- **`to_string()`**: Fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
-- **`to_string_validated()`**: Strict path. Validates default theme references before serialization to ensure document consistency.
+- **`.to_string()`** / **`.to_vec()`** / **`.to_writer()`**: Fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
+- **`.validate().to_string()`** etc.: Strict path. Validates default theme references before serialization to ensure document consistency.
 
-Use `to_string_validated()` when you need guaranteed valid CityJSON output, especially when serializing user-provided models.
+Chain `.validate()` when you need guaranteed valid CityJSON output, especially when serializing user-provided models.
 
 ## Documentation
 
@@ -86,7 +97,7 @@ todo: link to docs.rs
 |----------|------------------------------------------------------------------------------------------------|
 | `v2_0`   | CityJSON 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
 | `errors` | `Error` and `Result` types surfaced by the adapter                                             |
-| (root)   | Convenience re-exports: `from_str_*`, `to_string*`, `to_vec*`, `to_writer*`, model types       |
+| (root)   | Convenience re-exports: `from_str_*`, `as_json`, `to_string_feature`, model types              |
 
 Core types re-exported from `cityjson`:
 
@@ -170,10 +181,11 @@ non-null material index, the serializer writes the compact `{"value": N}` form
 instead of an explicit `{"values": [...]}` array.
 
 **Validation policy.**
-`to_string`, `to_vec`, and `to_writer` serialize without pre-flight checks.
-Their `_validated` counterparts call `validate_default_themes` before
-serializing to confirm that the default material and texture theme names
-reference themes that actually exist in the appearance section.
+`as_json(model).to_string()` (and `to_vec` / `to_writer`) serialize without
+pre-flight checks. Chaining `.validate()` before the output method calls
+`validate_default_themes` first, confirming that the default material and
+texture theme names reference themes that actually exist in the appearance
+section.
 
 **CityJSONSeq stream writing.**
 `write_cityjsonseq_with_transform_refs` and

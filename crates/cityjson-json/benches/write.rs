@@ -43,7 +43,9 @@ fn bench_write(c: &mut Criterion) {
         ));
         group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::to_string(black_box(&prepared.model)).unwrap()
+                cityjson_json::as_json(black_box(&prepared.model))
+                    .to_string()
+                    .unwrap()
             });
         });
 
@@ -52,7 +54,10 @@ fn bench_write(c: &mut Criterion) {
         ));
         group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::to_string_validated(black_box(&prepared.model)).unwrap()
+                cityjson_json::as_json(black_box(&prepared.model))
+                    .validate()
+                    .to_string()
+                    .unwrap()
             });
         });
 

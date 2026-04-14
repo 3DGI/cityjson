@@ -271,101 +271,19 @@ where
     )
 }
 
-/// Serialize a [`CityModel`] to a `CityJSON` string.
+/// Serialize a [`CityModel`] as a `CityJSONFeature` string, validating default themes.
 ///
 /// # Errors
 ///
-/// Returns an error if the model cannot be serialized.
-pub fn to_string<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_string(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` string, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_string_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_string(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` byte vector.
-///
-/// # Errors
-///
-/// Returns an error if the model cannot be serialized.
-pub fn to_vec<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_vec(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` byte vector, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_vec_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_vec(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` writer.
-///
-/// # Errors
-///
-/// Returns an error if the model cannot be serialized.
-pub fn to_writer<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
-where
-    W: Write,
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_writer(writer, &as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` writer, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_writer_validated<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
-where
-    W: Write,
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_writer(writer, &as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] as a `CityJSONFeature` string.
-///
-/// # Errors
-///
-/// Returns an error if the model is not a `CityJSONFeature` or cannot be serialized.
+/// Returns an error if the model is not a `CityJSONFeature`, fails validation,
+/// or cannot be serialized.
 pub fn to_string_feature<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
 where
     VR: VertexRef + Serialize,
     SS: StringStorage,
 {
     match model.type_citymodel() {
-        CityModelType::CityJSONFeature => to_string_validated(model),
+        CityModelType::CityJSONFeature => as_json(model).validate().to_string(),
         other => Err(Error::UnsupportedType(other.to_string())),
     }
 }
@@ -375,7 +293,10 @@ where
     VR: VertexRef + Serialize,
     SS: StringStorage,
 {
-    SerializableCityModel { model }
+    SerializableCityModel {
+        model,
+        validate: false,
+    }
 }
 
 pub struct SerializableCityModel<'a, VR, SS>
@@ -384,6 +305,60 @@ where
     SS: StringStorage,
 {
     pub(crate) model: &'a CityModel<VR, SS>,
+    validate: bool,
+}
+
+impl<VR, SS> SerializableCityModel<'_, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    /// Enable default-theme validation before serializing.
+    pub fn validate(self) -> Self {
+        Self {
+            validate: true,
+            ..self
+        }
+    }
+
+    /// Serialize to a `CityJSON` string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if the model cannot be serialized.
+    pub fn to_string(self) -> Result<String> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_string(&self)?)
+    }
+
+    /// Serialize to a `CityJSON` byte vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if the model cannot be serialized.
+    pub fn to_vec(self) -> Result<Vec<u8>> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_vec(&self)?)
+    }
+
+    /// Serialize to a `CityJSON` writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if serialization fails.
+    pub fn to_writer<W: Write>(self, writer: W) -> Result<()> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_writer(writer, &self)?)
+    }
 }
 
 impl<VR, SS> Serialize for SerializableCityModel<'_, VR, SS>

@@ -7,8 +7,8 @@ use cityjson::v2_0::{
     UVCoordinate,
 };
 use cityjson_json::{
-    from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
-    read_feature_stream, to_string,
+    as_json, from_feature_str_owned, from_str_borrowed, from_str_owned, merge_feature_stream,
+    read_feature_stream,
     v2_0::{
         AutoTransformOptions, CityJSONSeqWriteOptions, FeatureObject, FeatureParts,
         from_feature_parts_owned_with_base, write_cityjsonseq_auto_transform_refs,
@@ -71,7 +71,7 @@ fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
 
     let model = from_feature_parts_owned_with_base(parts, &base.to_string()).unwrap();
     let vertices = model.vertices();
-    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
     assert_eq!(json["metadata"]["title"], "base-root");
     assert_eq!(json["transform"], base["transform"]);
@@ -150,7 +150,7 @@ fn serialize_quantizes_root_vertices_only() {
         .add_texture(Texture::new("texture.png".to_string(), ImageType::Png))
         .unwrap();
 
-    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
     let root_vertices = json
         .get("vertices")
@@ -208,7 +208,7 @@ fn serialize_quantizes_root_vertices_only() {
 #[test]
 fn serialize_omits_empty_appearance_and_geometry_templates_sections() {
     let model = OwnedCityModel::new(CityModelType::CityJSON);
-    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
     assert!(json.get("appearance").is_none());
     assert!(json.get("geometry-templates").is_none());
@@ -240,7 +240,7 @@ fn serialize_geometry_instance_keeps_float_sections() {
     cityobject.add_geometry(geometry);
     model.cityobjects_mut().add(cityobject).unwrap();
 
-    let json: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
     let root_vertices = json
         .get("vertices")
         .and_then(Value::as_array)
@@ -347,7 +347,7 @@ fn invalid_cityjsonfeature_root_id_unresolved_is_rejected() {
 fn cityjsonfeature_minimal_is_typed_not_extra() {
     let json_input = conformance_case_input("cityjsonfeature_minimal");
     let model = from_feature_str_owned(&json_input).unwrap();
-    let serialized: Value = serde_json::from_str(&to_string(&model).unwrap()).unwrap();
+    let serialized: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
 
     assert_eq!(model.type_citymodel(), CityModelType::CityJSONFeature);
     assert_eq!(

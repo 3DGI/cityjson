@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use serde_json::Value;
 
-use cityjson_json::{from_str_owned, to_string};
+use cityjson_json::{as_json, from_str_owned};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
@@ -231,7 +231,7 @@ fn cityjson_fake_manifest_schema() -> PathBuf {
 #[must_use]
 pub fn roundtrip_value(input: &Value) -> Value {
     let model = from_str_owned(&serde_json::to_string(input).unwrap()).unwrap();
-    serde_json::from_str(&to_string(&model).unwrap()).unwrap()
+    serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap()
 }
 
 /// Assert that the data retains the same content after an adapter deserialize-serialize roundtrip.
