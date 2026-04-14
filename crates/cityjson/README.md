@@ -1,11 +1,22 @@
 # cityjson-rs
 
 `cityjson-rs` implements the [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/) data model in Rust.
+This crate provides types and accessor methods for working with a flattened, columnar representation of the `CityJSON` data model.
+`cityjson-rs` is meant to be a core library for downstream specialized libraries that implement serialization, indexing, geometry processing, and other features.
 
-Serialization is implemented by downstream crates:
-- json: [cityjson-json]
-- arrow: [cityjson-arrow]
-- parquet: [cityjson-parquet]
+## Overview of downstream crates in the cityjson ecosystem
+
+Serialization is implemented by:
+
+- json: [cityjson-json](https://github.com/3DGI/cityjson-json)
+- arrow: [cityjson-arrow](https://github.com/3DGI/cityjson-arrow)
+- parquet: [cityjson-parquet](https://github.com/3DGI/cityjson-arrow/tree/master/cityjson-parquet)
+
+For a higher-level library that integrates serialization, implements geometry processing, and other features into a single crate, see [cityjson-lib](https://github.com/3DGI/cityjson-lib).
+
+For generating fake, schema-valid data for any combination of the CityJSON specs, see [cityjson-fake](https://github.com/3DGI/cityjson-fake). 
+
+For efficient indexing and querying individual CityObjects across multiple files, see [cityjson-index](https://github.com/3DGI/cityjson-index).
 
 ## Installation
 
@@ -92,7 +103,17 @@ The minimum supported rustc version is `1.93.0`.
 
 ## Contributing
 
-todo: add contributing guidelines
+Contributions are welcome in all forms.
+Please open an issue to discuss any potential changes before working on a patch.
+You can submit LLM-generated PRs for bug fixes and documentation improvements.
+Regardless of handwritten or LLM-generated code, the PR should follow these guidelines:
+
+- relatively small, focused changes, otherwise I won't be able to review it,
+- follow the existing style and conventions,
+- include unit tests and documentation for new features and bug fixes,
+- the patched code should pass:
+  - `just check / lint / fmt / test / docs / miri / perf-check`
+- if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
 
 ## License
 
@@ -113,3 +134,8 @@ This crate was originally developed without the use of AI.
 Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the resource pool and attribute storage strategies.
 LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
 Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the entire `CityJSON` 2.0 specification.
+
+## Roadmap
+
+There are no major features planned for the near future, beyond bug fixes, test coverage, documentation improvements.
+

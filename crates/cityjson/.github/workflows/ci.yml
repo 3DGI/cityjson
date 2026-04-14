@@ -21,7 +21,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: cargo fmt --all --check
 
   lint:
@@ -33,7 +33,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: just lint
 
   test:
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: just test
 
   build:
@@ -63,7 +63,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: just build
 
   nightly:
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: just build
 
   doc:
@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: just doc
 
   coverage:
@@ -116,7 +116,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
       - run: sudo apt-get update && sudo apt-get install -y valgrind
       - run: |
           ALLOW=0
@@ -125,14 +125,14 @@ jobs:
           fi
           BASE_REF="origin/${{ github.base_ref }}" ALLOW_REGRESSION="$ALLOW" bash tools/ci_bench_gate.sh
 
-#  miri:
-#    name: Miri
-#    runs-on: ubuntu-latest
-#    env:
-#      MIRIFLAGS: -Zmiri-strict-provenance
-#    timeout-minutes: 45
-#    steps:
-#      - uses: actions/checkout@v6
-#      - uses: dtolnay/rust-toolchain@miri
-#      - uses: extractions/setup-just@v3
-#      - run: just miri
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    env:
+      MIRIFLAGS: -Zmiri-strict-provenance
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@miri
+      - uses: extractions/setup-just@v4
+      - run: just miri

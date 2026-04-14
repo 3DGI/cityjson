@@ -25,7 +25,7 @@ num = "0.4.3"
 criterion = { version = "0.8.2", features = ["html_reports"] }
 # For custom profiling and benchmarking
 dhat = "0.3"  # Heap profiling
-proptest = "1.6.0"
+proptest = "1.11.0"
 rand = "0.10.0"
 serde_json = "1"
 
