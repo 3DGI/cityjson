@@ -1,35 +1,54 @@
 #!/usr/bin/env just --justfile
 
-default:
+_default:
     just --list
 
-help:
-    just --list
-
-list:
-    just --list
-
+# Clean up the build artifacts
 clean:
     cargo clean
     rm -rf ffi/python/dist ffi/python/build
 
+# Run cargo check on the project
 check:
     cargo check --manifest-path Cargo.toml --workspace --all-targets --all-features
 
+# Build the project
 build *args:
     cargo build --manifest-path Cargo.toml --workspace --all-targets --all-features {{args}}
 
-clippy:
+# Run cargo clippy on the project
+lint:
     cargo clippy --manifest-path Cargo.toml --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Aclippy::float_cmp
 
-lint:
-    just clippy
-
+# Run cargo fmt on the project
 fmt:
-    cargo fmt --manifest-path Cargo.toml -p cityjson-lib -p cityjson-lib-ffi-core -p cityjson-lib-wasm
+    cargo fmt --manifest-path Cargo.toml --all
 
+# Run cargo test on the project
 test:
     cargo test --manifest-path Cargo.toml --workspace
+
+# Build the docs
+docs-build:
+    uv run --with-requirements python-requirements-dev.txt mkdocs build --strict
+
+# Serve the docs locally
+docs-serve *args:
+    uv run --with-requirements python-requirements-dev.txt mkdocs serve {{args}}
+
+# Run fmt, lint, check, bench-check, test, and doc
+ci:
+    just fmt
+    just lint
+    just check
+    just bench-check
+    just test
+    just docs-build
+
+# Build the benchmarks
+bench-check:
+    cargo bench --all-targets --all-features --no-run
+
 
 bench-prepare:
     ./tools/prepare_real_3dbag_bench_data.sh
@@ -55,15 +74,6 @@ perf-plot *args:
 perf-check:
     cargo bench --bench throughput --bench diagnostic --bench profile --no-run
 
-doc:
-    cargo doc --workspace --all-features --no-deps
-
-ci:
-    just fmt
-    just clippy
-    just test
-    just doc
-
 ffi-check:
     cargo check -p cityjson-lib-ffi-core -p cityjson-lib-wasm --all-targets
     python3 -m compileall -q ffi/python/src
@@ -88,8 +98,3 @@ ffi-header:
 build-python:
     uv build ffi/python/ --wheel --out-dir ffi/python/dist
 
-docs-build:
-    uv run --with-requirements python-requirements-dev.txt mkdocs build --strict
-
-docs-serve *args:
-    uv run --with-requirements python-requirements-dev.txt mkdocs serve {{args}}
