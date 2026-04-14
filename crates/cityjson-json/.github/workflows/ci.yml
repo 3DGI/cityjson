@@ -11,21 +11,29 @@ permissions:
 env:
   RUSTFLAGS: -Dwarnings
 
-# cityjson-json depends on cityjson-rs via a path dep (path = "../cityjson-rs").
-# Every job checks out cityjson-rs as a sibling so Cargo can resolve it.
-# The version constraint in Cargo.toml ensures crates.io compatibility when published.
+# Sibling checkout layout under $GITHUB_WORKSPACE:
+#   cityjson-json/   ← this repo
+#   cityjson-rs/     ← sibling, found at ../cityjson-rs from Cargo.toml path dep
+#
+# Both paths are under $GITHUB_WORKSPACE so actions/checkout accepts them.
+# All run steps use working-directory: cityjson-json.
 
 jobs:
   fmt:
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -36,12 +44,17 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -56,12 +69,17 @@ jobs:
       matrix:
         os: [ubuntu, macos, windows]
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
@@ -74,12 +92,17 @@ jobs:
       matrix:
         rust: [ 1.93.0 ]
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
@@ -90,12 +113,17 @@ jobs:
     name: Build (nightly)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just build
@@ -106,12 +134,17 @@ jobs:
     timeout-minutes: 45
     env:
       RUSTDOCFLAGS: --cfg docsrs -Dwarnings
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just doc
@@ -121,14 +154,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-tarpaulin
       - run: |
@@ -143,14 +180,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: cityjson-json
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          path: cityjson-json
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-rs
-          path: ../cityjson-rs
+          path: cityjson-rs
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: |
