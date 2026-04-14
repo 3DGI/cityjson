@@ -88,6 +88,16 @@ where
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSON`.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_str_owned;
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_owned(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
     crate::de::from_str_owned(input)
 }
@@ -97,6 +107,16 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSONFeature`.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_feature_str_owned;
+///
+/// let json = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let model = from_feature_str_owned(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
     let model = from_str_owned(input)?;
     match model.type_citymodel() {
@@ -115,6 +135,17 @@ pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
 ///
 /// Returns an error if the base document is not valid `CityJSON`, the feature is
 /// not valid `CityJSONFeature`, or the combined document cannot be parsed.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_feature_str_owned_with_base;
+///
+/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let feature = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let model = from_feature_str_owned_with_base(feature, base)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_feature_str_owned_with_base(
     feature_input: &str,
     base_document_input: &str,
@@ -137,6 +168,18 @@ pub fn from_feature_str_owned_with_base(
 ///
 /// Returns an error if the base document is not valid `CityJSON`, the feature
 /// parts are inconsistent, or the combined document cannot be parsed.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cityjson_json::{from_feature_parts_owned_with_base, FeatureObject, FeatureParts};
+///
+/// // city_objects would be pre-parsed RawValue slices from the feature file
+/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let parts = FeatureParts { id: "f1", cityobjects: &[], vertices: &[] };
+/// let model = from_feature_parts_owned_with_base(parts, base)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_feature_parts_owned_with_base(
     parts: FeatureParts<'_>,
     base_document_input: &str,
@@ -157,6 +200,16 @@ pub fn from_feature_parts_owned_with_base(
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSON`.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_str_borrowed;
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_borrowed(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
     crate::de::from_str_borrowed(input)
 }
@@ -168,6 +221,22 @@ pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
 /// Returns an error if the stream is empty, the first non-empty item is not
 /// `CityJSON`, a later item is not `CityJSONFeature`, versions conflict, or
 /// feature IDs are duplicated across the stream.
+///
+/// # Examples
+///
+/// ```
+/// use std::io::BufReader;
+/// use cityjson_json::read_feature_stream;
+///
+/// let seq = concat!(
+///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+/// );
+/// for result in read_feature_stream(BufReader::new(seq.as_bytes()))? {
+///     let _model = result?;
+/// }
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
 where
     R: BufRead,
@@ -188,6 +257,20 @@ where
 ///
 /// Returns an error if the stream shape is invalid or if feature items carry
 /// incompatible root state that cannot be merged without loss.
+///
+/// # Examples
+///
+/// ```
+/// use std::io::BufReader;
+/// use cityjson_json::merge_feature_stream;
+///
+/// let seq = concat!(
+///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+/// );
+/// let model = merge_feature_stream(BufReader::new(seq.as_bytes()))?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn merge_feature_stream<R>(reader: R) -> Result<OwnedCityModel>
 where
     R: BufRead,
@@ -277,6 +360,17 @@ where
 ///
 /// Returns an error if the model is not a `CityJSONFeature`, fails validation,
 /// or cannot be serialized.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::{from_feature_str_owned, to_string_feature};
+///
+/// let json = r#"{"type":"CityJSONFeature","version":"2.0","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let model = from_feature_str_owned(json)?;
+/// let output = to_string_feature(&model)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn to_string_feature<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
 where
     VR: VertexRef + Serialize,
@@ -288,6 +382,22 @@ where
     }
 }
 
+/// Wrap a [`CityModel`] reference in a serializable builder.
+///
+/// Returns a [`SerializableCityModel`] that can be serialized to a JSON string,
+/// byte vector, or writer. Chain [`.validate()`][SerializableCityModel::validate]
+/// to enable default-theme validation before serialization.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::{as_json, from_str_owned};
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_owned(json)?;
+/// let output = as_json(&model).to_string()?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn as_json<VR, SS>(model: &CityModel<VR, SS>) -> SerializableCityModel<'_, VR, SS>
 where
     VR: VertexRef + Serialize,
@@ -314,6 +424,18 @@ where
     SS: StringStorage,
 {
     /// Enable default-theme validation before serializing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let output = as_json(&model).validate().to_string()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
+    #[must_use]
     pub fn validate(self) -> Self {
         Self {
             validate: true,
@@ -327,6 +449,17 @@ where
     ///
     /// Returns an error if validation is enabled and the model fails validation,
     /// or if the model cannot be serialized.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let output = as_json(&model).to_string()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
     pub fn to_string(self) -> Result<String> {
         if self.validate {
             self.model.validate_default_themes()?;
@@ -340,6 +473,17 @@ where
     ///
     /// Returns an error if validation is enabled and the model fails validation,
     /// or if the model cannot be serialized.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let bytes = as_json(&model).to_vec()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
     pub fn to_vec(self) -> Result<Vec<u8>> {
         if self.validate {
             self.model.validate_default_themes()?;
@@ -353,6 +497,18 @@ where
     ///
     /// Returns an error if validation is enabled and the model fails validation,
     /// or if serialization fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let mut buf = Vec::new();
+    /// as_json(&model).to_writer(&mut buf)?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
     pub fn to_writer<W: Write>(self, writer: W) -> Result<()> {
         if self.validate {
             self.model.validate_default_themes()?;

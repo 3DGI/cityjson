@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use cityjson_json::{OwnedCityModel, as_json, from_str_owned, to_string, to_string_validated};
+use cityjson_json::{OwnedCityModel, as_json, from_str_owned};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";
@@ -270,13 +270,13 @@ fn prepare_write_case(spec: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCa
     let canonical_value = serde_json::to_value(as_json(&model)).unwrap();
     let mut benchmark_bytes = BTreeMap::new();
 
-    let to_string_output = to_string(&model).unwrap();
+    let to_string_output = as_json(&model).to_string().unwrap();
     benchmark_bytes.insert(
         WRITE_BENCH_CITYJSON_JSON_TO_STRING.to_owned(),
         to_string_output.len() as u64,
     );
 
-    let validated_output = to_string_validated(&model).unwrap();
+    let validated_output = as_json(&model).validate().to_string().unwrap();
     benchmark_bytes.insert(
         WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED.to_owned(),
         validated_output.len() as u64,

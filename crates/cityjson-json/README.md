@@ -1,6 +1,6 @@
 # cityjson-json
 
-`cityjson-json` is a CityJSON 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of CityJSON documents with both owned and borrowed string storage options.
+`cityjson-json` is a `CityJSON` 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of `CityJSON` documents with both owned and borrowed string storage options.
 
 ## Installation
 
@@ -82,7 +82,7 @@ The library provides two serialization paths to balance performance and safety:
 - **`.to_string()`** / **`.to_vec()`** / **`.to_writer()`**: Fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
 - **`.validate().to_string()`** etc.: Strict path. Validates default theme references before serialization to ensure document consistency.
 
-Chain `.validate()` when you need guaranteed valid CityJSON output, especially when serializing user-provided models.
+Chain `.validate()` when you need guaranteed valid `CityJSON` output, especially when serializing user-provided models.
 
 ## Documentation
 
@@ -95,20 +95,20 @@ todo: link to docs.rs
 
 | Module   | Contents                                                                                       |
 |----------|------------------------------------------------------------------------------------------------|
-| `v2_0`   | CityJSON 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
+| `v2_0`   | `CityJSON` 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
 | `errors` | `Error` and `Result` types surfaced by the adapter                                             |
 | (root)   | Convenience re-exports: `from_str_*`, `as_json`, `to_string_feature`, model types              |
 
 Core types re-exported from `cityjson`:
 
-- **`OwnedCityModel`**: A CityJSON model with owned `String` storage. Self-contained and doesn't depend on external lifetimes.
-- **`BorrowedCityModel`**: A CityJSON model with borrowed string references. More memory efficient but requires careful lifetime management.
+- **`OwnedCityModel`**: A `CityJSON` model with owned `String` storage. Self-contained and doesn't depend on external lifetimes.
+- **`BorrowedCityModel`**: A `CityJSON` model with borrowed string references. More memory efficient but requires careful lifetime management.
 
 ## Design
 
 ### Deserialization
 
-Parsing a CityJSON document is split into two sequential phases.
+Parsing a `CityJSON` document is split into two sequential phases.
 
 **Phase 1 — root preparation (`parse_root`).**
 The document is read once by a handwritten `serde` visitor that fills a
@@ -187,7 +187,7 @@ pre-flight checks. Chaining `.validate()` before the output method calls
 texture theme names reference themes that actually exist in the appearance
 section.
 
-**CityJSONSeq stream writing.**
+**`CityJSONSeq` stream writing.**
 `write_cityjsonseq_with_transform_refs` and
 `write_cityjsonseq_auto_transform_refs` write a compliant newline-delimited
 stream. The first line is a `CityJSON` header serialized with
@@ -227,7 +227,7 @@ the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
 ### Running Benchmarks
 
 The benchmark corpus lives in the shared `cityjson-benchmarks` repository.
-`cityjson-json` benchmarks the CityJSON artifacts listed in each workload's
+`cityjson-json` benchmarks the `CityJSON` artifacts listed in each workload's
 `artifacts[]` array and reads the shared benchmark index from
 `../cityjson-benchmarks/artifacts/benchmark-index.json` by default. Override
 the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
@@ -276,7 +276,7 @@ without additional terms or conditions.
 This crate was originally developed without the use of AI.
 Since then, it underwent multiple significant refactors and various LLM models (Claude, `ChatGPT`) were used for experimenting with alternative designs, in particular for the (de)serialization strategies and borrowed-parsing paths.
 LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
-Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the CityJSON 2.0 specification.
+Code correctness and performance are verified by carefully curated test cases and benchmarks that cover the `CityJSON` 2.0 specification.
 
 ## Roadmap
 
