@@ -158,7 +158,7 @@ echo "=== Comparing results ==="
 
 REGRESSION_FOUND=0
 
-python3 - "$TARGET_DIR" "$SPEED_THRESHOLD" "$ALLOC_THRESHOLD" "$CACHE_THRESHOLD" <<'PYEOF'
+(python3 - "$TARGET_DIR" "$SPEED_THRESHOLD" "$ALLOC_THRESHOLD" "$CACHE_THRESHOLD" <<'PYEOF'
 import json, pathlib, sys
 
 target_dir = pathlib.Path(sys.argv[1])
@@ -245,7 +245,8 @@ if regressions:
 else:
     print("No regressions detected.")
     sys.exit(0)
-PYEOF || REGRESSION_FOUND=1
+PYEOF
+) || REGRESSION_FOUND=1
 
 if [ "$REGRESSION_FOUND" = "1" ]; then
     if [ "$ALLOW_REGRESSION" = "1" ]; then
