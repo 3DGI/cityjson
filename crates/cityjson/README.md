@@ -14,9 +14,9 @@ Serialization is implemented by:
 
 For a higher-level library that integrates serialization, implements geometry processing, and other features into a single crate, see [cityjson-lib](https://github.com/3DGI/cityjson-lib).
 
-For generating fake, schema-valid data for any combination of the CityJSON specs, see [cityjson-fake](https://github.com/3DGI/cityjson-fake). 
+For generating fake, schema-valid data for any combination of the `CityJSON` specs, see [cityjson-fake](https://github.com/3DGI/cityjson-fake).
 
-For efficient indexing and querying individual CityObjects across multiple files, see [cityjson-index](https://github.com/3DGI/cityjson-index).
+For efficient indexing and querying individual `CityObjects` across multiple files, see [cityjson-index](https://github.com/3DGI/cityjson-index).
 
 ## Installation
 
