@@ -75,6 +75,44 @@ let bytes = as_json(&model).to_vec()?;
 as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
+### CityJSONSeq
+
+Read a newline-delimited `CityJSONSeq` stream. The first line must be a `CityJSON` header; each subsequent line is a self-contained `CityJSONFeature`:
+
+```rust
+use std::io::BufReader;
+use cityjson_json::read_cityjsonseq;
+
+let seq = concat!(
+    r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#, "\n",
+    r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building"}},"vertices":[]}"#, "\n",
+);
+let features = read_cityjsonseq(BufReader::new(seq.as_bytes()))?
+    .collect::<cityjson_json::Result<Vec<_>>>()?;
+// each element is an OwnedCityModel (CityJSONFeature) with the header transform merged in
+# Ok::<(), cityjson_json::Error>(())
+```
+
+Write a strict `CityJSONSeq` stream. Supply a `CityJSON` base root and one or more feature models; the builder quantizes vertices and computes the geographical extent:
+
+```rust
+use cityjson_json::{from_str_owned, from_feature_str_with_base, write_cityjsonseq};
+
+let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let base_root = from_str_owned(base_input)?;
+let feature = from_feature_str_with_base(
+    r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
+    base_input,
+)?;
+
+let mut output: Vec<u8> = Vec::new();
+let report = write_cityjsonseq(&base_root, [&feature])
+    .auto_transform([0.001, 0.001, 0.001])
+    .write(&mut output)?;
+// report.feature_count == 1, report.geographical_extent covers all feature vertices
+# Ok::<(), cityjson_json::Error>(())
+```
+
 ## Documentation
 
 - [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
