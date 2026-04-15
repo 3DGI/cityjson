@@ -58,14 +58,6 @@ use cityjson_json::as_json;
 let json_output = as_json(&model).to_string()?;
 ```
 
-For validated serialization (checks default theme references), chain `.validate()`:
-
-```rust,ignore
-use cityjson_json::as_json;
-
-let json_output = as_json(&model).validate().to_string()?;
-```
-
 The same builder works for other output targets:
 
 ```rust,ignore
