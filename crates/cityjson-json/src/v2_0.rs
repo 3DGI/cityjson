@@ -87,7 +87,7 @@ where
 /// ```
 /// use cityjson_json::from_str_owned;
 ///
-/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let model = from_str_owned(json)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
@@ -134,7 +134,7 @@ pub fn from_feature_str(input: &str) -> Result<OwnedCityModel> {
 /// ```
 /// use cityjson_json::from_feature_str_with_base;
 ///
-/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let base = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let feature = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let model = from_feature_str_with_base(feature, base)?;
 /// # Ok::<(), cityjson_json::Error>(())
@@ -168,7 +168,7 @@ pub fn from_feature_str_with_base(
 /// use cityjson_json::{from_feature_parts_with_base, FeatureObject, FeatureParts};
 ///
 /// // city_objects would be pre-parsed RawValue slices from the feature file
-/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let base = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let parts = FeatureParts { id: "f1", cityobjects: &[], vertices: &[] };
 /// let model = from_feature_parts_with_base(parts, base)?;
 /// # Ok::<(), cityjson_json::Error>(())
@@ -199,7 +199,7 @@ pub fn from_feature_parts_with_base(
 /// ```
 /// use cityjson_json::from_str_borrowed;
 ///
-/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let model = from_str_borrowed(json)?;
 /// # Ok::<(), cityjson_json::Error>(())
 /// ```
@@ -222,7 +222,7 @@ pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
 /// use cityjson_json::read_cityjsonseq;
 ///
 /// let seq = concat!(
-///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#, "\n",
 ///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
 /// for result in read_cityjsonseq(BufReader::new(seq.as_bytes()))? {
@@ -258,7 +258,7 @@ where
 /// use cityjson_json::merge_cityjsonseq;
 ///
 /// let seq = concat!(
-///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#, "\n",
 ///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
 /// );
 /// let model = merge_cityjsonseq(BufReader::new(seq.as_bytes()))?;
@@ -298,7 +298,7 @@ where
 /// ```
 /// use cityjson_json::{from_str_owned, from_feature_str, write_cityjsonseq};
 ///
-/// let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let base_input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let feature_input = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
 /// let base_root = from_str_owned(base_input)?;
 /// let feature = from_feature_str(feature_input)?;
@@ -416,7 +416,7 @@ where
 /// ```
 /// use cityjson_json::{as_json, from_str_owned};
 ///
-/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 /// let model = from_str_owned(json)?;
 /// let output = as_json(&model).to_string()?;
 /// # Ok::<(), cityjson_json::Error>(())
@@ -453,7 +453,7 @@ where
     /// ```
     /// use cityjson_json::{as_json, from_str_owned};
     ///
-    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
     /// let model = from_str_owned(json)?;
     /// let output = as_json(&model).validate().to_string()?;
     /// # Ok::<(), cityjson_json::Error>(())
@@ -478,7 +478,7 @@ where
     /// ```
     /// use cityjson_json::{as_json, from_str_owned};
     ///
-    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
     /// let model = from_str_owned(json)?;
     /// let output = as_json(&model).to_string()?;
     /// # Ok::<(), cityjson_json::Error>(())
@@ -502,7 +502,7 @@ where
     /// ```
     /// use cityjson_json::{as_json, from_str_owned};
     ///
-    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
     /// let model = from_str_owned(json)?;
     /// let bytes = as_json(&model).to_vec()?;
     /// # Ok::<(), cityjson_json::Error>(())
@@ -526,7 +526,7 @@ where
     /// ```
     /// use cityjson_json::{as_json, from_str_owned};
     ///
-    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let json = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
     /// let model = from_str_owned(json)?;
     /// let mut buf = Vec::new();
     /// as_json(&model).to_writer(&mut buf)?;

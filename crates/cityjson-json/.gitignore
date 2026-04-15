@@ -6,3 +6,4 @@ Cargo.lock
 /tests/data/downloaded/
 /tests/data/downloaded_legacy/
 **/.venv
+.env

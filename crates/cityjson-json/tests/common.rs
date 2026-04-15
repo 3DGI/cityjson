@@ -148,14 +148,15 @@ fn correctness_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
+    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
+        || {
             panic!(
                 "set CITYJSON_JSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
 or set CITYJSON_JSON_CORRECTNESS_INDEX to the correctness index path"
             )
-        })
+        },
+        PathBuf::from,
+    )
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {

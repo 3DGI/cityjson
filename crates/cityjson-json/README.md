@@ -27,6 +27,7 @@ use cityjson_json::from_str_owned;
 let json_str = r#"{
   "type": "CityJSON",
   "version": "2.0",
+  "transform": {"scale": [1.0, 1.0, 1.0], "translate": [0.0, 0.0, 0.0]},
   "CityObjects": {},
   "vertices": []
 }"#;
@@ -42,7 +43,7 @@ For performance-critical applications, use borrowed deserialization to avoid all
 ```rust
 use cityjson_json::from_str_borrowed;
 
-let json_str = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let json_str = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 let model = from_str_borrowed(json_str)?;
 // model holds references to json_str
 # Ok::<(), cityjson_json::Error>(())
@@ -67,7 +68,7 @@ let bytes = as_json(&model).to_vec()?;
 as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
-### CityJSONSeq
+### `CityJSONSeq`
 
 Read a newline-delimited `CityJSONSeq` stream. The first line must be a `CityJSON` header; each subsequent line is a self-contained `CityJSONFeature`:
 
@@ -90,7 +91,7 @@ Write a strict `CityJSONSeq` stream. Supply a `CityJSON` base root and one or mo
 ```rust
 use cityjson_json::{from_str_owned, from_feature_str_with_base, write_cityjsonseq};
 
-let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let base_input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 let base_root = from_str_owned(base_input)?;
 let feature = from_feature_str_with_base(
     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
