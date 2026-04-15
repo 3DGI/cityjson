@@ -1,7 +1,6 @@
 //! Public API contract for explicit cityarrow and cityparquet boundaries.
 
 #[cfg(any(feature = "arrow", feature = "parquet"))]
-use cityjson_json::to_string_validated;
 use cityjson_lib::CityModel;
 #[cfg(feature = "arrow")]
 use cityjson_lib::arrow;
@@ -15,7 +14,10 @@ use std::path::Path;
 #[cfg(any(feature = "arrow", feature = "parquet"))]
 fn normalized_json(model: &CityModel) -> Value {
     let mut value: Value = serde_json::from_str(
-        &to_string_validated(model.as_inner()).expect("model should serialize"),
+        &cityjson_json::as_json(model.as_inner())
+            .validate()
+            .to_string()
+            .expect("model should serialize"),
     )
     .expect("serialized model should be valid JSON");
     strip_null_object_members(&mut value);

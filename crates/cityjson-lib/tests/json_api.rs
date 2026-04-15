@@ -9,10 +9,10 @@ use cityjson_lib::{CityJSONVersion, json};
 
 #[test]
 fn explicit_json_module_supports_document_and_stream_loading() -> cityjson_lib::Result<()> {
-    let document = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
-    let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+    let document = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
+    let stream = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
-{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"BuildingPart"}},"vertices":[]}
+{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"Building"}},"vertices":[]}
 "#;
     let feature = br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#;
 
@@ -46,20 +46,19 @@ fn explicit_json_module_supports_document_and_stream_loading() -> cityjson_lib::
 #[test]
 fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
 -> cityjson_lib::Result<()> {
-    let base_root = json::from_slice(
-        br#"{
+    let base_bytes = br#"{
             "type":"CityJSON",
             "version":"2.0",
+            "transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},
             "metadata":{"title":"base-root"},
             "CityObjects":{},
             "vertices":[]
-        }"#,
-    )?;
-    let feature = json::from_feature_slice(
+        }"#;
+    let base_root = json::from_slice(base_bytes)?;
+    let feature = json::staged::from_feature_slice_with_base(
         br#"{
             "type":"CityJSONFeature",
             "id":"feature-1",
-            "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-1":{
                     "type":"Building",
@@ -68,6 +67,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
             },
             "vertices":[[10,20,30],[12,22,31]]
         }"#,
+        base_bytes,
     )?;
 
     let mut transform = Transform::new();
@@ -80,7 +80,6 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
         &base_root,
         [&feature],
         &transform,
-        json::CityJSONSeqWriteOptions::default(),
     )?;
 
     assert_eq!(report.feature_count, 1);
@@ -125,20 +124,19 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
 #[test]
 fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform()
 -> cityjson_lib::Result<()> {
-    let base_root = json::from_slice(
-        br#"{
+    let base_bytes = br#"{
             "type":"CityJSON",
             "version":"2.0",
+            "transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},
             "metadata":{"title":"base-root"},
             "CityObjects":{},
             "vertices":[]
-        }"#,
-    )?;
-    let feature_a = json::from_feature_slice(
+        }"#;
+    let base_root = json::from_slice(base_bytes)?;
+    let feature_a = json::staged::from_feature_slice_with_base(
         br#"{
             "type":"CityJSONFeature",
             "id":"feature-a",
-            "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-a":{
                     "type":"Building",
@@ -147,20 +145,21 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform()
             },
             "vertices":[[10,20,30],[12,23,35]]
         }"#,
+        base_bytes,
     )?;
-    let feature_b = json::from_feature_slice(
+    let feature_b = json::staged::from_feature_slice_with_base(
         br#"{
             "type":"CityJSONFeature",
             "id":"feature-b",
-            "metadata":{"title":"base-root"},
             "CityObjects":{
                 "feature-b":{
-                    "type":"BuildingPart",
+                    "type":"Building",
                     "geometry":[{"type":"MultiPoint","boundaries":[0]}]
                 }
             },
             "vertices":[[9,21,40]]
         }"#,
+        base_bytes,
     )?;
 
     let mut output = Vec::new();
@@ -168,10 +167,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_auto_transform()
         &mut output,
         &base_root,
         [&feature_a, &feature_b],
-        json::AutoTransformOptions {
-            scale: [0.5, 1.0, 5.0],
-            ..Default::default()
-        },
+        [0.5, 1.0, 5.0],
     )?;
 
     assert_eq!(

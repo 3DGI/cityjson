@@ -3,6 +3,15 @@ name = "cityjson-lib-ffi-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.93"
+description = "C-compatible FFI core for cityjson-lib — stable ABI for embedding and WASM"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/cityjson-lib"
+keywords = ["cityjson", "ffi", "wasm", "geospatial"]
+categories = ["api-bindings", "science::geo"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 name = "cityjson_lib_ffi_core"
@@ -10,5 +19,7 @@ path = "src/lib.rs"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
-cityjson_lib = { package = "cityjson-lib", path = "../.." }
+cityjson_lib = { package = "cityjson-lib", path = "../..", version = "0.3.0" }
+# Note: path = "../.." is an intra-workspace path dep, intentional — ffi/core is a
+# workspace member of cityjson-lib and resolves within that workspace.
 serde_json = { version = "1.0", features = ["raw_value"] }

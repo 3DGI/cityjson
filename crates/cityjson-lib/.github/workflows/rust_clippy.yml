@@ -6,7 +6,13 @@ on:
   pull_request:
     branches: [ "master" ]
 
-# Make sure CI fails on all warnings, including Clippy lints
+# Sibling checkout layout under $GITHUB_WORKSPACE:
+#   cityjson-lib/      ← this repo
+#   cityjson-rs/       ← path dep ../cityjson-rs
+#   cityjson-json/     ← path dep ../cityjson-json
+#   cityjson-arrow/    ← path dep ../cityjson-arrow  (optional feature)
+#   cityjson-parquet/  ← path dep ../cityjson-parquet (optional feature)
+
 env:
   RUSTFLAGS: "-Dwarnings"
   CARGO_TERM_COLOR: always
@@ -14,7 +20,28 @@ env:
 jobs:
   clippy_check:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cityjson-lib
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: cityjson-lib
+      - uses: actions/checkout@v3
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v3
+        with:
+          repository: balazsdukai/cityjson-json
+          path: cityjson-json
+      - uses: actions/checkout@v3
+        with:
+          repository: 3DGI/cityjson-arrow
+          path: cityjson-arrow
+      - uses: actions/checkout@v3
+        with:
+          repository: 3DGI/cityjson-parquet
+          path: cityjson-parquet
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features

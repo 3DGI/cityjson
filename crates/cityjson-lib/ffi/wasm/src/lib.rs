@@ -646,7 +646,7 @@ mod tests {
             core::cj_root_kind_t::CJ_ROOT_KIND_CITY_JSON_FEATURE
         );
 
-        let stream = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+        let stream = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 "#;
         let merged = merge_feature_stream(

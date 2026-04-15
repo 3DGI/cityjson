@@ -3,9 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, Write};
 use std::path::Path;
 
-pub use cityjson_json::v2_0::{
-    AutoTransformOptions, CityJSONSeqWriteOptions, CityJSONSeqWriteReport,
-};
+pub use cityjson_json::v2_0::CityJSONSeqWriteReport;
 use serde::Deserialize;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
@@ -54,7 +52,7 @@ pub mod staged {
                     )))
                 })?;
                 Ok(CityModel(
-                    cityjson_json::v2_0::from_feature_str_owned_with_base(
+                    cityjson_json::v2_0::from_feature_str_with_base(
                         feature_input,
                         base_input,
                     )?,
@@ -70,7 +68,7 @@ pub mod staged {
         let feature_input = super::decode_utf8_input(feature_bytes, "CityJSONFeature document")?;
         let base_input = super::decode_utf8_input(base_document_bytes, "CityJSON document")?;
         Ok(CityModel(
-            cityjson_json::v2_0::from_feature_str_owned_with_base(feature_input, base_input)?,
+            cityjson_json::v2_0::from_feature_str_with_base(feature_input, base_input)?,
         ))
     }
 
@@ -98,7 +96,7 @@ pub mod staged {
             vertices: assembly.vertices,
         };
         Ok(CityModel(
-            cityjson_json::from_feature_parts_owned_with_base(parts, base_input)?,
+            cityjson_json::from_feature_parts_with_base(parts, base_input)?,
         ))
     }
 
@@ -112,7 +110,7 @@ pub mod staged {
     pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
         match model.as_inner().type_citymodel() {
             cityjson::CityModelType::CityJSONFeature => {
-                cityjson_json::to_writer_validated(writer, model.as_inner())?;
+                cityjson_json::as_json(model.as_inner()).validate().to_writer(writer)?;
                 Ok(())
             }
             other => Err(Error::UnsupportedType(other.to_string())),
@@ -240,7 +238,7 @@ pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 
 pub fn from_feature_slice_assume_cityjson_feature_v2_0(bytes: &[u8]) -> Result<CityModel> {
     let input = decode_utf8_input(bytes, "CityJSONFeature document")?;
-    Ok(CityModel(cityjson_json::v2_0::from_feature_str_owned(
+    Ok(CityModel(cityjson_json::v2_0::from_feature_str(
         input,
     )?))
 }
@@ -249,7 +247,7 @@ pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<C
 where
     R: BufRead,
 {
-    let iter = cityjson_json::v2_0::read_feature_stream(reader)?;
+    let iter = cityjson_json::v2_0::read_cityjsonseq(reader)?;
     Ok(iter.map(|item| item.map(CityModel::from).map_err(Error::from)))
 }
 
@@ -289,20 +287,13 @@ pub fn write_cityjsonseq<I, W>(
     base_root: &CityModel,
     features: I,
     transform: &cityjson::v2_0::Transform,
-    options: CityJSONSeqWriteOptions,
 ) -> Result<CityJSONSeqWriteReport>
 where
     I: IntoIterator<Item = CityModel>,
     W: Write,
 {
     let features = features.into_iter().collect::<Vec<_>>();
-    write_cityjsonseq_refs(
-        writer,
-        base_root,
-        features.iter().collect::<Vec<_>>(),
-        transform,
-        options,
-    )
+    write_cityjsonseq_refs(writer, base_root, features.iter(), transform)
 }
 
 pub fn write_cityjsonseq_refs<'a, I, W>(
@@ -310,7 +301,6 @@ pub fn write_cityjsonseq_refs<'a, I, W>(
     base_root: &CityModel,
     features: I,
     transform: &cityjson::v2_0::Transform,
-    options: CityJSONSeqWriteOptions,
 ) -> Result<CityJSONSeqWriteReport>
 where
     I: IntoIterator<Item = &'a CityModel>,
@@ -320,39 +310,30 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(cityjson_json::v2_0::write_cityjsonseq_with_transform_refs(
-        writer,
-        base_root.as_inner(),
-        features,
-        transform,
-        options,
-    )?)
+    Ok(cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
+        .with_transform(transform)
+        .write(writer)?)
 }
 
 pub fn write_cityjsonseq_auto_transform<I, W>(
     writer: W,
     base_root: &CityModel,
     features: I,
-    options: AutoTransformOptions,
+    scale: [f64; 3],
 ) -> Result<CityJSONSeqWriteReport>
 where
     I: IntoIterator<Item = CityModel>,
     W: Write,
 {
     let features = features.into_iter().collect::<Vec<_>>();
-    write_cityjsonseq_auto_transform_refs(
-        writer,
-        base_root,
-        features.iter().collect::<Vec<_>>(),
-        options,
-    )
+    write_cityjsonseq_auto_transform_refs(writer, base_root, features.iter(), scale)
 }
 
 pub fn write_cityjsonseq_auto_transform_refs<'a, I, W>(
     writer: W,
     base_root: &CityModel,
     features: I,
-    options: AutoTransformOptions,
+    scale: [f64; 3],
 ) -> Result<CityJSONSeqWriteReport>
 where
     I: IntoIterator<Item = &'a CityModel>,
@@ -362,12 +343,9 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(cityjson_json::v2_0::write_cityjsonseq_auto_transform_refs(
-        writer,
-        base_root.as_inner(),
-        features,
-        options,
-    )?)
+    Ok(cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
+        .auto_transform(scale)
+        .write(writer)?)
 }
 
 pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
@@ -379,7 +357,7 @@ pub fn to_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<V
 }
 
 pub fn to_string(model: &CityModel) -> Result<String> {
-    Ok(cityjson_json::to_string_validated(model.as_inner())?)
+    Ok(cityjson_json::as_json(model.as_inner()).validate().to_string()?)
 }
 
 pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
@@ -410,7 +388,12 @@ pub fn to_writer_with_options(
 }
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
-    Ok(cityjson_json::v2_0::to_string_feature(model.as_inner())?)
+    match model.as_inner().type_citymodel() {
+        cityjson::CityModelType::CityJSONFeature => {
+            Ok(cityjson_json::as_json(model.as_inner()).validate().to_string()?)
+        }
+        other => Err(Error::UnsupportedType(other.to_string())),
+    }
 }
 
 pub fn to_feature_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<Vec<u8>> {
@@ -491,7 +474,7 @@ mod tests {
     }
 
     fn feature_document() -> &'static [u8] {
-        br#"{"type":"CityJSONFeature","id":"feature-1","version":"2.0","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
+        br#"{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}"#
     }
 
     #[test]

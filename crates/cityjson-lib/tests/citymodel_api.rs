@@ -4,7 +4,7 @@ use cityjson_lib::{CityJSONVersion, CityModel};
 
 #[test]
 fn citymodel_is_the_default_entry_point_for_cityjson_json() -> cityjson_lib::Result<()> {
-    let bytes = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    let bytes = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 
     let _ = CityModel::from_slice(bytes)?;
     let _ = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;

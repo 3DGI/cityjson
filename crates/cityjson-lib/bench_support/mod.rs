@@ -174,7 +174,10 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonWrite,
             model,
         } => {
-            let output = cityjson_json::to_string_validated(black_box(model.as_inner())).unwrap();
+            let output = cityjson_json::as_json(black_box(model.as_inner()))
+                .validate()
+                .to_string()
+                .unwrap();
             black_box(output);
         }
         PreparedWorkload::ModelWrite {
@@ -227,7 +230,9 @@ pub(crate) fn throughput_bytes(case: &BenchmarkCase, workload: Workload) -> u64 
             .unwrap()
             .len() as u64,
         Workload::JsonCityjsonWrite => {
-            cityjson_json::to_string_validated(read_model(&case.json_path).as_inner())
+            cityjson_json::as_json(read_model(&case.json_path).as_inner())
+                .validate()
+                .to_string()
                 .unwrap()
                 .len() as u64
         }
