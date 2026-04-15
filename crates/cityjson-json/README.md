@@ -8,11 +8,11 @@ Representative read benchmarks against `serde_json::Value`. Refresh this table
 from the shared benchmark suite with `just bench`.
 
 <!-- benchmark-summary:start -->
-| Case | Owned | Borrowed | serde_json::Value | Owned vs Value | Borrowed vs Value |
+| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |
 | --- | --- | --- | --- | --- | --- |
-| io_basisvoorziening_3d_cityjson | 282.4 MiB/s | 313.5 MiB/s | 251.1 MiB/s | 1.13x | 1.25x |
-| io_3dbag_cityjson_cluster_4x | 186.8 MiB/s | 196.2 MiB/s | 290.8 MiB/s | 0.64x | 0.67x |
-| io_3dbag_cityjson | 192.9 MiB/s | 205.8 MiB/s | 308.3 MiB/s | 0.63x | 0.67x |
+| `io_basisvoorziening_3d_cityjson` | 282.4 MiB/s | 313.5 MiB/s | 251.1 MiB/s | 1.13x | 1.25x |
+| `io_3dbag_cityjson_cluster_4x` | 186.8 MiB/s | 196.2 MiB/s | 290.8 MiB/s | 0.64x | 0.67x |
+| `io_3dbag_cityjson` | 192.9 MiB/s | 205.8 MiB/s | 308.3 MiB/s | 0.63x | 0.67x |
 <!-- benchmark-summary:end -->
 
 Full benchmark tables and plots are written to `benches/results/benchmark_summary.md`.
@@ -85,7 +85,7 @@ let bytes = as_json(&model).to_vec()?;
 as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
-### CityJSONSeq
+### `CityJSONSeq`
 
 Read a newline-delimited `CityJSONSeq` stream. The first line must be a `CityJSON` header; each subsequent line is a self-contained `CityJSONFeature`:
 

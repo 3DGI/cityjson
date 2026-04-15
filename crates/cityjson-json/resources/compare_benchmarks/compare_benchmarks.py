@@ -279,7 +279,7 @@ def readme_fragment(results: dict[str, dict[str, float]], case_meta: dict[str, C
         return ""
 
     rows = [
-        "| Case | Owned | Borrowed | serde_json::Value | Owned vs Value | Borrowed vs Value |",
+        "| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for case_id in case_ids:
@@ -290,7 +290,7 @@ def readme_fragment(results: dict[str, dict[str, float]], case_meta: dict[str, C
         baseline = suite_case["serde_json::Value"]
         rows.append(
             "| {case} | {owned_tp} | {borrowed_tp} | {baseline_tp} | {owned_speed} | {borrowed_speed} |".format(
-                case=meta.case_id,
+                case=f"`{meta.case_id}`",
                 owned_tp=format_throughput(meta.input_bytes, owned),
                 borrowed_tp=format_throughput(meta.input_bytes, borrowed),
                 baseline_tp=format_throughput(meta.input_bytes, baseline),
