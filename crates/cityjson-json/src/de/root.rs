@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{self, DeserializeSeed, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
 use crate::de::attributes::RawAttribute;

@@ -1,14 +1,14 @@
 use cityjson::resources::handles::GeometryHandle;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{Boundary, CityModel, Geometry, GeometryType, VertexRef};
-use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 use serde::Serialize;
+use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 
 use crate::errors::{Error, Result};
 use crate::ser::context::WriteContext;
 use crate::ser::mappings::{
-    has_materials, has_semantics, has_textures, MaterialsSerializer, SemanticsSerializer,
-    TexturesSerializer,
+    MaterialsSerializer, SemanticsSerializer, TexturesSerializer, has_materials, has_semantics,
+    has_textures,
 };
 
 pub(crate) struct GeometriesSerializer<'a, VR, SS>

@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use serde_json::Value;
 
-use serde_cityjson::{from_str_owned, to_string};
+use cityjson_json::{as_json, from_str_owned};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
@@ -137,7 +137,7 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessCase> {
 }
 
 fn correctness_index_path() -> PathBuf {
-    let path = env::var_os("SERDE_CITYJSON_CORRECTNESS_INDEX").map_or_else(
+    let path = env::var_os("CITYJSON_JSON_CORRECTNESS_INDEX").map_or_else(
         || shared_corpus_root().join(DEFAULT_CORRECTNESS_INDEX_PATH),
         PathBuf::from,
     );
@@ -150,7 +150,7 @@ fn correctness_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT").map_or_else(
+    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
         PathBuf::from,
     )
@@ -183,8 +183,8 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
             .unwrap_or_else(|err| panic!("failed to create {}: {err}", parent.display()));
     }
 
-    let cargo_manifest = cjfake_cargo_manifest();
-    let schema_path = cjfake_manifest_schema();
+    let cargo_manifest = cityjson_fake_cargo_manifest();
+    let schema_path = cityjson_fake_manifest_schema();
     let status = Command::new("cargo")
         .arg("run")
         .arg("--quiet")
@@ -198,28 +198,28 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
         .arg("--output")
         .arg(output)
         .status()
-        .unwrap_or_else(|err| panic!("failed to run cjfake via cargo: {err}"));
+        .unwrap_or_else(|err| panic!("failed to run cityjson-fake via cargo: {err}"));
 
     assert!(
         status.success(),
-        "cjfake failed to generate {} using {}",
+        "cityjson-fake failed to generate {} using {}",
         output.display(),
         profile.display()
     );
 }
 
-fn cjfake_cargo_manifest() -> PathBuf {
+fn cityjson_fake_cargo_manifest() -> PathBuf {
     env::var_os("CJFAKE_CARGO_MANIFEST").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cjfake/Cargo.toml"),
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-fake/Cargo.toml"),
         PathBuf::from,
     )
 }
 
-fn cjfake_manifest_schema() -> PathBuf {
+fn cityjson_fake_manifest_schema() -> PathBuf {
     env::var_os("CJFAKE_MANIFEST_SCHEMA").map_or_else(
         || {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../cjfake/src/data/cjfake-manifest.schema.json")
+                .join("../cityjson-fake/src/data/cityjson-fake-manifest.schema.json")
         },
         PathBuf::from,
     )
@@ -231,7 +231,7 @@ fn cjfake_manifest_schema() -> PathBuf {
 #[must_use]
 pub fn roundtrip_value(input: &Value) -> Value {
     let model = from_str_owned(&serde_json::to_string(input).unwrap()).unwrap();
-    serde_json::from_str(&to_string(&model).unwrap()).unwrap()
+    serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap()
 }
 
 /// Assert that the data retains the same content after an adapter deserialize-serialize roundtrip.

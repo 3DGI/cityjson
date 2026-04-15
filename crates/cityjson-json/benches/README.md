@@ -1,6 +1,6 @@
 # Benchmarks
 
-This directory contains the Criterion suites for the current `serde_cityjson`
+This directory contains the Criterion suites for the current `cityjson-json`
 crate.
 
 ## Suites

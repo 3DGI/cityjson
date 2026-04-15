@@ -14,6 +14,10 @@ _check-shared-benchmark-index:
 clean:
     cargo clean
 
+# Build benchmarks without running them
+bench-check:
+    cargo bench --benches --no-run
+
 # Run all benchmarks and generate the comparison report.
 bench: bench-read bench-write bench-report
 
@@ -49,6 +53,14 @@ fmt:
 test:
     cargo test --lib --tests --all-features
 
+# Generate test coverage report using tarpaulin
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
 # Build the documentation.
 doc:
-    cargo doc --all-features --no-deps --open
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
+
+# Run fmt, check, lint, test, bench-check, and doc.
+ci: fmt check lint test bench-check doc

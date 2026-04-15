@@ -1,4 +1,4 @@
-"""Generate benchmark plots and README-ready tables for serde_cityjson."""
+"""Generate benchmark plots and README-ready tables for cityjson-json."""
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["matplotlib"]
@@ -18,14 +18,14 @@ import matplotlib.pyplot as plt
 
 BENCHMARK_IDS = {
     "read": (
-        "serde_cityjson/owned",
-        "serde_cityjson/borrowed",
+        "cityjson-json/owned",
+        "cityjson-json/borrowed",
         "serde_json::Value",
     ),
     "write": (
-        "serde_cityjson/as_json_to_value",
-        "serde_cityjson/to_string",
-        "serde_cityjson/to_string_validated",
+        "cityjson-json/as_json_to_value",
+        "cityjson-json/to_string",
+        "cityjson-json/to_string_validated",
         "serde_json::to_string",
     ),
 }
@@ -36,8 +36,8 @@ BASELINE_IDS = {
 }
 
 MAIN_BENCH_IDS = {
-    "read": "serde_cityjson/owned",
-    "write": "serde_cityjson/to_string",
+    "read": "cityjson-json/owned",
+    "write": "cityjson-json/to_string",
 }
 
 OUTPUT_DIR = Path("benches") / "results"
@@ -85,8 +85,8 @@ def load_suite_metadata(suite: str) -> dict[str, CaseMeta]:
         if suite == "write" and not benchmark_bytes and legacy_output_bytes is not None:
             output_bytes = int(legacy_output_bytes)
             benchmark_bytes = {
-                "serde_cityjson/to_string": output_bytes,
-                "serde_cityjson/to_string_validated": output_bytes,
+                "cityjson-json/to_string": output_bytes,
+                "cityjson-json/to_string_validated": output_bytes,
                 "serde_json::to_string": output_bytes,
             }
         result[case["id"]] = CaseMeta(
@@ -204,7 +204,7 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
     rows = [
         f"### {suite.capitalize()} Benchmarks",
         "",
-        f"| Case | Description | serde_cityjson | {baseline_bench} | Factor |",
+        f"| Case | Description | cityjson-json | {baseline_bench} | Factor |",
         "| --- | --- | --- | --- | --- |",
     ]
     main_bench = MAIN_BENCH_IDS[suite]

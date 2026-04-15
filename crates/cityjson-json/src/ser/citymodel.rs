@@ -1,18 +1,18 @@
 use cityjson::resources::handles::CityObjectHandle;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{
-    extension::Extensions, BBox, CityModel, CityModelType, CityObject, Contact, ContactRole,
-    ContactType, Extension, Metadata, VertexRef,
+    BBox, CityModel, CityModelType, CityObject, Contact, ContactRole, ContactType, Extension,
+    Metadata, VertexRef, extension::Extensions,
 };
-use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 use serde::Serialize;
+use serde::ser::{Error as _, SerializeMap, SerializeSeq};
 
 use crate::errors::Error;
 use crate::ser::appearance::{
-    ensure_geometry_templates_supported, has_appearance, has_geometry_templates,
-    AppearanceSerializer, GeometryTemplatesSerializer,
+    AppearanceSerializer, GeometryTemplatesSerializer, ensure_geometry_templates_supported,
+    has_appearance, has_geometry_templates,
 };
-use crate::ser::attributes::{serialize_attributes_entries, AttributesSerializer};
+use crate::ser::attributes::{AttributesSerializer, serialize_attributes_entries};
 use crate::ser::context::WriteContext;
 use crate::ser::geometry::GeometriesSerializer;
 
@@ -118,15 +118,16 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("type", &self.options.type_name.to_string())?;
-        if self.options.include_id && self.options.type_name == CityModelType::CityJSONFeature {
-            if let Some(id_handle) = self.model.id() {
-                let id = self.context.id_by_handle.get(&id_handle).ok_or_else(|| {
-                    S::Error::custom(Error::InvalidValue(format!(
-                        "missing id for CityObject {id_handle}"
-                    )))
-                })?;
-                map.serialize_entry("id", id)?;
-            }
+        if self.options.include_id
+            && self.options.type_name == CityModelType::CityJSONFeature
+            && let Some(id_handle) = self.model.id()
+        {
+            let id = self.context.id_by_handle.get(&id_handle).ok_or_else(|| {
+                S::Error::custom(Error::InvalidValue(format!(
+                    "missing id for CityObject {id_handle}"
+                )))
+            })?;
+            map.serialize_entry("id", id)?;
         }
         if self.options.include_version {
             map.serialize_entry(
@@ -134,16 +135,16 @@ where
                 &self.model.version().unwrap_or_default().to_string(),
             )?;
         }
-        if self.options.include_transform {
-            if let Some(transform) = self.options.transform {
-                map.serialize_entry(
-                    "transform",
-                    &TransformSerializer {
-                        scale: transform.scale(),
-                        translate: transform.translate(),
-                    },
-                )?;
-            }
+        if self.options.include_transform
+            && let Some(transform) = self.options.transform
+        {
+            map.serialize_entry(
+                "transform",
+                &TransformSerializer {
+                    scale: transform.scale(),
+                    translate: transform.translate(),
+                },
+            )?;
         }
         if self.options.include_metadata
             && (self.model.metadata().is_some()
@@ -157,10 +158,10 @@ where
                 },
             )?;
         }
-        if self.options.include_extensions {
-            if let Some(extensions) = self.model.extensions() {
-                map.serialize_entry("extensions", &ExtensionsSerializer(extensions))?;
-            }
+        if self.options.include_extensions
+            && let Some(extensions) = self.model.extensions()
+        {
+            map.serialize_entry("extensions", &ExtensionsSerializer(extensions))?;
         }
         if self.options.include_vertices {
             map.serialize_entry(
@@ -192,10 +193,10 @@ where
                 },
             )?;
         }
-        if self.options.include_extra {
-            if let Some(extra) = self.model.extra() {
-                serialize_attributes_entries(&mut map, extra)?;
-            }
+        if self.options.include_extra
+            && let Some(extra) = self.model.extra()
+        {
+            serialize_attributes_entries(&mut map, extra)?;
         }
         map.end()
     }
@@ -392,10 +393,10 @@ where
         if let Some(extent) = cityobject.geographical_extent() {
             map.serialize_entry("geographicalExtent", &BBoxSerializer(extent))?;
         }
-        if let Some(attributes) = cityobject.attributes() {
-            if !attributes.is_empty() {
-                map.serialize_entry("attributes", &AttributesSerializer(attributes))?;
-            }
+        if let Some(attributes) = cityobject.attributes()
+            && !attributes.is_empty()
+        {
+            map.serialize_entry("attributes", &AttributesSerializer(attributes))?;
         }
         if let Some(geometry) = cityobject.geometry() {
             map.serialize_entry(
@@ -407,31 +408,31 @@ where
                 },
             )?;
         }
-        if let Some(parents) = cityobject.parents() {
-            if !parents.is_empty() {
-                map.serialize_entry(
-                    "parents",
-                    &RelationSerializer {
-                        source_id: cityobject.id(),
-                        relation: "parent",
-                        handles: parents,
-                        context: self.context,
-                    },
-                )?;
-            }
+        if let Some(parents) = cityobject.parents()
+            && !parents.is_empty()
+        {
+            map.serialize_entry(
+                "parents",
+                &RelationSerializer {
+                    source_id: cityobject.id(),
+                    relation: "parent",
+                    handles: parents,
+                    context: self.context,
+                },
+            )?;
         }
-        if let Some(children) = cityobject.children() {
-            if !children.is_empty() {
-                map.serialize_entry(
-                    "children",
-                    &RelationSerializer {
-                        source_id: cityobject.id(),
-                        relation: "child",
-                        handles: children,
-                        context: self.context,
-                    },
-                )?;
-            }
+        if let Some(children) = cityobject.children()
+            && !children.is_empty()
+        {
+            map.serialize_entry(
+                "children",
+                &RelationSerializer {
+                    source_id: cityobject.id(),
+                    relation: "child",
+                    handles: children,
+                    context: self.context,
+                },
+            )?;
         }
         if let Some(extra) = cityobject.extra() {
             serialize_attributes_entries(&mut map, extra)?;

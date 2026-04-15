@@ -1,0 +1,202 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+# Sibling checkout layout under $GITHUB_WORKSPACE:
+#   cityjson-json/   ← this repo
+#   cityjson-rs/     ← sibling, found at ../cityjson-rs from Cargo.toml path dep
+#
+# Both paths are under $GITHUB_WORKSPACE so actions/checkout accepts them.
+# All run steps use working-directory: cityjson-json.
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: extractions/setup-just@v4
+      - run: cargo fmt --all --check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: extractions/setup-just@v4
+      - run: just lint
+
+  test:
+    name: Test (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v4
+      - run: just test
+
+  build:
+    name: Build (MSRV ${{matrix.rust}})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [ 1.93.0 ]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{matrix.rust}}
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  nightly:
+    name: Build (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUSTDOCFLAGS: --cfg docsrs -Dwarnings
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: extractions/setup-just@v4
+      - run: just doc
+
+  coverage:
+    name: Coverage gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-tarpaulin
+      - run: |
+          ALLOW=0
+          if ${{ contains(github.event.pull_request.labels.*.name, 'coverage-decrease-approved') }}; then
+            ALLOW=1
+          fi
+          BASE_REF="origin/${{ github.base_ref }}" ALLOW_DECREASE="$ALLOW" bash tools/ci_coverage_gate.sh
+
+  bench:
+    name: Benchmark gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: cityjson-json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          path: cityjson-json
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v4
+      - run: |
+          ALLOW=0
+          if ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-approved') }}; then
+            ALLOW=1
+          fi
+          BASE_REF="origin/${{ github.base_ref }}" ALLOW_REGRESSION="$ALLOW" bash tools/ci_bench_gate.sh

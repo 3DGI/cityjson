@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use serde::de::{self, MapAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{self, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
 use crate::de::attributes::attribute_map;
@@ -1265,13 +1265,12 @@ where
         let semantic = model
             .get_semantic_mut(handle)
             .ok_or_else(|| Error::InvalidValue(format!("missing semantic handle {handle}")))?;
-        if let Some(parent_index) = parent {
-            if let Some(&parent_handle) = usize::try_from(parent_index)
+        if let Some(parent_index) = parent
+            && let Some(&parent_handle) = usize::try_from(parent_index)
                 .ok()
                 .and_then(|i| handles.get(i))
-            {
-                semantic.set_parent(parent_handle);
-            }
+        {
+            semantic.set_parent(parent_handle);
         }
         if !children.is_empty() {
             let sem_children = semantic.children_mut();
@@ -1447,7 +1446,7 @@ fn parse_material_themes<'de>(
                 RawAssignment::Nested(_) => {
                     return Err(Error::InvalidValue(
                         "geometry material.value must be a scalar, not an array".to_owned(),
-                    ))
+                    ));
                 }
             };
             vec![idx; surface_count]
@@ -1568,7 +1567,7 @@ fn parse_ring_texture_assignment(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_boundary_from_raw, BoundaryParseKind, GeometryKind, StreamingGeometry};
+    use super::{BoundaryParseKind, GeometryKind, StreamingGeometry, parse_boundary_from_raw};
     use serde_json::value::RawValue;
 
     #[test]

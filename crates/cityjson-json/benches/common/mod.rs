@@ -8,20 +8,20 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use serde_cityjson::{as_json, from_str_owned, to_string, to_string_validated, OwnedCityModel};
+use cityjson_json::{OwnedCityModel, as_json, from_str_owned};
 
 const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";
 
-pub(crate) const READ_BENCH_SERDE_CITYJSON_OWNED: &str = "serde_cityjson/owned";
-pub(crate) const READ_BENCH_SERDE_CITYJSON_BORROWED: &str = "serde_cityjson/borrowed";
+pub(crate) const READ_BENCH_CITYJSON_JSON_OWNED: &str = "cityjson-json/owned";
+pub(crate) const READ_BENCH_CITYJSON_JSON_BORROWED: &str = "cityjson-json/borrowed";
 pub(crate) const READ_BENCH_SERDE_JSON_VALUE: &str = "serde_json::Value";
 
-pub(crate) const WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE: &str =
-    "serde_cityjson/as_json_to_value";
-pub(crate) const WRITE_BENCH_SERDE_CITYJSON_TO_STRING: &str = "serde_cityjson/to_string";
-pub(crate) const WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED: &str =
-    "serde_cityjson/to_string_validated";
+pub(crate) const WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE: &str =
+    "cityjson-json/as_json_to_value";
+pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_STRING: &str = "cityjson-json/to_string";
+pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED: &str =
+    "cityjson-json/to_string_validated";
 pub(crate) const WRITE_BENCH_SERDE_JSON_TO_STRING: &str = "serde_json::to_string";
 
 #[derive(Clone)]
@@ -205,7 +205,7 @@ fn load_benchmark_index() -> BenchmarkIndex {
 }
 
 fn benchmark_index_path() -> PathBuf {
-    let path = std::env::var_os("SERDE_CITYJSON_BENCHMARK_INDEX").map_or_else(
+    let path = std::env::var_os("CITYJSON_JSON_BENCHMARK_INDEX").map_or_else(
         || shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH),
         PathBuf::from,
     );
@@ -218,7 +218,7 @@ fn benchmark_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("SERDE_CITYJSON_SHARED_CORPUS_ROOT").map_or_else(
+    std::env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
         PathBuf::from,
     )
@@ -270,15 +270,15 @@ fn prepare_write_case(spec: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCa
     let canonical_value = serde_json::to_value(as_json(&model)).unwrap();
     let mut benchmark_bytes = BTreeMap::new();
 
-    let to_string_output = to_string(&model).unwrap();
+    let to_string_output = as_json(&model).to_string().unwrap();
     benchmark_bytes.insert(
-        WRITE_BENCH_SERDE_CITYJSON_TO_STRING.to_owned(),
+        WRITE_BENCH_CITYJSON_JSON_TO_STRING.to_owned(),
         to_string_output.len() as u64,
     );
 
-    let validated_output = to_string_validated(&model).unwrap();
+    let validated_output = as_json(&model).validate().to_string().unwrap();
     benchmark_bytes.insert(
-        WRITE_BENCH_SERDE_CITYJSON_TO_STRING_VALIDATED.to_owned(),
+        WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED.to_owned(),
         validated_output.len() as u64,
     );
 
@@ -288,7 +288,7 @@ fn prepare_write_case(spec: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCa
     );
 
     benchmark_bytes.insert(
-        WRITE_BENCH_SERDE_CITYJSON_AS_JSON_TO_VALUE.to_owned(),
+        WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE.to_owned(),
         canonical_value.to_string().len() as u64,
     );
 

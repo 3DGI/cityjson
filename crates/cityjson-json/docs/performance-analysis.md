@@ -1,6 +1,6 @@
 # Performance Analysis
 
-This note captures the current performance assessment of `serde_cityjson` and `cityjson-rs` based on the latest benchmark setup and the current implementation.
+This note captures the current performance assessment of `cityjson-json` and `cityjson-rs` based on the latest benchmark setup and the current implementation.
 
 ## Summary
 

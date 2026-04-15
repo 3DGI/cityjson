@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep the `serde_cityjson` benchmark suite small, deterministic, and fully
+Keep the `cityjson-json` benchmark suite small, deterministic, and fully
 driven by the shared `cityjson-benchmarks` repository.
 
 The benchmark harness should:
@@ -43,8 +43,8 @@ The harness should:
 
 - prepare input outside the timed closure
 - use `Criterion` throughput reporting for every benchmark group
-- benchmark `serde_cityjson` against `serde_json::Value` on the read side
-- benchmark `serde_cityjson` against `serde_json::to_string` on the write side
+  - benchmark `cityjson-json` against `serde_json::Value` on the read side
+  - benchmark `cityjson-json` against `serde_json::to_string` on the write side
 - avoid measuring fixture generation
 
 ## Reporting
@@ -55,7 +55,7 @@ benchmark index instead of a local `tests/data/generated/` mirror.
 
 ## Rollout Notes
 
-- remove the local `cjfake` benchmark dependency
+- remove the local `cityjson-fake` benchmark dependency
 - keep the benchmark harness limited to the shared corpus
 - load benchmark inputs from the shared corpus checkout
 
@@ -63,7 +63,7 @@ benchmark index instead of a local `tests/data/generated/` mirror.
 
 The implementation is done when:
 
-- the benchmark suite no longer depends on `cjfake`
+- the benchmark suite no longer depends on `cityjson-fake`
 - the suite reads benchmark inputs from the shared corpus repository
 - read and write benchmarks remain separate and deterministic
 - the repository no longer needs `tests/data/generated/`

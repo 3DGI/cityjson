@@ -3,11 +3,11 @@ mod common;
 use std::hint::black_box;
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
-    read_cases, write_read_suite_metadata, READ_BENCH_SERDE_CITYJSON_BORROWED,
-    READ_BENCH_SERDE_CITYJSON_OWNED, READ_BENCH_SERDE_JSON_VALUE,
+    READ_BENCH_CITYJSON_JSON_BORROWED, READ_BENCH_CITYJSON_JSON_OWNED, READ_BENCH_SERDE_JSON_VALUE,
+    read_cases, write_read_suite_metadata,
 };
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
@@ -29,15 +29,15 @@ fn bench_read(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(prepared.input_bytes));
         configure_group(&mut group);
 
-        group.bench_function(READ_BENCH_SERDE_CITYJSON_OWNED, |b| {
+        group.bench_function(READ_BENCH_CITYJSON_JSON_OWNED, |b| {
             b.iter_with_large_drop(|| {
-                serde_cityjson::from_str_owned(black_box(&prepared.input_json)).unwrap()
+                cityjson_json::from_str_owned(black_box(&prepared.input_json)).unwrap()
             });
         });
 
-        group.bench_function(READ_BENCH_SERDE_CITYJSON_BORROWED, |b| {
+        group.bench_function(READ_BENCH_CITYJSON_JSON_BORROWED, |b| {
             b.iter_with_large_drop(|| {
-                serde_cityjson::from_str_borrowed(black_box(&prepared.input_json)).unwrap()
+                cityjson_json::from_str_borrowed(black_box(&prepared.input_json)).unwrap()
             });
         });
 

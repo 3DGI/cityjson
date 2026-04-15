@@ -5,8 +5,8 @@ use std::io::Write;
 use cityjson::resources::storage::StringStorage;
 use cityjson::v2_0::{BBox, BorrowedCityModel, CityModel, OwnedCityModel, Transform, VertexRef};
 use cityjson::{CityJSONVersion, CityModelType};
-use serde::ser::SerializeMap;
 use serde::Serialize;
+use serde::ser::SerializeMap;
 use serde_json::value::RawValue;
 use serde_json::{Map, Value};
 
@@ -26,40 +26,33 @@ pub struct FeatureParts<'a> {
     pub vertices: &'a [[i64; 3]],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CityJSONSeqWriteOptions {
+#[derive(Clone, Copy)]
+pub(crate) struct CityJSONSeqWriteOptions {
     pub validate_default_themes: bool,
     pub trailing_newline: bool,
     pub update_metadata_geographical_extent: bool,
 }
 
-impl Default for CityJSONSeqWriteOptions {
-    fn default() -> Self {
-        Self {
-            validate_default_themes: true,
-            trailing_newline: true,
-            update_metadata_geographical_extent: true,
-        }
-    }
+enum TransformMode<'a> {
+    Explicit(&'a Transform),
+    Auto { scale: [f64; 3] },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AutoTransformOptions {
-    pub scale: [f64; 3],
-    pub validate_default_themes: bool,
-    pub trailing_newline: bool,
-    pub update_metadata_geographical_extent: bool,
-}
-
-impl Default for AutoTransformOptions {
-    fn default() -> Self {
-        Self {
-            scale: [0.001, 0.001, 0.001],
-            validate_default_themes: true,
-            trailing_newline: true,
-            update_metadata_geographical_extent: true,
-        }
-    }
+/// A builder for writing a strict `CityJSONSeq` stream.
+///
+/// Created by [`write_cityjsonseq`]. Chain builder methods to configure the
+/// output, then call [`write`][CityJSONSeqWriter::write] to serialize.
+pub struct CityJSONSeqWriter<'a, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    base_root: &'a CityModel<VR, SS>,
+    features: Vec<&'a CityModel<VR, SS>>,
+    transform: TransformMode<'a>,
+    validate_default_themes: bool,
+    trailing_newline: bool,
+    update_geographical_extent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,6 +81,16 @@ where
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSON`.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_str_owned;
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_owned(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
     crate::de::from_str_owned(input)
 }
@@ -97,7 +100,17 @@ pub fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSONFeature`.
-pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_feature_str;
+///
+/// let json = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let model = from_feature_str(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn from_feature_str(input: &str) -> Result<OwnedCityModel> {
     let model = from_str_owned(input)?;
     match model.type_citymodel() {
         CityModelType::CityJSONFeature => Ok(model),
@@ -108,14 +121,25 @@ pub fn from_feature_str_owned(input: &str) -> Result<OwnedCityModel> {
 /// Parse a standalone `CityJSONFeature` object using the non-feature root state
 /// from a companion `CityJSON` document.
 ///
-/// This mirrors [`read_feature_stream`] for deployments where the metadata
+/// This mirrors [`read_cityjsonseq`] for deployments where the metadata
 /// document and feature files live separately on disk.
 ///
 /// # Errors
 ///
 /// Returns an error if the base document is not valid `CityJSON`, the feature is
 /// not valid `CityJSONFeature`, or the combined document cannot be parsed.
-pub fn from_feature_str_owned_with_base(
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_feature_str_with_base;
+///
+/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let feature = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let model = from_feature_str_with_base(feature, base)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn from_feature_str_with_base(
     feature_input: &str,
     base_document_input: &str,
 ) -> Result<OwnedCityModel> {
@@ -127,7 +151,7 @@ pub fn from_feature_str_owned_with_base(
     let input = serde_json::to_string(&Value::Object(materialize_feature_document(
         &base_root, feature,
     )))?;
-    from_feature_str_owned(&input)
+    from_feature_str(&input)
 }
 
 /// Parse a standalone `CityJSONFeature` assembled from typed feature parts and
@@ -137,7 +161,19 @@ pub fn from_feature_str_owned_with_base(
 ///
 /// Returns an error if the base document is not valid `CityJSON`, the feature
 /// parts are inconsistent, or the combined document cannot be parsed.
-pub fn from_feature_parts_owned_with_base(
+///
+/// # Examples
+///
+/// ```no_run
+/// use cityjson_json::{from_feature_parts_with_base, FeatureObject, FeatureParts};
+///
+/// // city_objects would be pre-parsed RawValue slices from the feature file
+/// let base = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let parts = FeatureParts { id: "f1", cityobjects: &[], vertices: &[] };
+/// let model = from_feature_parts_with_base(parts, base)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn from_feature_parts_with_base(
     parts: FeatureParts<'_>,
     base_document_input: &str,
 ) -> Result<OwnedCityModel> {
@@ -149,7 +185,7 @@ pub fn from_feature_parts_owned_with_base(
         base_root: &base_root,
         parts,
     })?;
-    from_feature_str_owned(&input)
+    from_feature_str(&input)
 }
 
 /// Parse a `CityJSON` document into a [`BorrowedCityModel`].
@@ -157,18 +193,44 @@ pub fn from_feature_parts_owned_with_base(
 /// # Errors
 ///
 /// Returns an error if the input is not valid `CityJSON`.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::from_str_borrowed;
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_borrowed(json)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn from_str_borrowed(input: &str) -> Result<BorrowedCityModel<'_>> {
     crate::de::from_str_borrowed(input)
 }
 
-/// Read a strict `CityJSON` + `CityJSONFeature` stream into self-contained feature models.
+/// Read a strict `CityJSONSeq` stream into self-contained feature models.
 ///
 /// # Errors
 ///
 /// Returns an error if the stream is empty, the first non-empty item is not
 /// `CityJSON`, a later item is not `CityJSONFeature`, versions conflict, or
 /// feature IDs are duplicated across the stream.
-pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
+///
+/// # Examples
+///
+/// ```
+/// use std::io::BufReader;
+/// use cityjson_json::read_cityjsonseq;
+///
+/// let seq = concat!(
+///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+/// );
+/// for result in read_cityjsonseq(BufReader::new(seq.as_bytes()))? {
+///     let _model = result?;
+/// }
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn read_cityjsonseq<R>(reader: R) -> Result<impl Iterator<Item = Result<OwnedCityModel>>>
 where
     R: BufRead,
 {
@@ -177,18 +239,32 @@ where
     for feature in parsed.features {
         let feature = materialize_feature_document(&parsed.base_root, feature);
         let input = serde_json::to_string(&Value::Object(feature))?;
-        models.push(from_feature_str_owned(&input));
+        models.push(from_feature_str(&input));
     }
     Ok(models.into_iter())
 }
 
-/// Merge a strict `CityJSON` + `CityJSONFeature` stream into one [`OwnedCityModel`].
+/// Merge a strict `CityJSONSeq` stream into one [`OwnedCityModel`].
 ///
 /// # Errors
 ///
 /// Returns an error if the stream shape is invalid or if feature items carry
 /// incompatible root state that cannot be merged without loss.
-pub fn merge_feature_stream<R>(reader: R) -> Result<OwnedCityModel>
+///
+/// # Examples
+///
+/// ```
+/// use std::io::BufReader;
+/// use cityjson_json::merge_cityjsonseq;
+///
+/// let seq = concat!(
+///     r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#, "\n",
+///     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#, "\n",
+/// );
+/// let model = merge_cityjsonseq(BufReader::new(seq.as_bytes()))?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn merge_cityjsonseq<R>(reader: R) -> Result<OwnedCityModel>
 where
     R: BufRead,
 {
@@ -205,177 +281,155 @@ where
     }
 }
 
-/// Write a strict `CityJSONSeq` stream from a canonical base root and feature packages.
+/// Begin writing a strict `CityJSONSeq` stream.
 ///
-/// The output starts with one `CityJSON` header item followed by `CityJSONFeature`
-/// items quantized against the provided stream-level transform.
+/// Returns a [`CityJSONSeqWriter`] builder. Configure the output by chaining
+/// methods, then call [`write`][CityJSONSeqWriter::write] to serialize.
 ///
-/// # Errors
+/// The output starts with one `CityJSON` header item followed by
+/// `CityJSONFeature` items. By default the transform translation is derived
+/// from the feature extent with scale `[0.001, 0.001, 0.001]`. Use
+/// [`with_transform`][CityJSONSeqWriter::with_transform] to supply an explicit
+/// one, or [`auto_transform`][CityJSONSeqWriter::auto_transform] to override
+/// the scale.
 ///
-/// Returns an error if the base root is not a valid canonical `CityJSON` root,
-/// if feature packages are invalid or incompatible, or if serialization fails.
-pub fn write_cityjsonseq_with_transform_refs<'a, W, I, VR, SS>(
-    writer: W,
-    base_root: &CityModel<VR, SS>,
+/// # Examples
+///
+/// ```
+/// use cityjson_json::{from_str_owned, from_feature_str, write_cityjsonseq};
+///
+/// let base_input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let feature_input = r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"GenericCityObject","geometry":[]}},"vertices":[]}"#;
+/// let base_root = from_str_owned(base_input)?;
+/// let feature = from_feature_str(feature_input)?;
+/// let mut output = Vec::new();
+/// let report = write_cityjsonseq(&base_root, [&feature]).write(&mut output)?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
+pub fn write_cityjsonseq<'a, I, VR, SS>(
+    base_root: &'a CityModel<VR, SS>,
     features: I,
-    transform: &Transform,
-    options: CityJSONSeqWriteOptions,
-) -> Result<CityJSONSeqWriteReport>
+) -> CityJSONSeqWriter<'a, VR, SS>
 where
-    W: Write,
     I: IntoIterator<Item = &'a CityModel<VR, SS>>,
     VR: VertexRef + Serialize + 'a,
     SS: StringStorage + 'a,
 {
-    let features: Vec<_> = features.into_iter().collect();
-    write_cityjsonseq_with_transform_slice(writer, base_root, &features, transform, options)
-}
-
-/// Write a strict `CityJSONSeq` stream, deriving translation from the overall
-/// feature extent and taking the quantization scale from the provided options.
-///
-/// # Errors
-///
-/// Returns an error if the base root is invalid, feature packages are invalid,
-/// or serialization fails.
-pub fn write_cityjsonseq_auto_transform_refs<'a, W, I, VR, SS>(
-    writer: W,
-    base_root: &CityModel<VR, SS>,
-    features: I,
-    options: AutoTransformOptions,
-) -> Result<CityJSONSeqWriteReport>
-where
-    W: Write,
-    I: IntoIterator<Item = &'a CityModel<VR, SS>>,
-    VR: VertexRef + Serialize + 'a,
-    SS: StringStorage + 'a,
-{
-    let features: Vec<_> = features.into_iter().collect();
-    let extent = collect_features_extent(&features);
-    let mut transform = Transform::new();
-    transform.set_scale(options.scale);
-    transform.set_translate(extent.as_ref().map_or([0.0, 0.0, 0.0], |bbox| {
-        [bbox.min_x(), bbox.min_y(), bbox.min_z()]
-    }));
-
-    write_cityjsonseq_with_transform_slice(
-        writer,
+    CityJSONSeqWriter {
         base_root,
-        &features,
-        &transform,
-        CityJSONSeqWriteOptions {
-            validate_default_themes: options.validate_default_themes,
-            trailing_newline: options.trailing_newline,
-            update_metadata_geographical_extent: options.update_metadata_geographical_extent,
+        features: features.into_iter().collect(),
+        transform: TransformMode::Auto {
+            scale: [0.001, 0.001, 0.001],
         },
-    )
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` string.
-///
-/// # Errors
-///
-/// Returns an error if the model cannot be serialized.
-pub fn to_string<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_string(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` string, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_string_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_string(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` byte vector.
-///
-/// # Errors
-///
-/// Returns an error if the model cannot be serialized.
-pub fn to_vec<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_vec(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` byte vector, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_vec_validated<VR, SS>(model: &CityModel<VR, SS>) -> Result<Vec<u8>>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_vec(&as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` writer.
-///
-/// # Errors
-///
-/// Returns an error if the model cannot be serialized.
-pub fn to_writer<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
-where
-    W: Write,
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    Ok(serde_json::to_writer(writer, &as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] to a `CityJSON` writer, validating default themes.
-///
-/// # Errors
-///
-/// Returns an error if the model fails validation or cannot be serialized.
-pub fn to_writer_validated<W, VR, SS>(writer: W, model: &CityModel<VR, SS>) -> Result<()>
-where
-    W: Write,
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    model.validate_default_themes()?;
-    Ok(serde_json::to_writer(writer, &as_json(model))?)
-}
-
-/// Serialize a [`CityModel`] as a `CityJSONFeature` string.
-///
-/// # Errors
-///
-/// Returns an error if the model is not a `CityJSONFeature` or cannot be serialized.
-pub fn to_string_feature<VR, SS>(model: &CityModel<VR, SS>) -> Result<String>
-where
-    VR: VertexRef + Serialize,
-    SS: StringStorage,
-{
-    match model.type_citymodel() {
-        CityModelType::CityJSONFeature => to_string_validated(model),
-        other => Err(Error::UnsupportedType(other.to_string())),
+        validate_default_themes: true,
+        trailing_newline: true,
+        update_geographical_extent: true,
     }
 }
 
+impl<'a, VR, SS> CityJSONSeqWriter<'a, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    /// Use an explicit quantization transform.
+    ///
+    /// Overrides the default auto-transform behaviour.
+    #[must_use]
+    pub fn with_transform(mut self, transform: &'a Transform) -> Self {
+        self.transform = TransformMode::Explicit(transform);
+        self
+    }
+
+    /// Derive the translation from the feature extent and use the given scale.
+    ///
+    /// This is the default behaviour with scale `[0.001, 0.001, 0.001]`.
+    #[must_use]
+    pub fn auto_transform(mut self, scale: [f64; 3]) -> Self {
+        self.transform = TransformMode::Auto { scale };
+        self
+    }
+
+    /// Enable or disable default-theme validation (default: enabled).
+    #[must_use]
+    pub fn validate_default_themes(mut self, enabled: bool) -> Self {
+        self.validate_default_themes = enabled;
+        self
+    }
+
+    /// Emit a trailing newline after the last item (default: enabled).
+    #[must_use]
+    pub fn trailing_newline(mut self, enabled: bool) -> Self {
+        self.trailing_newline = enabled;
+        self
+    }
+
+    /// Write the computed geographical extent into the header (default: enabled).
+    #[must_use]
+    pub fn update_geographical_extent(mut self, enabled: bool) -> Self {
+        self.update_geographical_extent = enabled;
+        self
+    }
+
+    /// Write the `CityJSONSeq` stream to `writer`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the base root is not a valid canonical `CityJSON`
+    /// root, if feature packages are invalid or incompatible, or if
+    /// serialization fails.
+    pub fn write<W: Write>(self, writer: W) -> Result<CityJSONSeqWriteReport> {
+        let transform = match self.transform {
+            TransformMode::Explicit(t) => t.clone(),
+            TransformMode::Auto { scale } => {
+                let extent = collect_features_extent(&self.features);
+                let mut t = Transform::new();
+                t.set_scale(scale);
+                t.set_translate(extent.as_ref().map_or([0.0, 0.0, 0.0], |bbox| {
+                    [bbox.min_x(), bbox.min_y(), bbox.min_z()]
+                }));
+                t
+            }
+        };
+        write_cityjsonseq_with_transform_slice(
+            writer,
+            self.base_root,
+            &self.features,
+            &transform,
+            CityJSONSeqWriteOptions {
+                validate_default_themes: self.validate_default_themes,
+                trailing_newline: self.trailing_newline,
+                update_metadata_geographical_extent: self.update_geographical_extent,
+            },
+        )
+    }
+}
+
+/// Wrap a [`CityModel`] reference in a serializable builder.
+///
+/// Returns a [`SerializableCityModel`] that can be serialized to a JSON string,
+/// byte vector, or writer. Chain [`.validate()`][SerializableCityModel::validate]
+/// to enable default-theme validation before serialization.
+///
+/// # Examples
+///
+/// ```
+/// use cityjson_json::{as_json, from_str_owned};
+///
+/// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+/// let model = from_str_owned(json)?;
+/// let output = as_json(&model).to_string()?;
+/// # Ok::<(), cityjson_json::Error>(())
+/// ```
 pub fn as_json<VR, SS>(model: &CityModel<VR, SS>) -> SerializableCityModel<'_, VR, SS>
 where
     VR: VertexRef + Serialize,
     SS: StringStorage,
 {
-    SerializableCityModel { model }
+    SerializableCityModel {
+        model,
+        validate: false,
+    }
 }
 
 pub struct SerializableCityModel<'a, VR, SS>
@@ -384,6 +438,106 @@ where
     SS: StringStorage,
 {
     pub(crate) model: &'a CityModel<VR, SS>,
+    validate: bool,
+}
+
+impl<VR, SS> SerializableCityModel<'_, VR, SS>
+where
+    VR: VertexRef + Serialize,
+    SS: StringStorage,
+{
+    /// Enable default-theme validation before serializing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let output = as_json(&model).validate().to_string()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
+    #[must_use]
+    pub fn validate(self) -> Self {
+        Self {
+            validate: true,
+            ..self
+        }
+    }
+
+    /// Serialize to a `CityJSON` string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if the model cannot be serialized.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let output = as_json(&model).to_string()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
+    pub fn to_string(self) -> Result<String> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_string(&self)?)
+    }
+
+    /// Serialize to a `CityJSON` byte vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if the model cannot be serialized.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let bytes = as_json(&model).to_vec()?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
+    pub fn to_vec(self) -> Result<Vec<u8>> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_vec(&self)?)
+    }
+
+    /// Serialize to a `CityJSON` writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation is enabled and the model fails validation,
+    /// or if serialization fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cityjson_json::{as_json, from_str_owned};
+    ///
+    /// let json = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+    /// let model = from_str_owned(json)?;
+    /// let mut buf = Vec::new();
+    /// as_json(&model).to_writer(&mut buf)?;
+    /// # Ok::<(), cityjson_json::Error>(())
+    /// ```
+    pub fn to_writer<W: Write>(self, writer: W) -> Result<()> {
+        if self.validate {
+            self.model.validate_default_themes()?;
+        }
+        Ok(serde_json::to_writer(writer, &self)?)
+    }
 }
 
 impl<VR, SS> Serialize for SerializableCityModel<'_, VR, SS>

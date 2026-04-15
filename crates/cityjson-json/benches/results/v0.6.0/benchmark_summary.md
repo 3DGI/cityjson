@@ -4,7 +4,7 @@ Generated from Criterion results.
 
 ### Read Benchmarks
 
-| Case | Description | serde_cityjson | serde_json::Value | Factor |
+| Case | Description | cityjson-json | serde_json::Value | Factor |
 | --- | --- | --- | --- | --- |
 | io_3dbag_cityjson |  | owned 29.704 ms (192.9 MiB/s); borrowed 27.843 ms (205.8 MiB/s) | 18.584 ms (308.3 MiB/s) | 1.60x |
 | io_3dbag_cityjson_cluster_4x |  | owned 107.437 ms (186.8 MiB/s); borrowed 102.258 ms (196.2 MiB/s) | 69.012 ms (290.8 MiB/s) | 1.56x |
@@ -19,7 +19,7 @@ Generated from Criterion results.
 
 ### Write Benchmarks
 
-| Case | Description | serde_cityjson | serde_json::to_string | Factor |
+| Case | Description | cityjson-json | serde_json::to_string | Factor |
 | --- | --- | --- | --- | --- |
 | io_3dbag_cityjson |  | as_json_to_value 17.063 ms (330.3 MiB/s); to_string 9.126 ms (617.5 MiB/s); to_string_validated 8.657 ms (650.9 MiB/s) | 7.284 ms (773.6 MiB/s) | 1.25x |
 | io_3dbag_cityjson_cluster_4x |  | as_json_to_value 64.120 ms (304.6 MiB/s); to_string 41.283 ms (473.1 MiB/s); to_string_validated 41.128 ms (474.9 MiB/s) | 33.556 ms (582.1 MiB/s) | 1.23x |
