@@ -1,6 +1,4 @@
 set dotenv-load := true
-shared_corpus_root := "../cityjson-benchmarks"
-shared_benchmark_index := shared_corpus_root / "artifacts" / "benchmark-index.json"
 
 # Show the available recipes.
 _default:
@@ -8,7 +6,20 @@ _default:
 
 # Verify the shared benchmark corpus is available for the benchmark suites.
 _check-shared-benchmark-index:
-    test -f {{shared_benchmark_index}}
+    bash -lc ' \
+        if [ -n "${CITYJSON_JSON_BENCHMARK_INDEX:-}" ]; then \
+            benchmark_index="$CITYJSON_JSON_BENCHMARK_INDEX"; \
+            if [ ! -f "$benchmark_index" ] && [ -n "${CITYJSON_JSON_SHARED_CORPUS_ROOT:-}" ]; then \
+                benchmark_index="$CITYJSON_JSON_SHARED_CORPUS_ROOT/$CITYJSON_JSON_BENCHMARK_INDEX"; \
+            fi; \
+        elif [ -n "${CITYJSON_JSON_SHARED_CORPUS_ROOT:-}" ]; then \
+            benchmark_index="$CITYJSON_JSON_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json"; \
+        else \
+            echo "Set CITYJSON_JSON_SHARED_CORPUS_ROOT or CITYJSON_JSON_BENCHMARK_INDEX before running benchmarks." >&2; \
+            exit 1; \
+        fi; \
+        test -f "$benchmark_index" \
+    '
 
 # Run cargo clean and delete benchmark outputs and legacy local bootstrap data.
 clean:
@@ -19,7 +30,7 @@ bench-check:
     cargo bench --benches --no-run
 
 # Run all benchmarks and generate the comparison report.
-bench: bench-read bench-write bench-report
+bench: bench-read bench-write bench-report-readme
 
 # Run the read benchmark suite.
 bench-read: _check-shared-benchmark-index
@@ -32,6 +43,27 @@ bench-write: _check-shared-benchmark-index
 # Generate the benchmark comparison plots and markdown summary.
 bench-report:
     uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
+
+# Generate the benchmark comparison plots, markdown summary, and README snippet.
+bench-report-readme:
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown --readme
+
+# Run all benchmarks against a local CityJSON file or directory without touching the README.
+bench-local input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench read --
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench write --
+    uv run resources/compare_benchmarks/compare_benchmarks.py --markdown
+
+# Run the read benchmark suite against a local CityJSON file or directory.
+bench-local-read input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench read --
+
+# Run the write benchmark suite against a local CityJSON file or directory.
+bench-local-write input:
+    uv run resources/prepare_local_benchmark_index.py {{quote(input)}} --output "$PWD/target/bench-local/benchmark-index.json"
+    CITYJSON_JSON_BENCHMARK_INDEX="$PWD/target/bench-local/benchmark-index.json" cargo bench --bench write --
 
 # Run cargo check across the workspace.
 check:

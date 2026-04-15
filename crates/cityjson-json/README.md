@@ -2,6 +2,23 @@
 
 `cityjson-json` is a `CityJSON` 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of `CityJSON` documents with both owned and borrowed string storage options.
 
+## Benchmarks
+
+Representative read benchmarks against `serde_json::Value`. Refresh this table
+from the shared benchmark suite with `just bench`.
+
+<!-- benchmark-summary:start -->
+| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |
+| --- | --- | --- | --- | --- | --- |
+| `io_basisvoorziening_3d_cityjson` | 282.4 MiB/s | 313.5 MiB/s | 251.1 MiB/s | 1.13x | 1.25x |
+| `io_3dbag_cityjson_cluster_4x` | 186.8 MiB/s | 196.2 MiB/s | 290.8 MiB/s | 0.64x | 0.67x |
+| `io_3dbag_cityjson` | 192.9 MiB/s | 205.8 MiB/s | 308.3 MiB/s | 0.63x | 0.67x |
+<!-- benchmark-summary:end -->
+
+Full benchmark tables and plots are written to `benches/results/benchmark_summary.md`.
+Use `just bench-local /path/to/file-or-directory` for ad hoc local inputs without
+rewriting this README snapshot.
+
 ## Installation
 
 ```shell
@@ -27,6 +44,7 @@ use cityjson_json::from_str_owned;
 let json_str = r#"{
   "type": "CityJSON",
   "version": "2.0",
+  "transform": {"scale": [1.0, 1.0, 1.0], "translate": [0.0, 0.0, 0.0]},
   "CityObjects": {},
   "vertices": []
 }"#;
@@ -42,7 +60,7 @@ For performance-critical applications, use borrowed deserialization to avoid all
 ```rust
 use cityjson_json::from_str_borrowed;
 
-let json_str = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let json_str = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 let model = from_str_borrowed(json_str)?;
 // model holds references to json_str
 # Ok::<(), cityjson_json::Error>(())
@@ -58,14 +76,6 @@ use cityjson_json::as_json;
 let json_output = as_json(&model).to_string()?;
 ```
 
-For validated serialization (checks default theme references), chain `.validate()`:
-
-```rust,ignore
-use cityjson_json::as_json;
-
-let json_output = as_json(&model).validate().to_string()?;
-```
-
 The same builder works for other output targets:
 
 ```rust,ignore
@@ -75,19 +85,50 @@ let bytes = as_json(&model).to_vec()?;
 as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
-## Validation Policy
+### `CityJSONSeq`
 
-The library provides two serialization paths to balance performance and safety:
+Read a newline-delimited `CityJSONSeq` stream. The first line must be a `CityJSON` header; each subsequent line is a self-contained `CityJSONFeature`:
 
-- **`.to_string()`** / **`.to_vec()`** / **`.to_writer()`**: Fast path. Does not validate that default theme names (for materials and textures) actually reference existing themes in the appearance section.
-- **`.validate().to_string()`** etc.: Strict path. Validates default theme references before serialization to ensure document consistency.
+```rust
+use std::io::BufReader;
+use cityjson_json::read_cityjsonseq;
 
-Chain `.validate()` when you need guaranteed valid `CityJSON` output, especially when serializing user-provided models.
+let seq = concat!(
+    r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#, "\n",
+    r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building"}},"vertices":[]}"#, "\n",
+);
+let features = read_cityjsonseq(BufReader::new(seq.as_bytes()))?
+    .collect::<cityjson_json::Result<Vec<_>>>()?;
+// each element is an OwnedCityModel (CityJSONFeature) with the header transform merged in
+# Ok::<(), cityjson_json::Error>(())
+```
+
+Write a strict `CityJSONSeq` stream. Supply a `CityJSON` base root and one or more feature models; the builder quantizes vertices and computes the geographical extent:
+
+```rust
+use cityjson_json::{from_str_owned, from_feature_str_with_base, write_cityjsonseq};
+
+let base_input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
+let base_root = from_str_owned(base_input)?;
+let feature = from_feature_str_with_base(
+    r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
+    base_input,
+)?;
+
+let mut output: Vec<u8> = Vec::new();
+let report = write_cityjsonseq(&base_root, [&feature])
+    .auto_transform([0.001, 0.001, 0.001])
+    .write(&mut output)?;
+// report.feature_count == 1, report.geographical_extent covers all feature vertices
+# Ok::<(), cityjson_json::Error>(())
+```
 
 ## Documentation
 
 - [CityJSON 2.0](https://www.cityjson.org/specs/2.0.1/)
 - [`cityjson` crate documentation](https://docs.rs/cityjson/)
+- [Design notes](docs/design.md)
+- [Development guide](docs/development.md)
 
 todo: link to docs.rs
 
@@ -106,95 +147,15 @@ Core types re-exported from `cityjson`:
 
 ## Design
 
-### Deserialization
+The adapter is optimized around a small number of core decisions:
 
-Parsing a `CityJSON` document is split into two sequential phases.
+- deserialization is split into root preparation and streamed model construction
+- `CityObjects` and geometry boundaries avoid large intermediate JSON structures
+- attributes deserialize directly into backend value types
+- serialization streams from the model with a shared write context instead of building a DOM first
+- both owned and borrowed string storage are supported through the same parsing pipeline
 
-**Phase 1 — root preparation (`parse_root`).**
-The document is read once by a handwritten `serde` visitor that fills a
-`PreparedRoot<'de>` struct. Well-known sections with bounded size (transform,
-metadata, appearance, geometry-templates, extensions) are deserialized eagerly.
-The `CityObjects` map, which may be arbitrarily large, is kept as a borrowed
-`&RawValue` slice pointing into the original input bytes. Nothing is allocated
-for it yet.
-
-**Phase 2 — model construction (`build_model`).**
-The prepared root is used to initialize the `CityModel`. Appearance, geometry
-templates, and vertices are imported first, establishing handles that the
-`CityObjects` import can reference. The `CityObjects` slice is then
-deserialized once more, but streamed entry by entry directly into the model
-instead of materializing a full intermediate object graph. Parent and child
-relations are resolved in a follow-up pass after all objects have been inserted.
-
-**Geometry.**
-Each geometry object is parsed by a streaming visitor that reads the `type`,
-`lod`, and `boundaries` fields manually. Boundaries are parsed by a specialized
-flat parser that scans the raw bytes and writes vertex indices and offset vectors
-directly into the shapes the `cityjson` backend expects (`Boundary<u32>`). There
-is no intermediate nested boundary tree. Finished geometry parts are inserted
-through the backend's trusted raw API (`add_geometry_unchecked`) which skips
-the authoring-time validation that `GeometryDraft::insert_into` performs.
-
-**Attributes.**
-Attributes and extra properties are deserialized directly into the backend
-`AttributeValue<SS>` and `Attributes<SS>` types via
-`AttributeValueSeed` / `AttributesSeed` / `OptionalAttributesSeed`. There is no
-temporary `RawAttribute` tree: the `CityObject` visitor produces final values in
-a single pass.
-
-**Owned and borrowed storage.**
-The single `ParseStringStorage<'de>` trait controls whether string values are
-heap-allocated (`OwnedStringStorage`) or zero-copy borrowed from the input
-(`BorrowedStringStorage`). Borrowed mode fails on strings that contain JSON
-escape sequences because those cannot be represented without allocation.
-
-### Serialization
-
-**Direct streaming.**
-The serializer writes the `CityModel` directly through `serde::Serialize`
-without first constructing an intermediate `serde_json::Value` DOM. Each
-section of the document is a dedicated serializer struct that borrows from the
-model and emits JSON fields on demand.
-
-**Shared write context.**
-Before any field is written, a `WriteContext` is built once for the entire
-serialization. It precomputes four lookup maps:
-
-- city object handle → JSON id string
-- geometry template handle → dense array index
-- material handle → dense array index
-- texture handle → dense array index
-
-All nested serializers borrow the same context, so handle-to-index lookups are
-O(1) hash-map reads with no repeated work.
-
-**Transform-aware vertex quantization.**
-When a transform is present, vertex coordinates are quantized by applying the
-inverse transform `(x - translate) / scale` before serialization and then
-rounded to the nearest integer. Without a transform, coordinates are written as
-floating-point values. The same quantization applies when writing
-`CityJSONSeq` streams.
-
-**Material compaction.**
-When all surfaces of a geometry in a given material theme share the same
-non-null material index, the serializer writes the compact `{"value": N}` form
-instead of an explicit `{"values": [...]}` array.
-
-**Validation policy.**
-`as_json(model).to_string()` (and `to_vec` / `to_writer`) serialize without
-pre-flight checks. Chaining `.validate()` before the output method calls
-`validate_default_themes` first, confirming that the default material and
-texture theme names reference themes that actually exist in the appearance
-section.
-
-**`CityJSONSeq` stream writing.**
-`write_cityjsonseq(base_root, features)` returns a `CityJSONSeqWriter` builder.
-The first line is a `CityJSON` header serialized with `CityModelSerializeOptions`
-that suppresses city objects and vertices; each subsequent line is a
-`CityJSONFeature` serialized with options that suppress metadata, extensions,
-appearance, and geometry templates. By default the transform translation is
-derived from the bounding box of all feature vertices (`auto_transform`). Use
-`with_transform` to supply an explicit transform instead.
+The full design description lives in [docs/design.md](docs/design.md).
 
 ## API Stability
 
@@ -210,38 +171,8 @@ The minimum supported rustc version is `1.93.0`.
 
 ## Development
 
-### Running Tests
-
-```bash
-cargo test
-cargo test --test v2_0
-```
-
-The corpus-backed correctness tests read fixture IDs from the shared
-`cityjson-benchmarks` checkout at
-`../cityjson-benchmarks/artifacts/correctness-index.json` by default. Override
-the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
-`CITYJSON_JSON_CORRECTNESS_INDEX` if your checkout lives elsewhere.
-
-### Running Benchmarks
-
-The benchmark corpus lives in the shared `cityjson-benchmarks` repository.
-`cityjson-json` benchmarks the `CityJSON` artifacts listed in each workload's
-`artifacts[]` array and reads the shared benchmark index from
-`../cityjson-benchmarks/artifacts/benchmark-index.json` by default. Override
-the shared root with `CITYJSON_JSON_SHARED_CORPUS_ROOT` or the index path with
-`CITYJSON_JSON_BENCHMARK_INDEX` if your checkout lives elsewhere.
-
-```bash
-just bench-read
-just bench-write
-just bench-report
-```
-
-The benchmarks use Criterion. Read throughput is based on input bytes; write
-throughput is based on output bytes. README benchmark tables are generated
-from the shared corpus and should be refreshed from current benchmark output,
-not edited by hand.
+Development setup, test configuration, and benchmark workflow are documented in
+[docs/development.md](docs/development.md).
 
 ## Contributing
 
@@ -279,4 +210,4 @@ Code correctness and performance are verified by carefully curated test cases an
 
 ## Roadmap
 
-There are no major features planned for the near future, beyond bug fixes, test coverage, documentation improvements.
+There are no major features planned for the near future, beyond bug fixes, test coverage, performance optimization, and  documentation improvements.

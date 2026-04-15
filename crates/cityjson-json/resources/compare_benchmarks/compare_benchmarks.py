@@ -40,8 +40,13 @@ MAIN_BENCH_IDS = {
     "write": "cityjson-json/to_string",
 }
 
-OUTPUT_DIR = Path("benches") / "results"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_DIR = REPO_ROOT / "benches" / "results"
 OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+README_PATH = REPO_ROOT / "README.md"
+README_MARKER_START = "<!-- benchmark-summary:start -->"
+README_MARKER_END = "<!-- benchmark-summary:end -->"
+README_CASE_LIMIT = 3
 MARKER = "d"
 MARKERSIZE = 60
 
@@ -58,6 +63,7 @@ class CaseMeta:
 def cargo_target_directory() -> Path:
     res = subprocess.run(
         ["cargo", "metadata", "--format-version", "1"],
+        cwd=REPO_ROOT,
         capture_output=True,
         check=True,
     )
@@ -120,6 +126,12 @@ def format_throughput(bytes_count: int, ns: float) -> str:
         return "-"
     mib_per_s = (bytes_count / (ns / 1_000_000_000.0)) / (1024.0 * 1024.0)
     return f"{mib_per_s:.1f} MiB/s"
+
+
+def format_speedup(estimate_ns: float, baseline_ns: float) -> str:
+    if estimate_ns <= 0:
+        return "-"
+    return f"{baseline_ns / estimate_ns:.2f}x"
 
 
 def benchmark_file(case_id: str, bench_id: str) -> Path:
@@ -243,6 +255,71 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
     return "\n".join(rows) + "\n"
 
 
+def readme_case_order(
+    results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]
+) -> list[str]:
+    required_benchmarks = (
+        "cityjson-json/owned",
+        "cityjson-json/borrowed",
+        "serde_json::Value",
+    )
+    eligible_cases: list[tuple[int, str]] = []
+    for case_id, suite_case in results.items():
+        if not all(bench_id in suite_case for bench_id in required_benchmarks):
+            continue
+        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+        eligible_cases.append((meta.input_bytes, case_id))
+    eligible_cases.sort(key=lambda item: (-item[0], item[1]))
+    return [case_id for _, case_id in eligible_cases[:README_CASE_LIMIT]]
+
+
+def readme_fragment(results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]) -> str:
+    case_ids = readme_case_order(results, case_meta)
+    if not case_ids:
+        return ""
+
+    rows = [
+        "| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for case_id in case_ids:
+        suite_case = results[case_id]
+        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+        owned = suite_case["cityjson-json/owned"]
+        borrowed = suite_case["cityjson-json/borrowed"]
+        baseline = suite_case["serde_json::Value"]
+        rows.append(
+            "| {case} | {owned_tp} | {borrowed_tp} | {baseline_tp} | {owned_speed} | {borrowed_speed} |".format(
+                case=f"`{meta.case_id}`",
+                owned_tp=format_throughput(meta.input_bytes, owned),
+                borrowed_tp=format_throughput(meta.input_bytes, borrowed),
+                baseline_tp=format_throughput(meta.input_bytes, baseline),
+                owned_speed=format_speedup(owned, baseline),
+                borrowed_speed=format_speedup(borrowed, baseline),
+            )
+        )
+    return "\n".join(rows) + "\n"
+
+
+def update_readme(fragment: str) -> None:
+    if not fragment:
+        raise SystemExit("no read benchmark results available to update README")
+
+    readme = README_PATH.read_text(encoding="utf-8")
+    start = readme.find(README_MARKER_START)
+    end = readme.find(README_MARKER_END)
+    if start < 0 or end < 0 or end < start:
+        raise SystemExit(
+            f"README markers not found in {README_PATH}. Expected {README_MARKER_START} / {README_MARKER_END}."
+        )
+
+    start += len(README_MARKER_START)
+    replacement = f"\n{fragment}"
+    updated = readme[:start] + replacement + readme[end:]
+    README_PATH.write_text(updated, encoding="utf-8")
+    print(f"Updated {README_PATH}")
+
+
 def markdown_fragment() -> str:
     fragments = [
         "# Benchmark Summary",
@@ -262,16 +339,29 @@ def markdown_fragment() -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--markdown", action="store_true", help="Write a Markdown summary file")
+    parser.add_argument(
+        "--readme",
+        action="store_true",
+        help="Update the README benchmark snippet from the current read benchmark results",
+    )
     args = parser.parse_args()
 
+    suite_results: dict[str, dict[str, dict[str, float]]] = {}
+    suite_metadata: dict[str, dict[str, CaseMeta]] = {}
     for suite in ("read", "write"):
         metadata = load_suite_metadata(suite)
-        plot_suite(suite, collect_suite_results(suite, metadata))
+        results = collect_suite_results(suite, metadata)
+        suite_metadata[suite] = metadata
+        suite_results[suite] = results
+        plot_suite(suite, results)
 
     if args.markdown:
         output = OUTPUT_DIR / "benchmark_summary.md"
         output.write_text(markdown_fragment(), encoding="utf-8")
         print(f"Saved {output}")
+
+    if args.readme:
+        update_readme(readme_fragment(suite_results["read"], suite_metadata["read"]))
 
 
 if __name__ == "__main__":

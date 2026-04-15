@@ -3,7 +3,7 @@
 ## Goal
 
 Keep the `cityjson-json` benchmark suite small, deterministic, and fully
-driven by the shared `cityjson-benchmarks` repository.
+driven by the shared `cityjson-corpus` repository.
 
 The benchmark harness should:
 
@@ -16,7 +16,7 @@ The benchmark harness should:
 ## Current Shape
 
 The benchmark suite now consumes the shared corpus index at
-`../cityjson-benchmarks/artifacts/benchmark-index.json`.
+`../cityjson-corpus/artifacts/benchmark-index.json`.
 
 The shared repo publishes:
 

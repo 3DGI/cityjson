@@ -395,7 +395,7 @@ fn strict_feature_stream_reads_self_contained_models() {
 
 #[test]
 fn strict_feature_stream_merges_into_one_document() {
-    let input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
 {"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"Building","geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
 "#;
@@ -408,7 +408,7 @@ fn strict_feature_stream_merges_into_one_document() {
 
 #[test]
 fn strict_feature_stream_rejects_duplicate_ids() {
-    let input = r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}
+    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 {"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
 "#;
