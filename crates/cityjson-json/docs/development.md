@@ -43,7 +43,24 @@ just bench-report
 The benchmark suite reads the shared benchmark index and the artifacts listed in
 each workload's `artifacts[]` array.
 
+To benchmark your own CityJSON file or a directory of CityJSON files without
+depending on the shared corpus, run:
+
+```bash
+just bench-local /path/to/cityjson-or-directory
+```
+
+That command generates a temporary benchmark index under
+`target/bench-local/benchmark-index.json` and runs the existing read and write
+suites against those inputs.
+
 The benchmarks use Criterion. Read throughput is based on input bytes; write
-throughput is based on output bytes. README benchmark tables are generated from
-the shared corpus and should be refreshed from current benchmark output, not
+throughput is based on output bytes. The shared benchmark suite can refresh the
+main README benchmark table with:
+
+```bash
+just bench
+```
+
+That README table is generated from current Criterion output and should not be
 edited by hand.
