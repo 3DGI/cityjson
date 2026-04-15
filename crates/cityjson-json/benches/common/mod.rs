@@ -10,7 +10,6 @@ use serde_json::Value;
 
 use cityjson_json::{OwnedCityModel, as_json, from_str_owned};
 
-const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";
 
 pub(crate) const READ_BENCH_CITYJSON_JSON_OWNED: &str = "cityjson-json/owned";
@@ -205,23 +204,26 @@ fn load_benchmark_index() -> BenchmarkIndex {
 }
 
 fn benchmark_index_path() -> PathBuf {
-    let path = std::env::var_os("CITYJSON_JSON_BENCHMARK_INDEX").map_or_else(
-        || shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH),
-        PathBuf::from,
-    );
+    if let Some(path) = std::env::var_os("CITYJSON_JSON_BENCHMARK_INDEX").map(PathBuf::from) {
+        if path.is_absolute() {
+            return path;
+        }
 
-    if path.is_absolute() {
-        path
-    } else {
-        shared_corpus_root().join(path)
+        return shared_corpus_root().join(path);
     }
+
+    shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX_PATH)
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
-        PathBuf::from,
-    )
+    std::env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            panic!(
+                "set CITYJSON_JSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
+or set CITYJSON_JSON_BENCHMARK_INDEX to the benchmark index path"
+            )
+        })
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {

@@ -45,7 +45,7 @@ separate Criterion entrypoints:
    - `serde_json::to_string` as the baseline
 
 The shared benchmark index in
-`../cityjson-benchmarks/artifacts/benchmark-index.json` is now the catalog of
+`../cityjson-corpus/artifacts/benchmark-index.json` is now the catalog of
 benchmark workload cases. It declares:
 
 - case id

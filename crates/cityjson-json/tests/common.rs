@@ -13,7 +13,6 @@ use serde_json::Value;
 
 use cityjson_json::{as_json, from_str_owned};
 
-const DEFAULT_SHARED_CORPUS_ROOT: &str = "../cityjson-benchmarks";
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
 const CONFORMANCE_SCHEMA_VERSION: &str = "2.0";
 
@@ -137,23 +136,26 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessCase> {
 }
 
 fn correctness_index_path() -> PathBuf {
-    let path = env::var_os("CITYJSON_JSON_CORRECTNESS_INDEX").map_or_else(
-        || shared_corpus_root().join(DEFAULT_CORRECTNESS_INDEX_PATH),
-        PathBuf::from,
-    );
+    if let Some(path) = env::var_os("CITYJSON_JSON_CORRECTNESS_INDEX").map(PathBuf::from) {
+        if path.is_absolute() {
+            return path;
+        }
 
-    if path.is_absolute() {
-        path
-    } else {
-        shared_corpus_root().join(path)
+        return shared_corpus_root().join(path);
     }
+
+    shared_corpus_root().join(DEFAULT_CORRECTNESS_INDEX_PATH)
 }
 
 fn shared_corpus_root() -> PathBuf {
-    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_SHARED_CORPUS_ROOT),
-        PathBuf::from,
-    )
+    env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            panic!(
+                "set CITYJSON_JSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
+or set CITYJSON_JSON_CORRECTNESS_INDEX to the correctness index path"
+            )
+        })
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {
@@ -171,7 +173,7 @@ fn generated_temp_path(case_id: &str) -> PathBuf {
         .unwrap_or_else(|err| panic!("system clock error: {err}"))
         .as_nanos();
     path.push(format!(
-        "cityjson-benchmarks-{case_id}-{pid}-{stamp}.city.json",
+        "cityjson-corpus-{case_id}-{pid}-{stamp}.city.json",
         pid = std::process::id()
     ));
     path
