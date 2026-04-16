@@ -8,11 +8,24 @@ Read benchmarks against `serde_json::Value` for acquired real-world data and
 synthetic stress cases. Refresh this table from the shared benchmark suite with `just bench`.
 
 <!-- benchmark-summary:start -->
+**Acquired data**
+
 | Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |
 | --- | --- | --- | --- | --- | --- |
-| `io_basisvoorziening_3d_cityjson` | 282.4 MiB/s | 313.5 MiB/s | 251.1 MiB/s | 1.13x | 1.25x |
-| `io_3dbag_cityjson_cluster_4x` | 186.8 MiB/s | 196.2 MiB/s | 290.8 MiB/s | 0.64x | 0.67x |
-| `io_3dbag_cityjson` | 192.9 MiB/s | 205.8 MiB/s | 308.3 MiB/s | 0.63x | 0.67x |
+| `io_basisvoorziening_3d_cityjson` | 283.7 MiB/s | 315.6 MiB/s | 276.4 MiB/s | 1.03x | 1.14x |
+| `io_3dbag_cityjson_cluster_4x` | 187.9 MiB/s | 199.7 MiB/s | 295.6 MiB/s | 0.64x | 0.68x |
+| `io_3dbag_cityjson` | 195.6 MiB/s | 208.4 MiB/s | 299.6 MiB/s | 0.65x | 0.70x |
+
+**Stress cases**
+
+| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |
+| --- | --- | --- | --- | --- | --- |
+| `stress_attribute_heavy` | 181.4 MiB/s | 212.8 MiB/s | 220.7 MiB/s | 0.82x | 0.96x |
+| `stress_boundary_heavy` | 322.2 MiB/s | 321.6 MiB/s | 217.1 MiB/s | 1.48x | 1.48x |
+| `stress_geometry_heavy` | 281.4 MiB/s | 279.3 MiB/s | 222.0 MiB/s | 1.27x | 1.26x |
+| `stress_hierarchy_heavy` | 195.4 MiB/s | 197.0 MiB/s | 233.8 MiB/s | 0.84x | 0.84x |
+| `stress_resource_heavy` | 163.6 MiB/s | 164.1 MiB/s | 233.5 MiB/s | 0.70x | 0.70x |
+| `stress_vertex_heavy` | 363.5 MiB/s | 365.3 MiB/s | 246.1 MiB/s | 1.48x | 1.48x |
 <!-- benchmark-summary:end -->
 
 Full benchmark tables and plots are written to `benches/results/benchmark_summary.md`.

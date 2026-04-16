@@ -72,7 +72,7 @@ def cargo_target_directory() -> Path:
 
 
 def sanitize_for_path(name: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9 \n.]", "_", name)
+    return re.sub(r"[^a-zA-Z0-9 \n.\-]", "_", name)
 
 
 def load_suite_metadata(suite: str) -> dict[str, CaseMeta]:

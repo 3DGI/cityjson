@@ -1,0 +1,95 @@
+{
+  "suite": "write",
+  "cases": [
+    {
+      "id": "stress_attribute_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 1528499,
+        "cityjson-json/to_string": 1528499,
+        "cityjson-json/to_string_validated": 1528499,
+        "serde_json::to_string": 1528499
+      }
+    },
+    {
+      "id": "stress_boundary_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 1442016,
+        "cityjson-json/to_string": 1442016,
+        "cityjson-json/to_string_validated": 1442016,
+        "serde_json::to_string": 1442016
+      }
+    },
+    {
+      "id": "stress_geometry_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 1088730,
+        "cityjson-json/to_string": 1088730,
+        "cityjson-json/to_string_validated": 1088730,
+        "serde_json::to_string": 1088730
+      }
+    },
+    {
+      "id": "stress_hierarchy_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 1311725,
+        "cityjson-json/to_string": 1311725,
+        "cityjson-json/to_string_validated": 1311725,
+        "serde_json::to_string": 1311725
+      }
+    },
+    {
+      "id": "stress_resource_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 983280,
+        "cityjson-json/to_string": 983280,
+        "cityjson-json/to_string_validated": 983280,
+        "serde_json::to_string": 983280
+      }
+    },
+    {
+      "id": "stress_vertex_heavy",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 4342619,
+        "cityjson-json/to_string": 4342619,
+        "cityjson-json/to_string_validated": 4342619,
+        "serde_json::to_string": 4342619
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 5908757,
+        "cityjson-json/to_string": 5908757,
+        "cityjson-json/to_string_validated": 5908757,
+        "serde_json::to_string": 5908757
+      }
+    },
+    {
+      "id": "io_3dbag_cityjson_cluster_4x",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 20480672,
+        "cityjson-json/to_string": 20480672,
+        "cityjson-json/to_string_validated": 20480672,
+        "serde_json::to_string": 20480672
+      }
+    },
+    {
+      "id": "io_basisvoorziening_3d_cityjson",
+      "description": "",
+      "benchmark_bytes": {
+        "cityjson-json/as_json_to_value": 176832206,
+        "cityjson-json/to_string": 176832206,
+        "cityjson-json/to_string_validated": 176832206,
+        "serde_json::to_string": 176832206
+      }
+    }
+  ]
+}
