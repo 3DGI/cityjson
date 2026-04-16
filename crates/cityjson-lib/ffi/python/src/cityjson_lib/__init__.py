@@ -201,6 +201,10 @@ class CityModel:
         self._handle = handle
 
     @classmethod
+    def from_document_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
+        return cls.parse_document_bytes(data)
+
+    @classmethod
     def parse_document_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
         return cls(_ffi.parse_document(_as_bytes(data)))
 
@@ -215,6 +219,10 @@ class CityModel:
         base_data: bytes | bytearray | memoryview,
     ) -> Self:
         return cls(_ffi.parse_feature_with_base(_as_bytes(feature_data), _as_bytes(base_data)))
+
+    @classmethod
+    def from_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
+        return cls.parse_arrow_bytes(data)
 
     @classmethod
     def parse_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
@@ -331,6 +339,9 @@ class CityModel:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
         return _ffi.serialize_document_with_options(self._handle, payload)
 
+    def to_json_bytes(self, options: WriteOptions | None = None) -> bytes:
+        return self.serialize_document_bytes(options)
+
     def serialize_feature(self, options: WriteOptions | None = None) -> str:
         return self.serialize_feature_bytes(options).decode("utf-8")
 
@@ -340,6 +351,9 @@ class CityModel:
 
     def serialize_arrow_bytes(self) -> bytes:
         return _ffi.serialize_arrow(self._handle)
+
+    def to_arrow_bytes(self) -> bytes:
+        return self.serialize_arrow_bytes()
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._handle, capacities.to_native())
@@ -436,3 +450,6 @@ def write_cityjsonseq_auto_transform_bytes(
         handles,
         payload,
     )
+
+
+Model = CityModel

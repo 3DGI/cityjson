@@ -62,20 +62,17 @@ just bench-diagnostic -- --quick
 just bench-diagnostic
 ```
 
-This target keeps the same pinned 3DBAG cases but measures the internal native
-layers separately from the headline end-to-end path:
+This target keeps the same pinned 3DBAG cases but measures the public Arrow
+batch and stream surfaces separately from the headline end-to-end path:
 
-- `cityarrow/encode_parts`
-- `cityarrow/decode_parts`
-- `cityarrow/write_parts`
-- `cityarrow/read_parts`
-- `cityparquet/write_parts`
-- `cityparquet/read_parts`
-- `cityparquet/read_manifest`
+- `cityarrow/export_batches`
+- `cityarrow/import_batches`
+- `cityarrow/write_stream`
+- `cityarrow/read_stream`
 
 Use `throughput` for product-facing `format <-> CityModel` numbers and
-`diagnostic` to decide whether the remaining cost sits in shared-model
-conversion, live-stream transport, or package/container work.
+`diagnostic` to decide whether the remaining cost sits in batch export/import or
+live-stream transport.
 
 ## Profiling
 

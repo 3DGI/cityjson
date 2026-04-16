@@ -1,17 +1,28 @@
 use std::env;
 use std::fs;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
 fn main() {
     let raw_args: Vec<String> = env::args().skip(1).collect();
     let args = parse_args(&raw_args);
-    let model = cityjson_lib::json::from_file(&args.input)
+    let input = fs::read(&args.input)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
+    let model =
+        cityjson_lib::json::read_model(&input, &cityjson_lib::json::JsonReadOptions::default())
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
 
     if let Some(path) = args.arrow_file.as_ref() {
         reset_output_path(path);
-        cityjson_lib::arrow::to_file(path, &model)
-            .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
+        let file = fs::File::create(path)
+            .unwrap_or_else(|error| panic!("failed to create {}: {error}", path.display()));
+        let mut writer = BufWriter::new(file);
+        cityjson_lib::arrow::write_stream(
+            &mut writer,
+            &model,
+            &cityjson_lib::arrow::ExportOptions::default(),
+        )
+        .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }
 }

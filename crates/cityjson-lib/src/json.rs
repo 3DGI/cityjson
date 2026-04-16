@@ -8,6 +8,14 @@ use serde_json::Value;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
 
+pub use cityjson_json::v2_0::{
+    CityJsonSeqReader, CityJsonSeqWriteOptions, FeatureStreamTransform,
+    ReadOptions as JsonReadOptions, WriteOptions as JsonWriteOptions, read_feature,
+    read_feature_stream as read_feature_stream_raw,
+    read_feature_with_base as read_feature_with_base_raw, read_model, to_vec as to_vec_raw,
+    write_feature_stream as write_feature_stream_raw, write_model,
+};
+
 pub mod staged {
     use std::io::Write;
     use std::path::Path;

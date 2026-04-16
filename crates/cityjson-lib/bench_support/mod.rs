@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::hint::black_box;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::OnceLock;
@@ -41,12 +42,10 @@ pub(crate) enum PreparedWorkload {
         model: CityModel,
     },
     ArrowRead {
-        cityarrow_path: PathBuf,
+        input_arrow: Vec<u8>,
     },
     ArrowWrite {
         model: CityModel,
-        output_path: PathBuf,
-        _output_dir: tempfile::TempDir,
     },
 }
 
@@ -106,16 +105,13 @@ pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> Prep
             }
         }
         Workload::ArrowRead => PreparedWorkload::ArrowRead {
-            cityarrow_path: case.cityarrow_path.clone(),
+            input_arrow: fs::read(&case.cityarrow_path).unwrap_or_else(|error| {
+                panic!("failed to read {}: {error}", case.cityarrow_path.display())
+            }),
         },
-        Workload::ArrowWrite => {
-            let output_dir = tempfile::tempdir().expect("benchmark tempdir should be creatable");
-            PreparedWorkload::ArrowWrite {
-                model: read_model(&case.json_path),
-                output_path: output_dir.path().join("model.cjarrow"),
-                _output_dir: output_dir,
-            }
-        }
+        Workload::ArrowWrite => PreparedWorkload::ArrowWrite {
+            model: read_model(&case.json_path),
+        },
     }
 }
 
@@ -132,9 +128,9 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonRead,
             input_json,
         } => {
-            let model = cityjson_json::read_model(
+            let model = cityjson_json::v2_0::read_model(
                 black_box(input_json.as_bytes()),
-                &cityjson_json::ReadOptions::default(),
+                &cityjson_json::v2_0::ReadOptions::default(),
             )
             .unwrap();
             black_box(model);
@@ -143,7 +139,11 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonLibRead,
             input_json,
         } => {
-            let model = cityjson_lib::json::from_slice(black_box(input_json.as_bytes())).unwrap();
+            let model = cityjson_lib::json::read_model(
+                black_box(input_json.as_bytes()),
+                &cityjson_lib::json::JsonReadOptions::default(),
+            )
+            .unwrap();
             black_box(model);
         }
         PreparedWorkload::JsonValueWrite { value } => {
@@ -154,29 +154,41 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonWrite,
             model,
         } => {
-            let output =
-                cityjson_json::to_vec(black_box(model), &cityjson_json::WriteOptions::default())
-                    .unwrap();
+            let output = cityjson_json::v2_0::to_vec(
+                black_box(model),
+                &cityjson_json::v2_0::WriteOptions::default(),
+            )
+            .unwrap();
             black_box(output);
         }
         PreparedWorkload::ModelWrite {
             workload: Workload::JsonCityjsonLibWrite,
             model,
         } => {
-            let output = cityjson_lib::json::to_vec(black_box(model)).unwrap();
+            let output = cityjson_lib::json::to_vec_raw(
+                black_box(model),
+                &cityjson_lib::json::JsonWriteOptions::default(),
+            )
+            .unwrap();
             black_box(output);
         }
-        PreparedWorkload::ArrowRead { cityarrow_path } => {
-            let model =
-                cityjson_lib::arrow::from_file(black_box(cityarrow_path.as_path())).unwrap();
+        PreparedWorkload::ArrowRead { input_arrow } => {
+            let model = cityjson_lib::arrow::read_stream(
+                Cursor::new(black_box(input_arrow.as_slice())),
+                &cityjson_lib::arrow::ImportOptions::default(),
+            )
+            .unwrap();
             black_box(model);
         }
-        PreparedWorkload::ArrowWrite {
-            model, output_path, ..
-        } => {
-            cityjson_lib::arrow::to_file(black_box(output_path.as_path()), black_box(model))
-                .unwrap();
-            black_box(output_path);
+        PreparedWorkload::ArrowWrite { model } => {
+            let mut output = Vec::new();
+            cityjson_lib::arrow::write_stream(
+                &mut output,
+                black_box(model),
+                &cityjson_lib::arrow::ExportOptions::default(),
+            )
+            .unwrap();
+            black_box(output);
         }
         PreparedWorkload::JsonRead { workload, .. }
         | PreparedWorkload::ModelWrite { workload, .. } => {
@@ -196,15 +208,18 @@ pub(crate) fn throughput_bytes(case: &BenchmarkCase, workload: Workload) -> u64 
         Workload::JsonSerdeValueWrite => serde_json::to_vec(&read_json_value(&case.json_path))
             .unwrap()
             .len() as u64,
-        Workload::JsonCityjsonWrite => cityjson_json::to_vec(
+        Workload::JsonCityjsonWrite => cityjson_json::v2_0::to_vec(
             &read_model(&case.json_path),
-            &cityjson_json::WriteOptions::default(),
+            &cityjson_json::v2_0::WriteOptions::default(),
         )
         .unwrap()
         .len() as u64,
-        Workload::JsonCityjsonLibWrite => cityjson_lib::json::to_vec(&read_model(&case.json_path))
-            .unwrap()
-            .len() as u64,
+        Workload::JsonCityjsonLibWrite => cityjson_lib::json::to_vec_raw(
+            &read_model(&case.json_path),
+            &cityjson_lib::json::JsonWriteOptions::default(),
+        )
+        .unwrap()
+        .len() as u64,
         Workload::ArrowRead | Workload::ArrowWrite => case.cityarrow_bytes,
     }
 }
@@ -353,7 +368,11 @@ fn read_text(path: &Path) -> String {
 }
 
 fn read_model(path: &Path) -> CityModel {
-    cityjson_lib::json::from_slice(read_text(path).as_bytes()).unwrap_or_else(|error| {
+    cityjson_lib::json::read_model(
+        read_text(path).as_bytes(),
+        &cityjson_lib::json::JsonReadOptions::default(),
+    )
+    .unwrap_or_else(|error| {
         panic!(
             "failed to parse benchmark input {}: {error}",
             path.display()

@@ -8,7 +8,8 @@ use crate::{CityModel, Error, Result};
 
 pub use cityjson_arrow::transport::CanonicalTable;
 pub use cityjson_arrow::{
-    CityArrowHeader, ExportOptions, ImportOptions, ProjectionLayout, SchemaVersion, WriteReport,
+    CityArrowHeader, ExportOptions, ImportOptions, ModelBatchReader, ProjectionLayout,
+    SchemaVersion, WriteReport, export_reader, read_stream, write_stream,
 };
 
 #[derive(Debug, Clone)]

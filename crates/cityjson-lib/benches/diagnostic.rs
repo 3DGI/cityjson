@@ -2,10 +2,10 @@
 mod support;
 
 use std::fs;
+use std::io::Cursor;
 use std::time::Duration;
 
-use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
-use cityjson_lib::json;
+use cityjson_lib::{arrow, json};
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 use support::{BenchmarkCase, benchmark_cases};
 
@@ -19,16 +19,20 @@ fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurem
 struct PreparedDiagnosticCase {
     case: BenchmarkCase,
     model: cityjson_lib::CityModel,
-    parts: cityjson_arrow::schema::CityModelArrowParts,
+    batches: cityjson_lib::arrow::ArrowBatches,
     stream_bytes: Vec<u8>,
 }
 
 impl PreparedDiagnosticCase {
     fn new(case: BenchmarkCase) -> Self {
-        let model = json::from_file(&case.json_path)
+        let json_bytes = fs::read(&case.json_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", case.json_path.display()));
-        let parts = encode_parts(&model)
-            .unwrap_or_else(|error| panic!("failed to encode parts for {}: {error}", case.id));
+        let model = json::read_model(&json_bytes, &json::JsonReadOptions::default())
+            .unwrap_or_else(|error| {
+                panic!("failed to decode {}: {error}", case.json_path.display())
+            });
+        let batches = arrow::export_batches(&model)
+            .unwrap_or_else(|error| panic!("failed to export batches for {}: {error}", case.id));
         let stream_bytes = fs::read(&case.cityarrow_path).unwrap_or_else(|error| {
             panic!("failed to read {}: {error}", case.cityarrow_path.display())
         });
@@ -36,7 +40,7 @@ impl PreparedDiagnosticCase {
         Self {
             case,
             model,
-            parts,
+            batches,
             stream_bytes,
         }
     }
@@ -50,14 +54,14 @@ fn bench_diagnostics(c: &mut Criterion) {
 
         let mut convert_group = c.benchmark_group(format!("diagnose_convert/{}", prepared.case.id));
         configure_group(&mut convert_group);
-        convert_group.bench_function("cityarrow/encode_parts", |b| {
+        convert_group.bench_function("cityarrow/export_batches", |b| {
             b.iter(|| {
-                let _ = encode_parts(&prepared.model).expect("encode parts");
+                let _ = arrow::export_batches(&prepared.model).expect("export batches");
             });
         });
-        convert_group.bench_function("cityarrow/decode_parts", |b| {
+        convert_group.bench_function("cityarrow/import_batches", |b| {
             b.iter(|| {
-                let _ = decode_parts(&prepared.parts).expect("decode parts");
+                let _ = arrow::import_batches(&prepared.batches).expect("import batches");
             });
         });
         convert_group.finish();
@@ -65,16 +69,24 @@ fn bench_diagnostics(c: &mut Criterion) {
         let mut stream_group = c.benchmark_group(format!("diagnose_stream/{}", prepared.case.id));
         configure_group(&mut stream_group);
         stream_group.throughput(Throughput::Bytes(prepared.case.cityarrow_bytes));
-        stream_group.bench_function("cityarrow/write_parts", |b| {
+        stream_group.bench_function("cityarrow/write_stream", |b| {
             b.iter(|| {
                 let mut bytes = Vec::new();
-                write_stream_parts(&prepared.parts, &mut bytes).expect("write stream parts");
+                arrow::write_stream(
+                    &mut bytes,
+                    &prepared.model,
+                    &arrow::ExportOptions::default(),
+                )
+                .expect("write stream");
             });
         });
-        stream_group.bench_function("cityarrow/read_parts", |b| {
+        stream_group.bench_function("cityarrow/read_stream", |b| {
             b.iter(|| {
-                let _ =
-                    read_stream_parts(prepared.stream_bytes.as_slice()).expect("read stream parts");
+                let _ = arrow::read_stream(
+                    Cursor::new(prepared.stream_bytes.as_slice()),
+                    &arrow::ImportOptions::default(),
+                )
+                .expect("read stream");
             });
         });
         stream_group.finish();
