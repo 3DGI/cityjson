@@ -3,6 +3,7 @@ mod common;
 use std::hint::black_box;
 use std::time::Duration;
 
+use cityjson_json::v2_0::{ReadOptions, read_model};
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
@@ -31,9 +32,9 @@ fn bench_read(c: &mut Criterion) {
 
         group.bench_function(READ_BENCH_CITYJSON_JSON_OWNED, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::read_model(
+                read_model(
                     black_box(prepared.input_json.as_bytes()),
-                    &cityjson_json::ReadOptions::default(),
+                    &ReadOptions::default(),
                 )
                 .unwrap()
             });

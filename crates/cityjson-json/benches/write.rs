@@ -3,6 +3,7 @@ mod common;
 use std::hint::black_box;
 use std::time::Duration;
 
+use cityjson_json::v2_0::{WriteOptions, to_vec};
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
@@ -33,11 +34,7 @@ fn bench_write(c: &mut Criterion) {
         ));
         group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::to_vec(
-                    black_box(&prepared.model),
-                    &cityjson_json::WriteOptions::default(),
-                )
-                .unwrap()
+                to_vec(black_box(&prepared.model), &WriteOptions::default()).unwrap()
             });
         });
 
@@ -46,11 +43,11 @@ fn bench_write(c: &mut Criterion) {
         ));
         group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::to_vec(
+                to_vec(
                     black_box(&prepared.model),
-                    &cityjson_json::WriteOptions {
+                    &WriteOptions {
                         validate_default_themes: true,
-                        ..cityjson_json::WriteOptions::default()
+                        ..WriteOptions::default()
                     },
                 )
                 .unwrap()

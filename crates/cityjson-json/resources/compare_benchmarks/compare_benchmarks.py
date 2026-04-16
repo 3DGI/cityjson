@@ -19,13 +19,11 @@ import matplotlib.pyplot as plt
 BENCHMARK_IDS = {
     "read": (
         "cityjson-json/owned",
-        "cityjson-json/borrowed",
         "serde_json::Value",
     ),
     "write": (
-        "cityjson-json/as_json_to_value",
-        "cityjson-json/to_string",
-        "cityjson-json/to_string_validated",
+        "cityjson-json/to_vec",
+        "cityjson-json/to_vec_validated",
         "serde_json::to_string",
     ),
 }
@@ -37,7 +35,7 @@ BASELINE_IDS = {
 
 MAIN_BENCH_IDS = {
     "read": "cityjson-json/owned",
-    "write": "cityjson-json/to_string",
+    "write": "cityjson-json/to_vec",
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -55,7 +53,6 @@ MARKERSIZE = 60
 class CaseMeta:
     case_id: str
     description: str
-    borrowed: bool
     input_bytes: int
     benchmark_bytes: dict[str, int]
 
@@ -91,14 +88,13 @@ def load_suite_metadata(suite: str) -> dict[str, CaseMeta]:
         if suite == "write" and not benchmark_bytes and legacy_output_bytes is not None:
             output_bytes = int(legacy_output_bytes)
             benchmark_bytes = {
-                "cityjson-json/to_string": output_bytes,
-                "cityjson-json/to_string_validated": output_bytes,
+                "cityjson-json/to_vec": output_bytes,
+                "cityjson-json/to_vec_validated": output_bytes,
                 "serde_json::to_string": output_bytes,
             }
         result[case["id"]] = CaseMeta(
             case_id=case["id"],
             description=case.get("description", ""),
-            borrowed=case.get("borrowed", False),
             input_bytes=int(case.get("input_bytes", 0)),
             benchmark_bytes=benchmark_bytes,
         )
@@ -223,7 +219,7 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
 
     for case_id in case_order(results):
         suite_case = results[case_id]
-        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+        meta = case_meta.get(case_id, CaseMeta(case_id, "", 0, {}))
         baseline = suite_case.get(baseline_bench)
         main = suite_case.get(main_bench)
         if baseline is None or main is None:
@@ -260,7 +256,6 @@ def readme_acquired_case_order(
 ) -> list[str]:
     required_benchmarks = (
         "cityjson-json/owned",
-        "cityjson-json/borrowed",
         "serde_json::Value",
     )
     eligible_cases: list[tuple[int, str]] = []
@@ -269,7 +264,7 @@ def readme_acquired_case_order(
             continue
         if not all(bench_id in suite_case for bench_id in required_benchmarks):
             continue
-        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+        meta = case_meta.get(case_id, CaseMeta(case_id, "", 0, {}))
         eligible_cases.append((meta.input_bytes, case_id))
     eligible_cases.sort(key=lambda item: (-item[0], item[1]))
     return [case_id for _, case_id in eligible_cases[:README_CASE_LIMIT]]
@@ -280,7 +275,6 @@ def readme_stress_case_order(
 ) -> list[str]:
     required_benchmarks = (
         "cityjson-json/owned",
-        "cityjson-json/borrowed",
         "serde_json::Value",
     )
     return sorted(
@@ -291,25 +285,22 @@ def readme_stress_case_order(
 
 
 def readme_fragment(results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]) -> str:
-    header = "| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |"
-    sep = "| --- | --- | --- | --- | --- | --- |"
+    header = "| Case | cityjson-json | `serde_json::Value` | Factor |"
+    sep = "| --- | --- | --- | --- |"
 
     def render_rows(case_ids: list[str]) -> list[str]:
         rows = []
         for case_id in case_ids:
             suite_case = results[case_id]
-            meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+            meta = case_meta.get(case_id, CaseMeta(case_id, "", 0, {}))
             owned = suite_case["cityjson-json/owned"]
-            borrowed = suite_case["cityjson-json/borrowed"]
             baseline = suite_case["serde_json::Value"]
             rows.append(
-                "| {case} | {owned_tp} | {borrowed_tp} | {baseline_tp} | {owned_speed} | {borrowed_speed} |".format(
+                "| {case} | {owned_tp} | {baseline_tp} | {owned_speed} |".format(
                     case=f"`{meta.case_id}`",
                     owned_tp=format_throughput(meta.input_bytes, owned),
-                    borrowed_tp=format_throughput(meta.input_bytes, borrowed),
                     baseline_tp=format_throughput(meta.input_bytes, baseline),
                     owned_speed=format_speedup(owned, baseline),
-                    borrowed_speed=format_speedup(borrowed, baseline),
                 )
             )
         return rows
