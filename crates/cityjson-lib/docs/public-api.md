@@ -62,6 +62,12 @@ let _owned = from_slice.into_inner();
 Sibling format modules follow the same rule: explicit module, explicit format,
 semantic item type still `CityModel`.
 
+`cityjson_lib::arrow` is intentionally thin:
+
+- live Arrow IPC stream read and write
+- explicit batch export/import for columnar workflows
+- no hidden cityobject projection helpers
+
 ## `cityjson_lib::ops`
 
 `ops` is the home for reusable workflows above the semantic model:
@@ -93,5 +99,5 @@ The Rust facade and the FFI work are parallel layers, not competing ones:
 - Rust users call `cityjson_lib` directly.
 - Foreign bindings share one low-level core documented under
   [FFI and Bindings](ffi/index.md).
-- Binding-specific APIs are free to be more C++-like, Python-like, or
-  wasm-friendly than the Rust facade.
+- Binding-specific APIs stay Arrow-first for bulk interchange and use scalar or
+  single-item helpers for inspection and editing.

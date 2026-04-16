@@ -6,17 +6,14 @@ from dataclasses import dataclass
 from typing import Self
 
 from cityjson_lib._ffi import (
-    CjlibError,
     CityJSONSeqAutoTransformOptionsPayload,
     CityJSONSeqWriteOptionsPayload,
     FfiLibrary,
-    GeometryType,
     GeometryBoundaryPayload,
+    GeometryType,
     ModelCapacitiesStruct,
     ModelType,
     RootKind,
-    Status,
-    StringViewStruct,
     TransformStruct,
     Version,
     WriteOptionsStruct,
@@ -78,17 +75,6 @@ class GeometryBoundary:
             shell_offsets=self.shell_offsets,
             solid_offsets=self.solid_offsets,
         )
-
-
-@dataclass(frozen=True)
-class ProjectedCityObject:
-    cityobject_id: str
-    object_type: str
-    geometry_type: str
-    lod: str | None
-    geometry_count: int
-    bbox: tuple[float, float, float, float, float, float]
-    vertex_indices: list[int]
 
 
 @dataclass(frozen=True)
@@ -267,20 +253,6 @@ class CityModel:
             has_appearance=bool(native.has_appearance),
         )
 
-    def projected_cityobjects(self) -> list[ProjectedCityObject]:
-        return [
-            ProjectedCityObject(
-                cityobject_id=item.cityobject_id,
-                object_type=item.object_type,
-                geometry_type=item.geometry_type,
-                lod=item.lod,
-                geometry_count=item.geometry_count,
-                bbox=item.bbox,
-                vertex_indices=item.vertex_indices,
-            )
-            for item in _ffi.projected_cityobjects(self._handle)
-        ]
-
     def metadata_title(self) -> str:
         return _ffi.metadata_title(self._handle)
 
@@ -311,15 +283,6 @@ class CityModel:
         return [
             Vertex(x=item.x, y=item.y, z=item.z)
             for item in _ffi.geometry_boundary_coordinates(self._handle, index)
-        ]
-
-    def vertices(self) -> list[Vertex]:
-        return [Vertex(x=item.x, y=item.y, z=item.z) for item in _ffi.vertices(self._handle)]
-
-    def template_vertices(self) -> list[Vertex]:
-        return [
-            Vertex(x=item.x, y=item.y, z=item.z)
-            for item in _ffi.template_vertices(self._handle)
         ]
 
     def uv_coordinates(self) -> list[UV]:

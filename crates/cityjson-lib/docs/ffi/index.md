@@ -6,6 +6,8 @@ The key architectural decision is:
 
 - one shared low-level FFI core
 - separate target-specific public bindings on top
+- Arrow-first bulk interchange
+- no shared wrapper-projection API layer
 
 That means the low-level ownership, parse, serialize, and bulk-operation story
 should be shared, while C++, Python, and wasm remain free to expose different
@@ -43,6 +45,9 @@ The FFI section is split into:
 - [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md)
   Decision record for the initial pretty/validation write options and the
   bytes-based feature-stream contract.
+- [Arrow-first thin facade and bindings](../adr/0012-arrow-first-thin-facade-and-bindings.md)
+  Decision record for removing projected wrapper APIs from the binding surface
+  and keeping bulk interchange explicitly Arrow-oriented.
 - [Wasm32 portability note and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
   Historical note on the wasm32 portability issue that was resolved in
   `cityjson-benchmarks`, plus the later wasm64 evaluation path.

@@ -20,8 +20,6 @@ struct PreparedDiagnosticCase {
     model: cityjson_lib::CityModel,
     parts: cityjson_arrow::schema::CityModelArrowParts,
     stream_bytes: Vec<u8>,
-    package_write_path: std::path::PathBuf,
-    _package_write_dir: tempfile::TempDir,
 }
 
 impl PreparedDiagnosticCase {
@@ -33,17 +31,12 @@ impl PreparedDiagnosticCase {
         let stream_bytes = fs::read(&case.cityarrow_path).unwrap_or_else(|error| {
             panic!("failed to read {}: {error}", case.cityarrow_path.display())
         });
-        let package_write_dir =
-            tempfile::tempdir().expect("diagnostic benchmark tempdir should be creatable");
-        let package_write_path = package_write_dir.path().join("parts.cjparquet");
 
         Self {
             case,
             model,
             parts,
             stream_bytes,
-            package_write_path,
-            _package_write_dir: package_write_dir,
         }
     }
 }
@@ -84,33 +77,6 @@ fn bench_diagnostics(c: &mut Criterion) {
             });
         });
         stream_group.finish();
-
-        let mut package_group = c.benchmark_group(format!("diagnose_package/{}", prepared.case.id));
-        configure_group(&mut package_group);
-        package_group.throughput(Throughput::Bytes(prepared.case.cityparquet_bytes));
-        package_group.bench_function("cityparquet/write_parts", |b| {
-            b.iter(|| {
-                let _ = cityjson_parquet::write_package_parts_file(
-                    &prepared.package_write_path,
-                    &prepared.parts,
-                )
-                .expect("write package parts");
-            });
-        });
-        package_group.bench_function("cityparquet/read_parts", |b| {
-            b.iter(|| {
-                let _ = cityjson_parquet::read_package_parts_file(&prepared.case.cityparquet_path)
-                    .expect("read package parts");
-            });
-        });
-        package_group.bench_function("cityparquet/read_manifest", |b| {
-            b.iter(|| {
-                let _ = cityjson_parquet::PackageReader
-                    .read_manifest(&prepared.case.cityparquet_path)
-                    .expect("read package manifest");
-            });
-        });
-        package_group.finish();
     }
 }
 

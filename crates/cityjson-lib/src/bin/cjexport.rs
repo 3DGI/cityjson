@@ -14,26 +14,17 @@ fn main() {
             .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
         println!("wrote {}", path.display());
     }
-
-    if let Some(path) = args.parquet_file.as_ref() {
-        reset_output_path(path);
-        cityjson_lib::parquet::to_file(path, &model)
-            .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
-        println!("wrote {}", path.display());
-    }
 }
 
 #[derive(Debug)]
 struct Args {
     input: PathBuf,
     arrow_file: Option<PathBuf>,
-    parquet_file: Option<PathBuf>,
 }
 
 fn parse_args(args: &[String]) -> Args {
     let mut input = None;
     let mut arrow_file = None;
-    let mut parquet_file = None;
 
     let mut index = 0_usize;
     while index < args.len() {
@@ -46,10 +37,6 @@ fn parse_args(args: &[String]) -> Args {
                 index += 1;
                 arrow_file = Some(PathBuf::from(value(args, index, "--arrow-file")));
             }
-            "--parquet-file" => {
-                index += 1;
-                parquet_file = Some(PathBuf::from(value(args, index, "--parquet-file")));
-            }
             "--help" | "-h" => {
                 print_usage();
                 std::process::exit(0);
@@ -61,15 +48,11 @@ fn parse_args(args: &[String]) -> Args {
 
     let input = input.unwrap_or_else(|| panic!("missing required --input argument"));
     assert!(
-        arrow_file.is_some() || parquet_file.is_some(),
-        "at least one of --arrow-file or --parquet-file is required"
+        arrow_file.is_some(),
+        "missing required --arrow-file argument"
     );
 
-    Args {
-        input,
-        arrow_file,
-        parquet_file,
-    }
+    Args { input, arrow_file }
 }
 
 fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
@@ -79,9 +62,7 @@ fn value<'a>(args: &'a [String], index: usize, flag: &str) -> &'a str {
 
 fn print_usage() {
     println!("Usage:");
-    println!(
-        "  cargo run --bin cjexport -- --input <cityjson> [--arrow-file <path>] [--parquet-file <path>]"
-    );
+    println!("  cargo run --bin cjexport -- --input <cityjson> --arrow-file <path>");
 }
 
 fn reset_output_path(path: &Path) {

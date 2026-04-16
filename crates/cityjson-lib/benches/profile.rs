@@ -136,8 +136,6 @@ fn print_usage() {
     println!("  cityjson-lib-json-write");
     println!("  cityarrow-read");
     println!("  cityarrow-write");
-    println!("  cityparquet-read");
-    println!("  cityparquet-write");
 }
 
 impl ProfileMode {

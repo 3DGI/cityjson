@@ -30,7 +30,7 @@ FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" /
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
-    def test_arrow_round_trip_and_projection(self) -> None:
+    def test_arrow_round_trip(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 
         model = CityModel.parse_document_bytes(payload)
@@ -41,16 +41,11 @@ class PythonBindingSmokeTest(unittest.TestCase):
         round_trip = CityModel.parse_arrow_bytes(arrow_bytes)
         self.addCleanup(round_trip.close)
         self.assertEqual(round_trip.summary().cityobject_count, 2)
-
-        projected = round_trip.projected_cityobjects()
-        self.assertEqual(len(projected), 2)
-        self.assertEqual(projected[0].cityobject_id, "building-1")
-        self.assertEqual(projected[0].object_type, "Building")
-        self.assertEqual(projected[0].geometry_type, "MultiSurface")
-        self.assertEqual(projected[0].lod, "2.2")
-        self.assertEqual(projected[0].geometry_count, 1)
-        self.assertEqual(projected[0].bbox, (10.0, 20.0, 0.0, 11.0, 21.0, 0.0))
-        self.assertEqual(projected[0].vertex_indices, [0, 1, 2, 3])
+        self.assertEqual(round_trip.cityobject_ids(), ["building-1", "building-part-1"])
+        self.assertEqual(
+            round_trip.geometry_types(),
+            [GeometryType.MULTI_SURFACE, GeometryType.MULTI_POINT],
+        )
 
     def test_parse_edit_extract_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
@@ -154,9 +149,6 @@ class PythonBindingSmokeTest(unittest.TestCase):
 
         self.assertIn("fixture-1-updated", model.serialize_document())
         self.assertIn(b"fixture-1-updated", model.serialize_document_bytes())
-        self.assertEqual(len(model.vertices()), 6)
-        self.assertEqual(model.vertices()[0].x, 0.0)
-        self.assertEqual(model.vertices()[4].y, 4.0)
         self.assertEqual(len(model.uv_coordinates()), 4)
         self.assertIn('"type":"CityJSON"', model.serialize_document())
 

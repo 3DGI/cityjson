@@ -13,7 +13,7 @@ fn import_error(message: impl Into<String>) -> Error {
 }
 
 fn serialize_root(model: &CityModel) -> Result<Map<String, Value>> {
-    match serde_json::to_value(cityjson_json::as_json(model.as_inner()))? {
+    match serde_json::from_slice(&json::to_vec(model)?)? {
         Value::Object(root) => Ok(root),
         _ => Err(import_error("serialized CityJSON root is not an object")),
     }

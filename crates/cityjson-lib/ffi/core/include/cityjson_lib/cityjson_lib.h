@@ -153,28 +153,6 @@ typedef struct cj_geometry_boundary_t {
 } cj_geometry_boundary_t;
 
 /**
- * Flattened read-only CityObject projection returned across the ABI.
- */
-typedef struct cj_projected_cityobject_t {
-  struct cj_bytes_t id;
-  struct cj_bytes_t object_type;
-  struct cj_bytes_t geometry_type;
-  bool has_lod;
-  struct cj_bytes_t lod;
-  uintptr_t geometry_count;
-  double bbox[6];
-  struct cj_indices_t vertex_indices;
-} cj_projected_cityobject_t;
-
-/**
- * Owned buffer of flattened read-only CityObject projections returned across the ABI.
- */
-typedef struct cj_projected_cityobjects_t {
-  struct cj_projected_cityobject_t *data;
-  uintptr_t len;
-} cj_projected_cityobjects_t;
-
-/**
  * Probe result returned by the low-level ABI.
  */
 typedef struct cj_probe_t {
@@ -236,8 +214,6 @@ enum cj_status_t cj_indices_free(struct cj_indices_t indices);
 
 enum cj_status_t cj_geometry_boundary_free(struct cj_geometry_boundary_t boundary);
 
-enum cj_status_t cj_projected_cityobjects_free(struct cj_projected_cityobjects_t cityobjects);
-
 enum cj_error_kind_t cj_last_error_kind(void);
 
 uintptr_t cj_last_error_message_len(void);
@@ -279,9 +255,6 @@ enum cj_status_t cj_model_serialize_arrow(const struct cj_model_t *model,
 
 enum cj_status_t cj_model_get_summary(const struct cj_model_t *model,
                                       struct cj_model_summary_t *out_summary);
-
-enum cj_status_t cj_model_copy_projected_cityobjects(const struct cj_model_t *model,
-                                                     struct cj_projected_cityobjects_t *out_cityobjects);
 
 enum cj_status_t cj_model_get_metadata_title(const struct cj_model_t *model,
                                              struct cj_bytes_t *out_bytes);

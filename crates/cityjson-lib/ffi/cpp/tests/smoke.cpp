@@ -83,13 +83,6 @@ int main() {
   assert(boundary1_coordinates[0].x == 12.0);
   assert(boundary1_coordinates[0].y == 22.0);
 
-  const auto vertices = model.vertices();
-  assert(vertices.size() == 5U);
-  assert(vertices[0].x == 10.0);
-  assert(vertices[0].y == 20.0);
-  assert(vertices[4].x == 12.0);
-  assert(vertices[4].y == 22.0);
-
   const auto uvs = model.uv_coordinates();
   assert(uvs.size() == 4U);
   assert(uvs[2].u == 1.0F);
@@ -103,16 +96,9 @@ int main() {
   assert(!arrow_bytes.empty());
 
   auto arrow_model = cityjson_lib::Model::parse_arrow(arrow_bytes);
-  const auto projected = arrow_model.projected_cityobjects();
-  assert(projected.size() == 2U);
-  assert(projected[0].cityobject_id == "building-1");
-  assert(projected[0].object_type == "Building");
-  assert(projected[0].geometry_type == "MultiSurface");
-  assert(projected[0].lod.has_value());
-  assert(projected[0].lod.value() == "2.2");
-  assert(projected[0].geometry_count == 1U);
-  assert((projected[0].bbox == std::array<double, 6>{10.0, 20.0, 0.0, 11.0, 21.0, 0.0}));
-  assert((projected[0].vertex_indices == std::vector<std::size_t>{0U, 1U, 2U, 3U}));
+  assert(arrow_model.summary().cityobject_count == 2U);
+  assert((arrow_model.cityobject_ids() ==
+          std::vector<std::string>{"building-1", "building-part-1"}));
 
   auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities capacities{};

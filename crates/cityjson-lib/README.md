@@ -19,8 +19,8 @@ The semantic rule is:
 - one semantic model: `cityjson::v2_0::OwnedCityModel`
 - one facade wrapper: `cityjson_lib::CityModel`
 - one semantic interchange unit: a self-contained `CityModel`
-- many format boundaries: JSON, JSONL, Arrow, Parquet, and future raw/staged
-  APIs
+- explicit format boundaries: JSON, JSONL, Arrow, and Parquet
+- no binding-level cityobject projection wrappers on the hot path
 
 For the full synthesis, see [`docs/architecture.md`](docs/architecture.md).
 
@@ -55,6 +55,7 @@ Current practical status:
 - the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
 - explicit feature and feature-stream helpers exist under `cityjson_lib::json`
 - explicit live Arrow IPC stream transport exists under `cityjson_lib::arrow`
+- explicit Arrow batch export/import exists under `cityjson_lib::arrow`
 - explicit cityparquet package-file transport exists under `cityjson_lib::parquet`
 - `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
 - higher-level workflows such as `ops::merge` are still intentionally unimplemented
@@ -80,13 +81,14 @@ let feature_text = json::to_feature_string(&model)?;
 Alternative encodings and containers should live in explicit modules:
 
 - `cityjson_lib::json`
-- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O
+- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O and explicit batch export/import
 - `cityjson_lib::parquet`, which owns persistent package-file I/O
 
 That keeps the facade predictable:
 
 - `CityModel::from_*` means the common single-document CityJSON path
 - explicit modules mean explicit formats
+- expensive Arrow conversion is explicit in the API name
 
 Within `cityjson_lib::json`, the intended surface is:
 

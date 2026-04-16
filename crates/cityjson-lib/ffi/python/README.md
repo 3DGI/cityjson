@@ -13,9 +13,10 @@ The current binding is intentionally small and explicit:
 
 - pure-`ctypes` loading of the shared C ABI
 - `CityModel` object wrapper over native handles
+- Arrow-byte parse and serialize as the primary bulk transport path
 - probe, parse, serialize, create, and summary helpers
-- metadata, cityobject ID, geometry-type, and coordinate access
+- metadata, cityobject ID, geometry-type, and single-geometry access
 - a Python smoke test that exercises the built shared library
 
-The Python layer exposes object-oriented wrappers and views, not raw handles
-as the normal public API.
+The Python layer keeps bulk interchange Arrow-first and avoids materializing
+wrapper-wide projected cityobject or vertex collections.

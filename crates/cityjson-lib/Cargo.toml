@@ -17,9 +17,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["arrow", "parquet"]
+default = ["arrow"]
 arrow = ["dep:cityjson-arrow"]
-parquet = ["arrow", "dep:cityjson-parquet"]
 
 [workspace]
 members = [
@@ -36,9 +35,9 @@ name = "cityjson_lib"
 path = "src/lib.rs"
 
 [dependencies]
+arrow = { version = "58.1.0", default-features = false }
 cityjson = { path = "../cityjson-rs", version = "0.6.1" }
 cityjson-arrow = { path = "../cityjson-arrow", version = "0.5.2", optional = true }
-cityjson-parquet = { path = "../cityjson-parquet", version = "0.5.2", optional = true }
 cityjson-json = { path = "../cityjson-json", version = "0.6.1" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -50,19 +49,19 @@ tempfile = "3.23"
 
 [[bin]]
 name = "cjexport"
-required-features = ["arrow", "parquet"]
+required-features = ["arrow"]
 
 [[bench]]
 name = "throughput"
 harness = false
-required-features = ["arrow", "parquet"]
+required-features = ["arrow"]
 
 [[bench]]
 name = "diagnostic"
 harness = false
-required-features = ["arrow", "parquet"]
+required-features = ["arrow"]
 
 [[bench]]
 name = "profile"
 harness = false
-required-features = ["arrow", "parquet"]
+required-features = ["arrow"]

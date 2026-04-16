@@ -25,8 +25,6 @@ pub(crate) struct BenchmarkCase {
     pub(crate) input_bytes: u64,
     pub(crate) cityarrow_path: PathBuf,
     pub(crate) cityarrow_bytes: u64,
-    pub(crate) cityparquet_path: PathBuf,
-    pub(crate) cityparquet_bytes: u64,
 }
 
 #[derive(Debug)]
@@ -50,14 +48,6 @@ pub(crate) enum PreparedWorkload {
         output_path: PathBuf,
         _output_dir: tempfile::TempDir,
     },
-    ParquetRead {
-        cityparquet_path: PathBuf,
-    },
-    ParquetWrite {
-        model: CityModel,
-        output_path: PathBuf,
-        _output_dir: tempfile::TempDir,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,24 +60,20 @@ pub(crate) enum Workload {
     JsonCityjsonLibWrite,
     ArrowRead,
     ArrowWrite,
-    ParquetRead,
-    ParquetWrite,
 }
 
-pub(crate) const READ_WORKLOADS: [Workload; 5] = [
+pub(crate) const READ_WORKLOADS: [Workload; 4] = [
     Workload::JsonSerdeValueRead,
     Workload::JsonCityjsonRead,
     Workload::JsonCityjsonLibRead,
     Workload::ArrowRead,
-    Workload::ParquetRead,
 ];
 
-pub(crate) const WRITE_WORKLOADS: [Workload; 5] = [
+pub(crate) const WRITE_WORKLOADS: [Workload; 4] = [
     Workload::JsonSerdeValueWrite,
     Workload::JsonCityjsonWrite,
     Workload::JsonCityjsonLibWrite,
     Workload::ArrowWrite,
-    Workload::ParquetWrite,
 ];
 
 pub(crate) fn benchmark_cases() -> Vec<BenchmarkCase> {
@@ -130,17 +116,6 @@ pub(crate) fn prepare_workload(case: &BenchmarkCase, workload: Workload) -> Prep
                 _output_dir: output_dir,
             }
         }
-        Workload::ParquetRead => PreparedWorkload::ParquetRead {
-            cityparquet_path: case.cityparquet_path.clone(),
-        },
-        Workload::ParquetWrite => {
-            let output_dir = tempfile::tempdir().expect("benchmark tempdir should be creatable");
-            PreparedWorkload::ParquetWrite {
-                model: read_model(&case.json_path),
-                output_path: output_dir.path().join("model.cjparquet"),
-                _output_dir: output_dir,
-            }
-        }
     }
 }
 
@@ -157,7 +132,11 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonRead,
             input_json,
         } => {
-            let model = cityjson_json::from_str_owned(black_box(input_json)).unwrap();
+            let model = cityjson_json::read_model(
+                black_box(input_json.as_bytes()),
+                &cityjson_json::ReadOptions::default(),
+            )
+            .unwrap();
             black_box(model);
         }
         PreparedWorkload::JsonRead {
@@ -175,10 +154,11 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
             workload: Workload::JsonCityjsonWrite,
             model,
         } => {
-            let output = cityjson_json::as_json(black_box(model.as_inner()))
-                .validate()
-                .to_string()
-                .unwrap();
+            let output = cityjson_json::to_vec(
+                black_box(model.as_inner()),
+                &cityjson_json::WriteOptions::default(),
+            )
+            .unwrap();
             black_box(output);
         }
         PreparedWorkload::ModelWrite {
@@ -200,18 +180,6 @@ pub(crate) fn run_workload(workload: &PreparedWorkload) {
                 .unwrap();
             black_box(output_path);
         }
-        PreparedWorkload::ParquetRead { cityparquet_path } => {
-            let model =
-                cityjson_lib::parquet::from_file(black_box(cityparquet_path.as_path())).unwrap();
-            black_box(model);
-        }
-        PreparedWorkload::ParquetWrite {
-            model, output_path, ..
-        } => {
-            cityjson_lib::parquet::to_file(black_box(output_path.as_path()), black_box(model))
-                .unwrap();
-            black_box(output_path);
-        }
         PreparedWorkload::JsonRead { workload, .. }
         | PreparedWorkload::ModelWrite { workload, .. } => {
             panic!(
@@ -230,18 +198,16 @@ pub(crate) fn throughput_bytes(case: &BenchmarkCase, workload: Workload) -> u64 
         Workload::JsonSerdeValueWrite => serde_json::to_vec(&read_json_value(&case.json_path))
             .unwrap()
             .len() as u64,
-        Workload::JsonCityjsonWrite => {
-            cityjson_json::as_json(read_model(&case.json_path).as_inner())
-                .validate()
-                .to_string()
-                .unwrap()
-                .len() as u64
-        }
+        Workload::JsonCityjsonWrite => cityjson_json::to_vec(
+            read_model(&case.json_path).as_inner(),
+            &cityjson_json::WriteOptions::default(),
+        )
+        .unwrap()
+        .len() as u64,
         Workload::JsonCityjsonLibWrite => cityjson_lib::json::to_vec(&read_model(&case.json_path))
             .unwrap()
             .len() as u64,
         Workload::ArrowRead | Workload::ArrowWrite => case.cityarrow_bytes,
-        Workload::ParquetRead | Workload::ParquetWrite => case.cityparquet_bytes,
     }
 }
 
@@ -256,8 +222,6 @@ impl Workload {
             Self::JsonCityjsonLibWrite => "cityjson_lib::json/write",
             Self::ArrowRead => "cityarrow/read",
             Self::ArrowWrite => "cityarrow/write",
-            Self::ParquetRead => "cityparquet/read",
-            Self::ParquetWrite => "cityparquet/write",
         }
     }
 }
@@ -275,8 +239,6 @@ impl FromStr for Workload {
             "cityjson-lib-json-write" => Ok(Self::JsonCityjsonLibWrite),
             "cityarrow-read" => Ok(Self::ArrowRead),
             "cityarrow-write" => Ok(Self::ArrowWrite),
-            "cityparquet-read" => Ok(Self::ParquetRead),
-            "cityparquet-write" => Ok(Self::ParquetWrite),
             other => Err(format!("unknown workload '{other}'")),
         }
     }
@@ -338,13 +300,10 @@ fn try_build_case(corpus_root: &Path, case: IndexCase) -> Option<BenchmarkCase> 
     let find = |rep: &str| case.artifacts.iter().find(|a| a.representation == rep);
     let cityjson = find("cityjson")?;
     let cityarrow = find("cityjson-arrow")?;
-    let cityparquet = find("cityjson-parquet")?;
-
     let json_path = resolve_path(corpus_root, &cityjson.path);
     let cityarrow_path = resolve_path(corpus_root, &cityarrow.path);
-    let cityparquet_path = resolve_path(corpus_root, &cityparquet.path);
 
-    if !json_path.is_file() || !cityarrow_path.is_file() || !cityparquet_path.is_file() {
+    if !json_path.is_file() || !cityarrow_path.is_file() {
         return None;
     }
 
@@ -355,12 +314,8 @@ fn try_build_case(corpus_root: &Path, case: IndexCase) -> Option<BenchmarkCase> 
         cityarrow_bytes: cityarrow
             .byte_size
             .unwrap_or_else(|| file_size(&cityarrow_path)),
-        cityparquet_bytes: cityparquet
-            .byte_size
-            .unwrap_or_else(|| file_size(&cityparquet_path)),
         json_path,
         cityarrow_path,
-        cityparquet_path,
     })
 }
 

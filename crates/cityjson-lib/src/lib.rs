@@ -7,8 +7,6 @@ mod error;
 pub mod json;
 mod model;
 pub mod ops;
-#[cfg(feature = "parquet")]
-pub mod parquet;
 mod version;
 
 pub use cityjson;

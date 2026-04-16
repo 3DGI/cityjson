@@ -8,7 +8,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -47,16 +46,6 @@ struct GeometryBoundary final {
   std::vector<std::size_t> surface_offsets;
   std::vector<std::size_t> shell_offsets;
   std::vector<std::size_t> solid_offsets;
-};
-
-struct ProjectedCityObject final {
-  std::string cityobject_id;
-  std::string object_type;
-  std::string geometry_type;
-  std::optional<std::string> lod;
-  std::size_t geometry_count = 0U;
-  std::array<double, 6> bbox{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-  std::vector<std::size_t> vertex_indices;
 };
 
 class StatusError final : public std::runtime_error {
@@ -196,38 +185,6 @@ inline GeometryBoundary take_geometry_boundary(cj_geometry_boundary_t boundary) 
   };
 }
 
-inline std::vector<ProjectedCityObject> take_projected_cityobjects(
-    cj_projected_cityobjects_t cityobjects) {
-  struct FreeGuard {
-    cj_projected_cityobjects_t cityobjects;
-    ~FreeGuard() { static_cast<void>(cj_projected_cityobjects_free(cityobjects)); }
-  } guard{cityobjects};
-
-  std::vector<ProjectedCityObject> values;
-  values.reserve(cityobjects.len);
-  for (std::size_t index = 0; index < cityobjects.len; ++index) {
-    const cj_projected_cityobject_t& item = cityobjects.data[index];
-    values.push_back(ProjectedCityObject{
-        .cityobject_id = copy_string(item.id),
-        .object_type = copy_string(item.object_type),
-        .geometry_type = copy_string(item.geometry_type),
-        .lod = item.has_lod ? std::optional<std::string>{copy_string(item.lod)} : std::nullopt,
-        .geometry_count = item.geometry_count,
-        .bbox = {
-            item.bbox[0],
-            item.bbox[1],
-            item.bbox[2],
-            item.bbox[3],
-            item.bbox[4],
-            item.bbox[5],
-        },
-        .vertex_indices = copy_indices(item.vertex_indices),
-    });
-  }
-
-  return values;
-}
-
 class Model final {
  public:
   Model() = default;
@@ -304,12 +261,6 @@ class Model final {
     return summary;
   }
 
-  [[nodiscard]] std::vector<ProjectedCityObject> projected_cityobjects() const {
-    cj_projected_cityobjects_t cityobjects{};
-    check_status(cj_model_copy_projected_cityobjects(handle_, &cityobjects));
-    return take_projected_cityobjects(cityobjects);
-  }
-
   [[nodiscard]] std::string metadata_title() const {
     cj_bytes_t bytes{};
     check_status(cj_model_get_metadata_title(handle_, &bytes));
@@ -381,18 +332,6 @@ class Model final {
     }
 
     return types;
-  }
-
-  [[nodiscard]] std::vector<Vertex> vertices() const {
-    cj_vertices_t vertices{};
-    check_status(cj_model_copy_vertices(handle_, &vertices));
-    return take_vertices(vertices);
-  }
-
-  [[nodiscard]] std::vector<Vertex> template_vertices() const {
-    cj_vertices_t vertices{};
-    check_status(cj_model_copy_template_vertices(handle_, &vertices));
-    return take_vertices(vertices);
   }
 
   [[nodiscard]] std::vector<UV> uv_coordinates() const {

@@ -116,26 +116,24 @@ Query summary fields without descending into the geometry tree.
     }
     ```
 
-## Read Vertex Coordinates
+## Export Arrow Transport
 
 === "Rust"
     ```rust
-    // vertices() returns a typed Vertices collection from cityjson-rs
-    let count = model.as_inner().vertices().len();
-    println!("{count} vertices loaded");
+    let batches = cityjson_lib::arrow::export_batches(&model)?;
+    println!("{} geometry rows", batches.geometries.num_rows());
     ```
 
 === "C++"
     ```cpp
-    for (const cityjson_lib::Vertex& v : model.vertices()) {
-        printf("%.3f  %.3f  %.3f\n", v.x, v.y, v.z);
-    }
+    const auto arrow_bytes = model.serialize_arrow_bytes();
+    printf("%zu Arrow bytes\n", arrow_bytes.size());
     ```
 
 === "Python"
     ```python
-    for v in model.vertices():
-        print(v.x, v.y, v.z)
+    arrow_bytes = model.serialize_arrow_bytes()
+    print(len(arrow_bytes))
     ```
 
 === "WASM"

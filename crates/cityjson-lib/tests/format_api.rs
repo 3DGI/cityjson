@@ -1,30 +1,29 @@
-//! Public API contract for explicit cityarrow and cityparquet boundaries.
+//! Public API contract for explicit cityarrow boundaries.
 
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 use cityjson_lib::CityModel;
 #[cfg(feature = "arrow")]
 use cityjson_lib::arrow;
-#[cfg(feature = "parquet")]
-use cityjson_lib::parquet;
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 use serde_json::Value;
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 use std::path::Path;
 
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 fn normalized_json(model: &CityModel) -> Value {
     let mut value: Value = serde_json::from_str(
-        &cityjson_json::as_json(model.as_inner())
-            .validate()
-            .to_string()
-            .expect("model should serialize"),
+        &String::from_utf8(
+            cityjson_json::to_vec(model.as_inner(), &cityjson_json::WriteOptions::default())
+                .expect("model should serialize"),
+        )
+        .expect("serialized model should be utf-8"),
     )
     .expect("serialized model should be valid JSON");
     strip_null_object_members(&mut value);
     value
 }
 
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 fn strip_null_object_members(value: &mut Value) {
     match value {
         Value::Object(map) => {
@@ -58,6 +57,18 @@ fn arrow_boundary_roundtrips_through_a_live_stream_buffer() {
 
 #[cfg(feature = "arrow")]
 #[test]
+fn arrow_boundary_explicitly_exports_and_imports_batches() {
+    let model =
+        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
+
+    let batches = arrow::export_batches(&model).expect("canonical batches should be exported");
+    let roundtrip = arrow::import_batches(&batches).expect("canonical batches should be imported");
+
+    assert_eq!(normalized_json(&model), normalized_json(&roundtrip));
+}
+
+#[cfg(feature = "arrow")]
+#[test]
 fn arrow_boundary_writes_a_stream_file_and_roundtrips() {
     let path = Path::new("tests/output/minimal.cjarrow");
     reset_output_path(path);
@@ -72,23 +83,7 @@ fn arrow_boundary_writes_a_stream_file_and_roundtrips() {
     assert_eq!(normalized_json(&model), normalized_json(&roundtrip));
 }
 
-#[cfg(feature = "parquet")]
-#[test]
-fn parquet_boundary_writes_a_package_file_and_roundtrips() {
-    let path = Path::new("tests/output/minimal.cjparquet");
-    reset_output_path(path);
-    let model =
-        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
-
-    parquet::to_file(path, &model).expect("parquet package file should be written");
-
-    assert!(path.is_file());
-
-    let roundtrip = parquet::from_file(path).expect("parquet package file should be readable");
-    assert_eq!(normalized_json(&model), normalized_json(&roundtrip));
-}
-
-#[cfg(any(feature = "arrow", feature = "parquet"))]
+#[cfg(feature = "arrow")]
 fn reset_output_path(path: &Path) {
     match std::fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() => {
