@@ -66,6 +66,24 @@ _check-shared-benchmark-index:
         fi \
     '
 
+# Export CityJSON to cityjson-arrow and cityjson-parquet for all acquired benchmark cases.
+prepare-bench-data: _check-shared-benchmark-index
+    jq -r '
+      (.generated_cases + .other_cases)[]
+      | . as $case
+      | ([$case.artifacts[] | select(.representation == "cityjson-arrow") | .path] | .[0]) as $arrow
+      | ([$case.artifacts[] | select(.representation == "cityjson-parquet") | .path] | .[0]) as $parquet
+      | select($arrow != null and $parquet != null)
+      | [ ($case.artifacts[] | select(.representation == "cityjson") | .path), $arrow, $parquet ]
+      | @tsv
+    ' "$CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json" \
+    | while IFS=$'\t' read -r input arrow parquet; do \
+        cargo run --quiet --bin cjexport --features arrow,parquet -- \
+          --input "$input" \
+          --arrow-file "$arrow" \
+          --parquet-file "$parquet"; \
+      done
+
 bench *args: _check-shared-benchmark-index
     cargo bench --bench throughput {{args}}
 

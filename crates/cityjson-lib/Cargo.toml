@@ -48,6 +48,10 @@ criterion = "0.7"
 dhat = "0.3"
 tempfile = "3.23"
 
+[[bin]]
+name = "cjexport"
+required-features = ["arrow", "parquet"]
+
 [[bench]]
 name = "throughput"
 harness = false
