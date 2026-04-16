@@ -2,20 +2,30 @@
 name = "cityjson-arrow"
 version = "0.5.2"
 edition = "2024"
+description = "Arrow IPC and Parquet transport for CityJSON 2.0 city models"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/3DGI/cityjson-arrow"
+keywords = ["cityjson", "arrow", "parquet", "geospatial", "3d"]
+categories = ["encoding", "science::geo"]
+readme = "README.md"
 
 [[bench]]
 name = "split"
 harness = false
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [workspace]
-members = ["cityjson-parquet"]
+members = ["."]
 
 [dependencies]
 arrow = { version = "58.1.0", features = ["ipc", "csv", "json"] }
 arrow-buffer = "58.1.0"
 arrow-json = "58.1.0"
 arrow-select = "58.1.0"
-cityjson = { path = "../cityjson-rs" }
+cityjson = { path = "../cityjson-rs", version = "0.6.1" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.5.0"
@@ -26,7 +36,7 @@ bytes = "1.10.1"
 parquet = "58.1.0"
 
 [dev-dependencies]
-cityjson-parquet = { path = "cityjson-parquet" }
+cityjson-parquet = { path = "../cityjson-parquet" }
 cityjson-json = { path = "../cityjson-json" }
 rand = "0.10.1"
 criterion = "0.8.2"
