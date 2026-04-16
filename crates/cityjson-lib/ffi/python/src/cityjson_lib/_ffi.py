@@ -117,6 +117,23 @@ class GeometryBoundaryStruct(Structure):
     ]
 
 
+class ProjectedCityObjectStruct(Structure):
+    _fields_ = [
+        ("id", BytesStruct),
+        ("object_type", BytesStruct),
+        ("geometry_type", BytesStruct),
+        ("has_lod", c_bool),
+        ("lod", BytesStruct),
+        ("geometry_count", c_size_t),
+        ("bbox", c_double * 6),
+        ("vertex_indices", IndicesStruct),
+    ]
+
+
+class ProjectedCityObjectsStruct(Structure):
+    _fields_ = [("data", POINTER(ProjectedCityObjectStruct)), ("len", c_size_t)]
+
+
 class StringViewStruct(Structure):
     _fields_ = [("data", POINTER(c_ubyte)), ("len", c_size_t)]
 
@@ -221,6 +238,17 @@ class GeometryBoundaryPayload:
 
 
 @dataclass(frozen=True)
+class ProjectedCityObjectPayload:
+    cityobject_id: str
+    object_type: str
+    geometry_type: str
+    lod: str | None
+    geometry_count: int
+    bbox: tuple[float, float, float, float, float, float]
+    vertex_indices: list[int]
+
+
+@dataclass(frozen=True)
 class WriteOptionsPayload:
     pretty: bool = False
     validate_default_themes: bool = False
@@ -307,6 +335,8 @@ class FfiLibrary:
             POINTER(c_void_p),
         ]
         self._lib.cj_model_parse_feature_with_base_bytes.restype = c_int
+        self._lib.cj_model_parse_arrow_bytes.argtypes = [POINTER(c_ubyte), c_size_t, POINTER(c_void_p)]
+        self._lib.cj_model_parse_arrow_bytes.restype = c_int
         self._lib.cj_model_create.argtypes = [c_int, POINTER(c_void_p)]
         self._lib.cj_model_create.restype = c_int
         self._lib.cj_model_free.argtypes = [c_void_p]
@@ -316,11 +346,18 @@ class FfiLibrary:
         self._lib.cj_model_serialize_document.restype = c_int
         self._lib.cj_model_serialize_feature.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_serialize_feature.restype = c_int
+        self._lib.cj_model_serialize_arrow.argtypes = [c_void_p, POINTER(BytesStruct)]
+        self._lib.cj_model_serialize_arrow.restype = c_int
         self._lib.cj_bytes_free.argtypes = [BytesStruct]
         self._lib.cj_bytes_free.restype = c_int
 
         self._lib.cj_model_get_summary.argtypes = [c_void_p, POINTER(ModelSummaryStruct)]
         self._lib.cj_model_get_summary.restype = c_int
+        self._lib.cj_model_copy_projected_cityobjects.argtypes = [
+            c_void_p,
+            POINTER(ProjectedCityObjectsStruct),
+        ]
+        self._lib.cj_model_copy_projected_cityobjects.restype = c_int
         self._lib.cj_model_get_metadata_title.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_get_metadata_title.restype = c_int
         self._lib.cj_model_get_metadata_identifier.argtypes = [c_void_p, POINTER(BytesStruct)]
@@ -359,6 +396,8 @@ class FfiLibrary:
         self._lib.cj_indices_free.restype = c_int
         self._lib.cj_geometry_boundary_free.argtypes = [GeometryBoundaryStruct]
         self._lib.cj_geometry_boundary_free.restype = c_int
+        self._lib.cj_projected_cityobjects_free.argtypes = [ProjectedCityObjectsStruct]
+        self._lib.cj_projected_cityobjects_free.restype = c_int
 
         self._lib.cj_model_reserve_import.argtypes = [c_void_p, ModelCapacitiesStruct]
         self._lib.cj_model_reserve_import.restype = c_int
@@ -597,6 +636,39 @@ class FfiLibrary:
         self._raise_if_error(self._lib.cj_geometry_boundary_free(payload))
         return boundary
 
+    def _take_projected_cityobjects(
+        self, payload: ProjectedCityObjectsStruct
+    ) -> list[ProjectedCityObjectPayload]:
+        if payload.len == 0:
+            self._raise_if_error(self._lib.cj_projected_cityobjects_free(payload))
+            return []
+
+        values = []
+        for index in range(payload.len):
+            item = payload.data[index]
+            values.append(
+                ProjectedCityObjectPayload(
+                    cityobject_id=bytes(string_at(item.id.data, item.id.len)).decode("utf-8"),
+                    object_type=bytes(
+                        string_at(item.object_type.data, item.object_type.len)
+                    ).decode("utf-8"),
+                    geometry_type=bytes(
+                        string_at(item.geometry_type.data, item.geometry_type.len)
+                    ).decode("utf-8"),
+                    lod=(
+                        bytes(string_at(item.lod.data, item.lod.len)).decode("utf-8")
+                        if item.has_lod
+                        else None
+                    ),
+                    geometry_count=int(item.geometry_count),
+                    bbox=tuple(float(item.bbox[bbox_index]) for bbox_index in range(6)),
+                    vertex_indices=self._copy_indices(item.vertex_indices),
+                )
+            )
+
+        self._raise_if_error(self._lib.cj_projected_cityobjects_free(payload))
+        return values
+
     def probe(self, data: bytes) -> ProbeStruct:
         probe = ProbeStruct()
         pointer_data = self._data_pointer(data)
@@ -634,6 +706,14 @@ class FfiLibrary:
         )
         return int(handle.value)
 
+    def parse_arrow(self, data: bytes) -> int:
+        handle = c_void_p()
+        pointer_data = self._data_pointer(data)
+        self._raise_if_error(
+            self._lib.cj_model_parse_arrow_bytes(pointer_data, len(data), pointer(handle))
+        )
+        return int(handle.value)
+
     def create(self, model_type: ModelType) -> int:
         handle = c_void_p()
         self._raise_if_error(self._lib.cj_model_create(int(model_type), pointer(handle)))
@@ -652,10 +732,22 @@ class FfiLibrary:
         self._raise_if_error(self._lib.cj_model_serialize_feature(c_void_p(handle), pointer(payload)))
         return self._take_bytes(payload)
 
+    def serialize_arrow(self, handle: int) -> bytes:
+        payload = BytesStruct()
+        self._raise_if_error(self._lib.cj_model_serialize_arrow(c_void_p(handle), pointer(payload)))
+        return self._take_bytes(payload)
+
     def summary(self, handle: int) -> ModelSummaryStruct:
         summary = ModelSummaryStruct()
         self._raise_if_error(self._lib.cj_model_get_summary(c_void_p(handle), pointer(summary)))
         return summary
+
+    def projected_cityobjects(self, handle: int) -> list[ProjectedCityObjectPayload]:
+        payload = ProjectedCityObjectsStruct()
+        self._raise_if_error(
+            self._lib.cj_model_copy_projected_cityobjects(c_void_p(handle), pointer(payload))
+        )
+        return self._take_projected_cityobjects(payload)
 
     def metadata_title(self, handle: int) -> str:
         payload = BytesStruct()

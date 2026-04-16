@@ -30,6 +30,28 @@ FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" /
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
+    def test_arrow_round_trip_and_projection(self) -> None:
+        payload = FIXTURE_PATH.read_bytes()
+
+        model = CityModel.parse_document_bytes(payload)
+        self.addCleanup(model.close)
+        arrow_bytes = model.serialize_arrow_bytes()
+        self.assertTrue(arrow_bytes)
+
+        round_trip = CityModel.parse_arrow_bytes(arrow_bytes)
+        self.addCleanup(round_trip.close)
+        self.assertEqual(round_trip.summary().cityobject_count, 2)
+
+        projected = round_trip.projected_cityobjects()
+        self.assertEqual(len(projected), 2)
+        self.assertEqual(projected[0].cityobject_id, "building-1")
+        self.assertEqual(projected[0].object_type, "Building")
+        self.assertEqual(projected[0].geometry_type, "MultiSurface")
+        self.assertEqual(projected[0].lod, "2.2")
+        self.assertEqual(projected[0].geometry_count, 1)
+        self.assertEqual(projected[0].bbox, (10.0, 20.0, 0.0, 11.0, 21.0, 0.0))
+        self.assertEqual(projected[0].vertex_indices, [0, 1, 2, 3])
+
     def test_parse_edit_extract_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 
@@ -139,23 +161,28 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.assertIn('"type":"CityJSON"', model.serialize_document())
 
     def test_append_and_cleanup_workflows(self) -> None:
-        model = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
+        model = CityModel.parse_feature_bytes(
+            b'{"type":"CityJSONFeature","id":"feature-a","CityObjects":{"feature-a":{"type":"Building"}},"vertices":[]}'
+        )
         self.addCleanup(model.close)
 
-        other = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
+        other = CityModel.parse_feature_bytes(
+            b'{"type":"CityJSONFeature","id":"feature-b","CityObjects":{"feature-b":{"type":"BuildingPart"}},"vertices":[]}'
+        )
         self.addCleanup(other.close)
 
-        removal = CityModel.create(model_type=ModelType.CITY_JSON_FEATURE)
+        removal = CityModel.parse_feature_bytes(
+            b'{"type":"CityJSONFeature","id":"remove-me","CityObjects":{"remove-me":{"type":"Building"}},"vertices":[]}'
+        )
         self.addCleanup(removal.close)
         removal.add_cityobject("remove-me", "Building")
-        self.assertEqual(removal.summary().cityobject_count, 1)
+        self.assertEqual(removal.summary().cityobject_count, 2)
         removal.remove_cityobject("remove-me")
-        self.assertEqual(removal.summary().cityobject_count, 0)
+        self.assertEqual(removal.summary().cityobject_count, 1)
 
         model.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
         other.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
 
-        model.add_cityobject("feature-a", "Building")
         first_vertex = model.add_vertex(Vertex(1.0, 2.0, 3.0))
         first_geometry = model.add_geometry_from_boundary(
             GeometryBoundary(
@@ -170,7 +197,6 @@ class PythonBindingSmokeTest(unittest.TestCase):
         )
         model.attach_geometry_to_cityobject("feature-a", first_geometry)
 
-        other.add_cityobject("feature-b", "BuildingPart")
         second_vertex = other.add_vertex(Vertex(4.0, 5.0, 6.0))
         second_geometry = other.add_geometry_from_boundary(
             GeometryBoundary(
@@ -200,7 +226,7 @@ class PythonBindingSmokeTest(unittest.TestCase):
     def test_feature_stream_helpers_round_trip(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
         feature_payload = (
-            b'{"type":"CityJSONFeature","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}'
+            b'{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}'
         )
 
         feature_model = CityModel.parse_feature_with_base_bytes(feature_payload, payload)
@@ -223,11 +249,11 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.addCleanup(base_root.close)
 
         feature_a = CityModel.parse_feature_bytes(
-            b'{"type":"CityJSONFeature","metadata":{"title":"base-root"},"CityObjects":{"feature-a":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[10,20,30],[12,22,31]]}'
+            b'{"type":"CityJSONFeature","id":"feature-a","metadata":{"title":"base-root"},"CityObjects":{"feature-a":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[10,20,30],[12,22,31]]}'
         )
         self.addCleanup(feature_a.close)
         feature_b = CityModel.parse_feature_bytes(
-            b'{"type":"CityJSONFeature","metadata":{"title":"base-root"},"CityObjects":{"feature-b":{"type":"BuildingPart","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[9,21,40]]}'
+            b'{"type":"CityJSONFeature","id":"feature-b","metadata":{"title":"base-root"},"CityObjects":{"feature-b":{"type":"BuildingPart","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[9,21,40]]}'
         )
         self.addCleanup(feature_b.close)
 

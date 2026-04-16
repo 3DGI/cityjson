@@ -6,8 +6,9 @@ use cityjson_lib_ffi_core::{
     AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
     cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
     cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t,
-    cj_vertex_t, cj_vertices_t, run_ffi,
+    cj_projected_cityobject_t, cj_projected_cityobjects_t, cj_root_kind_t, cj_status_t,
+    cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t,
+    run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -35,6 +36,18 @@ fn bytes_to_string(bytes: cj_bytes_t) -> String {
         .to_owned();
     assert_eq!(cj_bytes_free(bytes), cj_status_t::CJ_STATUS_SUCCESS);
     string
+}
+
+fn copy_bytes_to_string(bytes: cj_bytes_t) -> String {
+    if bytes.len == 0 {
+        return String::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable bytes.
+    let value = unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) };
+    std::str::from_utf8(value)
+        .expect("ffi bytes should be valid utf-8 in this test")
+        .to_owned()
 }
 
 fn string_view(value: &str) -> cj_string_view_t {
@@ -88,6 +101,15 @@ fn indices_to_vec(indices: cj_indices_t) -> Vec<usize> {
     values
 }
 
+fn copy_indices_to_vec(indices: cj_indices_t) -> Vec<usize> {
+    if indices.len == 0 {
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable indices.
+    unsafe { slice::from_raw_parts(indices.data.cast_const(), indices.len) }.to_vec()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct BoundaryPayload {
     geometry_type: cj_geometry_type_t,
@@ -109,6 +131,49 @@ fn boundary_to_payload(boundary: cj_geometry_boundary_t) -> BoundaryPayload {
         shell_offsets: indices_to_vec(boundary.shell_offsets),
         solid_offsets: indices_to_vec(boundary.solid_offsets),
     }
+}
+
+#[derive(Debug, PartialEq)]
+struct ProjectedCityObjectPayload {
+    cityobject_id: String,
+    object_type: String,
+    geometry_type: String,
+    lod: Option<String>,
+    geometry_count: usize,
+    bbox: [f64; 6],
+    vertex_indices: Vec<usize>,
+}
+
+fn projected_cityobjects_to_vec(
+    cityobjects: cj_projected_cityobjects_t,
+) -> Vec<ProjectedCityObjectPayload> {
+    if cityobjects.len == 0 {
+        let _ = cj_projected_cityobjects_free(cityobjects);
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable projected cityobjects.
+    let values = unsafe { slice::from_raw_parts(cityobjects.data.cast_const(), cityobjects.len) }
+        .iter()
+        .map(
+            |cityobject: &cj_projected_cityobject_t| ProjectedCityObjectPayload {
+                cityobject_id: copy_bytes_to_string(cityobject.id),
+                object_type: copy_bytes_to_string(cityobject.object_type),
+                geometry_type: copy_bytes_to_string(cityobject.geometry_type),
+                lod: cityobject
+                    .has_lod
+                    .then(|| copy_bytes_to_string(cityobject.lod)),
+                geometry_count: cityobject.geometry_count,
+                bbox: cityobject.bbox,
+                vertex_indices: copy_indices_to_vec(cityobject.vertex_indices),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cj_projected_cityobjects_free(cityobjects),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    values
 }
 
 #[test]
@@ -221,6 +286,42 @@ fn parse_feature_with_base_and_serialize_feature_round_trip() {
 
     assert_eq!(cj_model_free(round_trip), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_bytes_free(serialized), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
+fn arrow_parse_serialize_and_projection_work() {
+    let mut handle = ptr::null_mut();
+    let status =
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+
+    let mut arrow_bytes = cj_bytes_t::default();
+    let status = cj_model_serialize_arrow(handle, &raw mut arrow_bytes);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+    assert!(arrow_bytes.len > 0);
+
+    let mut arrow_handle = ptr::null_mut();
+    let status =
+        cj_model_parse_arrow_bytes(arrow_bytes.data, arrow_bytes.len, &raw mut arrow_handle);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+    assert!(!arrow_handle.is_null());
+
+    let mut projected = cj_projected_cityobjects_t::default();
+    let status = cj_model_copy_projected_cityobjects(arrow_handle, &raw mut projected);
+    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
+    let projected = projected_cityobjects_to_vec(projected);
+    assert_eq!(projected.len(), 2);
+    assert_eq!(projected[0].cityobject_id, "building-1");
+    assert_eq!(projected[0].object_type, "Building");
+    assert_eq!(projected[0].geometry_type, "MultiSurface");
+    assert_eq!(projected[0].lod.as_deref(), Some("2.2"));
+    assert_eq!(projected[0].geometry_count, 1);
+    assert_eq!(projected[0].bbox, [10.0, 20.0, 0.0, 11.0, 21.0, 0.0]);
+    assert_eq!(projected[0].vertex_indices, vec![0, 1, 2, 3]);
+
+    assert_eq!(cj_model_free(arrow_handle), cj_status_t::CJ_STATUS_SUCCESS);
+    assert_eq!(cj_bytes_free(arrow_bytes), cj_status_t::CJ_STATUS_SUCCESS);
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 

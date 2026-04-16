@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -46,6 +47,16 @@ struct GeometryBoundary final {
   std::vector<std::size_t> surface_offsets;
   std::vector<std::size_t> shell_offsets;
   std::vector<std::size_t> solid_offsets;
+};
+
+struct ProjectedCityObject final {
+  std::string cityobject_id;
+  std::string object_type;
+  std::string geometry_type;
+  std::optional<std::string> lod;
+  std::size_t geometry_count = 0U;
+  std::array<double, 6> bbox{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  std::vector<std::size_t> vertex_indices;
 };
 
 class StatusError final : public std::runtime_error {
@@ -160,6 +171,14 @@ inline std::vector<std::size_t> copy_indices(cj_indices_t indices) {
   return value;
 }
 
+inline std::string copy_string(cj_bytes_t bytes) {
+  std::string value;
+  if (bytes.len > 0U) {
+    value.assign(reinterpret_cast<const char*>(bytes.data), bytes.len);
+  }
+  return value;
+}
+
 inline GeometryBoundary take_geometry_boundary(cj_geometry_boundary_t boundary) {
   struct FreeGuard {
     cj_geometry_boundary_t boundary;
@@ -175,6 +194,38 @@ inline GeometryBoundary take_geometry_boundary(cj_geometry_boundary_t boundary) 
       .shell_offsets = copy_indices(boundary.shell_offsets),
       .solid_offsets = copy_indices(boundary.solid_offsets),
   };
+}
+
+inline std::vector<ProjectedCityObject> take_projected_cityobjects(
+    cj_projected_cityobjects_t cityobjects) {
+  struct FreeGuard {
+    cj_projected_cityobjects_t cityobjects;
+    ~FreeGuard() { static_cast<void>(cj_projected_cityobjects_free(cityobjects)); }
+  } guard{cityobjects};
+
+  std::vector<ProjectedCityObject> values;
+  values.reserve(cityobjects.len);
+  for (std::size_t index = 0; index < cityobjects.len; ++index) {
+    const cj_projected_cityobject_t& item = cityobjects.data[index];
+    values.push_back(ProjectedCityObject{
+        .cityobject_id = copy_string(item.id),
+        .object_type = copy_string(item.object_type),
+        .geometry_type = copy_string(item.geometry_type),
+        .lod = item.has_lod ? std::optional<std::string>{copy_string(item.lod)} : std::nullopt,
+        .geometry_count = item.geometry_count,
+        .bbox = {
+            item.bbox[0],
+            item.bbox[1],
+            item.bbox[2],
+            item.bbox[3],
+            item.bbox[4],
+            item.bbox[5],
+        },
+        .vertex_indices = copy_indices(item.vertex_indices),
+    });
+  }
+
+  return values;
 }
 
 class Model final {
@@ -226,6 +277,12 @@ class Model final {
     return Model(handle);
   }
 
+  [[nodiscard]] static Model parse_arrow(std::span<const std::uint8_t> bytes) {
+    cj_model_t* handle = nullptr;
+    check_status(cj_model_parse_arrow_bytes(span_data(bytes), bytes.size(), &handle));
+    return Model(handle);
+  }
+
   [[nodiscard]] static Model create(ModelType type) {
     cj_model_t* handle = nullptr;
     check_status(cj_model_create(type, &handle));
@@ -245,6 +302,12 @@ class Model final {
     ModelSummary summary{};
     check_status(cj_model_get_summary(handle_, &summary));
     return summary;
+  }
+
+  [[nodiscard]] std::vector<ProjectedCityObject> projected_cityobjects() const {
+    cj_projected_cityobjects_t cityobjects{};
+    check_status(cj_model_copy_projected_cityobjects(handle_, &cityobjects));
+    return take_projected_cityobjects(cityobjects);
   }
 
   [[nodiscard]] std::string metadata_title() const {
@@ -391,6 +454,12 @@ class Model final {
       const WriteOptions& options = {}) const {
     cj_bytes_t bytes{};
     check_status(cj_model_serialize_feature_with_options(handle_, to_native(options), &bytes));
+    return take_bytes(bytes);
+  }
+
+  [[nodiscard]] std::vector<std::uint8_t> serialize_arrow_bytes() const {
+    cj_bytes_t bytes{};
+    check_status(cj_model_serialize_arrow(handle_, &bytes));
     return take_bytes(bytes);
   }
 

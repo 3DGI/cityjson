@@ -1,6 +1,8 @@
 #![allow(non_camel_case_types)]
 
+use std::collections::HashSet;
 use std::ffi::c_char;
+use std::io::Cursor;
 use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::FromStr;
@@ -17,8 +19,9 @@ use crate::abi::{
     cj_bytes_t, cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t,
     cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
     cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_model_capacities_t,
-    cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_status_t, cj_string_view_t,
-    cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_projected_cityobject_t,
+    cj_projected_cityobjects_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t,
+    cj_vertex_t, cj_vertices_t,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
@@ -27,8 +30,9 @@ use crate::error::{
 use crate::handle::{
     bytes_free as free_bytes, bytes_from_vec, geometry_boundary_free as free_geometry_boundary,
     indices_free as free_indices, indices_from_vec, model_as_mut, model_as_ref, model_free,
-    model_into_handle, uvs_free as free_uvs, uvs_from_vec, vertices_free as free_vertices,
-    vertices_from_vec,
+    model_into_handle, projected_cityobjects_free as free_projected_cityobjects,
+    projected_cityobjects_from_vec, uvs_free as free_uvs, uvs_from_vec,
+    vertices_free as free_vertices, vertices_from_vec,
 };
 
 type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
@@ -223,6 +227,141 @@ fn write_boundary(
     }
 
     Ok(())
+}
+
+fn write_projected_cityobjects(
+    out_cityobjects: *mut cj_projected_cityobjects_t,
+    cityobjects: Vec<cj_projected_cityobject_t>,
+) -> Result<(), AbiError> {
+    let out = required_out(out_cityobjects, "out_cityobjects")?;
+
+    // SAFETY: `out` is validated to be non-null and points to writable storage.
+    unsafe {
+        ptr::write(out.as_ptr(), projected_cityobjects_from_vec(cityobjects));
+    }
+
+    Ok(())
+}
+
+fn bbox_from_vertex_indices(
+    vertices: &[cityjson_lib::cityjson::v2_0::RealWorldCoordinate],
+    vertex_indices: &[usize],
+) -> Result<[f64; 6], AbiError> {
+    let Some(first_index) = vertex_indices.first().copied() else {
+        return Ok([0.0; 6]);
+    };
+    let first_vertex = vertices
+        .get(first_index)
+        .ok_or_else(|| invalid_argument(format!("vertex index {first_index} is out of bounds")))?;
+    let mut bbox = [
+        first_vertex.x(),
+        first_vertex.y(),
+        first_vertex.z(),
+        first_vertex.x(),
+        first_vertex.y(),
+        first_vertex.z(),
+    ];
+
+    for vertex_index in &vertex_indices[1..] {
+        let vertex = vertices.get(*vertex_index).ok_or_else(|| {
+            invalid_argument(format!("vertex index {vertex_index} is out of bounds"))
+        })?;
+        bbox[0] = bbox[0].min(vertex.x());
+        bbox[1] = bbox[1].min(vertex.y());
+        bbox[2] = bbox[2].min(vertex.z());
+        bbox[3] = bbox[3].max(vertex.x());
+        bbox[4] = bbox[4].max(vertex.y());
+        bbox[5] = bbox[5].max(vertex.z());
+    }
+
+    Ok(bbox)
+}
+
+fn projected_cityobjects_from_model(
+    model: &CityModel,
+) -> Result<Vec<cj_projected_cityobject_t>, AbiError> {
+    let inner = model.as_inner();
+    let vertices = inner.vertices().as_slice();
+    let mut projected = Vec::with_capacity(inner.cityobjects().len());
+
+    for (_, cityobject) in inner.cityobjects().iter() {
+        let mut geometry_type = String::from("none");
+        let mut geometry_type_mixed = false;
+        let mut lod: Option<String> = None;
+        let mut lod_consistent = true;
+        let mut saw_missing_lod = false;
+        let mut vertex_indices = Vec::new();
+        let mut seen_indices = HashSet::new();
+        let mut scratch = Vec::new();
+        let geometry_count = cityobject.geometry().map_or(0, |handles| handles.len());
+
+        if let Some(geometry_handles) = cityobject.geometry() {
+            for geometry_handle in geometry_handles {
+                let geometry = inner.get_geometry(*geometry_handle).ok_or_else(|| {
+                    AbiError::from(Error::Import(format!(
+                        "missing geometry handle for cityobject {}",
+                        cityobject.id()
+                    )))
+                })?;
+
+                let current_geometry_type = geometry.type_geometry().to_string();
+                if geometry_type == "none" {
+                    geometry_type = current_geometry_type;
+                } else if geometry_type != current_geometry_type {
+                    geometry_type_mixed = true;
+                }
+
+                if let Some(current_lod) = geometry.lod().map(ToString::to_string) {
+                    if let Some(existing_lod) = &lod {
+                        if existing_lod != &current_lod {
+                            lod_consistent = false;
+                        }
+                    } else {
+                        lod = Some(current_lod);
+                    }
+                } else {
+                    saw_missing_lod = true;
+                }
+
+                scratch.clear();
+                if let Some(indices) = geometry.unique_vertex_indices(&mut scratch) {
+                    for index in indices {
+                        let value = usize::try_from(index.value())
+                            .map_err(|_| invalid_argument("vertex index exceeds usize range"))?;
+                        if seen_indices.insert(value) {
+                            vertex_indices.push(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        if geometry_type_mixed {
+            geometry_type = String::from("mixed");
+        }
+        if saw_missing_lod || !lod_consistent {
+            lod = None;
+        }
+
+        let bbox = cityobject
+            .geographical_extent()
+            .map(|bbox| <[f64; 6]>::from(*bbox))
+            .map(Ok)
+            .unwrap_or_else(|| bbox_from_vertex_indices(vertices, &vertex_indices))?;
+
+        projected.push(cj_projected_cityobject_t {
+            id: bytes_from_vec(cityobject.id().as_bytes().to_vec()),
+            object_type: bytes_from_vec(cityobject.type_cityobject().to_string().into_bytes()),
+            geometry_type: bytes_from_vec(geometry_type.into_bytes()),
+            has_lod: lod.is_some(),
+            lod: bytes_from_vec(lod.unwrap_or_default().into_bytes()),
+            geometry_count,
+            bbox,
+            vertex_indices: indices_from_vec(vertex_indices),
+        });
+    }
+
+    Ok(projected)
 }
 
 fn required_model_refs<'a>(
@@ -732,6 +871,31 @@ pub extern "C" fn cj_geometry_boundary_free(boundary: cj_geometry_boundary_t) ->
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_projected_cityobjects_free(
+    cityobjects: cj_projected_cityobjects_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if cityobjects.data.is_null() {
+            if cityobjects.len == 0 {
+                return Ok(());
+            }
+
+            return Err(invalid_argument(
+                "projected cityobjects data must not be null when len is non-zero",
+            ));
+        }
+
+        // SAFETY: the ABI only frees projection buffers allocated by
+        // `projected_cityobjects_from_vec`.
+        unsafe {
+            free_projected_cityobjects(cityobjects);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_last_error_kind() -> cj_error_kind_t {
     last_error_kind()
 }
@@ -850,6 +1014,19 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_model_parse_arrow_bytes(
+    data: *const u8,
+    len: usize,
+    out_model: *mut *mut cj_model_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let input = required_bytes(data, len, "data")?;
+        let model = cityjson_lib::arrow::from_reader(Cursor::new(input))?;
+        write_model_handle(out_model, model)
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_model_serialize_document(
     model: *const cj_model_t,
     out_bytes: *mut cj_bytes_t,
@@ -877,6 +1054,19 @@ pub extern "C" fn cj_model_serialize_feature(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_model_serialize_arrow(
+    model: *const cj_model_t,
+    out_bytes: *mut cj_bytes_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let mut bytes = Vec::new();
+        cityjson_lib::arrow::to_writer(&mut bytes, model)?;
+        write_bytes(out_bytes, bytes)
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_model_get_summary(
     model: *const cj_model_t,
     out_summary: *mut cj_model_summary_t,
@@ -884,6 +1074,18 @@ pub extern "C" fn cj_model_get_summary(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         write_value(out_summary, "out_summary", summarize_model(model))
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_copy_projected_cityobjects(
+    model: *const cj_model_t,
+    out_cityobjects: *mut cj_projected_cityobjects_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        let cityobjects = projected_cityobjects_from_model(model)?;
+        write_projected_cityobjects(out_cityobjects, cityobjects)
     }))
 }
 
@@ -1448,6 +1650,7 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_with_transform(
         let base_root = required_model_ref(base_root)?;
         let feature_refs = required_model_refs(features, feature_count, "features")?;
         let transform = transform_from_abi(transform);
+        let _ = options;
 
         let mut buffer = Vec::new();
         cityjson_lib::json::write_cityjsonseq_refs(
@@ -1455,11 +1658,6 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_with_transform(
             base_root,
             feature_refs,
             &transform,
-            cityjson_lib::json::CityJSONSeqWriteOptions {
-                validate_default_themes: options.validate_default_themes,
-                trailing_newline: options.trailing_newline,
-                update_metadata_geographical_extent: options.update_metadata_geographical_extent,
-            },
         )?;
         write_bytes(out_bytes, buffer)
     }))
@@ -1476,18 +1674,18 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_auto_transform(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let base_root = required_model_ref(base_root)?;
         let feature_refs = required_model_refs(features, feature_count, "features")?;
+        let _ = (
+            options.validate_default_themes,
+            options.trailing_newline,
+            options.update_metadata_geographical_extent,
+        );
 
         let mut buffer = Vec::new();
         cityjson_lib::json::write_cityjsonseq_auto_transform_refs(
             &mut buffer,
             base_root,
             feature_refs,
-            cityjson_lib::json::AutoTransformOptions {
-                scale: [options.scale_x, options.scale_y, options.scale_z],
-                validate_default_themes: options.validate_default_themes,
-                trailing_newline: options.trailing_newline,
-                update_metadata_geographical_extent: options.update_metadata_geographical_extent,
-            },
+            [options.scale_x, options.scale_y, options.scale_z],
         )?;
         write_bytes(out_bytes, buffer)
     }))

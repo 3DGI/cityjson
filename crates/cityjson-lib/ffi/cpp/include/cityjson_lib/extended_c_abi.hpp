@@ -40,10 +40,14 @@ struct cj_geometry_boundary_view_t {
 
 extern "C" {
 
+cj_status_t cj_projected_cityobjects_free(cj_projected_cityobjects_t cityobjects);
 cj_status_t cj_model_set_metadata_title(cj_model_t* model, cj_string_view_t title);
 cj_status_t cj_model_set_metadata_identifier(cj_model_t* model, cj_string_view_t identifier);
 cj_status_t cj_model_set_transform(cj_model_t* model, cj_transform_t transform);
 cj_status_t cj_model_clear_transform(cj_model_t* model);
+cj_status_t cj_model_parse_arrow_bytes(const std::uint8_t* data,
+                                       std::size_t len,
+                                       cj_model_t** out_model);
 cj_status_t cj_model_add_cityobject(cj_model_t* model, cj_string_view_t id,
                                     cj_string_view_t cityobject_type);
 cj_status_t cj_model_remove_cityobject(cj_model_t* model, cj_string_view_t id);
@@ -68,6 +72,9 @@ cj_status_t cj_model_serialize_document_with_options(const cj_model_t* model,
 cj_status_t cj_model_serialize_feature_with_options(const cj_model_t* model,
                                                     cj_json_write_options_t options,
                                                     cj_bytes_t* out_bytes);
+cj_status_t cj_model_serialize_arrow(const cj_model_t* model, cj_bytes_t* out_bytes);
+cj_status_t cj_model_copy_projected_cityobjects(const cj_model_t* model,
+                                                cj_projected_cityobjects_t* out_cityobjects);
 cj_status_t cj_model_parse_feature_stream_merge_bytes(const std::uint8_t* data,
                                                       std::size_t len,
                                                       cj_model_t** out_model);

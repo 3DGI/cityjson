@@ -81,6 +81,17 @@ class GeometryBoundary:
 
 
 @dataclass(frozen=True)
+class ProjectedCityObject:
+    cityobject_id: str
+    object_type: str
+    geometry_type: str
+    lod: str | None
+    geometry_count: int
+    bbox: tuple[float, float, float, float, float, float]
+    vertex_indices: list[int]
+
+
+@dataclass(frozen=True)
 class WriteOptions:
     pretty: bool = False
     validate_default_themes: bool = True
@@ -220,6 +231,10 @@ class CityModel:
         return cls(_ffi.parse_feature_with_base(_as_bytes(feature_data), _as_bytes(base_data)))
 
     @classmethod
+    def parse_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
+        return cls(_ffi.parse_arrow(_as_bytes(data)))
+
+    @classmethod
     def create(cls, *, model_type: ModelType) -> Self:
         return cls(_ffi.create(model_type))
 
@@ -251,6 +266,20 @@ class CityModel:
             has_templates=bool(native.has_templates),
             has_appearance=bool(native.has_appearance),
         )
+
+    def projected_cityobjects(self) -> list[ProjectedCityObject]:
+        return [
+            ProjectedCityObject(
+                cityobject_id=item.cityobject_id,
+                object_type=item.object_type,
+                geometry_type=item.geometry_type,
+                lod=item.lod,
+                geometry_count=item.geometry_count,
+                bbox=item.bbox,
+                vertex_indices=item.vertex_indices,
+            )
+            for item in _ffi.projected_cityobjects(self._handle)
+        ]
 
     def metadata_title(self) -> str:
         return _ffi.metadata_title(self._handle)
@@ -345,6 +374,9 @@ class CityModel:
     def serialize_feature_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
         return _ffi.serialize_feature_with_options(self._handle, payload)
+
+    def serialize_arrow_bytes(self) -> bytes:
+        return _ffi.serialize_arrow(self._handle)
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._handle, capacities.to_native())

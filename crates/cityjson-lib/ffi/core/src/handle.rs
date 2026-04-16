@@ -1,8 +1,8 @@
 use std::ptr;
 
 use crate::abi::{
-    cj_bytes_t, cj_geometry_boundary_t, cj_indices_t, cj_model_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
-    cj_vertices_t,
+    cj_bytes_t, cj_geometry_boundary_t, cj_indices_t, cj_model_t, cj_projected_cityobject_t,
+    cj_projected_cityobjects_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 
 pub fn model_into_handle(model: cityjson_lib::CityModel) -> *mut cj_model_t {
@@ -61,6 +61,15 @@ pub fn indices_from_vec(indices: Vec<usize>) -> cj_indices_t {
     cj_indices_t { data, len }
 }
 
+pub fn projected_cityobjects_from_vec(
+    cityobjects: Vec<cj_projected_cityobject_t>,
+) -> cj_projected_cityobjects_t {
+    let boxed = cityobjects.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<cj_projected_cityobject_t>();
+    cj_projected_cityobjects_t { data, len }
+}
+
 pub unsafe fn bytes_free(bytes: cj_bytes_t) {
     if bytes.data.is_null() {
         return;
@@ -112,5 +121,23 @@ pub unsafe fn geometry_boundary_free(boundary: cj_geometry_boundary_t) {
         indices_free(boundary.surface_offsets);
         indices_free(boundary.shell_offsets);
         indices_free(boundary.solid_offsets);
+    }
+}
+
+pub unsafe fn projected_cityobjects_free(cityobjects: cj_projected_cityobjects_t) {
+    if cityobjects.data.is_null() {
+        return;
+    }
+
+    let slice = ptr::slice_from_raw_parts_mut(cityobjects.data, cityobjects.len);
+    let boxed = unsafe { Box::from_raw(slice) };
+    for cityobject in boxed.iter().copied() {
+        unsafe {
+            bytes_free(cityobject.id);
+            bytes_free(cityobject.object_type);
+            bytes_free(cityobject.geometry_type);
+            bytes_free(cityobject.lod);
+            indices_free(cityobject.vertex_indices);
+        }
     }
 }

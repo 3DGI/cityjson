@@ -99,8 +99,22 @@ int main() {
   assert(!serialized.empty());
   const auto serialized_bytes = model.serialize_document_bytes();
   assert(!serialized_bytes.empty());
+  const auto arrow_bytes = model.serialize_arrow_bytes();
+  assert(!arrow_bytes.empty());
 
-  auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  auto arrow_model = cityjson_lib::Model::parse_arrow(arrow_bytes);
+  const auto projected = arrow_model.projected_cityobjects();
+  assert(projected.size() == 2U);
+  assert(projected[0].cityobject_id == "building-1");
+  assert(projected[0].object_type == "Building");
+  assert(projected[0].geometry_type == "MultiSurface");
+  assert(projected[0].lod.has_value());
+  assert(projected[0].lod.value() == "2.2");
+  assert(projected[0].geometry_count == 1U);
+  assert((projected[0].bbox == std::array<double, 6>{10.0, 20.0, 0.0, 11.0, 21.0, 0.0}));
+  assert((projected[0].vertex_indices == std::vector<std::size_t>{0U, 1U, 2U, 3U}));
+
+  auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities capacities{};
   capacities.cityobjects = 2U;
   capacities.vertices = 2U;
@@ -112,7 +126,7 @@ int main() {
   assert(created.add_template_vertex(cityjson_lib::Vertex{4.0, 5.0, 6.0}) == 0U);
   assert(created.add_uv_coordinate(cityjson_lib::UV{0.25F, 0.75F}) == 0U);
   const auto created_summary = created.summary();
-  assert(created_summary.model_type == CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  assert(created_summary.model_type == CJ_MODEL_TYPE_CITY_JSON);
   assert(created_summary.vertex_count == 1U);
   assert(created_summary.template_vertex_count == 1U);
   assert(created_summary.uv_coordinate_count == 1U);
@@ -139,25 +153,25 @@ int main() {
   const auto point_geometry_index = created.add_geometry_from_boundary(point_boundary);
   created.attach_geometry_to_cityobject("cityobject-1", point_geometry_index);
 
-  const auto transformed_feature = created.serialize_feature(cityjson_lib::WriteOptions{
+  const auto transformed_document = created.serialize_document(cityjson_lib::WriteOptions{
       .pretty = true,
       .validate_default_themes = false,
   });
-  assert(transformed_feature.find("Wrapper Smoke") != std::string::npos);
-  assert(transformed_feature.find("\n") != std::string::npos);
-  const auto transformed_feature_bytes = created.serialize_feature_bytes();
-  assert(!transformed_feature_bytes.empty());
+  assert(transformed_document.find("Wrapper Smoke") != std::string::npos);
+  assert(transformed_document.find("\n") != std::string::npos);
+  const auto transformed_document_bytes = created.serialize_document_bytes();
+  assert(!transformed_document_bytes.empty());
 
   created.clear_transform();
-  const auto cleared_feature = created.serialize_feature();
-  assert(transformed_feature != cleared_feature);
+  const auto cleared_document = created.serialize_document();
+  assert(transformed_document != cleared_document);
 
   created.cleanup();
   const auto cleaned_summary = created.summary();
   assert(cleaned_summary.cityobject_count == 1U);
   assert(cleaned_summary.geometry_count == 1U);
 
-  auto left = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  auto left = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities left_capacities{};
   left_capacities.cityobjects = 1U;
   left_capacities.vertices = 1U;
@@ -168,7 +182,7 @@ int main() {
   const auto left_geometry = left.add_geometry_from_boundary(point_boundary);
   left.attach_geometry_to_cityobject("left", left_geometry);
 
-  auto right = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON_FEATURE);
+  auto right = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities right_capacities{};
   right_capacities.cityobjects = 1U;
   right_capacities.vertices = 1U;
@@ -190,7 +204,19 @@ int main() {
   assert(extracted_summary.cityobject_count == 1U);
   assert(extracted.cityobject_ids()[0] == "right");
 
-  const std::array<const cityjson_lib::Model* const, 2> stream_models{&created, &right};
+  const auto feature_fixture_bytes =
+      read_file_bytes(fixture_path.parent_path() / "minimal.city.jsonl");
+  auto feature_model = cityjson_lib::Model::parse_feature(feature_fixture_bytes);
+  auto feature_copy = cityjson_lib::Model::parse_feature(feature_fixture_bytes);
+  const auto feature_text = feature_model.serialize_feature(cityjson_lib::WriteOptions{
+      .pretty = true,
+      .validate_default_themes = false,
+  });
+  assert(feature_text.find("\"type\": \"CityJSONFeature\"") != std::string::npos);
+  const auto feature_bytes = feature_model.serialize_feature_bytes();
+  assert(!feature_bytes.empty());
+
+  const std::array<const cityjson_lib::Model* const, 2> stream_models{&feature_model, &feature_copy};
   const auto stream = cityjson_lib::Model::serialize_feature_stream(stream_models);
   assert(!stream.empty());
   assert(stream.back() == '\n');
