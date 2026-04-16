@@ -5,6 +5,7 @@ use std::fs;
 use std::time::Duration;
 
 use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
+use cityjson_lib::json;
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 use support::{BenchmarkCase, benchmark_cases};
 
@@ -24,9 +25,9 @@ struct PreparedDiagnosticCase {
 
 impl PreparedDiagnosticCase {
     fn new(case: BenchmarkCase) -> Self {
-        let model = cityjson_lib::CityModel::from_file(&case.json_path)
+        let model = json::from_file(&case.json_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", case.json_path.display()));
-        let parts = encode_parts(model.as_inner())
+        let parts = encode_parts(&model)
             .unwrap_or_else(|error| panic!("failed to encode parts for {}: {error}", case.id));
         let stream_bytes = fs::read(&case.cityarrow_path).unwrap_or_else(|error| {
             panic!("failed to read {}: {error}", case.cityarrow_path.display())
@@ -51,7 +52,7 @@ fn bench_diagnostics(c: &mut Criterion) {
         configure_group(&mut convert_group);
         convert_group.bench_function("cityarrow/encode_parts", |b| {
             b.iter(|| {
-                let _ = encode_parts(prepared.model.as_inner()).expect("encode parts");
+                let _ = encode_parts(&prepared.model).expect("encode parts");
             });
         });
         convert_group.bench_function("cityarrow/decode_parts", |b| {

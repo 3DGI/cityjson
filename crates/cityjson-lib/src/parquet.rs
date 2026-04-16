@@ -13,7 +13,7 @@ pub fn from_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 /// Encode a `CityModel` as a persistent cityparquet package file.
 pub fn to_file<P: AsRef<Path>>(path: P, model: &CityModel) -> Result<()> {
     cityjson_parquet::PackageWriter
-        .write_file(path, model.as_inner())
+        .write_file(path, model)
         .map(|_| ())
         .map_err(Error::from)
 }

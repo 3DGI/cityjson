@@ -53,7 +53,7 @@ pub fn export_batches_with_options(
     model: &CityModel,
     options: &ExportOptions,
 ) -> Result<ArrowBatches> {
-    let reader = cityjson_arrow::export_reader(model.as_inner(), options).map_err(Error::from)?;
+    let reader = cityjson_arrow::export_reader(model, options).map_err(Error::from)?;
     Ok(ArrowBatches {
         header: reader.header().clone(),
         projection: reader.projection().clone(),
@@ -86,8 +86,7 @@ pub fn from_reader(reader: impl std::io::Read) -> Result<CityModel> {
 }
 
 pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<WriteReport> {
-    cityjson_arrow::write_stream(writer, model.as_inner(), &ExportOptions::default())
-        .map_err(Error::from)
+    cityjson_arrow::write_stream(writer, model, &ExportOptions::default()).map_err(Error::from)
 }
 
 pub fn from_file(path: impl AsRef<Path>) -> Result<CityModel> {

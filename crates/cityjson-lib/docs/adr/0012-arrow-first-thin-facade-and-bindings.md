@@ -26,6 +26,8 @@ names, and duplicated information that already exists in the Arrow transport.
 
 `cityjson-lib` now keeps its Rust and non-Rust public surfaces thin:
 
+- the Rust root re-exports `cityjson::v2_0::OwnedCityModel` directly as
+  `CityModel` instead of wrapping it in a facade-owned struct
 - the Rust `arrow` module exposes explicit Arrow IPC byte helpers plus explicit
   batch export/import helpers
 - the shared C ABI no longer exposes projected cityobject wrapper buffers
@@ -40,6 +42,8 @@ Positive:
 
 - the binding surface aligns more closely with the planned architecture
 - expensive whole-model conversion is now explicit in the API surface
+- Rust callers no longer have to cross wrapper-specific `as_inner` /
+  `into_inner` boundaries to reach the underlying semantic model
 - wrapper code and tests no longer encode bespoke projection semantics that
   compete with Arrow transport
 

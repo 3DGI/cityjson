@@ -18,32 +18,32 @@ The crate root should stay small:
 
 The public rule is:
 
-- common document loading lives on `CityModel`
+- common document loading lives in `cityjson_lib::json`
 - explicit boundary work lives in explicit modules
 - advanced model work happens through `cityjson_lib::cityjson`
 
 ## `CityModel`
 
-`CityModel` is the owned default wrapper at the Rust boundary.
-The concrete `cityjson-rs` model instantiation behind it may evolve where that
-helps implementation, but the facade contract stays the same:
+`CityModel` is a direct alias for the owned `cityjson-rs` model at the Rust
+boundary. The facade contract stays the same:
 
 - owned by default
-- explicit boundary accessors
+- explicit boundary functions live in `cityjson_lib::json`
 - no `Deref`-based API blur
-- one wrapper type regardless of whether the model is a whole document, a
-  subset, or a feature-sized package
+- one semantic model type regardless of whether the data is a whole document,
+  a subset, or a feature-sized package
 
 ```rust
+use cityjson_lib::json;
 use cityjson_lib::CityModel;
 
-let from_file = CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
-let from_slice = CityModel::from_slice(
+let from_file = json::from_file("tests/data/v2_0/minimal.city.json")?;
+let from_slice = json::from_slice(
     br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#,
 )?;
 
-let borrowed = from_file.as_inner();
-let _owned = from_slice.into_inner();
+let borrowed = &from_file;
+let _owned: CityModel = from_slice;
 # let _ = borrowed;
 # Ok::<(), cityjson_lib::Error>(())
 ```

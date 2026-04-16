@@ -297,7 +297,6 @@ fn boundary_from_geometry(geometry: &OwnedGeometry) -> cj_geometry_boundary_t {
 
 fn geometry_at(model: &CityModel, index: usize) -> Result<&OwnedGeometry, AbiError> {
     model
-        .as_inner()
         .iter_geometries()
         .nth(index)
         .map(|(_, geometry)| geometry)
@@ -311,7 +310,7 @@ fn geometry_boundary_coordinates(
     let geometry = geometry_at(model, index)?;
 
     Ok(geometry
-        .coordinates(model.as_inner().vertices())
+        .coordinates(model.vertices())
         .map_or_else(Vec::new, |coordinates| {
             coordinates.copied().map(Into::into).collect()
         }))
@@ -325,7 +324,6 @@ fn find_cityobject_mut<'a>(
     AbiError,
 > {
     model
-        .as_inner_mut()
         .cityobjects_mut()
         .iter_mut()
         .find_map(|(_, cityobject)| (cityobject.id() == id).then_some(cityobject))
@@ -337,7 +335,6 @@ fn find_geometry_handle(
     index: usize,
 ) -> Result<cityjson_lib::cityjson::resources::handles::GeometryHandle, AbiError> {
     model
-        .as_inner()
         .iter_geometries()
         .nth(index)
         .map(|(handle, _)| handle)
@@ -584,33 +581,32 @@ fn reject_unsupported_feature_version(version: Option<CityJSONVersion>) -> Resul
 }
 
 fn summarize_model(model: &CityModel) -> cj_model_summary_t {
-    let inner = model.as_inner();
-    let extension_count = inner.extensions().map_or(0, |extensions| extensions.len());
-    let material_count = inner.material_count();
-    let texture_count = inner.texture_count();
-    let uv_coordinate_count = inner.vertices_texture().len();
-    let geometry_template_count = inner.geometry_template_count();
-    let template_vertex_count = inner.template_vertices().len();
+    let extension_count = model.extensions().map_or(0, |extensions| extensions.len());
+    let material_count = model.material_count();
+    let texture_count = model.texture_count();
+    let uv_coordinate_count = model.vertices_texture().len();
+    let geometry_template_count = model.geometry_template_count();
+    let template_vertex_count = model.template_vertices().len();
 
     cj_model_summary_t {
-        model_type: inner.type_citymodel().into(),
-        version: if inner.version().is_some() {
+        model_type: model.type_citymodel().into(),
+        version: if model.version().is_some() {
             crate::abi::cj_version_t::CJ_VERSION_V2_0
         } else {
             crate::abi::cj_version_t::CJ_VERSION_UNKNOWN
         },
-        cityobject_count: inner.cityobjects().len(),
-        geometry_count: inner.geometry_count(),
+        cityobject_count: model.cityobjects().len(),
+        geometry_count: model.geometry_count(),
         geometry_template_count,
-        vertex_count: inner.vertices().len(),
+        vertex_count: model.vertices().len(),
         template_vertex_count,
         uv_coordinate_count,
-        semantic_count: inner.semantic_count(),
+        semantic_count: model.semantic_count(),
         material_count,
         texture_count,
         extension_count,
-        has_metadata: inner.metadata().is_some(),
-        has_transform: inner.transform().is_some(),
+        has_metadata: model.metadata().is_some(),
+        has_transform: model.transform().is_some(),
         has_templates: geometry_template_count > 0 || template_vertex_count > 0,
         has_appearance: material_count > 0 || texture_count > 0 || uv_coordinate_count > 0,
     }
@@ -921,12 +917,7 @@ pub extern "C" fn cj_model_get_metadata_title(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
-        let bytes = copy_string_bytes(
-            model
-                .as_inner()
-                .metadata()
-                .and_then(|metadata| metadata.title()),
-        );
+        let bytes = copy_string_bytes(model.metadata().and_then(|metadata| metadata.title()));
         write_bytes(out_bytes, bytes)
     }))
 }
@@ -940,7 +931,6 @@ pub extern "C" fn cj_model_get_metadata_identifier(
         let model = required_model_ref(model)?;
         let bytes = copy_string_bytes(
             model
-                .as_inner()
                 .metadata()
                 .and_then(|metadata| metadata.identifier())
                 .map(|identifier| identifier.to_string())
@@ -959,7 +949,6 @@ pub extern "C" fn cj_model_get_cityobject_id(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         let cityobject = model
-            .as_inner()
             .cityobjects()
             .iter()
             .nth(index)
@@ -978,7 +967,6 @@ pub extern "C" fn cj_model_get_geometry_type(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         let geometry_type = model
-            .as_inner()
             .iter_geometries()
             .nth(index)
             .map(|(_, geometry)| *geometry.type_geometry())
@@ -1021,7 +1009,6 @@ pub extern "C" fn cj_model_copy_vertices(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         let vertices = model
-            .as_inner()
             .vertices()
             .as_slice()
             .iter()
@@ -1040,7 +1027,6 @@ pub extern "C" fn cj_model_copy_template_vertices(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         let vertices = model
-            .as_inner()
             .template_vertices()
             .as_slice()
             .iter()
@@ -1059,7 +1045,6 @@ pub extern "C" fn cj_model_copy_uv_coordinates(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let model = required_model_ref(model)?;
         let uvs = model
-            .as_inner()
             .vertices_texture()
             .as_slice()
             .iter()
@@ -1088,7 +1073,6 @@ pub extern "C" fn cj_model_reserve_import(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?
-            .as_inner_mut()
             .reserve_import(capacities.into())
             .map_err(cityjson_lib::Error::from)?;
         Ok(())
@@ -1103,7 +1087,6 @@ pub extern "C" fn cj_model_add_vertex(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let index = required_model_mut(model)?
-            .as_inner_mut()
             .add_vertex(vertex.into())
             .map_err(cityjson_lib::Error::from)?
             .to_usize();
@@ -1119,7 +1102,6 @@ pub extern "C" fn cj_model_add_template_vertex(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let index = required_model_mut(model)?
-            .as_inner_mut()
             .add_template_vertex(vertex.into())
             .map_err(cityjson_lib::Error::from)?
             .to_usize();
@@ -1135,7 +1117,6 @@ pub extern "C" fn cj_model_add_uv_coordinate(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let index = required_model_mut(model)?
-            .as_inner_mut()
             .add_uv_coordinate(uv.into())
             .map_err(cityjson_lib::Error::from)?
             .to_usize();
@@ -1150,7 +1131,7 @@ pub extern "C" fn cj_model_set_metadata_title(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let title = view_utf8(title, "title")?;
-        let metadata = required_model_mut(model)?.as_inner_mut().metadata_mut();
+        let metadata = required_model_mut(model)?.metadata_mut();
         metadata.set_title(title);
         Ok(())
     }))
@@ -1163,7 +1144,7 @@ pub extern "C" fn cj_model_set_metadata_identifier(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let identifier = view_utf8(identifier, "identifier")?;
-        let metadata = required_model_mut(model)?.as_inner_mut().metadata_mut();
+        let metadata = required_model_mut(model)?.metadata_mut();
         metadata.set_identifier(CityModelIdentifier::new(identifier));
         Ok(())
     }))
@@ -1176,7 +1157,7 @@ pub extern "C" fn cj_model_set_transform(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let transform = transform_from_abi(transform);
-        let transform_mut = required_model_mut(model)?.as_inner_mut().transform_mut();
+        let transform_mut = required_model_mut(model)?.transform_mut();
         transform_mut.set_scale(transform.scale());
         transform_mut.set_translate(transform.translate());
         Ok(())
@@ -1209,7 +1190,7 @@ pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_
         let bytes = serde_json::to_vec(&serde_json::Value::Object(root))
             .map_err(Error::from)
             .map_err(AbiError::from)?;
-        let replacement = match model_ref.as_inner().type_citymodel() {
+        let replacement = match model_ref.type_citymodel() {
             CityModelType::CityJSON => cityjson_lib::json::from_slice(&bytes)?,
             CityModelType::CityJSONFeature => cityjson_lib::json::from_feature_slice(&bytes)?,
             other => return Err(AbiError::from(Error::UnsupportedType(other.to_string()))),
@@ -1232,7 +1213,6 @@ pub extern "C" fn cj_model_add_cityobject(
             CityObjectType::from_str(&cityobject_type).map_err(cityjson_lib::Error::from)?;
         let cityobject = CityObject::new(CityObjectIdentifier::new(id), cityobject_type);
         required_model_mut(model)?
-            .as_inner_mut()
             .cityobjects_mut()
             .add(cityobject)
             .map_err(cityjson_lib::Error::from)?;
@@ -1247,7 +1227,7 @@ pub extern "C" fn cj_model_remove_cityobject(
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let id = view_utf8(id, "id")?;
-        let cityobjects = required_model_mut(model)?.as_inner_mut().cityobjects_mut();
+        let cityobjects = required_model_mut(model)?.cityobjects_mut();
         let Some(handle) = cityobjects
             .iter()
             .find_map(|(handle, cityobject)| (cityobject.id() == id).then_some(handle))
@@ -1297,9 +1277,8 @@ pub extern "C" fn cj_model_add_geometry_from_boundary(
         let lod = parse_lod(optional_view_utf8(lod, "lod")?)?;
         let geometry = geometry_from_boundary_view(boundary, lod)?;
         let model = required_model_mut(model)?;
-        let index = model.as_inner().geometry_count();
+        let index = model.geometry_count();
         model
-            .as_inner_mut()
             .add_geometry(geometry)
             .map_err(cityjson_lib::Error::from)?;
         write_value(out_index, "out_index", index)
@@ -1426,7 +1405,6 @@ pub extern "C" fn cj_model_serialize_feature_stream(
         if options.validate_default_themes {
             for model in &refs {
                 model
-                    .as_inner()
                     .validate_default_themes()
                     .map_err(cityjson_lib::Error::from)
                     .map_err(AbiError::from)?;
@@ -1435,7 +1413,7 @@ pub extern "C" fn cj_model_serialize_feature_stream(
 
         let mut buffer = Vec::new();
         for (index, model) in refs.iter().enumerate() {
-            match model.as_inner().type_citymodel() {
+            match model.type_citymodel() {
                 CityModelType::CityJSON => {
                     if index != 0 {
                         return Err(AbiError::from(Error::UnsupportedFeature(

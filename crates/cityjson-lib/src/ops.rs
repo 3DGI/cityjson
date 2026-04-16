@@ -140,7 +140,7 @@ fn prune_relations(cityobject: &mut Map<String, Value>, selected: &BTreeSet<Stri
 /// This keeps the semantic model authoritative in Rust and is the cleanup path
 /// exposed to the FFI layer for normalization-sensitive workflows.
 pub fn cleanup(model: &CityModel) -> Result<CityModel> {
-    let bytes = match model.as_inner().type_citymodel() {
+    let bytes = match model.type_citymodel() {
         cityjson::CityModelType::CityJSON => json::to_vec(model)?,
         cityjson::CityModelType::CityJSONFeature => json::to_feature_vec_with_options(
             model,
@@ -152,7 +152,7 @@ pub fn cleanup(model: &CityModel) -> Result<CityModel> {
         other => return Err(Error::UnsupportedType(other.to_string())),
     };
 
-    match model.as_inner().type_citymodel() {
+    match model.type_citymodel() {
         cityjson::CityModelType::CityJSON => json::from_slice(&bytes),
         cityjson::CityModelType::CityJSONFeature => json::from_feature_slice(&bytes),
         other => Err(Error::UnsupportedType(other.to_string())),

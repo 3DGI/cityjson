@@ -4,55 +4,47 @@ This document pins down the boundary between `cityjson_lib::CityModel` and
 `cityjson_lib::cityjson`.
 
 `CityModel` should stay small and explicit.
-It is a wrapper, not a shadow copy of the whole `cityjson-rs` API.
+It is the owned semantic model re-exported by this crate, not a second wrapper
+layer.
 
 ## Stable Shape
 
 The stable contract is:
 
-- `CityModel` is owned by default
-- document-oriented constructors live on the type itself
-- the underlying model is available through explicit accessors
+- `CityModel` is the owned `cityjson-rs` model type used by this facade
+- document-oriented constructors live in explicit modules such as
+  `cityjson_lib::json`
 - stream APIs do not appear as inherent methods
+- format- or transport-specific helpers stay in sibling modules such as
+  `cityjson_lib::arrow`
 
 The current Rust shape is intentionally simple:
 
 ```rust
-impl CityModel {
-    pub fn from_slice(bytes: &[u8]) -> crate::Result<Self>;
-    pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<Self>;
-
-    pub fn as_inner(&self) -> &crate::cityjson::v2_0::OwnedCityModel;
-    pub fn as_inner_mut(&mut self) -> &mut crate::cityjson::v2_0::OwnedCityModel;
-    pub fn into_inner(self) -> crate::cityjson::v2_0::OwnedCityModel;
-}
+pub use cityjson::v2_0::OwnedCityModel as CityModel;
 ```
 
-The exact `cityjson-rs` instantiation behind the wrapper is an implementation
-choice. The durable boundary is the owned wrapper plus the explicit conversion
-points.
+The durable boundary is the direct model re-export plus the explicit module
+boundaries for JSON, Arrow, and operations.
 
-`CityModel` is also the same wrapper type for:
+`CityModel` is also the same owned type for:
 
 - a full document
 - a grouped subset
 - a feature-sized self-contained model
 
-## Why No `Deref`
+## Why No Wrapper Layer
 
-`Deref` and `DerefMut` blur the boundary in the wrong direction:
+An extra wrapper struct did not add durable semantics. It only introduced
+wrapper-specific constructors and conversion methods that obscured the actual
+model boundary.
 
-- they make `cityjson_lib` look larger than it is
-- they encourage root-level method sprawl
-- they make later wrapper changes harder to reason about
-
-Explicit access is clearer:
+Keeping `CityModel` as a direct re-export is clearer:
 
 ```rust
-let mut model = cityjson_lib::CityModel::from_file("amsterdam.city.json")?;
-let inner = model.as_inner();
-let inner_mut = model.as_inner_mut();
-# let _ = (inner, inner_mut);
+let model = cityjson_lib::json::from_file("amsterdam.city.json")?;
+let cityobject_count = model.cityobjects().len();
+# let _ = cityobject_count;
 ```
 
 ## Why Re-export `cityjson-rs`

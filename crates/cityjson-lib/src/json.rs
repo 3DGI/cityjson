@@ -82,13 +82,11 @@ pub mod staged {
     }
 
     pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
-        match model.as_inner().type_citymodel() {
-            cityjson::CityModelType::CityJSONFeature => cityjson_json::write_model(
-                writer,
-                model.as_inner(),
-                &cityjson_json::WriteOptions::default(),
-            )
-            .map_err(Error::from),
+        match model.type_citymodel() {
+            cityjson::CityModelType::CityJSONFeature => {
+                cityjson_json::write_model(writer, model, &cityjson_json::WriteOptions::default())
+                    .map_err(Error::from)
+            }
             other => Err(Error::UnsupportedType(other.to_string())),
         }
     }
@@ -284,12 +282,8 @@ where
         transform: cityjson_json::FeatureStreamTransform::Explicit(transform.clone()),
         ..cityjson_json::CityJsonSeqWriteOptions::default()
     };
-    cityjson_json::write_feature_stream(
-        writer,
-        features.into_iter().cloned().map(CityModel::into_inner),
-        &options,
-    )
-    .map_err(Error::from)
+    cityjson_json::write_feature_stream(writer, features.into_iter().cloned(), &options)
+        .map_err(Error::from)
 }
 
 pub fn write_cityjsonseq_auto_transform<I, W>(
@@ -320,21 +314,16 @@ where
         transform: cityjson_json::FeatureStreamTransform::Auto { scale },
         ..cityjson_json::CityJsonSeqWriteOptions::default()
     };
-    cityjson_json::write_feature_stream(
-        writer,
-        features.into_iter().cloned().map(CityModel::into_inner),
-        &options,
-    )
-    .map_err(Error::from)
-}
-
-pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
-    cityjson_json::to_vec(model.as_inner(), &write_options(WriteOptions::default()))
+    cityjson_json::write_feature_stream(writer, features.into_iter().cloned(), &options)
         .map_err(Error::from)
 }
 
+pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
+    cityjson_json::to_vec(model, &write_options(WriteOptions::default())).map_err(Error::from)
+}
+
 pub fn to_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<Vec<u8>> {
-    cityjson_json::to_vec(model.as_inner(), &write_options(options)).map_err(Error::from)
+    cityjson_json::to_vec(model, &write_options(options)).map_err(Error::from)
 }
 
 pub fn to_string(model: &CityModel) -> Result<String> {
@@ -347,12 +336,8 @@ pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Resul
 }
 
 pub fn to_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
-    cityjson_json::write_model(
-        writer,
-        model.as_inner(),
-        &write_options(WriteOptions::default()),
-    )
-    .map_err(Error::from)
+    cityjson_json::write_model(writer, model, &write_options(WriteOptions::default()))
+        .map_err(Error::from)
 }
 
 pub fn to_writer_with_options(
@@ -360,8 +345,7 @@ pub fn to_writer_with_options(
     model: &CityModel,
     options: WriteOptions,
 ) -> Result<()> {
-    cityjson_json::write_model(writer, model.as_inner(), &write_options(options))
-        .map_err(Error::from)
+    cityjson_json::write_model(writer, model, &write_options(options)).map_err(Error::from)
 }
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
@@ -373,7 +357,7 @@ pub fn to_feature_vec_with_options(model: &CityModel, options: WriteOptions) -> 
 }
 
 pub fn to_feature_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
-    match model.as_inner().type_citymodel() {
+    match model.type_citymodel() {
         cityjson::CityModelType::CityJSONFeature => to_string_with_options(model, options),
         other => Err(Error::UnsupportedType(other.to_string())),
     }

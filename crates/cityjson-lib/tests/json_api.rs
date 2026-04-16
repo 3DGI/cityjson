@@ -107,7 +107,6 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
     assert_eq!(roundtrip.len(), 1);
     assert_eq!(
         roundtrip[0]
-            .as_inner()
             .metadata()
             .and_then(|metadata| metadata.title()),
         Some("base-root")
@@ -202,7 +201,7 @@ fn explicit_json_module_can_materialize_standalone_features_with_a_base_document
     }"#;
 
     let model = json::staged::from_feature_slice_with_base(feature, document)?;
-    let vertices = model.as_inner().vertices();
+    let vertices = model.vertices();
     let v0 = vertices.as_slice()[0].to_array();
     let v2 = vertices.as_slice()[2].to_array();
 
@@ -240,7 +239,7 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document()
     };
 
     let model = json::staged::from_feature_assembly_with_base(parts, document)?;
-    let vertices = model.as_inner().vertices();
+    let vertices = model.vertices();
     let text = json::to_string(&model)?;
     let output: serde_json::Value = serde_json::from_str(&text)?;
 
@@ -258,7 +257,7 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document()
 #[test]
 fn citymodel_constructors_are_aliases_for_the_default_json_path() {
     let citymodel_from_slice: fn(&[u8]) -> cityjson_lib::Result<cityjson_lib::CityModel> =
-        cityjson_lib::CityModel::from_slice;
+        cityjson_lib::json::from_slice;
     let json_from_slice: fn(&[u8]) -> cityjson_lib::Result<cityjson_lib::CityModel> =
         json::from_slice;
 

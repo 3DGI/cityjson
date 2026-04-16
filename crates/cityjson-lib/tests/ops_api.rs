@@ -14,7 +14,7 @@ fn ops_merge_combines_self_contained_models() {
     .expect("feature fixture should parse");
 
     let merged = ops::merge([first, second]).expect("ops::merge should combine feature models");
-    assert_eq!(merged.as_inner().cityobjects().len(), 2);
+    assert_eq!(merged.cityobjects().len(), 2);
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn ops_extract_filters_cityobjects_and_relations() {
         .expect("fixture should parse");
 
     let extracted = ops::extract(&model, ["building-part-1"]).expect("extract should succeed");
-    let cityobjects = extracted.as_inner().cityobjects();
+    let cityobjects = extracted.cityobjects();
 
     assert_eq!(cityobjects.len(), 1);
     let (_, part) = cityobjects.first().expect("one cityobject should remain");
@@ -37,6 +37,6 @@ fn ops_cleanup_roundtrips_valid_models() {
         .expect("fixture should parse");
     let cleaned = ops::cleanup(&model).expect("cleanup should roundtrip");
 
-    assert_eq!(cleaned.as_inner().cityobjects().len(), 2);
-    assert_eq!(cleaned.as_inner().geometry_count(), 2);
+    assert_eq!(cleaned.cityobjects().len(), 2);
+    assert_eq!(cleaned.geometry_count(), 2);
 }

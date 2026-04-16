@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     let raw_args: Vec<String> = env::args().skip(1).collect();
     let args = parse_args(&raw_args);
-    let model = cityjson_lib::CityModel::from_file(&args.input)
+    let model = cityjson_lib::json::from_file(&args.input)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", args.input.display()));
 
     if let Some(path) = args.arrow_file.as_ref() {

@@ -7,10 +7,7 @@ fn main() -> cityjson_lib::Result<()> {
     assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
     let model = json::from_slice(&bytes)?;
-    println!(
-        "loaded {} CityObjects",
-        model.as_inner().cityobjects().len()
-    );
+    println!("loaded {} CityObjects", model.cityobjects().len());
 
     Ok(())
 }

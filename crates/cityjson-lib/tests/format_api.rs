@@ -5,6 +5,8 @@ use cityjson_lib::CityModel;
 #[cfg(feature = "arrow")]
 use cityjson_lib::arrow;
 #[cfg(feature = "arrow")]
+use cityjson_lib::json;
+#[cfg(feature = "arrow")]
 use serde_json::Value;
 #[cfg(feature = "arrow")]
 use std::path::Path;
@@ -13,7 +15,7 @@ use std::path::Path;
 fn normalized_json(model: &CityModel) -> Value {
     let mut value: Value = serde_json::from_str(
         &String::from_utf8(
-            cityjson_json::to_vec(model.as_inner(), &cityjson_json::WriteOptions::default())
+            cityjson_json::to_vec(model, &cityjson_json::WriteOptions::default())
                 .expect("model should serialize"),
         )
         .expect("serialized model should be utf-8"),
@@ -44,8 +46,7 @@ fn strip_null_object_members(value: &mut Value) {
 #[cfg(feature = "arrow")]
 #[test]
 fn arrow_boundary_roundtrips_through_a_live_stream_buffer() {
-    let model =
-        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
+    let model = json::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
     let mut bytes = Vec::new();
 
     arrow::to_writer(&mut bytes, &model).expect("arrow stream should be written");
@@ -58,8 +59,7 @@ fn arrow_boundary_roundtrips_through_a_live_stream_buffer() {
 #[cfg(feature = "arrow")]
 #[test]
 fn arrow_boundary_explicitly_exports_and_imports_batches() {
-    let model =
-        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
+    let model = json::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
 
     let batches = arrow::export_batches(&model).expect("canonical batches should be exported");
     let roundtrip = arrow::import_batches(&batches).expect("canonical batches should be imported");
@@ -72,8 +72,7 @@ fn arrow_boundary_explicitly_exports_and_imports_batches() {
 fn arrow_boundary_writes_a_stream_file_and_roundtrips() {
     let path = Path::new("tests/output/minimal.cjarrow");
     reset_output_path(path);
-    let model =
-        CityModel::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
+    let model = json::from_file("tests/data/v2_0/minimal.city.json").expect("fixture should parse");
 
     arrow::to_file(path, &model).expect("arrow stream file should be written");
 
