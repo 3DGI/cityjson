@@ -5,6 +5,4 @@ mod context;
 mod geometry;
 mod mappings;
 
-pub(crate) use citymodel::{
-    CityModelSerializeOptions, serialize_citymodel, serialize_citymodel_with_options,
-};
+pub(crate) use citymodel::{CityModelSerializeOptions, serialize_citymodel_with_options};

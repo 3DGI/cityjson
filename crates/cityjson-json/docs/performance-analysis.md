@@ -1,6 +1,8 @@
 # Performance Analysis
 
-This note captures the current performance assessment of `cityjson-json` and `cityjson-rs` based on the latest benchmark setup and the current implementation.
+This note captures a historical performance assessment of `cityjson-json` and
+`cityjson-rs`. Parts of the API discussed here predate the current explicit
+`read_model` / `to_vec` surface.
 
 ## Summary
 
@@ -12,9 +14,8 @@ The current write results are much worse than the baseline across the board. Tha
 
 The main write problem is architectural, not a small bug.
 
-- `to_string` and `to_string_validated` still do `serde_json::to_string(&as_json(model))` in `src/v2_0.rs`.
-- `SerializableCityModel::serialize` first builds a full `serde_json::Value` tree via `src/v2_0.rs` and `src/ser/citymodel.rs`.
-- The split write benchmark shows `as_json_to_value` is already close to `to_string`, so most of the cost is DOM construction, not final string encoding.
+- the old write surface routed through `serde_json` DOM materialization
+- the pre-vNext benchmark split showed most of the cost was intermediate JSON construction, not final byte emission
 
 This means the highest-value change is to replace the current write path with a true streaming serializer and add APIs like `to_writer` and `to_vec`.
 

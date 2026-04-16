@@ -8,19 +8,16 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
-use cityjson_json::{OwnedCityModel, as_json, from_str_owned};
+use cityjson_json::{OwnedCityModel, ReadOptions, WriteOptions, read_model, to_vec};
 
 const DEFAULT_BENCHMARK_INDEX_PATH: &str = "artifacts/benchmark-index.json";
 
 pub(crate) const READ_BENCH_CITYJSON_JSON_OWNED: &str = "cityjson-json/owned";
-pub(crate) const READ_BENCH_CITYJSON_JSON_BORROWED: &str = "cityjson-json/borrowed";
 pub(crate) const READ_BENCH_SERDE_JSON_VALUE: &str = "serde_json::Value";
 
-pub(crate) const WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE: &str =
-    "cityjson-json/as_json_to_value";
-pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_STRING: &str = "cityjson-json/to_string";
-pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED: &str =
-    "cityjson-json/to_string_validated";
+pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_VEC: &str = "cityjson-json/to_vec";
+pub(crate) const WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED: &str =
+    "cityjson-json/to_vec_validated";
 pub(crate) const WRITE_BENCH_SERDE_JSON_TO_STRING: &str = "serde_json::to_string";
 
 #[derive(Clone)]
@@ -175,7 +172,7 @@ impl CaseSpec {
 
     pub(crate) fn prepare_write(&self) -> PreparedWriteCase {
         let input_json = read_file(&self.source);
-        let model = from_str_owned(&input_json).unwrap();
+        let model = read_model(input_json.as_bytes(), &ReadOptions::default()).unwrap();
         prepare_write_case(self, model)
     }
 }
@@ -270,28 +267,29 @@ fn write_suite_metadata(suite: &str, metadata: &SuiteMetadata) {
 }
 
 fn prepare_write_case(spec: &CaseSpec, model: OwnedCityModel) -> PreparedWriteCase {
-    let canonical_value = serde_json::to_value(as_json(&model)).unwrap();
+    let default_write = WriteOptions::default();
+    let validated_write = WriteOptions {
+        validate_default_themes: true,
+        ..WriteOptions::default()
+    };
+    let canonical_value: Value =
+        serde_json::from_slice(&to_vec(&model, &default_write).unwrap()).unwrap();
     let mut benchmark_bytes = BTreeMap::new();
 
-    let to_string_output = as_json(&model).to_string().unwrap();
+    let to_vec_output = to_vec(&model, &default_write).unwrap();
     benchmark_bytes.insert(
-        WRITE_BENCH_CITYJSON_JSON_TO_STRING.to_owned(),
-        to_string_output.len() as u64,
+        WRITE_BENCH_CITYJSON_JSON_TO_VEC.to_owned(),
+        to_vec_output.len() as u64,
     );
 
-    let validated_output = as_json(&model).validate().to_string().unwrap();
+    let validated_output = to_vec(&model, &validated_write).unwrap();
     benchmark_bytes.insert(
-        WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED.to_owned(),
+        WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED.to_owned(),
         validated_output.len() as u64,
     );
 
     benchmark_bytes.insert(
         WRITE_BENCH_SERDE_JSON_TO_STRING.to_owned(),
-        canonical_value.to_string().len() as u64,
-    );
-
-    benchmark_bytes.insert(
-        WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE.to_owned(),
         canonical_value.to_string().len() as u64,
     );
 

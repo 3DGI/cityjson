@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 pub enum Error {
     Json(serde_json::Error),
+    Utf8(std::str::Utf8Error),
     CityJson(cityjson::error::Error),
     UnsupportedType(String),
     UnsupportedVersion(String),
@@ -22,6 +23,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Json(err) => write!(f, "JSON error: {err}"),
+            Error::Utf8(err) => write!(f, "UTF-8 error: {err}"),
             Error::CityJson(err) => write!(f, "cityjson error: {err}"),
             Error::UnsupportedType(kind) => {
                 write!(f, "unsupported CityJSON root type: {kind}")
@@ -64,6 +66,12 @@ impl From<serde_json::Error> for Error {
 impl From<cityjson::error::Error> for Error {
     fn from(error: cityjson::error::Error) -> Self {
         Self::CityJson(error)
+    }
+}
+
+impl From<std::str::Utf8Error> for Error {
+    fn from(error: std::str::Utf8Error) -> Self {
+        Self::Utf8(error)
     }
 }
 

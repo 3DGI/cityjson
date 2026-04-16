@@ -5,9 +5,8 @@ crate.
 
 ## Suites
 
-- `bench-read` measures `from_str_owned`, `from_str_borrowed` where valid, and
-  `serde_json::Value`
-- `bench-write` measures `to_string`, `to_string_validated`, and
+- `bench-read` measures `read_model` and `serde_json::Value`
+- `bench-write` measures `to_vec`, `to_vec_validated`, and
   `serde_json::to_string`
 
 ## Data

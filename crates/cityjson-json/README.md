@@ -1,11 +1,12 @@
 # cityjson-json
 
-`cityjson-json` is a `CityJSON` 2.0 serde adapter around the [`cityjson`](https://crates.io/crates/cityjson) crate. It provides efficient serialization and deserialization of `CityJSON` documents with both owned and borrowed string storage options.
+`cityjson-json` is the `CityJSON` 2.0 JSON boundary crate around the [`cityjson`](https://crates.io/crates/cityjson) crate. It reads and writes owned `CityJSON` models with explicit document and feature-stream APIs.
 
 ## Benchmarks
 
 Read benchmarks against `serde_json::Value` for acquired real-world data and
-synthetic stress cases. Refresh this table from the shared benchmark suite with `just bench`.
+synthetic stress cases. The table below is a historical snapshot; refresh the
+current suite with `just bench`.
 
 <!-- benchmark-summary:start -->
 **Acquired data**
@@ -40,21 +41,12 @@ cargo add cityjson-json
 
 ## Getting Started
 
-### Imports
+### Read A Document
 
 ```rust
-use cityjson_json::{from_str_owned, from_str_borrowed, as_json};
-use cityjson_json::{OwnedCityModel, BorrowedCityModel, SerializableCityModel};
-```
+use cityjson_json::{ReadOptions, read_model};
 
-### Owned Deserialization
-
-For simple use cases, deserialize into an owned model:
-
-```rust
-use cityjson_json::from_str_owned;
-
-let json_str = r#"{
+let json_bytes = br#"{
   "type": "CityJSON",
   "version": "2.0",
   "transform": {"scale": [1.0, 1.0, 1.0], "translate": [0.0, 0.0, 0.0]},
@@ -62,76 +54,66 @@ let json_str = r#"{
   "vertices": []
 }"#;
 
-let model = from_str_owned(json_str)?;
+let model = read_model(json_bytes, &ReadOptions::default())?;
 # Ok::<(), cityjson_json::Error>(())
 ```
 
-### Borrowed Deserialization
-
-For performance-critical applications, use borrowed deserialization to avoid allocations:
+### Write A Document
 
 ```rust
-use cityjson_json::from_str_borrowed;
+use cityjson_json::{WriteOptions, to_vec};
 
-let json_str = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
-let model = from_str_borrowed(json_str)?;
-// model holds references to json_str
+let bytes = to_vec(&model, &WriteOptions::default())?;
 # Ok::<(), cityjson_json::Error>(())
-```
-
-### Serialization
-
-Serialize models back to JSON using the `as_json` builder:
-
-```rust,ignore
-use cityjson_json::as_json;
-
-let json_output = as_json(&model).to_string()?;
-```
-
-The same builder works for other output targets:
-
-```rust,ignore
-use cityjson_json::as_json;
-
-let bytes = as_json(&model).to_vec()?;
-as_json(&model).validate().to_writer(&mut writer)?;
 ```
 
 ### `CityJSONSeq`
 
-Read a newline-delimited `CityJSONSeq` stream. The first line must be a `CityJSON` header; each subsequent line is a self-contained `CityJSONFeature`:
+Read a newline-delimited `CityJSONSeq` stream. The first item must be a
+`CityJSON` header; each subsequent item is a self-contained `CityJSONFeature`:
 
 ```rust
-use std::io::BufReader;
-use cityjson_json::read_cityjsonseq;
+use std::io::Cursor;
+use cityjson_json::{ReadOptions, read_feature_stream};
 
 let seq = concat!(
     r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#, "\n",
     r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building"}},"vertices":[]}"#, "\n",
 );
-let features = read_cityjsonseq(BufReader::new(seq.as_bytes()))?
+let features = read_feature_stream(Cursor::new(seq.as_bytes()), &ReadOptions::default())?
     .collect::<cityjson_json::Result<Vec<_>>>()?;
 // each element is an OwnedCityModel (CityJSONFeature) with the header transform merged in
 # Ok::<(), cityjson_json::Error>(())
 ```
 
-Write a strict `CityJSONSeq` stream. Supply a `CityJSON` base root and one or more feature models; the builder quantizes vertices and computes the geographical extent:
+Write a strict `CityJSONSeq` stream from feature models. The writer derives the
+header from their shared root state and quantizes vertices with explicit
+options:
 
 ```rust
-use cityjson_json::{from_str_owned, from_feature_str_with_base, write_cityjsonseq};
+use cityjson_json::{
+    CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, read_feature_with_base,
+    read_model, write_feature_stream,
+};
+use cityjson::v2_0::Transform;
 
-let base_input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
-let base_root = from_str_owned(base_input)?;
-let feature = from_feature_str_with_base(
-    r#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
-    base_input,
+let base_input = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let base = read_model(base_input, &ReadOptions::default())?;
+let feature = read_feature_with_base(
+    br#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
+    &base,
+    &ReadOptions::default(),
 )?;
 
 let mut output: Vec<u8> = Vec::new();
-let report = write_cityjsonseq(&base_root, [&feature])
-    .auto_transform([0.001, 0.001, 0.001])
-    .write(&mut output)?;
+let report = write_feature_stream(
+    &mut output,
+    [feature],
+    &CityJsonSeqWriteOptions {
+        transform: FeatureStreamTransform::Explicit(Transform::new()),
+        ..CityJsonSeqWriteOptions::default()
+    },
+)?;
 // report.feature_count == 1, report.geographical_extent covers all feature vertices
 # Ok::<(), cityjson_json::Error>(())
 ```
@@ -149,14 +131,13 @@ todo: link to docs.rs
 
 | Module   | Contents                                                                                       |
 |----------|------------------------------------------------------------------------------------------------|
-| `v2_0`   | `CityJSON` 2.0 (de)serialization entry points, feature-stream helpers, and `SerializableCityModel` |
+| `v2_0`   | `CityJSON` 2.0 read/write entry points and feature-stream helpers |
 | `errors` | `Error` and `Result` types surfaced by the adapter                                             |
-| (root)   | Convenience re-exports: `from_str_*`, `as_json`, `write_cityjsonseq`, model types              |
+| (root)   | Convenience re-exports: `read_*`, `write_*`, option types, and model types                     |
 
 Core types re-exported from `cityjson`:
 
 - **`OwnedCityModel`**: A `CityJSON` model with owned `String` storage. Self-contained and doesn't depend on external lifetimes.
-- **`BorrowedCityModel`**: A `CityJSON` model with borrowed string references. More memory efficient but requires careful lifetime management.
 
 ## Design
 
@@ -166,7 +147,7 @@ The adapter is optimized around a small number of core decisions:
 - `CityObjects` and geometry boundaries avoid large intermediate JSON structures
 - attributes deserialize directly into backend value types
 - serialization streams from the model with a shared write context instead of building a DOM first
-- both owned and borrowed string storage are supported through the same parsing pipeline
+- the public JSON boundary is explicitly owned-model oriented
 
 The full design description lives in [docs/design.md](docs/design.md).
 

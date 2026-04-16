@@ -16,22 +16,6 @@ use crate::ser::attributes::{AttributesSerializer, serialize_attributes_entries}
 use crate::ser::context::WriteContext;
 use crate::ser::geometry::GeometriesSerializer;
 
-pub(crate) fn serialize_citymodel<S, VR, SS>(
-    serializer: S,
-    model: &CityModel<VR, SS>,
-) -> std::result::Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-    VR: VertexRef + serde::Serialize,
-    SS: StringStorage,
-{
-    serialize_citymodel_with_options(
-        serializer,
-        model,
-        &CityModelSerializeOptions::for_model(model),
-    )
-}
-
 #[derive(Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)]
 pub(crate) struct CityModelSerializeOptions<'a> {

@@ -36,12 +36,11 @@ The benchmark suite was restructured around a manifest-driven catalog plus two
 separate Criterion entrypoints:
 
 1. `benches/read.rs` measures deserialization with:
-   - `cityjson-json::from_str_owned`
-   - `cityjson-json::from_str_borrowed` where valid
+   - `cityjson-json::read_model`
    - `serde_json::Value` as the baseline
 2. `benches/write.rs` measures serialization with:
-   - `cityjson-json::to_string`
-   - `cityjson-json::to_string_validated`
+   - `cityjson-json::to_vec`
+   - `cityjson-json::to_vec` with `validate_default_themes`
    - `serde_json::to_string` as the baseline
 
 The shared benchmark index in

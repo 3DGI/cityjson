@@ -76,17 +76,16 @@ non-null material index, the serializer writes the compact `{"value": N}` form
 instead of an explicit `{"values": [...]}` array.
 
 **Validation policy.**
-`as_json(model).to_string()` (and `to_vec` / `to_writer`) serialize without
-pre-flight checks. Chaining `.validate()` before the output method calls
-`validate_default_themes` first, confirming that the default material and
-texture theme names reference themes that actually exist in the appearance
-section.
+`write_model` and `to_vec` serialize without pre-flight checks by default.
+Setting `WriteOptions::validate_default_themes` enables the
+`validate_default_themes` pass before serialization, confirming that the
+default material and texture theme names reference themes that actually exist
+in the appearance section.
 
 **`CityJSONSeq` stream writing.**
-`write_cityjsonseq(base_root, features)` returns a `CityJSONSeqWriter` builder.
-The first line is a `CityJSON` header serialized with `CityModelSerializeOptions`
-that suppresses city objects and vertices; each subsequent line is a
-`CityJSONFeature` serialized with options that suppress metadata, extensions,
-appearance, and geometry templates. By default the transform translation is
-derived from the bounding box of all feature vertices (`auto_transform`). Use
-`with_transform` to supply an explicit transform instead.
+`write_feature_stream(writer, features, options)` writes one `CityJSON` header
+followed by `CityJSONFeature` items. The header is derived from the shared root
+state of the feature models, while each feature item suppresses metadata,
+extensions, appearance, and geometry templates. By default the transform
+translation is derived from the bounding box of all feature vertices; use
+`FeatureStreamTransform::Explicit` to supply an explicit transform instead.

@@ -6,9 +6,8 @@ use std::time::Duration;
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
-    WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE, WRITE_BENCH_CITYJSON_JSON_TO_STRING,
-    WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED, WRITE_BENCH_SERDE_JSON_TO_STRING, write_cases,
-    write_write_suite_metadata,
+    WRITE_BENCH_CITYJSON_JSON_TO_VEC, WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED,
+    WRITE_BENCH_SERDE_JSON_TO_STRING, write_cases, write_write_suite_metadata,
 };
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
@@ -30,34 +29,31 @@ fn bench_write(c: &mut Criterion) {
         configure_group(&mut group);
 
         group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE),
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_VEC),
         ));
-        group.bench_function(WRITE_BENCH_CITYJSON_JSON_AS_JSON_TO_VALUE, |b| {
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC, |b| {
             b.iter_with_large_drop(|| {
-                serde_json::to_value(cityjson_json::as_json(black_box(&prepared.model))).unwrap()
+                cityjson_json::to_vec(
+                    black_box(&prepared.model),
+                    &cityjson_json::WriteOptions::default(),
+                )
+                .unwrap()
             });
         });
 
         group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_STRING),
+            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED),
         ));
-        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING, |b| {
+        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_VEC_VALIDATED, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::as_json(black_box(&prepared.model))
-                    .to_string()
-                    .unwrap()
-            });
-        });
-
-        group.throughput(Throughput::Bytes(
-            prepared.benchmark_bytes(WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED),
-        ));
-        group.bench_function(WRITE_BENCH_CITYJSON_JSON_TO_STRING_VALIDATED, |b| {
-            b.iter_with_large_drop(|| {
-                cityjson_json::as_json(black_box(&prepared.model))
-                    .validate()
-                    .to_string()
-                    .unwrap()
+                cityjson_json::to_vec(
+                    black_box(&prepared.model),
+                    &cityjson_json::WriteOptions {
+                        validate_default_themes: true,
+                        ..cityjson_json::WriteOptions::default()
+                    },
+                )
+                .unwrap()
             });
         });
 

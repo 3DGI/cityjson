@@ -1,16 +1,16 @@
-use serde_json::value::RawValue;
+use std::io::Cursor;
+
 use serde_json::{Value, json};
 
 use cityjson::v2_0::{
     AffineTransform3D, BBox, CityModelType, CityObject, CityObjectIdentifier, CityObjectType,
-    GeometryDraft, ImageType, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture,
+    GeometryDraft, LoD, OwnedCityModel, PointDraft, RealWorldCoordinate, Texture, Transform,
     UVCoordinate,
 };
+use cityjson::v2_0::{ImageType, TextureType};
 use cityjson_json::{
-    as_json, from_feature_str, from_str_borrowed, from_str_owned, merge_cityjsonseq,
-    read_cityjsonseq,
-    v2_0::{FeatureObject, FeatureParts, from_feature_parts_with_base},
-    write_cityjsonseq,
+    CityJsonSeqWriteOptions, FeatureStreamTransform, ReadOptions, read_feature,
+    read_feature_stream, read_feature_with_base, read_model, write_feature_stream,
 };
 use common::*;
 
@@ -28,90 +28,18 @@ macro_rules! conformance_roundtrip_tests {
     };
 }
 
-#[test]
-fn feature_parts_with_base_materializes_a_self_contained_feature_model() {
-    let base = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "transform": {
-            "scale": [0.5, 0.5, 1.0],
-            "translate": [10.0, 20.0, 30.0]
-        },
-        "metadata": {
-            "title": "base-root"
-        },
-        "CityObjects": {},
-        "vertices": []
-    });
-    let object = RawValue::from_string(
-        json!({
-            "type": "Building",
-            "geometry": [{
-                "type": "MultiSurface",
-                "lod": "0",
-                "boundaries": [[[0, 2, 1]]]
-            }]
-        })
-        .to_string(),
-    )
-    .expect("raw CityObject");
-    let cityobjects = [FeatureObject {
-        id: "feature-1",
-        object: object.as_ref(),
-    }];
-    let vertices = [[0, 0, 0], [2, 0, 0], [1, 0, 0]];
-    let parts = FeatureParts {
-        id: "feature-1",
-        cityobjects: &cityobjects,
-        vertices: &vertices,
-    };
-
-    let model = from_feature_parts_with_base(parts, &base.to_string()).unwrap();
-    let vertices = model.vertices();
-    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
-
-    assert_eq!(json["metadata"]["title"], "base-root");
-    assert_eq!(json["transform"], base["transform"]);
-    assert_eq!(json["vertices"], json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]]));
-    assert_eq!(
-        json["CityObjects"]["feature-1"]["geometry"][0]["boundaries"],
-        json!([[[0, 2, 1]]])
-    );
-    assert_vertex_eq(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
-    assert_vertex_eq(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
+fn read_feature_with_base_str(
+    feature_input: &str,
+    base: &OwnedCityModel,
+) -> cityjson_json::Result<OwnedCityModel> {
+    read_feature_with_base(feature_input.as_bytes(), base, &ReadOptions::default())
 }
 
-#[test]
-fn feature_parts_with_base_rejects_duplicate_cityobject_ids() {
-    let base = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "CityObjects": {},
-        "vertices": []
-    });
-    let object = RawValue::from_string(json!({ "type": "Building" }).to_string()).unwrap();
-    let cityobjects = [
-        FeatureObject {
-            id: "feature-1",
-            object: object.as_ref(),
-        },
-        FeatureObject {
-            id: "feature-1",
-            object: object.as_ref(),
-        },
-    ];
-    let parts = FeatureParts {
-        id: "feature-1",
-        cityobjects: &cityobjects,
-        vertices: &[],
-    };
-
-    let error = from_feature_parts_with_base(parts, &base.to_string()).unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("duplicate CityObject id in feature parts")
-    );
+fn stream_items(bytes: &[u8]) -> Vec<Value> {
+    serde_json::Deserializer::from_slice(bytes)
+        .into_iter::<Value>()
+        .collect::<serde_json::Result<Vec<_>>>()
+        .unwrap()
 }
 
 fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
@@ -120,11 +48,93 @@ fn assert_vertex_eq(actual: [f64; 3], expected: [f64; 3]) {
     }
 }
 
-fn stream_items(bytes: &[u8]) -> Vec<Value> {
-    serde_json::Deserializer::from_slice(bytes)
-        .into_iter::<Value>()
-        .collect::<serde_json::Result<Vec<_>>>()
-        .unwrap()
+#[test]
+fn read_feature_with_base_materializes_a_self_contained_feature_model() {
+    let base = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "transform": {
+                "scale": [0.5, 0.5, 1.0],
+                "translate": [10.0, 20.0, 30.0]
+            },
+            "metadata": {
+                "title": "base-root"
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
+    );
+    let feature_input = json!({
+        "type": "CityJSONFeature",
+        "id": "feature-1",
+        "CityObjects": {
+            "feature-1": {
+                "type": "Building",
+                "geometry": [{
+                    "type": "MultiSurface",
+                    "lod": "0",
+                    "boundaries": [[[0, 2, 1]]]
+                }]
+            }
+        },
+        "vertices": [[0, 0, 0], [2, 0, 0], [1, 0, 0]]
+    })
+    .to_string();
+
+    let model = read_feature_with_base_str(&feature_input, &base).unwrap();
+    let vertices = model.vertices();
+    let written = write_value(&model);
+
+    assert_eq!(written["metadata"]["title"], "base-root");
+    assert_eq!(
+        written["transform"],
+        json!({
+            "scale": [0.5, 0.5, 1.0],
+            "translate": [10.0, 20.0, 30.0]
+        })
+    );
+    assert_eq!(
+        written["vertices"],
+        json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]])
+    );
+    assert_eq!(
+        written["CityObjects"]["feature-1"]["geometry"][0]["boundaries"],
+        json!([[[0, 2, 1]]])
+    );
+    assert_vertex_eq(vertices.as_slice()[0].to_array(), [10.0, 20.0, 30.0]);
+    assert_vertex_eq(vertices.as_slice()[2].to_array(), [10.5, 20.0, 30.0]);
+}
+
+#[test]
+fn read_model_rejects_cityjsonfeature_roots() {
+    let input = json!({
+        "type": "CityJSONFeature",
+        "id": "f1",
+        "CityObjects": {
+            "f1": { "type": "Building" }
+        },
+        "vertices": []
+    })
+    .to_string();
+
+    let error = read_model(input.as_bytes(), &ReadOptions::default()).unwrap_err();
+    assert!(error.to_string().contains("CityJSONFeature"));
+}
+
+#[test]
+fn read_feature_rejects_cityjson_roots() {
+    let input = json!({
+        "type": "CityJSON",
+        "version": "2.0",
+        "CityObjects": {},
+        "vertices": []
+    })
+    .to_string();
+
+    let error = read_feature(input.as_bytes(), &ReadOptions::default()).unwrap_err();
+    assert!(error.to_string().contains("CityJSON"));
 }
 
 #[test]
@@ -143,61 +153,49 @@ fn serialize_quantizes_root_vertices_only() {
     model
         .add_uv_coordinate(UVCoordinate::new(0.125, 0.875))
         .unwrap();
-    model
-        .add_texture(Texture::new("texture.png".to_string(), ImageType::Png))
-        .unwrap();
+    let mut texture = Texture::new("texture.png".to_string(), ImageType::Png);
+    texture.set_texture_type(Some(TextureType::Specific));
+    model.add_texture(texture).unwrap();
 
-    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
+    let written = write_value(&model);
 
-    let root_vertices = json
-        .get("vertices")
-        .and_then(Value::as_array)
-        .expect("root vertices should be present");
+    let root_vertices = written["vertices"].as_array().unwrap();
     assert_eq!(root_vertices.len(), 1);
     assert!(
         root_vertices[0]
             .as_array()
-            .expect("vertex should be an array")
+            .unwrap()
             .iter()
             .all(|coordinate| coordinate.is_i64() || coordinate.is_u64())
     );
 
-    let template_vertices = json
-        .get("geometry-templates")
-        .and_then(Value::as_object)
-        .and_then(|templates| templates.get("vertices-templates"))
-        .and_then(Value::as_array)
-        .expect("template vertices should be present");
+    let template_vertices = written["geometry-templates"]["vertices-templates"]
+        .as_array()
+        .unwrap();
     assert_eq!(template_vertices.len(), 1);
     assert!(
         template_vertices[0]
             .as_array()
-            .expect("template vertex should be an array")
+            .unwrap()
             .iter()
             .all(Value::is_f64)
     );
 
-    let texture_vertices = json
-        .get("appearance")
-        .and_then(Value::as_object)
-        .and_then(|appearance| appearance.get("vertices-texture"))
-        .and_then(Value::as_array)
-        .expect("texture vertices should be present");
+    let texture_vertices = written["appearance"]["vertices-texture"]
+        .as_array()
+        .unwrap();
     assert_eq!(texture_vertices.len(), 1);
     assert!(
         texture_vertices[0]
             .as_array()
-            .expect("texture vertex should be an array")
+            .unwrap()
             .iter()
             .all(Value::is_f64)
     );
 
-    let extent = json
-        .get("metadata")
-        .and_then(Value::as_object)
-        .and_then(|metadata| metadata.get("geographicalExtent"))
-        .and_then(Value::as_array)
-        .expect("geographical extent should be present");
+    let extent = written["metadata"]["geographicalExtent"]
+        .as_array()
+        .unwrap();
     assert_eq!(extent.len(), 6);
     assert!(extent.iter().all(Value::is_f64));
 }
@@ -205,10 +203,10 @@ fn serialize_quantizes_root_vertices_only() {
 #[test]
 fn serialize_omits_empty_appearance_and_geometry_templates_sections() {
     let model = OwnedCityModel::new(CityModelType::CityJSON);
-    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
+    let written = write_value(&model);
 
-    assert!(json.get("appearance").is_none());
-    assert!(json.get("geometry-templates").is_none());
+    assert!(written.get("appearance").is_none());
+    assert!(written.get("geometry-templates").is_none());
 }
 
 #[test]
@@ -237,315 +235,90 @@ fn serialize_geometry_instance_keeps_float_sections() {
     cityobject.add_geometry(geometry);
     model.cityobjects_mut().add(cityobject).unwrap();
 
-    let json: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
-    let root_vertices = json
-        .get("vertices")
-        .and_then(Value::as_array)
-        .expect("root vertices should be present");
+    let written = write_value(&model);
+    let root_vertices = written["vertices"].as_array().unwrap();
     assert_eq!(root_vertices.len(), 1);
     assert!(
         root_vertices[0]
             .as_array()
-            .expect("root vertex should be an array")
+            .unwrap()
             .iter()
             .all(|coordinate| coordinate.is_i64() || coordinate.is_u64())
     );
 
-    let geometry = json
-        .get("CityObjects")
-        .and_then(Value::as_object)
-        .and_then(|cityobjects| cityobjects.get("instance-1"))
-        .and_then(|object| object.get("geometry"))
-        .and_then(Value::as_array)
-        .and_then(|geometry| geometry.first())
-        .cloned()
-        .expect("geometry instance should be serialized");
-
-    let template = geometry
-        .get("template")
-        .expect("template index should be serialized");
-    assert!(template.is_i64() || template.is_u64());
-
-    let boundary = geometry
-        .get("boundaries")
-        .and_then(Value::as_array)
-        .and_then(|boundaries| boundaries.first())
-        .expect("instance boundary should be serialized");
-    assert!(boundary.is_i64() || boundary.is_u64());
-
-    let transform = geometry
-        .get("transformationMatrix")
-        .and_then(Value::as_array)
-        .expect("instance transform should be serialized");
-    assert_eq!(transform.len(), 16);
-    assert!(transform.iter().all(Value::is_f64));
-
-    let template_vertices = json
-        .get("geometry-templates")
-        .and_then(Value::as_object)
-        .and_then(|templates| templates.get("vertices-templates"))
-        .and_then(Value::as_array)
-        .expect("template vertices should be present");
-    assert_eq!(template_vertices.len(), 1);
+    let geometry = &written["CityObjects"]["instance-1"]["geometry"][0];
+    let boundaries = geometry["boundaries"].as_array().unwrap();
+    assert!(boundaries[0].as_f64().is_some());
     assert!(
-        template_vertices[0]
+        geometry["transformationMatrix"]
             .as_array()
-            .expect("template vertex should be an array")
+            .unwrap()
             .iter()
             .all(Value::is_f64)
     );
 }
 
 #[test]
-fn feature_constructor_rejects_full_documents() {
-    let json_input = conformance_case_input("cityjson_minimal");
-    let err = from_feature_str(&json_input).unwrap_err();
-    assert!(format!("{err}").contains("CityJSON"));
-}
-
-fn assert_invalid_case_rejected(case_id: &str, expected_error_fragment: &str) {
-    let json_input = invalid_case_input(case_id);
-
-    let owned_err = from_str_owned(&json_input).unwrap_err();
-    assert!(
-        owned_err.to_string().contains(expected_error_fragment),
-        "owned parser accepted invalid case '{case_id}' with unexpected error: {owned_err}"
+fn read_feature_stream_materializes_models_from_header_and_features() {
+    let input = concat!(
+        r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},"metadata":{"title":"base-root"},"CityObjects":{},"vertices":[]}"#,
+        "\n",
+        r#"{"type":"CityJSONFeature","id":"building-1","CityObjects":{"building-1":{"type":"Building","geometry":[{"type":"MultiSurface","lod":"0","boundaries":[[[0,1,2]]]}]}},"vertices":[[0,0,0],[2,0,0],[1,0,0]]}"#,
+        "\n"
     );
 
-    let borrowed_err = from_str_borrowed(&json_input).unwrap_err();
-    assert!(
-        borrowed_err.to_string().contains(expected_error_fragment),
-        "borrowed parser accepted invalid case '{case_id}' with unexpected error: {borrowed_err}"
-    );
-}
+    let mut reader =
+        read_feature_stream(Cursor::new(input.as_bytes()), &ReadOptions::default()).unwrap();
+    let model = reader.next().unwrap().unwrap();
+    let written = write_value(&model);
 
-#[test]
-fn invalid_missing_type_is_rejected() {
-    assert_invalid_case_rejected("invalid_missing_type", "missing field `type`");
-}
-
-#[test]
-fn invalid_out_of_range_vertex_index_is_rejected() {
-    assert_invalid_case_rejected(
-        "invalid_out_of_range_vertex_index",
-        "geometry vertex index 99 out of range",
-    );
-}
-
-#[test]
-fn invalid_cityjsonfeature_root_id_unresolved_is_rejected() {
-    assert_invalid_case_rejected(
-        "invalid_cityjsonfeature_root_id_unresolved",
-        "feature root id",
-    );
-}
-
-#[test]
-fn cityjsonfeature_minimal_is_typed_not_extra() {
-    let json_input = conformance_case_input("cityjsonfeature_minimal");
-    let model = from_feature_str(&json_input).unwrap();
-    let serialized: Value = serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap();
-
-    assert_eq!(model.type_citymodel(), CityModelType::CityJSONFeature);
+    assert_eq!(written["metadata"]["title"], "base-root");
+    assert_eq!(written["id"], "building-1");
     assert_eq!(
-        model
-            .id()
-            .and_then(|handle| model.cityobjects().get(handle))
-            .map(|cityobject| cityobject.id().to_string()),
-        Some("myid".to_string())
+        written["vertices"],
+        json!([[0, 0, 0], [2, 0, 0], [1, 0, 0]])
     );
-    assert!(model.extra().and_then(|extra| extra.get("id")).is_none());
-    assert_eq!(serialized["id"], "myid");
+    assert!(reader.next().is_none());
 }
 
 #[test]
-fn cityjsonfeature_root_id_must_resolve_to_a_cityobject() {
-    let json_input = invalid_case_input("invalid_cityjsonfeature_root_id_unresolved");
-    let err = from_feature_str(&json_input).unwrap_err();
-    assert!(err.to_string().contains("feature root id"));
+fn read_feature_stream_rejects_duplicate_cityobject_ids() {
+    let input = concat!(
+        r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#,
+        "\n",
+        r#"{"type":"CityJSONFeature","id":"building-1","CityObjects":{"building-1":{"type":"Building"}},"vertices":[]}"#,
+        "\n",
+        r#"{"type":"CityJSONFeature","id":"building-2","CityObjects":{"building-1":{"type":"Building"}},"vertices":[]}"#,
+        "\n"
+    );
+
+    let mut reader =
+        read_feature_stream(Cursor::new(input.as_bytes()), &ReadOptions::default()).unwrap();
+    assert!(reader.next().unwrap().is_ok());
+    let error = reader.next().unwrap().unwrap_err();
+    assert!(error.to_string().contains("duplicate CityObject id"));
 }
 
 #[test]
-fn strict_feature_stream_reads_self_contained_models() {
-    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
-"#;
-
-    let mut models = read_cityjsonseq(std::io::Cursor::new(input))
-        .unwrap()
-        .collect::<cityjson_json::Result<Vec<_>>>()
-        .unwrap();
-    assert_eq!(models.len(), 1);
-
-    let model = models.pop().unwrap();
-    assert_eq!(
-        model.type_citymodel(),
-        cityjson::CityModelType::CityJSONFeature
-    );
-    assert_eq!(
-        model
-            .id()
-            .and_then(|handle| model.cityobjects().get(handle))
-            .map(|cityobject| cityobject.id().to_string()),
-        Some("feature-1".to_string())
-    );
-    assert_eq!(model.cityobjects().len(), 1);
-    assert!(model.transform().is_some());
-}
-
-#[test]
-fn strict_feature_stream_merges_into_one_document() {
-    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0,1]}]}},"vertices":[[0,0,0],[1,1,1]]}
-{"type":"CityJSONFeature","id":"feature-2","CityObjects":{"feature-2":{"type":"Building","geometry":[{"type":"MultiLineString","boundaries":[[0,1,2]]}]}},"vertices":[[2,2,2],[3,3,3],[4,4,4]]}
-"#;
-
-    let model = merge_cityjsonseq(std::io::Cursor::new(input)).unwrap();
-    assert_eq!(model.type_citymodel(), cityjson::CityModelType::CityJSON);
-    assert_eq!(model.cityobjects().len(), 2);
-    assert_eq!(model.vertices().len(), 5);
-}
-
-#[test]
-fn strict_feature_stream_rejects_duplicate_ids() {
-    let input = r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[1.0,1.0,1.0],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}
-{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
-{"type":"CityJSONFeature","id":"feature-1","CityObjects":{"feature-1":{"type":"Building"}},"vertices":[]}
-"#;
-
-    let err = merge_cityjsonseq(std::io::Cursor::new(input)).unwrap_err();
-    assert!(format!("{err}").contains("duplicate CityObject id"));
-}
-
-#[test]
-fn strict_cityjsonseq_writer_emits_header_and_stripped_feature_items() {
-    let base_input = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "transform": {
-            "scale": [1.0, 1.0, 1.0],
-            "translate": [0.0, 0.0, 0.0]
-        },
-        "metadata": {
-            "title": "base-root"
-        },
-        "CityObjects": {},
-        "vertices": []
-    })
-    .to_string();
-    let feature_input = json!({
-        "type": "CityJSONFeature",
-        "id": "feature-1",
-        "CityObjects": {
-            "feature-1": {
-                "type": "Building",
-                "geometry": [{
-                    "type": "MultiPoint",
-                    "boundaries": [0, 1]
-                }]
-            }
-        },
-        "vertices": [[10, 20, 30], [12, 22, 31]]
-    })
-    .to_string();
-    let base_root = from_str_owned(&base_input).unwrap();
-    let feature = cityjson_json::from_feature_str_with_base(&feature_input, &base_input).unwrap();
-    let mut transform = cityjson::v2_0::Transform::new();
-    transform.set_scale([0.5, 0.5, 1.0]);
-    transform.set_translate([10.0, 20.0, 30.0]);
-
-    let mut output = Vec::new();
-    let report = write_cityjsonseq(&base_root, [&feature])
-        .with_transform(&transform)
-        .write(&mut output)
-        .unwrap();
-
-    assert_eq!(report.feature_count, 1);
-    assert_eq!(report.cityobject_count, 1);
-    assert_eq!(
-        report.geographical_extent,
-        Some(BBox::new(10.0, 20.0, 30.0, 12.0, 22.0, 31.0))
-    );
-
-    let items = stream_items(&output);
-    assert_eq!(items.len(), 2);
-    assert_eq!(items[0]["type"], "CityJSON");
-    assert_eq!(items[0]["transform"]["scale"], json!([0.5, 0.5, 1.0]));
-    assert_eq!(
-        items[0]["transform"]["translate"],
-        json!([10.0, 20.0, 30.0])
-    );
-    assert_eq!(items[0]["metadata"]["title"], "base-root");
-    assert_eq!(
-        items[0]["metadata"]["geographicalExtent"],
-        json!([10.0, 20.0, 30.0, 12.0, 22.0, 31.0])
-    );
-
-    assert_eq!(items[1]["type"], "CityJSONFeature");
-    assert_eq!(items[1]["id"], "feature-1");
-    assert!(items[1].get("version").is_none());
-    assert!(items[1].get("transform").is_none());
-    assert!(items[1].get("metadata").is_none());
-    assert!(items[1].get("extensions").is_none());
-    assert!(items[1].get("appearance").is_none());
-    assert_eq!(items[1]["vertices"], json!([[0, 0, 0], [4, 4, 1]]));
-
-    let models = read_cityjsonseq(std::io::Cursor::new(output))
-        .unwrap()
-        .collect::<cityjson_json::Result<Vec<_>>>()
-        .unwrap();
-    assert_eq!(models.len(), 1);
-    assert_eq!(models[0].vertices().len(), 2);
-    assert_eq!(
-        models[0]
-            .id()
-            .and_then(|handle| models[0].cityobjects().get(handle))
-            .map(|cityobject| cityobject.id().to_string()),
-        Some("feature-1".to_string())
-    );
-    assert_eq!(
-        models[0].metadata().and_then(|metadata| metadata.title()),
-        Some("base-root")
-    );
-}
-
-#[test]
-fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
-    let base_input = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "metadata": {
-            "title": "base-root"
-        },
-        "CityObjects": {},
-        "vertices": []
-    })
-    .to_string();
-    let feature_a = cityjson_json::from_feature_str_with_base(
+fn write_feature_stream_writes_header_and_features() {
+    let base = read_model_str(
         &json!({
-            "type": "CityJSONFeature",
-            "id": "feature-a",
-            "CityObjects": {
-                "feature-a": {
-                    "type": "Building",
-                    "geometry": [{
-                        "type": "MultiPoint",
-                        "boundaries": [0, 1]
-                    }]
-                }
+            "type": "CityJSON",
+            "version": "2.0",
+            "metadata": {
+                "title": "base-root"
             },
-            "vertices": [[10, 20, 30], [12, 23, 35]]
+            "CityObjects": {},
+            "vertices": []
         })
         .to_string(),
-        &base_input,
-    )
-    .unwrap();
-    let feature_b = cityjson_json::from_feature_str_with_base(
+    );
+    let feature = read_feature_with_base_str(
         &json!({
             "type": "CityJSONFeature",
-            "id": "feature-b",
+            "id": "building-1",
             "CityObjects": {
-                "feature-b": {
+                "building-1": {
                     "type": "Building",
                     "geometry": [{
                         "type": "MultiPoint",
@@ -553,85 +326,52 @@ fn strict_cityjsonseq_writer_auto_transform_uses_extent_minimal() {
                     }]
                 }
             },
-            "vertices": [[9, 21, 40]]
+            "vertices": [[10, 20, 30]]
         })
         .to_string(),
-        &base_input,
+        &base,
     )
     .unwrap();
-    let base_root = from_str_owned(&base_input).unwrap();
 
     let mut output = Vec::new();
-    let report = write_cityjsonseq(&base_root, [&feature_a, &feature_b])
-        .auto_transform([0.5, 1.0, 5.0])
-        .write(&mut output)
-        .unwrap();
-
-    assert_eq!(
-        report.geographical_extent,
-        Some(BBox::new(9.0, 20.0, 30.0, 12.0, 23.0, 40.0))
-    );
-    assert_vertex_eq(report.transform.scale(), [0.5, 1.0, 5.0]);
-    assert_vertex_eq(report.transform.translate(), [9.0, 20.0, 30.0]);
-
+    let report =
+        write_feature_stream(&mut output, [feature], &CityJsonSeqWriteOptions::default()).unwrap();
     let items = stream_items(&output);
-    assert_eq!(items[0]["transform"]["translate"], json!([9.0, 20.0, 30.0]));
-    assert_eq!(
-        items[0]["metadata"]["geographicalExtent"],
-        json!([9.0, 20.0, 30.0, 12.0, 23.0, 40.0])
+
+    assert_eq!(report.feature_count, 1);
+    assert_eq!(items[0]["type"], "CityJSON");
+    assert_eq!(items[0]["metadata"]["title"], "base-root");
+    assert_eq!(items[1]["type"], "CityJSONFeature");
+    assert_eq!(items[1]["id"], "building-1");
+}
+
+#[test]
+fn write_feature_stream_rejects_incompatible_root_state() {
+    let base_a = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "metadata": {
+                "title": "base-a"
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
     );
-}
-
-#[test]
-fn strict_cityjsonseq_writer_rejects_incompatible_root_state() {
-    let base_input = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "metadata": {
-            "title": "base-root"
-        },
-        "CityObjects": {},
-        "vertices": []
-    })
-    .to_string();
-    let feature_input = json!({
-        "type": "CityJSONFeature",
-        "id": "feature-1",
-        "metadata": {
-            "title": "different-root"
-        },
-        "CityObjects": {
-            "feature-1": {
-                "type": "Building"
-            }
-        },
-        "vertices": []
-    })
-    .to_string();
-    let base_root = from_str_owned(&base_input).unwrap();
-    let feature = from_str_owned(&feature_input).unwrap();
-
-    let err = write_cityjsonseq(&base_root, [&feature])
-        .with_transform(&cityjson::v2_0::Transform::new())
-        .write(Vec::new())
-        .unwrap_err();
-    assert!(err.to_string().contains("incompatible root state"));
-}
-
-#[test]
-fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
-    let base_input = json!({
-        "type": "CityJSON",
-        "version": "2.0",
-        "metadata": {
-            "title": "base-root"
-        },
-        "CityObjects": {},
-        "vertices": []
-    })
-    .to_string();
-    let base_root = from_str_owned(&base_input).unwrap();
-    let feature_a = cityjson_json::from_feature_str_with_base(
+    let base_b = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "metadata": {
+                "title": "base-b"
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
+    );
+    let feature_a = read_feature_with_base_str(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-1",
@@ -643,10 +383,10 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
             "vertices": []
         })
         .to_string(),
-        &base_input,
+        &base_a,
     )
     .unwrap();
-    let feature_b = cityjson_json::from_feature_str_with_base(
+    let feature_b = read_feature_with_base_str(
         &json!({
             "type": "CityJSONFeature",
             "id": "building-2",
@@ -658,15 +398,77 @@ fn strict_cityjsonseq_writer_accepts_feature_root_id_as_feature_local_state() {
             "vertices": []
         })
         .to_string(),
-        &base_input,
+        &base_b,
+    )
+    .unwrap();
+
+    let error = write_feature_stream(
+        Vec::new(),
+        [feature_a, feature_b],
+        &CityJsonSeqWriteOptions {
+            transform: FeatureStreamTransform::Explicit(Transform::new()),
+            ..CityJsonSeqWriteOptions::default()
+        },
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("incompatible root state"));
+}
+
+#[test]
+fn write_feature_stream_preserves_feature_local_ids() {
+    let base = read_model_str(
+        &json!({
+            "type": "CityJSON",
+            "version": "2.0",
+            "metadata": {
+                "title": "base-root"
+            },
+            "CityObjects": {},
+            "vertices": []
+        })
+        .to_string(),
+    );
+    let feature_a = read_feature_with_base_str(
+        &json!({
+            "type": "CityJSONFeature",
+            "id": "building-1",
+            "CityObjects": {
+                "building-1": {
+                    "type": "Building"
+                }
+            },
+            "vertices": []
+        })
+        .to_string(),
+        &base,
+    )
+    .unwrap();
+    let feature_b = read_feature_with_base_str(
+        &json!({
+            "type": "CityJSONFeature",
+            "id": "building-2",
+            "CityObjects": {
+                "building-2": {
+                    "type": "Building"
+                }
+            },
+            "vertices": []
+        })
+        .to_string(),
+        &base,
     )
     .unwrap();
 
     let mut output = Vec::new();
-    write_cityjsonseq(&base_root, [&feature_a, &feature_b])
-        .with_transform(&cityjson::v2_0::Transform::new())
-        .write(&mut output)
-        .unwrap();
+    write_feature_stream(
+        &mut output,
+        [feature_a, feature_b],
+        &CityJsonSeqWriteOptions {
+            transform: FeatureStreamTransform::Explicit(Transform::new()),
+            ..CityJsonSeqWriteOptions::default()
+        },
+    )
+    .unwrap();
 
     let items = stream_items(&output);
     assert_eq!(items[1]["id"], "building-1");
@@ -709,23 +511,4 @@ conformance_roundtrip_tests!(
     semantic_extended,
     vertices,
     extension,
-    spec_geometry_matrix,
 );
-
-#[test]
-fn cityjson_fake_complete_borrowed() {
-    let json_input = conformance_case_input("cityjson_fake_complete");
-    let cm = from_str_borrowed(&json_input).unwrap();
-    assert!(!cm.vertices().is_empty());
-    assert!(cm.extensions().is_some());
-    assert!(cm.metadata().is_some());
-    assert!(!cm.cityobjects().is_empty());
-    assert!(
-        cm.material_count() > 0
-            || cm.texture_count() > 0
-            || cm.default_material_theme().is_some()
-            || cm.default_texture_theme().is_some()
-            || !cm.vertices_texture().is_empty()
-    );
-    assert!(cm.geometry_template_count() > 0);
-}

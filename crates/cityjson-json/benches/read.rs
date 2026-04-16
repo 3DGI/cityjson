@@ -6,8 +6,8 @@ use std::time::Duration;
 use criterion::{Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use common::{
-    READ_BENCH_CITYJSON_JSON_BORROWED, READ_BENCH_CITYJSON_JSON_OWNED, READ_BENCH_SERDE_JSON_VALUE,
-    read_cases, write_read_suite_metadata,
+    READ_BENCH_CITYJSON_JSON_OWNED, READ_BENCH_SERDE_JSON_VALUE, read_cases,
+    write_read_suite_metadata,
 };
 
 fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
@@ -31,13 +31,11 @@ fn bench_read(c: &mut Criterion) {
 
         group.bench_function(READ_BENCH_CITYJSON_JSON_OWNED, |b| {
             b.iter_with_large_drop(|| {
-                cityjson_json::from_str_owned(black_box(&prepared.input_json)).unwrap()
-            });
-        });
-
-        group.bench_function(READ_BENCH_CITYJSON_JSON_BORROWED, |b| {
-            b.iter_with_large_drop(|| {
-                cityjson_json::from_str_borrowed(black_box(&prepared.input_json)).unwrap()
+                cityjson_json::read_model(
+                    black_box(prepared.input_json.as_bytes()),
+                    &cityjson_json::ReadOptions::default(),
+                )
+                .unwrap()
             });
         });
 

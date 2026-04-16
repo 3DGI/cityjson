@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use cityjson::prelude::{BorrowedStringStorage, OwnedStringStorage};
 use cityjson::resources::storage::StringStorage;
-use cityjson::v2_0::{BorrowedCityModel, CityModel, OwnedCityModel};
+use cityjson::v2_0::{CityModel, OwnedCityModel};
 
 use crate::de::build::build_model;
 use crate::de::root::parse_root;
@@ -78,8 +78,4 @@ where
 
 pub(crate) fn from_str_owned(input: &str) -> Result<OwnedCityModel> {
     from_str::<OwnedStringStorage>(input)
-}
-
-pub(crate) fn from_str_borrowed<'de>(input: &'de str) -> Result<BorrowedCityModel<'de>> {
-    from_str::<BorrowedStringStorage<'de>>(input)
 }

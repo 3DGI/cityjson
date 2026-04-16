@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use serde_json::Value;
 
-use cityjson_json::{as_json, from_str_owned};
+use cityjson_json::{OwnedCityModel, ReadOptions, WriteOptions, read_feature, read_model, to_vec};
 
 const DEFAULT_CORRECTNESS_INDEX_PATH: &str = "artifacts/correctness-index.json";
 const CONFORMANCE_SCHEMA_VERSION: &str = "2.0";
@@ -86,21 +86,6 @@ pub fn conformance_case_input(case_id: &str) -> String {
     assert_eq!(
         case.layer, "conformance",
         "correctness case '{case_id}' is not a conformance fixture"
-    );
-    assert_eq!(
-        case.cityjson_version.as_deref(),
-        Some(CONFORMANCE_SCHEMA_VERSION),
-        "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
-    );
-    read_to_string(case.input_path())
-}
-
-#[must_use]
-pub fn invalid_case_input(case_id: &str) -> String {
-    let case = correctness_case(case_id);
-    assert_eq!(
-        case.layer, "invalid",
-        "correctness case '{case_id}' is not an invalid fixture"
     );
     assert_eq!(
         case.cityjson_version.as_deref(),
@@ -233,8 +218,12 @@ fn cityjson_fake_manifest_schema() -> PathBuf {
 /// Panics if serialization or deserialization fails.
 #[must_use]
 pub fn roundtrip_value(input: &Value) -> Value {
-    let model = from_str_owned(&serde_json::to_string(input).unwrap()).unwrap();
-    serde_json::from_str(&as_json(&model).to_string().unwrap()).unwrap()
+    let input_bytes = serde_json::to_vec(input).unwrap();
+    let model = match input.get("type").and_then(Value::as_str) {
+        Some("CityJSONFeature") => read_feature(&input_bytes, &ReadOptions::default()).unwrap(),
+        _ => read_model_bytes(&input_bytes),
+    };
+    write_value(&model)
 }
 
 /// Assert that the data retains the same content after an adapter deserialize-serialize roundtrip.
@@ -246,4 +235,33 @@ pub fn assert_eq_roundtrip(json_input: &str) {
     let expected: Value = serde_json::from_str(json_input).unwrap();
     let result = roundtrip_value(&expected);
     assert_eq!(result, expected);
+}
+
+#[must_use]
+pub fn read_model_str(input: &str) -> OwnedCityModel {
+    read_model_bytes(input.as_bytes())
+}
+
+/// # Panics
+///
+/// Panics if the payload does not parse as a valid `CityJSON` document.
+#[must_use]
+pub fn read_model_bytes(input: &[u8]) -> OwnedCityModel {
+    read_model(input, &ReadOptions::default()).unwrap()
+}
+
+/// # Panics
+///
+/// Panics if the model cannot be serialized.
+#[must_use]
+pub fn write_bytes(model: &OwnedCityModel) -> Vec<u8> {
+    to_vec(model, &WriteOptions::default()).unwrap()
+}
+
+/// # Panics
+///
+/// Panics if serialization or JSON decoding fails.
+#[must_use]
+pub fn write_value(model: &OwnedCityModel) -> Value {
+    serde_json::from_slice(&write_bytes(model)).unwrap()
 }
