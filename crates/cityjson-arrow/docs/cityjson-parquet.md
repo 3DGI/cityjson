@@ -10,7 +10,7 @@ uses the same canonical transport tables as `cityjson-arrow`.
 - package write/read support for seekable single-file packages
 - the same canonical table layout as `cityjson-arrow`
 - the same reconstruction rules and manifest contract
-- round-trip compatibility with the shared `cityjson-arrow.package.v3alpha1` schema
+- round-trip compatibility with the shared `cityjson-arrow.package.v3alpha2` schema
 
 ## Related Documents
 

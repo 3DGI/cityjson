@@ -1,13 +1,13 @@
 # cityjson-arrow Live Arrow IPC Stream Specification
 
 This document describes the current live transport format used by
-`cityjson_arrow::ModelEncoder` and `cityjson_arrow::ModelDecoder`.
+`cityjson_arrow::write_stream` and `cityjson_arrow::read_stream`.
 
 ## Version
 
 - stream magic: `CITYJSON_ARROW_STREAM_V3\0`
 - package schema carried in the prelude header:
-  `cityjson-arrow.package.v3alpha1`
+  `cityjson-arrow.package.v3alpha2`
 
 ## Layout
 

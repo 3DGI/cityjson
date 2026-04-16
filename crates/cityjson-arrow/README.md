@@ -1,63 +1,49 @@
 # cityjson-arrow
 
-`cityjson-arrow` is the live Arrow IPC transport layer for `cityjson-rs`.
-`cityjson-parquet` is the sibling crate for the persistent single-file package
-boundary.
+`cityjson-arrow` is the Arrow codec crate for `cityjson-rs`.
 
-The semantic API stays centered on `cityjson::v2_0::OwnedCityModel`.
-Canonical Arrow tables remain internal and are shared between the live stream
-and package implementations.
+It exposes a batch-first and stream-oriented transport surface over
+`cityjson::v2_0::OwnedCityModel`:
 
-## Public Surface
-
-- `cityjson_arrow::ModelEncoder` and `cityjson_arrow::ModelDecoder`
-- `cityjson_parquet::PackageWriter` and `cityjson_parquet::PackageReader`
-- shared schema and manifest types from `cityjson_arrow::schema`
+- `write_stream` / `read_stream` for live Arrow IPC transport
+- `export_reader` for ordered canonical table batches
+- `ModelBatchDecoder` / `import_batches` for batch-native import
+- shared schema and manifest types used by `cityjson-parquet`
 
 ## Current Architecture
 
-- live transport uses a small JSON prelude followed by ordered Arrow IPC table
-  frames
-- persistent transport uses one seekable package file with table payloads,
-  manifest-at-end metadata, and a footer index
-- both readers drive the same incremental decoder over ordered canonical table
-  batches
-- `cityjson_arrow::internal` keeps doc-hidden conversion and transport hooks for
-  sibling crates and split benchmarks
+- the semantic model stays in `cityjson-rs`
+- canonical Arrow tables are an internal transport contract, not the public
+  user model
+- the live stream path writes batches directly without rebuilding a public
+  parts aggregate
+- doc-hidden parts bridges remain only for the sibling `cityjson-parquet`
+  package crate
 
-## Current Status
+## Current Limits
 
-- package schema id: `cityjson-arrow.package.v3alpha2`
-- the public `to_parts` / `from_parts` surface is gone
-- live stream read no longer uses eager `read_to_end`
-- live stream and package writes no longer buffer every serialized table payload
-  before writing
-- package manifest reads are footer-first instead of full-file scans
+- `cityjson-rs` currently exposes raw pool views and dense remaps, not the
+  full proposed relational import/view API
+- export still derives `ProjectionLayout` from the semantic model
+- import still reconstructs the semantic model through the existing
+  `OwnedCityModel` mutation path
 
 ## Verification
 
-The repository currently keeps:
+The repository keeps:
 
-- integration roundtrip tests for the live stream and package APIs
-- shared-corpus roundtrip tests for the full conformance fixture set
-- a split benchmark target in `benches/split.rs` for conversion-only,
-  transport-only, and end-to-end measurements
+- local roundtrip tests for the live stream and batch surfaces
+- split benchmarks for conversion-only, transport-only, and end-to-end paths
+- `just fmt`
 - `just lint`
+- `just check`
 - `just test`
-
-The shared-corpus test and bench helpers look for the sibling
-`cityjson-benchmarks` checkout by default. Override the defaults with:
-
-- `CITYJSON_ARROW_SHARED_CORPUS_ROOT`
-- `CITYJSON_ARROW_CORRECTNESS_INDEX`
-- `CITYJSON_ARROW_BENCHMARK_INDEX`
 
 ## Repository Map
 
-- `src/convert/mod.rs`: canonical export/import and incremental decoder
-- `src/stream.rs`: live stream framing
-- `src/transport.rs`: canonical table ids and transport helpers
+- `src/codec.rs`: public batch and stream codec surface
+- `src/convert/`: canonical export/import implementation
+- `src/stream.rs`: live Arrow IPC framing
 - `src/schema.rs`: shared schema and manifest definitions
-- `cityjson-parquet/src/package/mod.rs`: persistent package implementation
-- `tests/`: roundtrip tests
+- `src/internal.rs`: doc-hidden bridges kept for sibling crates and benchmarks
 - `docs/`: ADRs, design notes, and format docs

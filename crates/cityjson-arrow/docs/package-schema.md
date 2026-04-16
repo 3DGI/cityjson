@@ -5,10 +5,10 @@ live `cityjson-arrow` stream and the persistent `cityjson-parquet` package.
 
 ## Summary
 
-- package schema id: `cityjson-arrow.package.v3alpha1`
+- package schema id: `cityjson-arrow.package.v3alpha2`
 - semantic boundary: `cityjson::v2_0::OwnedCityModel`
-- public transport APIs: `ModelEncoder` / `ModelDecoder`,
-  `PackageWriter` / `PackageReader`
+- public transport APIs: `write_stream` / `read_stream`,
+  `export_reader` / `ModelBatchDecoder`, `PackageWriter` / `PackageReader`
 - canonical tables: internal and doc-hidden
 - reconstruction target: full-fidelity `OwnedCityModel`
 

@@ -1,5 +1,3 @@
-mod common;
-
 use std::collections::HashMap;
 
 use cityjson::CityModelType;
@@ -8,20 +6,11 @@ use cityjson::v2_0::{
     OwnedCityModel, OwnedSemantic, SemanticMap, SemanticType, StoredGeometryParts,
 };
 use cityjson_arrow::internal::{decode_parts, encode_parts, read_stream_parts, write_stream_parts};
-use cityjson_arrow::{ModelDecoder, ModelEncoder};
-use cityjson_parquet::{
-    PackageReader, PackageWriter, read_package_parts_file, write_package_parts_file,
-};
+use cityjson_arrow::{ExportOptions, ImportOptions, read_stream, write_stream};
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use tempfile::tempdir;
 
 const LARGE_BENCHMARK_BUILDINGS: usize = 4_096;
 const ATTRIBUTE_HEAVY_BENCHMARK_BUILDINGS: usize = 1_024;
-const SHARED_CORPUS_WRITE_CASES: &[&str] = &[
-    "stress_appearance_and_validation",
-    "stress_geometry_flattening",
-    "stress_deep_boundary",
-];
 
 fn benchmark_vertices(building_index: usize) -> [cityjson::v2_0::RealWorldCoordinate; 5] {
     let grid_x = f64::from(u32::try_from(building_index % 64).expect("grid x fits into u32")) * 2.0;
@@ -304,20 +293,10 @@ fn split_benches(c: &mut Criterion) {
     let parts = encode_parts(&model).expect("encode parts");
 
     let mut stream_bytes = Vec::new();
-    ModelEncoder
-        .encode(&model, &mut stream_bytes)
-        .expect("encode stream");
+    write_stream(&mut stream_bytes, &model, &ExportOptions::default()).expect("encode stream");
 
     let mut stream_parts_bytes = Vec::new();
     write_stream_parts(&parts, &mut stream_parts_bytes).expect("encode stream parts");
-
-    let dir = tempdir().expect("tempdir");
-    let model_path = dir.path().join("model.cityjson-arrow");
-    let parts_path = dir.path().join("parts.cityjson-arrow");
-    PackageWriter
-        .write_file(&model_path, &model)
-        .expect("write model package");
-    write_package_parts_file(&parts_path, &parts).expect("write parts package");
 
     c.bench_function("encode_parts", |b| {
         b.iter(|| {
@@ -332,34 +311,20 @@ fn split_benches(c: &mut Criterion) {
     c.bench_function("stream_roundtrip", |b| {
         b.iter(|| {
             let mut bytes = Vec::new();
-            ModelEncoder
-                .encode(&model, &mut bytes)
-                .expect("encode stream");
-            let _ = ModelDecoder
-                .decode(bytes.as_slice())
-                .expect("decode stream");
-        });
-    });
-    c.bench_function("package_roundtrip", |b| {
-        b.iter(|| {
-            PackageWriter
-                .write_file(&model_path, &model)
-                .expect("write package");
-            let _ = PackageReader.read_file(&model_path).expect("read package");
+            write_stream(&mut bytes, &model, &ExportOptions::default()).expect("encode stream");
+            let _ =
+                read_stream(bytes.as_slice(), &ImportOptions::default()).expect("decode stream");
         });
     });
     c.bench_function("stream_write_model", |b| {
         b.iter(|| {
             let mut bytes = Vec::new();
-            ModelEncoder
-                .encode(&model, &mut bytes)
-                .expect("encode stream");
+            write_stream(&mut bytes, &model, &ExportOptions::default()).expect("encode stream");
         });
     });
     c.bench_function("stream_read_model", |b| {
         b.iter(|| {
-            let _ = ModelDecoder
-                .decode(stream_bytes.as_slice())
+            let _ = read_stream(stream_bytes.as_slice(), &ImportOptions::default())
                 .expect("decode stream");
         });
     });
@@ -374,49 +339,8 @@ fn split_benches(c: &mut Criterion) {
             let _ = read_stream_parts(stream_parts_bytes.as_slice()).expect("decode stream parts");
         });
     });
-    c.bench_function("package_write_model", |b| {
-        b.iter(|| {
-            let _ = PackageWriter
-                .write_file(&model_path, &model)
-                .expect("write package");
-        });
-    });
-    c.bench_function("package_read_model", |b| {
-        b.iter(|| {
-            let _ = PackageReader.read_file(&model_path).expect("read package");
-        });
-    });
-    c.bench_function("package_write_parts", |b| {
-        b.iter(|| {
-            let _ = write_package_parts_file(&parts_path, &parts).expect("write parts package");
-        });
-    });
-    c.bench_function("package_read_parts", |b| {
-        b.iter(|| {
-            let _ = read_package_parts_file(&parts_path).expect("read parts package");
-        });
-    });
-    c.bench_function("package_read_manifest", |b| {
-        b.iter(|| {
-            let _ = PackageReader
-                .read_manifest(&model_path)
-                .expect("read manifest");
-        });
-    });
 
     local_attribute_write_benches(c);
-    shared_corpus_write_benches(c);
-}
-
-fn shared_corpus_write_benches(c: &mut Criterion) {
-    for case in common::load_named_write_cases(SHARED_CORPUS_WRITE_CASES) {
-        bench_write_case(
-            c,
-            &format!("shared_corpus/{}", case.name),
-            Some(case.input_bytes),
-            &case.model,
-        );
-    }
 }
 
 fn local_attribute_write_benches(c: &mut Criterion) {
@@ -435,11 +359,6 @@ fn bench_write_case(
         group.throughput(Throughput::Bytes(input_bytes));
     }
 
-    let dir = tempdir().expect("tempdir");
-    let file_stem = group_name.replace('/', "-");
-    let model_path = dir.path().join(format!("{file_stem}.cityjson-arrow"));
-    let parts_path = dir.path().join(format!("{file_stem}-parts.cityjson-arrow"));
-
     group.bench_function("encode_parts", |b| {
         b.iter(|| {
             let _ = encode_parts(model).expect("encode parts");
@@ -448,9 +367,7 @@ fn bench_write_case(
     group.bench_function("stream_write_model", |b| {
         b.iter(|| {
             let mut bytes = Vec::new();
-            ModelEncoder
-                .encode(model, &mut bytes)
-                .expect("encode stream");
+            write_stream(&mut bytes, model, &ExportOptions::default()).expect("encode stream");
         });
     });
     group.bench_function("stream_write_parts", |b| {
@@ -458,19 +375,6 @@ fn bench_write_case(
         b.iter(|| {
             let mut bytes = Vec::new();
             write_stream_parts(&parts, &mut bytes).expect("encode stream parts");
-        });
-    });
-    group.bench_function("package_write_model", |b| {
-        b.iter(|| {
-            let _ = PackageWriter
-                .write_file(&model_path, model)
-                .expect("write package");
-        });
-    });
-    group.bench_function("package_write_parts", |b| {
-        let parts = encode_parts(model).expect("encode parts");
-        b.iter(|| {
-            let _ = write_package_parts_file(&parts_path, &parts).expect("write parts package");
         });
     });
     group.finish();

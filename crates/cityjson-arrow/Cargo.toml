@@ -36,7 +36,5 @@ bytes = "1.10.1"
 parquet = "58.1.0"
 
 [dev-dependencies]
-cityjson-parquet = { path = "../cityjson-parquet" }
-cityjson-json = { path = "../cityjson-json" }
 rand = "0.10.1"
 criterion = "0.8.2"

@@ -11,7 +11,8 @@ pub use crate::transport::{
     validate_schema,
 };
 
-/// Internal bridge for sibling crates that need canonical transport parts.
+/// Internal bridge for sibling crates that still need canonical transport
+/// parts.
 ///
 /// This is not part of the supported end-user API.
 ///
@@ -48,7 +49,8 @@ pub fn emit_part_tables<S: CanonicalTableSink>(
     convert::emit_part_tables(parts, sink)
 }
 
-/// Internal bridge for sibling crates that need canonical transport parts.
+/// Internal bridge for sibling crates that still need canonical transport
+/// parts.
 ///
 /// This is not part of the supported end-user API.
 ///

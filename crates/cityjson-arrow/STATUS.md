@@ -2,55 +2,36 @@
 
 ## Current State
 
-`cityjson-arrow` and `cityjson-parquet` now share one internal canonical table contract
-while exposing only owned semantic APIs.
+`cityjson-arrow` is now described and exercised as a batch-first and
+stream-oriented Arrow codec over `cityjson-rs`.
 
-- live Arrow transport is `ModelEncoder` / `ModelDecoder`
-- persistent package transport is `PackageWriter` / `PackageReader`
-- the package schema id is `cityjson-arrow.package.v2alpha2`
-- canonical tables are internal and doc-hidden
+- live Arrow transport is `write_stream` / `read_stream`
+- ordered batch export is `export_reader`
+- ordered batch import is `ModelBatchDecoder` / `import_batches`
+- doc-hidden parts bridges remain for the sibling `cityjson-parquet` crate
+- the package schema id is `cityjson-arrow.package.v3alpha2`
 
-## What Changed In The Current Slice
+## What Changed In This Slice
 
-- `ModelEncoder` no longer routes through a public-style parts aggregate before
-  stream serialization
-- `ModelDecoder` no longer rebuilds full canonical parts before semantic import
-- the live stream path no longer uses eager `read_to_end`
-- the live stream writer no longer buffers every serialized table payload before
-  writing
-- package writes are direct-to-file with manifest entries collected from file
-  offsets
-- package manifest reads are footer-first
-- package reads now feed ordered canonical batches directly into the incremental
-  decoder
-- split benchmarks now exist for conversion-only, transport-only, and
-  end-to-end paths
+- the root public API no longer centers `ModelEncoder` / `ModelDecoder`
+- repo-local tests and benches now use the function-based stream API
+- the crate exposes a public ordered-batch reader and decoder surface
+- documentation and ADRs now describe `cityjson-arrow` as a thin codec rather
+  than a parts-centric transport layer
 
 ## Verification Snapshot
 
-The current tree is expected to pass:
+The tree is expected to pass:
 
+- `just fmt`
 - `just lint`
+- `just check`
 - `just test`
-
-The benchmark surface now includes:
-
-- `convert_encode_parts`
-- `convert_decode_parts`
-- `stream_write_model`
-- `stream_read_model`
-- `stream_write_parts`
-- `stream_read_parts`
-- `package_write_model`
-- `package_read_model`
-- `package_write_parts`
-- `package_read_parts`
-- `package_read_manifest`
 
 ## Remaining Limits
 
-- conversion still materializes canonical rows and record batches in memory
-- geometry and appearance reconstruction still uses grouped sidecar staging by
-  canonical ids
-- the contract is still alpha and intentionally not frozen as a stable archival
-  format
+- `cityjson-rs` does not yet expose the full proposed relational import/view
+  API, only raw pool views and dense remaps
+- `ProjectionLayout` discovery still happens in `cityjson-arrow`
+- some doc-hidden compatibility hooks remain because `cityjson-parquet`
+  currently depends on them

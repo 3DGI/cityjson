@@ -1,4 +1,5 @@
-use crate::convert::{IncrementalDecoder, emit_tables};
+use crate::codec::WriteReport;
+use crate::convert::emit_tables;
 use crate::error::{Error, Result};
 use crate::internal::{build_parts_from_tables, emit_part_tables};
 use crate::schema::{CityArrowHeader, CityModelArrowParts, ProjectionLayout, canonical_schema_set};
@@ -23,45 +24,20 @@ struct StreamPrelude {
 
 type StreamFrames = Vec<(CanonicalTable, usize, RecordBatch)>;
 
-pub(crate) fn write_model_stream<W: Write>(model: &OwnedCityModel, writer: W) -> Result<()> {
+pub(crate) fn write_model_stream<W: Write>(
+    model: &OwnedCityModel,
+    writer: W,
+) -> Result<WriteReport> {
     let mut sink = StreamSink::new(writer);
     emit_tables(model, &mut sink)?;
     sink.finish()
 }
 
-pub(crate) fn read_model_stream<R: Read>(mut reader: R) -> Result<OwnedCityModel> {
-    let prelude = read_stream_prelude(&mut reader)?;
-    let schemas = canonical_schema_set(&prelude.projection);
-    let mut decoder = IncrementalDecoder::new(prelude.header, prelude.projection)?;
-
-    loop {
-        let tag = read_u8(&mut reader)?;
-        if tag == STREAM_END_TAG {
-            break;
-        }
-        let table = CanonicalTable::from_stream_tag(tag)?;
-        let expected_rows = usize::try_from(read_u64(&mut reader)?).map_err(|_| {
-            Error::Conversion("stream row count does not fit in memory".to_string())
-        })?;
-        let batch =
-            deserialize_stream_batch(&mut reader, schema_for_table(&schemas, table), table)?;
-        if batch.num_rows() != expected_rows {
-            return Err(Error::Conversion(format!(
-                "{} frame declared {expected_rows} rows but decoded {} rows",
-                table.as_str(),
-                batch.num_rows()
-            )));
-        }
-        decoder.push_batch(table, &batch)?;
-    }
-
-    decoder.finish()
-}
-
 pub(crate) fn write_parts_stream<W: Write>(parts: &CityModelArrowParts, writer: W) -> Result<()> {
     let mut sink = StreamSink::new(writer);
     emit_part_tables(parts, &mut sink)?;
-    sink.finish()
+    let _ = sink.finish()?;
+    Ok(())
 }
 
 pub(crate) fn read_parts_stream<R: Read>(mut reader: R) -> Result<CityModelArrowParts> {
@@ -84,25 +60,33 @@ pub(crate) fn read_parts_stream<R: Read>(mut reader: R) -> Result<CityModelArrow
 }
 
 struct StreamSink<W> {
-    writer: W,
+    writer: CountingWriter<W>,
     started: bool,
+    batch_count: usize,
+    row_count: usize,
 }
 
 impl<W> StreamSink<W> {
-    const fn new(writer: W) -> Self {
+    fn new(writer: W) -> Self {
         Self {
-            writer,
+            writer: CountingWriter::new(writer),
             started: false,
+            batch_count: 0,
+            row_count: 0,
         }
     }
 }
 
 impl<W: Write> StreamSink<W> {
-    fn finish(&mut self) -> Result<()> {
+    fn finish(&mut self) -> Result<WriteReport> {
         if self.started {
             self.writer.write_all(&[STREAM_END_TAG])?;
         }
-        Ok(())
+        Ok(WriteReport {
+            batch_count: self.batch_count,
+            row_count: self.row_count,
+            payload_bytes: self.writer.bytes_written(),
+        })
     }
 }
 
@@ -135,6 +119,8 @@ impl<W: Write> CanonicalTableSink for StreamSink<W> {
                 .to_le_bytes(),
         )?;
         write_stream_batch(&mut self.writer, &batch)?;
+        self.batch_count += 1;
+        self.row_count += batch.num_rows();
         Ok(())
     }
 }
@@ -154,6 +140,13 @@ fn read_stream_prelude<R: Read>(reader: &mut R) -> Result<StreamPrelude> {
     let mut prelude_bytes = vec![0_u8; prelude_len];
     reader.read_exact(&mut prelude_bytes)?;
     serde_json::from_slice(&prelude_bytes).map_err(Error::from)
+}
+
+pub(crate) fn read_stream_batches<R: Read>(
+    mut reader: R,
+) -> Result<(CityArrowHeader, ProjectionLayout, StreamFrames)> {
+    let (prelude, tables) = read_stream_frames(&mut reader)?;
+    Ok((prelude.header, prelude.projection, tables))
 }
 
 fn read_stream_frames<R: Read>(reader: &mut R) -> Result<(StreamPrelude, StreamFrames)> {
@@ -210,4 +203,34 @@ fn deserialize_stream_batch<R: Read>(
     validate_schema(expected_schema, &schema, table)?;
     let batch = single_or_concat_batches(expected_schema, &mut stream)?;
     Ok(batch)
+}
+
+struct CountingWriter<W> {
+    inner: W,
+    bytes_written: u64,
+}
+
+impl<W> CountingWriter<W> {
+    const fn new(inner: W) -> Self {
+        Self {
+            inner,
+            bytes_written: 0,
+        }
+    }
+
+    const fn bytes_written(&self) -> u64 {
+        self.bytes_written
+    }
+}
+
+impl<W: Write> Write for CountingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        self.bytes_written += u64::try_from(written).expect("write count fits into u64");
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
 }

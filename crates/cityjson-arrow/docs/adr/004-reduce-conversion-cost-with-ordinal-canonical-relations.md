@@ -47,8 +47,9 @@ contract more ordinal and less string-keyed.
 
 The implementation rules are:
 
-1. keep the public semantic boundary unchanged:
-   `ModelEncoder` / `ModelDecoder` and `PackageWriter` / `PackageReader`
+1. keep the public semantic boundary unchanged.
+   At the time of this ADR that meant `ModelEncoder` / `ModelDecoder` and
+   `PackageWriter` / `PackageReader`.
 2. remove `citymodel_id` from all non-metadata canonical tables
 3. replace internal cityobject relations with ordinal references where the
    relation is local to one model:

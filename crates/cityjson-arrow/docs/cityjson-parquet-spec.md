@@ -10,7 +10,7 @@ single-file container rather than a directory tree.
 
 - package magic: `CITYJSON_ARROW_PKG_V3\0`
 - footer magic: `CITYJSON_ARROW_PKG_V3IDX\0`
-- package schema id: `cityjson-arrow.package.v3alpha1`
+- package schema id: `cityjson-arrow.package.v3alpha2`
 
 ## Layout
 

@@ -1,10 +1,10 @@
 //! Arrow transport for `cityjson-rs`.
 //!
-//! The semantic boundary remains `cityjson::v2_0::OwnedCityModel`.
-//! Canonical Arrow tables are now an internal detail used by the live stream
-//! encoder/decoder and the single-file package reader/writer.
+//! The semantic boundary remains `cityjson::v2_0::OwnedCityModel`, but the
+//! public transport surface is batch-first and stream-oriented.
 
-pub mod convert;
+mod codec;
+mod convert;
 pub mod error;
 #[doc(hidden)]
 pub mod internal;
@@ -13,7 +13,10 @@ mod stream;
 #[doc(hidden)]
 pub mod transport;
 
-pub use convert::{ModelDecoder, ModelEncoder};
+pub use codec::{
+    ExportOptions, ImportOptions, ModelBatchDecoder, ModelBatchReader, SchemaVersion, WriteReport,
+    export_reader, import_batches, read_stream, write_stream,
+};
 pub use schema::{
     CityArrowHeader, CityArrowPackageVersion, PackageManifest, PackageTableRef, ProjectedFieldSpec,
     ProjectedStructSpec, ProjectedValueSpec, ProjectionLayout, canonical_schema_set,

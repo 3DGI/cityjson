@@ -28,7 +28,6 @@ use cityjson::v2_0::{
     WrapMode,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io::{Read, Write as IoWrite};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -65,34 +64,6 @@ const FIELD_TEXTURE_BORDER_COLOR: &str = "payload.border_color";
 const PRIMITIVE_TYPE_POINT: &str = "point";
 const PRIMITIVE_TYPE_LINESTRING: &str = "linestring";
 const PRIMITIVE_TYPE_SURFACE: &str = "surface";
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ModelEncoder;
-
-impl ModelEncoder {
-    /// Encodes an in-memory model as a live Arrow IPC stream.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when model conversion or stream serialization fails.
-    pub fn encode<W: IoWrite>(&self, model: &OwnedCityModel, writer: W) -> Result<()> {
-        crate::stream::write_model_stream(model, writer)
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ModelDecoder;
-
-impl ModelDecoder {
-    /// Decodes an in-memory model from a live Arrow IPC stream.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when stream decoding or model reconstruction fails.
-    pub fn decode<R: Read>(&self, reader: R) -> Result<OwnedCityModel> {
-        crate::stream::read_model_stream(reader)
-    }
-}
 
 #[derive(Debug, Clone)]
 struct MetadataContactRow {

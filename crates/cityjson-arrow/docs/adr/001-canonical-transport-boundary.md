@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 006](006-cut-public-surface-to-thin-batch-and-stream-codec.md)
 
 ## Related Commits
 
@@ -34,8 +34,8 @@ The main pressure points were:
 
 ## Decision
 
-`cityjson-arrow` now uses a single canonical transport decomposition:
-`CityModelArrowParts`.
+At the time of this decision, `cityjson-arrow` used a single canonical
+transport decomposition: `CityModelArrowParts`.
 
 The architecture is:
 
@@ -65,7 +65,7 @@ The canonical transport rules are:
 
 ## Consequences
 
-Good:
+Historical consequences:
 
 - one logical package schema works for both Parquet and Arrow IPC
 - the public API stays concrete around `OwnedCityModel`, package helpers, and
