@@ -75,12 +75,7 @@ fn explicit_json_module_can_write_strict_cityjsonseq_with_explicit_transform()
     transform.set_translate([10.0, 20.0, 30.0]);
 
     let mut output = Vec::new();
-    let report = json::write_cityjsonseq_refs(
-        &mut output,
-        &base_root,
-        [&feature],
-        &transform,
-    )?;
+    let report = json::write_cityjsonseq_refs(&mut output, &base_root, [&feature], &transform)?;
 
     assert_eq!(report.feature_count, 1);
     assert_eq!(report.cityobject_count, 1);

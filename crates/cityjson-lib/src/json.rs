@@ -51,12 +51,10 @@ pub mod staged {
                         error,
                     )))
                 })?;
-                Ok(CityModel(
-                    cityjson_json::v2_0::from_feature_str_with_base(
-                        feature_input,
-                        base_input,
-                    )?,
-                ))
+                Ok(CityModel(cityjson_json::v2_0::from_feature_str_with_base(
+                    feature_input,
+                    base_input,
+                )?))
             }
         }
     }
@@ -67,9 +65,10 @@ pub mod staged {
     ) -> Result<CityModel> {
         let feature_input = super::decode_utf8_input(feature_bytes, "CityJSONFeature document")?;
         let base_input = super::decode_utf8_input(base_document_bytes, "CityJSON document")?;
-        Ok(CityModel(
-            cityjson_json::v2_0::from_feature_str_with_base(feature_input, base_input)?,
-        ))
+        Ok(CityModel(cityjson_json::v2_0::from_feature_str_with_base(
+            feature_input,
+            base_input,
+        )?))
     }
 
     pub fn from_feature_assembly_with_base(
@@ -95,9 +94,9 @@ pub mod staged {
             cityobjects: &cityobjects,
             vertices: assembly.vertices,
         };
-        Ok(CityModel(
-            cityjson_json::from_feature_parts_with_base(parts, base_input)?,
-        ))
+        Ok(CityModel(cityjson_json::from_feature_parts_with_base(
+            parts, base_input,
+        )?))
     }
 
     pub fn from_feature_file_with_base<P: AsRef<Path>>(
@@ -110,7 +109,9 @@ pub mod staged {
     pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
         match model.as_inner().type_citymodel() {
             cityjson::CityModelType::CityJSONFeature => {
-                cityjson_json::as_json(model.as_inner()).validate().to_writer(writer)?;
+                cityjson_json::as_json(model.as_inner())
+                    .validate()
+                    .to_writer(writer)?;
                 Ok(())
             }
             other => Err(Error::UnsupportedType(other.to_string())),
@@ -238,9 +239,7 @@ pub fn from_feature_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 
 pub fn from_feature_slice_assume_cityjson_feature_v2_0(bytes: &[u8]) -> Result<CityModel> {
     let input = decode_utf8_input(bytes, "CityJSONFeature document")?;
-    Ok(CityModel(cityjson_json::v2_0::from_feature_str(
-        input,
-    )?))
+    Ok(CityModel(cityjson_json::v2_0::from_feature_str(input)?))
 }
 
 pub fn read_feature_stream<R>(reader: R) -> Result<impl Iterator<Item = Result<CityModel>>>
@@ -310,9 +309,11 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
-        .with_transform(transform)
-        .write(writer)?)
+    Ok(
+        cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
+            .with_transform(transform)
+            .write(writer)?,
+    )
 }
 
 pub fn write_cityjsonseq_auto_transform<I, W>(
@@ -343,9 +344,11 @@ where
         .into_iter()
         .map(CityModel::as_inner)
         .collect::<Vec<_>>();
-    Ok(cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
-        .auto_transform(scale)
-        .write(writer)?)
+    Ok(
+        cityjson_json::write_cityjsonseq(base_root.as_inner(), features)
+            .auto_transform(scale)
+            .write(writer)?,
+    )
 }
 
 pub fn to_vec(model: &CityModel) -> Result<Vec<u8>> {
@@ -357,7 +360,9 @@ pub fn to_vec_with_options(model: &CityModel, options: WriteOptions) -> Result<V
 }
 
 pub fn to_string(model: &CityModel) -> Result<String> {
-    Ok(cityjson_json::as_json(model.as_inner()).validate().to_string()?)
+    Ok(cityjson_json::as_json(model.as_inner())
+        .validate()
+        .to_string()?)
 }
 
 pub fn to_string_with_options(model: &CityModel, options: WriteOptions) -> Result<String> {
@@ -389,9 +394,9 @@ pub fn to_writer_with_options(
 
 pub fn to_feature_string(model: &CityModel) -> Result<String> {
     match model.as_inner().type_citymodel() {
-        cityjson::CityModelType::CityJSONFeature => {
-            Ok(cityjson_json::as_json(model.as_inner()).validate().to_string()?)
-        }
+        cityjson::CityModelType::CityJSONFeature => Ok(cityjson_json::as_json(model.as_inner())
+            .validate()
+            .to_string()?),
         other => Err(Error::UnsupportedType(other.to_string())),
     }
 }

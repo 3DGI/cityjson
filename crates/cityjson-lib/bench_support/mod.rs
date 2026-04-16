@@ -10,9 +10,10 @@ use cityjson_lib::CityModel;
 use serde::Deserialize;
 use serde_json::Value;
 
-const DEFAULT_BENCH_DATA_ROOT: &str = "target/bench-data";
-const RELEASE_PATH: &str = "3dbag/v20250903";
-const PREPARE_INSTRUCTION: &str = "benchmark data is missing; run `just bench-prepare` to materialize the pinned 3DBAG CityJSON, cityarrow, and cityparquet artifacts";
+const DEFAULT_BENCHMARK_INDEX: &str = "artifacts/benchmark-index.json";
+const PREPARE_INSTRUCTION: &str = "benchmark data is missing; set \
+    CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout \
+    and ensure the corpus artifacts are present";
 
 static BENCHMARK_CASES: OnceLock<Vec<BenchmarkCase>> = OnceLock::new();
 
@@ -281,29 +282,29 @@ impl FromStr for Workload {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct ManifestRoot {
-    cases: Vec<ManifestCase>,
+#[derive(Deserialize)]
+struct BenchmarkIndex {
+    #[serde(default)]
+    generated_cases: Vec<IndexCase>,
+    #[serde(default)]
+    other_cases: Vec<IndexCase>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct ManifestCase {
+#[derive(Deserialize)]
+struct IndexCase {
     id: String,
+    #[serde(default)]
     description: String,
-    artifacts: ManifestArtifacts,
+    layer: String,
+    #[serde(default)]
+    artifacts: Vec<IndexArtifact>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct ManifestArtifacts {
-    cityjson: ManifestArtifact,
-    cityarrow: ManifestArtifact,
-    cityparquet: ManifestArtifact,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct ManifestArtifact {
+#[derive(Deserialize)]
+struct IndexArtifact {
+    representation: String,
     path: PathBuf,
-    byte_size: u64,
+    byte_size: Option<u64>,
 }
 
 fn cached_benchmark_cases() -> &'static [BenchmarkCase] {
@@ -311,63 +312,86 @@ fn cached_benchmark_cases() -> &'static [BenchmarkCase] {
 }
 
 fn load_benchmark_cases() -> Vec<BenchmarkCase> {
-    let manifest_path = benchmark_manifest_path();
-    ensure_file(&manifest_path);
+    let index_path = benchmark_index_path();
+    assert!(
+        index_path.is_file(),
+        "{} ({})",
+        PREPARE_INSTRUCTION,
+        index_path.display()
+    );
+    let corpus_root = shared_corpus_root();
+    let bytes = fs::read(&index_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", index_path.display()));
+    let index: BenchmarkIndex = serde_json::from_slice(&bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", index_path.display()));
 
-    let manifest_dir = manifest_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf();
-    let manifest_bytes = fs::read(&manifest_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
-    let manifest: ManifestRoot = serde_json::from_slice(&manifest_bytes)
-        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", manifest_path.display()));
-
-    manifest
-        .cases
+    index
+        .generated_cases
         .into_iter()
-        .map(|case| load_manifest_case(&manifest_dir, case))
+        .chain(index.other_cases)
+        .filter(|case| case.layer != "invalid")
+        .filter_map(|case| try_build_case(&corpus_root, case))
         .collect()
 }
 
-fn load_manifest_case(manifest_dir: &Path, case: ManifestCase) -> BenchmarkCase {
-    let json_path = resolve_artifact_path(manifest_dir, case.artifacts.cityjson.path);
-    let cityarrow_path = resolve_artifact_path(manifest_dir, case.artifacts.cityarrow.path);
-    let cityparquet_path = resolve_artifact_path(manifest_dir, case.artifacts.cityparquet.path);
+fn try_build_case(corpus_root: &Path, case: IndexCase) -> Option<BenchmarkCase> {
+    let find = |rep: &str| case.artifacts.iter().find(|a| a.representation == rep);
+    let cityjson = find("cityjson")?;
+    let cityarrow = find("cityjson-arrow")?;
+    let cityparquet = find("cityjson-parquet")?;
 
-    ensure_file(&json_path);
-    ensure_file(&cityarrow_path);
-    ensure_file(&cityparquet_path);
+    let json_path = resolve_path(corpus_root, &cityjson.path);
+    let cityarrow_path = resolve_path(corpus_root, &cityarrow.path);
+    let cityparquet_path = resolve_path(corpus_root, &cityparquet.path);
 
-    BenchmarkCase {
+    if !json_path.is_file() || !cityarrow_path.is_file() || !cityparquet_path.is_file() {
+        return None;
+    }
+
+    Some(BenchmarkCase {
         id: case.id,
         description: case.description,
+        input_bytes: cityjson.byte_size.unwrap_or_else(|| file_size(&json_path)),
+        cityarrow_bytes: cityarrow
+            .byte_size
+            .unwrap_or_else(|| file_size(&cityarrow_path)),
+        cityparquet_bytes: cityparquet
+            .byte_size
+            .unwrap_or_else(|| file_size(&cityparquet_path)),
         json_path,
-        input_bytes: case.artifacts.cityjson.byte_size,
         cityarrow_path,
-        cityarrow_bytes: case.artifacts.cityarrow.byte_size,
         cityparquet_path,
-        cityparquet_bytes: case.artifacts.cityparquet.byte_size,
-    }
+    })
 }
 
-fn resolve_artifact_path(manifest_dir: &Path, path: PathBuf) -> PathBuf {
-    if path.is_absolute() {
-        path
-    } else {
-        manifest_dir.join(path)
-    }
+fn benchmark_index_path() -> PathBuf {
+    shared_corpus_root().join(DEFAULT_BENCHMARK_INDEX)
 }
 
-fn benchmark_manifest_path() -> PathBuf {
-    bench_data_root().join(RELEASE_PATH).join("manifest.json")
-}
-
-fn bench_data_root() -> PathBuf {
-    std::env::var_os("CITYJSON_LIB_BENCH_DATA_ROOT").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_BENCH_DATA_ROOT),
+fn shared_corpus_root() -> PathBuf {
+    std::env::var_os("CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT").map_or_else(
+        || {
+            panic!(
+                "set CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
+                or set it in a .env file at the repo root"
+            )
+        },
         PathBuf::from,
     )
+}
+
+fn resolve_path(corpus_root: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        corpus_root.join(path)
+    }
+}
+
+fn file_size(path: &Path) -> u64 {
+    fs::metadata(path)
+        .unwrap_or_else(|error| panic!("failed to stat {}: {error}", path.display()))
+        .len()
 }
 
 fn read_text(path: &Path) -> String {
@@ -391,13 +415,4 @@ fn read_json_value(path: &Path) -> Value {
             path.display()
         )
     })
-}
-
-fn ensure_file(path: &Path) {
-    assert!(
-        path.is_file(),
-        "{} ({})",
-        PREPARE_INSTRUCTION,
-        path.display()
-    );
 }

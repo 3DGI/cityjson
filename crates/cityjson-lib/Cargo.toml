@@ -48,16 +48,6 @@ criterion = "0.7"
 dhat = "0.3"
 tempfile = "3.23"
 
-[[bin]]
-name = "bench_export_formats"
-path = "src/bin/bench_export_formats.rs"
-required-features = ["arrow", "parquet"]
-
-[[bin]]
-name = "bench_validate_formats"
-path = "src/bin/bench_validate_formats.rs"
-required-features = ["arrow", "parquet"]
-
 [[bench]]
 name = "throughput"
 harness = false
