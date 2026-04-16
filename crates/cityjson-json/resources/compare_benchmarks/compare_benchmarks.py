@@ -255,7 +255,7 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
     return "\n".join(rows) + "\n"
 
 
-def readme_case_order(
+def readme_acquired_case_order(
     results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]
 ) -> list[str]:
     required_benchmarks = (
@@ -265,6 +265,8 @@ def readme_case_order(
     )
     eligible_cases: list[tuple[int, str]] = []
     for case_id, suite_case in results.items():
+        if not case_id.startswith("io_"):
+            continue
         if not all(bench_id in suite_case for bench_id in required_benchmarks):
             continue
         meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
@@ -273,32 +275,58 @@ def readme_case_order(
     return [case_id for _, case_id in eligible_cases[:README_CASE_LIMIT]]
 
 
+def readme_stress_case_order(
+    results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]
+) -> list[str]:
+    required_benchmarks = (
+        "cityjson-json/owned",
+        "cityjson-json/borrowed",
+        "serde_json::Value",
+    )
+    return sorted(
+        case_id for case_id, suite_case in results.items()
+        if case_id.startswith("stress_")
+        and all(bench_id in suite_case for bench_id in required_benchmarks)
+    )
+
+
 def readme_fragment(results: dict[str, dict[str, float]], case_meta: dict[str, CaseMeta]) -> str:
-    case_ids = readme_case_order(results, case_meta)
-    if not case_ids:
+    header = "| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |"
+    sep = "| --- | --- | --- | --- | --- | --- |"
+
+    def render_rows(case_ids: list[str]) -> list[str]:
+        rows = []
+        for case_id in case_ids:
+            suite_case = results[case_id]
+            meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
+            owned = suite_case["cityjson-json/owned"]
+            borrowed = suite_case["cityjson-json/borrowed"]
+            baseline = suite_case["serde_json::Value"]
+            rows.append(
+                "| {case} | {owned_tp} | {borrowed_tp} | {baseline_tp} | {owned_speed} | {borrowed_speed} |".format(
+                    case=f"`{meta.case_id}`",
+                    owned_tp=format_throughput(meta.input_bytes, owned),
+                    borrowed_tp=format_throughput(meta.input_bytes, borrowed),
+                    baseline_tp=format_throughput(meta.input_bytes, baseline),
+                    owned_speed=format_speedup(owned, baseline),
+                    borrowed_speed=format_speedup(borrowed, baseline),
+                )
+            )
+        return rows
+
+    acquired_ids = readme_acquired_case_order(results, case_meta)
+    stress_ids = readme_stress_case_order(results, case_meta)
+
+    if not acquired_ids and not stress_ids:
         return ""
 
-    rows = [
-        "| Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |",
-        "| --- | --- | --- | --- | --- | --- |",
-    ]
-    for case_id in case_ids:
-        suite_case = results[case_id]
-        meta = case_meta.get(case_id, CaseMeta(case_id, "", False, 0, {}))
-        owned = suite_case["cityjson-json/owned"]
-        borrowed = suite_case["cityjson-json/borrowed"]
-        baseline = suite_case["serde_json::Value"]
-        rows.append(
-            "| {case} | {owned_tp} | {borrowed_tp} | {baseline_tp} | {owned_speed} | {borrowed_speed} |".format(
-                case=f"`{meta.case_id}`",
-                owned_tp=format_throughput(meta.input_bytes, owned),
-                borrowed_tp=format_throughput(meta.input_bytes, borrowed),
-                baseline_tp=format_throughput(meta.input_bytes, baseline),
-                owned_speed=format_speedup(owned, baseline),
-                borrowed_speed=format_speedup(borrowed, baseline),
-            )
-        )
-    return "\n".join(rows) + "\n"
+    lines: list[str] = []
+    if acquired_ids:
+        lines += ["**Acquired data**", "", header, sep] + render_rows(acquired_ids) + [""]
+    if stress_ids:
+        lines += ["**Stress cases**", "", header, sep] + render_rows(stress_ids) + [""]
+
+    return "\n".join(lines)
 
 
 def update_readme(fragment: str) -> None:

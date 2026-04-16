@@ -4,8 +4,8 @@
 
 ## Benchmarks
 
-Representative read benchmarks against `serde_json::Value`. Refresh this table
-from the shared benchmark suite with `just bench`.
+Read benchmarks against `serde_json::Value` for acquired real-world data and
+synthetic stress cases. Refresh this table from the shared benchmark suite with `just bench`.
 
 <!-- benchmark-summary:start -->
 | Case | Owned | Borrowed | `serde_json::Value` | Owned vs Value | Borrowed vs Value |
