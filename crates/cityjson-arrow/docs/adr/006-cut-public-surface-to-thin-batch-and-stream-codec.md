@@ -25,14 +25,15 @@ That was the wrong abstraction boundary for the crate as it exists today:
 - it leaves the documentation anchored on historical wrapper types even though
   the implementation is already batch-native internally
 
-There is also an upstream constraint:
+There is still an upstream split to respect:
 
-- `cityjson-rs` currently exposes raw pool views, raw boundary views, and dense
-  export remaps
-- it does not yet expose the full proposed relational snapshot/import API
+- `cityjson-rs` now exposes a borrowed relational export view and an owned
+  relational snapshot/import builder
+- `cityjson-arrow` still owns projection discovery, Arrow schema assembly, and
+  Arrow-specific reconstruction glue
 
-So `cityjson-arrow` can become thinner today, but it cannot yet delegate every
-projection and import concern into `cityjson-rs`.
+So the crate can now root export in the relational surface, but it is still the
+transport layer rather than a thin forwarding shim over all import/export work.
 
 ## Decision
 
@@ -53,6 +54,8 @@ The implementation rules are:
 - canonical tables remain an internal transport contract
 - doc-hidden parts bridges remain only where currently unavoidable for the
   sibling `cityjson-parquet` crate and local diagnostics
+- export and stream writing start from `cityjson::relational::ModelRelationalView`
+  rather than walking the owned semantic model directly
 - the stream write path remains direct-to-sink rather than routing through a
   public parts aggregate
 - documentation must describe the upstream gap explicitly instead of pretending
@@ -68,11 +71,11 @@ Good:
 - the docs stop presenting the crate as if `CityModelArrowParts` or wrapper
   encoder/decoder types were the intended user boundary
 - the remaining upstream dependency on `cityjson-rs` is explicit and reviewable
+- the export hot path now consumes the same borrowed relational contract that
+  downstream sibling crates are expected to target
 
 Trade-offs:
 
-- the current batch reader still materializes canonical Arrow batches in this
-  crate rather than walking a future `cityjson-rs::relational` snapshot
 - `ProjectionLayout` is still discovered and carried here because the upstream
   relational string/attribute contract does not exist yet
 - doc-hidden compatibility hooks remain until `cityjson-parquet` can move off

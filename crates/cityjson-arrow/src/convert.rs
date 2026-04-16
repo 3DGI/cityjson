@@ -18,6 +18,7 @@ use ::arrow::array::{
 use ::arrow::datatypes::{DataType, FieldRef};
 use arrow_buffer::{MutableBuffer, NullBuffer, OffsetBuffer, ScalarBuffer};
 use cityjson::CityModelType;
+use cityjson::relational::ModelRelationalView;
 use cityjson::v2_0::geometry::{MaterialThemesView, TextureThemesView};
 use cityjson::v2_0::{
     AttributeValue, BBox, Boundary, CRS, CityModelCapacities, CityModelIdentifier, CityObject,
@@ -38,7 +39,7 @@ mod import;
 mod projection;
 
 use self::arrow::*;
-use self::export::{raw_id_from_handle, usize_to_i32, usize_to_u32};
+use self::export::{raw_id_from_handle, raw_index_from_handle, usize_to_i32, usize_to_u32};
 use self::geometry::*;
 use self::import::{decode_payload_f32, grouped_row_range};
 use self::projection::*;
@@ -584,7 +585,7 @@ type TextureThemeMaps = Vec<(
 )>;
 
 struct ExportContext<'a> {
-    model: &'a OwnedCityModel,
+    relational: &'a ModelRelationalView<'a>,
     header: CityArrowHeader,
     projection: ProjectionLayout,
     schemas: CanonicalSchemaSet,
@@ -659,7 +660,7 @@ struct PartsSink {
 }
 
 struct GeometryExportContext<'a> {
-    model: &'a OwnedCityModel,
+    relational: &'a ModelRelationalView<'a>,
 }
 
 struct UniqueBatchView<V> {

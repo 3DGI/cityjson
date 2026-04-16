@@ -2,11 +2,13 @@
 
 use super::*;
 
-pub(super) fn geometry_tables(model: &OwnedCityModel) -> Result<ExportedGeometryTables> {
+pub(super) fn geometry_tables(
+    relational: &ModelRelationalView<'_>,
+) -> Result<ExportedGeometryTables> {
     let mut exported = ExportedGeometryTables::default();
-    let context = GeometryExportContext { model };
+    let context = GeometryExportContext { relational };
 
-    for (cityobject_ix, (_, object)) in model.cityobjects().iter().enumerate() {
+    for (cityobject_ix, (_, object)) in relational.cityobjects().iter().enumerate() {
         if let Some(geometries) = object.geometry() {
             for (ordinal, geometry_handle) in geometries.iter().enumerate() {
                 append_geometry_tables(
@@ -31,9 +33,16 @@ pub(super) fn append_geometry_tables(
     exported: &mut ExportedGeometryTables,
 ) -> Result<()> {
     let geometry_id = raw_id_from_handle(geometry_handle);
-    let geometry = context.model.get_geometry(geometry_handle).ok_or_else(|| {
-        Error::Conversion(format!("missing geometry for handle {geometry_handle:?}"))
-    })?;
+    let geometry = context
+        .relational
+        .raw()
+        .geometries()
+        .resources()
+        .get(raw_index_from_handle(geometry_handle))
+        .and_then(Option::as_ref)
+        .ok_or_else(|| {
+            Error::Conversion(format!("missing geometry for handle {geometry_handle:?}"))
+        })?;
     if *geometry.type_geometry() == GeometryType::GeometryInstance {
         return append_geometry_instance(cityobject_ix, geometry_id, geometry, ordinal, exported);
     }
@@ -480,10 +489,10 @@ pub(super) trait BoundaryPayloadView {
 }
 
 pub(super) fn template_geometry_tables(
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<ExportedTemplateGeometryTables> {
     let mut exported = ExportedTemplateGeometryTables::default();
-    for (handle, geometry) in model.iter_geometry_templates() {
+    for (handle, geometry) in relational.model().iter_geometry_templates() {
         append_template_geometry_tables(handle, geometry, &mut exported)?;
     }
     Ok(exported)

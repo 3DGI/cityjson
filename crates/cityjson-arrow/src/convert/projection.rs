@@ -2,7 +2,10 @@
 
 use super::*;
 
-pub(super) fn discover_projection_layout(model: &OwnedCityModel) -> Result<ProjectionLayout> {
+pub(super) fn discover_projection_layout(
+    relational: &ModelRelationalView<'_>,
+) -> Result<ProjectionLayout> {
+    let model = relational.model();
     Ok(ProjectionLayout {
         root_extra: discover_optional_attribute_projection(model.extra())?,
         metadata_extra: discover_optional_attribute_projection(

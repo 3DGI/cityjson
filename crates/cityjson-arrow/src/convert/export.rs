@@ -2,19 +2,19 @@
 
 use super::*;
 
-pub(crate) fn encode_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
+pub(crate) fn encode_parts(relational: &ModelRelationalView<'_>) -> Result<CityModelArrowParts> {
     let mut sink = PartsSink::default();
-    emit_tables(model, &mut sink)?;
+    emit_tables(relational, &mut sink)?;
     sink.finish()
 }
 
 #[allow(clippy::too_many_lines)]
 pub(crate) fn emit_tables<S: CanonicalTableSink>(
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     sink: &mut S,
 ) -> Result<()> {
-    reject_unsupported_modules(model)?;
-    let context = build_export_context(model)?;
+    reject_unsupported_modules(relational)?;
+    let context = build_export_context(relational)?;
     sink.start(&context.header, &context.projection)?;
 
     let core = export_core_batches(&context)?;
@@ -32,14 +32,14 @@ pub(crate) fn emit_tables<S: CanonicalTableSink>(
         linestring_semantics,
         surface_materials,
         ring_textures,
-    } = geometry_tables(context.model)?;
+    } = geometry_tables(context.relational)?;
     let ExportedTemplateGeometryTables {
         geometries: template_geometries,
         boundaries: template_geometry_boundaries,
         semantics: template_geometry_semantics,
         materials: template_geometry_materials,
         ring_textures: template_geometry_ring_textures,
-    } = template_geometry_tables(context.model)?;
+    } = template_geometry_tables(context.relational)?;
     let geometry = export_geometry_batches(
         &context,
         geometries,
@@ -176,11 +176,12 @@ pub(crate) fn build_parts_from_tables(
     sink.finish()
 }
 
-fn build_export_context(model: &OwnedCityModel) -> Result<ExportContext<'_>> {
-    let citymodel_id = infer_citymodel_id(model);
-    let projection = discover_projection_layout(model)?;
+fn build_export_context<'a>(relational: &'a ModelRelationalView<'a>) -> Result<ExportContext<'a>> {
+    let model = relational.model();
+    let citymodel_id = infer_citymodel_id(relational);
+    let projection = discover_projection_layout(relational)?;
     Ok(ExportContext {
-        model,
+        relational,
         header: CityArrowHeader::new(
             CityArrowPackageVersion::V3Alpha2,
             citymodel_id,
@@ -311,12 +312,14 @@ fn required_batch(batch: Option<RecordBatch>, table: CanonicalTable) -> Result<R
 }
 
 fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches> {
+    let relational = context.relational;
+    let model = relational.model();
     let metadata = metadata_batch(
         &context.schemas.metadata,
-        metadata_row(context.model, &context.header),
+        metadata_row(relational, &context.header),
         &context.projection,
     )?;
-    let transform_row = context.model.transform().map(|transform| TransformRow {
+    let transform_row = model.transform().map(|transform| TransformRow {
         scale: transform.scale(),
         translate: transform.translate(),
     });
@@ -326,16 +329,16 @@ fn export_core_batches(context: &ExportContext<'_>) -> Result<ExportCoreBatches>
         transform: transform_row
             .map(|row| transform_batch(&context.schemas.transform, row))
             .transpose()?,
-        extensions: extensions_batch_from_model(&context.schemas.extensions, context.model)?,
-        vertices: vertices_batch_from_model(&context.schemas.vertices, context.model)?,
-        cityobjects: cityobjects_batch_from_model(
+        extensions: extensions_batch_from_view(&context.schemas.extensions, relational)?,
+        vertices: vertices_batch_from_view(&context.schemas.vertices, relational)?,
+        cityobjects: cityobjects_batch_from_view(
             &context.schemas.cityobjects,
-            context.model,
+            relational,
             &context.projection,
         )?,
-        cityobject_children: cityobject_children_batch_from_model(
+        cityobject_children: cityobject_children_batch_from_view(
             &context.schemas.cityobject_children,
-            context.model,
+            relational,
         )?,
     })
 }
@@ -357,9 +360,9 @@ fn export_geometry_batches(
         geometry_instances: optional_batch_from(geometry_instances.is_empty(), || {
             geometry_instances_batch(&context.schemas.geometry_instances, geometry_instances)
         })?,
-        template_vertices: template_vertices_batch_from_model(
+        template_vertices: template_vertices_batch_from_view(
             &context.schemas.template_vertices,
-            context.model,
+            context.relational,
         )?,
         template_geometries: optional_batch_from(template_geometries.is_empty(), || {
             template_geometries_batch(&context.schemas.template_geometries, template_geometries)
@@ -386,12 +389,12 @@ fn export_semantic_batches(
     Ok(ExportSemanticBatches {
         semantics: semantics_batch_from_model(
             &context.schemas.semantics,
-            context.model,
+            context.relational,
             &context.projection,
         )?,
         semantic_children: semantic_children_batch_from_model(
             &context.schemas.semantic_children,
-            context.model,
+            context.relational,
         )?,
         geometry_surface_semantics: optional_batch_from(
             geometry_surface_semantics.is_empty(),
@@ -439,7 +442,7 @@ fn export_appearance_batches(
     Ok(ExportAppearanceBatches {
         materials: materials_batch_from_model(
             &context.schemas.materials,
-            context.model,
+            context.relational,
             &context.projection,
         )?,
         geometry_surface_materials: optional_batch_from(
@@ -462,12 +465,12 @@ fn export_appearance_batches(
         )?,
         textures: textures_batch_from_model(
             &context.schemas.textures,
-            context.model,
+            context.relational,
             &context.projection,
         )?,
-        texture_vertices: texture_vertices_batch_from_model(
+        texture_vertices: texture_vertices_batch_from_view(
             &context.schemas.texture_vertices,
-            context.model,
+            context.relational,
         )?,
         geometry_ring_textures: optional_batch_from(geometry_ring_textures.is_empty(), || {
             geometry_ring_textures_batch(
@@ -487,8 +490,9 @@ fn export_appearance_batches(
     })
 }
 
-fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
-    for (_, geometry) in model.iter_geometries() {
+fn reject_unsupported_modules(relational: &ModelRelationalView<'_>) -> Result<()> {
+    let model = relational.model();
+    for (_, geometry) in relational.raw().geometries().iter_occupied() {
         if geometry.textures().is_some() {
             ensure_surface_backed_geometry(*geometry.type_geometry(), "geometry textures")?;
         }
@@ -509,7 +513,8 @@ fn reject_unsupported_modules(model: &OwnedCityModel) -> Result<()> {
     Ok(())
 }
 
-fn infer_citymodel_id(model: &OwnedCityModel) -> String {
+fn infer_citymodel_id(relational: &ModelRelationalView<'_>) -> String {
+    let model = relational.model();
     model
         .metadata()
         .and_then(|metadata| metadata.identifier().map(ToString::to_string))
@@ -532,6 +537,12 @@ pub(super) trait RawPartsHandle {
 }
 
 impl RawPartsHandle for cityjson::prelude::GeometryHandle {
+    fn raw_parts(self) -> (u32, u16) {
+        self.raw_parts()
+    }
+}
+
+impl RawPartsHandle for cityjson::prelude::CityObjectHandle {
     fn raw_parts(self) -> (u32, u16) {
         self.raw_parts()
     }
@@ -566,18 +577,21 @@ pub(super) fn raw_id_from_handle(handle: impl RawPartsHandle) -> u64 {
     (u64::from(index) << 16) | u64::from(generation)
 }
 
-fn metadata_row(model: &OwnedCityModel, header: &CityArrowHeader) -> MetadataRow {
+pub(super) fn raw_index_from_handle(handle: impl RawPartsHandle) -> usize {
+    usize::try_from(handle.raw_parts().0).unwrap_or(usize::MAX)
+}
+
+fn metadata_row(relational: &ModelRelationalView<'_>, header: &CityArrowHeader) -> MetadataRow {
+    let model = relational.model();
     let metadata = model.metadata();
     MetadataRow {
         citymodel_id: header.citymodel_id.clone(),
         cityjson_version: header.cityjson_version.clone(),
         citymodel_kind: model.type_citymodel().to_string(),
-        feature_root_id: model.id().and_then(|handle| {
-            model
-                .cityobjects()
-                .get(handle)
-                .map(|cityobject| cityobject.id().to_string())
-        }),
+        feature_root_id: relational
+            .feature_root()
+            .and_then(|root| relational.cityobjects().iter().nth(root.0 as usize))
+            .map(|(_, cityobject)| cityobject.id().to_string()),
         identifier: metadata.and_then(|item| item.identifier().map(ToString::to_string)),
         title: metadata.and_then(Metadata::title).map(ToString::to_string),
         reference_system: metadata
@@ -607,24 +621,11 @@ fn metadata_row(model: &OwnedCityModel, header: &CityArrowHeader) -> MetadataRow
     }
 }
 
-fn cityobject_ix_map(model: &OwnedCityModel) -> HashMap<cityjson::prelude::CityObjectHandle, u64> {
-    model
-        .cityobjects()
-        .iter()
-        .enumerate()
-        .map(|(index, (handle, _))| {
-            (
-                handle,
-                u64::try_from(index).expect("cityobject index fits into u64"),
-            )
-        })
-        .collect()
-}
-
-fn extensions_batch_from_model(
+fn extensions_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<Option<RecordBatch>> {
+    let model = relational.model();
     let Some(extensions) = model.extensions() else {
         return Ok(None);
     };
@@ -656,27 +657,27 @@ fn extensions_batch_from_model(
     )?))
 }
 
-fn vertices_batch_from_model(
+fn vertices_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<RecordBatch> {
-    vertex_batch_from_coordinates(schema, model.vertices().as_slice(), "vertex_id")
+    vertex_batch_from_coordinates(schema, relational.raw().vertices(), "vertex_id")
 }
 
-fn cityobjects_batch_from_model(
+fn cityobjects_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     projection: &ProjectionLayout,
 ) -> Result<RecordBatch> {
-    let mut cityobject_id = Vec::with_capacity(model.cityobjects().len());
-    let mut cityobject_index = Vec::with_capacity(model.cityobjects().len());
-    let mut object_type = Vec::with_capacity(model.cityobjects().len());
+    let mut cityobject_id = Vec::with_capacity(relational.cityobjects().len());
+    let mut cityobject_index = Vec::with_capacity(relational.cityobjects().len());
+    let mut object_type = Vec::with_capacity(relational.cityobjects().len());
     let mut geographical_extent: Vec<Option<[f64; 6]>> =
-        Vec::with_capacity(model.cityobjects().len());
-    let mut attributes = Vec::with_capacity(model.cityobjects().len());
-    let mut extra = Vec::with_capacity(model.cityobjects().len());
+        Vec::with_capacity(relational.cityobjects().len());
+    let mut attributes = Vec::with_capacity(relational.cityobjects().len());
+    let mut extra = Vec::with_capacity(relational.cityobjects().len());
 
-    for (index, (_, object)) in model.cityobjects().iter().enumerate() {
+    for (index, (_, object)) in relational.cityobjects().iter().enumerate() {
         cityobject_id.push(Some(object.id().to_string()));
         cityobject_index.push(u64::try_from(index).expect("cityobject index fits into u64"));
         object_type.push(Some(object.type_cityobject().to_string()));
@@ -719,25 +720,32 @@ fn cityobjects_batch_from_model(
     RecordBatch::try_new(schema.clone(), arrays).map_err(Error::from)
 }
 
-fn cityobject_children_batch_from_model(
+fn cityobject_children_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<Option<RecordBatch>> {
-    let cityobject_ix_map = cityobject_ix_map(model);
     let mut parent_cityobject_ix = Vec::new();
     let mut child_ordinal = Vec::new();
     let mut child_cityobject_ix = Vec::new();
-    for (parent_handle, object) in model.cityobjects().iter() {
-        let parent_ix = cityobject_ix_map
-            .get(&parent_handle)
-            .copied()
+    for (parent_handle, object) in relational.cityobjects().iter() {
+        let parent_ix = relational
+            .cityobject_remap()
+            .get(raw_index_from_handle(parent_handle))
+            .map(u64::try_from)
+            .transpose()
+            .map_err(|_| Error::Conversion("cityobject index does not fit into u64".to_string()))?
             .unwrap_or_default();
         if let Some(children) = object.children() {
             for (ordinal, child) in children.iter().enumerate() {
-                if let Some(child_ix) = cityobject_ix_map.get(child).copied() {
+                if let Some(child_ix) = relational
+                    .cityobject_remap()
+                    .get(raw_index_from_handle(*child))
+                {
                     parent_cityobject_ix.push(parent_ix);
                     child_ordinal.push(usize_to_u32(ordinal, "child ordinal")?);
-                    child_cityobject_ix.push(child_ix);
+                    child_cityobject_ix.push(u64::try_from(child_ix).map_err(|_| {
+                        Error::Conversion("cityobject index does not fit into u64".to_string())
+                    })?);
                 }
             }
         }
@@ -755,25 +763,26 @@ fn cityobject_children_batch_from_model(
     )?))
 }
 
-fn template_vertices_batch_from_model(
+fn template_vertices_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<Option<RecordBatch>> {
-    if model.template_vertices().as_slice().is_empty() {
+    if relational.raw().template_vertices().is_empty() {
         return Ok(None);
     }
     Ok(Some(vertex_batch_from_coordinates(
         schema,
-        model.template_vertices().as_slice(),
+        relational.raw().template_vertices(),
         "template_vertex_id",
     )?))
 }
 
 fn semantics_batch_from_model(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     projection: &ProjectionLayout,
 ) -> Result<Option<RecordBatch>> {
+    let model = relational.model();
     if model.semantic_count() == 0 {
         return Ok(None);
     }
@@ -810,8 +819,9 @@ fn semantics_batch_from_model(
 
 fn semantic_children_batch_from_model(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<Option<RecordBatch>> {
+    let model = relational.model();
     let mut parent_semantic_id = Vec::new();
     let mut child_ordinal = Vec::new();
     let mut child_semantic_id = Vec::new();
@@ -841,9 +851,10 @@ fn semantic_children_batch_from_model(
 
 fn materials_batch_from_model(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     projection: &ProjectionLayout,
 ) -> Result<Option<RecordBatch>> {
+    let model = relational.model();
     if model.material_count() == 0 {
         return Ok(None);
     }
@@ -921,9 +932,10 @@ fn materials_batch_from_model(
 
 fn textures_batch_from_model(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     projection: &ProjectionLayout,
 ) -> Result<Option<RecordBatch>> {
+    let model = relational.model();
     if model.texture_count() == 0 {
         return Ok(None);
     }
@@ -977,33 +989,30 @@ fn textures_batch_from_model(
     Ok(Some(RecordBatch::try_new(schema.clone(), arrays)?))
 }
 
-fn texture_vertices_batch_from_model(
+fn texture_vertices_batch_from_view(
     schema: &Arc<::arrow::datatypes::Schema>,
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
 ) -> Result<Option<RecordBatch>> {
-    if model.vertices_texture().as_slice().is_empty() {
+    if relational.raw().uv_coordinates().is_empty() {
         return Ok(None);
     }
+    let uv_coordinates = relational.raw().uv_coordinates();
     Ok(Some(RecordBatch::try_new(
         schema.clone(),
         vec![
             Arc::new(UInt64Array::from(
-                (0..model.vertices_texture().as_slice().len())
+                (0..uv_coordinates.len())
                     .map(|index| index as u64)
                     .collect::<Vec<_>>(),
             )),
             Arc::new(Float32Array::from(
-                model
-                    .vertices_texture()
-                    .as_slice()
+                uv_coordinates
                     .iter()
                     .map(cityjson::v2_0::UVCoordinate::u)
                     .collect::<Vec<_>>(),
             )),
             Arc::new(Float32Array::from(
-                model
-                    .vertices_texture()
-                    .as_slice()
+                uv_coordinates
                     .iter()
                     .map(cityjson::v2_0::UVCoordinate::v)
                     .collect::<Vec<_>>(),

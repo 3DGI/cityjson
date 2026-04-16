@@ -4,6 +4,7 @@ use crate::schema::{CityArrowHeader, CityArrowPackageVersion, ProjectionLayout};
 use crate::stream;
 use crate::transport::{CanonicalTable, CanonicalTableSink};
 use arrow::record_batch::RecordBatch;
+use cityjson::relational::RelationalAccess;
 use cityjson::v2_0::OwnedCityModel;
 use std::collections::VecDeque;
 use std::io::{Read, Write};
@@ -126,8 +127,9 @@ impl ModelBatchDecoder {
 /// Returns an error when export conversion fails.
 pub fn export_reader(model: &OwnedCityModel, options: &ExportOptions) -> Result<ModelBatchReader> {
     validate_export_schema_version(options)?;
+    let relational = model.relational();
     let mut sink = BatchReaderSink::default();
-    convert::emit_tables(model, &mut sink)?;
+    convert::emit_tables(&relational, &mut sink)?;
     sink.finish()
 }
 
@@ -159,7 +161,8 @@ pub fn write_stream<W: Write>(
     options: &ExportOptions,
 ) -> Result<WriteReport> {
     validate_export_schema_version(options)?;
-    stream::write_model_stream(model, writer)
+    let relational = model.relational();
+    stream::write_model_stream(&relational, writer)
 }
 
 /// # Errors

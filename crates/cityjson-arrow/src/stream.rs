@@ -9,7 +9,7 @@ use crate::transport::{
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use cityjson::v2_0::OwnedCityModel;
+use cityjson::relational::ModelRelationalView;
 use serde::{Deserialize, Serialize};
 use std::io::{ErrorKind, Read, Write};
 
@@ -25,11 +25,11 @@ struct StreamPrelude {
 type StreamFrames = Vec<(CanonicalTable, usize, RecordBatch)>;
 
 pub(crate) fn write_model_stream<W: Write>(
-    model: &OwnedCityModel,
+    relational: &ModelRelationalView<'_>,
     writer: W,
 ) -> Result<WriteReport> {
     let mut sink = StreamSink::new(writer);
-    emit_tables(model, &mut sink)?;
+    emit_tables(relational, &mut sink)?;
     sink.finish()
 }
 

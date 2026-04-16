@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::schema::CityModelArrowParts;
 use crate::schema::{CityArrowHeader, ProjectionLayout};
 use arrow::record_batch::RecordBatch;
+use cityjson::relational::RelationalAccess;
 use cityjson::v2_0::OwnedCityModel;
 
 pub use crate::transport::{
@@ -20,7 +21,7 @@ pub use crate::transport::{
 ///
 /// Returns an error when canonical transport encoding fails.
 pub fn encode_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
-    convert::encode_parts(model)
+    convert::encode_parts(&model.relational())
 }
 
 /// Emits canonical transport tables without materializing the public read/write
@@ -32,7 +33,7 @@ pub fn encode_parts(model: &OwnedCityModel) -> Result<CityModelArrowParts> {
 ///
 /// Returns an error when conversion fails or the sink rejects a table batch.
 pub fn emit_tables<S: CanonicalTableSink>(model: &OwnedCityModel, sink: &mut S) -> Result<()> {
-    convert::emit_tables(model, sink)
+    convert::emit_tables(&model.relational(), sink)
 }
 
 /// Emits canonical transport tables from an existing parts aggregate.
