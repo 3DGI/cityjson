@@ -1,5 +1,7 @@
 use crate::cityjson::core::appearance::ThemeName;
 use crate::error::{Error, Result};
+use crate::raw::{CityModelRawAccessor, DenseIndexRemap};
+use crate::resources::storage::OwnedStringStorage;
 use crate::symbols::SymbolStorageOptions;
 use crate::v2_0::appearance::material::Material;
 use crate::v2_0::appearance::texture::Texture;
@@ -457,8 +459,83 @@ pub type MetadataView<'a> = &'a MetadataOwned;
 pub type TransformView<'a> = &'a TransformOwned;
 pub type DefaultThemeView<'a> = &'a DefaultThemeOwned;
 
+#[derive(Debug, Clone)]
+pub struct ModelRelationalView<'a> {
+    model: &'a OwnedCityModel,
+    cityobject_remap: DenseIndexRemap,
+    geometry_remap: DenseIndexRemap,
+    geometry_template_remap: DenseIndexRemap,
+    semantic_remap: DenseIndexRemap,
+    material_remap: DenseIndexRemap,
+    texture_remap: DenseIndexRemap,
+}
+
+impl<'a> ModelRelationalView<'a> {
+    #[must_use]
+    pub const fn model(&self) -> &'a OwnedCityModel {
+        self.model
+    }
+
+    #[must_use]
+    pub fn raw(&self) -> CityModelRawAccessor<'a, u32, OwnedStringStorage> {
+        self.model.raw()
+    }
+
+    #[must_use]
+    pub fn cityobjects(&self) -> &'a crate::v2_0::OwnedCityObjects {
+        self.model.cityobjects()
+    }
+
+    #[must_use]
+    pub fn cityobject_remap(&self) -> &DenseIndexRemap {
+        &self.cityobject_remap
+    }
+
+    #[must_use]
+    pub fn geometry_remap(&self) -> &DenseIndexRemap {
+        &self.geometry_remap
+    }
+
+    #[must_use]
+    pub fn geometry_template_remap(&self) -> &DenseIndexRemap {
+        &self.geometry_template_remap
+    }
+
+    #[must_use]
+    pub fn semantic_remap(&self) -> &DenseIndexRemap {
+        &self.semantic_remap
+    }
+
+    #[must_use]
+    pub fn material_remap(&self) -> &DenseIndexRemap {
+        &self.material_remap
+    }
+
+    #[must_use]
+    pub fn texture_remap(&self) -> &DenseIndexRemap {
+        &self.texture_remap
+    }
+
+    #[must_use]
+    pub fn feature_root(&self) -> Option<CityObjectId> {
+        self.model
+            .id()
+            .and_then(|handle| {
+                self.cityobject_remap
+                    .get(usize::try_from(slot(handle)).unwrap_or(usize::MAX))
+            })
+            .and_then(|dense| u32::try_from(dense).ok())
+            .map(CityObjectId)
+    }
+
+    #[must_use]
+    pub fn snapshot(&self) -> OwnedRelationalSnapshot {
+        build_relational_snapshot(self.model)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
-pub struct ModelRelationalView {
+pub struct OwnedRelationalSnapshot {
     symbols: SymbolTableOwned,
     vertices: VertexTableOwned,
     template_vertices: VertexTableOwned,
@@ -477,7 +554,7 @@ pub struct ModelRelationalView {
     feature_root: Option<CityObjectId>,
 }
 
-impl ModelRelationalView {
+impl OwnedRelationalSnapshot {
     #[must_use]
     pub fn symbol_table(&self) -> &SymbolTableOwned {
         &self.symbols
@@ -616,12 +693,25 @@ impl ModelRelationalView {
 }
 
 pub trait RelationalAccess {
-    fn relational(&self) -> ModelRelationalView;
+    fn relational(&self) -> ModelRelationalView<'_>;
+    fn relational_snapshot(&self) -> OwnedRelationalSnapshot;
 }
 
 impl RelationalAccess for OwnedCityModel {
-    fn relational(&self) -> ModelRelationalView {
-        build_relational_view(self)
+    fn relational(&self) -> ModelRelationalView<'_> {
+        ModelRelationalView {
+            model: self,
+            cityobject_remap: dense_cityobject_remap(self),
+            geometry_remap: self.raw().geometries().dense_index_remap(),
+            geometry_template_remap: dense_geometry_template_remap(self),
+            semantic_remap: self.raw().semantics().dense_index_remap(),
+            material_remap: self.raw().materials().dense_index_remap(),
+            texture_remap: self.raw().textures().dense_index_remap(),
+        }
+    }
+
+    fn relational_snapshot(&self) -> OwnedRelationalSnapshot {
+        build_relational_snapshot(self)
     }
 }
 
@@ -776,7 +866,7 @@ impl RelationalModelBuilder {
     }
 
     pub fn finish(self) -> Result<OwnedCityModel> {
-        let view = ModelRelationalView {
+        let view = OwnedRelationalSnapshot {
             symbols: self
                 .symbols
                 .ok_or_else(|| Error::Import("missing symbol table".to_string()))?,
@@ -821,7 +911,7 @@ impl SymbolCollector {
     }
 }
 
-fn build_relational_view(model: &OwnedCityModel) -> ModelRelationalView {
+fn build_relational_snapshot(model: &OwnedCityModel) -> OwnedRelationalSnapshot {
     let mut symbols = SymbolCollector::default();
     let mut attributes = AttributeArenaOwned::default();
 
@@ -887,7 +977,7 @@ fn build_relational_view(model: &OwnedCityModel) -> ModelRelationalView {
     let extensions = encode_extensions(model.extensions(), &mut symbols);
     let feature_root = model.id().map(|id| CityObjectId(cityobject_ids[&slot(id)]));
 
-    ModelRelationalView {
+    OwnedRelationalSnapshot {
         symbols: SymbolTableOwned {
             values: symbols.values,
         },
@@ -913,7 +1003,7 @@ fn build_relational_view(model: &OwnedCityModel) -> ModelRelationalView {
 fn build_model_from_relational(
     model_type: CityModelType,
     options: &RelationalImportOptions,
-    relational: &ModelRelationalView,
+    relational: &OwnedRelationalSnapshot,
 ) -> Result<OwnedCityModel> {
     let capacities = CityModelCapacities {
         cityobjects: relational.cityobjects.len(),
@@ -1790,7 +1880,7 @@ fn decode_geometry(
     material_handles: &[crate::resources::handles::MaterialHandle],
     texture_handles: &[crate::resources::handles::TextureHandle],
     template_vertices: bool,
-    relational: &ModelRelationalView,
+    relational: &OwnedRelationalSnapshot,
 ) -> Result<Geometry<u32, crate::resources::storage::OwnedStringStorage>> {
     let boundary = decode_boundary(table, index)?;
     let semantics = decode_semantic_map(table, index, semantic_handles);
@@ -1921,7 +2011,7 @@ fn decode_material_maps(
     table: &GeometryTableOwned,
     index: usize,
     material_handles: &[crate::resources::handles::MaterialHandle],
-    relational: &ModelRelationalView,
+    relational: &OwnedRelationalSnapshot,
 ) -> Result<
     Option<
         Vec<(
@@ -1966,7 +2056,7 @@ fn decode_texture_maps(
     table: &GeometryTableOwned,
     index: usize,
     texture_handles: &[crate::resources::handles::TextureHandle],
-    relational: &ModelRelationalView,
+    relational: &OwnedRelationalSnapshot,
 ) -> Result<
     Option<
         Vec<(
@@ -2101,6 +2191,10 @@ fn dense_cityobject_ids(model: &OwnedCityModel) -> HashMap<u32, u32> {
         .collect()
 }
 
+fn dense_cityobject_remap(model: &OwnedCityModel) -> DenseIndexRemap {
+    dense_remap_from_slots(model.cityobjects().iter().map(|(handle, _)| slot(handle)))
+}
+
 fn dense_geometry_ids(model: &OwnedCityModel) -> HashMap<u32, u32> {
     model
         .iter_geometries()
@@ -2115,6 +2209,14 @@ fn dense_geometry_template_ids(model: &OwnedCityModel) -> HashMap<u32, u32> {
         .enumerate()
         .map(|(dense, (handle, _))| (slot(handle), u32::try_from(dense).unwrap_or(u32::MAX)))
         .collect()
+}
+
+fn dense_geometry_template_remap(model: &OwnedCityModel) -> DenseIndexRemap {
+    dense_remap_from_slots(
+        model
+            .iter_geometry_templates()
+            .map(|(handle, _)| slot(handle)),
+    )
 }
 
 fn dense_semantic_ids(model: &OwnedCityModel) -> HashMap<u32, u32> {
@@ -2139,6 +2241,14 @@ fn dense_texture_ids(model: &OwnedCityModel) -> HashMap<u32, u32> {
         .enumerate()
         .map(|(dense, (handle, _))| (slot(handle), u32::try_from(dense).unwrap_or(u32::MAX)))
         .collect()
+}
+
+fn dense_remap_from_slots(slots: impl Iterator<Item = u32>) -> DenseIndexRemap {
+    let occupied = slots
+        .map(|slot| usize::try_from(slot).unwrap_or(usize::MAX))
+        .collect::<Vec<_>>();
+    let capacity = occupied.iter().copied().max().map_or(0, |max| max + 1);
+    DenseIndexRemap::from_occupied_indices(capacity, occupied)
 }
 
 fn slot<H>(handle: H) -> u32
@@ -2502,7 +2612,7 @@ mod tests {
             "1.0".to_string(),
         ));
 
-        let relational = model.relational();
+        let relational = model.relational_snapshot();
         let baseline = summary(&model);
 
         assert_eq!(relational.cityobjects().len(), 1);

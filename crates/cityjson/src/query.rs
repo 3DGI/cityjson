@@ -1,7 +1,7 @@
 use crate::relational::RelationalAccess;
 use crate::v2_0::OwnedCityModel;
 
-/// Cheap scalar summary over an owned city model.
+/// Scalar summary over an owned city model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelSummary {
     pub cityobject_count: u32,
@@ -21,21 +21,21 @@ pub struct ModelSummary {
 #[must_use]
 pub fn summary(model: &OwnedCityModel) -> ModelSummary {
     let relational = model.relational();
+    let raw = relational.raw();
+    let symbol_count = u32::try_from(relational.snapshot().symbols().len()).unwrap_or(u32::MAX);
 
     ModelSummary {
         cityobject_count: u32::try_from(relational.cityobjects().len()).unwrap_or(u32::MAX),
-        geometry_count: u32::try_from(relational.geometries().len()).unwrap_or(u32::MAX),
-        geometry_template_count: u32::try_from(relational.geometry_templates().len())
-            .unwrap_or(u32::MAX),
-        vertex_count: u32::try_from(relational.vertices().len()).unwrap_or(u32::MAX),
-        template_vertex_count: u32::try_from(relational.template_vertices().len())
-            .unwrap_or(u32::MAX),
-        uv_vertex_count: u32::try_from(relational.uv_vertices().len()).unwrap_or(u32::MAX),
-        semantic_count: u32::try_from(relational.semantics().len()).unwrap_or(u32::MAX),
-        material_count: u32::try_from(relational.materials().len()).unwrap_or(u32::MAX),
-        texture_count: u32::try_from(relational.textures().len()).unwrap_or(u32::MAX),
-        symbol_count: u32::try_from(relational.symbols().len()).unwrap_or(u32::MAX),
-        has_metadata: relational.metadata().is_some(),
-        has_transform: relational.transform().is_some(),
+        geometry_count: u32::try_from(raw.geometries().len()).unwrap_or(u32::MAX),
+        geometry_template_count: u32::try_from(model.geometry_template_count()).unwrap_or(u32::MAX),
+        vertex_count: u32::try_from(raw.vertices().len()).unwrap_or(u32::MAX),
+        template_vertex_count: u32::try_from(raw.template_vertices().len()).unwrap_or(u32::MAX),
+        uv_vertex_count: u32::try_from(raw.uv_coordinates().len()).unwrap_or(u32::MAX),
+        semantic_count: u32::try_from(raw.semantics().len()).unwrap_or(u32::MAX),
+        material_count: u32::try_from(raw.materials().len()).unwrap_or(u32::MAX),
+        texture_count: u32::try_from(raw.textures().len()).unwrap_or(u32::MAX),
+        symbol_count,
+        has_metadata: model.metadata().is_some(),
+        has_transform: model.transform().is_some(),
     }
 }

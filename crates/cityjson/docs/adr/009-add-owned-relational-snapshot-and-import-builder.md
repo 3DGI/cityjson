@@ -1,4 +1,4 @@
-# 009. Add Owned Relational Snapshot And Import Builder
+# 009. Add Borrowed Relational View, Owned Snapshot, And Import Builder
 
 Date: 2026-04-16
 
@@ -27,8 +27,12 @@ The main mismatches were:
 
 Add a new owned-model-first relational API in `cityjson-rs`:
 
-- `cityjson::relational::RelationalAccess` exposes `OwnedCityModel::relational()`
-- `ModelRelationalView` provides dense numeric ids plus explicit owned relational tables
+- `cityjson::relational::RelationalAccess` exposes both
+  `OwnedCityModel::relational()` and `OwnedCityModel::relational_snapshot()`
+- `ModelRelationalView` is the borrowed zero-copy entry point over the owned
+  model plus dense remaps and raw accessors
+- `OwnedRelationalSnapshot` materializes the explicit relational tables when a
+  stable owned snapshot is required
 - repeated strings are exported through a symbol table and referenced through `SymbolId`
 - geometry, topology, semantic/material/texture assignments, attributes, metadata, defaults, and extensions are all represented in relational form
 - `RelationalModelBuilder` rebuilds an `OwnedCityModel` directly from those relational tables
@@ -47,11 +51,14 @@ Positive:
 
 Negative:
 
-- `relational()` currently materializes an owned snapshot instead of being a pure zero-copy borrow over every internal structure
+- callers now have to choose between a borrowed view and an owned snapshot
+- some higher-level relational tables are still materialized only in
+  `relational_snapshot()` rather than exposed as fully borrowed columnar slices
 - the semantic core still stores ordinary owned strings internally, so symbol interning is guaranteed at the relational boundary before it is guaranteed in the in-memory semantic structs themselves
 - the legacy raw API still exists in parallel for now
 
 ## Follow-up
 
-- move symbol-backed storage deeper into the owned semantic core so the relational snapshot can become cheaper
+- move symbol-backed storage deeper into the owned semantic core so more of the
+  relational snapshot can become borrowed
 - trim or retire older raw/handle-heavy interop entry points once downstream crates adopt `cityjson::relational`
