@@ -61,7 +61,13 @@ ci: fmt lint check test coverage miri perf-check
 perf description mode="full" seed="" size="":
     ./tools/perf.sh "{{description}}" "{{mode}}" "{{seed}}" "{{size}}"
 
-# Analyze benchmark and profiling results
+# Analyze benchmark results. Modes:
+#   (default)          run-by-run history overview
+#   --list             list descriptions, benches, and metrics
+#   baseline="<desc>"  compare latest run against a named baseline description
+#   --compare a,b      compare two commits by hash prefix
+#   --series bench=<bench> metric=<metric>  time series for one bench/metric
+# Run `just perf-analyze --help` for the full reference.
 perf-analyze *args:
     python3 tools/perf_analyze.py {{args}}
 

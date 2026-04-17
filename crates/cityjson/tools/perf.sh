@@ -20,7 +20,6 @@ for arg in "$@"; do
             mode) MODE="$value" ;;
             seed) SEED_ARG="$value" ;;
             size) SIZE_ARG="$value" ;;
-            backend) ;; # backward compatibility: ignored
             *) ;;
         esac
     elif [ -n "$arg" ]; then
@@ -50,7 +49,7 @@ FAST_SIZE_MEMORY="1000"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 RUSTC_VERSION="$(rustc --version)"
-CSV_OUT="bench_results/history.csv"
+CSV_OUT="benches/results/history.csv"
 
 HEADER="timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc"
 if [ ! -f "$CSV_OUT" ]; then
