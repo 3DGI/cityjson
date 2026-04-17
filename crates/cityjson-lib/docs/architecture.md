@@ -94,9 +94,7 @@ Responsibilities split as follows:
 
 The root remains small:
 
-- `CityModel::from_slice`
-- `CityModel::from_file`
-- `cityjson_lib::json`
+- `cityjson_lib::json` as the default-on boundary module
 - optional transport modules such as `cityjson_lib::arrow` and `cityjson_lib::parquet`
 - `cityjson_lib::ops`
 - `cityjson_lib::cityjson`

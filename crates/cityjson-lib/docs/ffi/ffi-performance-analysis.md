@@ -43,7 +43,7 @@ In [exports.rs](/home/balazs/Development/cityjson-lib/ffi/core/src/exports.rs#L7
 The same shape exists for feature parsing.
 
 By contrast, the Rust benchmark baseline for `summary` and `roundtrip` goes
-straight to `CityModel::from_slice(...)` in
+straight to `cityjson_lib::json::from_slice(...)` in
 [main.rs](/home/balazs/Development/cityjson-lib-benchmarks/drivers/rust/src/main.rs#L162).
 
 That means every FFI parse currently pays for an extra front pass over the

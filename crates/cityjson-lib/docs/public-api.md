@@ -11,8 +11,8 @@ The crate root should stay small:
 - `CityJSONVersion`
 - `Error`
 - `ErrorKind`
-- `json`
-- `ops`
+- `json`, enabled by default through the `json` feature
+- `ops`, enabled by default with `json`
 - optional sibling modules such as `arrow` and `parquet`
 - `cityjson`
 

@@ -6,7 +6,7 @@ This document pins down how `cityjson_lib` should expose sibling format crates.
 
 The facade should stay explicit:
 
-- `CityModel::from_*` is reserved for the default single-document CityJSON path
+- `json::from_*` is reserved for the default single-document CityJSON path
 - explicit modules own explicit formats
 - every format boundary speaks in terms of `CityModel` or streams of
   `CityModel`

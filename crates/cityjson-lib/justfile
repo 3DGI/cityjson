@@ -14,6 +14,14 @@ clean:
 check:
     cargo check --manifest-path Cargo.toml --workspace --all-targets --all-features
 
+# Run cargo check without default features
+check-no-default-features:
+    cargo check --manifest-path Cargo.toml --workspace --no-default-features
+
+# Run cargo check for the optional Parquet feature
+check-parquet:
+    cargo check --manifest-path Cargo.toml --workspace --features parquet
+
 # Build the project
 build *args:
     cargo build --manifest-path Cargo.toml --workspace --all-targets --all-features {{args}}
@@ -32,21 +40,28 @@ fmt:
 test:
     cargo test --manifest-path Cargo.toml --workspace
 
+# Run cargo test with all features enabled
+test-all-features:
+    cargo test --manifest-path Cargo.toml --workspace --all-features
+
 # Build the docs
 docs-build:
-    uv run --with-requirements python-requirements-dev.txt mkdocs build --strict
+    uv run properdocs build
 
 # Serve the docs locally
 docs-serve *args:
-    uv run --with-requirements python-requirements-dev.txt mkdocs serve {{args}}
+    uv run properdocs serve -o {{args}}
 
 # Run fmt, lint, check, bench-check, test, and doc
 ci:
     just fmt
     just lint
+    just check-no-default-features
+    just check-parquet
     just check
     just bench-check
     just test
+    just test-all-features
     just docs-build
 
 # Build the benchmarks
@@ -70,7 +85,7 @@ _check-shared-benchmark-index:
 prepare-bench-data: _check-shared-benchmark-index
     jq -r '(.generated_cases + .other_cases)[] | . as $case | ([$case.artifacts[] | select(.representation == "cityjson-arrow") | .path] | .[0]) as $arrow | select($arrow != null) | [($case.artifacts[] | select(.representation == "cityjson") | .path), $arrow] | @tsv' "$CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json" \
     | while IFS=$'\t' read -r input arrow; do \
-        cargo run --quiet --bin cjexport --features arrow -- \
+        cargo run --quiet -p cityjson-export --bin cjexport -- \
           --input "$input" \
           --arrow-file "$arrow"; \
       done

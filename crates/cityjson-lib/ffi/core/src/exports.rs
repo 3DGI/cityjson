@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use std::ffi::c_char;
+#[cfg(feature = "arrow")]
 use std::io::Cursor;
 use std::ptr::{self, NonNull};
 use std::slice;
@@ -846,6 +847,7 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
     }))
 }
 
+#[cfg(feature = "arrow")]
 #[unsafe(no_mangle)]
 pub extern "C" fn cj_model_parse_arrow_bytes(
     data: *const u8,
@@ -886,6 +888,7 @@ pub extern "C" fn cj_model_serialize_feature(
     }))
 }
 
+#[cfg(feature = "arrow")]
 #[unsafe(no_mangle)]
 pub extern "C" fn cj_model_serialize_arrow(
     model: *const cj_model_t,

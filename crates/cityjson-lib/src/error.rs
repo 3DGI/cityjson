@@ -99,6 +99,7 @@ impl From<cityjson::error::Error> for Error {
     }
 }
 
+#[cfg(feature = "json")]
 impl From<cityjson_json::Error> for Error {
     fn from(value: cityjson_json::Error) -> Self {
         Self::Import(value.to_string())

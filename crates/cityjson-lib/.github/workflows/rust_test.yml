@@ -42,10 +42,14 @@ jobs:
       with:
         repository: 3DGI/cityjson-parquet
         path: cityjson-parquet
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
+    - name: Check without defaults
+      run: cargo check --verbose --no-default-features
+    - name: Check parquet feature
+      run: cargo check --verbose --features parquet
+    - name: Run default tests
       run: cargo test --verbose
+    - name: Run all-feature tests
+      run: cargo test --verbose --all-features
   test_python:
     runs-on: ubuntu-latest
     steps:

@@ -4,7 +4,7 @@ This document defines the intended public shape of `cityjson_lib::json`.
 
 `cityjson_lib::json` is not a second JSON implementation.
 It is the explicit boundary layer over `serde_cityjson` for callers that need
-more than the default document-oriented `CityModel::from_*` path.
+more than the default document-oriented `json::from_*` path.
 
 ## Why A `json` Module Exists
 
@@ -103,8 +103,8 @@ pub mod json {
 
 The intended relationship is:
 
-- `CityModel::from_slice` is a convenience alias for `json::from_slice`
-- `CityModel::from_file` is a convenience alias for `json::from_file`
+- `json::from_slice` is the convenience alias for the default document path
+- `json::from_file` is the convenience alias for the default document path
 - serialization remains explicit and format-qualified
 
 The module should stay function-oriented.

@@ -8,15 +8,16 @@ geometry. Each section shows the same operation across all four APIs.
 The simplest entry point is a file path or a byte slice already in memory.
 
 === "Rust"
-    ```rust
-    use cityjson_lib::CityModel;
+```rust
+use cityjson_lib::json;
+use cityjson_lib::CityModel;
 
-    // from a file path
-    let model = CityModel::from_file("amsterdam.city.json")?;
+// from a file path
+let model = json::from_file("amsterdam.city.json")?;
 
-    // or from bytes already in memory
-    let bytes = std::fs::read("amsterdam.city.json")?;
-    let model = CityModel::from_slice(&bytes)?;
+// or from bytes already in memory
+let bytes = std::fs::read("amsterdam.city.json")?;
+let model = json::from_slice(&bytes)?;
     ```
 
 === "C++"

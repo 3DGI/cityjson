@@ -9,20 +9,33 @@ repository = "https://github.com/3DGI/cityjson-lib"
 keywords = ["cityjson", "geospatial", "3d", "gis", "arrow"]
 categories = ["encoding", "science::geo"]
 readme = "README.md"
-include = ["/src", "/resources", "/Cargo.toml", "/README.md", "/LICENSE-MIT", "/LICENSE-Apache-2.0"]
-exclude = ["/tests/output"]
+include = [
+    "/src",
+    "/examples",
+    "/tests",
+    "/benches",
+    "/bench_support",
+    "/docs",
+    "/resources",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE",
+]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["arrow"]
-arrow = ["dep:cityjson-arrow"]
+default = ["json"]
+json = ["dep:cityjson-json"]
+arrow = ["json", "dep:arrow", "dep:cityjson-arrow"]
+parquet = ["json"]
 
 [workspace]
 members = [
     ".",
+    "cityjson-export",
     "ffi/core",
     "ffi/wasm",
 ]
@@ -35,10 +48,10 @@ name = "cityjson_lib"
 path = "src/lib.rs"
 
 [dependencies]
-arrow = { version = "58.1.0", default-features = false }
+arrow = { version = "58.1.0", default-features = false, optional = true }
 cityjson = { path = "../cityjson-rs", version = "0.7.0" }
 cityjson-arrow = { path = "../cityjson-arrow", version = "0.6.0", optional = true }
-cityjson-json = { path = "../cityjson-json", version = "0.7.0" }
+cityjson-json = { path = "../cityjson-json", version = "0.7.0", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 
@@ -46,10 +59,6 @@ serde_json = { version = "1.0", features = ["raw_value"] }
 criterion = "0.7"
 dhat = "0.3"
 tempfile = "3.23"
-
-[[bin]]
-name = "cjexport"
-required-features = ["arrow"]
 
 [[bench]]
 name = "throughput"

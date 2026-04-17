@@ -427,7 +427,7 @@ Own:
 
 - `docs/ffi/**`
 - `docs/adr/**`
-- `mkdocs.yml`
+- `properdocs.yml`
 - workflow and helper scripts when needed
 
 Deliver:

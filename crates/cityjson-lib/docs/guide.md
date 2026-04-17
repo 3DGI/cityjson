@@ -7,9 +7,10 @@ This guide describes how the Rust-facing `cityjson_lib` surface is meant to be u
 The default entry point is `cityjson_lib::CityModel`.
 
 ```rust
+use cityjson_lib::json;
 use cityjson_lib::CityModel;
 
-let model = CityModel::from_file("amsterdam.city.json")?;
+let model = json::from_file("amsterdam.city.json")?;
 println!("loaded {} CityObjects", model.as_inner().cityobjects().len());
 # Ok::<(), cityjson_lib::Error>(())
 ```
@@ -82,7 +83,7 @@ The same rule applies to non-JSON backends:
 
 ```rust
 # fn main() -> cityjson_lib::Result<()> {
-let model = cityjson_lib::CityModel::from_file("tests/data/v2_0/minimal.city.json")?;
+let model = cityjson_lib::json::from_file("tests/data/v2_0/minimal.city.json")?;
 
 cityjson_lib::arrow::to_file("tiles-out.cjarrow", &model)?;
 
@@ -123,9 +124,9 @@ Operations that sit above the semantic model, but are still worth sharing,
 belong in `cityjson_lib::ops`.
 
 ```rust
-use cityjson_lib::{ops, CityModel};
+use cityjson_lib::{json, ops, CityModel};
 
-let model = CityModel::from_file("amsterdam.city.json")?;
+let model = json::from_file("amsterdam.city.json")?;
 let selection = ops::Selection::from_ids(["building-1"]);
 let subset = ops::subset(&model, selection)?;
 let _surface_area = ops::geometry::surface_area(&subset, "building-1")?;

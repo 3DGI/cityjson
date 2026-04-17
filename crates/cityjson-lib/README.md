@@ -24,39 +24,40 @@ The semantic rule is:
 
 For the full synthesis, see [`docs/architecture.md`](docs/architecture.md).
 
-The future public API is centered on:
+The public API is centered on:
 
 - `cityjson_lib::CityModel`
 - `cityjson_lib::CityJSONVersion`
 - `cityjson_lib::Error`
 - `cityjson_lib::ErrorKind`
-- `cityjson_lib::json`
-- `cityjson_lib::ops`, currently one illustrative `todo!()` function
-- `cityjson_lib::arrow`, backed by the sibling `cityarrow` transport crate
-- `cityjson_lib::parquet`, backed by the sibling `cityparquet` transport crate
+- `cityjson_lib::json`, enabled by default through the `json` feature
+- `cityjson_lib::ops`
+- `cityjson_lib::arrow`, behind the optional `arrow` feature
+- `cityjson_lib::parquet`, behind the optional `parquet` feature
 - `cityjson_lib::cityjson` for advanced model access
 
 ## Default Path
 
 For single-document CityJSON input, the default entry points stay on
-`CityModel`:
+`cityjson_lib::json`:
 
 ```rust
-use cityjson_lib::CityModel;
+use cityjson_lib::json;
 
-let document = CityModel::from_file("rotterdam.city.json")?;
-let bytes = CityModel::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
+let document = json::from_file("rotterdam.city.json")?;
+let bytes = json::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
 Current practical status:
 
 - `cityjson_lib` is usable today for ordinary `CityJSON` document files
-- the implemented document path is `CityJSON` v2.0 through `CityModel::from_*`
+- the implemented document path is `CityJSON` v2.0 through `cityjson_lib::json`
+- `json` is the default-on feature
 - explicit feature and feature-stream helpers exist under `cityjson_lib::json`
-- explicit live Arrow IPC stream transport exists under `cityjson_lib::arrow`
-- explicit Arrow batch export/import exists under `cityjson_lib::arrow`
-- explicit cityparquet package-file transport exists under `cityjson_lib::parquet`
+- explicit live Arrow IPC stream transport exists under `cityjson_lib::arrow` when the `arrow` feature is enabled
+- explicit Arrow batch export/import exists under `cityjson_lib::arrow` when the `arrow` feature is enabled
+- explicit cityparquet package-file transport exists under `cityjson_lib::parquet` when the `parquet` feature is enabled
 - `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
 - higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
@@ -68,9 +69,10 @@ Serialization, feature handling, and model streams should be explicit and
 format-qualified:
 
 ```rust
-use cityjson_lib::{json, CityModel};
+use cityjson_lib::json;
+use cityjson_lib::CityModel;
 
-let model = CityModel::from_file("rotterdam.city.json")?;
+let model = json::from_file("rotterdam.city.json")?;
 let bytes = json::to_vec(&model)?;
 let text = json::to_string(&model)?;
 let feature_text = json::to_feature_string(&model)?;
@@ -81,12 +83,12 @@ let feature_text = json::to_feature_string(&model)?;
 Alternative encodings and containers should live in explicit modules:
 
 - `cityjson_lib::json`
-- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O and explicit batch export/import
-- `cityjson_lib::parquet`, which owns persistent package-file I/O
+- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O and explicit batch export/import when the `arrow` feature is enabled
+- `cityjson_lib::parquet`, which owns persistent package-file I/O when the `parquet` feature is enabled
 
 That keeps the facade predictable:
 
-- `CityModel::from_*` means the common single-document CityJSON path
+- `json::from_*` means the common single-document CityJSON path
 - explicit modules mean explicit formats
 - expensive Arrow conversion is explicit in the API name
 

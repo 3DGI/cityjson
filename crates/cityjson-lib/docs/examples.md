@@ -3,8 +3,8 @@
 The example programs mirror the intended public `cityjson_lib` surface.
 
 - `examples/json_document.rs`
-  Read one CityJSON document through `CityModel::from_file` and
-  `CityModel::from_slice`.
+  Read one CityJSON document through `cityjson_lib::json::from_file` and
+  `cityjson_lib::json::from_slice`.
 - `examples/explicit_json_module.rs`
   Use `cityjson_lib::json` for probing, feature handling, and explicit boundary
   control.

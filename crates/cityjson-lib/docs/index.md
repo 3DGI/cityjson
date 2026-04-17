@@ -13,7 +13,7 @@ It is not a second CityJSON model.
   Semantic model family, invariants, validated mutation, extraction, and merge.
 - `serde_cityjson`
   CityJSON JSON and JSONL parsing, probing, feature handling, and
-  serialization.
+  serialization through the default-on `json` feature.
 - `cityjson_lib`
   Rust facade, explicit format modules, reusable operations above the model,
   and the shared low-level FFI core used by bindings.
@@ -26,14 +26,14 @@ The Rust-facing surface stays intentionally small:
 
 - `cityjson_lib::CityModel` as the owned default wrapper
 - `cityjson_lib::CityJSONVersion`, `cityjson_lib::Error`, and `cityjson_lib::ErrorKind`
-- `cityjson_lib::json` for explicit JSON and JSONL boundary work
+- `cityjson_lib::json` for explicit JSON and JSONL boundary work, enabled by default
 - optional sibling format modules such as `cityjson_lib::arrow` and `cityjson_lib::parquet`
 - `cityjson_lib::ops` for higher-level reusable workflows
 - `cityjson_lib::cityjson` as the explicit drop-down path to the model crate
 
 The common path is:
 
-1. load one document through `CityModel::from_*`
+1. load one document through `cityjson_lib::json::from_*`
 2. switch to `cityjson_lib::json` or another explicit module when boundary control,
    streams, or backend-specific options matter
 3. work with the underlying model through `cityjson_lib::cityjson`
