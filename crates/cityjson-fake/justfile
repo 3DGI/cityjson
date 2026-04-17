@@ -10,10 +10,6 @@ _default:
 clean:
     cargo clean
 
-# Build benchmarks without running them.
-bench-check:
-    cargo bench --benches --no-run
-
 # Run cargo check across the crate.
 check:
     cargo check --all-targets --all-features
@@ -38,5 +34,5 @@ test:
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo +nightly doc --all-features --no-deps
 
-# Run fmt, check, lint, test, bench-check, and doc.
-ci: fmt check lint test bench-check doc
+# Run fmt, check, lint, test, and doc.
+ci: fmt check lint test doc

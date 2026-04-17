@@ -15,7 +15,6 @@ readme = "README.md"
 name = "cjfake"
 path = "src/main.rs"
 test = false
-bench = false
 required-features = ["cli"]
 
 [lib]
