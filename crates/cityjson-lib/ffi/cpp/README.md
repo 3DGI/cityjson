@@ -12,7 +12,6 @@ The current wrapper is intentionally small:
 
 - RAII ownership for `cj_model_t`
 - probe, parse, serialize, and create helpers
-- Arrow-byte parse and serialize as the primary bulk transport path
 - model summary queries
 - metadata setters and getters, cityobject inspection, geometry-type, and single-geometry access
 - transform write control, cityobject mutation, geometry attachment, extraction, append, and cleanup
@@ -25,3 +24,6 @@ shared low-level core without wrapper-wide projected cityobject materialization.
 The shared C ABI header is generated into `../core/include/cityjson_lib/cityjson_lib.h` via
 `just ffi build header`. The C++ wrapper should treat that header as its canonical
 low-level contract rather than duplicating the declarations.
+
+The wrapper is installable through CMake and exposes a generated package config
+that installs the headers and links to the shared Rust FFI library.

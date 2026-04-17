@@ -221,14 +221,6 @@ class CityModel:
         return cls(_ffi.parse_feature_with_base(_as_bytes(feature_data), _as_bytes(base_data)))
 
     @classmethod
-    def from_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
-        return cls.parse_arrow_bytes(data)
-
-    @classmethod
-    def parse_arrow_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
-        return cls(_ffi.parse_arrow(_as_bytes(data)))
-
-    @classmethod
     def create(cls, *, model_type: ModelType) -> Self:
         return cls(_ffi.create(model_type))
 
@@ -348,12 +340,6 @@ class CityModel:
     def serialize_feature_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
         return _ffi.serialize_feature_with_options(self._handle, payload)
-
-    def serialize_arrow_bytes(self) -> bytes:
-        return _ffi.serialize_arrow(self._handle)
-
-    def to_arrow_bytes(self) -> bytes:
-        return self.serialize_arrow_bytes()
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
         _ffi.reserve_import(self._handle, capacities.to_native())

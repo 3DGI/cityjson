@@ -30,23 +30,6 @@ FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" /
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
-    def test_arrow_round_trip(self) -> None:
-        payload = FIXTURE_PATH.read_bytes()
-
-        model = CityModel.parse_document_bytes(payload)
-        self.addCleanup(model.close)
-        arrow_bytes = model.serialize_arrow_bytes()
-        self.assertTrue(arrow_bytes)
-
-        round_trip = CityModel.parse_arrow_bytes(arrow_bytes)
-        self.addCleanup(round_trip.close)
-        self.assertEqual(round_trip.summary().cityobject_count, 2)
-        self.assertEqual(round_trip.cityobject_ids(), ["building-1", "building-part-1"])
-        self.assertEqual(
-            round_trip.geometry_types(),
-            [GeometryType.MULTI_SURFACE, GeometryType.MULTI_POINT],
-        )
-
     def test_parse_edit_extract_and_serialize_document(self) -> None:
         payload = FIXTURE_PATH.read_bytes()
 

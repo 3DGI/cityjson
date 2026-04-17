@@ -1,22 +1,16 @@
-# Python Binding Layout
+# Python Binding
 
-This directory holds the Python package built on top of the shared low-level
-`cityjson_lib` FFI core.
+This directory contains the `cityjson-lib` Python package built on top of the
+shared low-level C ABI.
 
-Current layout:
+The binding stays intentionally small:
 
-- `pyproject.toml`: Python package metadata
-- `src/cityjson_lib/`: Python package
-- `tests/`: Python-facing smoke and integration tests
-
-The current binding is intentionally small and explicit:
-
-- pure-`ctypes` loading of the shared C ABI
-- `CityModel` object wrapper over native handles
-- Arrow-byte parse and serialize as the primary bulk transport path
+- `ctypes` loading of the shared library
+- `CityModel` wrappers over native handles
 - probe, parse, serialize, create, and summary helpers
-- metadata, cityobject ID, geometry-type, and single-geometry access
-- a Python smoke test that exercises the built shared library
+- metadata, cityobject ID, geometry-type, and geometry access
+- smoke tests that exercise the published surface
 
-The Python layer keeps bulk interchange Arrow-first and avoids materializing
-wrapper-wide projected cityobject or vertex collections.
+The package is publishable to PyPI as `cityjson-lib`. The build step compiles
+the shared Rust FFI core and bundles the native library into the wheel and
+source distribution.

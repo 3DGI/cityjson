@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(cityjson_lib_cpp LANGUAGES CXX)
+project(cityjson_lib_cpp VERSION 0.1.0 LANGUAGES CXX)
 
+include(CMakePackageConfigHelpers)
 include(CTest)
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CITYJSON_LIB_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.." CACHE PATH "Repository root")
 set(CITYJSON_LIB_FFI_CORE_INCLUDE_DIR "${CITYJSON_LIB_ROOT_DIR}/ffi/core/include" CACHE PATH "Generated cityjson_lib C ABI headers")
 set(CITYJSON_LIB_FFI_CORE_SHARED_LIB "${CITYJSON_LIB_ROOT_DIR}/target/debug/libcityjson_lib_ffi_core.so" CACHE FILEPATH "Built cityjson_lib ffi shared library")
+get_filename_component(CITYJSON_LIB_FFI_CORE_SHARED_LIB_NAME "${CITYJSON_LIB_FFI_CORE_SHARED_LIB}" NAME)
 
 if(NOT EXISTS "${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib/cityjson_lib.h")
   message(FATAL_ERROR "Missing generated C ABI header at ${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib/cityjson_lib.h. Run `just ffi build header` first.")
@@ -28,6 +31,7 @@ set_target_properties(
 )
 
 add_library(cityjson_lib_cpp INTERFACE)
+target_compile_features(cityjson_lib_cpp INTERFACE cxx_std_20)
 target_include_directories(
   cityjson_lib_cpp
   INTERFACE
@@ -35,6 +39,32 @@ target_include_directories(
     "${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}"
 )
 target_link_libraries(cityjson_lib_cpp INTERFACE cityjson_lib_ffi_core)
+
+install(TARGETS cityjson_lib_cpp)
+install(FILES
+  "${CITYJSON_LIB_FFI_CORE_SHARED_LIB}"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+)
+install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(DIRECTORY "${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cityjson_lib_cppConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/cityjson_lib_cppConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cityjson_lib_cpp"
+)
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/cityjson_lib_cppConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY SameMajorVersion
+)
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/cityjson_lib_cppConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/cityjson_lib_cppConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/cityjson_lib_cpp"
+)
 
 if(BUILD_TESTING)
   add_executable(cityjson_lib_cpp_smoke tests/smoke.cpp)

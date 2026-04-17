@@ -233,12 +233,6 @@ class Model final {
     return Model(handle);
   }
 
-  [[nodiscard]] static Model parse_arrow(std::span<const std::uint8_t> bytes) {
-    cj_model_t* handle = nullptr;
-    check_status(cj_model_parse_arrow_bytes(span_data(bytes), bytes.size(), &handle));
-    return Model(handle);
-  }
-
   [[nodiscard]] static Model create(ModelType type) {
     cj_model_t* handle = nullptr;
     check_status(cj_model_create(type, &handle));
@@ -392,12 +386,6 @@ class Model final {
       const WriteOptions& options = {}) const {
     cj_bytes_t bytes{};
     check_status(cj_model_serialize_feature_with_options(handle_, to_native(options), &bytes));
-    return take_bytes(bytes);
-  }
-
-  [[nodiscard]] std::vector<std::uint8_t> serialize_arrow_bytes() const {
-    cj_bytes_t bytes{};
-    check_status(cj_model_serialize_arrow(handle_, &bytes));
     return take_bytes(bytes);
   }
 

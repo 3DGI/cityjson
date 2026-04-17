@@ -55,9 +55,8 @@ be idiomatic in its host environment.
 
 ## Documentation Map
 
-- [Ecosystem Overview](ecosystem-overview.md)
-  Plain-language map of the related repositories, how they fit together, and
-  where different users should start.
+- [Release Checklist](release-checklist.md)
+  Concrete publish steps for Rust, Python, and C++.
 - [Architecture](architecture.md)
   Cross-crate responsibility split and long-term layering rules.
 - [Shared Corpus Migration Plan](shared-corpus-migration-plan.md)

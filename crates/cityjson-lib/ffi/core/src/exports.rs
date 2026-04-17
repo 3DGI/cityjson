@@ -1,8 +1,6 @@
 #![allow(non_camel_case_types)]
 
 use std::ffi::c_char;
-#[cfg(feature = "arrow")]
-use std::io::Cursor;
 use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::FromStr;
@@ -847,20 +845,6 @@ pub extern "C" fn cj_model_parse_feature_with_base_bytes(
     }))
 }
 
-#[cfg(feature = "arrow")]
-#[unsafe(no_mangle)]
-pub extern "C" fn cj_model_parse_arrow_bytes(
-    data: *const u8,
-    len: usize,
-    out_model: *mut *mut cj_model_t,
-) -> cj_status_t {
-    ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let input = required_bytes(data, len, "data")?;
-        let model = cityjson_lib::arrow::from_reader(Cursor::new(input))?;
-        write_model_handle(out_model, model)
-    }))
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn cj_model_serialize_document(
     model: *const cj_model_t,
@@ -884,20 +868,6 @@ pub extern "C" fn cj_model_serialize_feature(
             model,
             cityjson_lib::json::WriteOptions::default(),
         )?;
-        write_bytes(out_bytes, bytes)
-    }))
-}
-
-#[cfg(feature = "arrow")]
-#[unsafe(no_mangle)]
-pub extern "C" fn cj_model_serialize_arrow(
-    model: *const cj_model_t,
-    out_bytes: *mut cj_bytes_t,
-) -> cj_status_t {
-    ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let model = required_model_ref(model)?;
-        let mut bytes = Vec::new();
-        cityjson_lib::arrow::to_writer(&mut bytes, model)?;
         write_bytes(out_bytes, bytes)
     }))
 }

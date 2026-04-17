@@ -307,8 +307,6 @@ class FfiLibrary:
             POINTER(c_void_p),
         ]
         self._lib.cj_model_parse_feature_with_base_bytes.restype = c_int
-        self._lib.cj_model_parse_arrow_bytes.argtypes = [POINTER(c_ubyte), c_size_t, POINTER(c_void_p)]
-        self._lib.cj_model_parse_arrow_bytes.restype = c_int
         self._lib.cj_model_create.argtypes = [c_int, POINTER(c_void_p)]
         self._lib.cj_model_create.restype = c_int
         self._lib.cj_model_free.argtypes = [c_void_p]
@@ -318,8 +316,6 @@ class FfiLibrary:
         self._lib.cj_model_serialize_document.restype = c_int
         self._lib.cj_model_serialize_feature.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_serialize_feature.restype = c_int
-        self._lib.cj_model_serialize_arrow.argtypes = [c_void_p, POINTER(BytesStruct)]
-        self._lib.cj_model_serialize_arrow.restype = c_int
         self._lib.cj_bytes_free.argtypes = [BytesStruct]
         self._lib.cj_bytes_free.restype = c_int
 
@@ -633,14 +629,6 @@ class FfiLibrary:
         )
         return int(handle.value)
 
-    def parse_arrow(self, data: bytes) -> int:
-        handle = c_void_p()
-        pointer_data = self._data_pointer(data)
-        self._raise_if_error(
-            self._lib.cj_model_parse_arrow_bytes(pointer_data, len(data), pointer(handle))
-        )
-        return int(handle.value)
-
     def create(self, model_type: ModelType) -> int:
         handle = c_void_p()
         self._raise_if_error(self._lib.cj_model_create(int(model_type), pointer(handle)))
@@ -657,11 +645,6 @@ class FfiLibrary:
     def serialize_feature(self, handle: int) -> bytes:
         payload = BytesStruct()
         self._raise_if_error(self._lib.cj_model_serialize_feature(c_void_p(handle), pointer(payload)))
-        return self._take_bytes(payload)
-
-    def serialize_arrow(self, handle: int) -> bytes:
-        payload = BytesStruct()
-        self._raise_if_error(self._lib.cj_model_serialize_arrow(c_void_p(handle), pointer(payload)))
         return self._take_bytes(payload)
 
     def summary(self, handle: int) -> ModelSummaryStruct:

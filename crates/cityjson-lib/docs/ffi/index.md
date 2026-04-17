@@ -1,63 +1,15 @@
 # FFI and Bindings
 
-These pages describe how `cityjson_lib` should serve non-Rust targets.
+This section documents the publishable Rust, Python, and C++ bindings around
+the shared low-level FFI core.
 
-The key architectural decision is:
+## Pages
 
-- one shared low-level FFI core
-- separate target-specific public bindings on top
-- Arrow-first bulk interchange
-- no shared wrapper-projection API layer
-
-That means the low-level ownership, parse, serialize, and bulk-operation story
-should be shared, while C++, Python, and wasm remain free to expose different
-host-language APIs.
-
-## Why This Lives In MkDocs
-
-Rustdoc is useful for Rust APIs, but it is not the right home for the whole
-cross-language story.
-The documentation site needs one place that can cover:
-
-- Rust usage
-- low-level FFI concepts
-- target-specific bindings
-- shared concepts such as ownership, versioning, transforms, and error mapping
-
-MkDocs is the right top-level tool because it is language-neutral.
-
-## Documentation Split
-
-The FFI section is split into:
-
-- [Shared low-level core](shared-core.md)
-  The common substrate used by all non-Rust targets.
-- [FFI implementation plan](ffi-implementation-plan.md)
-  The single source of truth for the current ABI state, wrapper direction,
-  benchmark-driven conclusions, and the next grounded expansion slices.
-- [Architecture decisions](../adr/0001-shared-c-abi-foundation.md)
-  Decision records that freeze the cross-cutting ABI and header workflow
-  choices, including the copied coordinate-buffer and columnar boundary
-  layouts.
-- [Model-authoritative JSON workflows](../adr/0006-model-authoritative-json-ffi-workflows.md)
-  Decision record for append, extract, and cleanup over Rust-owned models with
-  JSON roundtrips.
-- [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md)
-  Decision record for the initial pretty/validation write options and the
-  bytes-based feature-stream contract.
-- [Arrow-first thin facade and bindings](../adr/0012-arrow-first-thin-facade-and-bindings.md)
-  Decision record for removing projected wrapper APIs from the binding surface
-  and keeping bulk interchange explicitly Arrow-oriented.
-- [Wasm32 portability note and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md)
-  Historical note on the wasm32 portability issue that was resolved in
-  `cityjson-benchmarks`, plus the later wasm64 evaluation path.
-- [FFI performance analysis](ffi-performance-analysis.md)
-  Analysis of why the current end-to-end wrapper benchmarks are much slower
-  than the direct Rust baseline and which costs come from wrapper design rather
-  than the raw ABI crossing.
-- [Conventions](conventions.md)
-  Documentation rules for keeping the shared concepts and target wrappers
-  aligned.
-
-The target-specific direction now lives inside the consolidated implementation
-plan so the wrapper pages cannot drift away from the shared ABI plan.
+- [Binding API](api.md): tabbed Rust, Python, and C++ examples for the public surface.
+- [Shared low-level core](shared-core.md): shared ABI and ownership rules.
+- [FFI implementation plan](ffi-implementation-plan.md): current binding work and next slices.
+- [Conventions](conventions.md): documentation rules for the FFI section.
+- [Architecture decisions](../adr/0001-shared-c-abi-foundation.md): frozen ABI and header choices.
+- [Model-authoritative JSON workflows](../adr/0006-model-authoritative-json-ffi-workflows.md): JSON roundtrip workflows over Rust-owned models.
+- [JSON write options and feature streams](../adr/0007-json-write-options-and-feature-stream-bytes.md): write options and feature-stream contracts.
+- [Wasm32 portability note and wasm64 path](../adr/0008-wasm32-blocker-and-wasm64-path.md): archived wasm portability note.

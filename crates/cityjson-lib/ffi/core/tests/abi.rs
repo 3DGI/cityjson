@@ -224,30 +224,6 @@ fn parse_feature_with_base_and_serialize_feature_round_trip() {
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
-#[cfg(feature = "arrow")]
-#[test]
-fn arrow_parse_and_serialize_work() {
-    let mut handle = ptr::null_mut();
-    let status =
-        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle);
-    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
-
-    let mut arrow_bytes = cj_bytes_t::default();
-    let status = cj_model_serialize_arrow(handle, &raw mut arrow_bytes);
-    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
-    assert!(arrow_bytes.len > 0);
-
-    let mut arrow_handle: *mut cj_model_t = ptr::null_mut();
-    let status =
-        cj_model_parse_arrow_bytes(arrow_bytes.data, arrow_bytes.len, &raw mut arrow_handle);
-    assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
-    assert!(!arrow_handle.is_null());
-
-    assert_eq!(cj_model_free(arrow_handle), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_bytes_free(arrow_bytes), cj_status_t::CJ_STATUS_SUCCESS);
-    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
-}
-
 #[test]
 fn summary_and_indexed_inspection_cover_basic_model_state() {
     let mut handle = ptr::null_mut();

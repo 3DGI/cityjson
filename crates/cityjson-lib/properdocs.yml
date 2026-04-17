@@ -5,7 +5,7 @@ strict: true
 nav:
   - Overview:
       - Home: index.md
-      - Ecosystem Overview: ecosystem-overview.md
+      - Release Checklist: release-checklist.md
       - Architecture: architecture.md
       - Guide: guide.md
       - Reading Data: guide-reading.md
@@ -19,6 +19,7 @@ nav:
       - Operations: operations-api.md
   - FFI & Bindings:
       - Overview: ffi/index.md
+      - Binding API: ffi/api.md
       - Shared Low-level Core: ffi/shared-core.md
       - FFI Implementation Plan: ffi/ffi-implementation-plan.md
       - Conventions: ffi/conventions.md

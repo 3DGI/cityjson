@@ -309,18 +309,11 @@ enum cj_status_t cj_model_parse_feature_with_base_bytes(const uint8_t *feature_d
                                                         uintptr_t base_len,
                                                         struct cj_model_t **out_model);
 
-enum cj_status_t cj_model_parse_arrow_bytes(const uint8_t *data,
-                                            uintptr_t len,
-                                            struct cj_model_t **out_model);
-
 enum cj_status_t cj_model_serialize_document(const struct cj_model_t *model,
                                              struct cj_bytes_t *out_bytes);
 
 enum cj_status_t cj_model_serialize_feature(const struct cj_model_t *model,
                                             struct cj_bytes_t *out_bytes);
-
-enum cj_status_t cj_model_serialize_arrow(const struct cj_model_t *model,
-                                          struct cj_bytes_t *out_bytes);
 
 enum cj_status_t cj_model_get_summary(const struct cj_model_t *model,
                                       struct cj_model_summary_t *out_summary);
