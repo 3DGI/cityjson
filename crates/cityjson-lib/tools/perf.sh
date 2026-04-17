@@ -2,22 +2,6 @@
 
 set -euo pipefail
 
-description="${1:-}"
-mode="${2:-full}"
-
-if [[ -z "${description}" ]]; then
-  echo "Usage: ./tools/perf.sh \"description\" [full|fast]" >&2
-  exit 1
-fi
-
-case "${mode}" in
-  full|fast) ;;
-  *)
-    echo "unknown mode '${mode}' (expected full|fast)" >&2
-    exit 1
-    ;;
-esac
-
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 csv_out="${repo_dir}/benches/results/history.csv"
 bench_version="${CITYJSON_LIB_BENCH_VERSION:-v2}"
@@ -39,16 +23,44 @@ massif_workload="${PERF_MASSIF_WORKLOAD:-cityjson_lib-read}"
 read -r -a profile_cases <<<"${profile_cases_raw}"
 read -r -a profile_workloads <<<"${profile_workloads_raw}"
 
-header="timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc"
-mkdir -p "$(dirname "${csv_out}")"
-if [[ ! -f "${csv_out}" ]]; then
-  echo "${header}" > "${csv_out}"
-else
-  current_header="$(head -n 1 "${csv_out}")"
-  if [[ "${current_header}" != "${header}" ]]; then
-    echo "${header}" > "${csv_out}"
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  ./tools/perf.sh <description> [full|fast]
+  ./tools/perf.sh prepare
+  ./tools/perf.sh arrow [criterion-args...]
+  ./tools/perf.sh profile <time|dhat|cachegrind|massif> <workload> <case> [iterations]
+  ./tools/perf.sh check
+  ./tools/perf.sh analyze [args...]
+  ./tools/perf.sh plot [args...]
+EOF
+  exit 1
+}
+
+require_shared_benchmark_index() {
+  if [[ -z "${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT:-}" ]]; then
+    echo "Set CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout." >&2
+    exit 1
   fi
-fi
+
+  local index="${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT}/artifacts/benchmark-index.json"
+  if [[ ! -f "${index}" ]]; then
+    echo "Benchmark index not found at ${index}" >&2
+    exit 1
+  fi
+}
+
+prepare_benchmark_data() {
+  require_shared_benchmark_index
+
+  jq -r '(.generated_cases + .other_cases)[] | . as $case | ([$case.artifacts[] | select(.representation == "cityjson-arrow") | .path] | .[0]) as $arrow | select($arrow != null) | [($case.artifacts[] | select(.representation == "cityjson") | .path), $arrow] | @tsv' \
+    "${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT}/artifacts/benchmark-index.json" \
+    | while IFS=$'\t' read -r input arrow; do \
+        cargo run --quiet -p cityjson-export --bin cjexport -- \
+          --input "${input}" \
+          --arrow-file "${arrow}"; \
+      done
+}
 
 workload_bench_id() {
   local case_id="$1"
@@ -71,79 +83,160 @@ workload_bench_id() {
   esac
 }
 
-echo "=== Preparing benchmark data ==="
-just -f "${repo_dir}/justfile" bench-prepare
+run_full_campaign() {
+  local -a args=("$@")
+  if [[ ${#args[@]} -eq 0 ]]; then
+    usage
+  fi
 
-export CARGO_TARGET_DIR="${repo_dir}/target/bench"
-rm -rf "${criterion_dir}"
+  local mode="full"
+  local last_index=$(( ${#args[@]} - 1 ))
+  case "${args[$last_index]}" in
+    full|fast)
+      mode="${args[$last_index]}"
+      unset 'args[$last_index]'
+      ;;
+  esac
 
-bench_cmd=(cargo bench --bench throughput --manifest-path "${repo_dir}/Cargo.toml")
-if [[ "${mode}" == "fast" ]]; then
-  bench_cmd+=(-- --quick)
-fi
+  local description="${args[*]}"
+  if [[ -z "${description}" ]]; then
+    usage
+  fi
 
-echo "=== Throughput benchmarks: mode=${mode} ==="
-"${bench_cmd[@]}"
+  prepare_benchmark_data
 
-python3 "${repo_dir}/tools/parse_criterion.py" \
-  --criterion-dir "${criterion_dir}" \
-  --timestamp "${timestamp}" \
-  --commit "${commit}" \
-  --description "${description}" \
-  --mode "${mode}" \
-  --backend "${backend}" \
-  --seed "${seed}" \
-  --bench-version "${bench_version}" \
-  --rustc "${rustc_version}" \
-  --out "${csv_out}"
+  export CARGO_TARGET_DIR="${repo_dir}/target/bench"
+  rm -rf "${criterion_dir}"
 
-for case_id in "${profile_cases[@]}"; do
-  for workload in "${profile_workloads[@]}"; do
-    bench_id="$(workload_bench_id "${case_id}" "${workload}")"
+  local bench_cmd=(cargo bench --bench throughput --manifest-path "${repo_dir}/Cargo.toml")
+  if [[ "${mode}" == "fast" ]]; then
+    bench_cmd+=(-- --quick)
+  fi
 
-    echo "=== dhat: case=${case_id} workload=${workload} ==="
-    "${repo_dir}/tools/profile_bench.sh" dhat "${workload}" "${case_id}" "${profile_iterations}"
-    python3 "${repo_dir}/tools/parse_dhat.py" \
-      --dhat-json "${profile_root}/dhat/${case_id}/${workload}/dhat-heap.json" \
-      --timestamp "${timestamp}" \
-      --commit "${commit}" \
-      --description "${description}" \
-      --mode "${mode}" \
-      --backend "${backend}" \
-      --bench "${bench_id}" \
-      --seed "${seed}" \
-      --bench-version "${bench_version}" \
-      --rustc "${rustc_version}" \
-      --out "${csv_out}"
+  echo "=== Throughput benchmarks: mode=${mode} ==="
+  "${bench_cmd[@]}"
 
-    echo "=== cachegrind: case=${case_id} workload=${workload} ==="
-    "${repo_dir}/tools/profile_bench.sh" cachegrind "${workload}" "${case_id}" "${profile_iterations}"
-    python3 "${repo_dir}/tools/parse_cachegrind.py" \
-      --cachegrind-out "${profile_root}/cachegrind/${case_id}/${workload}/cachegrind.out" \
-      --timestamp "${timestamp}" \
-      --commit "${commit}" \
-      --description "${description}" \
-      --mode "${mode}" \
-      --backend "${backend}" \
-      --bench "${bench_id}" \
-      --seed "${seed}" \
-      --bench-version "${bench_version}" \
-      --rustc "${rustc_version}" \
-      --out "${csv_out}"
+  python3 "${repo_dir}/tools/parse_criterion.py" \
+    --criterion-dir "${criterion_dir}" \
+    --timestamp "${timestamp}" \
+    --commit "${commit}" \
+    --description "${description}" \
+    --mode "${mode}" \
+    --backend "${backend}" \
+    --seed "${seed}" \
+    --bench-version "${bench_version}" \
+    --rustc "${rustc_version}" \
+    --out "${csv_out}"
+
+  for case_id in "${profile_cases[@]}"; do
+    for workload in "${profile_workloads[@]}"; do
+      local bench_id
+      bench_id="$(workload_bench_id "${case_id}" "${workload}")"
+
+      echo "=== dhat: case=${case_id} workload=${workload} ==="
+      "${repo_dir}/tools/profile_bench.sh" dhat "${workload}" "${case_id}" "${profile_iterations}"
+      python3 "${repo_dir}/tools/parse_dhat.py" \
+        --dhat-json "${profile_root}/dhat/${case_id}/${workload}/dhat-heap.json" \
+        --timestamp "${timestamp}" \
+        --commit "${commit}" \
+        --description "${description}" \
+        --mode "${mode}" \
+        --backend "${backend}" \
+        --bench "${bench_id}" \
+        --seed "${seed}" \
+        --bench-version "${bench_version}" \
+        --rustc "${rustc_version}" \
+        --out "${csv_out}"
+
+      echo "=== cachegrind: case=${case_id} workload=${workload} ==="
+      "${repo_dir}/tools/profile_bench.sh" cachegrind "${workload}" "${case_id}" "${profile_iterations}"
+      python3 "${repo_dir}/tools/parse_cachegrind.py" \
+        --cachegrind-out "${profile_root}/cachegrind/${case_id}/${workload}/cachegrind.out" \
+        --timestamp "${timestamp}" \
+        --commit "${commit}" \
+        --description "${description}" \
+        --mode "${mode}" \
+        --backend "${backend}" \
+        --bench "${bench_id}" \
+        --seed "${seed}" \
+        --bench-version "${bench_version}" \
+        --rustc "${rustc_version}" \
+        --out "${csv_out}"
+    done
   done
-done
 
-if [[ "${run_massif}" == "1" ]]; then
-  echo "=== massif: case=${massif_case} workload=${massif_workload} ==="
-  "${repo_dir}/tools/profile_bench.sh" massif "${massif_workload}" "${massif_case}" "${profile_iterations}"
-fi
+  if [[ "${run_massif}" == "1" ]]; then
+    echo "=== massif: case=${massif_case} workload=${massif_workload} ==="
+    "${repo_dir}/tools/profile_bench.sh" massif "${massif_workload}" "${massif_case}" "${profile_iterations}"
+  fi
 
-echo "=== plots: description=${description} timestamp=${timestamp} ==="
-uv run --script "${repo_dir}/tools/perf_plot.py" \
-  --csv "${csv_out}" \
-  --description "${description}" \
-  --mode "${mode}" \
-  --timestamp "${timestamp}"
+  echo "=== plots: description=${description} timestamp=${timestamp} ==="
+  uv run --script "${repo_dir}/tools/perf_plot.py" \
+    --csv "${csv_out}" \
+    --description "${description}" \
+    --mode "${mode}" \
+    --timestamp "${timestamp}"
 
-unset CARGO_TARGET_DIR
-echo "wrote ${csv_out}"
+  unset CARGO_TARGET_DIR
+  echo "wrote ${csv_out}"
+}
+
+run_arrow_diagnostic() {
+  require_shared_benchmark_index
+  cargo bench --bench diagnostic --manifest-path "${repo_dir}/Cargo.toml" "$@"
+}
+
+run_profile() {
+  require_shared_benchmark_index
+  "${repo_dir}/tools/profile_bench.sh" "$@"
+}
+
+run_check() {
+  cargo bench --all-targets --all-features --no-run
+}
+
+run_analyze() {
+  python3 "${repo_dir}/tools/perf_analyze.py" "$@"
+}
+
+run_plot() {
+  uv run --script "${repo_dir}/tools/perf_plot.py" "$@"
+}
+
+case "${1:-}" in
+  prepare)
+    shift
+    [[ $# -eq 0 ]] || usage
+    prepare_benchmark_data
+    ;;
+  arrow)
+    shift
+    run_arrow_diagnostic "$@"
+    ;;
+  profile)
+    shift
+    run_profile "$@"
+    ;;
+  check)
+    shift
+    [[ $# -eq 0 ]] || usage
+    run_check
+    ;;
+  analyze)
+    shift
+    run_analyze "$@"
+    ;;
+  plot)
+    shift
+    run_plot "$@"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  "")
+    usage
+    ;;
+  *)
+    run_full_campaign "$@"
+    ;;
+esac

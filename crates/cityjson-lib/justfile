@@ -52,64 +52,20 @@ docs-build:
 docs-serve *args:
     uv run properdocs serve -o {{args}}
 
-# Run fmt, lint, check, bench-check, test, and doc
+# Run fmt, lint, check, test, perf-check, and doc
 ci:
     just fmt
     just lint
     just check-no-default-features
     just check-parquet
     just check
-    just bench-check
+    just perf check
     just test
     just test-all-features
     just docs-build
 
-# Build the benchmarks
-bench-check:
-    cargo bench --all-targets --all-features --no-run
-
-# Verify the shared benchmark corpus is available.
-_check-shared-benchmark-index:
-    bash -lc ' \
-        if [ -n "${CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT:-}" ]; then \
-            index="$CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json"; \
-            if [ ! -f "$index" ]; then \
-                echo "Benchmark index not found at $index" >&2; exit 1; \
-            fi; \
-        else \
-            echo "Set CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT to your cityjson-corpus checkout." >&2; exit 1; \
-        fi \
-    '
-
-# Export CityJSON to cityjson-arrow for all acquired benchmark cases.
-prepare-bench-data: _check-shared-benchmark-index
-    jq -r '(.generated_cases + .other_cases)[] | . as $case | ([$case.artifacts[] | select(.representation == "cityjson-arrow") | .path] | .[0]) as $arrow | select($arrow != null) | [($case.artifacts[] | select(.representation == "cityjson") | .path), $arrow] | @tsv' "$CITYJSON_LIB_BENCH_SHARED_CORPUS_ROOT/artifacts/benchmark-index.json" \
-    | while IFS=$'\t' read -r input arrow; do \
-        cargo run --quiet -p cityjson-export --bin cjexport -- \
-          --input "$input" \
-          --arrow-file "$arrow"; \
-      done
-
-bench *args: _check-shared-benchmark-index
-    cargo bench --bench throughput {{args}}
-
-bench-diagnostic *args: _check-shared-benchmark-index
-    cargo bench --bench diagnostic {{args}}
-
-bench-profile tool workload case iterations="1": _check-shared-benchmark-index
-    ./tools/profile_bench.sh {{tool}} {{workload}} {{case}} {{iterations}}
-
-perf description mode="full": _check-shared-benchmark-index
-    ./tools/perf.sh "{{description}}" "{{mode}}"
-
-perf-analyze *args:
-    python3 ./tools/perf_analyze.py {{args}}
-
-perf-plot *args:
-    uv run --script ./tools/perf_plot.py {{args}}
-
-perf-check:
-    cargo bench --bench throughput --bench diagnostic --bench profile --no-run
+perf *args:
+    ./tools/perf.sh {{args}}
 
 ffi-check:
     cargo check -p cityjson-lib-ffi-core -p cityjson-lib-wasm --all-targets

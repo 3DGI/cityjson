@@ -20,7 +20,7 @@ cityarrow, and cityparquet artifacts, `cityjson_lib` reuses them directly.
 ## Prepare Inputs
 
 ```bash
-just bench-prepare
+just perf prepare
 ```
 
 This will:
@@ -33,11 +33,11 @@ This will:
 - otherwise re-export incompatible or missing cityarrow stream files and
   cityparquet package files with `bench_export_formats`
 
-## Throughput Benchmarks
+## Full Campaign
 
 ```bash
-just bench -- --quick
-just bench
+just perf "baseline before refactor" fast
+just perf "baseline before refactor"
 ```
 
 The Criterion suite benchmarks:
@@ -53,13 +53,13 @@ benchmarks. The read path consumes prebuilt native-format files from the
 corpus; it does not convert from CityJSON inside the timed loop. These timings
 therefore include both native IO and reconstruction of the heap `CityModel`.
 
-## Diagnostic Benchmarks
+## Arrow Benchmarks
 
-Use the split diagnostic target when you need the narrower ADR 0010 view:
+Use `perf arrow` when you need the narrower ADR 0010 view:
 
 ```bash
-just bench-diagnostic -- --quick
-just bench-diagnostic
+just perf arrow -- --quick
+just perf arrow
 ```
 
 This target keeps the same pinned 3DBAG cases but measures the public Arrow
@@ -70,19 +70,19 @@ batch and stream surfaces separately from the headline end-to-end path:
 - `cityarrow/write_stream`
 - `cityarrow/read_stream`
 
-Use `throughput` for product-facing `format <-> CityModel` numbers and
-`diagnostic` to decide whether the remaining cost sits in batch export/import or
-live-stream transport.
+Use the full campaign for product-facing `format <-> CityModel` numbers and
+`perf arrow` to decide whether the remaining cost sits in batch export/import
+or live-stream transport.
 
 ## Profiling
 
 Run a single workload on a single case:
 
 ```bash
-just bench-profile time cityjson_lib-read io_3dbag_cityjson
-just bench-profile dhat cityjson_lib-read io_3dbag_cityjson
-just bench-profile cachegrind cityjson_lib-read io_3dbag_cityjson
-just bench-profile massif cityjson_lib-read io_3dbag_cityjson
+just perf profile time cityjson_lib-read io_3dbag_cityjson
+just perf profile dhat cityjson_lib-read io_3dbag_cityjson
+just perf profile cachegrind cityjson_lib-read io_3dbag_cityjson
+just perf profile massif cityjson_lib-read io_3dbag_cityjson
 ```
 
 Outputs are written under `target/bench-profile/<tool>/<case>/<workload>/`.
@@ -103,7 +103,7 @@ just perf "baseline before refactor"
 
 This runs:
 
-- `just bench-prepare`
+- `just perf prepare`
 - the throughput Criterion suite
 - dhat profiling for the real-data read workloads on the base and cluster cases
 - cachegrind profiling for the same read workloads
@@ -133,23 +133,23 @@ The default profiled workloads are:
 Massif remains available as an explicit deep-dive tool:
 
 ```bash
-just bench-profile massif cityjson_lib-read io_3dbag_cityjson_cluster_4x
+just perf profile massif cityjson_lib-read io_3dbag_cityjson_cluster_4x
 PERF_RUN_MASSIF=1 just perf "cluster massif capture" fast
 ```
 
 Analyze the recorded history with:
 
 ```bash
-just perf-analyze --list
-just perf-analyze --description "baseline before refactor"
-just perf-analyze --description "baseline before refactor" --series --bench "deserialize/io_3dbag_cityjson/cityjson_lib/read" --metric heap_max_bytes
+just perf analyze --list
+just perf analyze --description "baseline before refactor"
+just perf analyze --description "baseline before refactor" --series --bench "deserialize/io_3dbag_cityjson/cityjson_lib/read" --metric heap_max_bytes
 ```
 
 Generate baseline-relative throughput plots from the recorded history with:
 
 ```bash
-just perf-plot --description "baseline before refactor"
-just perf-plot --description "baseline before refactor" --timestamp 2026-04-01T20:15:06Z
+just perf plot --description "baseline before refactor"
+just perf plot --description "baseline before refactor" --timestamp 2026-04-01T20:15:06Z
 ```
 
 Each plotted snapshot writes:

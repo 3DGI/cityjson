@@ -59,9 +59,6 @@ be idiomatic in its host environment.
 - [Ecosystem Overview](ecosystem-overview.md)
   Plain-language map of the related repositories, how they fit together, and
   where different users should start.
-- [CityJSON Ecosystem Naming Map](ecosystem-naming.md)
-  Proposed repository naming scheme for the CityJSON family, including the
-  current-to-target rename map.
 - [Architecture](architecture.md)
   Cross-crate responsibility split and long-term layering rules.
 - [Shared Corpus Migration Plan](shared-corpus-migration-plan.md)
