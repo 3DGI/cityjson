@@ -24,6 +24,9 @@ struct CorrectnessIndex {
 #[derive(Deserialize)]
 struct CorrectnessEntry {
     id: String,
+    layer: String,
+    #[serde(default)]
+    cityjson_version: Option<String>,
     #[serde(default)]
     artifact_paths: ArtifactPaths,
 }
@@ -43,6 +46,15 @@ pub fn load_named_conformance_case(case_id: &str) -> ConformanceCase {
     let entry = CORRECTNESS_CASES
         .get(case_id)
         .unwrap_or_else(|| panic!("missing conformance case '{case_id}'"));
+    assert_eq!(
+        entry.layer, "conformance",
+        "correctness case '{case_id}' is not a conformance fixture"
+    );
+    assert_eq!(
+        entry.cityjson_version.as_deref(),
+        Some("2.0"),
+        "correctness case '{case_id}' is not a CityJSON 2.0 fixture"
+    );
 
     let path = resolve_artifact_path(case_id, entry);
     let bytes =
