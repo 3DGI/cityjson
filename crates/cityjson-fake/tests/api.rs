@@ -1,4 +1,10 @@
+#[cfg(feature = "cli")]
+use cityjson_fake::cli::{run, Cli, OutputFormat};
 use cityjson_fake::prelude::*;
+#[cfg(feature = "cli")]
+use std::fs;
+#[cfg(feature = "cli")]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ─── Basic construction ───────────────────────────────────────────────────────
 
@@ -11,6 +17,34 @@ fn generate_helpers() {
     assert_eq!(model.cityobjects().len(), 1);
 
     let json = generate_string(config, Some(1)).expect("serialization should succeed");
+    assert!(json.starts_with('{'));
+}
+
+/// Can we run the public CLI entrypoint and write a JSON document?
+#[cfg(feature = "cli")]
+#[test]
+fn cli_smoke() {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be valid")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("cityjson-fake-cli-smoke-{stamp}"));
+    fs::create_dir_all(&dir).expect("temp dir should be creatable");
+    let output = dir.join("model.city.json");
+
+    let cli = Cli {
+        config: CJFakeConfig::default(),
+        output_format: OutputFormat::Json,
+        manifest: None,
+        schema: None,
+        case: None,
+        check_manifest: false,
+        output: Some(output.clone()),
+        count: 1,
+    };
+
+    run(cli).expect("CLI should succeed");
+    let json = fs::read_to_string(&output).expect("output should exist");
     assert!(json.starts_with('{'));
 }
 

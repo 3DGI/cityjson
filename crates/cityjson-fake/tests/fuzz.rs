@@ -1,12 +1,17 @@
+use cityjson_fake::attribute::{AttributesBuilder, AttributesFaker};
+use cityjson_fake::material::MaterialBuilder;
+use cityjson_fake::metadata::MetadataBuilder;
 use cityjson_fake::prelude::*;
-use cityjson_fake::vertex::VerticesFaker;
-use fake::Fake;
+use cityjson_fake::texture::TextureBuilder;
+use cityjson_fake::vertex::{RealWorldCoordinateFaker, VerticesFaker};
+use fake::{Dummy, Fake};
 use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::select;
 use proptest::test_runner::FileFailurePersistence;
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
+use std::path::Path;
 
 fn city_object_type_strategy(
 ) -> impl Strategy<Value = Option<Vec<CityObjectType<OwnedStringStorage>>>> {
@@ -178,6 +183,7 @@ proptest! {
         attributes_random_keys in any::<bool>(),
         attributes_random_values in any::<bool>(),
         allowed_types_semantic in semantic_type_strategy(),
+        call_transform in any::<bool>(),
     ) {
         let mut allowed_types_cityobject = allowed_types_cityobject;
         if cityobject_hierarchy
@@ -274,14 +280,65 @@ proptest! {
             ..Default::default()
         };
 
-        let model = CityModelBuilder::<u32, OwnedStringStorage>::new(config.clone(), Some(11))
+        let model = {
+            let builder = CityModelBuilder::<u32, OwnedStringStorage>::new(config.clone(), Some(11));
+            let builder = if call_transform {
+                builder.transform()
+            } else {
+                builder
+            };
+            builder
+                .metadata(None)
+                .vertices()
+                .materials(None)
+                .textures(None)
+                .attributes(None)
+                .cityobjects()
+                .build()
+        };
+
+        let helper_model = generate_model(config.clone(), Some(11));
+        assert_eq!(helper_model.cityobjects().len(), model.cityobjects().len());
+
+        #[cfg(feature = "json")]
+        {
+            let json =
+                generate_string(config.clone(), Some(11)).expect("JSON serialization should succeed");
+            assert!(json.starts_with('{'));
+
+            let bytes =
+                generate_vec(config.clone(), Some(11)).expect("byte serialization should succeed");
+            assert!(bytes.starts_with(b"{"));
+
+            let built_json = CityModelBuilder::<u32, OwnedStringStorage>::new(
+                config.clone(),
+                Some(11),
+            )
             .metadata(None)
             .vertices()
             .materials(None)
             .textures(None)
             .attributes(None)
             .cityobjects()
-            .build();
+            .build_string()
+            .expect("builder serialization should succeed");
+            assert!(built_json.starts_with('{'));
+
+            let built_vec = CityModelBuilder::<u32, OwnedStringStorage>::new(config.clone(), Some(11))
+                .metadata(None)
+                .vertices()
+                .materials(None)
+                .textures(None)
+                .attributes(None)
+                .cityobjects()
+                .build_vec()
+                .expect("builder byte serialization should succeed");
+            assert!(built_vec.starts_with(b"{"));
+        }
+
+        if call_transform {
+            assert!(model.transform().is_some());
+        }
 
         if cityobject_hierarchy {
             assert!(model.cityobjects().len() >= cityobject_count as usize);
@@ -393,6 +450,178 @@ proptest! {
         }
     }
 
+    /// Exercise the standalone builders and faker helpers directly.
+    #[test]
+    fn fuzz_builders(
+        material_use_name in any::<bool>(),
+        material_ambient in any::<bool>(),
+        material_diffuse in any::<bool>(),
+        material_emissive in any::<bool>(),
+        material_specular in any::<bool>(),
+        material_shininess in any::<bool>(),
+        material_transparency in any::<bool>(),
+        texture_use_image_type in any::<bool>(),
+        texture_use_image in any::<bool>(),
+        metadata_geographical_extent in any::<bool>(),
+        metadata_identifier in any::<bool>(),
+        metadata_reference_date in any::<bool>(),
+        metadata_reference_system in any::<bool>(),
+        metadata_title in any::<bool>(),
+        metadata_point_of_contact in any::<bool>(),
+        attributes_random_keys in any::<bool>(),
+        attributes_random_values in any::<bool>(),
+        attributes_max_depth in 0u8..=3,
+        attributes_min in 0u32..=3,
+        attributes_extra in 0u32..=3,
+        vertex_min in -1000.0f64..=-1.0f64,
+        vertex_max in 1.0f64..=1000.0f64,
+    ) {
+        let default_model: CityModel<u32, OwnedStringStorage> =
+            CityModelBuilder::<u32, OwnedStringStorage>::default().build();
+        assert_eq!(default_model.cityobjects().len(), 1);
+
+        let default_material: Material<OwnedStringStorage> = MaterialBuilder::default().build();
+        assert_eq!(default_material.name(), "material");
+
+        let mut material_rng = SmallRng::seed_from_u64(1);
+        let material: Material<OwnedStringStorage> = {
+            let mut builder = MaterialBuilder::new(&mut material_rng);
+            if material_use_name {
+                builder = builder.name();
+            }
+            if material_ambient {
+                builder = builder.ambient_intensity();
+            }
+            if material_diffuse {
+                builder = builder.diffuse_color();
+            }
+            if material_emissive {
+                builder = builder.emissive_color();
+            }
+            if material_specular {
+                builder = builder.specular_color();
+            }
+            if material_shininess {
+                builder = builder.shininess();
+            }
+            if material_transparency {
+                builder = builder.transparency();
+            }
+            builder.build()
+        };
+        assert!(!material.name().is_empty());
+        assert_eq!(material.ambient_intensity().is_some(), material_ambient);
+        assert_eq!(material.diffuse_color().is_some(), material_diffuse);
+        assert_eq!(material.emissive_color().is_some(), material_emissive);
+        assert_eq!(material.specular_color().is_some(), material_specular);
+        assert_eq!(material.shininess().is_some(), material_shininess);
+        assert_eq!(material.transparency().is_some(), material_transparency);
+
+        let default_texture: Texture<OwnedStringStorage> = TextureBuilder::default().build();
+        assert!(!default_texture.image().is_empty());
+
+        let mut texture_rng = SmallRng::seed_from_u64(2);
+        let texture: Texture<OwnedStringStorage> = {
+            let mut builder = TextureBuilder::new(&mut texture_rng);
+            if texture_use_image_type {
+                builder = builder.image_type();
+            }
+            if texture_use_image {
+                builder = builder.image();
+            }
+            builder.build()
+        };
+        assert!(!texture.image().is_empty());
+        if texture_use_image {
+            let expected_extension = match texture.image_type() {
+                ImageType::Png => "png",
+                ImageType::Jpg => "jpg",
+                _ => unreachable!("unexpected image type"),
+            };
+            assert_eq!(
+                Path::new(texture.image()).extension().and_then(|ext| ext.to_str()),
+                Some(expected_extension)
+            );
+        }
+
+        let config = CJFakeConfig::default();
+        let mut metadata_rng = SmallRng::seed_from_u64(3);
+        let metadata: Metadata<OwnedStringStorage> = {
+            let mut builder = MetadataBuilder::new(&config, &mut metadata_rng);
+            if metadata_geographical_extent {
+                builder = builder.geographical_extent();
+            }
+            if metadata_identifier {
+                builder = builder.identifier();
+            }
+            if metadata_reference_date {
+                builder = builder.reference_date();
+            }
+            if metadata_reference_system {
+                builder = builder.reference_system();
+            }
+            if metadata_title {
+                builder = builder.title();
+            }
+            if metadata_point_of_contact {
+                builder = builder.point_of_contact();
+            }
+            builder.build()
+        };
+        assert_eq!(
+            metadata.geographical_extent().is_some(),
+            metadata_geographical_extent
+        );
+        assert_eq!(metadata.identifier().is_some(), metadata_identifier);
+        assert_eq!(metadata.reference_date().is_some(), metadata_reference_date);
+        assert_eq!(
+            metadata.reference_system().is_some(),
+            metadata_reference_system
+        );
+        assert_eq!(metadata.title().is_some(), metadata_title);
+        assert_eq!(
+            metadata.point_of_contact().is_some(),
+            metadata_point_of_contact
+        );
+
+        let mut attributes_rng = SmallRng::seed_from_u64(4);
+        let faker = AttributesFaker {
+            random_keys: attributes_random_keys,
+            random_values: attributes_random_values,
+            max_depth: attributes_max_depth,
+            min_attrs: attributes_min,
+            max_attrs: attributes_min + attributes_extra,
+        };
+        let attributes = faker.generate(&mut attributes_rng);
+        assert!(attributes.len() >= attributes_min as usize);
+        assert!(attributes.len() <= (attributes_min + attributes_extra) as usize);
+        if !attributes_random_keys {
+            assert!(attributes.keys().all(|key| key.starts_with("attr_")));
+        }
+        if !attributes_random_values {
+            assert!(
+                attributes
+                    .values()
+                    .all(|value| matches!(value, OwnedAttributeValue::String(text) if text == "default"))
+            );
+        }
+
+        let mut builder_rng = SmallRng::seed_from_u64(5);
+        let built_attributes = AttributesBuilder::new()
+            .with_random_attributes(&mut builder_rng)
+            .build();
+        assert!(!built_attributes.is_empty());
+
+        let mut coordinate_rng = SmallRng::seed_from_u64(6);
+        let coordinate: RealWorldCoordinate = Dummy::dummy_with_rng(
+            &RealWorldCoordinateFaker::new(vertex_min, vertex_max),
+            &mut coordinate_rng,
+        );
+        assert!(coordinate.x() >= vertex_min && coordinate.x() <= vertex_max);
+        assert!(coordinate.y() >= vertex_min && coordinate.y() <= vertex_max);
+        assert!(coordinate.z() >= vertex_min && coordinate.z() <= vertex_max);
+    }
+
     /// The vertex faker honors the configured count and coordinate range.
     #[test]
     fn fuzz_vertices(
@@ -423,5 +652,14 @@ proptest! {
             assert!(vertex.y() >= min_coordinate && vertex.y() <= max_coordinate);
             assert!(vertex.z() >= min_coordinate && vertex.z() <= max_coordinate);
         }
+
+        let mut coordinate_rng = SmallRng::seed_from_u64(100);
+        let coordinate: RealWorldCoordinate = Dummy::dummy_with_rng(
+            &RealWorldCoordinateFaker::new(min_coordinate, max_coordinate),
+            &mut coordinate_rng,
+        );
+        assert!(coordinate.x() >= min_coordinate && coordinate.x() <= max_coordinate);
+        assert!(coordinate.y() >= min_coordinate && coordinate.y() <= max_coordinate);
+        assert!(coordinate.z() >= min_coordinate && coordinate.z() <= max_coordinate);
     }
 }
