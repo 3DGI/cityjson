@@ -68,18 +68,6 @@ let cleaned = ops::cleanup(&subset)?;
 These helpers are part of the stable facade, but their JSON-aware
 implementation lives in `cityjson-json`.
 
-## Drop To `cityjson` For Advanced Model Work
-
-`CityModel` is the owned semantic model type re-exported from `cityjson-rs`.
-When you need the deeper model surface, use `cityjson_lib::cityjson` directly.
-
-```rust
-use cityjson_lib::cityjson;
-
-let model = cityjson::v2_0::OwnedCityModel::new(cityjson::CityModelType::CityJSON);
-# let _ = model;
-```
-
 ## Handle Errors By Category
 
 The stable contract is `ErrorKind`, not display text.

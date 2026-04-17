@@ -13,7 +13,6 @@ The crate root is intentionally small:
 - `json`
 - `ops`
 - `query`
-- `cityjson`
 
 ## `CityModel`
 
@@ -72,9 +71,3 @@ let summary = query::summary(&model);
 assert!(summary.cityobject_count >= 1);
 # Ok::<(), cityjson_lib::Error>(())
 ```
-
-## `cityjson`
-
-`cityjson` is the explicit drop-down path to the deeper semantic model API.
-Use it when the facade surface is intentionally smaller than the underlying
-model crate.

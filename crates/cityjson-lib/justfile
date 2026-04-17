@@ -2,7 +2,7 @@
 
 set dotenv-load := true
 
-native_packages := "-p cityjson-lib -p cityjson-export"
+native_packages := "-p cityjson-lib"
 
 _default:
     just --list

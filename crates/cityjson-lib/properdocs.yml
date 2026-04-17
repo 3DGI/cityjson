@@ -1,5 +1,5 @@
 site_name: cityjson_lib
-site_description: User-facing facade docs for the CityJSON release line
+site_description: Minimal release-facing docs for cityjson_lib
 docs_dir: docs
 strict: true
 nav:
@@ -8,41 +8,14 @@ nav:
       - Guide: guide.md
       - Reading Data: guide-reading.md
       - Writing Data: guide-writing.md
-      - Examples: examples.md
-      - Architecture: architecture.md
-      - Benchmarking: benchmarking.md
       - Release Checklist: release-checklist.md
   - Rust API:
       - Public API: public-api.md
-      - Model Boundary: model-api.md
       - JSON Boundary: json-api.md
-      - Format Modules: format-api.md
       - Operations: operations-api.md
   - FFI & Bindings:
       - Overview: ffi/index.md
       - Binding API: ffi/api.md
-      - Shared Low-level Core: ffi/shared-core.md
-      - Conventions: ffi/conventions.md
-  - Archive:
-      - Ecosystem Overview: ecosystem-overview.md
-      - Release Roadmap: release-roadmap.md
-      - Shared Corpus Migration Note: shared-corpus-migration-plan.md
-      - Feature Root ID Propagation Note: feature-root-id-propagation-plan.md
-      - FFI Implementation Note: ffi/ffi-implementation-plan.md
-      - FFI Performance Note: ffi/ffi-performance-analysis.md
-  - Architecture Decisions:
-      - Shared C ABI Foundation: adr/0001-shared-c-abi-foundation.md
-      - FFI Header Workflow: adr/0002-ffi-header-workflow.md
-      - FFI Inspection And Coordinate Buffers: adr/0003-shared-ffi-inspection-and-coordinate-buffers.md
-      - Wrapper Milestone One Shape: adr/0004-wrapper-milestone-one-shape.md
-      - Columnar Geometry Boundary ABI: adr/0005-columnar-geometry-boundary-abi.md
-      - Model-Authoritative JSON Workflows: adr/0006-model-authoritative-json-ffi-workflows.md
-      - JSON Write Options And Feature Streams: adr/0007-json-write-options-and-feature-stream-bytes.md
-      - Wasm32 Portability Note And Wasm64 Path: adr/0008-wasm32-blocker-and-wasm64-path.md
-      - CityJSON Benchmark Corpus Design: adr/0009-cityjson-benchmark-corpus-design.md
-      - Shared Model Benchmark Semantics And Baseline: adr/0010-shared-model-benchmark-semantics-and-baseline.md
-      - Strict CityJSONSeq Writer With Canonical Root And Explicit Transform: adr/0011-strict-cityjsonseq-writer-with-canonical-root-and-explicit-transform.md
-      - Arrow-First Thin Facade And Bindings: adr/0012-arrow-first-thin-facade-and-bindings.md
 theme:
   name: material
   features:
