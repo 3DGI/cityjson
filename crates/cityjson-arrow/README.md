@@ -28,6 +28,15 @@ It exposes a batch-first and stream-oriented transport surface over
 - import still reconstructs the semantic model through the existing
   `OwnedCityModel` mutation path
 
+## Benchmarks
+
+Read and write throughput compared to `cityjson-json` on the same models.
+Factor < 1.0 means Arrow IPC is faster than JSON; > 1.0 means slower.
+Full results and plots: `benches/results/`.
+
+<!-- benchmark-summary:start -->
+<!-- benchmark-summary:end -->
+
 ## Verification
 
 The repository keeps:
@@ -38,6 +47,7 @@ The repository keeps:
 - `just lint`
 - `just check`
 - `just test`
+- `just bench-check`
 
 ## Repository Map
 

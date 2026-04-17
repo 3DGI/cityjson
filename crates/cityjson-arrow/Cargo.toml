@@ -13,6 +13,14 @@ readme = "README.md"
 name = "split"
 harness = false
 
+[[bench]]
+name = "read"
+harness = false
+
+[[bench]]
+name = "write"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -37,4 +45,5 @@ parquet = "58.1.0"
 
 [dev-dependencies]
 rand = "0.10.1"
-criterion = "0.8.2"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+cityjson-json = { path = "../cityjson-json" }
