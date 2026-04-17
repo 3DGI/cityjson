@@ -3,19 +3,17 @@ name = "cityjson-lib"
 version = "0.4.0"
 edition = "2024"
 rust-version = "1.93"
-description = "High-level CityJSON 2.0 read/write facade integrating JSON, Arrow, and Parquet I/O"
+description = "High-level CityJSON 2.0 read/write facade integrating JSON I/O"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-lib"
-keywords = ["cityjson", "geospatial", "3d", "gis", "arrow"]
+keywords = ["cityjson", "geospatial", "3d", "gis"]
 categories = ["encoding", "science::geo"]
 readme = "README.md"
+autobenches = false
 include = [
     "/src",
     "/examples",
     "/tests",
-    "/benches",
-    "/benches/results",
-    "/benches/support",
     "/docs",
     "/resources",
     "/Cargo.toml",
@@ -30,13 +28,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["json"]
 json = ["dep:cityjson-json"]
-arrow = ["json", "dep:arrow", "dep:cityjson-arrow"]
-parquet = ["json"]
 
 [workspace]
 members = [
     ".",
-    "cityjson-export",
     "ffi/core",
     "ffi/wasm",
 ]
@@ -49,9 +44,7 @@ name = "cityjson_lib"
 path = "src/lib.rs"
 
 [dependencies]
-arrow = { version = "58.1.0", default-features = false, optional = true }
 cityjson = { path = "../cityjson-rs", version = "0.7.0" }
-cityjson-arrow = { path = "../cityjson-arrow", version = "0.6.0", optional = true }
 cityjson-json = { path = "../cityjson-json", version = "0.7.0", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -60,18 +53,3 @@ serde_json = { version = "1.0", features = ["raw_value"] }
 criterion = "0.7"
 dhat = "0.3"
 tempfile = "3.23"
-
-[[bench]]
-name = "throughput"
-harness = false
-required-features = ["arrow"]
-
-[[bench]]
-name = "diagnostic"
-harness = false
-required-features = ["arrow"]
-
-[[bench]]
-name = "profile"
-harness = false
-required-features = ["arrow"]

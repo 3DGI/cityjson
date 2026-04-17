@@ -15,8 +15,7 @@ The stable contract is:
 - document-oriented constructors live in explicit modules such as
   `cityjson_lib::json`
 - stream APIs do not appear as inherent methods
-- format- or transport-specific helpers stay in sibling modules such as
-  `cityjson_lib::arrow`
+- format-specific helpers stay in explicit sibling modules
 
 The current Rust shape is intentionally simple:
 
@@ -25,7 +24,7 @@ pub use cityjson::v2_0::OwnedCityModel as CityModel;
 ```
 
 The durable boundary is the direct model re-export plus the explicit module
-boundaries for JSON, Arrow, and operations.
+boundaries for JSON and operations.
 
 `CityModel` is also the same owned type for:
 

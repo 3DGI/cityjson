@@ -13,7 +13,6 @@ The crate root should stay small:
 - `ErrorKind`
 - `json`, enabled by default through the `json` feature
 - `ops`, enabled by default with `json`
-- optional sibling modules such as `arrow` and `parquet`
 - `cityjson`
 
 The public rule is:
@@ -59,14 +58,8 @@ let _owned: CityModel = from_slice;
 - document and feature serialization
 - feature-stream writing
 
-Sibling format modules follow the same rule: explicit module, explicit format,
-semantic item type still `CityModel`.
-
-`cityjson_lib::arrow` is intentionally thin:
-
-- live Arrow IPC stream read and write
-- explicit batch export/import for columnar workflows
-- no hidden cityobject projection helpers
+The transport-specific branch keeps the Arrow and Parquet experiments available
+without making them part of the core publishable crate.
 
 ## `cityjson_lib::ops`
 
@@ -99,5 +92,5 @@ The Rust facade and the FFI work are parallel layers, not competing ones:
 - Rust users call `cityjson_lib` directly.
 - Foreign bindings share one low-level core documented under
   [FFI and Bindings](ffi/index.md).
-- Binding-specific APIs stay Arrow-first for bulk interchange and use scalar or
-  single-item helpers for inspection and editing.
+- Binding-specific APIs stay target-specific for bulk interchange and use scalar
+  or single-item helpers for inspection and editing.

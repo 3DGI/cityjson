@@ -27,7 +27,6 @@ The Rust-facing surface stays intentionally small:
 - `cityjson_lib::CityModel` as the owned default wrapper
 - `cityjson_lib::CityJSONVersion`, `cityjson_lib::Error`, and `cityjson_lib::ErrorKind`
 - `cityjson_lib::json` for explicit JSON and JSONL boundary work, enabled by default
-- optional sibling format modules such as `cityjson_lib::arrow` and `cityjson_lib::parquet`
 - `cityjson_lib::ops` for higher-level reusable workflows
 - `cityjson_lib::cityjson` as the explicit drop-down path to the model crate
 

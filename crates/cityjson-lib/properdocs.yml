@@ -7,8 +7,6 @@ nav:
       - Home: index.md
       - Ecosystem Overview: ecosystem-overview.md
       - Architecture: architecture.md
-      - Release Roadmap: release-roadmap.md
-      - Shared Corpus Migration Plan: shared-corpus-migration-plan.md
       - Guide: guide.md
       - Reading Data: guide-reading.md
       - Writing Data: guide-writing.md

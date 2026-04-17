@@ -14,8 +14,8 @@ persisted reporting flow modeled after `cityjson-rs`.
 Prepared inputs live under `target/bench-data/3dbag/v20250903/`.
 
 The shared corpus is the source of truth. If the sibling
-`../cityjson-benchmarks` checkout already contains the acquired CityJSON,
-cityarrow, and cityparquet artifacts, `cityjson_lib` reuses them directly.
+`../cityjson-benchmarks` checkout already contains the acquired CityJSON
+artifacts, `cityjson_lib` reuses them directly.
 
 ## Prepare Inputs
 
@@ -27,11 +27,8 @@ This will:
 
 - reuse the shared-corpus tile and native format files if they are already available
 - reuse the shared-corpus `cluster_4x.*` artifacts if they are already available
-- validate reused `.cjarrow` and `.cjparquet` files against the current decoders
 - download the missing pinned 3DBAG tiles
 - otherwise merge the four-tile stress case with `cjio`
-- otherwise re-export incompatible or missing cityarrow stream files and
-  cityparquet package files with `bench_export_formats`
 
 ## Full Campaign
 
@@ -45,34 +42,8 @@ The Criterion suite benchmarks:
 - `serde_json::Value` JSON read/write
 - `cityjson_lib` JSON read/write
 - `cityjson_lib::json` JSON read/write
-- `cityarrow` live Arrow IPC stream read/write
-- `cityparquet` persistent package read/write
-
-The Arrow and Parquet timings are end-to-end `format <-> CityModel`
-benchmarks. The read path consumes prebuilt native-format files from the
-corpus; it does not convert from CityJSON inside the timed loop. These timings
-therefore include both native IO and reconstruction of the heap `CityModel`.
-
-## Arrow Benchmarks
-
-Use `perf arrow` when you need the narrower ADR 0010 view:
-
-```bash
-just perf arrow -- --quick
-just perf arrow
-```
-
-This target keeps the same pinned 3DBAG cases but measures the public Arrow
-batch and stream surfaces separately from the headline end-to-end path:
-
-- `cityarrow/export_batches`
-- `cityarrow/import_batches`
-- `cityarrow/write_stream`
-- `cityarrow/read_stream`
-
-Use the full campaign for product-facing `format <-> CityModel` numbers and
-`perf arrow` to decide whether the remaining cost sits in batch export/import
-or live-stream transport.
+The benchmark story on `master` is JSON-focused. Transport benchmarks live on
+the transport branch.
 
 ## Profiling
 
@@ -88,8 +59,8 @@ just perf profile massif cityjson_lib-read io_3dbag_cityjson
 Outputs are written under `target/bench-profile/<tool>/<case>/<workload>/`.
 
 The profile harness now prepares only the requested workload before timing or
-starting `dhat`. That keeps Arrow and Parquet read profiles focused on native
-package-to-memory work instead of carrying preloaded JSON or `CityModel` state.
+starting `dhat`. That keeps the read profiles focused on the requested
+JSON/CityModel work instead of carrying unrelated preloaded state.
 
 ## Recorded Perf Runs
 
@@ -127,10 +98,7 @@ The default profiled workloads are:
 - `serde_json-read`
 - `cityjson_lib-read`
 - `cityjson-lib-json-read`
-- `cityarrow-read`
-- `cityparquet-read`
-
-Massif remains available as an explicit deep-dive tool:
+- Massif remains available as an explicit deep-dive tool:
 
 ```bash
 just perf profile massif cityjson_lib-read io_3dbag_cityjson_cluster_4x

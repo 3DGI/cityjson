@@ -18,12 +18,10 @@ The public layout is:
 
 ```rust
 pub mod json;
-pub mod arrow;
-pub mod parquet;
 ```
 
 Those modules delegate to backend crates such as `serde_cityjson`,
-`cityarrow`, and `cityparquet`.
+`cityjson_json`, and the semantic model crate.
 
 ## JSON Is Richer
 
@@ -36,43 +34,13 @@ Those modules delegate to backend crates such as `serde_cityjson`,
 - document and feature serialization
 - future raw or staged JSON access
 
-Sibling transport modules can stay smaller as long as they follow the same
-semantic rule.
-
-Within that family:
-
-- `cityjson_lib::arrow` owns live Arrow IPC stream read and write helpers around
-  `CityModel`
-- `cityjson_lib::parquet` owns persistent package-file read and write helpers around
-  `CityModel`
-
-Transport-native schema and package details stay in the backend crates. The
-`cityjson_lib` facade should expose operations on `CityModel`, not transport parts or
-package internals.
+The `cityjson_lib` facade should expose operations on `CityModel`, not transport
+parts or package internals.
 
 ## One Semantic Unit Across Formats
 
-Arrow and Parquet must not invent separate semantic units at the `cityjson_lib`
-boundary.
-Even if the backend format uses batches, row groups, or other transport-native
-chunks internally, the public facade still trades in:
-
-- one `CityModel`
-- or streams of `CityModel` values
-
-File-oriented helpers are fine as conveniences:
-
-```rust
-pub mod arrow {
-    pub fn from_file(path: impl AsRef<std::path::Path>) -> crate::Result<crate::CityModel>;
-    pub fn to_file(
-        path: impl AsRef<std::path::Path>,
-        model: &crate::CityModel,
-    ) -> crate::Result<()>;
-}
-```
-
-The same idea applies to Parquet and future backends.
+The public facade still trades in one `CityModel` or streams of `CityModel`
+values.
 
 ## No Generic `read` / `write`
 
@@ -87,15 +55,13 @@ Those compact interfaces push format detection and backend-specific policy into
 one place. The explicit-module rule is clearer:
 
 - if you mean JSON, write `cityjson_lib::json`
-- if you mean Arrow, write `cityjson_lib::arrow`
-- if you mean Parquet, write `cityjson_lib::parquet`
 
 ## Relationship To `cjfake`
 
 `cjfake` should remain above `cityjson_lib`.
 
 ```text
-cjfake -> cityjson_lib -> { serde_cityjson, cityarrow, cityjson-rs }
+cjfake -> cityjson_lib -> { serde_cityjson, cityjson-rs }
 ```
 
 That lets `cjfake` reuse every format that `cityjson_lib` exposes without making fake

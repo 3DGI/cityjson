@@ -11,8 +11,8 @@ low-level story for foreign languages.
 1. `cityjson-rs` owns the semantic CityJSON model family and its invariants.
 2. `cityjson_lib` owns the stable facade and chooses how that model family is exposed
    as an owned default wrapper.
-3. JSON, JSONL, Arrow, Parquet, and future transports are explicit format
-   boundaries, not separate semantic model families.
+3. JSON and JSONL are explicit format boundaries, not separate semantic model
+   families.
 4. C++, Python, and wasm share one low-level FFI core, but they are free to
    expose different public APIs on top of it.
 5. Raw, staged, lazy, or performance-oriented paths stay explicit. They do not
@@ -55,7 +55,7 @@ The dependency direction is:
 ```text
 cjfake
   -> cityjson_lib
-  -> { serde_cityjson, cityarrow, cityparquet }
+  -> { serde_cityjson }
   -> cityjson-rs
 ```
 
@@ -95,7 +95,6 @@ Responsibilities split as follows:
 The root remains small:
 
 - `cityjson_lib::json` as the default-on boundary module
-- optional transport modules such as `cityjson_lib::arrow` and `cityjson_lib::parquet`
 - `cityjson_lib::ops`
 - `cityjson_lib::cityjson`
 
@@ -104,8 +103,8 @@ Format modules speak in terms of:
 - one `CityModel`
 - or streams of `CityModel` values
 
-They should not promote transport-native units such as JSON feature wrappers,
-Arrow batches, or Parquet row groups into the semantic API surface.
+They should not promote transport-native units such as JSON feature wrappers
+into the semantic API surface.
 
 ## JSON Boundary Direction
 

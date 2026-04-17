@@ -117,37 +117,10 @@ Query summary fields without descending into the geometry tree.
     }
     ```
 
-## Export Arrow Transport
+## Transport Branch
 
-=== "Rust"
-    ```rust
-    let batches = cityjson_lib::arrow::export_batches(&model)?;
-    println!("{} geometry rows", batches.geometries.num_rows());
-    ```
-
-=== "C++"
-    ```cpp
-    const auto arrow_bytes = model.serialize_arrow_bytes();
-    printf("%zu Arrow bytes\n", arrow_bytes.size());
-    ```
-
-=== "Python"
-    ```python
-    arrow_bytes = model.serialize_arrow_bytes()
-    print(len(arrow_bytes))
-    ```
-
-=== "WASM"
-    ```c
-    cj_vertices_t verts = {0};
-    cj_model_copy_vertices(handle, &verts);
-
-    for (size_t i = 0; i < verts.len; i++) {
-        printf("%.3f  %.3f  %.3f\n",
-               verts.data[i].x, verts.data[i].y, verts.data[i].z);
-    }
-    cj_vertices_free(verts);
-    ```
+Arrow transport examples live on the transport branch and are not part of the
+core publishable `cityjson_lib` surface.
 
 ## Read a Feature Stream
 

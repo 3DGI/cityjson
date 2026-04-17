@@ -32,8 +32,6 @@ The public API is centered on:
 - `cityjson_lib::ErrorKind`
 - `cityjson_lib::json`, enabled by default through the `json` feature
 - `cityjson_lib::ops`
-- `cityjson_lib::arrow`, behind the optional `arrow` feature
-- `cityjson_lib::parquet`, behind the optional `parquet` feature
 - `cityjson_lib::cityjson` for advanced model access
 
 ## Default Path
@@ -55,11 +53,8 @@ Current practical status:
 - the implemented document path is `CityJSON` v2.0 through `cityjson_lib::json`
 - `json` is the default-on feature
 - explicit feature and feature-stream helpers exist under `cityjson_lib::json`
-- explicit live Arrow IPC stream transport exists under `cityjson_lib::arrow` when the `arrow` feature is enabled
-- explicit Arrow batch export/import exists under `cityjson_lib::arrow` when the `arrow` feature is enabled
-- explicit cityparquet package-file transport exists under `cityjson_lib::parquet` when the `parquet` feature is enabled
+- higher-level workflows such as `ops::merge` are implemented
 - `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
-- higher-level workflows such as `ops::merge` are still intentionally unimplemented
 
 ## Explicit Format Modules
 
@@ -80,17 +75,10 @@ let feature_text = json::to_feature_string(&model)?;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-Alternative encodings and containers should live in explicit modules:
-
-- `cityjson_lib::json`
-- `cityjson_lib::arrow`, which owns live Arrow IPC stream I/O and explicit batch export/import when the `arrow` feature is enabled
-- `cityjson_lib::parquet`, which owns persistent package-file I/O when the `parquet` feature is enabled
-
-That keeps the facade predictable:
+The facade stays predictable when the public boundary is explicit:
 
 - `json::from_*` means the common single-document CityJSON path
 - explicit modules mean explicit formats
-- expensive Arrow conversion is explicit in the API name
 
 Within `cityjson_lib::json`, the intended surface is:
 
@@ -120,9 +108,8 @@ Feature streams should be handled explicitly through
 ## Higher-level Operations
 
 Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cityjson_lib::ops`.
-Right now that namespace is intentionally reduced to one unimplemented
-illustrative function so the intended boundary is visible without hiding the
-missing work behind no-op behavior.
+That namespace holds the reusable selection, cleanup, merge, and upgrade
+helpers that belong above the semantic model.
 
 ## Relationship To `cjfake`
 
@@ -131,7 +118,7 @@ missing work behind no-op behavior.
 That keeps the dependency direction clean:
 
 - `cjfake` generates model data
-- `cjfake` uses `cityjson_lib` format modules to emit JSON, Arrow, Parquet, and future formats
+- `cjfake` can sit on top of the transport branch for non-core formats
 - `cityjson_lib` stays focused on facade, format integration, and operations
 
 For advanced model work, `cityjson_lib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.

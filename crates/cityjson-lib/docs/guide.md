@@ -77,23 +77,24 @@ cityjson_lib::json::write_feature_stream(&mut writer, models)?;
 The point is to keep JSONL handling explicit instead of hiding it behind a
 document-oriented constructor.
 
-## Use Explicit Format Modules
+## Use Explicit JSON Boundaries
 
-The same rule applies to non-JSON backends:
+When callers need boundary control, stay on `cityjson_lib::json`.
 
 ```rust
-# fn main() -> cityjson_lib::Result<()> {
-let model = cityjson_lib::json::from_file("tests/data/v2_0/minimal.city.json")?;
+use cityjson_lib::{json, CityJSONVersion};
 
-cityjson_lib::arrow::to_file("tiles-out.cjarrow", &model)?;
+let bytes = std::fs::read("amsterdam.city.json")?;
+let probe = json::probe(&bytes)?;
+assert_eq!(probe.kind(), json::RootKind::CityJSON);
+assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
-cityjson_lib::parquet::to_file("tiles-out.cjparquet", &model)?;
-# Ok(())
-# }
+let model = json::from_slice(&bytes)?;
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
-Format choice stays explicit at the call site. The Arrow path writes one live
-Arrow IPC stream file. The Parquet path writes one persistent package file.
+The point is to keep the JSON boundary explicit instead of hiding it behind
+the crate root.
 
 ## Drop Down To `cityjson_lib::cityjson` For Model Work
 

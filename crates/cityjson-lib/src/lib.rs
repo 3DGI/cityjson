@@ -1,15 +1,11 @@
 #![allow(clippy::all, clippy::pedantic)]
 #![doc = include_str!("../docs/public-api.md")]
 
-#[cfg(feature = "arrow")]
-pub mod arrow;
 mod error;
 #[cfg(feature = "json")]
 pub mod json;
 #[cfg(feature = "json")]
 pub mod ops;
-#[cfg(feature = "parquet")]
-pub mod parquet;
 pub mod query {
     pub use cityjson::query::{ModelSummary, summary};
 }
