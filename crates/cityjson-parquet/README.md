@@ -41,6 +41,24 @@ Factor < 1.0 means the package format is faster than JSON; > 1.0 means slower.
 Full results and plots: `benches/results/`.
 
 <!-- benchmark-summary:start -->
+**Acquired data**
+
+| Case | cityjson-parquet | `cityjson-arrow` | `cityjson-json` | Factor |
+| --- | --- | --- | --- | --- |
+| `io_basisvoorziening_3d_cityjson` | 646.6 MiB/s | 629.0 MiB/s | 281.5 MiB/s | 2.27x |
+| `io_3dbag_cityjson_cluster_4x` | 549.6 MiB/s | 528.4 MiB/s | 185.2 MiB/s | 2.94x |
+| `io_3dbag_cityjson` | 593.6 MiB/s | 592.0 MiB/s | 193.5 MiB/s | 3.11x |
+
+**Stress cases**
+
+| Case | cityjson-parquet | `cityjson-arrow` | `cityjson-json` | Factor |
+| --- | --- | --- | --- | --- |
+| `stress_attribute_heavy` | 207.0 MiB/s | 181.9 MiB/s | 172.7 MiB/s | 1.76x |
+| `stress_boundary_heavy` | 3282.8 MiB/s | 3432.8 MiB/s | 322.1 MiB/s | 6.35x |
+| `stress_geometry_heavy` | 1542.2 MiB/s | 1547.0 MiB/s | 281.4 MiB/s | 3.59x |
+| `stress_hierarchy_heavy` | 1119.4 MiB/s | 1152.7 MiB/s | 194.0 MiB/s | 4.96x |
+| `stress_resource_heavy` | 777.9 MiB/s | 792.9 MiB/s | 161.9 MiB/s | 3.66x |
+| `stress_vertex_heavy` | 4391.0 MiB/s | 4572.5 MiB/s | 358.5 MiB/s | 7.37x |
 <!-- benchmark-summary:end -->
 
 ## Verification
