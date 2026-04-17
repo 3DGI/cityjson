@@ -5,10 +5,9 @@ for getting `cityjson-lib` to a state that can stand up in public.
 
 Current assessment: the implementation is further along than the release story.
 The Rust JSON layer is real and now the default-on `json` feature, `ops` is
-small but implemented, Arrow support works behind an opt-in feature, the FFI
-core is substantial, and the Python, C++, and wasm layers all have working
-smoke or unit coverage. The blockers are packaging, API honesty, CI scope, and
-release discipline.
+implemented, Arrow support works behind an opt-in feature, and the FFI core,
+Python, C++, and wasm lanes all pass local validation. The remaining blockers
+are packaging, public API honesty, CI ownership, and documentation discipline.
 
 ## Current Verdict
 
@@ -24,19 +23,19 @@ carry its stated support surface.
 
 The crate is not publishable in its current form.
 
-- `Cargo.toml` packages only a narrow include set.
-- The package manifest references license files that are not present.
-- The crate depends on sibling path crates at versions that are not available
-  on crates.io.
-- `cargo package --allow-dirty` currently fails.
-- Examples, benches, and tests are omitted from the packaged crate by the
-  current include list.
+- `cargo package --allow-dirty --no-verify` currently fails.
+- The root crate still depends on sibling path crates.
+- Cargo now tries to resolve `cityjson-arrow` from crates.io during packaging
+  and fails because it is not published there.
+- The include list is no longer the main packaging problem.
 
 Release bar:
 
 - `cargo package --dry-run` succeeds for the root crate.
 - Dependency strategy is explicit and publishable.
 - Packaged contents match what public users should actually receive.
+- Optional transport dependencies do not make packaging fail when they are not
+  part of the release contract.
 
 ### 2. Public Docs Must Match the Code
 
@@ -44,10 +43,14 @@ The documentation currently overstates or misstates the public Rust API.
 
 Examples of drift:
 
-- Older docs repeatedly referred to `CityModel::from_file` and
-  `CityModel::from_slice`, while the actual public entry points are under
-  `cityjson_lib::json`.
-- Some pages still describe future-facing surfaces as if they already exist.
+- The public docs correctly use `cityjson_lib::json` as the main entry point in
+  most places now.
+- The README still describes Parquet as if it owns persistent package-file I/O,
+  while the actual module is a deliberate stub that returns
+  `UnsupportedFeature`.
+- The README still says higher-level workflows like `ops::merge` are
+  intentionally unimplemented, but `cleanup`, `extract`, `append`, and `merge`
+  are now implemented.
 
 Release bar:
 
@@ -70,10 +73,10 @@ For the first public version:
 
 Current problems:
 
-- There is a `src/parquet.rs`.
+- There is a `src/parquet.rs`, but it is intentionally a stubbed boundary.
 - The manifest intentionally keeps `parquet` as a stubbed opt-in feature.
-- The example uses `#[cfg(feature = "parquet")]`, which now matches a real
-  feature flag.
+- The public-facing docs still describe Parquet too confidently for the current
+  implementation.
 
 Release bar:
 
@@ -86,15 +89,17 @@ Release bar:
 
 ### 4. CI Must Cover the Advertised Surface
 
-Current CI is narrower than the project claims.
+Current CI is improved locally, but the hosted CI story is still narrower than
+the project claims.
 
-- Main Rust CI runs Linux `cargo build` and `cargo test`.
-- In-repo Python and C++ binding tests are not part of the main CI path.
-- Python validation is delegated to another repository workflow.
-- Docs CI is weaker than the local `just docs-build` task.
-- There is no package dry-run gate.
-- There is no coverage gate.
-- There is no multi-OS matrix for the FFI-heavy support story.
+- `just ci` now runs the real native lane locally.
+- `just ffi ci` now runs the in-repo FFI lane locally.
+- GitHub Actions still only has Rust test, clippy, and docs workflows.
+- There is still no repo-owned GitHub Actions workflow for the FFI lane.
+- Python validation is still delegated to another repository workflow.
+- There is still no package dry-run gate in GitHub Actions.
+- There is still no coverage gate.
+- There is still no multi-OS matrix for the FFI-heavy support story.
 
 Release bar:
 
@@ -106,20 +111,18 @@ Release bar:
 
 ### 5. Documentation Publishing Needs A Real Tooling Pass
 
-The documentation set is substantial, but the site tooling and publishing
-workflow should change before the first public release.
+The documentation set is substantial, and the site tooling migration has
+happened, but the published shape still needs cleanup before release.
 
-- The repository should switch from the current MkDocs setup to Proper Docs,
-  following the pattern already used in `~/Development/cityjson-corpus`
-  with `properdocs.yml` and `uv run properdocs build/serve`.
-- Strict docs build should remain mandatory after that migration.
-- Some docs are omitted from nav.
-- Several pages contain absolute local filesystem links.
+- Proper Docs is now the active site workflow.
+- Strict docs build remains on.
+- Some docs are still omitted from nav.
+- Several pages still contain absolute local filesystem links.
 - That is acceptable for internal notes, but not for public docs.
 
 Release bar:
 
-- Proper Docs replaces the current MkDocs setup as the public site workflow.
+- Proper Docs remains the public site workflow.
 - No absolute local-path links in published docs.
 - Navigation reflects the intended public information architecture.
 - Internal planning notes are either clearly marked or kept out of the public
@@ -137,11 +140,14 @@ What is real today:
 - `ops` is implemented, not just sketched.
 - Arrow read/write and batch export/import work.
 - Error typing exists and is usable.
+- `cityjson-export` exists as a separate workspace crate with the `cjexport`
+  binary name retained.
 
 What is still thin:
 
 - The crate root is small, but the surrounding docs often pretend it is larger.
-- CLI coverage is minimal.
+- Parquet is intentionally not implemented for the first public release.
+- CLI coverage exists now, but it is still thin.
 - Some error-handling paths are under-tested compared with the main happy path.
 - The first public version should stay centered on the core JSON-facing API
   rather than on optional transport crates.
@@ -160,7 +166,9 @@ What is real today:
 What that means pragmatically:
 
 - It is fair to say the project has a functioning FFI stack.
-- It is not yet fair to claim fully release-hardened multi-language support.
+- The local FFI workflow is real and passes.
+- It is not yet fair to claim fully release-hardened multi-language support in
+  hosted CI.
 
 ## Test and Coverage Status
 
@@ -168,33 +176,26 @@ What that means pragmatically:
 
 The following checks pass locally:
 
-- `cargo test --workspace`
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-- `just docs-build`
-- `just ffi test`
+- `just ci`
+- `just ffi ci`
 
 That is meaningful. The project is not in a fake-green state where only a small
 core passes.
 
 ### Coverage Readout
 
-Coverage is measurable, which is already better than hand-waving about tests.
-The current signal is mixed:
-
-- `src/json.rs`: about 76.6% line coverage
-- `src/ops.rs`: about 65.0% line coverage
-- `src/arrow.rs`: about 73.9% line coverage
-- `ffi/core/src/exports.rs`: about 79.9% line coverage
-- `ffi/wasm/src/lib.rs`: about 88.8% line coverage
-- `src/error.rs`: about 37.7% line coverage
-- `src/bin/cjexport.rs`: 0% line coverage
+Coverage is still not part of the live release gate.
+There are historical measurements in this roadmap, but they should now be
+treated as stale until rerun.
 
 Pragmatic reading:
 
-- Core paths are exercised.
-- FFI is better covered than many early projects.
-- Error paths and CLI behavior are not yet where they should be for a public
-  release.
+- The project has meaningful tests across Rust, FFI core, wasm, Python, and
+  C++ smoke paths.
+- The current weakness is not total lack of tests, but lack of current
+  coverage measurement and gating.
+- Error paths, documentation examples, and edge-case behavior still deserve
+  more targeted coverage before release.
 
 ## Publishability Decision
 
@@ -249,10 +250,12 @@ Release policy for v1 public debut:
 ### Phase 1: Make the Release Real
 
 1. Make `cargo package --dry-run` pass.
-2. Fix manifest packaging contents and license-file handling.
-3. Resolve path-dependency publication strategy.
-4. Make `cityjson-arrow` and `cityjson-parquet` default-off features for the
-   public release plan.
+2. Resolve path-dependency publication strategy for `cityjson`, `cityjson-json`,
+   and `cityjson-arrow`.
+3. Decide whether optional transport crates must already be published for the
+   first crates.io release of `cityjson-lib`.
+4. Keep `cityjson-arrow` and `cityjson-parquet` default-off in the public
+   release plan.
 
 ### Phase 2: Make the Public API Honest
 
@@ -266,18 +269,21 @@ Release policy for v1 public debut:
 
 ### Phase 3: Restructure The CLI Boundary
 
-1. Move `cjexport` out of `cityjson-lib` into a separate workspace crate named
+Status: largely done.
+
+1. `cjexport` has been moved into the separate workspace crate
    `cityjson-export`.
-2. Keep the installed CLI binary name as `cjexport`.
-3. Test and package the CLI as its own deliverable instead of treating it as an
-   incidental bin target of the library crate.
+2. The installed CLI binary name remains `cjexport`.
+3. Keep treating the CLI as a separate deliverable and tighten its tests as
+   needed.
 
 ### Phase 4: Tighten CI
 
 1. Add package dry-run to CI.
-2. Run strict Proper Docs build in CI after the docs migration.
-3. Run the in-repo FFI test path in CI.
-4. Make tested platforms and unsupported platforms explicit.
+2. Keep strict Proper Docs build in CI.
+3. Add a repo-owned GitHub Actions workflow for the in-repo FFI lane.
+4. Stop relying on cross-repo Python validation as the primary signal.
+5. Make tested platforms and unsupported platforms explicit.
 
 ### Phase 5: Close the Most Visible Test Gaps
 
