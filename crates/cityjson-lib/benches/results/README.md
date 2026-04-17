@@ -1,6 +1,6 @@
 # Benchmark Results
 
-`bench_results/history.csv` is the persistent benchmark history for `cityjson_lib`.
+`benches/results/history.csv` is the persistent benchmark history for `cityjson_lib`.
 
 Schema:
 
@@ -21,4 +21,4 @@ baseline-relative speed plots for that snapshot.
 Use `just perf-analyze` to inspect the recorded history.
 
 Use `just perf-plot --description "description"` to render baseline-relative
-speed plots and a markdown summary into `bench_results/plots/`.
+speed plots and a markdown summary into `benches/results/plots/`.

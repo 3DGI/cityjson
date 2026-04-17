@@ -125,8 +125,8 @@ The current accepted baseline snapshot is the full run at:
 - description: `baseline`
 - corpus version: `real-3dbag-v20250903`
 
-The generated summary is in `bench_results/plots/baseline/latest`, and the raw
-metrics are in `bench_results/history.csv`.
+The generated summary is in `benches/results/plots/baseline/latest`, and the raw
+metrics are in `benches/results/history.csv`.
 
 ### Read Throughput
 

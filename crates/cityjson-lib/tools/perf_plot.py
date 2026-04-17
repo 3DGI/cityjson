@@ -349,11 +349,11 @@ def copy_latest(files: list[Path], latest_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", default="bench_results/history.csv")
+    parser.add_argument("--csv", default="benches/results/history.csv")
     parser.add_argument("--description")
     parser.add_argument("--mode", default="all")
     parser.add_argument("--timestamp")
-    parser.add_argument("--out-dir", default="bench_results/plots")
+    parser.add_argument("--out-dir", default="benches/results/plots")
     args = parser.parse_args()
 
     rows = load_rows(Path(args.csv))

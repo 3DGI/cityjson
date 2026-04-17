@@ -94,7 +94,7 @@ package-to-memory work instead of carrying preloaded JSON or `CityModel` state.
 ## Recorded Perf Runs
 
 Use the consolidated runner to append one benchmark campaign to
-`bench_results/history.csv`:
+`benches/results/history.csv`:
 
 ```bash
 just perf "baseline before refactor" fast
@@ -154,11 +154,11 @@ just perf-plot --description "baseline before refactor" --timestamp 2026-04-01T2
 
 Each plotted snapshot writes:
 
-- `bench_results/plots/<description>/<timestamp>/throughput_relative_read.png`
-- `bench_results/plots/<description>/<timestamp>/throughput_relative_write.png`
-- `bench_results/plots/<description>/<timestamp>/benchmark_summary.md`
+- `benches/results/plots/<description>/<timestamp>/throughput_relative_read.png`
+- `benches/results/plots/<description>/<timestamp>/throughput_relative_write.png`
+- `benches/results/plots/<description>/<timestamp>/benchmark_summary.md`
 
-and refreshes a stable copy under `bench_results/plots/<description>/latest/`.
+and refreshes a stable copy under `benches/results/plots/<description>/latest/`.
 
 Current summaries:
 
@@ -170,5 +170,5 @@ Current summaries:
   D1 miss rate, LL miss rate, and branch miss rate
 - `massif.txt`
   textual heap-growth trace from `ms_print`
-- `bench_results/plots/...`
+- `benches/results/plots/...`
   baseline-relative speed plots and a compact markdown summary

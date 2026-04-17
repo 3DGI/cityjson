@@ -224,6 +224,7 @@ fn parse_feature_with_base_and_serialize_feature_round_trip() {
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
 
+#[cfg(feature = "arrow")]
 #[test]
 fn arrow_parse_and_serialize_work() {
     let mut handle = ptr::null_mut();
@@ -236,7 +237,7 @@ fn arrow_parse_and_serialize_work() {
     assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);
     assert!(arrow_bytes.len > 0);
 
-    let mut arrow_handle = ptr::null_mut();
+    let mut arrow_handle: *mut cj_model_t = ptr::null_mut();
     let status =
         cj_model_parse_arrow_bytes(arrow_bytes.data, arrow_bytes.len, &raw mut arrow_handle);
     assert_eq!(status, cj_status_t::CJ_STATUS_SUCCESS);

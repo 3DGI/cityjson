@@ -14,6 +14,13 @@ struct Args {
     arrow_file: PathBuf,
 }
 
+/// Runs the `cjexport` command line interface.
+///
+/// # Errors
+///
+/// Returns an error string when the input arguments are invalid, the `CityJSON`
+/// input cannot be read or decoded, or the output Arrow stream cannot be
+/// written.
 pub fn run<I>(args: I) -> Result<(), String>
 where
     I: IntoIterator<Item = String>,
@@ -23,11 +30,11 @@ where
             print_usage();
             Ok(())
         }
-        Action::Run(args) => run_inner(args),
+        Action::Run(args) => run_inner(&args),
     }
 }
 
-fn run_inner(args: Args) -> Result<(), String> {
+fn run_inner(args: &Args) -> Result<(), String> {
     let input = fs::read(&args.input)
         .map_err(|error| format!("failed to read {}: {error}", args.input.display()))?;
     let model =

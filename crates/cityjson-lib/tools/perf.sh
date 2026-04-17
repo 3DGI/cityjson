@@ -19,7 +19,7 @@ case "${mode}" in
 esac
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-csv_out="${repo_dir}/bench_results/history.csv"
+csv_out="${repo_dir}/benches/results/history.csv"
 bench_version="${CITYJSON_LIB_BENCH_VERSION:-v2}"
 backend="default"
 seed="real-3dbag-v20250903"

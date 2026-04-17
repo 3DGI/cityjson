@@ -165,7 +165,7 @@ def show_series(rows: list[dict[str, str]], description: str, mode: str, bench: 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", default="bench_results/history.csv")
+    parser.add_argument("--csv", default="benches/results/history.csv")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--description")
     parser.add_argument("--mode", default="all")
