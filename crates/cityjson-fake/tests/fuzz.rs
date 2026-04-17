@@ -9,12 +9,12 @@ use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::select;
 use proptest::test_runner::FileFailurePersistence;
-use rand::prelude::SmallRng;
 use rand::SeedableRng;
+use rand::prelude::SmallRng;
 use std::path::Path;
 
-fn city_object_type_strategy(
-) -> impl Strategy<Value = Option<Vec<CityObjectType<OwnedStringStorage>>>> {
+fn city_object_type_strategy()
+-> impl Strategy<Value = Option<Vec<CityObjectType<OwnedStringStorage>>>> {
     let types = vec![
         CityObjectType::Bridge,
         CityObjectType::Building,

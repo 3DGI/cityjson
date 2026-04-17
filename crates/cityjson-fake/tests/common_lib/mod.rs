@@ -19,10 +19,10 @@ pub fn count_invalids(invalids_dir: &PathBuf) -> usize {
                 .to_string_lossy()
                 .replace("cityjson_fake_invalid_", "")
                 .replace(".city.json", "");
-            if let Ok(c) = d.parse::<usize>() {
-                if c > count {
-                    count = c;
-                }
+            if let Ok(c) = d.parse::<usize>()
+                && c > count
+            {
+                count = c;
             }
         }
     }

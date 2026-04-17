@@ -1,5 +1,5 @@
 #[cfg(feature = "cli")]
-use cityjson_fake::cli::{run, Cli, OutputFormat};
+use cityjson_fake::cli::{Cli, OutputFormat, run};
 use cityjson_fake::prelude::*;
 #[cfg(feature = "cli")]
 use std::fs;
@@ -217,9 +217,11 @@ fn cityobject_group_members() {
 
         for child_handle in children {
             let child = cm.cityobjects().get(*child_handle).unwrap();
-            assert!(child
-                .parents()
-                .is_some_and(|parents| parents.contains(&group_handle)));
+            assert!(
+                child
+                    .parents()
+                    .is_some_and(|parents| parents.contains(&group_handle))
+            );
         }
     }
 
@@ -557,10 +559,10 @@ fn attributes_non_empty() {
         .build();
     let mut any_attrs = false;
     for (_, co) in cm.cityobjects().iter() {
-        if let Some(attrs) = co.attributes() {
-            if !attrs.is_empty() {
-                any_attrs = true;
-            }
+        if let Some(attrs) = co.attributes()
+            && !attrs.is_empty()
+        {
+            any_attrs = true;
         }
     }
     assert!(

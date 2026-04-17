@@ -17,16 +17,16 @@ use crate::cli::CJFakeConfig;
 use crate::{CRS_AUTHORITIES, CRS_EPSG_VERSIONS, CRS_OGC_CODES, CRS_OGC_VERSIONS};
 use cityjson::prelude::StringStorage;
 use cityjson::v2_0::{
-    BBox, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata, CRS,
+    BBox, CRS, CityModelIdentifier, Contact, ContactRole, ContactType, Date, Metadata,
 };
+use fake::RngExt;
 use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::lorem::raw::Words;
 use fake::locales::EN;
 use fake::uuid::UUIDv1;
-use fake::RngExt;
 use fake::{Dummy, Fake, Faker};
-use rand::prelude::{IndexedRandom, SmallRng};
 use rand::Rng;
+use rand::prelude::{IndexedRandom, SmallRng};
 
 /// Builder for creating `CityJSON` metadata with fake data.
 ///

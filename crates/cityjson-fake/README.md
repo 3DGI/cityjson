@@ -164,8 +164,38 @@ The easiest entry points are:
 
 ## License
 
-This project is licensed under [Apache-2.0].
+Licensed under either:
+
+- Apache License, Version 2.0 (`LICENSE-APACHE`)
+- MIT license (`LICENSE-MIT`)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
+cityjson-json by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without additional terms or conditions.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome in all forms.
+Please open an issue to discuss any potential changes before working on a patch.
+You can submit LLM-generated PRs for bug fixes and documentation improvements.
+Regardless of handwritten or LLM-generated code, the PR should follow these guidelines:
+
+- relatively small, focused changes, otherwise I won't be able to review it,
+- follow the existing style and conventions,
+- include unit tests and documentation for new features and bug fixes,
+- the patched code should pass:
+  - `just ci`
+- if you remove or merge tests or examples or benchmarks, please explain why and update the documentation accordingly.
+
+## Use of AI in this project
+
+This project was originally developed in full functionality without the use of AI.
+Since then, AI tools (Claude, ChatGPT) were used to migrate the codebase to the new `cityjson-rs` API and refactore the crate into a more clear, maintainable structure and implement the CLI.
+LLM generated code is also used for improving the test coverage and documentation and mechanical improvements.
+
+## Roadmap
+
+There are no major features planned for the near future, beyond bug fixes, test coverage, performance optimization, and documentation improvements.
+

@@ -103,8 +103,8 @@ use cityjson::prelude::*;
 use cityjson::v2_0::{CityObjectType, LoD, SemanticType};
 use fake::Dummy;
 use fake::RngExt;
-use rand::seq::IndexedRandom;
 use rand::Rng;
+use rand::seq::IndexedRandom;
 use std::ops::RangeInclusive;
 
 /// Convenient re-exports for common `cityjson-fake` use cases.

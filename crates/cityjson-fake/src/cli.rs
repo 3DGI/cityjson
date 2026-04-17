@@ -777,9 +777,11 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         };
         let manifest_dir = manifest_path.parent();
         let mut cases: Vec<&crate::manifest::GenerationCase> = if let Some(case_id) = cli.case {
-            vec![manifest
-                .case(&case_id)
-                .ok_or_else(|| format!("case '{case_id}' not found in manifest"))?]
+            vec![
+                manifest
+                    .case(&case_id)
+                    .ok_or_else(|| format!("case '{case_id}' not found in manifest"))?,
+            ]
         } else {
             manifest.cases().collect()
         };

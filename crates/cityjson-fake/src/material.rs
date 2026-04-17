@@ -81,9 +81,9 @@ impl<SS: StringStorage<String = String>> MaterialBuilder<SS> {
     /// Sets a random name for the material
     #[must_use]
     pub fn name(mut self) -> Self {
+        use fake::Fake;
         use fake::faker::lorem::raw::Word;
         use fake::locales::EN;
-        use fake::Fake;
         self.material = Material::new(Word(EN).fake_with_rng(&mut self.rng));
         self
     }

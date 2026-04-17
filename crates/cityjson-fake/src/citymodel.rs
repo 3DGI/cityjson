@@ -23,22 +23,22 @@ use crate::metadata::MetadataBuilder;
 use crate::texture::TextureBuilder;
 #[allow(unused_imports)]
 use crate::vertex::VerticesFaker;
-use crate::{get_nr_items, CityObjectLevel, CityObjectTypeFaker, LoDFaker, SemanticCtx};
+use crate::{CityObjectLevel, CityObjectTypeFaker, LoDFaker, SemanticCtx, get_nr_items};
 use cityjson::prelude::*;
 use cityjson::v2_0::{
     AffineTransform3D, BBox, CityModel, CityObject, CityObjectIdentifier, CityObjectType,
     GeometryDraft, GeometryType, ImageType, LineStringDraft, LoD, Material, OwnedAttributeValue,
-    OwnedAttributes, OwnedSemantic, PointDraft, RealWorldCoordinate, RingDraft, Semantic,
+    OwnedAttributes, OwnedSemantic, PointDraft, RGB, RealWorldCoordinate, RingDraft, Semantic,
     SemanticType, ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft,
-    VertexDraft, VertexIndex, VertexRef, RGB,
+    VertexDraft, VertexIndex, VertexRef,
 };
 #[cfg(feature = "json")]
 use cityjson_json::{self, WriteOptions};
 use fake::Fake;
 use fake::RngExt;
+use rand::SeedableRng;
 use rand::prelude::SmallRng;
 use rand::seq::{IndexedRandom, SliceRandom};
-use rand::SeedableRng;
 
 // ─── Internal helpers (all specialised to OwnedStringStorage) ───────────────
 
@@ -186,10 +186,10 @@ where
             if mat.is_some() {
                 material_seeded = true;
             }
-            if let Some((theme, _)) = &mat {
-                if !used_material_themes.contains(theme) {
-                    used_material_themes.push(theme.clone());
-                }
+            if let Some((theme, _)) = &mat
+                && !used_material_themes.contains(theme)
+            {
+                used_material_themes.push(theme.clone());
             }
             let n = rng.random_range(3..=8usize);
             let mut tex = ctx.app.pick_texture(rng, n, texture_vertices_used);
@@ -204,10 +204,10 @@ where
             if tex.is_some() {
                 texture_seeded = true;
             }
-            if let Some((theme, _)) = &tex {
-                if !used_texture_themes.contains(theme) {
-                    used_texture_themes.push(theme.clone());
-                }
+            if let Some((theme, _)) = &tex
+                && !used_texture_themes.contains(theme)
+            {
+                used_texture_themes.push(theme.clone());
             }
             if tex.is_some() {
                 texture_vertices_used += n;
@@ -891,9 +891,9 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
         mut self,
         _material_builder: Option<MaterialBuilder<OwnedStringStorage>>,
     ) -> Self {
+        use fake::Fake;
         use fake::faker::lorem::raw::Word;
         use fake::locales::EN;
-        use fake::Fake;
 
         if !self.config.materials.materials_enabled {
             return self;
@@ -970,10 +970,10 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
     /// Adds textures to the model.
     #[must_use]
     pub fn textures(mut self, _texture_builder: Option<TextureBuilder>) -> Self {
+        use fake::Fake;
         use fake::faker::filesystem::raw::FilePath;
         use fake::faker::lorem::raw::Word;
         use fake::locales::EN;
-        use fake::Fake;
 
         if !self.config.textures.textures_enabled {
             return self;
@@ -1139,9 +1139,9 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
 
     /// Populate `CityObjectGroup` members and `children_roles` after all city objects exist.
     fn wire_cityobject_groups(&mut self, group_handles: &[CityObjectHandle]) {
+        use fake::Fake;
         use fake::faker::lorem::raw::Word;
         use fake::locales::EN;
-        use fake::Fake;
 
         let all_handles: Vec<CityObjectHandle> = self.model.cityobjects().ids().collect();
 
@@ -1414,56 +1414,55 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
             let parent_handle = self.model.cityobjects_mut().add(cityobject).ok();
 
             // Only generate hierarchy when the parent type has valid child types.
-            if self.config.cityobjects.cityobject_hierarchy && children_per_parent > 0 {
-                if let Some(child_type_pool) = crate::get_cityobject_subtype(&city_obj_type) {
-                    let mut child_handles: Vec<CityObjectHandle> = Vec::new();
+            if self.config.cityobjects.cityobject_hierarchy
+                && children_per_parent > 0
+                && let Some(child_type_pool) = crate::get_cityobject_subtype(&city_obj_type)
+            {
+                let mut child_handles: Vec<CityObjectHandle> = Vec::new();
 
-                    for child_idx in 0..children_per_parent {
-                        let child_id = format!(
-                            "{}_{parent_idx}_{child_idx}",
-                            Word(EN).fake_with_rng::<String, _>(&mut self.rng)
-                        );
+                for child_idx in 0..children_per_parent {
+                    let child_id = format!(
+                        "{}_{parent_idx}_{child_idx}",
+                        Word(EN).fake_with_rng::<String, _>(&mut self.rng)
+                    );
 
-                        let child_type = child_type_pool
-                            .choose(&mut self.rng)
-                            .cloned()
-                            .unwrap_or(CityObjectType::Building);
+                    let child_type = child_type_pool
+                        .choose(&mut self.rng)
+                        .cloned()
+                        .unwrap_or(CityObjectType::Building);
 
-                        let mut child_obj = CityObject::new(
-                            CityObjectIdentifier::new(child_id),
-                            child_type.clone(),
-                        );
+                    let mut child_obj =
+                        CityObject::new(CityObjectIdentifier::new(child_id), child_type.clone());
 
-                        if let Some(attrs) = &self.attributes_cityobject {
-                            for (k, v) in attrs.iter() {
-                                child_obj.attributes_mut().insert(k.clone(), v.clone());
-                            }
-                        }
-
-                        self.add_geometries_for_cityobject(
-                            &child_type,
-                            min_coord,
-                            max_coord,
-                            &template_handles,
-                            &app,
-                            &sem_ctx,
-                            &mut child_obj,
-                        );
-
-                        if let Ok(ch) = self.model.cityobjects_mut().add(child_obj) {
-                            child_handles.push(ch);
+                    if let Some(attrs) = &self.attributes_cityobject {
+                        for (k, v) in attrs.iter() {
+                            child_obj.attributes_mut().insert(k.clone(), v.clone());
                         }
                     }
 
-                    // Wire parent ↔ child relationships
-                    if let Some(ph) = parent_handle {
-                        for &ch in &child_handles {
-                            if let Some(p) = self.model.cityobjects_mut().get_mut(ph) {
-                                p.add_child(ch);
-                            }
-                            if let Some(c) = self.model.cityobjects_mut().get_mut(ch) {
-                                c.add_parent(ph);
-                            }
+                    self.add_geometries_for_cityobject(
+                        &child_type,
+                        min_coord,
+                        max_coord,
+                        &template_handles,
+                        &app,
+                        &sem_ctx,
+                        &mut child_obj,
+                    );
+
+                    if let Ok(ch) = self.model.cityobjects_mut().add(child_obj) {
+                        child_handles.push(ch);
+                    }
+                }
+
+                // Wire parent ↔ child relationships
+                if let Some(ph) = parent_handle {
+                    for &ch in &child_handles {
+                        if let Some(p) = self.model.cityobjects_mut().get_mut(ph) {
+                            p.add_child(ch);
+                        }
+                        if let Some(c) = self.model.cityobjects_mut().get_mut(ch) {
+                            c.add_parent(ph);
                         }
                     }
                 }
