@@ -37,6 +37,9 @@ pub mod staged {
         pub vertices: &'a [[i64; 3]],
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if JSON parsing fails or the input is not a valid `CityJSONFeature`.
     pub fn from_feature_slice_with_base(
         feature_bytes: &[u8],
         base_document_bytes: &[u8],
@@ -45,6 +48,9 @@ pub mod staged {
         read_feature_with_base(feature_bytes, &base, &ReadOptions::default())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if JSON parsing fails or the input is not a valid `CityJSONFeature`.
     pub fn from_feature_slice_with_base_assume_cityjson_feature_v2_0(
         feature_bytes: &[u8],
         base_document_bytes: &[u8],
@@ -52,6 +58,9 @@ pub mod staged {
         from_feature_slice_with_base(feature_bytes, base_document_bytes)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization or parsing fails, or the assembly is not valid.
     pub fn from_feature_assembly_with_base(
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],
@@ -74,6 +83,9 @@ pub mod staged {
         from_feature_slice_with_base(&bytes, base_document_bytes)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or the content is not a valid `CityJSONFeature`.
     pub fn from_feature_file_with_base<P: AsRef<Path>>(
         path: P,
         base_document_bytes: &[u8],
@@ -83,6 +95,9 @@ pub mod staged {
         from_feature_slice_with_base(&bytes, base_document_bytes)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the model is not a `CityJSONFeature` or if serialization fails.
     pub fn to_feature_writer(writer: &mut impl Write, model: &OwnedCityModel) -> Result<()> {
         match model.type_citymodel() {
             CityModelType::CityJSONFeature => write_model(writer, model, &WriteOptions::default()),
@@ -119,10 +134,12 @@ pub struct Probe {
 }
 
 impl Probe {
+    #[must_use]
     pub fn kind(&self) -> RootKind {
         self.kind
     }
 
+    #[must_use]
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
@@ -135,6 +152,9 @@ struct Header {
     version: Option<String>,
 }
 
+/// # Errors
+///
+/// Returns an error if JSON parsing fails or the root type is not recognized.
 pub fn probe(bytes: &[u8]) -> Result<Probe> {
     let header: Header = serde_json::from_slice(bytes)?;
     let kind = match header.kind.as_str() {
@@ -280,6 +300,9 @@ fn prune_relations(cityobject: &mut Map<String, Value>, selected: &BTreeSet<Stri
     }
 }
 
+/// # Errors
+///
+/// Returns an error if serialization or re-parsing of the model fails, or the type is unsupported.
 pub fn cleanup(model: &OwnedCityModel) -> Result<OwnedCityModel> {
     let options = WriteOptions {
         validate_default_themes: matches!(model.type_citymodel(), CityModelType::CityJSONFeature),
@@ -294,6 +317,9 @@ pub fn cleanup(model: &OwnedCityModel) -> Result<OwnedCityModel> {
     }
 }
 
+/// # Errors
+///
+/// Returns an error if serialization fails, the id set is empty, or no `CityObjects` match.
 pub fn extract<'a, I>(model: &OwnedCityModel, cityobject_ids: I) -> Result<OwnedCityModel>
 where
     I: IntoIterator<Item = &'a str>,
@@ -330,6 +356,9 @@ where
     parse_root(root)
 }
 
+/// # Errors
+///
+/// Returns an error if transforms differ, root types are incompatible, ids conflict, or JSON fails.
 pub fn append(target: &mut OwnedCityModel, source: &OwnedCityModel) -> Result<()> {
     let mut target_root = serialize_root(target)?;
     let source_root = serialize_root(source)?;
@@ -392,6 +421,9 @@ pub fn append(target: &mut OwnedCityModel, source: &OwnedCityModel) -> Result<()
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error if the iterator is empty or if any `append` call fails.
 pub fn merge<I>(models: I) -> Result<OwnedCityModel>
 where
     I: IntoIterator<Item = OwnedCityModel>,
@@ -408,14 +440,16 @@ where
     Ok(merged)
 }
 
+/// # Errors
+///
+/// Returns an error if the stream is empty, items are not JSON objects, or merging fails.
 pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
     let mut stream = serde_json::Deserializer::from_slice(bytes).into_iter::<Value>();
     let Some(first) = stream.next().transpose()? else {
         return Err(import_error("empty feature stream"));
     };
-    let first = match first {
-        Value::Object(map) => map,
-        _ => return Err(import_error("stream items must be JSON objects")),
+    let Value::Object(first) = first else {
+        return Err(import_error("stream items must be JSON objects"));
     };
     let first_bytes = serde_json::to_vec(&Value::Object(first.clone()))?;
 
@@ -430,9 +464,8 @@ pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
 
     let mut models = vec![read_feature(&first_bytes, &ReadOptions::default())?];
     for item in stream {
-        let item = match item? {
-            Value::Object(map) => map,
-            _ => return Err(import_error("stream items must be JSON objects")),
+        let Value::Object(item) = item? else {
+            return Err(import_error("stream items must be JSON objects"));
         };
         let item_bytes = serde_json::to_vec(&Value::Object(item))?;
         models.push(read_feature(&item_bytes, &ReadOptions::default())?);
@@ -440,6 +473,9 @@ pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
     merge(models)
 }
 
+/// # Errors
+///
+/// Returns an error if the input is not a valid `CityJSONSeq` stream or merging fails.
 pub fn merge_cityjsonseq_slice(bytes: &[u8]) -> Result<OwnedCityModel> {
     merge_feature_stream_slice(bytes)
 }
