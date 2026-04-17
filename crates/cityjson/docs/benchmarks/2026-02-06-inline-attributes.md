@@ -1,5 +1,5 @@
 ## Run Metadata  
-- Source: `bench_results/history.csv`  
+- Source: `benches/results/history.csv`  
 - Timestamp: `2026-02-06T05:14:20Z`  
 - Commit: `782f331`  
 - Mode: `full`  

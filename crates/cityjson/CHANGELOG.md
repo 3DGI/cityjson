@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.7.0] - 2026-04-16
+
+### Added
+- Borrowed `ModelRelationalView` for zero-copy relational access over `OwnedCityModel`.
+- Owned `OwnedRelationalSnapshot` materialization for import and table-oriented rebuild paths.
+- Stable remap and raw-access seams that downstream Arrow and facade crates can consume directly.
+
+### Changed
+- `relational()` now returns the borrowed view instead of a materialized snapshot.
+- Owned relational materialization moved behind `relational_snapshot()`.
+- Query and downstream integration paths now align on the relational vNext contract.
+
 ## [0.6.0] - 2026-04-07
 
 ### Added

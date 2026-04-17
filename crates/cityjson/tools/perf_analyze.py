@@ -134,50 +134,6 @@ def select_rows(rows, description, mode, timestamp):
     return rows, latest
 
 
-def has_comparable_backend_pairs(rows):
-    grouped = defaultdict(dict)
-    for row in rows:
-        try:
-            value = float(row["value"])
-        except (TypeError, ValueError):
-            continue
-        key = (row["bench"], row["metric"], row["unit"])
-        grouped[key][row["backend"]] = value
-
-    for values in grouped.values():
-        if "default" not in values or "nested" not in values:
-            continue
-        if values["default"] == 0:
-            continue
-        return True
-    return False
-
-
-def select_rows_for_backend_compare(rows, description, mode, timestamp):
-    if description:
-        rows = [r for r in rows if r["description"] == description]
-
-    if mode and mode != "all":
-        rows = [r for r in rows if r["mode"] == mode]
-
-    if not rows:
-        return [], None
-
-    if timestamp:
-        exact_rows = [r for r in rows if r["timestamp"] == timestamp]
-        return exact_rows, timestamp
-
-    timestamps = sorted({r["timestamp"] for r in rows}, reverse=True)
-    for ts in timestamps:
-        ts_rows = [r for r in rows if r["timestamp"] == ts]
-        if has_comparable_backend_pairs(ts_rows):
-            return ts_rows, ts
-
-    # Fallback to the latest timestamp if no comparable pairs exist at all.
-    latest = timestamps[0]
-    latest_rows = [r for r in rows if r["timestamp"] == latest]
-    return latest_rows, latest
-
 
 def sparkline(values, width, missing_char="·"):
     if not values:
@@ -285,103 +241,6 @@ def status_symbol(effect, threshold=0.0):
         return "="
     return "+" if effect > 0 else "-"
 
-
-def compare_rows(rows, top, plot, color, percent, threshold):
-    for row in rows:
-        try:
-            row["value"] = float(row["value"])
-        except (TypeError, ValueError):
-            row["value"] = None
-
-    grouped = defaultdict(dict)
-    for row in rows:
-        if row["value"] is None:
-            continue
-        key = (row["bench"], row["metric"], row["unit"])
-        grouped[key][row["backend"]] = row["value"]
-
-    comparisons = []
-    for (bench, metric, unit), values in grouped.items():
-        if "default" not in values or "nested" not in values:
-            continue
-        default = values["default"]
-        nested = values["nested"]
-        if default == 0:
-            continue
-        delta_pct = (nested / default - 1.0) * 100.0
-        comparisons.append((bench, metric, unit, default, nested, delta_pct))
-
-    if top > 0:
-        comparisons.sort(key=lambda r: abs(r[5]), reverse=True)
-        comparisons = comparisons[:top]
-    comparisons.sort(
-        key=lambda r: (
-            r[1],
-            bench_base_and_size(r[0])[0],
-            bench_base_and_size(r[0])[1] is None,
-            bench_base_and_size(r[0])[1] or 0,
-            r[0],
-        )
-    )
-
-    if not comparisons:
-        print("Backend comparison: nested vs default")
-        print("No comparable default/nested pairs found.")
-        return
-
-    table_rows = []
-    for bench, metric, unit, default, nested, delta_pct in comparisons:
-        effect = metric_effect(metric, delta_pct, unit)
-        status = status_symbol(effect, threshold)
-        default_disp, unit_disp = format_value(default, unit, percent)
-        nested_disp, unit_disp = format_value(nested, unit, percent)
-        row = [
-            bench,
-            metric,
-            unit_disp,
-            f"{default_disp:.6g}",
-            f"{nested_disp:.6g}",
-            format_pct(delta_pct),
-            format_pct(effect),
-            status,
-        ]
-        if plot:
-            bar = delta_bar(delta_pct)
-            row.append(bar)
-        if color and status != "=":
-            row = colorize_row(row, "32" if effect > 0 else "31")
-        table_rows.append(row)
-
-    headers = [
-        "bench",
-        "metric",
-        "unit",
-        "default",
-        "nested",
-        "Δ",
-        "impact",
-        "status",
-    ]
-    if plot:
-        headers.append("Δ bar")
-
-    print("Backend comparison: nested vs default")
-    print_table(headers, table_rows)
-
-    print("")
-    print("Legend:")
-    print("- Δ = nested vs default percent change using default as baseline")
-    print("- impact = direction-aware change (positive means improvement)")
-    print("- metric direction: miss rates/time/memory lower is better; throughput higher is better")
-    print("- status: + improved, - regressed, = unchanged")
-    if threshold > 0:
-        print(f"- significance threshold: |impact| > {threshold:.2f}%")
-    if plot:
-        print("- Δ bar = fixed scale from -200% to +200% in 5% steps")
-        print("- bar markers: ┆ = ±100%, │ = 0%")
-        print("- values beyond ±200% show the exact percent before/after the bar")
-    if color:
-        print("- row colors: green improved, red regressed")
 
 
 def compact_timestamp(timestamp):
@@ -636,6 +495,27 @@ def resolve_compare_commit(filtered_rows, selector):
     }
 
 
+def resolve_baseline_description(filtered_rows, description):
+    matches = [r for r in filtered_rows if r["description"] == description]
+    if not matches:
+        raise SystemExit(f'No rows found for baseline description "{description}"')
+
+    by_timestamp = defaultdict(list)
+    for row in matches:
+        by_timestamp[row["timestamp"]].append(row)
+
+    timestamps = sorted(by_timestamp.keys())
+    snapshots = [summarize_run(by_timestamp[ts])["snapshot"] for ts in timestamps]
+
+    return {
+        "description": description,
+        "snapshot": average_snapshots(snapshots),
+        "run_count": len(timestamps),
+        "first_timestamp": timestamps[0],
+        "last_timestamp": timestamps[-1],
+    }
+
+
 def parse_compare_arg(compare):
     parts = [part.strip() for part in compare.split(",")]
     parts = [part for part in parts if part]
@@ -658,15 +538,60 @@ def print_overview_legend(show_extremes, threshold):
         print("- best/worst: largest single-pair movement relative to previous run")
 
 
-def backend_overview(rows, backend, mode, description, show_extremes, compare, color, percent, threshold):
-    if backend == "both":
-        raise SystemExit("backend overview requires --backend default or --backend nested")
-
+def backend_overview(rows, backend, mode, description, show_extremes, compare, baseline, color, percent, threshold):
     filtered = [r for r in rows if r["backend"] == backend]
-    if description:
-        filtered = [r for r in filtered if r["description"] == description]
     if mode and mode != "all":
         filtered = [r for r in filtered if r["mode"] == mode]
+
+    if not filtered:
+        print("No rows found for backend overview with the given filters.")
+        return
+
+    if compare and baseline:
+        raise SystemExit("--compare and --baseline are mutually exclusive")
+
+    if baseline:
+        base_info = resolve_baseline_description(filtered, baseline)
+
+        if description:
+            curr_rows = [r for r in filtered if r["description"] == description]
+            if not curr_rows:
+                raise SystemExit(f'No rows found for description "{description}"')
+            curr_label = f'"{description}"'
+        else:
+            non_baseline = [r for r in filtered if r["description"] != baseline]
+            if not non_baseline:
+                raise SystemExit("No non-baseline rows found for comparison")
+            latest_ts = max(r["timestamp"] for r in non_baseline)
+            curr_rows = [r for r in non_baseline if r["timestamp"] == latest_ts]
+            curr_label = f"latest ({compact_timestamp(latest_ts)})"
+
+        curr_by_ts = defaultdict(list)
+        for row in curr_rows:
+            curr_by_ts[row["timestamp"]].append(row)
+        curr_timestamps = sorted(curr_by_ts.keys())
+        curr_snapshots = [summarize_run(curr_by_ts[ts])["snapshot"] for ts in curr_timestamps]
+        curr_avg_snapshot = average_snapshots(curr_snapshots)
+
+        base_window = format_commit_run_window(
+            base_info["first_timestamp"], base_info["last_timestamp"], base_info["run_count"]
+        )
+        base_label = f'"{baseline}" ({base_window})'
+        curr_label_full = f"{curr_label} ({len(curr_timestamps)} run(s))"
+
+        print_metric_delta_table(
+            base_info["snapshot"],
+            curr_avg_snapshot,
+            color,
+            f"{base_label} -> {curr_label_full}",
+            percent,
+            threshold,
+        )
+        print_overview_legend(show_extremes, threshold)
+        return
+
+    if description:
+        filtered = [r for r in filtered if r["description"] == description]
 
     if not filtered:
         print("No rows found for backend overview with the given filters.")
@@ -1056,11 +981,11 @@ def main():
         "series_raw": "--series-raw",
         "series-raw": "--series-raw",
         "compare": "--compare",
+        "baseline": "--baseline",
         "plot": "--plot",
         "plot_width": "--plot-width",
         "plot-width": "--plot-width",
         "color": "--color",
-        "top": "--top",
         "threshold": "--threshold",
         "percent": "--percent",
     }
@@ -1100,26 +1025,39 @@ def main():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Analyze benchmark history CSV files. Compare default vs nested backends, "
-            "list available descriptions, inspect per-benchmark time series, "
-            "or summarize backend-wide changes across runs."
+            "Analyze benchmark history CSV files. "
+            "Four modes: run history overview (default), baseline comparison, "
+            "commit-to-commit comparison, and per-benchmark time series."
         ),
         epilog=(
-            "Examples:\n"
-            "  just perf-analyze --list\n"
-            "  just perf-analyze --backend-overview --backend default --mode all\n"
-            "  just perf-analyze --backend default --compare abc1234,def5678 --color\n"
-            "  just perf-analyze --backend-overview --backend default --backend-overview-extremes\n"
-            "  just perf-analyze description=\"<description>\" --plot\n"
-            "  just perf-analyze --series --plot bench=\"<bench>\" metric=\"<metric>\"\n"
-            "  python3 tools/perf_analyze.py --series --series-raw --bench \"<bench>\" "
-            "--metric \"<metric>\""
+            "Modes:\n"
+            "  (default)     Show run-by-run history for the default backend:\n"
+            "                  just perf-analyze\n"
+            "                  just perf-analyze --mode all\n"
+            "                  just perf-analyze --backend-overview-extremes\n"
+            "\n"
+            "  --list        List all descriptions, benches, and metrics in the CSV:\n"
+            "                  just perf-analyze --list\n"
+            "\n"
+            "  --baseline    Compare current/latest run against a named baseline description:\n"
+            "                  just perf-analyze baseline=\"<saved description>\"\n"
+            "                  just perf-analyze description=\"<current>\" baseline=\"<saved>\"\n"
+            "                  just perf-analyze baseline=\"<saved>\" --percent --threshold 1\n"
+            "\n"
+            "  --compare     Compare two specific commits (prefix match):\n"
+            "                  just perf-analyze --compare abc1234,def5678\n"
+            "                  just perf-analyze --compare abc1234,def5678 --backend-overview-extremes\n"
+            "\n"
+            "  --series      Time series for one bench+metric pair:\n"
+            "                  just perf-analyze --series bench=\"<bench>\" metric=\"<metric>\"\n"
+            "                  just perf-analyze --series --plot bench=\"<bench>\" metric=\"<metric>\"\n"
+            "                  just perf-analyze --series --series-raw bench=\"<bench>\" metric=\"<metric>\"\n"
         ),
         formatter_class=HelpFormatter,
     )
     parser.add_argument(
         "--csv",
-        default="bench_results/history.csv",
+        default="benches/results/history.csv",
         help="Path to the benchmark history CSV file.",
     )
     parser.add_argument(
@@ -1149,11 +1087,8 @@ def main():
     )
     parser.add_argument(
         "--backend",
-        default="both",
-        help=(
-            "Backend filter: 'default', 'nested', or 'both'. "
-            "In default mode, selecting one backend shows backend-overview behavior."
-        ),
+        default="default",
+        help="Backend filter: 'default' (or 'nested' for historical queries).",
     )
     parser.add_argument(
         "--list",
@@ -1179,8 +1114,17 @@ def main():
         "--compare",
         default="",
         help=(
-            "Compare two commits in backend overview mode using per-commit averages "
-            "across all matching runs: --compare commit1,commit2."
+            "Compare two commits using per-commit averages across all matching runs: "
+            "--compare commit1,commit2. Mutually exclusive with --baseline."
+        ),
+    )
+    parser.add_argument(
+        "--baseline",
+        default="",
+        help=(
+            "Compare current/latest run against a named baseline description. "
+            "Use --description to select the current side; omit to use the latest non-baseline run. "
+            "Mutually exclusive with --compare."
         ),
     )
     parser.add_argument(
@@ -1204,12 +1148,6 @@ def main():
         "--series-raw",
         action="store_true",
         help="In series mode, print raw rows instead of timestamp/backend averages.",
-    )
-    parser.add_argument(
-        "--top",
-        type=int,
-        default=0,
-        help="If >0, keep only the N largest absolute nested-vs-default deltas.",
     )
     parser.add_argument(
         "--threshold",
@@ -1251,56 +1189,14 @@ def main():
         )
         return
 
-    if args.backend_overview:
-        backend_overview(
-            rows,
-            args.backend,
-            args.mode,
-            args.description,
-            args.backend_overview_extremes,
-            args.compare,
-            args.color,
-            args.percent,
-            args.threshold,
-        )
-        return
-
-    if args.backend != "both":
-        if args.timestamp:
-            print("Note: --timestamp is ignored in single-backend overview mode.")
-        backend_overview(
-            rows,
-            args.backend,
-            args.mode,
-            args.description,
-            args.backend_overview_extremes,
-            args.compare,
-            args.color,
-            args.percent,
-            args.threshold,
-        )
-        return
-
-    if args.compare:
-        raise SystemExit("--compare requires --backend default or --backend nested")
-
-    selected, timestamp = select_rows_for_backend_compare(
+    backend_overview(
         rows,
-        args.description,
+        args.backend,
         args.mode,
-        args.timestamp,
-    )
-    if not selected:
-        print("No rows found for the given filters.")
-        if args.description:
-            print("Try --mode all or a different description.")
-        return
-
-    print(f"timestamp: {timestamp}")
-    compare_rows(
-        selected,
-        args.top,
-        args.plot,
+        args.description,
+        args.backend_overview_extremes,
+        args.compare,
+        args.baseline,
         args.color,
         args.percent,
         args.threshold,
