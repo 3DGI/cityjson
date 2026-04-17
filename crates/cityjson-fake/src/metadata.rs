@@ -23,6 +23,7 @@ use fake::faker::chrono::raw::Date as FakeDate;
 use fake::faker::lorem::raw::Words;
 use fake::locales::EN;
 use fake::uuid::UUIDv1;
+use fake::RngExt;
 use fake::{Dummy, Fake, Faker};
 use rand::prelude::{IndexedRandom, SmallRng};
 use rand::Rng;

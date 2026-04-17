@@ -163,7 +163,7 @@ fn validate_manifest_json(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let schema: Value = serde_json::from_str(schema_json)?;
     let manifest: Value = serde_json::from_str(manifest_json)?;
-    let validator = match jsonschema::compile(&schema) {
+    let validator = match jsonschema::validator_for(&schema) {
         Ok(validator) => validator,
         Err(error) => {
             return Err(io::Error::new(
@@ -174,9 +174,11 @@ fn validate_manifest_json(
         }
     };
 
-    if let Err(errors) = validator.validate(&manifest) {
+    let errors = validator.iter_errors(&manifest).collect::<Vec<_>>();
+    if !errors.is_empty() {
         let details = errors
-            .map(|error| format!("{} at {}", error, error.instance_path))
+            .into_iter()
+            .map(|error| format!("{} at {}", error, error.instance_path()))
             .collect::<Vec<_>>()
             .join("\n");
         return Err(io::Error::new(

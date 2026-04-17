@@ -10,6 +10,7 @@
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{ImageType, Texture};
 use fake::Fake;
+use fake::RngExt;
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 use std::path::PathBuf;

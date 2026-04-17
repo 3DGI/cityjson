@@ -17,6 +17,7 @@
 use crate::cli::CJFakeConfig;
 use crate::get_nr_items;
 use cityjson::v2_0::{RealWorldCoordinate, VertexRef, Vertices};
+use fake::RngExt;
 use fake::{Dummy, Fake};
 use rand::Rng;
 

@@ -12,6 +12,7 @@ use cityjson::v2_0::{AttributeValue, Attributes};
 use fake::faker::lorem::raw::Word;
 use fake::locales::EN;
 use fake::Fake;
+use fake::RngExt;
 use rand::Rng;
 use std::collections::HashMap;
 

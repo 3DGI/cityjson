@@ -35,9 +35,10 @@ use cityjson::v2_0::{
 #[cfg(feature = "json")]
 use cityjson_json::{self, WriteOptions};
 use fake::Fake;
+use fake::RngExt;
 use rand::prelude::SmallRng;
 use rand::seq::{IndexedRandom, SliceRandom};
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 
 // ─── Internal helpers (all specialised to OwnedStringStorage) ───────────────
 

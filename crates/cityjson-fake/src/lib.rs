@@ -102,6 +102,7 @@ pub mod vertex;
 use cityjson::prelude::*;
 use cityjson::v2_0::{CityObjectType, LoD, SemanticType};
 use fake::Dummy;
+use fake::RngExt;
 use rand::seq::IndexedRandom;
 use rand::Rng;
 use std::ops::RangeInclusive;

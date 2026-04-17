@@ -12,6 +12,7 @@
 use cityjson::prelude::StringStorage;
 use cityjson::v2_0::{Material, RGB};
 use fake::Dummy;
+use fake::RngExt;
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
