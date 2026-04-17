@@ -35,6 +35,24 @@ Factor < 1.0 means Arrow IPC is faster than JSON; > 1.0 means slower.
 Full results and plots: `benches/results/`.
 
 <!-- benchmark-summary:start -->
+**Acquired data**
+
+| Case | cityjson-arrow | `cityjson-json` | Factor |
+| --- | --- | --- | --- |
+| `io_basisvoorziening_3d_cityjson` | 623.8 MiB/s | 280.7 MiB/s | 2.19x |
+| `io_3dbag_cityjson_cluster_4x` | 524.7 MiB/s | 185.3 MiB/s | 2.80x |
+| `io_3dbag_cityjson` | 587.9 MiB/s | 191.4 MiB/s | 3.12x |
+
+**Stress cases**
+
+| Case | cityjson-arrow | `cityjson-json` | Factor |
+| --- | --- | --- | --- |
+| `stress_attribute_heavy` | 202.4 MiB/s | 171.0 MiB/s | 1.76x |
+| `stress_boundary_heavy` | 3399.4 MiB/s | 317.4 MiB/s | 6.69x |
+| `stress_geometry_heavy` | 1541.7 MiB/s | 276.4 MiB/s | 3.66x |
+| `stress_hierarchy_heavy` | 1133.4 MiB/s | 193.0 MiB/s | 5.07x |
+| `stress_resource_heavy` | 784.8 MiB/s | 159.2 MiB/s | 3.79x |
+| `stress_vertex_heavy` | 4434.6 MiB/s | 360.5 MiB/s | 7.41x |
 <!-- benchmark-summary:end -->
 
 ## Verification

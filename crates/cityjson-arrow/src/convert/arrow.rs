@@ -269,6 +269,7 @@ pub(super) fn projected_value_array(
         ProjectedValueSpec::Int64 => projected_i64_array(values),
         ProjectedValueSpec::Float64 => projected_f64_array(values),
         ProjectedValueSpec::Utf8 => projected_utf8_array(values),
+        ProjectedValueSpec::Json => projected_json_array(values),
         ProjectedValueSpec::GeometryRef => projected_geometry_ref_array(values),
         ProjectedValueSpec::List { item, .. } => projected_list_array(field, item, values),
         ProjectedValueSpec::Struct(spec) => projected_struct_value_array(spec, values),
@@ -325,6 +326,10 @@ pub(super) fn projected_i64_array(values: &[Option<&OwnedAttributeValue>]) -> Re
             .map(|value| match value {
                 None | Some(AttributeValue::Null) => Ok(None),
                 Some(AttributeValue::Integer(value)) => Ok(Some(*value)),
+                // Numeric widening: UInt64 promoted to Int64 (values > i64::MAX saturate)
+                Some(AttributeValue::Unsigned(value)) => {
+                    Ok(Some(i64::try_from(*value).unwrap_or(i64::MAX)))
+                }
                 Some(other) => Err(Error::Conversion(format!(
                     "expected i64 projected value, found {other}"
                 ))),
@@ -340,6 +345,9 @@ pub(super) fn projected_f64_array(values: &[Option<&OwnedAttributeValue>]) -> Re
             .map(|value| match value {
                 None | Some(AttributeValue::Null) => Ok(None),
                 Some(AttributeValue::Float(value)) => Ok(Some(*value)),
+                // Numeric widening: integers promoted to Float64
+                Some(AttributeValue::Unsigned(value)) => Ok(Some(*value as f64)),
+                Some(AttributeValue::Integer(value)) => Ok(Some(*value as f64)),
                 Some(other) => Err(Error::Conversion(format!(
                     "expected f64 projected value, found {other}"
                 ))),
@@ -361,6 +369,67 @@ pub(super) fn projected_utf8_array(values: &[Option<&OwnedAttributeValue>]) -> R
             })
             .collect::<Result<Vec<_>>>()?,
     )) as ArrayRef)
+}
+
+pub(super) fn projected_json_array(values: &[Option<&OwnedAttributeValue>]) -> Result<ArrayRef> {
+    Ok(Arc::new(LargeStringArray::from(
+        values
+            .iter()
+            .map(|value| match value {
+                None | Some(AttributeValue::Null) => Ok(None),
+                Some(value) => serde_json::to_string(&attribute_value_to_json(value))
+                    .map(Some)
+                    .map_err(|err| Error::Conversion(format!("JSON fallback serialization failed: {err}"))),
+            })
+            .collect::<Result<Vec<_>>>()?,
+    )) as ArrayRef)
+}
+
+fn attribute_value_to_json(value: &OwnedAttributeValue) -> serde_json::Value {
+    match value {
+        AttributeValue::Null => serde_json::Value::Null,
+        AttributeValue::Bool(b) => serde_json::Value::Bool(*b),
+        AttributeValue::Unsigned(u) => serde_json::Value::Number((*u).into()),
+        AttributeValue::Integer(i) => serde_json::Value::Number((*i).into()),
+        AttributeValue::Float(f) => serde_json::Number::from_f64(*f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        AttributeValue::String(s) => serde_json::Value::String(s.clone()),
+        AttributeValue::Vec(items) => {
+            serde_json::Value::Array(items.iter().map(attribute_value_to_json).collect())
+        }
+        AttributeValue::Map(map) => serde_json::Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), attribute_value_to_json(v)))
+                .collect(),
+        ),
+        _ => serde_json::Value::Null,
+    }
+}
+
+fn json_to_attribute_value(value: serde_json::Value) -> OwnedAttributeValue {
+    match value {
+        serde_json::Value::Null => AttributeValue::Null,
+        serde_json::Value::Bool(b) => AttributeValue::Bool(b),
+        serde_json::Value::Number(n) => {
+            if let Some(u) = n.as_u64() {
+                AttributeValue::Unsigned(u)
+            } else if let Some(i) = n.as_i64() {
+                AttributeValue::Integer(i)
+            } else {
+                AttributeValue::Float(n.as_f64().unwrap_or(f64::NAN))
+            }
+        }
+        serde_json::Value::String(s) => AttributeValue::String(s),
+        serde_json::Value::Array(arr) => {
+            AttributeValue::Vec(arr.into_iter().map(json_to_attribute_value).collect())
+        }
+        serde_json::Value::Object(map) => AttributeValue::Map(
+            map.into_iter()
+                .map(|(k, v)| (k, json_to_attribute_value(v)))
+                .collect(),
+        ),
+    }
 }
 
 pub(super) fn projected_geometry_ref_array(
@@ -521,6 +590,14 @@ pub(super) fn projected_value_from_array(
                 .value(row)
                 .to_string(),
         ),
+        ProjectedValueSpec::Json => {
+            let s = required_downcast::<LargeStringArray>(array, "large_utf8 (json)")?
+                .value(row);
+            let json: serde_json::Value = serde_json::from_str(s).map_err(|err| {
+                Error::Conversion(format!("JSON fallback deserialization failed: {err}"))
+            })?;
+            json_to_attribute_value(json)
+        }
         ProjectedValueSpec::GeometryRef => {
             let id = required_downcast::<UInt64Array>(array, "geometry_ref")?.value(row);
             AttributeValue::Geometry(*geometry_handles.get(&id).ok_or_else(|| {

@@ -55,6 +55,9 @@ pub enum ProjectedValueSpec {
     Int64,
     Float64,
     Utf8,
+    /// JSON-serialized fallback for attributes whose values are heterogeneous across rows or
+    /// within a list. The wire type is `LargeUtf8`; values are round-tripped through JSON.
+    Json,
     GeometryRef,
     List {
         item_nullable: bool,
@@ -72,7 +75,7 @@ impl ProjectedValueSpec {
             Self::UInt64 | Self::GeometryRef => DataType::UInt64,
             Self::Int64 => DataType::Int64,
             Self::Float64 => DataType::Float64,
-            Self::Utf8 => DataType::LargeUtf8,
+            Self::Utf8 | Self::Json => DataType::LargeUtf8,
             Self::List {
                 item_nullable,
                 item,

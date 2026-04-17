@@ -266,7 +266,15 @@ pub(super) fn merge_projected_value_specs(
         (ProjectedValueSpec::UInt64, ProjectedValueSpec::UInt64) => ProjectedValueSpec::UInt64,
         (ProjectedValueSpec::Int64, ProjectedValueSpec::Int64) => ProjectedValueSpec::Int64,
         (ProjectedValueSpec::Float64, ProjectedValueSpec::Float64) => ProjectedValueSpec::Float64,
+        // Numeric widening: UInt64 + Int64 → Int64, any integer + Float64 → Float64
+        (ProjectedValueSpec::UInt64, ProjectedValueSpec::Int64)
+        | (ProjectedValueSpec::Int64, ProjectedValueSpec::UInt64) => ProjectedValueSpec::Int64,
+        (ProjectedValueSpec::UInt64, ProjectedValueSpec::Float64)
+        | (ProjectedValueSpec::Float64, ProjectedValueSpec::UInt64)
+        | (ProjectedValueSpec::Int64, ProjectedValueSpec::Float64)
+        | (ProjectedValueSpec::Float64, ProjectedValueSpec::Int64) => ProjectedValueSpec::Float64,
         (ProjectedValueSpec::Utf8, ProjectedValueSpec::Utf8) => ProjectedValueSpec::Utf8,
+        (ProjectedValueSpec::Json, _) | (_, ProjectedValueSpec::Json) => ProjectedValueSpec::Json,
         (ProjectedValueSpec::GeometryRef, ProjectedValueSpec::GeometryRef) => {
             ProjectedValueSpec::GeometryRef
         }
@@ -286,11 +294,8 @@ pub(super) fn merge_projected_value_specs(
         (ProjectedValueSpec::Struct(left), ProjectedValueSpec::Struct(right)) => {
             ProjectedValueSpec::Struct(merge_projected_struct_specs(left, right)?)
         }
-        (left, right) => {
-            return Err(Error::Conversion(format!(
-                "incompatible projected attribute shapes: {left:?} versus {right:?}"
-            )));
-        }
+        // Incompatible types: fall back to JSON-string encoding so no data is lost.
+        _ => ProjectedValueSpec::Json,
     })
 }
 
