@@ -21,8 +21,11 @@ use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
 use clap::{Args, Parser};
 #[cfg(feature = "serialize")]
 use serde::Deserialize;
+#[cfg(feature = "serialize")]
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+#[cfg(feature = "serialize")]
+use std::path::Path;
 use std::str::FromStr;
 type IndexType = u32;
 
@@ -691,6 +694,7 @@ where
 
 // ─── CLI runner ──────────────────────────────────────────────────────────────
 
+#[cfg(feature = "serialize")]
 fn resolve_manifest_output_path(
     output_dir: Option<&Path>,
     case_output: Option<&Path>,
@@ -1047,6 +1051,7 @@ mod tests {
         assert!(json.starts_with('{'));
     }
 
+    #[cfg(feature = "serialize")]
     #[test]
     fn test_manifest_loads_case_config() {
         let stamp = SystemTime::now()
@@ -1083,6 +1088,7 @@ mod tests {
         assert_eq!(case.config.geometry.max_members_solid, 3);
     }
 
+    #[cfg(feature = "serialize")]
     #[test]
     fn test_cli_run_writes_manifest_case() {
         let stamp = SystemTime::now()
@@ -1123,6 +1129,7 @@ mod tests {
         assert!(generated.starts_with('{'));
     }
 
+    #[cfg(feature = "serialize")]
     #[test]
     fn test_cli_run_writes_manifest_directory() {
         let stamp = SystemTime::now()
