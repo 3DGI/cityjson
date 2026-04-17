@@ -34,6 +34,15 @@ into a seekable single-file container backed by Arrow IPC payloads.
 - `cityjson-parquet` depends on doc-hidden bridges from `cityjson-arrow` and
   requires both repos to be checked out as siblings
 
+## Benchmarks
+
+Package read and write throughput compared to `cityjson-arrow` stream and `cityjson-json`.
+Factor < 1.0 means the package format is faster than JSON; > 1.0 means slower.
+Full results and plots: `benches/results/`.
+
+<!-- benchmark-summary:start -->
+<!-- benchmark-summary:end -->
+
 ## Verification
 
 ```shell
@@ -42,6 +51,7 @@ just lint
 just check
 just test    # requires ../cityjson-arrow checked out as a sibling
 just rustdoc
+just bench-check
 ```
 
 ## Repository Map
