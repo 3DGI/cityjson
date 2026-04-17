@@ -1,31 +1,51 @@
 #!/usr/bin/env just --justfile
 
+set dotenv-load := true
+
+# Show the available recipes.
 _default:
     just --list
 
+# Run cargo clean.
+clean:
+    cargo clean
+
+# Run cargo check across the workspace.
 check:
     cargo check --all-targets --all-features
 
+# Build the workspace.
 build *args:
     cargo build --all-targets --all-features {{args}}
 
+# Run clippy across the workspace.
 lint:
     cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Format the workspace.
 fmt:
-    cargo fmt -- src/*.rs src/convert/*.rs tests/*.rs benches/*.rs
+    cargo fmt --all
 
+# Run the test suite.
 test:
     cargo test --workspace --all-features --no-fail-fast
 
-# Build the crate documentation
+# Generate test coverage report using tarpaulin.
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
+# Build the documentation.
 doc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo doc --all-features --no-deps
 
-# Build the MkDocs Material site
+# Build the MkDocs Material site.
 docs-build:
     python3 -m mkdocs build --strict
 
-# Serve the MkDocs Material site locally
+# Serve the MkDocs Material site locally.
 docs-serve:
     python3 -m mkdocs serve
+
+# Run fmt, check, lint, test, and doc.
+ci: fmt check lint test doc
