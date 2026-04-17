@@ -4,7 +4,7 @@ This directory stores the single source of truth for performance history.
 
 ## Data Store
 
-`bench_results/history.csv` contains one metric per row with the schema:
+`benches/results/history.csv` contains one metric per row with the schema:
 
 ```
 timestamp,commit,description,mode,backend,bench,metric,value,unit,seed,bench_version,rustc
@@ -37,4 +37,4 @@ Use the single entrypoint:
 just perf "description of changes"
 ```
 
-All outputs append to `bench_results/history.csv`.
+All outputs append to `benches/results/history.csv`.

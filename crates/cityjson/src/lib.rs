@@ -2,8 +2,11 @@
 pub(crate) mod backend;
 mod cityjson;
 pub mod error;
+pub mod query;
 pub mod raw;
+pub mod relational;
 pub mod resources;
+pub mod symbols;
 pub mod v2_0;
 
 pub mod prelude {

@@ -14,7 +14,7 @@ This runs:
 - the memory benchmark (`memory`) with dhat heap profiling, and
 - the Valgrind profiling suite (massif, cachegrind, memcheck).
 
-Results are appended to `bench_results/history.csv`.
+Results are appended to `benches/results/history.csv`.
 
 ## Optional Knobs
 
@@ -32,7 +32,7 @@ Notes:
 
 ## Results
 
-The CSV schema is documented in `bench_results/README.md`.
+The CSV schema is documented in `benches/results/README.md`.
 
 Key metrics:
 
@@ -49,11 +49,67 @@ Benchmark coverage:
 - `processor/compute_full_feature_stats` walks attributes, semantics, materials, and textures.
 - Geometry-typed attributes are intentionally excluded to avoid backend-specific representation costs.
 
-Analysis examples:
+## Analyzing Results
 
-- `just perf-analyze description="my change" --plot`
-- `just perf-analyze --series --plot bench="builder/build_full_feature" metric="time_ms"`
-- `just perf-analyze --mode all`
+`just perf-analyze` has four modes. Run `just perf-analyze --help` for the full reference.
+
+### Run history (default)
+
+Shows run-by-run deltas for the default backend — useful for a quick sanity check after `just perf`.
+
+```
+just perf-analyze
+just perf-analyze --mode all
+just perf-analyze --backend-overview-extremes
+```
+
+`--mode all` includes both `fast` and `full` runs. `--backend-overview-extremes` adds per-run best/worst movers.
+
+### Compare against a named baseline
+
+Compare the latest run (or a specific run via `--description`) against a previously-stored description.
+The typical workflow is to tag a reference run with a memorable description and then compare future runs against it.
+
+```
+just perf "v0.7.0 baseline"                       # store the reference run
+
+# ... later, after changes ...
+just perf "my feature"
+just perf-analyze baseline="v0.7.0 baseline"
+
+# Or compare a specific current run explicitly:
+just perf-analyze description="my feature" baseline="v0.7.0 baseline"
+just perf-analyze baseline="v0.7.0 baseline" --percent --threshold 1
+```
+
+`--percent` shows ratio metrics (cache miss rates) as percentages. `--threshold N` hides changes below N%.
+
+### Compare two commits
+
+```
+just perf-analyze --compare abc1234,def5678
+just perf-analyze --compare abc1234,def5678 --backend-overview-extremes
+```
+
+Commit selectors are prefix-matched, so a 4–7 character prefix is usually enough.
+
+### List available data
+
+```
+just perf-analyze --list
+```
+
+Shows all descriptions, bench IDs, and metrics in the CSV.
+
+### Time series for one metric
+
+```
+just perf-analyze --series bench="builder/build_full_feature" metric="time_ms"
+just perf-analyze --series --plot bench="builder/build_full_feature" metric="time_ms"
+just perf-analyze --series --series-raw bench="processor/compute_full_feature_stats" metric="time_ms"
+```
+
+`--plot` adds a sparkline. `--series-raw` shows individual rows instead of per-timestamp averages.
 
 ## Profiling Targets
 

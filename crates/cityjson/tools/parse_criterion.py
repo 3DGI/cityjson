@@ -73,26 +73,10 @@ def main():
         print(f"No benchmark.json files found in {criterion_dir}", file=sys.stderr)
         sys.exit(1)
 
-    bench_entries = []
+    rows = []
     for bench_file in benchmark_files:
         bench_json = load_json(bench_file)
-        bench_id_raw = bench_id_from(bench_json)
-        bench_entries.append((bench_file, bench_json, bench_id_raw))
-
-    has_duplicates = any(bench_id.endswith(" #2") for _, _, bench_id in bench_entries)
-
-    rows = []
-    for bench_file, bench_json, bench_id_raw in bench_entries:
-        is_duplicate = bench_id_raw.endswith(" #2")
-        if has_duplicates:
-            if args.backend == "nested":
-                if not is_duplicate:
-                    continue
-            else:
-                if is_duplicate:
-                    continue
-
-        bench_id = bench_id_raw[:-3] if is_duplicate else bench_id_raw
+        bench_id = bench_id_from(bench_json)
         if bench_id.startswith("memory/"):
             continue
 

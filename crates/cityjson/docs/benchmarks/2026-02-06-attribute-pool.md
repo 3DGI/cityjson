@@ -1,5 +1,5 @@
 ## Run Metadata  
-- Source: `bench_results/history.csv`  
+- Source: `benches/results/history.csv`  
 - Timestamp: `2026-02-06T12:02:55Z`  
 - Commit: `02f154e`  
 - Description: `attribute-pool`  
