@@ -13,20 +13,20 @@ current suite with `just bench`.
 
 | Case | cityjson-json | `serde_json::Value` | Factor |
 | --- | --- | --- | --- |
-| `io_basisvoorziening_3d_cityjson` | 285.7 MiB/s | 274.5 MiB/s | 1.04x |
-| `io_3dbag_cityjson_cluster_4x` | 187.9 MiB/s | 304.1 MiB/s | 0.62x |
-| `io_3dbag_cityjson` | 193.8 MiB/s | 344.5 MiB/s | 0.56x |
+| `io_basisvoorziening_3d_cityjson` | 282.9 MiB/s | 272.2 MiB/s | 1.04x |
+| `io_3dbag_cityjson_cluster_4x` | 186.9 MiB/s | 324.4 MiB/s | 0.58x |
+| `io_3dbag_cityjson` | 193.5 MiB/s | 340.5 MiB/s | 0.57x |
 
 **Stress cases**
 
 | Case | cityjson-json | `serde_json::Value` | Factor |
 | --- | --- | --- | --- |
-| `stress_attribute_heavy` | 179.8 MiB/s | 225.2 MiB/s | 0.80x |
-| `stress_boundary_heavy` | 320.9 MiB/s | 214.4 MiB/s | 1.50x |
-| `stress_geometry_heavy` | 279.9 MiB/s | 218.0 MiB/s | 1.28x |
-| `stress_hierarchy_heavy` | 193.1 MiB/s | 234.0 MiB/s | 0.83x |
-| `stress_resource_heavy` | 162.7 MiB/s | 237.1 MiB/s | 0.69x |
-| `stress_vertex_heavy` | 360.1 MiB/s | 242.9 MiB/s | 1.48x |
+| `stress_attribute_heavy` | 179.9 MiB/s | 226.8 MiB/s | 0.79x |
+| `stress_boundary_heavy` | 320.7 MiB/s | 213.5 MiB/s | 1.50x |
+| `stress_geometry_heavy` | 280.8 MiB/s | 219.8 MiB/s | 1.28x |
+| `stress_hierarchy_heavy` | 195.6 MiB/s | 233.1 MiB/s | 0.84x |
+| `stress_resource_heavy` | 150.7 MiB/s | 228.2 MiB/s | 0.66x |
+| `stress_vertex_heavy` | 363.1 MiB/s | 243.0 MiB/s | 1.49x |
 <!-- benchmark-summary:end -->
 
 Full benchmark tables and plots are written to `benches/results/benchmark_summary.md`.
