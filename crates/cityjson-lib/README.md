@@ -1,163 +1,79 @@
 # cityjson-lib
 
-`cityjson_lib` is the user-facing facade for the CityJSON crates in this repository.
+`cityjson_lib` is the publishable facade and binding host for the CityJSON
+stack in this repository.
 
-If you are new to the broader project family, start with
-[`docs/ecosystem-overview.md`](docs/ecosystem-overview.md).
-It explains what each repository does, how the responsibilities are split, and
-which crate to use for which kind of task.
+The release line is intentionally small:
 
-The current rewrite keeps the implemented surface deliberately small:
+- `cityjson-rs` owns the semantic CityJSON model
+- `cityjson-json` owns CityJSON and CityJSONSeq parsing and serialization
+- `cityjson-lib` owns the stable Rust facade, `ops`, `query`, and the shared
+  FFI core used by Python and C++
 
-- `cityjson-rs` owns the one semantic model
-- `cityjson-json` owns the CityJSON JSON and JSONL boundary
-- `cityjson_lib` owns the ergonomic facade, stable error/categories, and
-  delegated format modules
+Arrow and Parquet are not part of this published crate.
 
-The semantic rule is:
-
-- one semantic model: `cityjson::v2_0::OwnedCityModel`
-- one facade wrapper: `cityjson_lib::CityModel`
-- one semantic interchange unit: a self-contained `CityModel`
-- explicit format boundaries: JSON, JSONL, Arrow, and Parquet
-- no binding-level cityobject projection wrappers on the hot path
-
-For the full synthesis, see [`docs/architecture.md`](docs/architecture.md).
-
-The public API is centered on:
-
-- `cityjson_lib::CityModel`
-- `cityjson_lib::CityJSONVersion`
-- `cityjson_lib::Error`
-- `cityjson_lib::ErrorKind`
-- `cityjson_lib::json`, enabled by default through the `json` feature
-- `cityjson_lib::ops`
-- `cityjson_lib::cityjson` for advanced model access
-
-## Default Path
-
-For single-document CityJSON input, the default entry points stay on
-`cityjson_lib::json`:
+## Rust Quick Start
 
 ```rust
-use cityjson_lib::json;
+use cityjson_lib::{json, query};
 
-let document = json::from_file("rotterdam.city.json")?;
-let bytes = json::from_slice(br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#)?;
-# Ok::<(), cityjson_lib::Error>(())
-```
+let model = json::from_file("amsterdam.city.json")?;
+let summary = query::summary(&model);
+println!("{} cityobjects", summary.cityobject_count);
 
-Current practical status:
-
-- `cityjson_lib` is usable today for ordinary `CityJSON` document files
-- the implemented document path is `CityJSON` v2.0 through `cityjson_lib::json`
-- `json` is the default-on feature
-- explicit feature and feature-stream helpers exist under `cityjson_lib::json`
-- higher-level workflows such as `ops::merge` are exposed through the facade
-- `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
-
-## Explicit Format Modules
-
-The top-level constructors are only the convenience path for CityJSON JSON.
-
-Serialization, feature handling, and model streams should be explicit and
-format-qualified:
-
-```rust
-use cityjson_lib::json;
-use cityjson_lib::CityModel;
-
-let model = json::from_file("rotterdam.city.json")?;
 let bytes = json::to_vec(&model)?;
-let text = json::to_string(&model)?;
-let feature_text = json::to_feature_string(&model)?;
-# let _ = (bytes, text, feature_text);
+# let _ = bytes;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-The facade stays predictable when the public boundary is explicit:
+Use `cityjson_lib::json` when you need explicit boundary control:
 
-- `json::from_*` means the common single-document CityJSON path
-- explicit modules mean explicit formats
+```rust
+use cityjson_lib::{json, CityJSONVersion};
 
-Within `cityjson_lib::json`, the intended surface is:
+let bytes = std::fs::read("amsterdam.city.json")?;
+let probe = json::probe(&bytes)?;
+assert_eq!(probe.kind(), json::RootKind::CityJSON);
+assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
+# Ok::<(), cityjson_lib::Error>(())
+```
 
-- `probe`
-- `from_slice`
-- `from_file`
-- `from_feature_slice`
-- `from_feature_file`
-- `read_feature_stream`
-- `write_feature_stream`
-- `to_vec`
-- `to_string`
-- `to_writer`
-- `to_feature_string`
-- `to_feature_writer`
+Use `cityjson_lib::ops` for reusable workflows above the model:
 
-Those helpers delegate to `cityjson-json`.
-Advanced staged reconstruction paths live under `cityjson_lib::json::staged`:
+```rust
+use cityjson_lib::{json, ops};
 
-- `from_feature_slice_with_base`
-- `from_feature_file_with_base`
-- `from_feature_assembly_with_base`
+let model = json::from_file("amsterdam.city.json")?;
+let cleaned = ops::cleanup(&model)?;
+let subset = ops::extract(&cleaned, ["building-1"])?;
+# let _ = subset;
+# Ok::<(), cityjson_lib::Error>(())
+```
 
-`json::from_file` is document-oriented.
-Feature streams should be handled explicitly through
-`json::read_feature_stream`.
+## Bindings
 
-## Higher-level Operations
+This repository also ships:
 
-Higher-level workflows that do not belong in the core `cityjson-rs` model should
-live under `cityjson_lib::ops`.
-That namespace exposes reusable cleanup, extract, append, and merge helpers
-while delegating the JSON-backed implementation to `cityjson-json`.
+- a shared Rust FFI core in `ffi/core`
+- a Python package in `ffi/python`
+- a C++ wrapper in `ffi/cpp`
 
-## Relationship To `cjfake`
+The docs site under [`docs/`](docs/) is the canonical reference for the Rust,
+Python, and C++ surfaces. The wasm adapter remains work in progress.
 
-`cjfake` should remain a sibling crate above `cityjson_lib`, not part of the `cityjson_lib` root API.
+## Common Tasks
 
-That keeps the dependency direction clean:
-
-- `cjfake` generates model data
-- `cjfake` can sit on top of the transport branch for non-core formats
-- `cityjson_lib` stays focused on facade, format integration, and operations
-
-For advanced model work, `cityjson_lib` should stay explicit rather than proxying `cityjson-rs` through `Deref`.
-The intended path is to use `CityModel::as_inner`, `as_inner_mut`, `into_inner`, `AsRef`, `AsMut`, and then work through `cityjson_lib::cityjson`.
-
-`ErrorKind` should also stay intentionally small. The intended stable categories are:
-
-- `Io`
-- `Syntax`
-- `Version`
-- `Shape`
-- `Unsupported`
-- `Model`
-
-## Repository Tasks
-
-The repository now has a small `justfile` in the same style as `cityjson-rs`.
-The main tasks are:
-
-- `just check`
-- `just clean`
-- `just build`
-- `just fmt`
-- `just lint`
-- `just ci`
-- `just perf ...`
-- `just ffi ...`
 - `just test`
+- `just ffi test`
 - `just docs-build`
 - `just docs-serve`
+- `cargo publish --dry-run --allow-dirty`
 
-The Proper Docs site is the main documentation home for the Rust facade,
-benchmarking notes, FFI workflow, and language bindings.
+## Documentation
 
-## Status
+Start with:
 
-This repository is currently being rewritten in a docs-first, tests-first style.
-Unimplemented areas are intentionally marked with `todo!()` where that is still
-the deliberate contract, and implemented boundaries are covered by direct
-roundtrip tests so the remaining gaps stay visible.
+- [`docs/index.md`](docs/index.md)
+- [`docs/guide.md`](docs/guide.md)
+- [`docs/public-api.md`](docs/public-api.md)
+- [`docs/ffi/api.md`](docs/ffi/api.md)

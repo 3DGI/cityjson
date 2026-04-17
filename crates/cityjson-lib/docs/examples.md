@@ -1,27 +1,17 @@
 # Examples
 
-The example programs mirror the intended public `cityjson_lib` surface.
+The current example set mirrors the publishable core surface.
 
 - `examples/json_document.rs`
-  Read one CityJSON document through `cityjson_lib::json::from_file` and
-  `cityjson_lib::json::from_slice`.
+  Load a CityJSON document from a file or byte slice.
 - `examples/explicit_json_module.rs`
-  Use `cityjson_lib::json` for probing, feature handling, and explicit boundary
-  control.
+  Probe the input and then parse it through `cityjson_lib::json`.
 - `examples/json_feature_stream.rs`
-  Read and write a `CityJSONFeature` stream through the explicit JSON module.
+  Read a CityJSONSeq stream through the explicit feature-stream API.
 - `examples/json_roundtrip.rs`
-  Serialize documents and feature-sized models through `cityjson_lib::json`.
-- `examples/alternate_formats.rs`
-  Show the explicit-module pattern for Arrow and Parquet backends while keeping
-  `CityModel` as the semantic unit.
+  Serialize a model back to document and feature forms.
 - `examples/model_operations.rs`
-  Show the intended split between `cityjson-rs` model semantics and
-  `cityjson_lib::ops` workflow helpers.
+  Use `ops::merge` on feature-sized models.
 
-Some examples cover extension points that may still be filled in gradually, but
-the examples should all reinforce the same boundary rules:
-
-- root constructors for the common document path
-- explicit modules for explicit formats
-- explicit access to the underlying model
+`examples/alternate_formats.rs` is an archived transport sketch and is not part
+of the current published API story.

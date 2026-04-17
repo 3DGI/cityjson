@@ -1,17 +1,18 @@
 site_name: cityjson_lib
-site_description: User-facing facade docs for the CityJSON crate ecosystem
+site_description: User-facing facade docs for the CityJSON release line
 docs_dir: docs
 strict: true
 nav:
   - Overview:
       - Home: index.md
-      - Release Checklist: release-checklist.md
-      - Architecture: architecture.md
       - Guide: guide.md
       - Reading Data: guide-reading.md
       - Writing Data: guide-writing.md
       - Examples: examples.md
-  - API Design:
+      - Architecture: architecture.md
+      - Benchmarking: benchmarking.md
+      - Release Checklist: release-checklist.md
+  - Rust API:
       - Public API: public-api.md
       - Model Boundary: model-api.md
       - JSON Boundary: json-api.md
@@ -21,8 +22,14 @@ nav:
       - Overview: ffi/index.md
       - Binding API: ffi/api.md
       - Shared Low-level Core: ffi/shared-core.md
-      - FFI Implementation Plan: ffi/ffi-implementation-plan.md
       - Conventions: ffi/conventions.md
+  - Archive:
+      - Ecosystem Overview: ecosystem-overview.md
+      - Release Roadmap: release-roadmap.md
+      - Shared Corpus Migration Note: shared-corpus-migration-plan.md
+      - Feature Root ID Propagation Note: feature-root-id-propagation-plan.md
+      - FFI Implementation Note: ffi/ffi-implementation-plan.md
+      - FFI Performance Note: ffi/ffi-performance-analysis.md
   - Architecture Decisions:
       - Shared C ABI Foundation: adr/0001-shared-c-abi-foundation.md
       - FFI Header Workflow: adr/0002-ffi-header-workflow.md
@@ -33,6 +40,9 @@ nav:
       - JSON Write Options And Feature Streams: adr/0007-json-write-options-and-feature-stream-bytes.md
       - Wasm32 Portability Note And Wasm64 Path: adr/0008-wasm32-blocker-and-wasm64-path.md
       - CityJSON Benchmark Corpus Design: adr/0009-cityjson-benchmark-corpus-design.md
+      - Shared Model Benchmark Semantics And Baseline: adr/0010-shared-model-benchmark-semantics-and-baseline.md
+      - Strict CityJSONSeq Writer With Canonical Root And Explicit Transform: adr/0011-strict-cityjsonseq-writer-with-canonical-root-and-explicit-transform.md
+      - Arrow-First Thin Facade And Bindings: adr/0012-arrow-first-thin-facade-and-bindings.md
 theme:
   name: material
   features:

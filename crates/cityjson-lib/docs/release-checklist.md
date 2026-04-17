@@ -6,7 +6,7 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 
 1. Run `cargo test -p cityjson-lib`.
 2. Run `cargo publish --dry-run --allow-dirty`.
-3. Bump the crate version in `Cargo.toml` if this is a new release.
+3. Confirm that required sibling crates such as `cityjson-json` are already on crates.io.
 4. Publish `cityjson-lib` to crates.io.
 
 ## Python Package
@@ -25,6 +25,6 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 
 ## Final Steps
 
-1. Review the docs for any stale transport wording.
+1. Review the docs for stale references to old crate names or transport work.
 2. Commit the release state.
 3. Tag the release.

@@ -1,32 +1,33 @@
-# Guide to Using cityjson-lib
+# Guide
 
-This guide describes how the Rust-facing `cityjson_lib` surface is meant to be used.
+This guide describes the current Rust-facing `cityjson_lib` surface.
 
-## Start With `CityModel`
+## Start With `json`
 
-The default entry point is `cityjson_lib::CityModel`.
+For ordinary document loading, start in `cityjson_lib::json`.
 
 ```rust
-use cityjson_lib::json;
-use cityjson_lib::CityModel;
+use cityjson_lib::{json, query};
 
 let model = json::from_file("amsterdam.city.json")?;
-println!("loaded {} CityObjects", model.as_inner().cityobjects().len());
+let summary = query::summary(&model);
+println!("{} cityobjects", summary.cityobject_count);
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-Use the root constructor path for the common case:
+Use:
 
-- `from_slice` for bytes already in memory
-- `from_file` for file-based import
+- `json::from_file` for file-backed input
+- `json::from_slice` for bytes already in memory
+- `json::probe` when you need explicit root-kind or version checks first
 
-`CityModel` may represent a whole document, a subset, or a feature-sized
-package. The type stays the same; only the scope changes.
+## Keep Boundary Work Explicit
 
-## Use `cityjson_lib::json` For Boundary Control
+`cityjson_lib` does not hide format choice behind generic `read` and `write`
+entry points.
 
-When callers need probing, feature handling, or explicit stream APIs, move to
-`cityjson_lib::json`.
+If you need feature parsing, feature-stream handling, or explicit document and
+feature serialization, stay on the `json` module:
 
 ```rust
 use cityjson_lib::{json, CityJSONVersion};
@@ -37,110 +38,51 @@ assert_eq!(probe.kind(), json::RootKind::CityJSON);
 assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
 
 let model = json::from_slice(&bytes)?;
+let encoded = json::to_vec(&model)?;
+# let _ = encoded;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-The JSON module is also where document and feature serialization live.
+## Use `ops` For Shared Workflows
 
-## Read And Write Feature Streams Explicitly
+`ops` is where reusable workflows live today:
 
-Feature streams are an explicit boundary concern.
+- `cleanup`
+- `extract`
+- `append`
+- `merge`
 
 ```rust
-use std::fs::File;
-use std::io::BufReader;
+use cityjson_lib::{json, ops};
 
-let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-for model in cityjson_lib::json::read_feature_stream(reader)? {
-    let model = model?;
-    let _ = model;
-}
+let first = json::from_feature_file("tests/data/v2_0/feature-1.city.json")?;
+let second = json::from_feature_file("tests/data/v2_0/feature-2.city.json")?;
+
+let merged = ops::merge([first, second])?;
+let subset = ops::extract(&merged, ["building-1"])?;
+let cleaned = ops::cleanup(&subset)?;
+# let _ = cleaned;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-Writing follows the same pattern:
+These helpers are part of the stable facade, but their JSON-aware
+implementation lives in `cityjson-json`.
+
+## Drop To `cityjson` For Advanced Model Work
+
+`CityModel` is the owned semantic model type re-exported from `cityjson-rs`.
+When you need the deeper model surface, use `cityjson_lib::cityjson` directly.
 
 ```rust
-use std::fs::File;
-use std::io::BufReader;
+use cityjson_lib::cityjson;
 
-let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-let models = cityjson_lib::json::read_feature_stream(reader)?
-    .collect::<cityjson_lib::Result<Vec<_>>>()?;
-
-let mut writer = Vec::new();
-cityjson_lib::json::write_feature_stream(&mut writer, models)?;
-# let _ = writer;
-# Ok::<(), cityjson_lib::Error>(())
+let model = cityjson::v2_0::OwnedCityModel::new(cityjson::CityModelType::CityJSON);
+# let _ = model;
 ```
 
-The point is to keep JSONL handling explicit instead of hiding it behind a
-document-oriented constructor.
+## Handle Errors By Category
 
-## Use Explicit JSON Boundaries
-
-When callers need boundary control, stay on `cityjson_lib::json`.
-
-```rust
-use cityjson_lib::{json, CityJSONVersion};
-
-let bytes = std::fs::read("amsterdam.city.json")?;
-let probe = json::probe(&bytes)?;
-assert_eq!(probe.kind(), json::RootKind::CityJSON);
-assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
-
-let model = json::from_slice(&bytes)?;
-# Ok::<(), cityjson_lib::Error>(())
-```
-
-The point is to keep the JSON boundary explicit instead of hiding it behind
-the crate root.
-
-## Drop Down To `cityjson_lib::cityjson` For Model Work
-
-`cityjson_lib` does not try to proxy the whole model API.
-Once the model is loaded, advanced work should happen through the re-exported
-`cityjson-rs` crate.
-
-```rust
-let inner =
-    cityjson_lib::cityjson::v2_0::OwnedCityModel::new(cityjson_lib::cityjson::CityModelType::CityJSON);
-let mut model = cityjson_lib::CityModel::from(inner);
-
-let borrowed = model.as_inner();
-let borrowed_mut = model.as_inner_mut();
-let owned = model.into_inner();
-# let _ = (borrowed, borrowed_mut, owned);
-```
-
-That boundary stays explicit on purpose:
-
-- `cityjson_lib` owns entry points and boundary modules
-- `cityjson-rs` owns the semantic model
-- `cityjson_lib::cityjson` is the advanced path
-
-## Use `ops` For Reusable Workflows
-
-Operations that sit above the semantic model, but are still worth sharing,
-belong in `cityjson_lib::ops`.
-
-```rust
-use cityjson_lib::{json, ops, CityModel};
-
-let model = json::from_file("amsterdam.city.json")?;
-let selection = ops::Selection::from_ids(["building-1"]);
-let subset = ops::subset(&model, selection)?;
-let _surface_area = ops::geometry::surface_area(&subset, "building-1")?;
-# Ok::<(), cityjson_lib::Error>(())
-```
-
-This keeps `CityModel` from turning into a catch-all method bag while still
-leaving room for reusable workflows such as filtering, cleanup, measurement,
-and upgrade helpers.
-
-## Error Handling
-
-Callers should branch on error categories, not on display text.
+The stable contract is `ErrorKind`, not display text.
 
 ```rust
 use cityjson_lib::{json, ErrorKind};
@@ -148,12 +90,3 @@ use cityjson_lib::{json, ErrorKind};
 let error = json::from_slice(br#"{"type":"CityJSON","CityObjects":{},"vertices":[]}"#).unwrap_err();
 assert_eq!(error.kind(), ErrorKind::Version);
 ```
-
-The stable contract is the category:
-
-- `ErrorKind::Io`
-- `ErrorKind::Syntax`
-- `ErrorKind::Version`
-- `ErrorKind::Shape`
-- `ErrorKind::Unsupported`
-- `ErrorKind::Model`

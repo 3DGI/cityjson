@@ -4,6 +4,13 @@
 
 Accepted
 
+## Historical Note
+
+This ADR captures the transport-first direction that lived on the Arrow/Parquet
+development line.
+The current publishable core branch does not ship that transport surface, so
+this document should be read as archived design history.
+
 ## Context
 
 The vNext design for `cityjson-lib` narrows the repository role:

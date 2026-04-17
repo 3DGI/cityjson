@@ -1,68 +1,37 @@
-# Format Module API
+# Format Modules
 
-This document pins down how `cityjson_lib` should expose sibling format crates.
-
-## Core Rule
-
-The facade should stay explicit:
-
-- `json::from_*` is reserved for the default single-document CityJSON path
-- explicit modules own explicit formats
-- every format boundary speaks in terms of `CityModel` or streams of
-  `CityModel`
-- `cityjson_lib` does not grow a generic format registry
-
-## Intended Modules
-
-The public layout is:
+The current release line exposes one format module:
 
 ```rust
 pub mod json;
 ```
 
-Those modules delegate to backend crates such as `serde_cityjson`,
-`cityjson_json`, and the semantic model crate.
+## Why Only `json`
 
-## JSON Is Richer
+This branch is the publishable core line.
+That means:
 
-`cityjson_lib::json` is the richest boundary module because it has to cover:
+- `json` is the only release-facing format module
+- CityJSONSeq is handled explicitly inside `json`
+- transport experiments are not part of the published crate surface
 
-- probing
-- document parsing
-- feature parsing
-- feature-stream reading and writing
-- document and feature serialization
-- future raw or staged JSON access
+## Design Rule
 
-The `cityjson_lib` facade should expose operations on `CityModel`, not transport
-parts or package internals.
+`cityjson-lib` does not provide a generic registry such as:
 
-## One Semantic Unit Across Formats
+- `read(path)`
+- `write(path, &model)`
+- `Format`
+- `Codec`
 
-The public facade still trades in one `CityModel` or streams of `CityModel`
-values.
+If the caller means JSON, the API should say `json`.
 
-## No Generic `read` / `write`
+## Semantic Rule
 
-Avoid APIs such as:
+Format modules operate on:
 
-- `cityjson_lib::read(path)`
-- `cityjson_lib::write(path, &model)`
-- `cityjson_lib::Format`
-- `cityjson_lib::Codec`
+- one `CityModel`
+- or streams of `CityModel`
 
-Those compact interfaces push format detection and backend-specific policy into
-one place. The explicit-module rule is clearer:
-
-- if you mean JSON, write `cityjson_lib::json`
-
-## Relationship To `cjfake`
-
-`cjfake` should remain above `cityjson_lib`.
-
-```text
-cjfake -> cityjson_lib -> { serde_cityjson, cityjson-rs }
-```
-
-That lets `cjfake` reuse every format that `cityjson_lib` exposes without making fake
-data generation part of the facade itself.
+They do not turn wire-format parts into first-class semantic types in the
+public facade.

@@ -1,35 +1,20 @@
-# Reading CityJSON Data
+# Reading Data
 
-A walk-through of the common read path: load a document, inspect its contents, and access
-geometry. Each section shows the same operation across all four APIs.
+This page shows the common read path across the published Rust, Python, and
+C++ surfaces.
 
-## Load a Document
-
-The simplest entry point is a file path or a byte slice already in memory.
+## Load A Document
 
 === "Rust"
-```rust
-use cityjson_lib::json;
-use cityjson_lib::CityModel;
+    ```rust
+    use cityjson_lib::json;
 
-// from a file path
-let model = json::from_file("amsterdam.city.json")?;
+    let model = json::from_file("amsterdam.city.json")?;
 
-// or from bytes already in memory
-let bytes = std::fs::read("amsterdam.city.json")?;
-let model = json::from_slice(&bytes)?;
-    ```
-
-=== "C++"
-    ```cpp
-    #include <cityjson_lib/cityjson_lib.hpp>
-    #include <fstream>
-    #include <iterator>
-
-    std::ifstream file("amsterdam.city.json", std::ios::binary);
-    std::vector<uint8_t> bytes(std::istreambuf_iterator<char>(file), {});
-
-    auto model = cityjson_lib::Model::parse_document(bytes);
+    let bytes = std::fs::read("amsterdam.city.json")?;
+    let model = json::from_slice(&bytes)?;
+    # let _ = model;
+    # Ok::<(), cityjson_lib::Error>(())
     ```
 
 === "Python"
@@ -40,114 +25,93 @@ let model = json::from_slice(&bytes)?;
     model = CityModel.parse_document_bytes(data)
     ```
 
-=== "WASM"
-    ```c
-    cj_model_t *handle = NULL;
-    cj_status_t status = cj_model_parse_document_bytes(data, data_len, &handle);
-    /* check status != CJ_STATUS_SUCCESS for errors */
+=== "C++"
+    ```cpp
+    #include <cityjson_lib/cityjson_lib.hpp>
+    #include <fstream>
+    #include <iterator>
+
+    std::ifstream file("amsterdam.city.json", std::ios::binary);
+    std::vector<std::uint8_t> bytes(std::istreambuf_iterator<char>(file), {});
+
+    auto model = cityjson_lib::Model::parse_document(bytes);
     ```
 
-## Inspect Basic Counts
-
-Query summary fields without descending into the geometry tree.
+## Probe Before Parsing
 
 === "Rust"
     ```rust
-    let inner = model.as_inner();
-    println!("{} city objects", inner.cityobjects().len());
-    println!("{} vertices",     inner.vertices().len());
-    ```
+    use cityjson_lib::{json, CityJSONVersion};
 
-=== "C++"
-    ```cpp
-    cityjson_lib::ModelSummary s = model.summary();
-    printf("%zu city objects\n", s.cityobject_count);
-    printf("%zu vertices\n",     s.vertex_count);
-    printf("title: %s\n",        model.metadata_title().c_str());
+    let bytes = std::fs::read("amsterdam.city.json")?;
+    let probe = json::probe(&bytes)?;
+    assert_eq!(probe.kind(), json::RootKind::CityJSON);
+    assert_eq!(probe.version(), Some(CityJSONVersion::V2_0));
+    # Ok::<(), cityjson_lib::Error>(())
     ```
 
 === "Python"
     ```python
-    s = model.summary()
-    print(f"{s.cityobject_count} city objects")
-    print(f"{s.vertex_count} vertices")
-    print("title:", model.metadata_title())
-    ```
+    from cityjson_lib import RootKind, Version, probe_bytes
 
-=== "WASM"
-    ```c
-    cj_model_summary_t s = {0};
-    cj_model_get_summary(handle, &s);
-    printf("%zu city objects\n", s.cityobject_count);
-    printf("%zu vertices\n",     s.vertex_count);
-    ```
-
-## List City Object IDs
-
-=== "Rust"
-    ```rust
-    for (_, obj) in model.as_inner().cityobjects().iter() {
-        println!("{}", obj.id());
-    }
+    data = open("amsterdam.city.json", "rb").read()
+    probe = probe_bytes(data)
+    assert probe.root_kind == RootKind.CJ_ROOT_KIND_CITY_JSON
+    assert probe.version == Version.CJ_VERSION_2_0
     ```
 
 === "C++"
     ```cpp
-    for (const std::string& id : model.cityobject_ids()) {
-        std::cout << id << "\n";
+    const auto probe = cityjson_lib::Model::probe(bytes);
+    if (probe.root_kind != CJ_ROOT_KIND_CITY_JSON) {
+      throw std::runtime_error("expected CityJSON document");
     }
+    ```
+
+## Inspect Summary Data
+
+=== "Rust"
+    ```rust
+    use cityjson_lib::{json, query};
+
+    let model = json::from_file("amsterdam.city.json")?;
+    let summary = query::summary(&model);
+    assert!(summary.cityobject_count >= 1);
+    # Ok::<(), cityjson_lib::Error>(())
     ```
 
 === "Python"
     ```python
-    for id in model.cityobject_ids():
-        print(id)
+    summary = model.summary()
+    print(summary.cityobject_count)
+    print(summary.vertex_count)
+    print(model.metadata_title())
     ```
 
-=== "WASM"
-    ```c
-    cj_model_summary_t s = {0};
-    cj_model_get_summary(handle, &s);
-
-    for (size_t i = 0; i < s.cityobject_count; i++) {
-        cj_bytes_t id = {0};
-        cj_model_get_cityobject_id(handle, i, &id);
-        /* id.data points to id.len bytes of UTF-8 */
-        cj_bytes_free(id);
-    }
+=== "C++"
+    ```cpp
+    const auto summary = model.summary();
+    std::printf("%zu\n", summary.cityobject_count);
+    std::printf("%zu\n", summary.vertex_count);
+    std::puts(model.metadata_title().c_str());
     ```
 
-## Transport Branch
+## Read Or Merge A Feature Stream
 
-Arrow transport examples live on the transport branch and are not part of the
-core publishable `cityjson_lib` surface.
-
-## Read a Feature Stream
-
-CityJSONSeq (`.city.jsonl`) files start with a base `CityJSON` document line followed by one
-`CityJSONFeature` line per tile or chunk. Use the feature-stream API to iterate features
-one at a time or merge them into a single model.
+CityJSONSeq stays explicit.
 
 === "Rust"
     ```rust
     use std::fs::File;
     use std::io::BufReader;
 
+    use cityjson_lib::json;
+
     let reader = BufReader::new(File::open("tiles.city.jsonl")?);
-    for result in cityjson_lib::json::read_feature_stream(reader)? {
-        let model = result?;
-        println!("{} objects in tile", model.as_inner().cityobjects().len());
-    }
-    ```
-
-=== "C++"
-    ```cpp
-    // read the .city.jsonl into a byte buffer, then merge all features at once
-    std::ifstream file("tiles.city.jsonl", std::ios::binary);
-    std::vector<uint8_t> stream_bytes(std::istreambuf_iterator<char>(file), {});
-
-    auto merged = cityjson_lib::Model::merge_feature_stream(stream_bytes);
-    printf("%zu objects after merge\n", merged.summary().cityobject_count);
+    let models = json::read_feature_stream(reader)?
+        .collect::<cityjson_lib::Result<Vec<_>>>()?;
+    # let _ = models;
+    # Ok::<(), cityjson_lib::Error>(())
     ```
 
 === "Python"
@@ -156,17 +120,17 @@ one at a time or merge them into a single model.
 
     data = open("tiles.city.jsonl", "rb").read()
     merged = merge_feature_stream_bytes(data)
-    print(f"{merged.summary().cityobject_count} objects after merge")
+    print(merged.summary().cityobject_count)
     ```
 
-=== "WASM"
-    ```c
-    cj_model_t *merged = NULL;
-    cj_model_parse_feature_stream_merge_bytes(data, data_len, &merged);
+=== "C++"
+    ```cpp
+    std::ifstream file("tiles.city.jsonl", std::ios::binary);
+    std::vector<std::uint8_t> bytes(std::istreambuf_iterator<char>(file), {});
 
-    cj_model_summary_t s = {0};
-    cj_model_get_summary(merged, &s);
-    printf("%zu objects after merge\n", s.cityobject_count);
-
-    cj_model_free(merged);
+    auto merged = cityjson_lib::Model::merge_feature_stream(bytes);
+    std::printf("%zu\n", merged.summary().cityobject_count);
     ```
+
+The wasm adapter is still being shaped and is not part of the published docs
+surface yet.

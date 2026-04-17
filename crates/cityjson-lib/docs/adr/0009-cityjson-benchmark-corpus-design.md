@@ -4,6 +4,12 @@
 
 Draft.
 
+## Historical Note
+
+This ADR predates the current publishable core split.
+References to older crate names and broader transport plans should be read as
+historical context, not as the current release surface.
+
 ## Context
 
 We want a foundational CityJSON benchmark corpus that does three things at once:

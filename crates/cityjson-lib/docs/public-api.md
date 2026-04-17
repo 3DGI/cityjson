@@ -1,99 +1,80 @@
 # Public API Overview
 
-This page summarizes the stable Rust-facing shape that `cityjson_lib` is trying to
-preserve.
+This page summarizes the current stable Rust-facing shape of `cityjson_lib`.
 
-## Root Surface
+## Crate Root
 
-The crate root should stay small:
+The crate root is intentionally small:
 
 - `CityModel`
 - `CityJSONVersion`
 - `Error`
 - `ErrorKind`
-- `json`, enabled by default through the `json` feature
-- `ops`, enabled by default with `json`
+- `json`
+- `ops`
+- `query`
 - `cityjson`
-
-The public rule is:
-
-- common document loading lives in `cityjson_lib::json`
-- explicit boundary work lives in explicit modules
-- advanced model work happens through `cityjson_lib::cityjson`
 
 ## `CityModel`
 
-`CityModel` is a direct alias for the owned `cityjson-rs` model at the Rust
-boundary. The facade contract stays the same:
+`CityModel` is the owned semantic model type re-exported from `cityjson-rs`.
+It is the same type whether the payload represents:
 
-- owned by default
-- explicit boundary functions live in `cityjson_lib::json`
-- no `Deref`-based API blur
-- one semantic model type regardless of whether the data is a whole document,
-  a subset, or a feature-sized package
+- a full document
+- a feature-sized self-contained model
+- a merged or extracted subset
 
 ```rust
-use cityjson_lib::json;
-use cityjson_lib::CityModel;
+use cityjson_lib::{json, CityModel};
 
-let from_file = json::from_file("tests/data/v2_0/minimal.city.json")?;
-let from_slice = json::from_slice(
-    br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#,
-)?;
-
-let borrowed = &from_file;
-let _owned: CityModel = from_slice;
-# let _ = borrowed;
+let model: CityModel = json::from_file("tests/data/v2_0/minimal.city.json")?;
+# let _ = model;
 # Ok::<(), cityjson_lib::Error>(())
 ```
 
-## Explicit Boundary Modules
+## `json`
 
-`cityjson_lib::json` is the explicit JSON and JSONL facade:
+`json` is the default-on boundary module.
+It owns:
 
 - probing
 - document parsing
 - feature parsing
-- feature-stream reading
+- feature-stream reading and writing
 - document and feature serialization
-- feature-stream writing
+- staged feature reconstruction helpers
 
 The implementation lives in `cityjson-json`.
-`cityjson-lib` keeps the stable public surface and error/version translation.
+`cityjson-lib` keeps the public contract and error/version translation.
 
-The transport-specific branch keeps the Arrow and Parquet experiments available
-without making them part of the core publishable crate.
+## `ops`
 
-## `cityjson_lib::ops`
+`ops` exposes the workflow helpers currently shipped on the release line:
 
-`ops` is the home for reusable workflows above the semantic model:
+- `cleanup`
+- `extract`
+- `append`
+- `merge`
 
-- selection and subset helpers
-- merge and upgrade workflows
-- cleanup and maintenance helpers
-- geometry measurements
-- feature-gated CRS helpers
+Those helpers are part of the stable facade, but their JSON-aware implementation
+is delegated to `cityjson-json`.
 
-Those operations should build on `cityjson-rs` semantics rather than redefine
-them, and the current JSON-backed helpers delegate to `cityjson-json`.
+## `query`
 
-## `cityjson_lib::cityjson`
-
-The advanced escape hatch is the re-exported model crate:
+`query` exposes summary-style read helpers over `CityModel` without turning the
+model type into a large method bag.
 
 ```rust
-use cityjson_lib::cityjson;
+use cityjson_lib::{json, query};
+
+let model = json::from_file("tests/data/v2_0/minimal.city.json")?;
+let summary = query::summary(&model);
+assert!(summary.cityobject_count >= 1);
+# Ok::<(), cityjson_lib::Error>(())
 ```
 
-That keeps the facade teachable without pretending that `cityjson_lib` owns the whole
-semantic surface.
+## `cityjson`
 
-## Relationship To FFI
-
-The Rust facade and the FFI work are parallel layers, not competing ones:
-
-- Rust users call `cityjson_lib` directly.
-- Foreign bindings share one low-level core documented under
-  [FFI and Bindings](ffi/index.md).
-- Binding-specific APIs stay target-specific for bulk interchange and use scalar
-  or single-item helpers for inspection and editing.
+`cityjson` is the explicit drop-down path to the deeper semantic model API.
+Use it when the facade surface is intentionally smaller than the underlying
+model crate.

@@ -4,6 +4,13 @@
 
 Proposed.
 
+## Historical Note
+
+This ADR predates the `cityjson-json` crate rename and still refers to
+`serde_cityjson`.
+That older name should be read as the predecessor of the current JSON boundary
+crate.
+
 ## Context
 
 The current JSON boundary has an asymmetry:

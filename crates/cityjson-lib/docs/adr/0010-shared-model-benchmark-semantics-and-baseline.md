@@ -4,6 +4,13 @@
 
 Accepted.
 
+## Historical Note
+
+This ADR records the benchmark interpretation used during the broader
+Arrow/Parquet transport phase.
+The current publishable branch is JSON-focused; the transport discussion here is
+historical context.
+
 ## Context
 
 The benchmark campaign now compares four paths against the same real 3DBAG
