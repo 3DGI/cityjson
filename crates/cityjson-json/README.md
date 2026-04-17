@@ -2,6 +2,12 @@
 
 `cityjson-json` is the `CityJSON` 2.0 JSON boundary crate around the [`cityjson`](https://crates.io/crates/cityjson) crate. It reads and writes owned `CityJSON` models with explicit document and feature-stream APIs.
 
+It also exposes the JSON-aware helper layer consumed by `cityjson-lib`:
+
+- `probe` and `RootKind` for cheap root sniffing
+- `staged` reconstruction helpers for feature-plus-base workflows
+- JSON-backed `cleanup`, `extract`, `append`, and `merge` helpers
+
 ## Benchmarks
 
 Read benchmarks against `serde_json::Value` for acquired real-world data and

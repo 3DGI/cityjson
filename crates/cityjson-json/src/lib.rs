@@ -3,6 +3,7 @@
 
 mod de;
 pub mod errors;
+mod facade;
 mod ser;
 pub mod v2_0;
 
@@ -14,6 +15,10 @@ pub use cityjson::v2_0::{CityModel, OwnedCityModel};
 pub use cityjson::{CityJSONVersion, CityModelType};
 
 pub use errors::{Error, Result};
+pub use facade::{
+    Probe, RootKind, append, cleanup, extract, merge, merge_cityjsonseq_slice,
+    merge_feature_stream_slice, probe, staged,
+};
 pub use v2_0::{
     CityJsonSeqReader, CityJsonSeqWriteOptions, CityJsonSeqWriteReport, FeatureStreamTransform,
     ReadOptions, WriteOptions, read_feature, read_feature_stream, read_feature_with_base,
