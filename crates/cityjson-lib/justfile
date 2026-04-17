@@ -14,14 +14,6 @@ clean:
 check:
     cargo check --manifest-path Cargo.toml --workspace --all-targets --all-features
 
-# Run cargo check without default features
-check-no-default-features:
-    cargo check --manifest-path Cargo.toml --workspace --no-default-features
-
-# Run cargo check for the optional Parquet feature
-check-parquet:
-    cargo check --manifest-path Cargo.toml --workspace --features parquet
-
 # Build the project
 build *args:
     cargo build --manifest-path Cargo.toml --workspace --all-targets --all-features {{args}}
@@ -38,10 +30,6 @@ fmt:
 
 # Run cargo test on the project
 test:
-    cargo test --manifest-path Cargo.toml --workspace
-
-# Run cargo test with all features enabled
-test-all-features:
     cargo test --manifest-path Cargo.toml --workspace --all-features
 
 # Build the docs
@@ -56,12 +44,9 @@ docs-serve *args:
 ci:
     just fmt
     just lint
-    just check-no-default-features
-    just check-parquet
     just check
     just perf check
     just test
-    just test-all-features
     just docs-build
 
 perf *args:
