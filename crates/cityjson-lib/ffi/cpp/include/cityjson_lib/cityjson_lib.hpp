@@ -12,7 +12,6 @@
 #include <vector>
 
 #include <cityjson_lib/cityjson_lib.h>
-#include <cityjson_lib/extended_c_abi.hpp>
 
 namespace cityjson_lib {
 

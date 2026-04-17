@@ -28,7 +28,15 @@ class build_py(_build_py):
     def _build_native_library(self) -> Path:
         repo_root = Path(__file__).resolve().parents[2]
         subprocess.run(
-            ["cargo", "build", "--release", "--package", "cityjson-lib-ffi-core"],
+            [
+                "cargo",
+                "build",
+                "--release",
+                "--package",
+                "cityjson-lib-ffi-core",
+                "--features",
+                "arrow",
+            ],
             check=True,
             cwd=repo_root,
         )

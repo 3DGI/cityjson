@@ -171,7 +171,7 @@ The following checks pass locally:
 - `cargo test --workspace`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `just docs-build`
-- `just ffi-test`
+- `just ffi test`
 
 That is meaningful. The project is not in a fake-green state where only a small
 core passes.

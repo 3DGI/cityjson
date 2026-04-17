@@ -13,7 +13,7 @@ set(CITYJSON_LIB_FFI_CORE_INCLUDE_DIR "${CITYJSON_LIB_ROOT_DIR}/ffi/core/include
 set(CITYJSON_LIB_FFI_CORE_SHARED_LIB "${CITYJSON_LIB_ROOT_DIR}/target/debug/libcityjson_lib_ffi_core.so" CACHE FILEPATH "Built cityjson_lib ffi shared library")
 
 if(NOT EXISTS "${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib/cityjson_lib.h")
-  message(FATAL_ERROR "Missing generated C ABI header at ${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib/cityjson_lib.h. Run `just ffi-header` first.")
+  message(FATAL_ERROR "Missing generated C ABI header at ${CITYJSON_LIB_FFI_CORE_INCLUDE_DIR}/cityjson_lib/cityjson_lib.h. Run `just ffi build header` first.")
 endif()
 
 if(NOT EXISTS "${CITYJSON_LIB_FFI_CORE_SHARED_LIB}")

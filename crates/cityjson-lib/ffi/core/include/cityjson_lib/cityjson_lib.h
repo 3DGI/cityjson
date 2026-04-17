@@ -198,6 +198,75 @@ typedef struct cj_model_capacities_t {
   uintptr_t uv_coordinates;
 } cj_model_capacities_t;
 
+/**
+ * Borrowed UTF-8 string view passed into the ABI.
+ */
+typedef struct cj_string_view_t {
+  const uint8_t *data;
+  uintptr_t len;
+} cj_string_view_t;
+
+/**
+ * Explicit root-transform state for JSON write and edit workflows.
+ */
+typedef struct cj_transform_t {
+  double scale_x;
+  double scale_y;
+  double scale_z;
+  double translate_x;
+  double translate_y;
+  double translate_z;
+} cj_transform_t;
+
+/**
+ * Borrowed index-slice view passed into the ABI.
+ */
+typedef struct cj_indices_view_t {
+  const uintptr_t *data;
+  uintptr_t len;
+} cj_indices_view_t;
+
+/**
+ * Borrowed flat boundary payload passed into the ABI.
+ */
+typedef struct cj_geometry_boundary_view_t {
+  enum cj_geometry_type_t geometry_type;
+  struct cj_indices_view_t vertex_indices;
+  struct cj_indices_view_t ring_offsets;
+  struct cj_indices_view_t surface_offsets;
+  struct cj_indices_view_t shell_offsets;
+  struct cj_indices_view_t solid_offsets;
+} cj_geometry_boundary_view_t;
+
+/**
+ * Explicit JSON write options for document, feature, and feature-stream output.
+ */
+typedef struct cj_json_write_options_t {
+  bool pretty;
+  bool validate_default_themes;
+} cj_json_write_options_t;
+
+/**
+ * Explicit strict `CityJSONSeq` write options.
+ */
+typedef struct cj_cityjsonseq_write_options_t {
+  bool validate_default_themes;
+  bool trailing_newline;
+  bool update_metadata_geographical_extent;
+} cj_cityjsonseq_write_options_t;
+
+/**
+ * Auto-transform options for strict `CityJSONSeq` writing.
+ */
+typedef struct cj_cityjsonseq_auto_transform_options_t {
+  double scale_x;
+  double scale_y;
+  double scale_z;
+  bool validate_default_themes;
+  bool trailing_newline;
+  bool update_metadata_geographical_extent;
+} cj_cityjsonseq_auto_transform_options_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -303,6 +372,74 @@ enum cj_status_t cj_model_add_template_vertex(struct cj_model_t *model,
 enum cj_status_t cj_model_add_uv_coordinate(struct cj_model_t *model,
                                             struct cj_uv_t uv,
                                             uintptr_t *out_index);
+
+enum cj_status_t cj_model_set_metadata_title(struct cj_model_t *model,
+                                             struct cj_string_view_t title);
+
+enum cj_status_t cj_model_set_metadata_identifier(struct cj_model_t *model,
+                                                  struct cj_string_view_t identifier);
+
+enum cj_status_t cj_model_set_transform(struct cj_model_t *model, struct cj_transform_t transform);
+
+enum cj_status_t cj_model_clear_transform(struct cj_model_t *model);
+
+enum cj_status_t cj_model_add_cityobject(struct cj_model_t *model,
+                                         struct cj_string_view_t id,
+                                         struct cj_string_view_t cityobject_type);
+
+enum cj_status_t cj_model_remove_cityobject(struct cj_model_t *model, struct cj_string_view_t id);
+
+enum cj_status_t cj_model_attach_geometry_to_cityobject(struct cj_model_t *model,
+                                                        struct cj_string_view_t cityobject_id,
+                                                        uintptr_t geometry_index);
+
+enum cj_status_t cj_model_clear_cityobject_geometry(struct cj_model_t *model,
+                                                    struct cj_string_view_t cityobject_id);
+
+enum cj_status_t cj_model_add_geometry_from_boundary(struct cj_model_t *model,
+                                                     struct cj_geometry_boundary_view_t boundary,
+                                                     struct cj_string_view_t lod,
+                                                     uintptr_t *out_index);
+
+enum cj_status_t cj_model_cleanup(struct cj_model_t *model);
+
+enum cj_status_t cj_model_append_model(struct cj_model_t *target_model,
+                                       const struct cj_model_t *source_model);
+
+enum cj_status_t cj_model_extract_cityobjects(const struct cj_model_t *model,
+                                              const struct cj_string_view_t *cityobject_ids,
+                                              uintptr_t cityobject_count,
+                                              struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_serialize_document_with_options(const struct cj_model_t *model,
+                                                          struct cj_json_write_options_t options,
+                                                          struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_serialize_feature_with_options(const struct cj_model_t *model,
+                                                         struct cj_json_write_options_t options,
+                                                         struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_parse_feature_stream_merge_bytes(const uint8_t *data,
+                                                           uintptr_t len,
+                                                           struct cj_model_t **out_model);
+
+enum cj_status_t cj_model_serialize_feature_stream(const struct cj_model_t *const *models,
+                                                   uintptr_t model_count,
+                                                   struct cj_json_write_options_t options,
+                                                   struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_serialize_cityjsonseq_with_transform(const struct cj_model_t *base_root,
+                                                               const struct cj_model_t *const *features,
+                                                               uintptr_t feature_count,
+                                                               struct cj_transform_t transform,
+                                                               struct cj_cityjsonseq_write_options_t options,
+                                                               struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_model_serialize_cityjsonseq_auto_transform(const struct cj_model_t *base_root,
+                                                               const struct cj_model_t *const *features,
+                                                               uintptr_t feature_count,
+                                                               struct cj_cityjsonseq_auto_transform_options_t options,
+                                                               struct cj_bytes_t *out_bytes);
 
 #ifdef __cplusplus
 }  // extern "C"

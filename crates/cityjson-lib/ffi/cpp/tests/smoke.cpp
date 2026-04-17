@@ -92,13 +92,6 @@ int main() {
   assert(!serialized.empty());
   const auto serialized_bytes = model.serialize_document_bytes();
   assert(!serialized_bytes.empty());
-  const auto arrow_bytes = model.serialize_arrow_bytes();
-  assert(!arrow_bytes.empty());
-
-  auto arrow_model = cityjson_lib::Model::parse_arrow(arrow_bytes);
-  assert(arrow_model.summary().cityobject_count == 2U);
-  assert((arrow_model.cityobject_ids() ==
-          std::vector<std::string>{"building-1", "building-part-1"}));
 
   auto created = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
   cityjson_lib::ModelCapacities capacities{};

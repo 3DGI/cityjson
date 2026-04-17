@@ -153,16 +153,18 @@ The main tasks are:
 
 - `just check`
 - `just clean`
-- `just clippy`
+- `just build`
 - `just fmt`
 - `just lint`
 - `just ci`
+- `just perf ...`
+- `just ffi ...`
 - `just test`
-- `just doc`
 - `just docs-build`
 - `just docs-serve`
 
-The MkDocs site is intended to be the main documentation home for the Rust facade, future FFI surface, and language bindings.
+The Proper Docs site is the main documentation home for the Rust facade,
+benchmarking notes, FFI workflow, and language bindings.
 
 ## Status
 

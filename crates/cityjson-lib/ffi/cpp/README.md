@@ -23,5 +23,5 @@ The C++ layer stays RAII-oriented and STL-friendly while compiling down to the
 shared low-level core without wrapper-wide projected cityobject materialization.
 
 The shared C ABI header is generated into `../core/include/cityjson_lib/cityjson_lib.h` via
-`just ffi-header`. The C++ wrapper should treat that header as its canonical
+`just ffi build header`. The C++ wrapper should treat that header as its canonical
 low-level contract rather than duplicating the declarations.

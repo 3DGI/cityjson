@@ -16,9 +16,9 @@ introduce drift between the implementation, the docs, and the generated ABI.
 `cbindgen` will generate the header as a workflow step rather than through
 manual editing.
 
-The developer workflow will expose a dedicated `just ffi-header` recipe that
-refreshes `ffi/core/include/cityjson_lib/cityjson_lib.h` from the current `ffi/core` crate
-state.
+The developer workflow will expose a dedicated `just ffi build header` submode
+that refreshes `ffi/core/include/cityjson_lib/cityjson_lib.h` from the current
+`ffi/core` crate state.
 
 ## Consequences
 
@@ -32,6 +32,6 @@ Positive:
 
 Tradeoffs:
 
-- contributors need `cbindgen` available locally for the header recipe
+- contributors need `cbindgen` available locally for the header build step
 - the generated header is a derived artifact, so changes should be reviewed by
   comparing the Rust ABI and the generated output together
