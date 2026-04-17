@@ -3,6 +3,7 @@ use cityjson_fake::prelude::*;
 // ─── Basic construction ───────────────────────────────────────────────────────
 
 /// Can we use the top-level generation helpers?
+#[cfg(feature = "json")]
 #[test]
 fn generate_helpers() {
     let config = CJFakeConfig::default();

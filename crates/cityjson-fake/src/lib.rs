@@ -23,10 +23,13 @@
 //! ```
 //!
 //! ```rust
+//! # #[cfg(feature = "json")]
+//! # {
 //! use cityjson_fake::prelude::*;
 //!
 //! let json = cityjson_fake::generate_string(CJFakeConfig::default(), Some(42)).unwrap();
 //! assert!(json.starts_with('{'));
+//! # }
 //! ```
 //!
 //! ## What It Can Generate
@@ -47,8 +50,8 @@
 //! The easiest entry points are:
 //!
 //! - [`generate_model`] for a ready-to-use `CityModel`
-//! - [`generate_string`] for a serialized `CityJSON` string
-//! - [`generate_vec`] for UTF-8 encoded `CityJSON` bytes
+//! - `generate_string` for a serialized `CityJSON` string when the `json` feature is enabled
+//! - `generate_vec` for UTF-8 encoded `CityJSON` bytes when the `json` feature is enabled
 //! - [`CityModelBuilder`](citymodel::CityModelBuilder) for fine-grained control
 //!
 //! ## Example Config
@@ -89,7 +92,7 @@
 pub mod attribute;
 pub mod citymodel;
 pub mod cli;
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 pub mod manifest;
 pub mod material;
 pub mod metadata;
@@ -97,13 +100,11 @@ pub mod texture;
 pub mod vertex;
 
 use cityjson::prelude::*;
-use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
+use cityjson::v2_0::{CityObjectType, LoD, SemanticType};
 use fake::Dummy;
 use rand::seq::IndexedRandom;
 use rand::Rng;
-use std::collections::HashMap;
 use std::ops::RangeInclusive;
-use std::str::FromStr;
 
 /// Convenient re-exports for common `cityjson-fake` use cases.
 ///
@@ -131,13 +132,13 @@ pub mod prelude {
     };
 
     pub use crate::generate_model;
-    #[cfg(feature = "serialize")]
+    #[cfg(feature = "cli")]
     pub use crate::manifest::{GenerationCase, GenerationManifest};
-    #[cfg(feature = "serialize")]
+    #[cfg(feature = "json")]
     pub use crate::{generate_string, generate_vec};
 }
 
-// TODO: use Coordinate instead of array (also implement in cityjson_lib/cityjson serialization)
+// TODO: use Coordinate instead of array (also implement in cityjson_json/cityjson serialization)
 // todo scj: need to use the proper coordinate type and add to CoordinateFaker
 // TODO: exe/docker/server
 // TODO: create a CityObjectIDFaker to generate IDs with mixed characters, not only letters
@@ -198,12 +199,12 @@ pub fn generate_model(
 ///
 /// # Errors
 ///
-/// Returns any serialization error from `cityjson_lib`.
-#[cfg(feature = "serialize")]
-pub fn generate_string(config: cli::CJFakeConfig, seed: Option<u64>) -> cityjson_lib::Result<String>
-where
-    u32: serde::Serialize,
-{
+/// Returns any serialization error from `cityjson_json`.
+#[cfg(feature = "json")]
+pub fn generate_string(
+    config: cli::CJFakeConfig,
+    seed: Option<u64>,
+) -> cityjson_json::Result<String> {
     citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
         .metadata(None)
         .vertices()
@@ -228,12 +229,12 @@ where
 ///
 /// # Errors
 ///
-/// Returns any serialization error from `cityjson_lib`.
-#[cfg(feature = "serialize")]
-pub fn generate_vec(config: cli::CJFakeConfig, seed: Option<u64>) -> cityjson_lib::Result<Vec<u8>>
-where
-    u32: serde::Serialize,
-{
+/// Returns any serialization error from `cityjson_json`.
+#[cfg(feature = "json")]
+pub fn generate_vec(
+    config: cli::CJFakeConfig,
+    seed: Option<u64>,
+) -> cityjson_json::Result<Vec<u8>> {
     citymodel::CityModelBuilder::<u32, OwnedStringStorage>::new(config, seed)
         .metadata(None)
         .vertices()
@@ -243,53 +244,6 @@ where
         .cityobjects()
         .build_vec()
 }
-
-#[allow(dead_code)]
-type CityObjectGeometryTypes = HashMap<CityObjectType<OwnedStringStorage>, Vec<GeometryType>>;
-
-#[allow(dead_code)]
-static CITYJSON_GEOMETRY_TYPES_BYTES: &[u8] = include_bytes!("data/cityjson_geometry_types.json");
-
-#[allow(dead_code)]
-static CITYJSON_GEOMETRY_TYPES: std::sync::LazyLock<CityObjectGeometryTypes> =
-    std::sync::LazyLock::new(|| {
-        let raw_data: HashMap<String, Vec<String>> =
-            serde_json::from_slice(CITYJSON_GEOMETRY_TYPES_BYTES)
-                .expect("Failed to deserialize cityjson_geometry_types.json");
-
-        raw_data
-            .into_iter()
-            .map(|(co_type_str, geom_type_str)| {
-                let co_type = CityObjectType::from_str(co_type_str.as_str()).unwrap();
-
-                let geom_types: Vec<GeometryType> = geom_type_str
-                    .into_iter()
-                    .map(|v| GeometryType::from_str(v.as_str()).unwrap())
-                    .collect();
-
-                (co_type, geom_types)
-            })
-            .collect()
-    });
-
-#[allow(dead_code)]
-type CityObjectsWithSemantics = Vec<CityObjectType<OwnedStringStorage>>;
-
-#[allow(dead_code)]
-static CITYOBJECTS_WITH_SEMANTICS_BYTES: &[u8] =
-    include_bytes!("data/cityjson_semantics_allowed.json");
-
-#[allow(dead_code)]
-static CITYOBJECTS_WITH_SEMANTICS: std::sync::LazyLock<CityObjectsWithSemantics> =
-    std::sync::LazyLock::new(|| {
-        let raw_data: Vec<String> = serde_json::from_slice(CITYOBJECTS_WITH_SEMANTICS_BYTES)
-            .expect("Failed to deserialize cityjson_semantics_allowed.json");
-
-        raw_data
-            .into_iter()
-            .map(|v| CityObjectType::from_str(v.as_str()).unwrap())
-            .collect()
-    });
 
 // Determine exactly how many items should we generate from a given range.
 pub(crate) fn get_nr_items<R: Rng + ?Sized>(

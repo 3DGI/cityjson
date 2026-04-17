@@ -32,8 +32,8 @@ use cityjson::v2_0::{
     SemanticType, ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft,
     VertexDraft, VertexIndex, VertexRef, RGB,
 };
-#[cfg(feature = "serialize")]
-use cityjson_lib::{json as cjjson, CityModel as FacadeCityModel};
+#[cfg(feature = "json")]
+use cityjson_json::{self, WriteOptions};
 use fake::Fake;
 use rand::prelude::SmallRng;
 use rand::seq::{IndexedRandom, SliceRandom};
@@ -1033,16 +1033,16 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
     }
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "json")]
 impl CityModelBuilder<u32, OwnedStringStorage> {
     /// Serializes the built model to a `CityJSON` string.
     ///
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    pub fn build_string(self) -> cityjson_lib::Result<String> {
-        let model = FacadeCityModel::from(self.build());
-        cjjson::to_string(&model)
+    pub fn build_string(self) -> cityjson_json::Result<String> {
+        let bytes = self.build_vec()?;
+        String::from_utf8(bytes).map_err(|error| cityjson_json::Error::Utf8(error.utf8_error()))
     }
 
     /// Serializes the built model to a UTF-8 encoded `CityJSON` byte vector.
@@ -1050,9 +1050,10 @@ impl CityModelBuilder<u32, OwnedStringStorage> {
     /// # Errors
     ///
     /// Returns an error if serialization fails.
-    pub fn build_vec(self) -> cityjson_lib::Result<Vec<u8>> {
-        let model = FacadeCityModel::from(self.build());
-        cjjson::to_vec(&model)
+    pub fn build_vec(self) -> cityjson_json::Result<Vec<u8>> {
+        let model = self.build();
+        let options = WriteOptions::default();
+        cityjson_json::to_vec(&model, &options)
     }
 }
 

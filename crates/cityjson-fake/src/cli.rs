@@ -1,11 +1,12 @@
 //! Command-line configuration for `cityjson-fake`.
 //!
 //! ```rust
-//! use cityjson_fake::cli::{CJFakeConfig, Cli};
+//! use cityjson_fake::cli::{CJFakeConfig, Cli, OutputFormat};
 //!
 //! let config = CJFakeConfig::default();
 //! let cli = Cli {
 //!     config,
+//!     output_format: OutputFormat::Json,
 //!     manifest: None,
 //!     schema: None,
 //!     case: None,
@@ -18,28 +19,36 @@
 
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
-use clap::{Args, Parser};
-#[cfg(feature = "serialize")]
+use clap::{Args, Parser, ValueEnum};
+#[cfg(feature = "cli")]
 use serde::Deserialize;
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 use std::fs;
-use std::path::PathBuf;
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
 type IndexType = u32;
+
+/// Output format supported by `cjfake`.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "lower")]
+pub enum OutputFormat {
+    #[default]
+    Json,
+}
 
 // ─── Sub-configs ─────────────────────────────────────────────────────────────
 
 /// Configuration for `CityObject` generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct CityObjectConfig {
     /// Restrict the `CityObject` types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_cityobject_type)]
     #[cfg_attr(
-        feature = "serialize",
+        feature = "cli",
         serde(deserialize_with = "deserialize_cityobject_types")
     )]
     pub allowed_types_cityobject: Option<Vec<CityObjectType<OwnedStringStorage>>>,
@@ -79,21 +88,21 @@ impl Default for CityObjectConfig {
 }
 
 /// Configuration for geometry generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct GeometryConfig {
     /// Restrict the Geometry types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_geometry_type)]
     #[cfg_attr(
-        feature = "serialize",
+        feature = "cli",
         serde(deserialize_with = "deserialize_geometry_types")
     )]
     pub allowed_types_geometry: Option<Vec<GeometryType>>,
 
     /// Restrict the `LoD` values to the provided values
     #[arg(long, value_delimiter = ',', value_parser = parse_lod)]
-    #[cfg_attr(feature = "serialize", serde(deserialize_with = "deserialize_lods"))]
+    #[cfg_attr(feature = "cli", serde(deserialize_with = "deserialize_lods"))]
     pub allowed_lods: Option<Vec<LoD>>,
 
     /// Minimum number of points in `MultiPoint` geometries
@@ -187,8 +196,8 @@ impl Default for GeometryConfig {
 }
 
 /// Configuration for generated vertices.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct VertexConfig {
     /// Minimum coordinate value for geometry vertices
@@ -220,8 +229,8 @@ impl Default for VertexConfig {
 }
 
 /// Configuration for material generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct MaterialConfig {
     /// Whether to generate materials (default: true)
@@ -283,8 +292,8 @@ impl Default for MaterialConfig {
 }
 
 /// Configuration for texture generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct TextureConfig {
     /// Whether to generate textures (default: true)
@@ -326,8 +335,8 @@ impl Default for TextureConfig {
 }
 
 /// Configuration for template generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct TemplateConfig {
     /// Generate `GeometryInstances` (templates)
@@ -355,8 +364,8 @@ impl Default for TemplateConfig {
 
 /// Configuration for metadata generation.
 #[allow(clippy::struct_excessive_bools)]
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct MetadataConfig {
     /// Whether to generate metadata (default: true)
@@ -403,8 +412,8 @@ impl Default for MetadataConfig {
 }
 
 /// Configuration for attribute generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct AttributeConfig {
     /// Whether to generate attributes (default: true)
@@ -446,8 +455,8 @@ impl Default for AttributeConfig {
 }
 
 /// Configuration for semantic generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone)]
 pub struct SemanticConfig {
     /// Whether to generate semantics (default: true)
@@ -457,7 +466,7 @@ pub struct SemanticConfig {
     /// Restrict semantic types to the provided types
     #[arg(long, value_delimiter = ',', value_parser = parse_semantic_type)]
     #[cfg_attr(
-        feature = "serialize",
+        feature = "cli",
         serde(deserialize_with = "deserialize_semantic_types")
     )]
     pub allowed_types_semantic: Option<Vec<SemanticType<OwnedStringStorage>>>,
@@ -473,8 +482,8 @@ impl Default for SemanticConfig {
 }
 
 /// Top-level configuration for `CityJSON` fake data generation.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serialize", serde(default))]
+#[cfg_attr(feature = "cli", derive(serde::Deserialize))]
+#[cfg_attr(feature = "cli", serde(default))]
 #[derive(Args, Debug, Clone, Default)]
 pub struct CJFakeConfig {
     /// Random seed for deterministic output
@@ -482,48 +491,54 @@ pub struct CJFakeConfig {
     pub seed: Option<u64>,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub cityobjects: CityObjectConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub geometry: GeometryConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub vertices: VertexConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub materials: MaterialConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub textures: TextureConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub templates: TemplateConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub metadata: MetadataConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub attributes: AttributeConfig,
 
     #[clap(flatten)]
-    #[cfg_attr(feature = "serialize", serde(flatten))]
+    #[cfg_attr(feature = "cli", serde(flatten))]
     pub semantics: SemanticConfig,
 }
 
 /// Command-line interface for generating `CityJSON`.
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about)]
+#[command(author, version, about, name = "cjfake")]
 pub struct Cli {
     #[command(flatten)]
     pub config: CJFakeConfig,
+
+    /// Output format for generated data.
+    ///
+    /// Only `json` is supported in this release.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    pub output_format: OutputFormat,
 
     /// Optional manifest file that defines one or more generation cases.
     ///
@@ -534,7 +549,7 @@ pub struct Cli {
 
     /// Optional JSON Schema file used to validate `--manifest`.
     ///
-    /// When omitted, `cityjson-fake` uses its bundled `cityjson-fake-manifest.schema.json`.
+    /// When omitted, `cjfake` uses its bundled `cityjson-fake-manifest.schema.json`.
     #[arg(long)]
     pub schema: Option<PathBuf>,
 
@@ -622,7 +637,7 @@ fn parse_semantic_type(s: &str) -> Result<SemanticType<OwnedStringStorage>, Stri
     }
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 fn deserialize_cityobject_types<'de, D>(
     deserializer: D,
 ) -> Result<Option<Vec<CityObjectType<OwnedStringStorage>>>, D::Error>
@@ -640,7 +655,7 @@ where
         .transpose()
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 fn deserialize_geometry_types<'de, D>(
     deserializer: D,
 ) -> Result<Option<Vec<GeometryType>>, D::Error>
@@ -658,7 +673,7 @@ where
         .transpose()
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 fn deserialize_lods<'de, D>(deserializer: D) -> Result<Option<Vec<LoD>>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -674,7 +689,7 @@ where
         .transpose()
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 fn deserialize_semantic_types<'de, D>(
     deserializer: D,
 ) -> Result<Option<Vec<SemanticType<OwnedStringStorage>>>, D::Error>
@@ -694,7 +709,7 @@ where
 
 // ─── CLI runner ──────────────────────────────────────────────────────────────
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
 fn resolve_manifest_output_path(
     output_dir: Option<&Path>,
     case_output: Option<&Path>,
@@ -724,7 +739,18 @@ fn resolve_manifest_output_path(
     PathBuf::from(format!("{case_id}.city.json"))
 }
 
-#[cfg(feature = "serialize")]
+#[cfg(feature = "cli")]
+fn generate_output(
+    output_format: OutputFormat,
+    config: CJFakeConfig,
+    seed: Option<u64>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    match output_format {
+        OutputFormat::Json => Ok(crate::generate_string(config, seed)?),
+    }
+}
+
+#[cfg(feature = "cli")]
 /// Run the CLI and write the generated `CityJSON` to stdout or files.
 ///
 /// # Errors
@@ -771,7 +797,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 let case = cases
                     .pop()
                     .ok_or_else(|| io::Error::other("single manifest case should exist"))?;
-                let json = crate::generate_string(case.config.clone(), case.seed)?;
+                let json = generate_output(cli.output_format, case.config.clone(), case.seed)?;
                 let resolved = output;
                 if let Some(parent) = resolved.parent() {
                     fs::create_dir_all(parent)?;
@@ -780,7 +806,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 fs::create_dir_all(&output)?;
                 for case in cases {
-                    let json = crate::generate_string(case.config.clone(), case.seed)?;
+                    let json = generate_output(cli.output_format, case.config.clone(), case.seed)?;
                     let resolved = resolve_manifest_output_path(
                         Some(output.as_path()),
                         case.output.as_deref(),
@@ -803,7 +829,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         let case = cases
             .pop()
             .ok_or_else(|| io::Error::other("single manifest case should exist"))?;
-        let json = crate::generate_string(case.config.clone(), case.seed)?;
+        let json = generate_output(cli.output_format, case.config.clone(), case.seed)?;
         let mut stdout = io::stdout().lock();
         stdout.write_all(json.as_bytes())?;
         stdout.write_all(b"\n")?;
@@ -820,12 +846,12 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(output) = cli.output {
         if cli.count == 1 {
-            let json = crate::generate_string(config, seed)?;
+            let json = generate_output(cli.output_format, config, seed)?;
             fs::write(output, json)?;
         } else {
             fs::create_dir_all(&output)?;
             for idx in 0..cli.count {
-                let json = crate::generate_string(config.clone(), seed)?;
+                let json = generate_output(cli.output_format, config.clone(), seed)?;
                 let file_name = format!("cityjson-fake-{idx:04}.city.json");
                 fs::write(output.join(file_name), json)?;
             }
@@ -833,7 +859,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let json = crate::generate_string(config, seed)?;
+    let json = generate_output(cli.output_format, config, seed)?;
     let mut stdout = io::stdout().lock();
     stdout.write_all(json.as_bytes())?;
     stdout.write_all(b"\n")?;
@@ -841,14 +867,14 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(not(feature = "serialize"))]
+#[cfg(not(feature = "cli"))]
 /// Run the CLI when serialization support is unavailable.
 ///
 /// # Errors
 ///
-/// Always returns an error because the `serialize` feature is required.
+/// Always returns an error because the `cli` feature is required.
 pub fn run(_cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
-    Err("serialize feature required for the CLI".into())
+    Err("cli feature required for the CLI".into())
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -856,13 +882,15 @@ pub fn run(_cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "cli")]
     use std::fs;
+    #[cfg(feature = "cli")]
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     #[allow(clippy::float_cmp)]
     fn test_cli_defaults() {
-        let cli = Cli::parse_from(["cityjson-fake"]);
+        let cli = Cli::parse_from(["cjfake"]);
         let config = cli.config;
 
         assert_eq!(config.seed, None);
@@ -899,6 +927,7 @@ mod tests {
         assert!(!config.templates.use_templates);
         assert!(!config.textures.texture_allow_none);
         assert!(cli.output.is_none());
+        assert_eq!(cli.output_format, OutputFormat::Json);
         assert_eq!(cli.count, 1);
         assert!(cli.manifest.is_none());
         assert!(cli.schema.is_none());
@@ -911,7 +940,7 @@ mod tests {
     #[allow(clippy::float_cmp)]
     fn test_cli_argument_parsing() {
         let args = vec![
-            "cityjson-fake",
+            "cjfake",
             "--allowed-types-cityobject",
             "Building,Bridge",
             "--allowed-types-geometry",
@@ -1019,6 +1048,7 @@ mod tests {
         assert!(config.templates.use_templates);
         assert!(config.textures.texture_allow_none);
         assert_eq!(cli.output, Some(PathBuf::from("output.city.json")));
+        assert_eq!(cli.output_format, OutputFormat::Json);
         assert_eq!(cli.count, 3);
         assert!(cli.manifest.is_none());
         assert!(cli.schema.is_none());
@@ -1026,6 +1056,7 @@ mod tests {
         assert!(!cli.check_manifest);
     }
 
+    #[cfg(feature = "cli")]
     #[test]
     fn test_cli_run_writes_file() {
         let stamp = SystemTime::now()
@@ -1038,6 +1069,7 @@ mod tests {
 
         let cli = Cli {
             config: CJFakeConfig::default(),
+            output_format: OutputFormat::Json,
             manifest: None,
             schema: None,
             case: None,
@@ -1051,7 +1083,7 @@ mod tests {
         assert!(json.starts_with('{'));
     }
 
-    #[cfg(feature = "serialize")]
+    #[cfg(feature = "cli")]
     #[test]
     fn test_manifest_loads_case_config() {
         let stamp = SystemTime::now()
@@ -1088,7 +1120,7 @@ mod tests {
         assert_eq!(case.config.geometry.max_members_solid, 3);
     }
 
-    #[cfg(feature = "serialize")]
+    #[cfg(feature = "cli")]
     #[test]
     fn test_cli_run_writes_manifest_case() {
         let stamp = SystemTime::now()
@@ -1116,6 +1148,7 @@ mod tests {
 
         let cli = Cli {
             config: CJFakeConfig::default(),
+            output_format: OutputFormat::Json,
             manifest: Some(manifest_path),
             schema: None,
             case: None,
@@ -1129,7 +1162,7 @@ mod tests {
         assert!(generated.starts_with('{'));
     }
 
-    #[cfg(feature = "serialize")]
+    #[cfg(feature = "cli")]
     #[test]
     fn test_cli_run_writes_manifest_directory() {
         let stamp = SystemTime::now()
@@ -1185,6 +1218,7 @@ mod tests {
 
         let cli = Cli {
             config: CJFakeConfig::default(),
+            output_format: OutputFormat::Json,
             manifest: Some(manifest_path),
             schema: Some(schema_path),
             case: None,

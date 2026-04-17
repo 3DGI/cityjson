@@ -1,4 +1,4 @@
-#![cfg(feature = "serialize")]
+#![cfg(feature = "cli")]
 
 use crate::cli::CJFakeConfig;
 use serde::Deserialize;

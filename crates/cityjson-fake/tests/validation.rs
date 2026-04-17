@@ -1,3 +1,5 @@
+#![cfg(feature = "json")]
+
 #[path = "common_lib/mod.rs"]
 mod common_lib;
 
