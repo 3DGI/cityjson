@@ -1,0 +1,39 @@
+site_name: cityjson-parquet
+site_description: User-facing documentation for the cityjson-parquet crate
+docs_dir: docs
+strict: true
+
+nav:
+  - Home: index.md
+  - cityjson-parquet: cityjson-parquet.md
+  - Specifications:
+      - Package layout: cityjson-parquet-spec.md
+      - Package schema: package-schema.md
+  - Design:
+      - Transport design: design.md
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true

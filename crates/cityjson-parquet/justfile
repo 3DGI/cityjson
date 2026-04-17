@@ -1,0 +1,58 @@
+#!/usr/bin/env just --justfile
+
+set dotenv-load := true
+
+# Show the available recipes.
+_default:
+    just --list
+
+# Run cargo clean.
+clean:
+    cargo clean
+
+# Run cargo check across all targets.
+check:
+    cargo check --all-targets --all-features
+
+# Build all targets.
+build *args:
+    cargo build --all-targets --all-features {{args}}
+
+# Run clippy across all targets.
+lint:
+    cargo clippy --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic
+
+# Format the crate.
+fmt:
+    cargo fmt --all
+
+# Check formatting without modifying files (used in CI).
+fmt-check:
+    cargo fmt --all -- --check
+
+# Run the test suite.
+# NOTE: tests/package_shared_corpus_roundtrip.rs includes
+# ../../tests/support/shared_corpus.rs from the sibling cityjson-arrow repo.
+# Both repos must be checked out as siblings for the tests to compile.
+test:
+    cargo test --all-features --no-fail-fast
+
+# Generate test coverage report using tarpaulin.
+coverage:
+    cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
+    cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
+
+# Build the Rust API reference.
+rustdoc:
+    RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo doc --all-features --no-deps
+
+# Build the user-facing documentation site.
+site-build:
+    uv run properdocs build
+
+# Serve the user-facing documentation site locally.
+site-serve *args:
+    uv run properdocs serve -o {{args}}
+
+# Run fmt-check, check, lint, test, and rustdoc.
+ci: fmt-check check lint test rustdoc
