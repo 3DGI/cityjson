@@ -2,8 +2,8 @@
 
 This document pins down the intended public shape of `cityjson_lib::ops`.
 
-`cityjson_lib::ops` is the place for higher-level reusable workflows that are useful
-to applications but do not belong in the semantic model crate itself.
+`cityjson_lib::ops` is the place for higher-level reusable workflows that are
+useful to applications but do not belong in the semantic model crate itself.
 
 ## Why `ops` Exists
 
@@ -13,7 +13,8 @@ to applications but do not belong in the semantic model crate itself.
 - invariants and validated mutation
 - extraction, localization, remapping, and merge semantics
 
-`cityjson_lib::ops` can then provide reusable workflows above that model, for example:
+`cityjson_lib::ops` can then provide reusable workflows above that model, for
+example:
 
 - filtering by LoD
 - cleaning vertices
@@ -95,3 +96,6 @@ Avoid:
 `cityjson_lib::ops` should build on `cityjson-rs`, not compete with it.
 When `merge`, `subset`, cleanup, or upgrade helpers exist, they should delegate
 to semantic-model capabilities where correctness depends on model invariants.
+
+The currently implemented `cleanup`, `extract`, `append`, and `merge` helpers
+are exposed from `cityjson-lib` but delegated to `cityjson-json`.

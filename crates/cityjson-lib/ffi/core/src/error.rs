@@ -46,10 +46,10 @@ impl From<&cityjson_lib::Error> for AbiError {
                 cj_error_kind_t::CJ_ERROR_KIND_IO,
                 inner.to_string(),
             ),
-            cityjson_lib::Error::Json(inner) => Self::new(
+            cityjson_lib::Error::Syntax(inner) => Self::new(
                 cj_status_t::CJ_STATUS_SYNTAX,
                 cj_error_kind_t::CJ_ERROR_KIND_SYNTAX,
-                inner.to_string(),
+                inner.clone(),
             ),
             cityjson_lib::Error::CityJSON(inner) => Self::new(
                 cj_status_t::CJ_STATUS_MODEL,

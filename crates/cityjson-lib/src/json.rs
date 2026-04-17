@@ -1,10 +1,8 @@
-use std::fmt::{Display, Formatter};
 use std::io::{BufRead, Write};
 use std::path::Path;
 
 pub use cityjson_json::CityJsonSeqWriteReport;
-use serde::Deserialize;
-use serde_json::Value;
+pub use cityjson_json::RootKind;
 
 use crate::{CityJSONVersion, CityModel, Error, Result};
 
@@ -20,37 +18,17 @@ pub mod staged {
     use std::io::Write;
     use std::path::Path;
 
-    use serde_json::value::RawValue;
-    use serde_json::{Map, Value};
+    pub use cityjson_json::staged::{FeatureAssembly, FeatureObjectFragment};
 
     use crate::{CityModel, Error, Result};
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct FeatureObjectFragment<'a> {
-        pub id: &'a str,
-        pub object: &'a RawValue,
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct FeatureAssembly<'a> {
-        pub id: &'a str,
-        pub cityobjects: &'a [FeatureObjectFragment<'a>],
-        pub vertices: &'a [[i64; 3]],
-    }
 
     pub fn from_feature_slice_with_base(
         feature_bytes: &[u8],
         base_document_bytes: &[u8],
     ) -> Result<CityModel> {
-        let base =
-            cityjson_json::read_model(base_document_bytes, &cityjson_json::ReadOptions::default())?;
-        cityjson_json::read_feature_with_base(
-            feature_bytes,
-            &base,
-            &cityjson_json::ReadOptions::default(),
-        )
-        .map(CityModel::from)
-        .map_err(Error::from)
+        cityjson_json::staged::from_feature_slice_with_base(feature_bytes, base_document_bytes)
+            .map(CityModel::from)
+            .map_err(Error::from)
     }
 
     pub fn from_feature_slice_with_base_assume_cityjson_feature_v2_0(
@@ -64,60 +42,22 @@ pub mod staged {
         assembly: FeatureAssembly<'_>,
         base_document_bytes: &[u8],
     ) -> Result<CityModel> {
-        let mut cityobjects = Map::with_capacity(assembly.cityobjects.len());
-        for cityobject in assembly.cityobjects {
-            cityobjects.insert(
-                cityobject.id.to_owned(),
-                serde_json::from_str::<Value>(cityobject.object.get())?,
-            );
-        }
-
-        let feature = serde_json::json!({
-            "type": "CityJSONFeature",
-            "id": assembly.id,
-            "CityObjects": cityobjects,
-            "vertices": assembly.vertices,
-        });
-        let bytes = serde_json::to_vec(&feature)?;
-        from_feature_slice_with_base(&bytes, base_document_bytes)
+        cityjson_json::staged::from_feature_assembly_with_base(assembly, base_document_bytes)
+            .map(CityModel::from)
+            .map_err(Error::from)
     }
 
     pub fn from_feature_file_with_base<P: AsRef<Path>>(
         path: P,
         base_document_bytes: &[u8],
     ) -> Result<CityModel> {
-        from_feature_slice_with_base(&std::fs::read(path)?, base_document_bytes)
+        cityjson_json::staged::from_feature_file_with_base(path, base_document_bytes)
+            .map(CityModel::from)
+            .map_err(Error::from)
     }
 
     pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
-        match model.type_citymodel() {
-            cityjson::CityModelType::CityJSONFeature => {
-                cityjson_json::write_model(writer, model, &cityjson_json::WriteOptions::default())
-                    .map_err(Error::from)
-            }
-            other => Err(Error::UnsupportedType(other.to_string())),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RootKind {
-    CityJSON,
-    CityJSONFeature,
-}
-
-impl RootKind {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::CityJSON => "CityJSON",
-            Self::CityJSONFeature => "CityJSONFeature",
-        }
-    }
-}
-
-impl Display for RootKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+        cityjson_json::staged::to_feature_writer(writer, model).map_err(Error::from)
     }
 }
 
@@ -137,29 +77,6 @@ impl Probe {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct Header {
-    #[serde(rename = "type")]
-    kind: String,
-    version: Option<String>,
-}
-
-pub fn probe(bytes: &[u8]) -> Result<Probe> {
-    let header: Header = serde_json::from_slice(bytes)?;
-    let kind = match header.kind.as_str() {
-        "CityJSON" => RootKind::CityJSON,
-        "CityJSONFeature" => RootKind::CityJSONFeature,
-        other => return Err(Error::UnsupportedType(other.to_owned())),
-    };
-
-    let version = match header.version {
-        Some(version) => Some(CityJSONVersion::try_from(version)?),
-        None => None,
-    };
-
-    Ok(Probe { kind, version })
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WriteOptions {
     pub pretty: bool,
@@ -174,6 +91,15 @@ fn write_options(options: WriteOptions) -> cityjson_json::WriteOptions {
     }
 }
 
+pub fn probe(bytes: &[u8]) -> Result<Probe> {
+    let probe = cityjson_json::probe(bytes).map_err(Error::from)?;
+    let version = probe.version().map(CityJSONVersion::try_from).transpose()?;
+    Ok(Probe {
+        kind: probe.kind(),
+        version,
+    })
+}
+
 pub fn from_slice_assume_cityjson_v2_0(bytes: &[u8]) -> Result<CityModel> {
     cityjson_json::read_model(bytes, &cityjson_json::ReadOptions::default())
         .map(CityModel::from)
@@ -182,8 +108,8 @@ pub fn from_slice_assume_cityjson_v2_0(bytes: &[u8]) -> Result<CityModel> {
 
 pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
     let probe = probe(bytes)?;
-    match probe.kind {
-        RootKind::CityJSON => match probe.version {
+    match probe.kind() {
+        RootKind::CityJSON => match probe.version() {
             Some(CityJSONVersion::V2_0) => from_slice_assume_cityjson_v2_0(bytes),
             None => Err(Error::MissingVersion),
             Some(other) => Err(Error::UnsupportedVersion {
@@ -191,7 +117,7 @@ pub fn from_slice(bytes: &[u8]) -> Result<CityModel> {
                 supported: CityJSONVersion::V2_0.to_string(),
             }),
         },
-        RootKind::CityJSONFeature => Err(Error::ExpectedCityJSON(probe.kind.to_string())),
+        RootKind::CityJSONFeature => Err(Error::ExpectedCityJSON(probe.kind().to_string())),
     }
 }
 
@@ -207,8 +133,8 @@ pub fn from_file<P: AsRef<Path>>(path: P) -> Result<CityModel> {
 
 pub fn from_feature_slice(bytes: &[u8]) -> Result<CityModel> {
     let probe = probe(bytes)?;
-    match probe.kind {
-        RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind.to_string())),
+    match probe.kind() {
+        RootKind::CityJSON => Err(Error::ExpectedCityJSONFeature(probe.kind().to_string())),
         RootKind::CityJSONFeature => from_feature_slice_assume_cityjson_feature_v2_0(bytes),
     }
 }
@@ -244,7 +170,7 @@ where
     W: Write,
 {
     for model in models {
-        staged::to_feature_writer(&mut writer, &model)?;
+        staged::to_feature_writer(&mut writer, &model).map_err(Error::from)?;
         writer.write_all(b"\n")?;
     }
     Ok(())
@@ -256,7 +182,7 @@ where
     W: Write,
 {
     for model in models {
-        staged::to_feature_writer(&mut writer, model)?;
+        staged::to_feature_writer(&mut writer, model).map_err(Error::from)?;
         writer.write_all(b"\n")?;
     }
     Ok(())
@@ -372,41 +298,13 @@ pub fn to_feature_string_with_options(model: &CityModel, options: WriteOptions) 
 }
 
 pub fn to_feature_writer(writer: &mut impl Write, model: &CityModel) -> Result<()> {
-    staged::to_feature_writer(writer, model)
+    staged::to_feature_writer(writer, model).map_err(Error::from)
 }
 
 pub fn merge_feature_stream_slice(bytes: &[u8]) -> Result<CityModel> {
-    let mut stream = serde_json::Deserializer::from_slice(bytes).into_iter::<Value>();
-    let Some(first) = stream.next().transpose()? else {
-        return Err(Error::Import("empty feature stream".into()));
-    };
-    let first = match first {
-        Value::Object(map) => map,
-        _ => return Err(Error::Import("stream items must be JSON objects".into())),
-    };
-    let first_bytes = serde_json::to_vec(&Value::Object(first.clone()))?;
-
-    if matches!(probe(&first_bytes)?.kind(), RootKind::CityJSON) {
-        let reader = std::io::Cursor::new(bytes);
-        let mut merged = from_slice(&first_bytes)?;
-        for feature in read_cityjsonseq(reader)? {
-            crate::ops::append(&mut merged, &feature?)?;
-        }
-        return Ok(merged);
-    }
-
-    let mut models = vec![from_feature_slice(&first_bytes)?];
-    for item in stream {
-        let item = match item? {
-            Value::Object(map) => map,
-            _ => return Err(Error::Import("stream items must be JSON objects".into())),
-        };
-        let item_bytes = serde_json::to_vec(&Value::Object(item))?;
-        models.push(from_feature_slice(&item_bytes)?);
-    }
-    crate::ops::merge(models)
+    cityjson_json::merge_feature_stream_slice(bytes).map_err(Error::from)
 }
 
 pub fn merge_cityjsonseq_slice(bytes: &[u8]) -> Result<CityModel> {
-    merge_feature_stream_slice(bytes)
+    cityjson_json::merge_cityjsonseq_slice(bytes).map_err(Error::from)
 }

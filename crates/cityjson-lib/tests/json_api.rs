@@ -241,7 +241,8 @@ fn explicit_json_module_can_materialize_feature_parts_with_a_base_document()
     let model = json::staged::from_feature_assembly_with_base(parts, document)?;
     let vertices = model.vertices();
     let text = json::to_string(&model)?;
-    let output: serde_json::Value = serde_json::from_str(&text)?;
+    let output: serde_json::Value =
+        serde_json::from_str(&text).expect("feature serialization should stay valid JSON");
 
     assert_eq!(output["metadata"]["title"], "base-root");
     assert_eq!(

@@ -10,9 +10,9 @@ which crate to use for which kind of task.
 The current rewrite keeps the implemented surface deliberately small:
 
 - `cityjson-rs` owns the one semantic model
-- `serde_cityjson` owns the CityJSON JSON and JSONL boundary
-- `cityjson_lib` owns the ergonomic facade, explicit format modules, and version-level
-  dispatch where needed
+- `cityjson-json` owns the CityJSON JSON and JSONL boundary
+- `cityjson_lib` owns the ergonomic facade, stable error/categories, and
+  delegated format modules
 
 The semantic rule is:
 
@@ -53,7 +53,7 @@ Current practical status:
 - the implemented document path is `CityJSON` v2.0 through `cityjson_lib::json`
 - `json` is the default-on feature
 - explicit feature and feature-stream helpers exist under `cityjson_lib::json`
-- higher-level workflows such as `ops::merge` are implemented
+- higher-level workflows such as `ops::merge` are exposed through the facade
 - `tyler` 0.4.0 now dogfoods `cityjson_lib` for CityJSON reading
 
 ## Explicit Format Modules
@@ -95,6 +95,7 @@ Within `cityjson_lib::json`, the intended surface is:
 - `to_feature_string`
 - `to_feature_writer`
 
+Those helpers delegate to `cityjson-json`.
 Advanced staged reconstruction paths live under `cityjson_lib::json::staged`:
 
 - `from_feature_slice_with_base`
@@ -107,9 +108,10 @@ Feature streams should be handled explicitly through
 
 ## Higher-level Operations
 
-Higher-level workflows that do not belong in the core `cityjson-rs` model should live under `cityjson_lib::ops`.
-That namespace holds the reusable selection, cleanup, merge, and upgrade
-helpers that belong above the semantic model.
+Higher-level workflows that do not belong in the core `cityjson-rs` model should
+live under `cityjson_lib::ops`.
+That namespace exposes reusable cleanup, extract, append, and merge helpers
+while delegating the JSON-backed implementation to `cityjson-json`.
 
 ## Relationship To `cjfake`
 

@@ -49,7 +49,7 @@ let _owned: CityModel = from_slice;
 
 ## Explicit Boundary Modules
 
-`cityjson_lib::json` owns explicit JSON and JSONL work:
+`cityjson_lib::json` is the explicit JSON and JSONL facade:
 
 - probing
 - document parsing
@@ -57,6 +57,9 @@ let _owned: CityModel = from_slice;
 - feature-stream reading
 - document and feature serialization
 - feature-stream writing
+
+The implementation lives in `cityjson-json`.
+`cityjson-lib` keeps the stable public surface and error/version translation.
 
 The transport-specific branch keeps the Arrow and Parquet experiments available
 without making them part of the core publishable crate.
@@ -72,7 +75,7 @@ without making them part of the core publishable crate.
 - feature-gated CRS helpers
 
 Those operations should build on `cityjson-rs` semantics rather than redefine
-them.
+them, and the current JSON-backed helpers delegate to `cityjson-json`.
 
 ## `cityjson_lib::cityjson`
 

@@ -1149,8 +1149,7 @@ pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_
             },
         )?;
         let mut root = match serde_json::from_slice::<serde_json::Value>(&bytes)
-            .map_err(Error::from)
-            .map_err(AbiError::from)?
+            .map_err(|error| AbiError::from(Error::Syntax(error.to_string())))?
         {
             serde_json::Value::Object(root) => root,
             _ => {
@@ -1161,8 +1160,7 @@ pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_
         };
         root.remove("transform");
         let bytes = serde_json::to_vec(&serde_json::Value::Object(root))
-            .map_err(Error::from)
-            .map_err(AbiError::from)?;
+            .map_err(|error| AbiError::from(Error::Syntax(error.to_string())))?;
         let replacement = match model_ref.type_citymodel() {
             CityModelType::CityJSON => cityjson_lib::json::from_slice(&bytes)?,
             CityModelType::CityJSONFeature => cityjson_lib::json::from_feature_slice(&bytes)?,

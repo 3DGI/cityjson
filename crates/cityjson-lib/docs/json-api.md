@@ -3,7 +3,7 @@
 This document defines the intended public shape of `cityjson_lib::json`.
 
 `cityjson_lib::json` is not a second JSON implementation.
-It is the explicit boundary layer over `serde_cityjson` for callers that need
+It is the explicit boundary layer over `cityjson-json` for callers that need
 more than the default document-oriented `json::from_*` path.
 
 ## Why A `json` Module Exists
@@ -19,6 +19,9 @@ These concerns belong in a format-qualified module:
 - future raw or staged JSON access
 
 They should not be folded into `CityModel` itself.
+
+`cityjson-lib` owns the stable Rust-facing API shape.
+`cityjson-json` owns the JSON-aware implementation behind that facade.
 
 ## Stable Surface
 
@@ -142,6 +145,9 @@ That namespace is for callers such as indexers and staged readers that already
 own raw feature bytes, cached base-document metadata, or preassembled feature
 fragments and need to rehydrate a `CityModel` without pretending that those
 transport-specific pieces are the normal API.
+
+The current implementation delegates those helpers to `cityjson-json::staged`
+and keeps `cityjson-lib` focused on the boundary contract.
 
 ## Leave Room For Raw And Staged APIs
 
