@@ -35,17 +35,17 @@ coverage:
     cargo tarpaulin --all-features --out Html --output-dir target/tarpaulin
     cargo tarpaulin --all-features --out Stdout 2>&1 | grep -E "^(\|\||[0-9])"
 
-# Build the documentation.
-doc:
+# Build the Rust API reference.
+rustdoc:
     RUSTDOCFLAGS="--cfg docsrs -Dwarnings" cargo doc --all-features --no-deps
 
-# Build the MkDocs Material site.
-docs-build:
-    python3 -m mkdocs build --strict
+# Build the user-facing documentation site.
+site-build:
+    uv run properdocs build
 
-# Serve the MkDocs Material site locally.
-docs-serve:
-    python3 -m mkdocs serve
+# Serve the user-facing documentation site locally.
+site-serve *args:
+    uv run properdocs serve -o {{args}}
 
-# Run fmt, check, lint, test, and doc.
-ci: fmt check lint test doc
+# Run fmt, check, lint, test, and rustdoc.
+ci: fmt check lint test rustdoc

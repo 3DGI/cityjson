@@ -1,21 +1,7 @@
 site_name: cityjson-arrow
 site_description: User-facing documentation for cityjson-arrow and cityjson-parquet
 docs_dir: docs
-site_dir: site
 strict: true
-
-theme:
-  name: material
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - toc.follow
-    - content.code.copy
-    - content.code.annotate
-    - search.suggest
-    - search.highlight
 
 nav:
   - Home: index.md
@@ -31,6 +17,19 @@ nav:
       - ADR 1: adr/001-canonical-transport-boundary.md
       - ADR 2: adr/002-address-transport-performance-bottlenecks.md
       - ADR 3: adr/003-separate-live-arrow-ipc-from-persistent-package-io.md
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
 
 markdown_extensions:
   - admonition
