@@ -294,7 +294,7 @@ fn prepare_layout(
     query_bboxes: &[BBox],
 ) -> Result<PreparedLayout> {
     let index_path = unique_temp_file(
-        &format!("cityjson-index-investigate-{}", kind.label()),
+        &format!("cjindex-investigate-{}", kind.label()),
         "sqlite",
     );
     let mut index = CityIndex::open(kind.storage_layout(&root), &index_path)?;
@@ -664,7 +664,7 @@ fn count_get_cityobjects(index: &CityIndex, get_ids: &[String]) -> Result<usize>
         let model = index.get(feature_id)?.ok_or_else(|| {
             Error::Import(format!("cityobject count is missing model {feature_id}"))
         })?;
-        cityobject_count += model.as_inner().cityobjects().len();
+        cityobject_count += model.raw().cityobjects().len();
     }
     Ok(cityobject_count)
 }
@@ -673,7 +673,7 @@ fn count_query_cityobjects(index: &CityIndex, bbox: &BBox) -> Result<usize> {
     Ok(index
         .query(bbox)?
         .iter()
-        .map(|model| model.as_inner().cityobjects().len())
+        .map(|model| model.raw().cityobjects().len())
         .sum())
 }
 

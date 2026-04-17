@@ -253,7 +253,7 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
             status.needs_reindex = true;
             status
                 .issues
-                .push("index is missing persisted z bounds; run cityjson-index reindex".to_owned());
+                .push("index is missing persisted z bounds; run cjindex reindex".to_owned());
         }
 
         let indexed_sources = index.indexed_sources()?;
@@ -359,7 +359,7 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
         }
         if status.needs_reindex {
             status.issues.push(
-                "index is missing persisted freshness metadata; run cityjson-index reindex"
+                "index is missing persisted freshness metadata; run cjindex reindex"
                     .to_owned(),
             );
         }
@@ -3748,7 +3748,9 @@ mod tests {
             },
             "metadata": {
                 "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/7415"
-            }
+            },
+            "CityObjects": {},
+            "vertices": []
         })
     }
 

@@ -3,16 +3,63 @@ name = "cityjson-index"
 version = "0.3.0"
 edition = "2024"
 rust-version = "1.93"
+autobins = false
+default-run = "cjindex"
 description = "An indexing extension for cityjson-lib."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-index"
+keywords = ["cityjson", "index", "geospatial", "3d", "gis"]
+categories = ["data-structures", "science::geo"]
+readme = "README.md"
+exclude = [
+    "Cargo.lock",
+    "benches/",
+    "docs/",
+    ".github/",
+    "python/",
+    "tests/",
+    "justfile",
+    "PERF_TEST_GUIDE.md",
+]
+
+[features]
+default = []
+dev-binaries = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
+[[bin]]
+name = "cjindex"
+path = "src/main.rs"
+
+[[bin]]
+name = "investigate-read-performance"
+path = "src/bin/investigate-read-performance.rs"
+required-features = ["dev-binaries"]
+
+[[bin]]
+name = "parallel-bench"
+path = "src/bin/parallel-bench.rs"
+required-features = ["dev-binaries"]
+
+[[bin]]
+name = "perf-test"
+path = "src/bin/perf-test.rs"
+required-features = ["dev-binaries"]
+
+[[bin]]
+name = "prep-test-data"
+path = "src/bin/prep-test-data.rs"
+required-features = ["dev-binaries"]
+
 [dependencies]
-cityjson-lib = { path = "../cityjson-lib" }
-cityjson-lib-ffi-core = { path = "../cityjson-lib/ffi/core" }
+cityjson-lib = { path = "../cityjson-lib", version = "0.4.0" }
+cityjson-lib-ffi-core = { path = "../cityjson-lib/ffi/core", version = "0.1.0" }
 clap = { version = "4.6.0", features = ["derive"] }
 flatgeobuf = { version = "6.0.1", default-features = false }
 flate2 = "1"
@@ -32,10 +79,6 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 walkdir = "2"
 
 [[bench]]
-name = "feature_files"
-harness = false
-
-[[bench]]
 name = "cityjson"
 harness = false
 
@@ -47,6 +90,6 @@ harness = false
 name = "parallel_get"
 harness = false
 
-[[bin]]
-name = "perf-test"
-path = "src/bin/perf-test.rs"
+[[bench]]
+name = "feature_files"
+harness = false

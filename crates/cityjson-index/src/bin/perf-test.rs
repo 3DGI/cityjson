@@ -53,7 +53,7 @@ fn parse_dataset_dir() -> PathBuf {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: perf-test <DATASET_DIR>");
-        eprintln!("  DATASET_DIR: Path to the cityjson-index dataset (auto-detects layout)");
+        eprintln!("  DATASET_DIR: Path to the cjindex dataset (auto-detects layout)");
         std::process::exit(1);
     }
     PathBuf::from(&args[1])

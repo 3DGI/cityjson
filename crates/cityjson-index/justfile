@@ -5,7 +5,7 @@ default:
 
 # Prepare the local bootstrap corpus from the pinned 3DBAG data set.
 prep-test-data:
-    cargo run --release --bin prep-test-data -- --skip-cjval
+    cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval
 
 # Fast compile-time validation across all targets and features.
 check:
@@ -30,7 +30,7 @@ fmt:
 
 # Run the full test suite with all features enabled.
 test:
-    cargo test --all-features
+    cargo test --all-targets --all-features
 
 # Build API docs for all features without pulling in dependencies.
 doc:
@@ -54,6 +54,14 @@ build-python:
 
 # Run the investigation binary and the release-mode benchmarks used for reporting.
 bench-release:
-    cargo run --release --bin investigate-read-performance
+    cargo run --release --features dev-binaries --bin investigate-read-performance
     cargo bench --bench cityjson
     cargo bench --bench feature_files --bench ndjson
+
+# Run the release-quality validation pipeline.
+ci:
+    just fmt
+    just check
+    just lint
+    just test
+    just doc

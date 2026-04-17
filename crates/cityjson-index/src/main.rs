@@ -12,19 +12,19 @@ use serde_json::{Map, Value};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "cityjson-index",
+    name = "cjindex",
     version,
     about = "Query CityJSON datasets through a persistent index",
     long_about = r#"Query CityJSON datasets through a persistent index.
 
-cityjson-index is dataset-first: point it at a dataset directory and it will auto-detect the storage layout, manage a sidecar index at <DATASET_DIR>/.cityjson-index.sqlite, and expose both inspection and read commands.
+cjindex is dataset-first: point it at a dataset directory and it will auto-detect the storage layout, manage a sidecar index at <DATASET_DIR>/.cityjson-index.sqlite, and expose both inspection and read commands.
 
 Examples:
-  cityjson-index inspect /data/3dbag
-  cityjson-index index /data/3dbag
-  cityjson-index get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
-  cityjson-index query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
-  cityjson-index metadata /data/3dbag
+  cjindex inspect /data/3dbag
+  cjindex index /data/3dbag
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
+  cjindex metadata /data/3dbag
 "#
 )]
 struct Cli {
@@ -43,8 +43,8 @@ enum Command {
 Use dataset mode to point at a dataset root directly, or use the explicit layout flags for low-level control.
 
 Examples:
-  cityjson-index index /data/3dbag
-  cityjson-index index --layout feature-files --root /data/feature-files --index /tmp/cityjson-index.sqlite
+  cjindex index /data/3dbag
+  cjindex index --layout feature-files --root /data/feature-files --index /tmp/cjindex.sqlite
 "#)]
     Index(IndexCommand),
     /// Rebuild the index from the dataset contents.
@@ -56,8 +56,8 @@ Examples:
 This command is intended for full refreshes when the dataset has changed or the index needs to be regenerated from scratch.
 
 Examples:
-  cityjson-index reindex /data/3dbag
-  cityjson-index reindex --layout cityjson --paths /data/tiles/0566.city.json /data/tiles/0599.city.json --index /tmp/cityjson-index.sqlite
+  cjindex reindex /data/3dbag
+  cjindex reindex --layout cityjson --paths /data/tiles/0566.city.json /data/tiles/0599.city.json --index /tmp/cjindex.sqlite
 "#)]
     Reindex(IndexCommand),
     /// Fetch a single feature by identifier.
@@ -69,8 +69,8 @@ Examples:
 The output is a line-oriented CityJSON stream: the first record is the metadata header, and the following record is the feature as a CityJSONFeature. Use `--output` to write the stream to a file.
 
 Examples:
-  cityjson-index get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
-  cityjson-index get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0 --output /tmp/pand.cityjsonseq
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0
+  cjindex get /data/3dbag --id NL.IMBAG.Pand.0503100000012869-0 --output /tmp/pand.cityjsonseq
 "#)]
     Get(FeatureCommand),
     /// Fetch every feature that intersects a bounding box.
@@ -82,8 +82,8 @@ Examples:
 The results are streamed as line-oriented CityJSON: the first record is the metadata header, and each later record is one CityJSONFeature. Use `--output` to write the stream to a file.
 
 Examples:
-  cityjson-index query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
-  cityjson-index query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9 --output /tmp/query.cityjsonseq
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
+  cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9 --output /tmp/query.cityjsonseq
 "#)]
     Query(QueryCommand),
     /// Print the indexed metadata JSON for the dataset.
@@ -92,7 +92,7 @@ Examples:
 This command returns the metadata payload associated with the dataset layout, which is useful for quick inspection or piping into other tools.
 
 Examples:
-  cityjson-index metadata /data/3dbag
+  cjindex metadata /data/3dbag
 "#)]
     Metadata(IndexCommand),
     /// Show index presence, freshness, coverage, and counts for a dataset.
@@ -102,8 +102,8 @@ Examples:
 `inspect` auto-detects the storage layout under the dataset root and reports the discovered source counts, indexed counts, and whether the sidecar index is present and current.
 
 Examples:
-  cityjson-index inspect /data/3dbag
-  cityjson-index inspect /data/3dbag --json
+  cjindex inspect /data/3dbag
+  cjindex inspect /data/3dbag --json
 "#
     )]
     Inspect(StatusCommand),
@@ -114,8 +114,8 @@ Examples:
 `validate` performs the same dataset inspection checks as `inspect`, but exits with a non-zero status when the index is missing, stale, or no longer matches the dataset.
 
 Examples:
-  cityjson-index validate /data/3dbag
-  cityjson-index validate /data/3dbag --json
+  cjindex validate /data/3dbag
+  cjindex validate /data/3dbag --json
 "#
     )]
     Validate(StatusCommand),

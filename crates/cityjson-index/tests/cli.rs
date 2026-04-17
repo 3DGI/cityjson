@@ -461,10 +461,10 @@ where
     let output = run_cli_output(args);
     assert!(
         output.status.success(),
-        "cityjson-index command failed: {}",
+        "cjindex command failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout).expect("cityjson-index stdout should be utf-8")
+    String::from_utf8(output.stdout).expect("cjindex stdout should be utf-8")
 }
 
 fn run_cli_output<I, S>(args: I) -> std::process::Output
@@ -473,11 +473,11 @@ where
     S: AsRef<std::ffi::OsStr>,
 {
     let binary =
-        std::env::var_os("CARGO_BIN_EXE_cityjson-index").expect("cityjson-index binary path");
+        std::env::var_os("CARGO_BIN_EXE_cjindex").expect("cjindex binary path");
     let output = Command::new(binary)
         .args(args)
         .output()
-        .expect("cityjson-index command should run");
+        .expect("cjindex command should run");
     output
 }
 

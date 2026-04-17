@@ -226,8 +226,8 @@ fn main() -> Result<()> {
         );
     }
 
-    // --- cityjson-index ndjson ---
-    println!("\n=== cityjson-index (ndjson, read_feature via refs) ===");
+    // --- cjindex ndjson ---
+    println!("\n=== cjindex (ndjson, read_feature via refs) ===");
     {
         let chunk_size = cityjson_index_work.len().div_ceil(WORKER_COUNT);
         let chunks: Vec<&[BuildingWork]> = cityjson_index_work.chunks(chunk_size).collect();
