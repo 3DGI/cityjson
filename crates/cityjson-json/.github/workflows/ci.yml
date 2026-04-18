@@ -38,7 +38,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: extractions/setup-just@v4
+      - run: cargo install just --locked --force
       - run: cargo fmt --all --check
 
   lint:
@@ -59,7 +59,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: extractions/setup-just@v4
+      - run: cargo install just --locked --force
       - run: just lint
 
   test:
@@ -99,7 +99,7 @@ jobs:
       - run: python scripts/render_correctness_index.py
         working-directory: cityjson-corpus
       - uses: dtolnay/rust-toolchain@stable
-      - uses: extractions/setup-just@v4
+      - run: cargo install just --locked --force
       - run: just test
 
   build:
@@ -124,7 +124,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
-      - uses: extractions/setup-just@v4
+      - run: cargo install just --locked --force
       - run: just build
 
   nightly:
@@ -143,7 +143,7 @@ jobs:
           repository: 3DGI/cityjson-rs
           path: cityjson-rs
       - uses: dtolnay/rust-toolchain@nightly
-      - uses: extractions/setup-just@v4
+      - run: cargo install just --locked --force
       - run: just build
 
   doc:
