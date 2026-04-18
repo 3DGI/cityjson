@@ -1132,7 +1132,7 @@ pub(super) fn build_template_material_maps(
             },
             MaterialMap::add_point,
             |row, count| {
-                format!("template material assignment row {row} exceeds point count {count}",)
+                format!("template material assignment row {row} exceeds point count {count}")
             },
             |row| format!("duplicate template material assignment at row {row}"),
             handles,
@@ -1156,7 +1156,7 @@ pub(super) fn build_template_material_maps(
             },
             MaterialMap::add_linestring,
             |row, count| {
-                format!("template material assignment row {row} exceeds linestring count {count}",)
+                format!("template material assignment row {row} exceeds linestring count {count}")
             },
             |row| format!("duplicate template material assignment at row {row}"),
             handles,
@@ -1184,7 +1184,7 @@ pub(super) fn build_template_material_maps(
             },
             MaterialMap::add_surface,
             |row, count| {
-                format!("template material assignment row {row} exceeds surface count {count}",)
+                format!("template material assignment row {row} exceeds surface count {count}")
             },
             |row| format!("duplicate template material assignment at row {row}"),
             handles,

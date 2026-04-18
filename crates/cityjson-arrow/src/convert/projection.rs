@@ -264,17 +264,16 @@ pub(super) fn merge_projected_value_specs(
         (ProjectedValueSpec::Null, other) | (other, ProjectedValueSpec::Null) => other,
         (ProjectedValueSpec::Boolean, ProjectedValueSpec::Boolean) => ProjectedValueSpec::Boolean,
         (ProjectedValueSpec::UInt64, ProjectedValueSpec::UInt64) => ProjectedValueSpec::UInt64,
-        (ProjectedValueSpec::Int64, ProjectedValueSpec::Int64) => ProjectedValueSpec::Int64,
-        (ProjectedValueSpec::Float64, ProjectedValueSpec::Float64) => ProjectedValueSpec::Float64,
-        // Numeric widening: UInt64 + Int64 → Int64, any integer + Float64 → Float64
-        (ProjectedValueSpec::UInt64, ProjectedValueSpec::Int64)
+        (ProjectedValueSpec::Int64 | ProjectedValueSpec::UInt64, ProjectedValueSpec::Int64)
         | (ProjectedValueSpec::Int64, ProjectedValueSpec::UInt64) => ProjectedValueSpec::Int64,
-        (ProjectedValueSpec::UInt64, ProjectedValueSpec::Float64)
-        | (ProjectedValueSpec::Float64, ProjectedValueSpec::UInt64)
-        | (ProjectedValueSpec::Int64, ProjectedValueSpec::Float64)
-        | (ProjectedValueSpec::Float64, ProjectedValueSpec::Int64) => ProjectedValueSpec::Float64,
+        (
+            ProjectedValueSpec::Float64 | ProjectedValueSpec::UInt64 | ProjectedValueSpec::Int64,
+            ProjectedValueSpec::Float64,
+        )
+        | (ProjectedValueSpec::Float64, ProjectedValueSpec::UInt64 | ProjectedValueSpec::Int64) => {
+            ProjectedValueSpec::Float64
+        }
         (ProjectedValueSpec::Utf8, ProjectedValueSpec::Utf8) => ProjectedValueSpec::Utf8,
-        (ProjectedValueSpec::Json, _) | (_, ProjectedValueSpec::Json) => ProjectedValueSpec::Json,
         (ProjectedValueSpec::GeometryRef, ProjectedValueSpec::GeometryRef) => {
             ProjectedValueSpec::GeometryRef
         }

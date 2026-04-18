@@ -1,6 +1,7 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
+use num_traits::ToPrimitive;
 
 pub(super) fn optional_batch_from<F>(is_empty: bool, build: F) -> Result<Option<RecordBatch>>
 where
@@ -346,8 +347,18 @@ pub(super) fn projected_f64_array(values: &[Option<&OwnedAttributeValue>]) -> Re
                 None | Some(AttributeValue::Null) => Ok(None),
                 Some(AttributeValue::Float(value)) => Ok(Some(*value)),
                 // Numeric widening: integers promoted to Float64
-                Some(AttributeValue::Unsigned(value)) => Ok(Some(*value as f64)),
-                Some(AttributeValue::Integer(value)) => Ok(Some(*value as f64)),
+                Some(AttributeValue::Unsigned(value)) => {
+                    Ok(Some(value.to_f64().ok_or_else(|| {
+                        Error::Conversion(
+                            "unsigned integer value cannot be represented as f64".to_string(),
+                        )
+                    })?))
+                }
+                Some(AttributeValue::Integer(value)) => {
+                    Ok(Some(value.to_f64().ok_or_else(|| {
+                        Error::Conversion("integer value cannot be represented as f64".to_string())
+                    })?))
+                }
                 Some(other) => Err(Error::Conversion(format!(
                     "expected f64 projected value, found {other}"
                 ))),
@@ -389,13 +400,11 @@ pub(super) fn projected_json_array(values: &[Option<&OwnedAttributeValue>]) -> R
 
 fn attribute_value_to_json(value: &OwnedAttributeValue) -> serde_json::Value {
     match value {
-        AttributeValue::Null => serde_json::Value::Null,
         AttributeValue::Bool(b) => serde_json::Value::Bool(*b),
         AttributeValue::Unsigned(u) => serde_json::Value::Number((*u).into()),
         AttributeValue::Integer(i) => serde_json::Value::Number((*i).into()),
         AttributeValue::Float(f) => serde_json::Number::from_f64(*f)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         AttributeValue::String(s) => serde_json::Value::String(s.clone()),
         AttributeValue::Vec(items) => {
             serde_json::Value::Array(items.iter().map(attribute_value_to_json).collect())
