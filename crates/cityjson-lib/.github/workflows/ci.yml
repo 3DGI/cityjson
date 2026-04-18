@@ -53,6 +53,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -93,6 +97,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -137,6 +145,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-fake
@@ -183,6 +195,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
@@ -223,6 +239,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just build
@@ -263,6 +283,10 @@ jobs:
           repository: 3DGI/cityjson-parquet
           path: cityjson-parquet
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+          sparse-checkout-cone-mode: false
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v6
