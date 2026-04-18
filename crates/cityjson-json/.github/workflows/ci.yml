@@ -87,7 +87,10 @@ jobs:
           path: cityjson-corpus
           sparse-checkout: |
             artifacts
+            catalog
             cases
+            schemas
+            scripts
           sparse-checkout-cone-mode: true
       - uses: actions/checkout@v6
         with:
@@ -187,7 +190,10 @@ jobs:
           path: cityjson-corpus
           sparse-checkout: |
             artifacts
+            catalog
             cases
+            schemas
+            scripts
           sparse-checkout-cone-mode: true
       - uses: actions/checkout@v6
         with:
@@ -227,7 +233,10 @@ jobs:
           path: cityjson-corpus
           sparse-checkout: |
             artifacts
+            catalog
             cases
+            schemas
+            scripts
           sparse-checkout-cone-mode: true
       - uses: actions/checkout@v6
         with:
