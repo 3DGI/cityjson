@@ -45,16 +45,17 @@ where
 
 pub(crate) struct SemanticsSerializer<'a, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     pub(crate) model: &'a CityModel<VR, SS>,
     pub(crate) geometry: &'a Geometry<VR, SS>,
+    pub(crate) context: &'a WriteContext,
 }
 
 impl<VR, SS> Serialize for SemanticsSerializer<'_, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -84,6 +85,7 @@ where
                 model: self.model,
                 handles: &handles,
                 handle_to_local: &handle_to_local,
+                context: self.context,
             },
         )?;
         map.serialize_entry(
@@ -202,17 +204,18 @@ where
 
 struct SemanticSurfacesSerializer<'a, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     model: &'a CityModel<VR, SS>,
     handles: &'a [SemanticHandle],
     handle_to_local: &'a HashMap<SemanticHandle, usize>,
+    context: &'a WriteContext,
 }
 
 impl<VR, SS> Serialize for SemanticSurfacesSerializer<'_, VR, SS>
 where
-    VR: VertexRef,
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -229,22 +232,28 @@ where
             seq.serialize_element(&SemanticSerializer {
                 semantic,
                 handle_to_local: self.handle_to_local,
+                model: self.model,
+                context: self.context,
             })?;
         }
         seq.end()
     }
 }
 
-struct SemanticSerializer<'a, SS>
+struct SemanticSerializer<'a, VR, SS>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     semantic: &'a Semantic<SS>,
     handle_to_local: &'a HashMap<SemanticHandle, usize>,
+    model: &'a CityModel<VR, SS>,
+    context: &'a WriteContext,
 }
 
-impl<SS> Serialize for SemanticSerializer<'_, SS>
+impl<VR, SS> Serialize for SemanticSerializer<'_, VR, SS>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -268,7 +277,7 @@ where
             map.serialize_entry("parent", &index)?;
         }
         if let Some(attributes) = self.semantic.attributes() {
-            serialize_attributes_entries(&mut map, attributes)?;
+            serialize_attributes_entries(&mut map, attributes, self.model, self.context)?;
         }
         map.end()
     }

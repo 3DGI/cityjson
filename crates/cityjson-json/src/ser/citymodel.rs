@@ -139,6 +139,8 @@ where
                 &MetadataSerializer {
                     metadata: self.model.metadata(),
                     geographical_extent: self.options.metadata_geographical_extent,
+                    model: self.model,
+                    context: self.context,
                 },
             )?;
         }
@@ -180,22 +182,26 @@ where
         if self.options.include_extra
             && let Some(extra) = self.model.extra()
         {
-            serialize_attributes_entries(&mut map, extra)?;
+            serialize_attributes_entries(&mut map, extra, self.model, self.context)?;
         }
         map.end()
     }
 }
 
-struct MetadataSerializer<'a, SS>
+struct MetadataSerializer<'a, VR, SS>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     metadata: Option<&'a Metadata<SS>>,
     geographical_extent: Option<&'a BBox>,
+    model: &'a CityModel<VR, SS>,
+    context: &'a WriteContext,
 }
 
-impl<SS> Serialize for MetadataSerializer<'_, SS>
+impl<VR, SS> Serialize for MetadataSerializer<'_, VR, SS>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -214,7 +220,14 @@ where
                 map.serialize_entry("identifier", &identifier.to_string())?;
             }
             if let Some(contact) = metadata.point_of_contact() {
-                map.serialize_entry("pointOfContact", &ContactSerializer(contact))?;
+                map.serialize_entry(
+                    "pointOfContact",
+                    &ContactSerializer {
+                        contact,
+                        model: self.model,
+                        context: self.context,
+                    },
+                )?;
             }
             if let Some(reference_date) = metadata.reference_date() {
                 map.serialize_entry("referenceDate", &reference_date.to_string())?;
@@ -226,26 +239,33 @@ where
                 map.serialize_entry("title", title)?;
             }
             if let Some(extra) = metadata.extra() {
-                serialize_attributes_entries(&mut map, extra)?;
+                serialize_attributes_entries(&mut map, extra, self.model, self.context)?;
             }
         }
         map.end()
     }
 }
 
-struct ContactSerializer<'a, SS>(&'a Contact<SS>)
+struct ContactSerializer<'a, VR, SS>
 where
-    SS: StringStorage;
+    VR: VertexRef + serde::Serialize,
+    SS: StringStorage,
+{
+    contact: &'a Contact<SS>,
+    model: &'a CityModel<VR, SS>,
+    context: &'a WriteContext,
+}
 
-impl<SS> Serialize for ContactSerializer<'_, SS>
+impl<VR, SS> Serialize for ContactSerializer<'_, VR, SS>
 where
+    VR: VertexRef + serde::Serialize,
     SS: StringStorage,
 {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let contact = self.0;
+        let contact = self.contact;
         let mut map = serializer.serialize_map(None)?;
         if !contact.contact_name().is_empty() {
             map.serialize_entry("contactName", contact.contact_name())?;
@@ -263,7 +283,14 @@ where
             map.serialize_entry("contactType", contact_type_to_str(kind))?;
         }
         if let Some(address) = contact.address() {
-            map.serialize_entry("address", &AttributesSerializer(address))?;
+            map.serialize_entry(
+                "address",
+                &AttributesSerializer {
+                    attributes: address,
+                    model: self.model,
+                    context: self.context,
+                },
+            )?;
         }
         if let Some(phone) = contact.phone().as_ref() {
             map.serialize_entry("phone", phone.as_ref())?;
@@ -380,7 +407,14 @@ where
         if let Some(attributes) = cityobject.attributes()
             && !attributes.is_empty()
         {
-            map.serialize_entry("attributes", &AttributesSerializer(attributes))?;
+            map.serialize_entry(
+                "attributes",
+                &AttributesSerializer {
+                    attributes,
+                    model: self.model,
+                    context: self.context,
+                },
+            )?;
         }
         if let Some(geometry) = cityobject.geometry() {
             map.serialize_entry(
@@ -419,7 +453,7 @@ where
             )?;
         }
         if let Some(extra) = cityobject.extra() {
-            serialize_attributes_entries(&mut map, extra)?;
+            serialize_attributes_entries(&mut map, extra, self.model, self.context)?;
         }
         map.end()
     }

@@ -157,6 +157,7 @@ where
                 &SemanticsSerializer {
                     model: self.model,
                     geometry: self.geometry,
+                    context: self.context,
                 },
             )?;
         }
