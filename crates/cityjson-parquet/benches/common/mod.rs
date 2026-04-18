@@ -271,12 +271,7 @@ fn benchmark_index_path() -> PathBuf {
 
 fn shared_corpus_root() -> PathBuf {
     std::env::var_os("CITYJSON_ARROW_SHARED_CORPUS_ROOT").map_or_else(
-        || {
-            panic!(
-                "set CITYJSON_ARROW_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
-or set CITYJSON_ARROW_BENCHMARK_INDEX to the benchmark index path"
-            )
-        },
+        workspace_corpus_root,
         PathBuf::from,
     )
 }
@@ -287,6 +282,10 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
     } else {
         shared_corpus_root().join(path)
     }
+}
+
+fn workspace_corpus_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-corpus")
 }
 
 fn case_spec_name(case_id: &str, artifact: &BenchmarkArtifact, use_suffix: bool) -> String {
