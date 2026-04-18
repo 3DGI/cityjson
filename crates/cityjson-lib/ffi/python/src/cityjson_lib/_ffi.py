@@ -373,26 +373,8 @@ class FfiLibrary:
         self._lib.cj_model_clear_transform.argtypes = [c_void_p]
         self._lib.cj_model_clear_transform.restype = c_int
 
-        self._lib.cj_model_add_cityobject.argtypes = [c_void_p, StringViewStruct, StringViewStruct]
-        self._lib.cj_model_add_cityobject.restype = c_int
         self._lib.cj_model_remove_cityobject.argtypes = [c_void_p, StringViewStruct]
         self._lib.cj_model_remove_cityobject.restype = c_int
-        self._lib.cj_model_attach_geometry_to_cityobject.argtypes = [
-            c_void_p,
-            StringViewStruct,
-            c_size_t,
-        ]
-        self._lib.cj_model_attach_geometry_to_cityobject.restype = c_int
-        self._lib.cj_model_clear_cityobject_geometry.argtypes = [c_void_p, StringViewStruct]
-        self._lib.cj_model_clear_cityobject_geometry.restype = c_int
-
-        self._lib.cj_model_add_geometry_from_boundary.argtypes = [
-            c_void_p,
-            GeometryBoundaryViewStruct,
-            StringViewStruct,
-            POINTER(c_size_t),
-        ]
-        self._lib.cj_model_add_geometry_from_boundary.restype = c_int
         self._lib.cj_model_cleanup.argtypes = [c_void_p]
         self._lib.cj_model_cleanup.restype = c_int
         self._lib.cj_model_append_model.argtypes = [c_void_p, c_void_p]
@@ -761,43 +743,9 @@ class FfiLibrary:
     def clear_transform(self, handle: int) -> None:
         self._raise_if_error(self._lib.cj_model_clear_transform(c_void_p(handle)))
 
-    def add_cityobject(self, handle: int, cityobject_id: str, cityobject_type: str) -> None:
-        cityobject_view, _cityobject_buffer = self._string_view(cityobject_id)
-        type_view, _type_buffer = self._string_view(cityobject_type)
-        self._raise_if_error(
-            self._lib.cj_model_add_cityobject(c_void_p(handle), cityobject_view, type_view)
-        )
-
     def remove_cityobject(self, handle: int, cityobject_id: str) -> None:
         view, _buffer = self._string_view(cityobject_id)
         self._raise_if_error(self._lib.cj_model_remove_cityobject(c_void_p(handle), view))
-
-    def attach_geometry_to_cityobject(self, handle: int, cityobject_id: str, geometry_index: int) -> None:
-        view, _buffer = self._string_view(cityobject_id)
-        self._raise_if_error(
-            self._lib.cj_model_attach_geometry_to_cityobject(
-                c_void_p(handle), view, geometry_index
-            )
-        )
-
-    def clear_cityobject_geometry(self, handle: int, cityobject_id: str) -> None:
-        view, _buffer = self._string_view(cityobject_id)
-        self._raise_if_error(
-            self._lib.cj_model_clear_cityobject_geometry(c_void_p(handle), view)
-        )
-
-    def add_geometry_from_boundary(
-        self, handle: int, boundary: GeometryBoundaryPayload, lod: str | None = None
-    ) -> int:
-        boundary_view, _buffers = self._geometry_boundary_view(boundary)
-        lod_view, _lod_buffer = self._string_view(lod) if lod is not None else (StringViewStruct(), b"")
-        index = c_size_t(0)
-        self._raise_if_error(
-            self._lib.cj_model_add_geometry_from_boundary(
-                c_void_p(handle), boundary_view, lod_view, pointer(index)
-            )
-        )
-        return int(index.value)
 
     def cleanup(self, handle: int) -> None:
         self._raise_if_error(self._lib.cj_model_cleanup(c_void_p(handle)))

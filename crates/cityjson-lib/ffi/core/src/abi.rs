@@ -116,6 +116,179 @@ impl Default for cj_geometry_type_t {
     }
 }
 
+/// Stable value discriminant for recursive CityJSON attribute trees.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_value_kind_t {
+    CJ_VALUE_NULL = 0,
+    CJ_VALUE_BOOL = 1,
+    CJ_VALUE_INT64 = 2,
+    CJ_VALUE_FLOAT64 = 3,
+    CJ_VALUE_STRING = 4,
+    CJ_VALUE_ARRAY = 5,
+    CJ_VALUE_OBJECT = 6,
+    CJ_VALUE_GEOMETRY_REF = 7,
+}
+
+impl Default for cj_value_kind_t {
+    fn default() -> Self {
+        Self::CJ_VALUE_NULL
+    }
+}
+
+/// Stable contact-role discriminant.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_contact_role_t {
+    CJ_CONTACT_ROLE_AUTHOR = 0,
+    CJ_CONTACT_ROLE_CO_AUTHOR = 1,
+    CJ_CONTACT_ROLE_PROCESSOR = 2,
+    CJ_CONTACT_ROLE_POINT_OF_CONTACT = 3,
+    CJ_CONTACT_ROLE_OWNER = 4,
+    CJ_CONTACT_ROLE_USER = 5,
+    CJ_CONTACT_ROLE_DISTRIBUTOR = 6,
+    CJ_CONTACT_ROLE_ORIGINATOR = 7,
+    CJ_CONTACT_ROLE_CUSTODIAN = 8,
+    CJ_CONTACT_ROLE_RESOURCE_PROVIDER = 9,
+    CJ_CONTACT_ROLE_RIGHTS_HOLDER = 10,
+    CJ_CONTACT_ROLE_SPONSOR = 11,
+    CJ_CONTACT_ROLE_PRINCIPAL_INVESTIGATOR = 12,
+    CJ_CONTACT_ROLE_STAKEHOLDER = 13,
+    CJ_CONTACT_ROLE_PUBLISHER = 14,
+}
+
+impl Default for cj_contact_role_t {
+    fn default() -> Self {
+        Self::CJ_CONTACT_ROLE_AUTHOR
+    }
+}
+
+/// Stable contact-type discriminant.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_contact_type_t {
+    CJ_CONTACT_TYPE_INDIVIDUAL = 0,
+    CJ_CONTACT_TYPE_ORGANIZATION = 1,
+}
+
+impl Default for cj_contact_type_t {
+    fn default() -> Self {
+        Self::CJ_CONTACT_TYPE_INDIVIDUAL
+    }
+}
+
+/// Stable texture image-type discriminant.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_image_type_t {
+    CJ_IMAGE_TYPE_PNG = 0,
+    CJ_IMAGE_TYPE_JPG = 1,
+}
+
+impl Default for cj_image_type_t {
+    fn default() -> Self {
+        Self::CJ_IMAGE_TYPE_PNG
+    }
+}
+
+/// Stable texture wrap-mode discriminant.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_wrap_mode_t {
+    CJ_WRAP_MODE_WRAP = 0,
+    CJ_WRAP_MODE_MIRROR = 1,
+    CJ_WRAP_MODE_CLAMP = 2,
+    CJ_WRAP_MODE_BORDER = 3,
+    CJ_WRAP_MODE_NONE = 4,
+}
+
+impl Default for cj_wrap_mode_t {
+    fn default() -> Self {
+        Self::CJ_WRAP_MODE_WRAP
+    }
+}
+
+/// Stable texture-mapping discriminant.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum cj_texture_type_t {
+    CJ_TEXTURE_TYPE_UNKNOWN = 0,
+    CJ_TEXTURE_TYPE_SPECIFIC = 1,
+    CJ_TEXTURE_TYPE_TYPICAL = 2,
+}
+
+impl Default for cj_texture_type_t {
+    fn default() -> Self {
+        Self::CJ_TEXTURE_TYPE_UNKNOWN
+    }
+}
+
+/// Stable typed id for a model-owned cityobject handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_cityobject_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
+/// Stable typed id for a model-owned geometry handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
+/// Stable typed id for a model-owned template-geometry handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_template_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
+/// Stable typed id for a model-owned semantic handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_semantic_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
+/// Stable typed id for a model-owned material handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_material_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
+/// Stable typed id for a model-owned texture handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_texture_id_t {
+    pub slot: u32,
+    pub generation: u16,
+    pub reserved: u16,
+}
+
 /// Opaque model handle type.
 ///
 /// The ABI only ever passes pointers to this marker type. The actual storage is
@@ -123,6 +296,62 @@ impl Default for cj_geometry_type_t {
 #[allow(non_camel_case_types)]
 #[repr(C)]
 pub struct cj_model_t {
+    _private: [u8; 0],
+}
+
+/// Opaque typed value handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_value_t {
+    _private: [u8; 0],
+}
+
+/// Opaque metadata-contact authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_contact_t {
+    _private: [u8; 0],
+}
+
+/// Opaque cityobject-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_cityobject_draft_t {
+    _private: [u8; 0],
+}
+
+/// Opaque ring-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_ring_draft_t {
+    _private: [u8; 0],
+}
+
+/// Opaque surface-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_surface_draft_t {
+    _private: [u8; 0],
+}
+
+/// Opaque shell-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_shell_draft_t {
+    _private: [u8; 0],
+}
+
+/// Opaque solid-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_solid_draft_t {
+    _private: [u8; 0],
+}
+
+/// Opaque geometry-draft authoring handle.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct cj_geometry_draft_t {
     _private: [u8; 0],
 }
 
@@ -400,6 +629,59 @@ pub struct cj_transform_t {
     pub translate_x: f64,
     pub translate_y: f64,
     pub translate_z: f64,
+}
+
+/// Packed bbox copied across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct cj_bbox_t {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub min_z: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+    pub max_z: f64,
+}
+
+/// Packed RGB color copied across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct cj_rgb_t {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+}
+
+/// Packed RGBA color copied across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct cj_rgba_t {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+/// Packed 4x4 affine transform copied across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct cj_affine_transform_4x4_t {
+    pub elements: [f64; 16],
+}
+
+impl Default for cj_affine_transform_4x4_t {
+    fn default() -> Self {
+        Self {
+            elements: [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0,
+            ],
+        }
+    }
 }
 
 impl From<RootKind> for cj_root_kind_t {

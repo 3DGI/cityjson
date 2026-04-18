@@ -102,28 +102,11 @@ class PythonBindingSmokeTest(unittest.TestCase):
         model.set_metadata_identifier("fixture-1-updated")
         model.set_transform(Transform(scale=(0.5, 0.5, 1.0), translate=(10.0, 20.0, 0.0)))
         model.clear_transform()
-        model.add_cityobject("annex-1", "Building")
-        annex_vertex = model.add_vertex(Vertex(13.0, 23.0, 0.0))
-        annex_geometry = model.add_geometry_from_boundary(
-            GeometryBoundary(
-                geometry_type=GeometryType.MULTI_POINT,
-                has_boundaries=True,
-                vertex_indices=[annex_vertex],
-                ring_offsets=[],
-                surface_offsets=[],
-                shell_offsets=[],
-                solid_offsets=[],
-            )
-        )
-        model.attach_geometry_to_cityobject("annex-1", annex_geometry)
-        model.clear_cityobject_geometry("annex-1")
-        model.attach_geometry_to_cityobject("annex-1", annex_geometry)
-
-        extracted = model.extract_cityobjects(["annex-1"])
+        extracted = model.extract_cityobjects(["building-1"])
         self.addCleanup(extracted.close)
 
-        self.assertEqual(extracted.cityobject_ids(), ["annex-1"])
-        self.assertEqual(extracted.geometry_types(), [GeometryType.MULTI_POINT])
+        self.assertEqual(extracted.cityobject_ids(), ["building-1"])
+        self.assertEqual(extracted.geometry_types(), [GeometryType.MULTI_SURFACE])
         self.assertIn("Updated Facade Fixture", extracted.serialize_document(WriteOptions()))
 
         pretty_document = extracted.serialize_document(WriteOptions(pretty=True))
@@ -147,10 +130,9 @@ class PythonBindingSmokeTest(unittest.TestCase):
         self.addCleanup(other.close)
 
         removal = CityModel.parse_feature_bytes(
-            b'{"type":"CityJSONFeature","id":"remove-me","CityObjects":{"remove-me":{"type":"Building"}},"vertices":[]}'
+            b'{"type":"CityJSONFeature","id":"keep","CityObjects":{"keep":{"type":"Building"},"remove-me":{"type":"Building"}},"vertices":[]}'
         )
         self.addCleanup(removal.close)
-        removal.add_cityobject("remove-me", "Building")
         self.assertEqual(removal.summary().cityobject_count, 2)
         removal.remove_cityobject("remove-me")
         self.assertEqual(removal.summary().cityobject_count, 1)
@@ -158,42 +140,14 @@ class PythonBindingSmokeTest(unittest.TestCase):
         model.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
         other.set_transform(Transform(scale=(1.0, 1.0, 1.0), translate=(0.0, 0.0, 0.0)))
 
-        first_vertex = model.add_vertex(Vertex(1.0, 2.0, 3.0))
-        first_geometry = model.add_geometry_from_boundary(
-            GeometryBoundary(
-                geometry_type=GeometryType.MULTI_POINT,
-                has_boundaries=True,
-                vertex_indices=[first_vertex],
-                ring_offsets=[],
-                surface_offsets=[],
-                shell_offsets=[],
-                solid_offsets=[],
-            )
-        )
-        model.attach_geometry_to_cityobject("feature-a", first_geometry)
-
-        second_vertex = other.add_vertex(Vertex(4.0, 5.0, 6.0))
-        second_geometry = other.add_geometry_from_boundary(
-            GeometryBoundary(
-                geometry_type=GeometryType.MULTI_POINT,
-                has_boundaries=True,
-                vertex_indices=[second_vertex],
-                ring_offsets=[],
-                surface_offsets=[],
-                shell_offsets=[],
-                solid_offsets=[],
-            )
-        )
-        other.attach_geometry_to_cityobject("feature-b", second_geometry)
-
         model.append_model(other)
         model.cleanup()
 
         summary = model.summary()
         self.assertEqual(summary.model_type, ModelType.CITY_JSON_FEATURE)
         self.assertEqual(summary.cityobject_count, 2)
-        self.assertEqual(summary.geometry_count, 2)
-        self.assertEqual(summary.vertex_count, 2)
+        self.assertEqual(summary.geometry_count, 0)
+        self.assertEqual(summary.vertex_count, 0)
         self.assertEqual(model.cityobject_ids(), ["feature-a", "feature-b"])
         self.assertIn("feature-a", model.serialize_feature(WriteOptions(pretty=True)))
         self.assertIn(b"feature-a", model.serialize_feature_bytes())

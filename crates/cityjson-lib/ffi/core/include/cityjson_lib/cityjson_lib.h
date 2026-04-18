@@ -81,6 +81,63 @@ typedef enum cj_model_type_t {
 } cj_model_type_t;
 
 /**
+ * Stable contact-role discriminant.
+ */
+typedef enum cj_contact_role_t {
+  CJ_CONTACT_ROLE_AUTHOR = 0,
+  CJ_CONTACT_ROLE_CO_AUTHOR = 1,
+  CJ_CONTACT_ROLE_PROCESSOR = 2,
+  CJ_CONTACT_ROLE_POINT_OF_CONTACT = 3,
+  CJ_CONTACT_ROLE_OWNER = 4,
+  CJ_CONTACT_ROLE_USER = 5,
+  CJ_CONTACT_ROLE_DISTRIBUTOR = 6,
+  CJ_CONTACT_ROLE_ORIGINATOR = 7,
+  CJ_CONTACT_ROLE_CUSTODIAN = 8,
+  CJ_CONTACT_ROLE_RESOURCE_PROVIDER = 9,
+  CJ_CONTACT_ROLE_RIGHTS_HOLDER = 10,
+  CJ_CONTACT_ROLE_SPONSOR = 11,
+  CJ_CONTACT_ROLE_PRINCIPAL_INVESTIGATOR = 12,
+  CJ_CONTACT_ROLE_STAKEHOLDER = 13,
+  CJ_CONTACT_ROLE_PUBLISHER = 14,
+} cj_contact_role_t;
+
+/**
+ * Stable contact-type discriminant.
+ */
+typedef enum cj_contact_type_t {
+  CJ_CONTACT_TYPE_INDIVIDUAL = 0,
+  CJ_CONTACT_TYPE_ORGANIZATION = 1,
+} cj_contact_type_t;
+
+/**
+ * Stable texture image-type discriminant.
+ */
+typedef enum cj_image_type_t {
+  CJ_IMAGE_TYPE_PNG = 0,
+  CJ_IMAGE_TYPE_JPG = 1,
+} cj_image_type_t;
+
+/**
+ * Stable texture wrap-mode discriminant.
+ */
+typedef enum cj_wrap_mode_t {
+  CJ_WRAP_MODE_WRAP = 0,
+  CJ_WRAP_MODE_MIRROR = 1,
+  CJ_WRAP_MODE_CLAMP = 2,
+  CJ_WRAP_MODE_BORDER = 3,
+  CJ_WRAP_MODE_NONE = 4,
+} cj_wrap_mode_t;
+
+/**
+ * Stable texture-mapping discriminant.
+ */
+typedef enum cj_texture_type_t {
+  CJ_TEXTURE_TYPE_UNKNOWN = 0,
+  CJ_TEXTURE_TYPE_SPECIFIC = 1,
+  CJ_TEXTURE_TYPE_TYPICAL = 2,
+} cj_texture_type_t;
+
+/**
  * Opaque model handle type.
  *
  * The ABI only ever passes pointers to this marker type. The actual storage is
@@ -151,6 +208,62 @@ typedef struct cj_geometry_boundary_t {
   struct cj_indices_t shell_offsets;
   struct cj_indices_t solid_offsets;
 } cj_geometry_boundary_t;
+
+/**
+ * Opaque typed value handle.
+ */
+typedef struct cj_value_t {
+  uint8_t _private[0];
+} cj_value_t;
+
+/**
+ * Opaque metadata-contact authoring handle.
+ */
+typedef struct cj_contact_t {
+  uint8_t _private[0];
+} cj_contact_t;
+
+/**
+ * Opaque cityobject-draft authoring handle.
+ */
+typedef struct cj_cityobject_draft_t {
+  uint8_t _private[0];
+} cj_cityobject_draft_t;
+
+/**
+ * Opaque ring-draft authoring handle.
+ */
+typedef struct cj_ring_draft_t {
+  uint8_t _private[0];
+} cj_ring_draft_t;
+
+/**
+ * Opaque surface-draft authoring handle.
+ */
+typedef struct cj_surface_draft_t {
+  uint8_t _private[0];
+} cj_surface_draft_t;
+
+/**
+ * Opaque shell-draft authoring handle.
+ */
+typedef struct cj_shell_draft_t {
+  uint8_t _private[0];
+} cj_shell_draft_t;
+
+/**
+ * Opaque solid-draft authoring handle.
+ */
+typedef struct cj_solid_draft_t {
+  uint8_t _private[0];
+} cj_solid_draft_t;
+
+/**
+ * Opaque geometry-draft authoring handle.
+ */
+typedef struct cj_geometry_draft_t {
+  uint8_t _private[0];
+} cj_geometry_draft_t;
 
 /**
  * Probe result returned by the low-level ABI.
@@ -267,6 +380,98 @@ typedef struct cj_cityjsonseq_auto_transform_options_t {
   bool update_metadata_geographical_extent;
 } cj_cityjsonseq_auto_transform_options_t;
 
+/**
+ * Stable typed id for a model-owned geometry handle.
+ */
+typedef struct cj_geometry_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_geometry_id_t;
+
+/**
+ * Packed bbox copied across the ABI.
+ */
+typedef struct cj_bbox_t {
+  double min_x;
+  double min_y;
+  double min_z;
+  double max_x;
+  double max_y;
+  double max_z;
+} cj_bbox_t;
+
+/**
+ * Stable typed id for a model-owned semantic handle.
+ */
+typedef struct cj_semantic_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_semantic_id_t;
+
+/**
+ * Stable typed id for a model-owned material handle.
+ */
+typedef struct cj_material_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_material_id_t;
+
+/**
+ * Packed RGB color copied across the ABI.
+ */
+typedef struct cj_rgb_t {
+  float r;
+  float g;
+  float b;
+} cj_rgb_t;
+
+/**
+ * Stable typed id for a model-owned texture handle.
+ */
+typedef struct cj_texture_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_texture_id_t;
+
+/**
+ * Packed RGBA color copied across the ABI.
+ */
+typedef struct cj_rgba_t {
+  float r;
+  float g;
+  float b;
+  float a;
+} cj_rgba_t;
+
+/**
+ * Stable typed id for a model-owned cityobject handle.
+ */
+typedef struct cj_cityobject_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_cityobject_id_t;
+
+/**
+ * Stable typed id for a model-owned template-geometry handle.
+ */
+typedef struct cj_geometry_template_id_t {
+  uint32_t slot;
+  uint16_t generation;
+  uint16_t reserved;
+} cj_geometry_template_id_t;
+
+/**
+ * Packed 4x4 affine transform copied across the ABI.
+ */
+typedef struct cj_affine_transform_4x4_t {
+  double elements[16];
+} cj_affine_transform_4x4_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -282,6 +487,22 @@ enum cj_status_t cj_uvs_free(struct cj_uvs_t uvs);
 enum cj_status_t cj_indices_free(struct cj_indices_t indices);
 
 enum cj_status_t cj_geometry_boundary_free(struct cj_geometry_boundary_t boundary);
+
+enum cj_status_t cj_value_free(struct cj_value_t *handle);
+
+enum cj_status_t cj_contact_free(struct cj_contact_t *handle);
+
+enum cj_status_t cj_cityobject_draft_free(struct cj_cityobject_draft_t *handle);
+
+enum cj_status_t cj_ring_draft_free(struct cj_ring_draft_t *handle);
+
+enum cj_status_t cj_surface_draft_free(struct cj_surface_draft_t *handle);
+
+enum cj_status_t cj_shell_draft_free(struct cj_shell_draft_t *handle);
+
+enum cj_status_t cj_solid_draft_free(struct cj_solid_draft_t *handle);
+
+enum cj_status_t cj_geometry_draft_free(struct cj_geometry_draft_t *handle);
 
 enum cj_error_kind_t cj_last_error_kind(void);
 
@@ -376,10 +597,6 @@ enum cj_status_t cj_model_set_transform(struct cj_model_t *model, struct cj_tran
 
 enum cj_status_t cj_model_clear_transform(struct cj_model_t *model);
 
-enum cj_status_t cj_model_add_cityobject(struct cj_model_t *model,
-                                         struct cj_string_view_t id,
-                                         struct cj_string_view_t cityobject_type);
-
 enum cj_status_t cj_model_remove_cityobject(struct cj_model_t *model, struct cj_string_view_t id);
 
 enum cj_status_t cj_model_attach_geometry_to_cityobject(struct cj_model_t *model,
@@ -433,6 +650,245 @@ enum cj_status_t cj_model_serialize_cityjsonseq_auto_transform(const struct cj_m
                                                                uintptr_t feature_count,
                                                                struct cj_cityjsonseq_auto_transform_options_t options,
                                                                struct cj_bytes_t *out_bytes);
+
+enum cj_status_t cj_value_new_null(struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_bool(bool value, struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_int64(int64_t value, struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_float64(double value, struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_string(struct cj_string_view_t value, struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_array(struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_object(struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_new_geometry_ref(struct cj_geometry_id_t value,
+                                           struct cj_value_t **out_value);
+
+enum cj_status_t cj_value_array_push(struct cj_value_t *array_value, struct cj_value_t *element);
+
+enum cj_status_t cj_value_object_insert(struct cj_value_t *object_value,
+                                        struct cj_string_view_t key,
+                                        struct cj_value_t *member_value);
+
+enum cj_status_t cj_contact_new(struct cj_contact_t **out_contact);
+
+enum cj_status_t cj_contact_set_name(struct cj_contact_t *contact, struct cj_string_view_t value);
+
+enum cj_status_t cj_contact_set_email(struct cj_contact_t *contact, struct cj_string_view_t value);
+
+enum cj_status_t cj_contact_set_role(struct cj_contact_t *contact, enum cj_contact_role_t value);
+
+enum cj_status_t cj_contact_set_website(struct cj_contact_t *contact,
+                                        struct cj_string_view_t value);
+
+enum cj_status_t cj_contact_set_type(struct cj_contact_t *contact, enum cj_contact_type_t value);
+
+enum cj_status_t cj_contact_set_phone(struct cj_contact_t *contact, struct cj_string_view_t value);
+
+enum cj_status_t cj_contact_set_organization(struct cj_contact_t *contact,
+                                             struct cj_string_view_t value);
+
+enum cj_status_t cj_contact_set_address(struct cj_contact_t *contact,
+                                        struct cj_value_t *object_value);
+
+enum cj_status_t cj_model_set_metadata_geographical_extent(struct cj_model_t *model,
+                                                           struct cj_bbox_t bbox);
+
+enum cj_status_t cj_model_set_metadata_reference_date(struct cj_model_t *model,
+                                                      struct cj_string_view_t value);
+
+enum cj_status_t cj_model_set_metadata_reference_system(struct cj_model_t *model,
+                                                        struct cj_string_view_t value);
+
+enum cj_status_t cj_model_set_metadata_contact(struct cj_model_t *model,
+                                               struct cj_contact_t *contact);
+
+enum cj_status_t cj_model_set_metadata_extra(struct cj_model_t *model,
+                                             struct cj_string_view_t key,
+                                             struct cj_value_t *value);
+
+enum cj_status_t cj_model_set_root_extra(struct cj_model_t *model,
+                                         struct cj_string_view_t key,
+                                         struct cj_value_t *value);
+
+enum cj_status_t cj_model_add_extension(struct cj_model_t *model,
+                                        struct cj_string_view_t name,
+                                        struct cj_string_view_t url,
+                                        struct cj_string_view_t version);
+
+enum cj_status_t cj_model_add_semantic(struct cj_model_t *model,
+                                       struct cj_string_view_t semantic_type,
+                                       struct cj_semantic_id_t *out_id);
+
+enum cj_status_t cj_model_set_semantic_parent(struct cj_model_t *model,
+                                              struct cj_semantic_id_t semantic,
+                                              struct cj_semantic_id_t parent);
+
+enum cj_status_t cj_model_semantic_set_extra(struct cj_model_t *model,
+                                             struct cj_semantic_id_t semantic,
+                                             struct cj_string_view_t key,
+                                             struct cj_value_t *value);
+
+enum cj_status_t cj_model_add_material(struct cj_model_t *model,
+                                       struct cj_string_view_t name,
+                                       struct cj_material_id_t *out_id);
+
+enum cj_status_t cj_model_material_set_ambient_intensity(struct cj_model_t *model,
+                                                         struct cj_material_id_t material,
+                                                         float value);
+
+enum cj_status_t cj_model_material_set_diffuse_color(struct cj_model_t *model,
+                                                     struct cj_material_id_t material,
+                                                     struct cj_rgb_t value);
+
+enum cj_status_t cj_model_material_set_emissive_color(struct cj_model_t *model,
+                                                      struct cj_material_id_t material,
+                                                      struct cj_rgb_t value);
+
+enum cj_status_t cj_model_material_set_specular_color(struct cj_model_t *model,
+                                                      struct cj_material_id_t material,
+                                                      struct cj_rgb_t value);
+
+enum cj_status_t cj_model_material_set_shininess(struct cj_model_t *model,
+                                                 struct cj_material_id_t material,
+                                                 float value);
+
+enum cj_status_t cj_model_material_set_transparency(struct cj_model_t *model,
+                                                    struct cj_material_id_t material,
+                                                    float value);
+
+enum cj_status_t cj_model_material_set_is_smooth(struct cj_model_t *model,
+                                                 struct cj_material_id_t material,
+                                                 bool value);
+
+enum cj_status_t cj_model_add_texture(struct cj_model_t *model,
+                                      struct cj_string_view_t image,
+                                      enum cj_image_type_t image_type,
+                                      struct cj_texture_id_t *out_id);
+
+enum cj_status_t cj_model_texture_set_wrap_mode(struct cj_model_t *model,
+                                                struct cj_texture_id_t texture,
+                                                enum cj_wrap_mode_t value);
+
+enum cj_status_t cj_model_texture_set_texture_type(struct cj_model_t *model,
+                                                   struct cj_texture_id_t texture,
+                                                   enum cj_texture_type_t value);
+
+enum cj_status_t cj_model_texture_set_border_color(struct cj_model_t *model,
+                                                   struct cj_texture_id_t texture,
+                                                   struct cj_rgba_t value);
+
+enum cj_status_t cj_model_set_default_material_theme(struct cj_model_t *model,
+                                                     struct cj_string_view_t theme);
+
+enum cj_status_t cj_model_set_default_texture_theme(struct cj_model_t *model,
+                                                    struct cj_string_view_t theme);
+
+enum cj_status_t cj_cityobject_draft_new(struct cj_string_view_t id,
+                                         struct cj_string_view_t cityobject_type,
+                                         struct cj_cityobject_draft_t **out_draft);
+
+enum cj_status_t cj_cityobject_draft_set_geographical_extent(struct cj_cityobject_draft_t *draft,
+                                                             struct cj_bbox_t bbox);
+
+enum cj_status_t cj_cityobject_draft_set_attribute(struct cj_cityobject_draft_t *draft,
+                                                   struct cj_string_view_t key,
+                                                   struct cj_value_t *value);
+
+enum cj_status_t cj_cityobject_draft_set_extra(struct cj_cityobject_draft_t *draft,
+                                               struct cj_string_view_t key,
+                                               struct cj_value_t *value);
+
+enum cj_status_t cj_model_add_cityobject(struct cj_model_t *model,
+                                         struct cj_cityobject_draft_t *draft,
+                                         struct cj_cityobject_id_t *out_id);
+
+enum cj_status_t cj_model_cityobject_add_geometry(struct cj_model_t *model,
+                                                  struct cj_cityobject_id_t cityobject,
+                                                  struct cj_geometry_id_t geometry);
+
+enum cj_status_t cj_model_cityobject_add_parent(struct cj_model_t *model,
+                                                struct cj_cityobject_id_t child,
+                                                struct cj_cityobject_id_t parent);
+
+enum cj_status_t cj_ring_draft_new(struct cj_ring_draft_t **out_ring);
+
+enum cj_status_t cj_ring_draft_push_vertex_index(struct cj_ring_draft_t *ring,
+                                                 uint32_t vertex_index);
+
+enum cj_status_t cj_ring_draft_push_vertex(struct cj_ring_draft_t *ring, struct cj_vertex_t vertex);
+
+enum cj_status_t cj_ring_draft_add_texture(struct cj_ring_draft_t *ring,
+                                           struct cj_string_view_t theme,
+                                           struct cj_texture_id_t texture,
+                                           const uint32_t *uv_indices,
+                                           uintptr_t uv_index_count);
+
+enum cj_status_t cj_ring_draft_add_texture_uvs(struct cj_ring_draft_t *ring,
+                                               struct cj_string_view_t theme,
+                                               struct cj_texture_id_t texture,
+                                               const struct cj_uv_t *uvs,
+                                               uintptr_t uv_count);
+
+enum cj_status_t cj_surface_draft_new(struct cj_ring_draft_t *outer,
+                                      struct cj_surface_draft_t **out_surface);
+
+enum cj_status_t cj_surface_draft_add_inner_ring(struct cj_surface_draft_t *surface,
+                                                 struct cj_ring_draft_t *inner);
+
+enum cj_status_t cj_surface_draft_set_semantic(struct cj_surface_draft_t *surface,
+                                               struct cj_semantic_id_t semantic);
+
+enum cj_status_t cj_surface_draft_add_material(struct cj_surface_draft_t *surface,
+                                               struct cj_string_view_t theme,
+                                               struct cj_material_id_t material);
+
+enum cj_status_t cj_shell_draft_new(struct cj_shell_draft_t **out_shell);
+
+enum cj_status_t cj_shell_draft_add_surface(struct cj_shell_draft_t *shell,
+                                            struct cj_surface_draft_t *surface);
+
+enum cj_status_t cj_solid_draft_new(struct cj_shell_draft_t *outer,
+                                    struct cj_solid_draft_t **out_solid);
+
+enum cj_status_t cj_solid_draft_add_inner_shell(struct cj_solid_draft_t *solid,
+                                                struct cj_shell_draft_t *inner);
+
+enum cj_status_t cj_geometry_draft_new(enum cj_geometry_type_t geometry_type,
+                                       struct cj_string_view_t lod,
+                                       struct cj_geometry_draft_t **out_draft);
+
+enum cj_status_t cj_geometry_draft_new_instance(struct cj_geometry_template_id_t template_id,
+                                                uint32_t reference_vertex_index,
+                                                struct cj_affine_transform_4x4_t transform,
+                                                struct cj_geometry_draft_t **out_draft);
+
+enum cj_status_t cj_geometry_draft_add_point_vertex_index(struct cj_geometry_draft_t *draft,
+                                                          uint32_t vertex_index,
+                                                          const struct cj_semantic_id_t *semantic);
+
+enum cj_status_t cj_geometry_draft_add_linestring(struct cj_geometry_draft_t *draft,
+                                                  const uint32_t *vertex_indices,
+                                                  uintptr_t vertex_index_count,
+                                                  const struct cj_semantic_id_t *semantic);
+
+enum cj_status_t cj_geometry_draft_add_surface(struct cj_geometry_draft_t *draft,
+                                               struct cj_surface_draft_t *surface);
+
+enum cj_status_t cj_geometry_draft_add_solid(struct cj_geometry_draft_t *draft,
+                                             struct cj_solid_draft_t *solid);
+
+enum cj_status_t cj_model_add_geometry(struct cj_model_t *model,
+                                       struct cj_geometry_draft_t *draft,
+                                       struct cj_geometry_id_t *out_id);
+
+enum cj_status_t cj_model_add_geometry_template(struct cj_model_t *model,
+                                                struct cj_geometry_draft_t *draft,
+                                                struct cj_geometry_template_id_t *out_id);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -9,6 +9,10 @@ The wrappers are aligned around the same core ideas:
 - run explicit cleanup, append, and extract workflows
 - serialize back to document, feature, or feature-stream bytes
 
+The typed write-side authoring flow is documented separately in
+[Writing Data](../guide-writing.md). The full end-to-end C++ reference lives in
+`ffi/cpp/examples/fake_complete.cpp`.
+
 The wasm adapter is still work in progress and is not covered here.
 
 ## Parse And Inspect

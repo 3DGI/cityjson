@@ -1,8 +1,13 @@
 use std::ptr;
 
+use crate::authoring::{
+    GeometryAuthoring, OwnedCityObject, OwnedContact, OwnedValue, RingAuthoring, ShellAuthoring,
+    SolidAuthoring, SurfaceAuthoring,
+};
 use crate::abi::{
-    cj_bytes_t, cj_geometry_boundary_t, cj_indices_t, cj_model_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
-    cj_vertices_t,
+    cj_bytes_t, cj_cityobject_draft_t, cj_contact_t, cj_geometry_boundary_t, cj_geometry_draft_t,
+    cj_indices_t, cj_model_t, cj_ring_draft_t, cj_shell_draft_t, cj_solid_draft_t,
+    cj_surface_draft_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t,
 };
 
 pub fn model_into_handle(model: cityjson_lib::CityModel) -> *mut cj_model_t {
@@ -28,6 +33,95 @@ pub unsafe fn model_as_mut<'a>(handle: *mut cj_model_t) -> Option<&'a mut cityjs
 pub unsafe fn model_free(handle: *mut cj_model_t) {
     let _ = unsafe { model_take(handle) };
 }
+
+macro_rules! define_handle_accessors {
+    ($into_fn:ident, $take_fn:ident, $as_mut_fn:ident, $free_fn:ident, $ffi_ty:ty, $rust_ty:ty) => {
+        pub fn $into_fn(value: $rust_ty) -> *mut $ffi_ty {
+            Box::into_raw(Box::new(value)).cast::<$ffi_ty>()
+        }
+
+        pub unsafe fn $take_fn(handle: *mut $ffi_ty) -> Option<Box<$rust_ty>> {
+            if handle.is_null() {
+                return None;
+            }
+
+            Some(unsafe { Box::from_raw(handle.cast::<$rust_ty>()) })
+        }
+
+        pub unsafe fn $as_mut_fn<'a>(handle: *mut $ffi_ty) -> Option<&'a mut $rust_ty> {
+            unsafe { handle.cast::<$rust_ty>().as_mut() }
+        }
+
+        pub unsafe fn $free_fn(handle: *mut $ffi_ty) {
+            let _ = unsafe { $take_fn(handle) };
+        }
+    };
+}
+
+define_handle_accessors!(
+    value_into_handle,
+    value_take,
+    value_as_mut,
+    value_free,
+    cj_value_t,
+    OwnedValue
+);
+define_handle_accessors!(
+    contact_into_handle,
+    contact_take,
+    contact_as_mut,
+    contact_free,
+    cj_contact_t,
+    OwnedContact
+);
+define_handle_accessors!(
+    cityobject_draft_into_handle,
+    cityobject_draft_take,
+    cityobject_draft_as_mut,
+    cityobject_draft_free,
+    cj_cityobject_draft_t,
+    OwnedCityObject
+);
+define_handle_accessors!(
+    ring_draft_into_handle,
+    ring_draft_take,
+    ring_draft_as_mut,
+    ring_draft_free,
+    cj_ring_draft_t,
+    RingAuthoring
+);
+define_handle_accessors!(
+    surface_draft_into_handle,
+    surface_draft_take,
+    surface_draft_as_mut,
+    surface_draft_free,
+    cj_surface_draft_t,
+    SurfaceAuthoring
+);
+define_handle_accessors!(
+    shell_draft_into_handle,
+    shell_draft_take,
+    shell_draft_as_mut,
+    shell_draft_free,
+    cj_shell_draft_t,
+    ShellAuthoring
+);
+define_handle_accessors!(
+    solid_draft_into_handle,
+    solid_draft_take,
+    solid_draft_as_mut,
+    solid_draft_free,
+    cj_solid_draft_t,
+    SolidAuthoring
+);
+define_handle_accessors!(
+    geometry_draft_into_handle,
+    geometry_draft_take,
+    geometry_draft_as_mut,
+    geometry_draft_free,
+    cj_geometry_draft_t,
+    GeometryAuthoring
+);
 
 pub fn bytes_from_vec(bytes: Vec<u8>) -> cj_bytes_t {
     let boxed = bytes.into_boxed_slice();

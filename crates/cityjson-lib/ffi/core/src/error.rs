@@ -102,6 +102,12 @@ impl From<cityjson_lib::Error> for AbiError {
     }
 }
 
+impl From<cityjson_lib::cityjson::error::Error> for AbiError {
+    fn from(error: cityjson_lib::cityjson::error::Error) -> Self {
+        Self::from(cityjson_lib::Error::from(error))
+    }
+}
+
 impl From<cityjson_lib::ErrorKind> for cj_error_kind_t {
     fn from(value: cityjson_lib::ErrorKind) -> Self {
         match value {

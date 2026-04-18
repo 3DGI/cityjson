@@ -12,23 +12,23 @@ use std::slice;
 pub use cityjson_lib_ffi_core as core;
 
 use cityjson_lib_ffi_core::exports::{
-    cj_bytes_free, cj_geometry_boundary_free, cj_last_error_message_copy,
-    cj_last_error_message_len, cj_model_add_cityobject, cj_model_add_geometry_from_boundary,
-    cj_model_add_vertex, cj_model_attach_geometry_to_cityobject, cj_model_cleanup,
-    cj_model_copy_geometry_boundary, cj_model_copy_geometry_boundary_coordinates,
+    cj_bytes_free, cj_cityobject_draft_new, cj_geometry_boundary_free, cj_geometry_draft_add_surface,
+    cj_geometry_draft_new, cj_last_error_message_copy, cj_last_error_message_len,
+    cj_model_add_cityobject, cj_model_add_geometry, cj_model_add_vertex, cj_model_cityobject_add_geometry,
+    cj_model_cleanup, cj_model_copy_geometry_boundary, cj_model_copy_geometry_boundary_coordinates,
     cj_model_copy_template_vertices, cj_model_copy_uv_coordinates, cj_model_copy_vertices,
     cj_model_create, cj_model_free, cj_model_get_cityobject_id, cj_model_get_geometry_type,
     cj_model_get_summary, cj_model_parse_document_bytes, cj_model_parse_feature_bytes,
     cj_model_parse_feature_stream_merge_bytes, cj_model_serialize_document_with_options,
     cj_model_serialize_feature_with_options, cj_model_set_metadata_identifier,
-    cj_model_set_metadata_title, cj_model_set_transform, cj_probe_bytes, cj_uvs_free,
-    cj_vertices_free,
+    cj_model_set_metadata_title, cj_model_set_transform, cj_probe_bytes, cj_ring_draft_new,
+    cj_ring_draft_push_vertex_index, cj_surface_draft_new, cj_uvs_free, cj_vertices_free,
 };
 use cityjson_lib_ffi_core::{
-    cj_bytes_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
-    cj_indices_view_t, cj_json_write_options_t, cj_model_summary_t, cj_model_t, cj_model_type_t,
-    cj_probe_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t,
-    cj_vertices_t,
+    cj_bytes_t, cj_cityobject_id_t, cj_geometry_boundary_t, cj_geometry_id_t,
+    cj_geometry_type_t, cj_json_write_options_t, cj_model_summary_t, cj_model_t,
+    cj_model_type_t, cj_probe_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t,
+    cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -116,35 +116,6 @@ fn string_view(text: &str) -> cj_string_view_t {
             data: text.as_ptr(),
             len: text.len(),
         }
-    }
-}
-
-fn indices_view(values: &[usize]) -> cj_indices_view_t {
-    if values.is_empty() {
-        cj_indices_view_t::null()
-    } else {
-        cj_indices_view_t {
-            data: values.as_ptr(),
-            len: values.len(),
-        }
-    }
-}
-
-fn boundary_view(
-    geometry_type: cj_geometry_type_t,
-    vertex_indices: &[usize],
-    ring_offsets: &[usize],
-    surface_offsets: &[usize],
-    shell_offsets: &[usize],
-    solid_offsets: &[usize],
-) -> cj_geometry_boundary_view_t {
-    cj_geometry_boundary_view_t {
-        geometry_type,
-        vertex_indices: indices_view(vertex_indices),
-        ring_offsets: indices_view(ring_offsets),
-        surface_offsets: indices_view(surface_offsets),
-        shell_offsets: indices_view(shell_offsets),
-        solid_offsets: indices_view(solid_offsets),
     }
 }
 
@@ -515,30 +486,46 @@ pub fn build_document_roundtrip() -> Result<Vec<u8>, WasmError> {
         ))?;
     }
 
-    status_result(cj_model_add_cityobject(
-        model.raw(),
+    let mut cityobject_draft = ptr::null_mut();
+    status_result(cj_cityobject_draft_new(
         string_view("building-1"),
         string_view("Building"),
+        &raw mut cityobject_draft,
+    ))?;
+    let mut cityobject_id = cj_cityobject_id_t::default();
+    status_result(cj_model_add_cityobject(
+        model.raw(),
+        cityobject_draft,
+        &raw mut cityobject_id,
     ))?;
 
-    let mut geometry_index = 0usize;
-    status_result(cj_model_add_geometry_from_boundary(
-        model.raw(),
-        boundary_view(
-            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
-            &[0, 1, 2, 3, 0],
-            &[0],
-            &[0],
-            &[],
-            &[],
-        ),
+    let mut ring = ptr::null_mut();
+    status_result(cj_ring_draft_new(&raw mut ring))?;
+    for index in [0_u32, 1, 2, 3] {
+        status_result(cj_ring_draft_push_vertex_index(ring, index))?;
+    }
+
+    let mut surface = ptr::null_mut();
+    status_result(cj_surface_draft_new(ring, &raw mut surface))?;
+
+    let mut geometry_draft = ptr::null_mut();
+    status_result(cj_geometry_draft_new(
+        cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
         string_view("2.2"),
-        &raw mut geometry_index,
+        &raw mut geometry_draft,
     ))?;
-    status_result(cj_model_attach_geometry_to_cityobject(
+    status_result(cj_geometry_draft_add_surface(geometry_draft, surface))?;
+
+    let mut geometry_id = cj_geometry_id_t::default();
+    status_result(cj_model_add_geometry(
         model.raw(),
-        string_view("building-1"),
-        geometry_index,
+        geometry_draft,
+        &raw mut geometry_id,
+    ))?;
+    status_result(cj_model_cityobject_add_geometry(
+        model.raw(),
+        cityobject_id,
+        geometry_id,
     ))?;
     status_result(cj_model_cleanup(model.raw()))?;
 

@@ -1,7 +1,11 @@
 # Writing Data
 
-This page shows the common write path across the published Rust, Python, and
-C++ surfaces.
+The shared FFI write path now centers on typed values, typed resource ids, and
+draft objects for nested geometry authoring.
+
+The published C++ surface exposes that model directly. The Python binding keeps
+the stable parse/inspect/stream workflows, but its write-side API is still
+catching up to the new draft-based authoring layer.
 
 ## Create A Model
 
@@ -11,13 +15,6 @@ C++ surfaces.
 
     let model = OwnedCityModel::new(cityjson::CityModelType::CityJSON);
     # let _ = model;
-    ```
-
-=== "Python"
-    ```python
-    from cityjson_lib import CityModel, ModelType
-
-    model = CityModel.create(model_type=ModelType.CJ_MODEL_TYPE_CITY_JSON)
     ```
 
 === "C++"
@@ -38,65 +35,56 @@ C++ surfaces.
     # let _ = model;
     ```
 
-=== "Python"
-    ```python
-    model.set_metadata_title("My Dataset")
-    model.set_metadata_identifier("my-dataset-001")
-    ```
-
 === "C++"
     ```cpp
     model.set_metadata_title("My Dataset");
     model.set_metadata_identifier("my-dataset-001");
+    model.set_metadata_geographical_extent({
+        .min_x = 0.0,
+        .min_y = 0.0,
+        .min_z = 0.0,
+        .max_x = 1.0,
+        .max_y = 1.0,
+        .max_z = 1.0,
+    });
+    model.set_metadata_contact(
+        cityjson_lib::Contact{}
+            .set_name("Author")
+            .set_email("author@example.com")
+            .set_role(CJ_CONTACT_ROLE_AUTHOR));
     ```
 
-## Add Geometry Through The Binding Surface
-
-The non-Rust bindings expose a direct geometry-boundary builder path.
-
-=== "Python"
-    ```python
-    from cityjson_lib import GeometryBoundary, GeometryType, Vertex
-
-    model.add_vertex(Vertex(10.0, 20.0, 0.0))
-    model.add_vertex(Vertex(11.0, 20.0, 0.0))
-    model.add_vertex(Vertex(11.0, 21.0, 0.0))
-    model.add_vertex(Vertex(10.0, 21.0, 0.0))
-    model.add_cityobject("building-1", "Building")
-
-    boundary = GeometryBoundary(
-        geometry_type=GeometryType.CJ_GEOMETRY_TYPE_MULTI_SURFACE,
-        has_boundaries=True,
-        vertex_indices=[0, 1, 2, 3, 0],
-        ring_offsets=[0],
-        surface_offsets=[0],
-        shell_offsets=[],
-        solid_offsets=[],
-    )
-    geom_index = model.add_geometry_from_boundary(boundary, lod="2.2")
-    model.attach_geometry_to_cityobject("building-1", geom_index)
-    ```
+## Add Geometry Through Drafts
 
 === "C++"
     ```cpp
-    model.add_vertex({10.0, 20.0, 0.0});
-    model.add_vertex({11.0, 20.0, 0.0});
-    model.add_vertex({11.0, 21.0, 0.0});
-    model.add_vertex({10.0, 21.0, 0.0});
-    model.add_cityobject("building-1", "Building");
+    const auto v0 = model.add_vertex({10.0, 20.0, 0.0});
+    const auto v1 = model.add_vertex({11.0, 20.0, 0.0});
+    const auto v2 = model.add_vertex({11.0, 21.0, 0.0});
+    const auto v3 = model.add_vertex({10.0, 21.0, 0.0});
 
-    cityjson_lib::GeometryBoundary boundary{
-        .geometry_type = CJ_GEOMETRY_TYPE_MULTI_SURFACE,
-        .has_boundaries = true,
-        .vertex_indices = {0, 1, 2, 3, 0},
-        .ring_offsets = {0},
-        .surface_offsets = {0},
-        .shell_offsets = {},
-        .solid_offsets = {},
-    };
-    const auto geom_index = model.add_geometry_from_boundary(boundary, "2.2");
-    model.attach_geometry_to_cityobject("building-1", geom_index);
+    auto ring = cityjson_lib::RingDraft{};
+    ring.push_vertex_index(v0)
+        .push_vertex_index(v1)
+        .push_vertex_index(v2)
+        .push_vertex_index(v3);
+
+    auto draft = cityjson_lib::GeometryDraft::multi_surface("2.2");
+    draft.add_surface(cityjson_lib::SurfaceDraft(std::move(ring)));
+
+    auto building = cityjson_lib::CityObjectDraft("building-1", "Building");
+    building.set_attribute("height", cityjson_lib::Value::number(12.5));
+
+    const auto geometry_id = model.add_geometry(std::move(draft));
+    const auto building_id = model.add_cityobject(std::move(building));
+    model.add_cityobject_geometry(building_id, geometry_id);
     ```
+
+## Full Fixture Example
+
+The full reference example lives in `ffi/cpp/examples/fake_complete.cpp`. It
+builds the equivalent of the complete fake CityJSON fixture through the
+typed C++ API and is exercised in the automated test suite.
 
 ## Serialize A Document
 
@@ -112,14 +100,6 @@ The non-Rust bindings expose a direct geometry-boundary builder path.
     )?;
     # let _ = (compact, pretty);
     # Ok::<(), cityjson_lib::Error>(())
-    ```
-
-=== "Python"
-    ```python
-    from cityjson_lib import WriteOptions
-
-    model.cleanup()
-    text = model.serialize_document(WriteOptions(pretty=True))
     ```
 
 === "C++"

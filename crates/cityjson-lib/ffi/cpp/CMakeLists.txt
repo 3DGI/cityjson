@@ -77,4 +77,12 @@ if(BUILD_TESTING)
   get_filename_component(CITYJSON_LIB_FFI_CORE_LIB_DIR "${CITYJSON_LIB_FFI_CORE_SHARED_LIB}" DIRECTORY)
   set_target_properties(cityjson_lib_cpp_smoke PROPERTIES BUILD_RPATH "${CITYJSON_LIB_FFI_CORE_LIB_DIR}")
   add_test(NAME cityjson_lib_cpp_smoke COMMAND cityjson_lib_cpp_smoke)
+
+  add_executable(cityjson_lib_cpp_fake_complete examples/fake_complete.cpp)
+  target_link_libraries(cityjson_lib_cpp_fake_complete PRIVATE cityjson_lib_cpp)
+  set_target_properties(
+    cityjson_lib_cpp_fake_complete
+    PROPERTIES
+      BUILD_RPATH "${CITYJSON_LIB_FFI_CORE_LIB_DIR}"
+  )
 endif()

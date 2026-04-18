@@ -300,20 +300,8 @@ class CityModel:
     def clear_transform(self) -> None:
         _ffi.clear_transform(self._handle)
 
-    def add_cityobject(self, cityobject_id: str, cityobject_type: str) -> None:
-        _ffi.add_cityobject(self._handle, cityobject_id, cityobject_type)
-
     def remove_cityobject(self, cityobject_id: str) -> None:
         _ffi.remove_cityobject(self._handle, cityobject_id)
-
-    def attach_geometry_to_cityobject(self, cityobject_id: str, geometry_index: int) -> None:
-        _ffi.attach_geometry_to_cityobject(self._handle, cityobject_id, geometry_index)
-
-    def clear_cityobject_geometry(self, cityobject_id: str) -> None:
-        _ffi.clear_cityobject_geometry(self._handle, cityobject_id)
-
-    def add_geometry_from_boundary(self, boundary: GeometryBoundary, lod: str | None = None) -> int:
-        return _ffi.add_geometry_from_boundary(self._handle, boundary.to_native_payload(), lod)
 
     def append_model(self, other: Self) -> None:
         _ffi.append_model(self._handle, other._handle)

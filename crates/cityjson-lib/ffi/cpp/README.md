@@ -1,29 +1,29 @@
 # C++ Binding Layout
 
-This directory holds the first public C++ wrapper over the shared low-level
+This directory holds the public C++ wrapper over the shared low-level
 `cityjson_lib` FFI core.
 
 Current layout:
 
 - `include/`: public headers
-- `tests/`: C++ smoke and integration tests
+- `examples/`: standalone authoring examples
+- `tests/`: C++ smoke coverage
 
-The current wrapper is intentionally small:
+The write-side wrapper is now centered on typed authoring objects instead of
+boundary-only helpers:
 
-- RAII ownership for `cj_model_t`
-- probe, parse, serialize, and create helpers
-- model summary queries
-- metadata setters and getters, cityobject inspection, geometry-type, and single-geometry access
-- transform write control, cityobject mutation, geometry attachment, extraction, append, and cleanup
-- boundary-backed geometry insertion and feature-stream serialization helpers
-- a CMake smoke test linked against the shared FFI library
+- `Value` for recursive attributes and extra members
+- `Contact` for metadata point-of-contact authoring
+- `CityObjectDraft`, `RingDraft`, `SurfaceDraft`, `ShellDraft`, and `GeometryDraft`
+- typed resource ids for cityobjects, geometries, templates, semantics, materials, and textures
+- `Model` methods for metadata, extensions, appearance resources, hierarchy links, and serialization
 
-The C++ layer stays RAII-oriented and STL-friendly while compiling down to the
-shared low-level core without wrapper-wide projected cityobject materialization.
+The main end-to-end reference is [examples/fake_complete.cpp](examples/fake_complete.cpp),
+which builds the full fake-complete CityJSON fixture through the C++ API alone.
 
 The shared C ABI header is generated into `../core/include/cityjson_lib/cityjson_lib.h` via
-`just ffi build header`. The C++ wrapper should treat that header as its canonical
-low-level contract rather than duplicating the declarations.
+`just ffi build header`. The C++ wrapper treats that header as the canonical
+low-level contract rather than duplicating declarations.
 
 The wrapper is installable through CMake and exposes a generated package config
 that installs the headers and links to the shared Rust FFI library.

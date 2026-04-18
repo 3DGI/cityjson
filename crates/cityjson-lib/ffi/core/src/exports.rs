@@ -8,27 +8,46 @@ use std::str::FromStr;
 use cityjson_lib::cityjson::v2_0::{
     Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
-    CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Geometry, GeometryType,
-    LoD, StoredGeometryParts, Transform,
+    CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Contact,
+    ContactRole, ContactType, Extension, Geometry, GeometryType, ImageType, LoD, Material, RGB,
+    RGBA, Semantic, SemanticType, StoredGeometryParts, Texture, TextureType, Transform, WrapMode,
 };
 use cityjson_lib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_bytes_t, cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t,
-    cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_type_t,
-    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_model_capacities_t,
-    cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_status_t, cj_string_view_t,
-    cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_t,
+    cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t, cj_contact_role_t,
+    cj_contact_t, cj_contact_type_t, cj_error_kind_t, cj_geometry_boundary_t,
+    cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_type_t, cj_image_type_t,
+    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_material_id_t,
+    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_rgb_t,
+    cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t, cj_solid_draft_t,
+    cj_status_t, cj_string_view_t, cj_surface_draft_t, cj_texture_id_t, cj_texture_type_t,
+    cj_transform_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t, cj_wrap_mode_t,
+    cj_cityobject_draft_t, cj_cityobject_id_t, cj_geometry_id_t, cj_geometry_template_id_t,
+};
+use crate::authoring::{
+    GeometryAuthoring, LineStringAuthoring, OwnedCityObject, OwnedContact, OwnedMaterial,
+    OwnedSemantic, OwnedTexture, OwnedValue, PointAuthoring, RingAuthoring,
+    RingTextureAuthoring, ShellAuthoring, SolidAuthoring, SurfaceAuthoring, UvAuthoring,
+    VertexAuthoring,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
     run_ffi,
 };
 use crate::handle::{
-    bytes_free as free_bytes, bytes_from_vec, geometry_boundary_free as free_geometry_boundary,
+    bytes_free as free_bytes, bytes_from_vec, cityobject_draft_as_mut, cityobject_draft_free,
+    cityobject_draft_into_handle, cityobject_draft_take, contact_as_mut, contact_free,
+    contact_into_handle, contact_take, geometry_boundary_free as free_geometry_boundary,
+    geometry_draft_as_mut, geometry_draft_free, geometry_draft_into_handle, geometry_draft_take,
     indices_free as free_indices, indices_from_vec, model_as_mut, model_as_ref, model_free,
-    model_into_handle, uvs_free as free_uvs, uvs_from_vec, vertices_free as free_vertices,
-    vertices_from_vec,
+    model_into_handle, ring_draft_as_mut, ring_draft_free, ring_draft_into_handle, ring_draft_take,
+    shell_draft_as_mut, shell_draft_free, shell_draft_into_handle, shell_draft_take,
+    solid_draft_as_mut, solid_draft_free, solid_draft_into_handle, solid_draft_take,
+    surface_draft_as_mut, surface_draft_free, surface_draft_into_handle, surface_draft_take,
+    uvs_free as free_uvs, uvs_from_vec, value_as_mut, value_free, value_into_handle, value_take,
+    vertices_free as free_vertices, vertices_from_vec,
 };
 
 type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
@@ -148,6 +167,61 @@ fn required_model_mut<'a>(model: *mut cj_model_t) -> Result<&'a mut CityModel, A
     unsafe { model_as_mut(model) }.ok_or_else(|| invalid_argument("model must not be null"))
 }
 
+fn required_value_mut<'a>(value: *mut cj_value_t) -> Result<&'a mut OwnedValue, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { value_as_mut(value) }.ok_or_else(|| invalid_argument("value must not be null"))
+}
+
+fn required_contact_mut<'a>(contact: *mut cj_contact_t) -> Result<&'a mut OwnedContact, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { contact_as_mut(contact) }.ok_or_else(|| invalid_argument("contact must not be null"))
+}
+
+fn required_cityobject_draft_mut<'a>(
+    draft: *mut cj_cityobject_draft_t,
+) -> Result<&'a mut OwnedCityObject, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { cityobject_draft_as_mut(draft) }
+        .ok_or_else(|| invalid_argument("draft must not be null"))
+}
+
+fn required_ring_draft_mut<'a>(
+    draft: *mut cj_ring_draft_t,
+) -> Result<&'a mut RingAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { ring_draft_as_mut(draft) }.ok_or_else(|| invalid_argument("ring must not be null"))
+}
+
+fn required_surface_draft_mut<'a>(
+    draft: *mut cj_surface_draft_t,
+) -> Result<&'a mut SurfaceAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { surface_draft_as_mut(draft) }
+        .ok_or_else(|| invalid_argument("surface must not be null"))
+}
+
+fn required_shell_draft_mut<'a>(
+    draft: *mut cj_shell_draft_t,
+) -> Result<&'a mut ShellAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { shell_draft_as_mut(draft) }.ok_or_else(|| invalid_argument("shell must not be null"))
+}
+
+fn required_solid_draft_mut<'a>(
+    draft: *mut cj_solid_draft_t,
+) -> Result<&'a mut SolidAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { solid_draft_as_mut(draft) }.ok_or_else(|| invalid_argument("solid must not be null"))
+}
+
+fn required_geometry_draft_mut<'a>(
+    draft: *mut cj_geometry_draft_t,
+) -> Result<&'a mut GeometryAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    unsafe { geometry_draft_as_mut(draft) }
+        .ok_or_else(|| invalid_argument("geometry draft must not be null"))
+}
+
 fn write_value<T>(out: *mut T, name: &'static str, value: T) -> Result<(), AbiError> {
     let out =
         NonNull::new(out).ok_or_else(|| invalid_argument(format!("{name} must not be null")))?;
@@ -257,6 +331,132 @@ fn transform_from_abi(transform: cj_transform_t) -> Transform {
     value
 }
 
+fn bbox_from_abi(bbox: cj_bbox_t) -> cityjson_lib::cityjson::v2_0::BBox {
+    cityjson_lib::cityjson::v2_0::BBox::new(
+        bbox.min_x, bbox.min_y, bbox.min_z, bbox.max_x, bbox.max_y, bbox.max_z,
+    )
+}
+
+fn affine_transform_from_abi(value: cj_affine_transform_4x4_t) -> cityjson_lib::cityjson::v2_0::AffineTransform3D {
+    cityjson_lib::cityjson::v2_0::AffineTransform3D::new(value.elements)
+}
+
+fn semantic_from_abi(value: cj_semantic_id_t) -> cityjson_lib::cityjson::resources::handles::SemanticHandle {
+    value.into()
+}
+
+fn material_from_abi(value: cj_material_id_t) -> cityjson_lib::cityjson::resources::handles::MaterialHandle {
+    value.into()
+}
+
+fn texture_from_abi(value: cj_texture_id_t) -> cityjson_lib::cityjson::resources::handles::TextureHandle {
+    value.into()
+}
+
+fn geometry_from_abi(value: cj_geometry_id_t) -> cityjson_lib::cityjson::resources::handles::GeometryHandle {
+    value.into()
+}
+
+fn geometry_template_from_abi(
+    value: cj_geometry_template_id_t,
+) -> cityjson_lib::cityjson::resources::handles::GeometryTemplateHandle {
+    value.into()
+}
+
+fn cityobject_from_abi(
+    value: cj_cityobject_id_t,
+) -> cityjson_lib::cityjson::resources::handles::CityObjectHandle {
+    value.into()
+}
+
+fn contact_role_from_abi(value: cj_contact_role_t) -> ContactRole {
+    match value {
+        cj_contact_role_t::CJ_CONTACT_ROLE_AUTHOR => ContactRole::Author,
+        cj_contact_role_t::CJ_CONTACT_ROLE_CO_AUTHOR => ContactRole::CoAuthor,
+        cj_contact_role_t::CJ_CONTACT_ROLE_PROCESSOR => ContactRole::Processor,
+        cj_contact_role_t::CJ_CONTACT_ROLE_POINT_OF_CONTACT => ContactRole::PointOfContact,
+        cj_contact_role_t::CJ_CONTACT_ROLE_OWNER => ContactRole::Owner,
+        cj_contact_role_t::CJ_CONTACT_ROLE_USER => ContactRole::User,
+        cj_contact_role_t::CJ_CONTACT_ROLE_DISTRIBUTOR => ContactRole::Distributor,
+        cj_contact_role_t::CJ_CONTACT_ROLE_ORIGINATOR => ContactRole::Originator,
+        cj_contact_role_t::CJ_CONTACT_ROLE_CUSTODIAN => ContactRole::Custodian,
+        cj_contact_role_t::CJ_CONTACT_ROLE_RESOURCE_PROVIDER => ContactRole::ResourceProvider,
+        cj_contact_role_t::CJ_CONTACT_ROLE_RIGHTS_HOLDER => ContactRole::RightsHolder,
+        cj_contact_role_t::CJ_CONTACT_ROLE_SPONSOR => ContactRole::Sponsor,
+        cj_contact_role_t::CJ_CONTACT_ROLE_PRINCIPAL_INVESTIGATOR => {
+            ContactRole::PrincipalInvestigator
+        }
+        cj_contact_role_t::CJ_CONTACT_ROLE_STAKEHOLDER => ContactRole::Stakeholder,
+        cj_contact_role_t::CJ_CONTACT_ROLE_PUBLISHER => ContactRole::Publisher,
+    }
+}
+
+fn contact_type_from_abi(value: cj_contact_type_t) -> ContactType {
+    match value {
+        cj_contact_type_t::CJ_CONTACT_TYPE_INDIVIDUAL => ContactType::Individual,
+        cj_contact_type_t::CJ_CONTACT_TYPE_ORGANIZATION => ContactType::Organization,
+    }
+}
+
+fn image_type_from_abi(value: cj_image_type_t) -> ImageType {
+    match value {
+        cj_image_type_t::CJ_IMAGE_TYPE_PNG => ImageType::Png,
+        cj_image_type_t::CJ_IMAGE_TYPE_JPG => ImageType::Jpg,
+    }
+}
+
+fn wrap_mode_from_abi(value: cj_wrap_mode_t) -> WrapMode {
+    match value {
+        cj_wrap_mode_t::CJ_WRAP_MODE_WRAP => WrapMode::Wrap,
+        cj_wrap_mode_t::CJ_WRAP_MODE_MIRROR => WrapMode::Mirror,
+        cj_wrap_mode_t::CJ_WRAP_MODE_CLAMP => WrapMode::Clamp,
+        cj_wrap_mode_t::CJ_WRAP_MODE_BORDER => WrapMode::Border,
+        cj_wrap_mode_t::CJ_WRAP_MODE_NONE => WrapMode::None,
+    }
+}
+
+fn texture_type_from_abi(value: cj_texture_type_t) -> TextureType {
+    match value {
+        cj_texture_type_t::CJ_TEXTURE_TYPE_UNKNOWN => TextureType::Unknown,
+        cj_texture_type_t::CJ_TEXTURE_TYPE_SPECIFIC => TextureType::Specific,
+        cj_texture_type_t::CJ_TEXTURE_TYPE_TYPICAL => TextureType::Typical,
+    }
+}
+
+fn semantic_type_from_string(value: String) -> SemanticType<cityjson_lib::cityjson::resources::storage::OwnedStringStorage> {
+    match value.as_str() {
+        "Default" => SemanticType::Default,
+        "RoofSurface" => SemanticType::RoofSurface,
+        "GroundSurface" => SemanticType::GroundSurface,
+        "WallSurface" => SemanticType::WallSurface,
+        "ClosureSurface" => SemanticType::ClosureSurface,
+        "OuterCeilingSurface" => SemanticType::OuterCeilingSurface,
+        "OuterFloorSurface" => SemanticType::OuterFloorSurface,
+        "Window" => SemanticType::Window,
+        "Door" => SemanticType::Door,
+        "InteriorWallSurface" => SemanticType::InteriorWallSurface,
+        "CeilingSurface" => SemanticType::CeilingSurface,
+        "FloorSurface" => SemanticType::FloorSurface,
+        "WaterSurface" => SemanticType::WaterSurface,
+        "WaterGroundSurface" => SemanticType::WaterGroundSurface,
+        "WaterClosureSurface" => SemanticType::WaterClosureSurface,
+        "TrafficArea" => SemanticType::TrafficArea,
+        "AuxiliaryTrafficArea" => SemanticType::AuxiliaryTrafficArea,
+        "TransportationMarking" => SemanticType::TransportationMarking,
+        "TransportationHole" => SemanticType::TransportationHole,
+        _ if value.starts_with('+') => SemanticType::Extension(value),
+        _ => SemanticType::Extension(value),
+    }
+}
+
+fn rgb_from_abi(value: cj_rgb_t) -> RGB {
+    RGB::new(value.r, value.g, value.b)
+}
+
+fn rgba_from_abi(value: cj_rgba_t) -> RGBA {
+    RGBA::new(value.r, value.g, value.b, value.a)
+}
+
 fn copy_string_bytes(value: Option<&str>) -> Vec<u8> {
     value.unwrap_or_default().as_bytes().to_vec()
 }
@@ -340,6 +540,43 @@ fn find_geometry_handle(
         .ok_or_else(|| invalid_argument(format!("geometry index {index} is out of range")))
 }
 
+fn required_semantic_mut(
+    model: &mut CityModel,
+    semantic: cj_semantic_id_t,
+) -> Result<&mut OwnedSemantic, AbiError> {
+    model
+        .get_semantic_mut(semantic_from_abi(semantic))
+        .ok_or_else(|| invalid_argument("semantic id is invalid for this model"))
+}
+
+fn required_material_mut(
+    model: &mut CityModel,
+    material: cj_material_id_t,
+) -> Result<&mut OwnedMaterial, AbiError> {
+    model
+        .get_material_mut(material_from_abi(material))
+        .ok_or_else(|| invalid_argument("material id is invalid for this model"))
+}
+
+fn required_texture_mut(
+    model: &mut CityModel,
+    texture: cj_texture_id_t,
+) -> Result<&mut OwnedTexture, AbiError> {
+    model
+        .get_texture_mut(texture_from_abi(texture))
+        .ok_or_else(|| invalid_argument("texture id is invalid for this model"))
+}
+
+fn required_cityobject_by_handle_mut(
+    model: &mut CityModel,
+    cityobject: cj_cityobject_id_t,
+) -> Result<&mut OwnedCityObject, AbiError> {
+    model
+        .cityobjects_mut()
+        .get_mut(cityobject_from_abi(cityobject))
+        .ok_or_else(|| invalid_argument("cityobject id is invalid for this model"))
+}
+
 fn parse_lod(value: Option<String>) -> Result<Option<LoD>, AbiError> {
     fn parse_one(lod: &str) -> Option<LoD> {
         Some(match lod {
@@ -372,6 +609,65 @@ fn parse_lod(value: Option<String>) -> Result<Option<LoD>, AbiError> {
             parse_one(&lod).ok_or_else(|| invalid_argument(format!("invalid lod value '{lod}'")))
         })
         .transpose()
+}
+
+fn take_value_handle(handle: *mut cj_value_t) -> Result<OwnedValue, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let value = unsafe { value_take(handle) }.ok_or_else(|| invalid_argument("value must not be null"))?;
+    Ok(*value)
+}
+
+fn take_contact_handle(handle: *mut cj_contact_t) -> Result<OwnedContact, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let contact = unsafe { contact_take(handle) }
+        .ok_or_else(|| invalid_argument("contact must not be null"))?;
+    Ok(*contact)
+}
+
+fn take_cityobject_draft_handle(handle: *mut cj_cityobject_draft_t) -> Result<OwnedCityObject, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let draft = unsafe { cityobject_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("draft must not be null"))?;
+    Ok(*draft)
+}
+
+fn take_ring_draft_handle(handle: *mut cj_ring_draft_t) -> Result<RingAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let ring = unsafe { ring_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("ring must not be null"))?;
+    Ok(*ring)
+}
+
+fn take_surface_draft_handle(
+    handle: *mut cj_surface_draft_t,
+) -> Result<SurfaceAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let surface = unsafe { surface_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("surface must not be null"))?;
+    Ok(*surface)
+}
+
+fn take_shell_draft_handle(handle: *mut cj_shell_draft_t) -> Result<ShellAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let shell = unsafe { shell_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("shell must not be null"))?;
+    Ok(*shell)
+}
+
+fn take_solid_draft_handle(handle: *mut cj_solid_draft_t) -> Result<SolidAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let solid = unsafe { solid_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("solid must not be null"))?;
+    Ok(*solid)
+}
+
+fn take_geometry_draft_handle(
+    handle: *mut cj_geometry_draft_t,
+) -> Result<GeometryAuthoring, AbiError> {
+    // SAFETY: null is rejected here; valid handles originate from Rust.
+    let draft = unsafe { geometry_draft_take(handle) }
+        .ok_or_else(|| invalid_argument("geometry draft must not be null"))?;
+    Ok(*draft)
 }
 
 fn geometry_type_from_abi(value: cj_geometry_type_t) -> GeometryType {
@@ -721,6 +1017,134 @@ pub extern "C" fn cj_geometry_boundary_free(boundary: cj_geometry_boundary_t) ->
         // SAFETY: the ABI only frees boundary payloads allocated by `boundary_from_geometry`.
         unsafe {
             free_geometry_boundary(boundary);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_free(handle: *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            value_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_free(handle: *mut cj_contact_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            contact_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_cityobject_draft_free(handle: *mut cj_cityobject_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            cityobject_draft_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_free(handle: *mut cj_ring_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            ring_draft_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_surface_draft_free(handle: *mut cj_surface_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            surface_draft_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_shell_draft_free(handle: *mut cj_shell_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            shell_draft_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_solid_draft_free(handle: *mut cj_solid_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            solid_draft_free(handle);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_free(handle: *mut cj_geometry_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if handle.is_null() {
+            return Ok(());
+        }
+
+        // SAFETY: the ABI only frees handles that it allocated.
+        unsafe {
+            geometry_draft_free(handle);
         }
 
         Ok(())
@@ -1172,26 +1596,6 @@ pub extern "C" fn cj_model_clear_transform(model: *mut cj_model_t) -> cj_status_
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn cj_model_add_cityobject(
-    model: *mut cj_model_t,
-    id: cj_string_view_t,
-    cityobject_type: cj_string_view_t,
-) -> cj_status_t {
-    ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let id = view_utf8(id, "id")?;
-        let cityobject_type = view_utf8(cityobject_type, "cityobject_type")?;
-        let cityobject_type =
-            CityObjectType::from_str(&cityobject_type).map_err(cityjson_lib::Error::from)?;
-        let cityobject = CityObject::new(CityObjectIdentifier::new(id), cityobject_type);
-        required_model_mut(model)?
-            .cityobjects_mut()
-            .add(cityobject)
-            .map_err(cityjson_lib::Error::from)?;
-        Ok(())
-    }))
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn cj_model_remove_cityobject(
     model: *mut cj_model_t,
     id: cj_string_view_t,
@@ -1462,5 +1866,1134 @@ pub extern "C" fn cj_model_serialize_cityjsonseq_auto_transform(
             [options.scale_x, options.scale_y, options.scale_z],
         )?;
         write_bytes(out_bytes, buffer)
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_null(out_value: *mut *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::Null));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_bool(value: bool, out_value: *mut *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::Bool(value)));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_int64(value: i64, out_value: *mut *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::Integer(value)));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_float64(
+    value: f64,
+    out_value: *mut *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::Float(value)));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_string(
+    value: cj_string_view_t,
+    out_value: *mut *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        let value = view_utf8(value, "value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::String(value)));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_array(out_value: *mut *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), value_into_handle(OwnedValue::Vec(Vec::new())));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_object(out_value: *mut *mut cj_value_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(
+                out.as_ptr(),
+                value_into_handle(OwnedValue::Map(std::collections::HashMap::new())),
+            );
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_new_geometry_ref(
+    value: cj_geometry_id_t,
+    out_value: *mut *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_value, "out_value")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(
+                out.as_ptr(),
+                value_into_handle(OwnedValue::Geometry(geometry_from_abi(value))),
+            );
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_array_push(
+    array_value: *mut cj_value_t,
+    element: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let element = take_value_handle(element)?;
+        match required_value_mut(array_value)? {
+            OwnedValue::Vec(values) => {
+                values.push(element);
+                Ok(())
+            }
+            _ => Err(invalid_argument("array_value must be an array")),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_value_object_insert(
+    object_value: *mut cj_value_t,
+    key: cj_string_view_t,
+    member_value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let key = view_utf8(key, "key")?;
+        let member_value = take_value_handle(member_value)?;
+        match required_value_mut(object_value)? {
+            OwnedValue::Map(values) => {
+                values.insert(key, member_value);
+                Ok(())
+            }
+            _ => Err(invalid_argument("object_value must be an object")),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_new(out_contact: *mut *mut cj_contact_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_contact, "out_contact")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), contact_into_handle(Contact::new()));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_name(
+    contact: *mut cj_contact_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_contact_name(view_utf8(value, "value")?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_email(
+    contact: *mut cj_contact_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_email_address(view_utf8(value, "value")?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_role(
+    contact: *mut cj_contact_t,
+    value: cj_contact_role_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_role(Some(contact_role_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_website(
+    contact: *mut cj_contact_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_website(Some(view_utf8(value, "value")?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_type(
+    contact: *mut cj_contact_t,
+    value: cj_contact_type_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_contact_type(Some(contact_type_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_phone(
+    contact: *mut cj_contact_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_phone(Some(view_utf8(value, "value")?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_organization(
+    contact: *mut cj_contact_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_contact_mut(contact)?.set_organization(Some(view_utf8(value, "value")?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_contact_set_address(
+    contact: *mut cj_contact_t,
+    object_value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let object_value = take_value_handle(object_value)?;
+        match object_value {
+            OwnedValue::Map(values) => {
+                required_contact_mut(contact)?.set_address(Some(values.into()));
+                Ok(())
+            }
+            _ => Err(invalid_argument("object_value must be an object")),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_geographical_extent(
+    model: *mut cj_model_t,
+    bbox: cj_bbox_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .metadata_mut()
+            .set_geographical_extent(bbox_from_abi(bbox));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_reference_date(
+    model: *mut cj_model_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .metadata_mut()
+            .set_reference_date(cityjson_lib::cityjson::v2_0::Date::new(view_utf8(value, "value")?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_reference_system(
+    model: *mut cj_model_t,
+    value: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .metadata_mut()
+            .set_reference_system(cityjson_lib::cityjson::v2_0::CRS::new(view_utf8(value, "value")?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_contact(
+    model: *mut cj_model_t,
+    contact: *mut cj_contact_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .metadata_mut()
+            .set_point_of_contact(Some(take_contact_handle(contact)?));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_metadata_extra(
+    model: *mut cj_model_t,
+    key: cj_string_view_t,
+    value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .metadata_mut()
+            .extra_mut()
+            .insert(view_utf8(key, "key")?, take_value_handle(value)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_root_extra(
+    model: *mut cj_model_t,
+    key: cj_string_view_t,
+    value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .extra_mut()
+            .insert(view_utf8(key, "key")?, take_value_handle(value)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_extension(
+    model: *mut cj_model_t,
+    name: cj_string_view_t,
+    url: cj_string_view_t,
+    version: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?.extensions_mut().add(Extension::new(
+            view_utf8(name, "name")?,
+            view_utf8(url, "url")?,
+            view_utf8(version, "version")?,
+        ));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_semantic(
+    model: *mut cj_model_t,
+    semantic_type: cj_string_view_t,
+    out_id: *mut cj_semantic_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let handle = required_model_mut(model)?
+            .add_semantic(Semantic::new(semantic_type_from_string(view_utf8(
+                semantic_type,
+                "semantic_type",
+            )?)))
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_semantic_parent(
+    model: *mut cj_model_t,
+    semantic: cj_semantic_id_t,
+    parent: cj_semantic_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let semantic_handle = semantic_from_abi(semantic);
+        let parent_handle = semantic_from_abi(parent);
+        let model = required_model_mut(model)?;
+        {
+            let semantic_mut = model
+                .get_semantic_mut(semantic_handle)
+                .ok_or_else(|| invalid_argument("semantic id is invalid for this model"))?;
+            semantic_mut.set_parent(parent_handle);
+        }
+        {
+            let parent_mut = model
+                .get_semantic_mut(parent_handle)
+                .ok_or_else(|| invalid_argument("parent id is invalid for this model"))?;
+            if !parent_mut.children().is_some_and(|children| children.contains(&semantic_handle)) {
+                parent_mut.children_mut().push(semantic_handle);
+            }
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_semantic_set_extra(
+    model: *mut cj_model_t,
+    semantic: cj_semantic_id_t,
+    key: cj_string_view_t,
+    value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_semantic_mut(required_model_mut(model)?, semantic)?
+            .attributes_mut()
+            .insert(view_utf8(key, "key")?, take_value_handle(value)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_material(
+    model: *mut cj_model_t,
+    name: cj_string_view_t,
+    out_id: *mut cj_material_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let handle = required_model_mut(model)?
+            .add_material(Material::new(view_utf8(name, "name")?))
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_ambient_intensity(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: f32,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?
+            .set_ambient_intensity(Some(value));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_diffuse_color(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: cj_rgb_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?
+            .set_diffuse_color(Some(rgb_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_emissive_color(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: cj_rgb_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?
+            .set_emissive_color(Some(rgb_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_specular_color(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: cj_rgb_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?
+            .set_specular_color(Some(rgb_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_shininess(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: f32,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?.set_shininess(Some(value));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_transparency(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: f32,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?.set_transparency(Some(value));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_material_set_is_smooth(
+    model: *mut cj_model_t,
+    material: cj_material_id_t,
+    value: bool,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_material_mut(required_model_mut(model)?, material)?.set_is_smooth(Some(value));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_texture(
+    model: *mut cj_model_t,
+    image: cj_string_view_t,
+    image_type: cj_image_type_t,
+    out_id: *mut cj_texture_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let handle = required_model_mut(model)?
+            .add_texture(Texture::new(
+                view_utf8(image, "image")?,
+                image_type_from_abi(image_type),
+            ))
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_texture_set_wrap_mode(
+    model: *mut cj_model_t,
+    texture: cj_texture_id_t,
+    value: cj_wrap_mode_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_texture_mut(required_model_mut(model)?, texture)?
+            .set_wrap_mode(Some(wrap_mode_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_texture_set_texture_type(
+    model: *mut cj_model_t,
+    texture: cj_texture_id_t,
+    value: cj_texture_type_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_texture_mut(required_model_mut(model)?, texture)?
+            .set_texture_type(Some(texture_type_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_texture_set_border_color(
+    model: *mut cj_model_t,
+    texture: cj_texture_id_t,
+    value: cj_rgba_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_texture_mut(required_model_mut(model)?, texture)?
+            .set_border_color(Some(rgba_from_abi(value)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_default_material_theme(
+    model: *mut cj_model_t,
+    theme: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .set_default_material_theme(Some(cityjson_lib::cityjson::v2_0::ThemeName::new(
+                view_utf8(theme, "theme")?,
+            )));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_set_default_texture_theme(
+    model: *mut cj_model_t,
+    theme: cj_string_view_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_model_mut(model)?
+            .set_default_texture_theme(Some(cityjson_lib::cityjson::v2_0::ThemeName::new(
+                view_utf8(theme, "theme")?,
+            )));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_cityobject_draft_new(
+    id: cj_string_view_t,
+    cityobject_type: cj_string_view_t,
+    out_draft: *mut *mut cj_cityobject_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let id = view_utf8(id, "id")?;
+        let cityobject_type = view_utf8(cityobject_type, "cityobject_type")?;
+        let cityobject_type =
+            CityObjectType::from_str(&cityobject_type).map_err(cityjson_lib::Error::from)?;
+        let draft = CityObject::new(CityObjectIdentifier::new(id), cityobject_type);
+        let out = required_out(out_draft, "out_draft")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), cityobject_draft_into_handle(draft));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_cityobject_draft_set_geographical_extent(
+    draft: *mut cj_cityobject_draft_t,
+    bbox: cj_bbox_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_cityobject_draft_mut(draft)?.set_geographical_extent(Some(bbox_from_abi(bbox)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_cityobject_draft_set_attribute(
+    draft: *mut cj_cityobject_draft_t,
+    key: cj_string_view_t,
+    value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_cityobject_draft_mut(draft)?
+            .attributes_mut()
+            .insert(view_utf8(key, "key")?, take_value_handle(value)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_cityobject_draft_set_extra(
+    draft: *mut cj_cityobject_draft_t,
+    key: cj_string_view_t,
+    value: *mut cj_value_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_cityobject_draft_mut(draft)?
+            .extra_mut()
+            .insert(view_utf8(key, "key")?, take_value_handle(value)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_cityobject(
+    model: *mut cj_model_t,
+    draft: *mut cj_cityobject_draft_t,
+    out_id: *mut cj_cityobject_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let handle = required_model_mut(model)?
+            .cityobjects_mut()
+            .add(take_cityobject_draft_handle(draft)?)
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_cityobject_add_geometry(
+    model: *mut cj_model_t,
+    cityobject: cj_cityobject_id_t,
+    geometry: cj_geometry_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let geometry_handle = geometry_from_abi(geometry);
+        let model = required_model_mut(model)?;
+        if model.get_geometry(geometry_handle).is_none() {
+            return Err(invalid_argument("geometry id is invalid for this model"));
+        }
+        required_cityobject_by_handle_mut(model, cityobject)?.add_geometry(geometry_handle);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_cityobject_add_parent(
+    model: *mut cj_model_t,
+    child: cj_cityobject_id_t,
+    parent: cj_cityobject_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let child_handle = cityobject_from_abi(child);
+        let parent_handle = cityobject_from_abi(parent);
+        let model = required_model_mut(model)?;
+        {
+            let child = model
+                .cityobjects_mut()
+                .get_mut(child_handle)
+                .ok_or_else(|| invalid_argument("child cityobject id is invalid for this model"))?;
+            child.add_parent(parent_handle);
+        }
+        {
+            let parent = model.cityobjects_mut().get_mut(parent_handle).ok_or_else(|| {
+                invalid_argument("parent cityobject id is invalid for this model")
+            })?;
+            parent.add_child(child_handle);
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_new(out_ring: *mut *mut cj_ring_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_ring, "out_ring")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), ring_draft_into_handle(RingAuthoring::default()));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_push_vertex_index(
+    ring: *mut cj_ring_draft_t,
+    vertex_index: u32,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_ring_draft_mut(ring)?
+            .vertices
+            .push(VertexAuthoring::Existing(vertex_index.into()));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_push_vertex(
+    ring: *mut cj_ring_draft_t,
+    vertex: cj_vertex_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_ring_draft_mut(ring)?
+            .vertices
+            .push(VertexAuthoring::New(vertex.into()));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_add_texture(
+    ring: *mut cj_ring_draft_t,
+    theme: cj_string_view_t,
+    texture: cj_texture_id_t,
+    uv_indices: *const u32,
+    uv_index_count: usize,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let theme = view_utf8(theme, "theme")?;
+        let uvs = if uv_index_count == 0 {
+            Vec::new()
+        } else {
+            let ptr = NonNull::new(uv_indices.cast_mut()).ok_or_else(|| {
+                invalid_argument("uv_indices must not be null when uv_index_count is non-zero")
+            })?;
+            // SAFETY: the caller promises `uv_index_count` readable indices.
+            unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), uv_index_count) }
+                .iter()
+                .copied()
+                .map(|index| UvAuthoring::Existing(index.into()))
+                .collect()
+        };
+        required_ring_draft_mut(ring)?
+            .textures
+            .push(RingTextureAuthoring {
+                theme,
+                texture: texture_from_abi(texture),
+                uvs,
+            });
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_ring_draft_add_texture_uvs(
+    ring: *mut cj_ring_draft_t,
+    theme: cj_string_view_t,
+    texture: cj_texture_id_t,
+    uvs: *const cj_uv_t,
+    uv_count: usize,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let theme = view_utf8(theme, "theme")?;
+        let uvs = if uv_count == 0 {
+            Vec::new()
+        } else {
+            let ptr = NonNull::new(uvs.cast_mut()).ok_or_else(|| {
+                invalid_argument("uvs must not be null when uv_count is non-zero")
+            })?;
+            // SAFETY: the caller promises `uv_count` readable uv coordinates.
+            unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), uv_count) }
+                .iter()
+                .copied()
+                .map(|uv| UvAuthoring::New(uv.into()))
+                .collect()
+        };
+        required_ring_draft_mut(ring)?
+            .textures
+            .push(RingTextureAuthoring {
+                theme,
+                texture: texture_from_abi(texture),
+                uvs,
+            });
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_surface_draft_new(
+    outer: *mut cj_ring_draft_t,
+    out_surface: *mut *mut cj_surface_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_surface, "out_surface")?;
+        let outer = take_ring_draft_handle(outer)?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(
+                out.as_ptr(),
+                surface_draft_into_handle(SurfaceAuthoring {
+                    outer,
+                    inners: Vec::new(),
+                    semantic: None,
+                    materials: Vec::new(),
+                }),
+            );
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_surface_draft_add_inner_ring(
+    surface: *mut cj_surface_draft_t,
+    inner: *mut cj_ring_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_surface_draft_mut(surface)?
+            .inners
+            .push(take_ring_draft_handle(inner)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_surface_draft_set_semantic(
+    surface: *mut cj_surface_draft_t,
+    semantic: cj_semantic_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_surface_draft_mut(surface)?.semantic = Some(semantic_from_abi(semantic));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_surface_draft_add_material(
+    surface: *mut cj_surface_draft_t,
+    theme: cj_string_view_t,
+    material: cj_material_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_surface_draft_mut(surface)?
+            .materials
+            .push((view_utf8(theme, "theme")?, material_from_abi(material)));
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_shell_draft_new(out_shell: *mut *mut cj_shell_draft_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_shell, "out_shell")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), shell_draft_into_handle(ShellAuthoring::default()));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_shell_draft_add_surface(
+    shell: *mut cj_shell_draft_t,
+    surface: *mut cj_surface_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_shell_draft_mut(shell)?
+            .surfaces
+            .push(take_surface_draft_handle(surface)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_solid_draft_new(
+    outer: *mut cj_shell_draft_t,
+    out_solid: *mut *mut cj_solid_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let out = required_out(out_solid, "out_solid")?;
+        let outer = take_shell_draft_handle(outer)?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(
+                out.as_ptr(),
+                solid_draft_into_handle(SolidAuthoring {
+                    outer,
+                    inners: Vec::new(),
+                }),
+            );
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_solid_draft_add_inner_shell(
+    solid: *mut cj_solid_draft_t,
+    inner: *mut cj_shell_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        required_solid_draft_mut(solid)?
+            .inners
+            .push(take_shell_draft_handle(inner)?);
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_new(
+    geometry_type: cj_geometry_type_t,
+    lod: cj_string_view_t,
+    out_draft: *mut *mut cj_geometry_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let lod = optional_view_utf8(lod, "lod")?;
+        let draft = GeometryAuthoring::new(geometry_type_from_abi(geometry_type), parse_lod(lod)?);
+        let out = required_out(out_draft, "out_draft")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), geometry_draft_into_handle(draft));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_new_instance(
+    template_id: cj_geometry_template_id_t,
+    reference_vertex_index: u32,
+    transform: cj_affine_transform_4x4_t,
+    out_draft: *mut *mut cj_geometry_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let draft = GeometryAuthoring::instance(
+            geometry_template_from_abi(template_id),
+            VertexAuthoring::Existing(reference_vertex_index.into()),
+            affine_transform_from_abi(transform),
+        );
+        let out = required_out(out_draft, "out_draft")?;
+        // SAFETY: `out` is validated to be non-null and points to writable storage.
+        unsafe {
+            ptr::write(out.as_ptr(), geometry_draft_into_handle(draft));
+        }
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_add_point_vertex_index(
+    draft: *mut cj_geometry_draft_t,
+    vertex_index: u32,
+    semantic: *const cj_semantic_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let semantic = if semantic.is_null() {
+            None
+        } else {
+            // SAFETY: the caller promises a readable semantic pointer when non-null.
+            Some(semantic_from_abi(unsafe { *semantic }))
+        };
+        match required_geometry_draft_mut(draft)? {
+            GeometryAuthoring::MultiPoint { points, .. } => {
+                points.push(PointAuthoring {
+                    vertex: VertexAuthoring::Existing(vertex_index.into()),
+                    semantic,
+                });
+                Ok(())
+            }
+            _ => Err(invalid_argument("geometry draft must be MultiPoint")),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_add_linestring(
+    draft: *mut cj_geometry_draft_t,
+    vertex_indices: *const u32,
+    vertex_index_count: usize,
+    semantic: *const cj_semantic_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let vertices = if vertex_index_count == 0 {
+            Vec::new()
+        } else {
+            let ptr = NonNull::new(vertex_indices.cast_mut()).ok_or_else(|| {
+                invalid_argument(
+                    "vertex_indices must not be null when vertex_index_count is non-zero",
+                )
+            })?;
+            // SAFETY: the caller promises `vertex_index_count` readable indices.
+            unsafe { slice::from_raw_parts(ptr.as_ptr().cast_const(), vertex_index_count) }
+                .iter()
+                .copied()
+                .map(|index| VertexAuthoring::Existing(index.into()))
+                .collect()
+        };
+        let semantic = if semantic.is_null() {
+            None
+        } else {
+            // SAFETY: the caller promises a readable semantic pointer when non-null.
+            Some(semantic_from_abi(unsafe { *semantic }))
+        };
+        match required_geometry_draft_mut(draft)? {
+            GeometryAuthoring::MultiLineString { linestrings, .. } => {
+                linestrings.push(LineStringAuthoring { vertices, semantic });
+                Ok(())
+            }
+            _ => Err(invalid_argument("geometry draft must be MultiLineString")),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_add_surface(
+    draft: *mut cj_geometry_draft_t,
+    surface: *mut cj_surface_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let surface = take_surface_draft_handle(surface)?;
+        match required_geometry_draft_mut(draft)? {
+            GeometryAuthoring::MultiSurface { surfaces, .. }
+            | GeometryAuthoring::CompositeSurface { surfaces, .. } => {
+                surfaces.push(surface);
+                Ok(())
+            }
+            _ => Err(invalid_argument(
+                "geometry draft must be MultiSurface or CompositeSurface",
+            )),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_draft_add_solid(
+    draft: *mut cj_geometry_draft_t,
+    solid: *mut cj_solid_draft_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let solid = take_solid_draft_handle(solid)?;
+        match required_geometry_draft_mut(draft)? {
+            GeometryAuthoring::Solid { solid: slot, .. } => {
+                *slot = Some(solid);
+                Ok(())
+            }
+            GeometryAuthoring::MultiSolid { solids, .. }
+            | GeometryAuthoring::CompositeSolid { solids, .. } => {
+                solids.push(solid);
+                Ok(())
+            }
+            _ => Err(invalid_argument(
+                "geometry draft must be Solid, MultiSolid, or CompositeSolid",
+            )),
+        }
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_geometry(
+    model: *mut cj_model_t,
+    draft: *mut cj_geometry_draft_t,
+    out_id: *mut cj_geometry_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let draft = take_geometry_draft_handle(draft)?
+            .into_draft()
+            .ok_or_else(|| invalid_argument("solid draft is incomplete"))?;
+        let handle = draft
+            .insert_into(required_model_mut(model)?)
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_add_geometry_template(
+    model: *mut cj_model_t,
+    draft: *mut cj_geometry_draft_t,
+    out_id: *mut cj_geometry_template_id_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let draft = take_geometry_draft_handle(draft)?
+            .into_draft()
+            .ok_or_else(|| invalid_argument("solid draft is incomplete"))?;
+        let handle = draft
+            .insert_template_into(required_model_mut(model)?)
+            .map_err(AbiError::from)?;
+        write_value(out_id, "out_id", handle.into())
     }))
 }

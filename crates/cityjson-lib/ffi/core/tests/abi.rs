@@ -3,11 +3,11 @@ use std::slice;
 
 use cityjson_lib_ffi_core::exports::*;
 use cityjson_lib_ffi_core::{
-    AbiError, cj_bytes_t, cj_error_kind_t, cj_geometry_boundary_t, cj_geometry_boundary_view_t,
-    cj_geometry_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
+    AbiError, cj_bytes_t, cj_cityobject_id_t, cj_error_kind_t, cj_geometry_boundary_t,
+    cj_geometry_id_t, cj_geometry_type_t, cj_indices_t, cj_json_write_options_t,
     cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t,
-    cj_vertex_t, cj_vertices_t, run_ffi,
+    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t,
+    cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -41,13 +41,6 @@ fn string_view(value: &str) -> cj_string_view_t {
     cj_string_view_t {
         data: value.as_ptr(),
         len: value.len(),
-    }
-}
-
-fn indices_view(values: &[usize]) -> cj_indices_view_t {
-    cj_indices_view_t {
-        data: values.as_ptr(),
-        len: values.len(),
     }
 }
 
@@ -585,35 +578,57 @@ fn build_targeted_fixture() -> *mut cj_model_t {
         );
     }
 
+    let mut cityobject_draft = ptr::null_mut();
     assert_eq!(
-        cj_model_add_cityobject(handle, string_view("building-a"), string_view("Building")),
-        cj_status_t::CJ_STATUS_SUCCESS
-    );
-
-    let vertex_indices = [0usize, 1, 2, 3, 0];
-    let ring_offsets = [0usize];
-    let surface_offsets = [0usize];
-    let mut geometry_index = usize::MAX;
-    assert_eq!(
-        cj_model_add_geometry_from_boundary(
-            handle,
-            cj_geometry_boundary_view_t {
-                geometry_type: cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
-                vertex_indices: indices_view(&vertex_indices),
-                ring_offsets: indices_view(&ring_offsets),
-                surface_offsets: indices_view(&surface_offsets),
-                shell_offsets: indices_view(&[]),
-                solid_offsets: indices_view(&[]),
-            },
-            string_view("2.2"),
-            &raw mut geometry_index,
+        cj_cityobject_draft_new(
+            string_view("building-a"),
+            string_view("Building"),
+            &raw mut cityobject_draft,
         ),
         cj_status_t::CJ_STATUS_SUCCESS
     );
-    assert_eq!(geometry_index, 0);
-
+    let mut cityobject_id = cj_cityobject_id_t::default();
     assert_eq!(
-        cj_model_attach_geometry_to_cityobject(handle, string_view("building-a"), geometry_index),
+        cj_model_add_cityobject(handle, cityobject_draft, &raw mut cityobject_id),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut ring = ptr::null_mut();
+    assert_eq!(cj_ring_draft_new(&raw mut ring), cj_status_t::CJ_STATUS_SUCCESS);
+    for index in [0_u32, 1, 2, 3] {
+        assert_eq!(
+            cj_ring_draft_push_vertex_index(ring, index),
+            cj_status_t::CJ_STATUS_SUCCESS
+        );
+    }
+
+    let mut surface = ptr::null_mut();
+    assert_eq!(
+        cj_surface_draft_new(ring, &raw mut surface),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut geometry_draft = ptr::null_mut();
+    assert_eq!(
+        cj_geometry_draft_new(
+            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+            string_view("2.2"),
+            &raw mut geometry_draft,
+        ),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_geometry_draft_add_surface(geometry_draft, surface),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    let mut geometry_id = cj_geometry_id_t::default();
+    assert_eq!(
+        cj_model_add_geometry(handle, geometry_draft, &raw mut geometry_id),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_model_cityobject_add_geometry(handle, cityobject_id, geometry_id),
         cj_status_t::CJ_STATUS_SUCCESS
     );
 
