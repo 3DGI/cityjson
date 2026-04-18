@@ -287,8 +287,16 @@
         "attributes_random_keys": {
           "type": "boolean"
         },
-        "attributes_random_values": {
-          "type": "boolean"
+        "attributes_value_mode": {
+          "type": "string",
+          "enum": ["heterogenous", "homogenous"],
+          "default": "heterogenous",
+          "description": "Attribute value mode. 'heterogenous': the same attribute key can have different value types across CityObjects. 'homogenous': a scalar type (bool, integer, unsigned, float, string) is assigned to each attribute key and stays consistent across all CityObjects, inside arrays, and inside maps."
+        },
+        "attributes_allow_null": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow null values for attributes. In heterogenous mode: null is included in the random type pool. In homogenous mode: each value has a 1-in-7 chance of being null instead of the designated scalar type."
         },
         "semantics_enabled": {
           "type": "boolean"

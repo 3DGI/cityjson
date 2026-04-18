@@ -35,14 +35,14 @@ Add `cityjson-fake` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cityjson-fake = "0.4.0"
+cityjson-fake = "0.5.0"
 ```
 
 If you want the JSON serialization helpers, enable the `json` feature:
 
 ```toml
 [dependencies]
-cityjson-fake = { version = "0.4.0", default-features = false, features = ["json"] }
+cityjson-fake = { version = "0.5.0", default-features = false, features = ["json"] }
 ```
 
 Or install the CLI tool:
@@ -116,7 +116,7 @@ The available options are grouped below.
 | Textures    | `--textures-enabled`, `--min-textures`, `--max-textures`, `--nr-themes-textures`, `--max-vertices-texture`, `--texture-allow-none`                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Templates   | `--use-templates`, `--min-templates`, `--max-templates`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Metadata    | `--metadata-enabled`, `--metadata-geographical-extent`, `--metadata-identifier`, `--metadata-reference-date`, `--metadata-reference-system`, `--metadata-title`, `--metadata-point-of-contact`                                                                                                                                                                                                                                                                                                                                                             |
-| Attributes  | `--attributes-enabled`, `--min-attributes`, `--max-attributes`, `--attributes-max-depth`, `--attributes-random-keys`, `--attributes-random-values`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Attributes  | `--attributes-enabled`, `--min-attributes`, `--max-attributes`, `--attributes-max-depth`, `--attributes-random-keys`, `--attributes-value-mode` (`heterogenous` \| `homogenous`), `--attributes-allow-null`                                                                                                                                                                                                                                                                                                                                                |
 | Semantics   | `--semantics-enabled`, `--allowed-types-semantic`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Manifest mode accepts a JSON file whose cases flatten the normal `CJFakeConfig`

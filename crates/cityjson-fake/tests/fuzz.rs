@@ -1,4 +1,4 @@
-use cityjson_fake::attribute::{AttributesBuilder, AttributesFaker};
+use cityjson_fake::attribute::{AttributeValueMode, AttributesBuilder, AttributesFaker};
 use cityjson_fake::material::MaterialBuilder;
 use cityjson_fake::metadata::MetadataBuilder;
 use cityjson_fake::prelude::*;
@@ -181,7 +181,6 @@ proptest! {
         metadata_title in any::<bool>(),
         metadata_point_of_contact in any::<bool>(),
         attributes_random_keys in any::<bool>(),
-        attributes_random_values in any::<bool>(),
         allowed_types_semantic in semantic_type_strategy(),
         call_transform in any::<bool>(),
     ) {
@@ -271,7 +270,8 @@ proptest! {
                 max_attributes: count_value,
                 attributes_max_depth,
                 attributes_random_keys,
-                attributes_random_values,
+                attributes_value_mode: AttributeValueMode::Heterogenous,
+                attributes_allow_null: true,
             },
             semantics: SemanticConfig {
                 semantics_enabled,
@@ -411,11 +411,6 @@ proptest! {
                             assert!(key.starts_with("attr_"));
                         }
                     }
-                    if !attributes_random_values {
-                        for value in attrs.values() {
-                            assert!(matches!(value, OwnedAttributeValue::String(s) if s == "default"));
-                        }
-                    }
                     for value in attrs.values() {
                         assert!(attribute_depth(value) <= attributes_max_depth as usize);
                     }
@@ -469,7 +464,6 @@ proptest! {
         metadata_title in any::<bool>(),
         metadata_point_of_contact in any::<bool>(),
         attributes_random_keys in any::<bool>(),
-        attributes_random_values in any::<bool>(),
         attributes_max_depth in 0u8..=3,
         attributes_min in 0u32..=3,
         attributes_extra in 0u32..=3,
@@ -587,7 +581,8 @@ proptest! {
         let mut attributes_rng = SmallRng::seed_from_u64(4);
         let faker = AttributesFaker {
             random_keys: attributes_random_keys,
-            random_values: attributes_random_values,
+            value_mode: AttributeValueMode::Heterogenous,
+            allow_null: true,
             max_depth: attributes_max_depth,
             min_attrs: attributes_min,
             max_attrs: attributes_min + attributes_extra,
@@ -598,14 +593,6 @@ proptest! {
         if !attributes_random_keys {
             assert!(attributes.keys().all(|key| key.starts_with("attr_")));
         }
-        if !attributes_random_values {
-            assert!(
-                attributes
-                    .values()
-                    .all(|value| matches!(value, OwnedAttributeValue::String(text) if text == "default"))
-            );
-        }
-
         let mut builder_rng = SmallRng::seed_from_u64(5);
         let built_attributes = AttributesBuilder::new()
             .with_random_attributes(&mut builder_rng)

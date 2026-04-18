@@ -16,7 +16,7 @@
 //! assert_eq!(model.cityobjects().len(), 1);
 //! ```
 
-use crate::attribute::AttributesFaker;
+use crate::attribute::{AttributeSchema, AttributeValueMode, AttributesFaker};
 use crate::cli::CJFakeConfig;
 use crate::material::MaterialBuilder;
 use crate::metadata::MetadataBuilder;
@@ -28,9 +28,9 @@ use cityjson::prelude::*;
 use cityjson::v2_0::{
     AffineTransform3D, BBox, CityModel, CityObject, CityObjectIdentifier, CityObjectType,
     GeometryDraft, GeometryType, ImageType, LineStringDraft, LoD, Material, OwnedAttributeValue,
-    OwnedAttributes, OwnedSemantic, PointDraft, RGB, RealWorldCoordinate, RingDraft, Semantic,
-    SemanticType, ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft,
-    VertexDraft, VertexIndex, VertexRef,
+    OwnedSemantic, PointDraft, RGB, RealWorldCoordinate, RingDraft, Semantic, SemanticType,
+    ShellDraft, SolidDraft, SurfaceDraft, Texture, ThemeName, UVCoordinate, UvDraft, VertexDraft,
+    VertexIndex, VertexRef,
 };
 #[cfg(feature = "json")]
 use cityjson_json::{self, WriteOptions};
@@ -43,11 +43,15 @@ use rand::seq::{IndexedRandom, SliceRandom};
 // ─── Internal helpers (all specialised to OwnedStringStorage) ───────────────
 
 /// Obtain a semantic handle for `city_obj_type`, inserting into the model if needed.
+///
+/// If `attr_faker` is `Some`, attributes are generated and attached to the semantic on first
+/// insertion. Subsequent calls for the same semantic type reuse the existing handle.
 fn make_semantic_handle<VR: VertexRef>(
     city_obj_type: &CityObjectType<OwnedStringStorage>,
     rng: &mut SmallRng,
     model: &mut CityModel<VR, OwnedStringStorage>,
     sem_ctx: &SemanticCtx<'_>,
+    attr_faker: Option<(&AttributesFaker, &Option<AttributeSchema>)>,
 ) -> Option<SemanticHandle>
 where
     OwnedSemantic: PartialEq,
@@ -67,7 +71,19 @@ where
         <Option<SemanticType<OwnedStringStorage>> as Dummy<SemanticTypeFaker>>::dummy_with_rng(
             &faker, rng,
         );
-    st.and_then(|s| model.get_or_insert_semantic(Semantic::new(s)).ok())
+    st.and_then(|s| {
+        let mut semantic = Semantic::new(s);
+        if let Some((af, schema)) = attr_faker {
+            let attrs = match schema {
+                Some(sc) => af.generate_from_schema(sc, rng),
+                None => af.generate(rng),
+            };
+            for (k, v) in attrs.iter() {
+                semantic.attributes_mut().insert(k.clone(), v.clone());
+            }
+        }
+        model.get_or_insert_semantic(semantic).ok()
+    })
 }
 
 /// Build one ring using freshly-created vertex coordinates (no pre-generated pool needed).
@@ -156,6 +172,7 @@ struct GeometryCtx<'a> {
     city_obj_type: &'a CityObjectType<OwnedStringStorage>,
     app: &'a AppearanceCtx<'a>,
     sem_ctx: &'a SemanticCtx<'a>,
+    attr_faker: Option<(&'a AttributesFaker, &'a Option<AttributeSchema>)>,
 }
 
 fn make_surfaces<VR: VertexRef>(
@@ -174,7 +191,8 @@ where
     let mut texture_seeded = !used_texture_themes.is_empty();
     (0..count)
         .map(|_| {
-            let sem = make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx);
+            let sem =
+                make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx, ctx.attr_faker);
             let mut mat = ctx.app.pick_material(rng);
             if mat.is_none()
                 && !material_seeded
@@ -281,7 +299,8 @@ where
                 rng.random_range(ctx.coord_range.min_coord..=ctx.coord_range.max_coord),
                 rng.random_range(ctx.coord_range.min_coord..=ctx.coord_range.max_coord),
             ));
-            let sem = make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx);
+            let sem =
+                make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx, ctx.attr_faker);
             let mut p = PointDraft::new(vertex);
             if let Some(h) = sem {
                 p = p.with_semantic(h);
@@ -320,7 +339,8 @@ where
                     ))
                 })
                 .collect();
-            let sem = make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx);
+            let sem =
+                make_semantic_handle(ctx.city_obj_type, rng, model, ctx.sem_ctx, ctx.attr_faker);
             let mut ls = LineStringDraft::new(verts);
             if let Some(h) = sem {
                 ls = ls.with_semantic(h);
@@ -797,8 +817,9 @@ pub struct CityModelBuilder<VR: VertexRef, SS: StringStorage> {
     texture_handles: Vec<TextureHandle>,
     used_material_themes: Vec<String>,
     used_texture_themes: Vec<String>,
-    /// Generated `CityObject` attributes (`OwnedStringStorage`; applied at object creation).
-    attributes_cityobject: Option<OwnedAttributes>,
+    attributes_faker: Option<AttributesFaker>,
+    /// Pre-generated type table for homogenous mode; `None` in heterogenous mode.
+    attributes_schema: Option<AttributeSchema>,
 
     progress_done_metadata: bool,
     progress_done_transform: bool,
@@ -846,7 +867,8 @@ impl<VR: VertexRef, SS: StringStorage<String = String>> CityModelBuilder<VR, SS>
             texture_handles: Vec::new(),
             used_material_themes: Vec::new(),
             used_texture_themes: Vec::new(),
-            attributes_cityobject: None,
+            attributes_faker: None,
+            attributes_schema: None,
             progress_done_metadata: false,
             progress_done_transform: false,
             progress_done_vertices: false,
@@ -1085,6 +1107,10 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
             city_obj_type,
             app,
             sem_ctx,
+            attr_faker: self
+                .attributes_faker
+                .as_ref()
+                .map(|f| (f, &self.attributes_schema)),
         };
         let nr_geometries = get_nr_items(
             self.config.geometry.min_members_cityobject_geometries
@@ -1224,12 +1250,34 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
         let ac = &self.config.attributes;
         let faker = AttributesFaker {
             random_keys: ac.attributes_random_keys,
-            random_values: ac.attributes_random_values,
+            value_mode: ac.attributes_value_mode.clone(),
+            allow_null: ac.attributes_allow_null,
             max_depth: ac.attributes_max_depth,
             min_attrs: ac.min_attributes,
             max_attrs: ac.max_attributes,
         };
-        self.attributes_cityobject = Some(faker.generate(&mut self.rng));
+        let schema = if ac.attributes_value_mode == AttributeValueMode::Homogenous {
+            Some(faker.generate_schema(&mut self.rng))
+        } else {
+            None
+        };
+        // Generate extra attributes for metadata using the same faker and schema,
+        // but only when metadata generation is enabled (so metadata stays None when disabled).
+        if self.config.metadata.metadata_enabled {
+            let meta_attrs = match &schema {
+                Some(s) => faker.generate_from_schema(s, &mut self.rng),
+                None => faker.generate(&mut self.rng),
+            };
+            for (k, v) in meta_attrs.iter() {
+                self.model
+                    .metadata_mut()
+                    .extra_mut()
+                    .insert(k.clone(), v.clone());
+            }
+        }
+
+        self.attributes_faker = Some(faker);
+        self.attributes_schema = schema;
         self
     }
 
@@ -1395,7 +1443,14 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
                 city_obj_type.clone(),
             );
 
-            if let Some(attrs) = &self.attributes_cityobject {
+            let co_attrs = match (&self.attributes_faker, &self.attributes_schema) {
+                (Some(faker), Some(schema)) => {
+                    Some(faker.generate_from_schema(schema, &mut self.rng))
+                }
+                (Some(faker), None) => Some(faker.generate(&mut self.rng)),
+                (None, _) => None,
+            };
+            if let Some(attrs) = co_attrs {
                 for (k, v) in attrs.iter() {
                     cityobject.attributes_mut().insert(k.clone(), v.clone());
                 }
@@ -1434,7 +1489,14 @@ impl<VR: VertexRef> CityModelBuilder<VR, OwnedStringStorage> {
                     let mut child_obj =
                         CityObject::new(CityObjectIdentifier::new(child_id), child_type.clone());
 
-                    if let Some(attrs) = &self.attributes_cityobject {
+                    let child_attrs = match (&self.attributes_faker, &self.attributes_schema) {
+                        (Some(faker), Some(schema)) => {
+                            Some(faker.generate_from_schema(schema, &mut self.rng))
+                        }
+                        (Some(faker), None) => Some(faker.generate(&mut self.rng)),
+                        (None, _) => None,
+                    };
+                    if let Some(attrs) = child_attrs {
                         for (k, v) in attrs.iter() {
                             child_obj.attributes_mut().insert(k.clone(), v.clone());
                         }

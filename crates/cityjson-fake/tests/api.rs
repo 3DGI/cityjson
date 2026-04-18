@@ -571,6 +571,133 @@ fn attributes_non_empty() {
     );
 }
 
+fn value_kind(v: &OwnedAttributeValue) -> &'static str {
+    match v {
+        OwnedAttributeValue::Null => "null",
+        OwnedAttributeValue::Bool(_) => "bool",
+        OwnedAttributeValue::Integer(_) => "integer",
+        OwnedAttributeValue::Unsigned(_) => "unsigned",
+        OwnedAttributeValue::Float(_) => "float",
+        OwnedAttributeValue::String(_) => "string",
+        OwnedAttributeValue::Vec(_) => "vec",
+        OwnedAttributeValue::Map(_) => "map",
+        _ => "unknown",
+    }
+}
+
+/// Heterogenous mode: the same attribute key can have different value types across `CityObjects`.
+#[test]
+fn attributes_heterogenous_types_vary_across_objects() {
+    let config = CJFakeConfig {
+        cityobjects: CityObjectConfig {
+            min_cityobjects: 30,
+            max_cityobjects: 30,
+            ..Default::default()
+        },
+        attributes: AttributeConfig {
+            attributes_value_mode: AttributeValueMode::Heterogenous,
+            attributes_random_keys: false,
+            min_attributes: 1,
+            max_attributes: 1,
+            attributes_allow_null: false,
+            ..Default::default()
+        },
+        vertices: VertexConfig {
+            min_vertices: 4,
+            max_vertices: 4,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let cm: CityModel = CityModelBuilder::new(config, Some(7))
+        .vertices()
+        .attributes(None)
+        .cityobjects()
+        .build();
+
+    let mut seen_kinds: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
+    for (_, co) in cm.cityobjects().iter() {
+        if let Some(attrs) = co.attributes() {
+            for v in attrs.values() {
+                seen_kinds.insert(value_kind(v));
+            }
+        }
+    }
+    assert!(
+        seen_kinds.len() > 1,
+        "heterogenous mode should produce multiple value types across objects, got: {seen_kinds:?}"
+    );
+}
+
+/// Homogenous mode: each attribute key has a consistent value type across all `CityObjects`.
+#[test]
+fn attributes_homogenous_types_consistent_per_key() {
+    let config = CJFakeConfig {
+        cityobjects: CityObjectConfig {
+            min_cityobjects: 10,
+            max_cityobjects: 10,
+            ..Default::default()
+        },
+        attributes: AttributeConfig {
+            attributes_value_mode: AttributeValueMode::Homogenous,
+            attributes_random_keys: false,
+            min_attributes: 3,
+            max_attributes: 3,
+            attributes_allow_null: false,
+            ..Default::default()
+        },
+        vertices: VertexConfig {
+            min_vertices: 4,
+            max_vertices: 4,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let cm: CityModel = CityModelBuilder::new(config, Some(8))
+        .vertices()
+        .attributes(None)
+        .cityobjects()
+        .build();
+
+    // Collect first-seen type per key, then verify all subsequent occurrences match.
+    let mut key_to_kind: std::collections::HashMap<String, &'static str> =
+        std::collections::HashMap::new();
+    let mut all_keys_per_object: Vec<std::collections::BTreeSet<String>> = Vec::new();
+
+    for (_, co) in cm.cityobjects().iter() {
+        if let Some(attrs) = co.attributes() {
+            let keys: std::collections::BTreeSet<String> =
+                attrs.keys().map(std::string::ToString::to_string).collect();
+            all_keys_per_object.push(keys);
+            for (k, v) in attrs.iter() {
+                let kind = value_kind(v);
+                let key_str = k.clone();
+                match key_to_kind.get(key_str.as_str()) {
+                    None => {
+                        key_to_kind.insert(key_str, kind);
+                    }
+                    Some(&expected) => {
+                        assert_eq!(
+                            kind, expected,
+                            "key '{k}' has inconsistent types across `CityObjects`"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // All `CityObjects` must have the same set of attribute keys.
+    if let Some(first) = all_keys_per_object.first() {
+        for keys in &all_keys_per_object[1..] {
+            assert_eq!(
+                keys, first,
+                "homogenous mode: all `CityObjects` must share the same attribute keys"
+            );
+        }
+    }
+}
+
 /// Cityobjects preserve the generated type rather than collapsing to Building.
 #[test]
 fn cityobject_type_preserved() {

@@ -120,7 +120,7 @@ pub mod prelude {
     pub use cityjson::prelude::*;
     pub use cityjson::v2_0::*;
 
-    pub use crate::attribute::AttributesBuilder;
+    pub use crate::attribute::{AttributeValueMode, AttributesBuilder};
     pub use crate::citymodel::CityModelBuilder;
     pub use crate::material::MaterialBuilder;
     pub use crate::metadata::MetadataBuilder;

@@ -17,6 +17,7 @@
 //! assert_eq!(cli.count, 1);
 //! ```
 
+use crate::attribute::AttributeValueMode;
 use cityjson::prelude::OwnedStringStorage;
 use cityjson::v2_0::{CityObjectType, GeometryType, LoD, SemanticType};
 use clap::{Args, Parser, ValueEnum};
@@ -436,9 +437,17 @@ pub struct AttributeConfig {
     #[arg(long, default_value_t = true)]
     pub attributes_random_keys: bool,
 
-    /// Whether to generate random attribute values
+    /// Attribute value mode: 'heterogenous' (random type per value, the same attribute can have
+    /// different value types across `CityObjects`) or 'homogenous' (a scalar type is fixed per key
+    /// and stays consistent across all `CityObjects`, inside arrays, and inside maps).
+    #[arg(long, value_enum, default_value_t = AttributeValueMode::Heterogenous)]
+    pub attributes_value_mode: AttributeValueMode,
+
+    /// Allow null values for attribute values (default: true).
+    /// In heterogenous mode: null is included in the random type pool.
+    /// In homogenous mode: each value has a 1-in-7 chance of being null.
     #[arg(long, default_value_t = true)]
-    pub attributes_random_values: bool,
+    pub attributes_allow_null: bool,
 }
 
 impl Default for AttributeConfig {
@@ -449,7 +458,8 @@ impl Default for AttributeConfig {
             max_attributes: 8,
             attributes_max_depth: 2,
             attributes_random_keys: true,
-            attributes_random_values: true,
+            attributes_value_mode: AttributeValueMode::Heterogenous,
+            attributes_allow_null: true,
         }
     }
 }
