@@ -39,20 +39,21 @@ Full results and plots: `benches/results/`.
 
 | Case | cityjson-arrow | `cityjson-json` | Factor |
 | --- | --- | --- | --- |
-| `io_basisvoorziening_3d_cityjson` | 623.8 MiB/s | 280.7 MiB/s | 2.19x |
-| `io_3dbag_cityjson_cluster_4x` | 524.7 MiB/s | 185.3 MiB/s | 2.80x |
-| `io_3dbag_cityjson` | 587.9 MiB/s | 191.4 MiB/s | 3.12x |
+| `io_basisvoorziening_3d_cityjson` | 611.0 MiB/s | 286.1 MiB/s | 2.14x |
+| `io_3dbag_cityjson_cluster_4x` | 538.5 MiB/s | 185.9 MiB/s | 2.90x |
+| `io_3dbag_cityjson` | 603.7 MiB/s | 192.8 MiB/s | 3.13x |
 
 **Stress cases**
 
 | Case | cityjson-arrow | `cityjson-json` | Factor |
 | --- | --- | --- | --- |
-| `stress_attribute_heavy` | 202.4 MiB/s | 171.0 MiB/s | 1.76x |
-| `stress_boundary_heavy` | 3399.4 MiB/s | 317.4 MiB/s | 6.69x |
-| `stress_geometry_heavy` | 1541.7 MiB/s | 276.4 MiB/s | 3.66x |
-| `stress_hierarchy_heavy` | 1133.4 MiB/s | 193.0 MiB/s | 5.07x |
-| `stress_resource_heavy` | 784.8 MiB/s | 159.2 MiB/s | 3.79x |
-| `stress_vertex_heavy` | 4434.6 MiB/s | 360.5 MiB/s | 7.41x |
+| `stress_attribute_heavy_heterogenous` | 258.3 MiB/s | 152.2 MiB/s | 1.70x |
+| `stress_attribute_heavy_homogenous` | 182.7 MiB/s | 166.9 MiB/s | 1.10x |
+| `stress_boundary_heavy` | 3449.9 MiB/s | 320.7 MiB/s | 10.76x |
+| `stress_geometry_heavy` | 1541.5 MiB/s | 281.0 MiB/s | 5.48x |
+| `stress_hierarchy_heavy` | 1149.9 MiB/s | 190.9 MiB/s | 6.02x |
+| `stress_resource_heavy` | 795.3 MiB/s | 160.0 MiB/s | 4.97x |
+| `stress_vertex_heavy` | 4808.9 MiB/s | 364.6 MiB/s | 13.20x |
 <!-- benchmark-summary:end -->
 
 ## Verification
