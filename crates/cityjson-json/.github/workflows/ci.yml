@@ -10,6 +10,7 @@ permissions:
 
 env:
   RUSTFLAGS: -Dwarnings
+  CITYJSON_JSON_SHARED_CORPUS_ROOT: ${{ github.workspace }}/cityjson-corpus
 
 # Sibling checkout layout under $GITHUB_WORKSPACE:
 #   cityjson-json/   ← this repo
@@ -80,6 +81,14 @@ jobs:
         with:
           repository: 3DGI/cityjson-rs
           path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            cases
+          sparse-checkout-cone-mode: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
@@ -166,6 +175,14 @@ jobs:
         with:
           repository: 3DGI/cityjson-rs
           path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            cases
+          sparse-checkout-cone-mode: true
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-tarpaulin
       - run: |
@@ -192,6 +209,14 @@ jobs:
         with:
           repository: 3DGI/cityjson-rs
           path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            cases
+          sparse-checkout-cone-mode: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: |
