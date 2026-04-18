@@ -16,6 +16,7 @@ nav:
   - FFI & Bindings:
       - Overview: ffi/index.md
       - Binding API: ffi/api.md
+      - Authoring API Proposal: ffi/authoring-api-proposal.md
 theme:
   name: material
   features:

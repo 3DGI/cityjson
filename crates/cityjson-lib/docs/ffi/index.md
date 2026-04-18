@@ -7,6 +7,8 @@ the shared low-level FFI core.
 
 - [Binding API](api.md)
   Tabbed Rust, Python, and C++ examples for the public surface.
+- [FFI Authoring API Proposal](authoring-api-proposal.md)
+  Review-only proposal for the replacement write-side core and C++ surfaces.
 
 The wasm adapter remains work in progress and is not part of the release-facing
 binding docs.
