@@ -226,7 +226,7 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
         main = suite_case.get(main_bench)
         if baseline is None or main is None:
             continue
-        factor = main / baseline
+        factor = baseline / main
         col_values = []
         for bench_id in non_baseline:
             estimate = suite_case.get(bench_id)
