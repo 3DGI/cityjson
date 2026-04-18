@@ -10,6 +10,7 @@ permissions:
 
 env:
   RUSTFLAGS: -Dwarnings
+  CITYJSON_PARQUET_SHARED_CORPUS_ROOT: ${{ github.workspace }}/cityjson-corpus
 
 # Sibling checkout layout under $GITHUB_WORKSPACE:
 #   cityjson-parquet/  ← this repo
@@ -41,6 +42,7 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -70,6 +72,7 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -103,6 +106,19 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-fake
+          path: cityjson-fake
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-corpus
+          path: cityjson-corpus
+          sparse-checkout: |
+            artifacts
+            cases
+          sparse-checkout-cone-mode: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
@@ -134,6 +150,7 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.rust}}
@@ -163,6 +180,7 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just build
@@ -192,6 +210,7 @@ jobs:
         with:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
+          token: ${{ secrets.GH_PAT }}
       - uses: dtolnay/rust-toolchain@nightly
       - uses: extractions/setup-just@v4
       - run: just rustdoc
