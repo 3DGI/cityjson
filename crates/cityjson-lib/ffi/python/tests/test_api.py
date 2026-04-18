@@ -1,19 +1,38 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import unittest
 
 from cityjson_lib import (
+    AffineTransform4x4,
     AutoTransformOptions,
+    BBox,
     CityModel,
     CityJSONSeqWriteOptions,
+    CityObjectDraft,
+    Contact,
+    ContactRole,
+    ContactType,
     GeometryBoundary,
+    GeometryDraft,
+    GeometryTemplateId,
     GeometryType,
+    ImageType,
+    RGBA,
+    RGB,
+    RingDraft,
     ModelCapacities,
     ModelType,
     RootKind,
+    SemanticId,
+    ShellDraft,
+    SurfaceDraft,
+    TextureType,
     Transform,
     UV,
+    Value,
+    WrapMode,
     WriteOptions,
     Version,
     Vertex,
@@ -24,9 +43,17 @@ from cityjson_lib import (
     write_cityjsonseq_auto_transform_bytes,
     write_cityjsonseq_with_transform_bytes,
 )
+from cityjson_lib._fake_complete import build_fake_complete_model
 
 
 FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" / "minimal.city.json"
+FAKE_COMPLETE_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "tests"
+    / "data"
+    / "v2_0"
+    / "cityjson_fake_complete.city.json"
+)
 
 
 class PythonBindingSmokeTest(unittest.TestCase):
@@ -203,3 +230,158 @@ class PythonBindingSmokeTest(unittest.TestCase):
         )
         self.assertIn(b'"translate":[9.0,20.0,30.0]', auto)
         self.assertIn(b'"type":"CityJSONFeature"', auto)
+
+    def test_typed_authoring_api_and_consumption_guards(self) -> None:
+        model = CityModel.create(model_type=ModelType.CITY_JSON)
+        self.addCleanup(model.close)
+
+        model.reserve_import(
+            ModelCapacities(
+                cityobjects=2,
+                vertices=4,
+                semantics=1,
+                materials=1,
+                textures=1,
+                geometries=2,
+                template_vertices=4,
+                template_geometries=1,
+            )
+        )
+        model.set_metadata_title("Typed Fixture")
+        model.set_metadata_identifier("typed-fixture")
+        model.set_metadata_geographical_extent(
+            BBox(min_x=0.0, min_y=0.0, min_z=0.0, max_x=10.0, max_y=20.0, max_z=30.0)
+        )
+        model.set_metadata_reference_date("2026-04-18")
+        model.set_metadata_reference_system("EPSG:7415")
+        contact = (
+            Contact()
+            .set_name("Author")
+            .set_email("author@example.com")
+            .set_role(ContactRole.AUTHOR)
+            .set_type(ContactType.INDIVIDUAL)
+            .set_address(Value.object().insert("city", Value.string("Delft")))
+        )
+        model.set_metadata_contact(contact)
+        model.set_metadata_extra("note", Value.string("typed"))
+        model.set_root_extra("+stats", Value.object().insert("count", Value.integer(1)))
+        model.add_extension("Noise", "https://example.com/noise.ext.json", "0.1")
+
+        roof = model.add_semantic("RoofSurface")
+        self.assertIsInstance(roof, SemanticId)
+        model.set_semantic_extra(roof, "surfaceAttribute", Value.boolean(True))
+
+        material = model.add_material("irradiation")
+        model.set_material_ambient_intensity(material, 0.2)
+        model.set_material_diffuse_color(material, RGB(r=0.2, g=0.3, b=0.4))
+        model.set_material_emissive_color(material, RGB(r=0.2, g=0.3, b=0.4))
+        model.set_material_specular_color(material, RGB(r=0.2, g=0.3, b=0.4))
+        model.set_material_shininess(material, 0.1)
+        model.set_material_transparency(material, 0.25)
+        model.set_material_is_smooth(material, True)
+
+        texture = model.add_texture("https://example.com/texture.png", ImageType.PNG)
+        model.set_texture_wrap_mode(texture, WrapMode.WRAP)
+        model.set_texture_type(texture, TextureType.SPECIFIC)
+        model.set_texture_border_color(texture, RGBA(r=1.0, g=1.0, b=1.0, a=1.0))
+        model.set_default_material_theme("irradiation")
+        model.set_default_texture_theme("winter-textures")
+
+        v0 = model.add_vertex(Vertex(x=0.0, y=0.0, z=0.0))
+        v1 = model.add_vertex(Vertex(x=1.0, y=0.0, z=0.0))
+        v2 = model.add_vertex(Vertex(x=1.0, y=1.0, z=0.0))
+        v3 = model.add_vertex(Vertex(x=0.0, y=1.0, z=0.0))
+
+        ring = RingDraft().push_vertex_index(v0).push_vertex_index(v1).push_vertex_index(v2).push_vertex_index(v3)
+        surface = SurfaceDraft(ring).set_semantic(roof).add_material("irradiation", material)
+        with self.assertRaises(RuntimeError):
+            ring.push_vertex_index(v0)
+
+        geometry = GeometryDraft.multi_surface("2.2").add_surface(surface)
+        geometry_id = model.add_geometry(geometry)
+
+        location = GeometryDraft.multi_point("1").add_point(v0, roof)
+        location_id = model.add_geometry(location)
+
+        template = GeometryDraft.multi_surface("2.1").add_surface(
+            SurfaceDraft(
+                RingDraft()
+                .push_vertex(Vertex(x=0.0, y=0.0, z=0.0))
+                .push_vertex(Vertex(x=1.0, y=0.0, z=0.0))
+                .push_vertex(Vertex(x=1.0, y=1.0, z=0.0))
+                .push_vertex(Vertex(x=0.0, y=1.0, z=0.0))
+            )
+        )
+        template_id = model.add_geometry_template(template)
+        self.assertIsInstance(template_id, GeometryTemplateId)
+
+        instance = GeometryDraft.instance(
+            template_id,
+            v0,
+            AffineTransform4x4(
+                elements=(
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                )
+            ),
+        )
+        instance_id = model.add_geometry(instance)
+
+        solid_outer = ShellDraft().add_surface(
+            SurfaceDraft(
+                RingDraft().push_vertex_index(v0).push_vertex_index(v1).push_vertex_index(v2).push_vertex_index(v3)
+            )
+        )
+        solid = GeometryDraft.solid("1.0").add_solid(solid_outer)
+        solid_id = model.add_geometry(solid)
+
+        child_value = Value.string("typed")
+        payload = Value.object().insert("name", child_value)
+        with self.assertRaises(RuntimeError):
+            payload.insert("again", child_value)
+
+        building = CityObjectDraft("building-typed", "Building")
+        building.set_attribute("name", Value.string("Typed Building"))
+        building.set_extra("location", Value.geometry(location_id))
+        building_id = model.add_cityobject(building)
+        model.add_cityobject_geometry(building_id, geometry_id)
+        model.add_cityobject_geometry(building_id, instance_id)
+        model.add_cityobject_geometry(building_id, solid_id)
+
+        parent = model.add_cityobject(CityObjectDraft("parent-typed", "CityObjectGroup"))
+        model.add_cityobject_parent(building_id, parent)
+
+        summary = model.summary()
+        self.assertEqual(summary.cityobject_count, 2)
+        self.assertEqual(summary.geometry_count, 4)
+        self.assertEqual(summary.geometry_template_count, 1)
+        self.assertEqual(summary.semantic_count, 1)
+        self.assertEqual(summary.material_count, 1)
+        self.assertEqual(summary.texture_count, 1)
+        self.assertEqual(summary.extension_count, 1)
+
+    def test_fake_complete_python_authoring_matches_fixture_structurally(self) -> None:
+        model = build_fake_complete_model()
+        self.addCleanup(model.close)
+
+        actual = json.loads(
+            model.serialize_document(
+                WriteOptions(pretty=True, validate_default_themes=False)
+            )
+        )
+        expected = json.loads(FAKE_COMPLETE_FIXTURE_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(actual, expected)

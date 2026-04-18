@@ -6,17 +6,33 @@ from dataclasses import dataclass
 from typing import Self
 
 from cityjson_lib._ffi import (
+    AffineTransform4x4Struct,
+    BBoxStruct,
     CityJSONSeqAutoTransformOptionsPayload,
     CityJSONSeqWriteOptionsPayload,
+    CityObjectIdStruct,
+    ContactRole,
+    ContactType,
     FfiLibrary,
     GeometryBoundaryPayload,
+    GeometryIdStruct,
+    GeometryTemplateIdStruct,
     GeometryType,
+    ImageType,
+    MaterialIdStruct,
     ModelCapacitiesStruct,
     ModelType,
+    RGBAStruct,
+    RGBStruct,
     RootKind,
+    SemanticIdStruct,
+    TextureIdStruct,
+    TextureType,
     TransformStruct,
+    VertexStruct,
+    UVStruct,
     Version,
-    WriteOptionsStruct,
+    WrapMode,
     WriteOptionsPayload,
 )
 
@@ -35,6 +51,48 @@ def _as_bytes(data: bytes | bytearray | memoryview) -> bytes:
     raise TypeError("expected bytes-like data")
 
 
+class _OwnedHandle:
+    def __init__(self, handle: int) -> None:
+        self._handle = handle
+
+    def _require_handle(self) -> int:
+        if self._handle == 0:
+            raise RuntimeError(f"{type(self).__name__} has already been consumed or closed")
+        return self._handle
+
+    def _release_handle(self) -> int:
+        handle = self._require_handle()
+        self._handle = 0
+        return handle
+
+    def _free(self, handle: int) -> None:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        if self._handle != 0:
+            self._free(self._handle)
+            self._handle = 0
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+class _SolidDraft(_OwnedHandle):
+    @classmethod
+    def from_outer(cls, outer: "ShellDraft") -> "_SolidDraft":
+        return cls(_ffi.solid_draft_new(outer._release_handle()))
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_solid_draft(handle)
+
+    def add_inner_shell(self, inner: "ShellDraft") -> "_SolidDraft":
+        _ffi.solid_draft_add_inner_shell(self._require_handle(), inner._release_handle())
+        return self
+
+
 @dataclass(frozen=True)
 class Probe:
     root_kind: RootKind
@@ -48,11 +106,72 @@ class Vertex:
     y: float
     z: float
 
+    def to_native(self) -> VertexStruct:
+        return VertexStruct(x=self.x, y=self.y, z=self.z)
+
 
 @dataclass(frozen=True)
 class UV:
     u: float
     v: float
+
+    def to_native(self) -> UVStruct:
+        return UVStruct(u=self.u, v=self.v)
+
+
+@dataclass(frozen=True)
+class BBox:
+    min_x: float
+    min_y: float
+    min_z: float
+    max_x: float
+    max_y: float
+    max_z: float
+
+    def to_native(self) -> BBoxStruct:
+        return BBoxStruct(
+            min_x=self.min_x,
+            min_y=self.min_y,
+            min_z=self.min_z,
+            max_x=self.max_x,
+            max_y=self.max_y,
+            max_z=self.max_z,
+        )
+
+
+@dataclass(frozen=True)
+class RGB:
+    r: float
+    g: float
+    b: float
+
+    def to_native(self) -> RGBStruct:
+        return RGBStruct(r=self.r, g=self.g, b=self.b)
+
+
+@dataclass(frozen=True)
+class RGBA:
+    r: float
+    g: float
+    b: float
+    a: float
+
+    def to_native(self) -> RGBAStruct:
+        return RGBAStruct(r=self.r, g=self.g, b=self.b, a=self.a)
+
+
+@dataclass(frozen=True)
+class AffineTransform4x4:
+    elements: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.elements) != 16:
+            raise ValueError("AffineTransform4x4.elements must contain exactly 16 values")
+
+    def to_native(self) -> AffineTransform4x4Struct:
+        native = AffineTransform4x4Struct()
+        native.elements[:] = self.elements
+        return native
 
 
 @dataclass(frozen=True)
@@ -82,7 +201,7 @@ class WriteOptions:
     pretty: bool = False
     validate_default_themes: bool = True
 
-    def to_native(self) -> WriteOptionsStruct:
+    def to_native(self):
         return _ffi.write_options(
             WriteOptionsPayload(
                 pretty=self.pretty,
@@ -187,6 +306,335 @@ class ModelSummary:
     has_appearance: bool
 
 
+@dataclass(frozen=True)
+class GeometryId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: GeometryIdStruct) -> "GeometryId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> GeometryIdStruct:
+        return GeometryIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+@dataclass(frozen=True)
+class SemanticId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: SemanticIdStruct) -> "SemanticId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> SemanticIdStruct:
+        return SemanticIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+@dataclass(frozen=True)
+class MaterialId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: MaterialIdStruct) -> "MaterialId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> MaterialIdStruct:
+        return MaterialIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+@dataclass(frozen=True)
+class TextureId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: TextureIdStruct) -> "TextureId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> TextureIdStruct:
+        return TextureIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+@dataclass(frozen=True)
+class CityObjectId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: CityObjectIdStruct) -> "CityObjectId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> CityObjectIdStruct:
+        return CityObjectIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+@dataclass(frozen=True)
+class GeometryTemplateId:
+    slot: int
+    generation: int
+
+    @classmethod
+    def from_native(cls, native: GeometryTemplateIdStruct) -> "GeometryTemplateId":
+        return cls(slot=int(native.slot), generation=int(native.generation))
+
+    def to_native(self) -> GeometryTemplateIdStruct:
+        return GeometryTemplateIdStruct(slot=self.slot, generation=self.generation, reserved=0)
+
+
+def _vertex_to_native(vertex: Vertex):
+    return vertex.to_native()
+
+
+class Value(_OwnedHandle):
+    @classmethod
+    def null(cls) -> "Value":
+        return cls(_ffi.value_new_null())
+
+    @classmethod
+    def boolean(cls, value: bool) -> "Value":
+        return cls(_ffi.value_new_bool(value))
+
+    @classmethod
+    def integer(cls, value: int) -> "Value":
+        return cls(_ffi.value_new_int64(value))
+
+    @classmethod
+    def number(cls, value: float) -> "Value":
+        return cls(_ffi.value_new_float64(value))
+
+    @classmethod
+    def string(cls, value: str) -> "Value":
+        return cls(_ffi.value_new_string(value))
+
+    @classmethod
+    def geometry(cls, value: GeometryId) -> "Value":
+        return cls(_ffi.value_new_geometry_ref(value.to_native()))
+
+    @classmethod
+    def array(cls) -> "Value":
+        return cls(_ffi.value_new_array())
+
+    @classmethod
+    def object(cls) -> "Value":
+        return cls(_ffi.value_new_object())
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_value(handle)
+
+    def push(self, value: "Value") -> Self:
+        _ffi.value_array_push(self._require_handle(), value._release_handle())
+        return self
+
+    def insert(self, key: str, value: "Value") -> Self:
+        _ffi.value_object_insert(self._require_handle(), key, value._release_handle())
+        return self
+
+
+class Contact(_OwnedHandle):
+    def __init__(self) -> None:
+        super().__init__(_ffi.contact_new())
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_contact(handle)
+
+    def set_name(self, value: str) -> Self:
+        _ffi.contact_set_name(self._require_handle(), value)
+        return self
+
+    def set_email(self, value: str) -> Self:
+        _ffi.contact_set_email(self._require_handle(), value)
+        return self
+
+    def set_role(self, value: ContactRole) -> Self:
+        _ffi.contact_set_role(self._require_handle(), value)
+        return self
+
+    def set_website(self, value: str) -> Self:
+        _ffi.contact_set_website(self._require_handle(), value)
+        return self
+
+    def set_type(self, value: ContactType) -> Self:
+        _ffi.contact_set_type(self._require_handle(), value)
+        return self
+
+    def set_phone(self, value: str) -> Self:
+        _ffi.contact_set_phone(self._require_handle(), value)
+        return self
+
+    def set_organization(self, value: str) -> Self:
+        _ffi.contact_set_organization(self._require_handle(), value)
+        return self
+
+    def set_address(self, object_value: Value) -> Self:
+        _ffi.contact_set_address(self._require_handle(), object_value._release_handle())
+        return self
+
+
+class CityObjectDraft(_OwnedHandle):
+    def __init__(self, cityobject_id: str, cityobject_type: str) -> None:
+        super().__init__(_ffi.cityobject_draft_new(cityobject_id, cityobject_type))
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_cityobject_draft(handle)
+
+    def set_geographical_extent(self, bbox: BBox) -> Self:
+        _ffi.cityobject_draft_set_geographical_extent(self._require_handle(), bbox.to_native())
+        return self
+
+    def set_attribute(self, key: str, value: Value) -> Self:
+        _ffi.cityobject_draft_set_attribute(self._require_handle(), key, value._release_handle())
+        return self
+
+    def set_extra(self, key: str, value: Value) -> Self:
+        _ffi.cityobject_draft_set_extra(self._require_handle(), key, value._release_handle())
+        return self
+
+
+class RingDraft(_OwnedHandle):
+    def __init__(self) -> None:
+        super().__init__(_ffi.ring_draft_new())
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_ring_draft(handle)
+
+    def push_vertex_index(self, index: int) -> Self:
+        _ffi.ring_draft_push_vertex_index(self._require_handle(), index)
+        return self
+
+    def push_vertex(self, vertex: Vertex) -> Self:
+        _ffi.ring_draft_push_vertex(self._require_handle(), _vertex_to_native(vertex))
+        return self
+
+    def add_texture(self, theme: str, texture: TextureId, uv_indices: list[int]) -> Self:
+        _ffi.ring_draft_add_texture(self._require_handle(), theme, texture.to_native(), uv_indices)
+        return self
+
+    def add_texture_uvs(self, theme: str, texture: TextureId, uvs: list[UV]) -> Self:
+        _ffi.ring_draft_add_texture_uvs(
+            self._require_handle(),
+            theme,
+            texture.to_native(),
+            [uv.to_native() for uv in uvs],
+        )
+        return self
+
+
+class SurfaceDraft(_OwnedHandle):
+    def __init__(self, outer: RingDraft) -> None:
+        super().__init__(_ffi.surface_draft_new(outer._release_handle()))
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_surface_draft(handle)
+
+    def add_inner_ring(self, inner: RingDraft) -> Self:
+        _ffi.surface_draft_add_inner_ring(self._require_handle(), inner._release_handle())
+        return self
+
+    def set_semantic(self, semantic: SemanticId) -> Self:
+        _ffi.surface_draft_set_semantic(self._require_handle(), semantic.to_native())
+        return self
+
+    def add_material(self, theme: str, material: MaterialId) -> Self:
+        _ffi.surface_draft_add_material(self._require_handle(), theme, material.to_native())
+        return self
+
+
+class ShellDraft(_OwnedHandle):
+    def __init__(self) -> None:
+        super().__init__(_ffi.shell_draft_new())
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_shell_draft(handle)
+
+    def add_surface(self, surface: SurfaceDraft) -> Self:
+        _ffi.shell_draft_add_surface(self._require_handle(), surface._release_handle())
+        return self
+
+
+class GeometryDraft(_OwnedHandle):
+    def __init__(self, handle: int) -> None:
+        super().__init__(handle)
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_geometry_draft(handle)
+
+    @classmethod
+    def multi_point(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.MULTI_POINT, lod))
+
+    @classmethod
+    def multi_line_string(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.MULTI_LINE_STRING, lod))
+
+    @classmethod
+    def multi_surface(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.MULTI_SURFACE, lod))
+
+    @classmethod
+    def composite_surface(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.COMPOSITE_SURFACE, lod))
+
+    @classmethod
+    def solid(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.SOLID, lod))
+
+    @classmethod
+    def multi_solid(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.MULTI_SOLID, lod))
+
+    @classmethod
+    def composite_solid(cls, lod: str | None = None) -> "GeometryDraft":
+        return cls(_ffi.geometry_draft_new(GeometryType.COMPOSITE_SOLID, lod))
+
+    @classmethod
+    def instance(
+        cls,
+        template_id: GeometryTemplateId,
+        reference_vertex_index: int,
+        transform: AffineTransform4x4,
+    ) -> "GeometryDraft":
+        return cls(
+            _ffi.geometry_draft_new_instance(
+                template_id.to_native(),
+                reference_vertex_index,
+                transform.to_native(),
+            )
+        )
+
+    def add_point(self, vertex_index: int, semantic: SemanticId | None = None) -> Self:
+        native_semantic = semantic.to_native() if semantic is not None else None
+        _ffi.geometry_draft_add_point_vertex_index(
+            self._require_handle(), vertex_index, native_semantic
+        )
+        return self
+
+    def add_linestring(
+        self, vertex_indices: list[int], semantic: SemanticId | None = None
+    ) -> Self:
+        native_semantic = semantic.to_native() if semantic is not None else None
+        _ffi.geometry_draft_add_linestring(
+            self._require_handle(), vertex_indices, native_semantic
+        )
+        return self
+
+    def add_surface(self, surface: SurfaceDraft) -> Self:
+        _ffi.geometry_draft_add_surface(self._require_handle(), surface._release_handle())
+        return self
+
+    def add_solid(self, outer: ShellDraft, inner_shells: list[ShellDraft] | None = None) -> Self:
+        solid = _SolidDraft.from_outer(outer)
+        try:
+            for inner in inner_shells or []:
+                solid.add_inner_shell(inner)
+            _ffi.geometry_draft_add_solid(self._require_handle(), solid._release_handle())
+        finally:
+            solid.close()
+        return self
+
+
 def probe_bytes(data: bytes | bytearray | memoryview) -> Probe:
     native = _ffi.probe(_as_bytes(data))
     return Probe(
@@ -196,9 +644,12 @@ def probe_bytes(data: bytes | bytearray | memoryview) -> Probe:
     )
 
 
-class CityModel:
+class CityModel(_OwnedHandle):
     def __init__(self, handle: int) -> None:
-        self._handle = handle
+        super().__init__(handle)
+
+    def _free(self, handle: int) -> None:
+        _ffi.free_model(handle)
 
     @classmethod
     def from_document_bytes(cls, data: bytes | bytearray | memoryview) -> Self:
@@ -224,16 +675,8 @@ class CityModel:
     def create(cls, *, model_type: ModelType) -> Self:
         return cls(_ffi.create(model_type))
 
-    def close(self) -> None:
-        if self._handle != 0:
-            _ffi.free_model(self._handle)
-            self._handle = 0
-
-    def __del__(self) -> None:
-        self.close()
-
     def summary(self) -> ModelSummary:
-        native = _ffi.summary(self._handle)
+        native = _ffi.summary(self._require_handle())
         return ModelSummary(
             model_type=ModelType(native.model_type),
             version=Version(native.version),
@@ -254,21 +697,21 @@ class CityModel:
         )
 
     def metadata_title(self) -> str:
-        return _ffi.metadata_title(self._handle)
+        return _ffi.metadata_title(self._require_handle())
 
     def metadata_identifier(self) -> str:
-        return _ffi.metadata_identifier(self._handle)
+        return _ffi.metadata_identifier(self._require_handle())
 
     def cityobject_ids(self) -> list[str]:
         count = self.summary().cityobject_count
-        return [_ffi.cityobject_id(self._handle, index) for index in range(count)]
+        return [_ffi.cityobject_id(self._require_handle(), index) for index in range(count)]
 
     def geometry_types(self) -> list[GeometryType]:
         count = self.summary().geometry_count
-        return [_ffi.geometry_type(self._handle, index) for index in range(count)]
+        return [_ffi.geometry_type(self._require_handle(), index) for index in range(count)]
 
     def geometry_boundary(self, index: int) -> GeometryBoundary:
-        payload = _ffi.geometry_boundary(self._handle, index)
+        payload = _ffi.geometry_boundary(self._require_handle(), index)
         return GeometryBoundary(
             geometry_type=payload.geometry_type,
             has_boundaries=payload.has_boundaries,
@@ -282,42 +725,63 @@ class CityModel:
     def geometry_boundary_coordinates(self, index: int) -> list[Vertex]:
         return [
             Vertex(x=item.x, y=item.y, z=item.z)
-            for item in _ffi.geometry_boundary_coordinates(self._handle, index)
+            for item in _ffi.geometry_boundary_coordinates(self._require_handle(), index)
         ]
 
     def uv_coordinates(self) -> list[UV]:
-        return [UV(u=item.u, v=item.v) for item in _ffi.uv_coordinates(self._handle)]
+        return [UV(u=item.u, v=item.v) for item in _ffi.uv_coordinates(self._require_handle())]
 
     def set_metadata_title(self, title: str) -> None:
-        _ffi.set_metadata_title(self._handle, title)
+        _ffi.set_metadata_title(self._require_handle(), title)
 
     def set_metadata_identifier(self, identifier: str) -> None:
-        _ffi.set_metadata_identifier(self._handle, identifier)
+        _ffi.set_metadata_identifier(self._require_handle(), identifier)
+
+    def set_metadata_geographical_extent(self, bbox: BBox) -> None:
+        _ffi.set_metadata_geographical_extent(self._require_handle(), bbox.to_native())
+
+    def set_metadata_reference_date(self, value: str) -> None:
+        _ffi.set_metadata_reference_date(self._require_handle(), value)
+
+    def set_metadata_reference_system(self, value: str) -> None:
+        _ffi.set_metadata_reference_system(self._require_handle(), value)
+
+    def set_metadata_contact(self, contact: Contact) -> None:
+        _ffi.model_set_metadata_contact(self._require_handle(), contact._release_handle())
+
+    def set_metadata_extra(self, key: str, value: Value) -> None:
+        _ffi.model_set_metadata_extra(self._require_handle(), key, value._release_handle())
+
+    def set_root_extra(self, key: str, value: Value) -> None:
+        _ffi.model_set_root_extra(self._require_handle(), key, value._release_handle())
+
+    def add_extension(self, name: str, url: str, version: str) -> None:
+        _ffi.model_add_extension(self._require_handle(), name, url, version)
 
     def set_transform(self, transform: Transform) -> None:
-        _ffi.set_transform(self._handle, transform.to_native())
+        _ffi.set_transform(self._require_handle(), transform.to_native())
 
     def clear_transform(self) -> None:
-        _ffi.clear_transform(self._handle)
+        _ffi.clear_transform(self._require_handle())
 
     def remove_cityobject(self, cityobject_id: str) -> None:
-        _ffi.remove_cityobject(self._handle, cityobject_id)
+        _ffi.remove_cityobject(self._require_handle(), cityobject_id)
 
     def append_model(self, other: Self) -> None:
-        _ffi.append_model(self._handle, other._handle)
+        _ffi.append_model(self._require_handle(), other._require_handle())
 
     def extract_cityobjects(self, cityobject_ids: list[str]) -> Self:
-        return type(self)(_ffi.extract_cityobjects(self._handle, cityobject_ids))
+        return type(self)(_ffi.extract_cityobjects(self._require_handle(), cityobject_ids))
 
     def cleanup(self) -> None:
-        _ffi.cleanup(self._handle)
+        _ffi.cleanup(self._require_handle())
 
     def serialize_document(self, options: WriteOptions | None = None) -> str:
         return self.serialize_document_bytes(options).decode("utf-8")
 
     def serialize_document_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
-        return _ffi.serialize_document_with_options(self._handle, payload)
+        return _ffi.serialize_document_with_options(self._require_handle(), payload)
 
     def to_json_bytes(self, options: WriteOptions | None = None) -> bytes:
         return self.serialize_document_bytes(options)
@@ -327,19 +791,111 @@ class CityModel:
 
     def serialize_feature_bytes(self, options: WriteOptions | None = None) -> bytes:
         payload = options.to_native() if options is not None else WriteOptions().to_native()
-        return _ffi.serialize_feature_with_options(self._handle, payload)
+        return _ffi.serialize_feature_with_options(self._require_handle(), payload)
 
     def reserve_import(self, capacities: ModelCapacities) -> None:
-        _ffi.reserve_import(self._handle, capacities.to_native())
+        _ffi.reserve_import(self._require_handle(), capacities.to_native())
 
     def add_vertex(self, vertex: Vertex) -> int:
-        return _ffi.add_vertex(self._handle, vertex.x, vertex.y, vertex.z)
+        return _ffi.add_vertex(self._require_handle(), vertex.x, vertex.y, vertex.z)
 
     def add_template_vertex(self, vertex: Vertex) -> int:
-        return _ffi.add_template_vertex(self._handle, vertex.x, vertex.y, vertex.z)
+        return _ffi.add_template_vertex(self._require_handle(), vertex.x, vertex.y, vertex.z)
 
     def add_uv_coordinate(self, uv: UV) -> int:
-        return _ffi.add_uv_coordinate(self._handle, uv.u, uv.v)
+        return _ffi.add_uv_coordinate(self._require_handle(), uv.u, uv.v)
+
+    def add_semantic(self, semantic_type: str) -> SemanticId:
+        return SemanticId.from_native(_ffi.model_add_semantic(self._require_handle(), semantic_type))
+
+    def set_semantic_parent(self, semantic: SemanticId, parent: SemanticId) -> None:
+        _ffi.model_set_semantic_parent(
+            self._require_handle(), semantic.to_native(), parent.to_native()
+        )
+
+    def set_semantic_extra(self, semantic: SemanticId, key: str, value: Value) -> None:
+        _ffi.model_semantic_set_extra(
+            self._require_handle(), semantic.to_native(), key, value._release_handle()
+        )
+
+    def add_material(self, name: str) -> MaterialId:
+        return MaterialId.from_native(_ffi.model_add_material(self._require_handle(), name))
+
+    def set_material_ambient_intensity(self, material: MaterialId, value: float) -> None:
+        _ffi.model_material_set_ambient_intensity(
+            self._require_handle(), material.to_native(), value
+        )
+
+    def set_material_diffuse_color(self, material: MaterialId, value: RGB) -> None:
+        _ffi.model_material_set_diffuse_color(
+            self._require_handle(), material.to_native(), value.to_native()
+        )
+
+    def set_material_emissive_color(self, material: MaterialId, value: RGB) -> None:
+        _ffi.model_material_set_emissive_color(
+            self._require_handle(), material.to_native(), value.to_native()
+        )
+
+    def set_material_specular_color(self, material: MaterialId, value: RGB) -> None:
+        _ffi.model_material_set_specular_color(
+            self._require_handle(), material.to_native(), value.to_native()
+        )
+
+    def set_material_shininess(self, material: MaterialId, value: float) -> None:
+        _ffi.model_material_set_shininess(self._require_handle(), material.to_native(), value)
+
+    def set_material_transparency(self, material: MaterialId, value: float) -> None:
+        _ffi.model_material_set_transparency(
+            self._require_handle(), material.to_native(), value
+        )
+
+    def set_material_is_smooth(self, material: MaterialId, value: bool) -> None:
+        _ffi.model_material_set_is_smooth(self._require_handle(), material.to_native(), value)
+
+    def add_texture(self, image: str, image_type: ImageType) -> TextureId:
+        return TextureId.from_native(_ffi.model_add_texture(self._require_handle(), image, image_type))
+
+    def set_texture_wrap_mode(self, texture: TextureId, value: WrapMode) -> None:
+        _ffi.model_texture_set_wrap_mode(self._require_handle(), texture.to_native(), value)
+
+    def set_texture_type(self, texture: TextureId, value: TextureType) -> None:
+        _ffi.model_texture_set_texture_type(self._require_handle(), texture.to_native(), value)
+
+    def set_texture_border_color(self, texture: TextureId, value: RGBA) -> None:
+        _ffi.model_texture_set_border_color(
+            self._require_handle(), texture.to_native(), value.to_native()
+        )
+
+    def set_default_material_theme(self, theme: str) -> None:
+        _ffi.model_set_default_material_theme(self._require_handle(), theme)
+
+    def set_default_texture_theme(self, theme: str) -> None:
+        _ffi.model_set_default_texture_theme(self._require_handle(), theme)
+
+    def add_geometry(self, draft: GeometryDraft) -> GeometryId:
+        return GeometryId.from_native(
+            _ffi.model_add_geometry(self._require_handle(), draft._release_handle())
+        )
+
+    def add_geometry_template(self, draft: GeometryDraft) -> GeometryTemplateId:
+        return GeometryTemplateId.from_native(
+            _ffi.model_add_geometry_template(self._require_handle(), draft._release_handle())
+        )
+
+    def add_cityobject(self, draft: CityObjectDraft) -> CityObjectId:
+        return CityObjectId.from_native(
+            _ffi.model_add_cityobject(self._require_handle(), draft._release_handle())
+        )
+
+    def add_cityobject_geometry(self, cityobject: CityObjectId, geometry: GeometryId) -> None:
+        _ffi.model_cityobject_add_geometry(
+            self._require_handle(), cityobject.to_native(), geometry.to_native()
+        )
+
+    def add_cityobject_parent(self, child: CityObjectId, parent: CityObjectId) -> None:
+        _ffi.model_cityobject_add_parent(
+            self._require_handle(), child.to_native(), parent.to_native()
+        )
 
 
 def merge_feature_stream_bytes(data: bytes | bytearray | memoryview) -> CityModel:
@@ -358,7 +914,7 @@ def serialize_feature_stream_bytes(
     options: WriteOptions | None = None,
 ) -> bytes:
     payload = options.to_native() if options is not None else WriteOptions().to_native()
-    handles = [model._handle for model in models]
+    handles = [model._require_handle() for model in models]
     return _ffi.serialize_feature_stream(handles, payload)
 
 
@@ -387,9 +943,9 @@ def write_cityjsonseq_with_transform_bytes(
         if options is not None
         else CityJSONSeqWriteOptions().to_native()
     )
-    handles = [model._handle for model in features]
+    handles = [model._require_handle() for model in features]
     return _ffi.serialize_cityjsonseq_with_transform(
-        base_root._handle,
+        base_root._require_handle(),
         handles,
         transform.to_native(),
         payload,
@@ -418,12 +974,60 @@ def write_cityjsonseq_auto_transform_bytes(
         if options is not None
         else AutoTransformOptions().to_native()
     )
-    handles = [model._handle for model in features]
+    handles = [model._require_handle() for model in features]
     return _ffi.serialize_cityjsonseq_auto_transform(
-        base_root._handle,
+        base_root._require_handle(),
         handles,
         payload,
     )
 
 
 Model = CityModel
+
+__all__ = [
+    "AffineTransform4x4",
+    "AutoTransformOptions",
+    "BBox",
+    "CityJSONSeqWriteOptions",
+    "CityModel",
+    "CityObjectDraft",
+    "CityObjectId",
+    "Contact",
+    "ContactRole",
+    "ContactType",
+    "GeometryBoundary",
+    "GeometryDraft",
+    "GeometryId",
+    "GeometryTemplateId",
+    "GeometryType",
+    "ImageType",
+    "MaterialId",
+    "Model",
+    "ModelCapacities",
+    "ModelSummary",
+    "ModelType",
+    "Probe",
+    "RGBA",
+    "RGB",
+    "RingDraft",
+    "RootKind",
+    "SemanticId",
+    "ShellDraft",
+    "SurfaceDraft",
+    "TextureId",
+    "TextureType",
+    "Transform",
+    "UV",
+    "Value",
+    "Version",
+    "Vertex",
+    "WrapMode",
+    "merge_feature_stream_bytes",
+    "probe_bytes",
+    "serialize_feature_stream",
+    "serialize_feature_stream_bytes",
+    "write_cityjsonseq_auto_transform",
+    "write_cityjsonseq_auto_transform_bytes",
+    "write_cityjsonseq_with_transform",
+    "write_cityjsonseq_with_transform_bytes",
+]

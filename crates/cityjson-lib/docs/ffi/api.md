@@ -6,12 +6,13 @@ The wrappers are aligned around the same core ideas:
 
 - parse explicit document or feature payloads
 - inspect summary and metadata
+- author typed values, resources, and geometry drafts
 - run explicit cleanup, append, and extract workflows
 - serialize back to document, feature, or feature-stream bytes
 
 The typed write-side authoring flow is documented separately in
-[Writing Data](../guide-writing.md). The full end-to-end C++ reference lives in
-`ffi/cpp/examples/fake_complete.cpp`.
+[Writing Data](../guide-writing.md). The full end-to-end references live in
+`ffi/cpp/examples/fake_complete.cpp` and `ffi/python/examples/fake_complete.py`.
 
 The wasm adapter is still work in progress and is not covered here.
 
@@ -73,6 +74,59 @@ The wasm adapter is still work in progress and is not covered here.
     model.cleanup();
     const std::array<std::string_view, 1> ids{"building-1"};
     const auto subset = model.extract_cityobjects(ids);
+    ```
+
+## Typed Authoring
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel, CityObjectDraft, GeometryDraft, ModelType, RingDraft, SurfaceDraft, Value, Vertex
+
+    model = CityModel.create(model_type=ModelType.CITY_JSON)
+    v0 = model.add_vertex(Vertex(10.0, 20.0, 0.0))
+    v1 = model.add_vertex(Vertex(11.0, 20.0, 0.0))
+    v2 = model.add_vertex(Vertex(11.0, 21.0, 0.0))
+    v3 = model.add_vertex(Vertex(10.0, 21.0, 0.0))
+
+    draft = GeometryDraft.multi_surface("2.2").add_surface(
+        SurfaceDraft(
+            RingDraft()
+            .push_vertex_index(v0)
+            .push_vertex_index(v1)
+            .push_vertex_index(v2)
+            .push_vertex_index(v3)
+        )
+    )
+    building = CityObjectDraft("building-1", "Building")
+    building.set_attribute("height", Value.number(12.5))
+
+    geometry_id = model.add_geometry(draft)
+    building_id = model.add_cityobject(building)
+    model.add_cityobject_geometry(building_id, geometry_id)
+    ```
+
+=== "C++"
+    ```cpp
+    auto model = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
+    const auto v0 = model.add_vertex({10.0, 20.0, 0.0});
+    const auto v1 = model.add_vertex({11.0, 20.0, 0.0});
+    const auto v2 = model.add_vertex({11.0, 21.0, 0.0});
+    const auto v3 = model.add_vertex({10.0, 21.0, 0.0});
+
+    auto draft = cityjson_lib::GeometryDraft::multi_surface("2.2");
+    draft.add_surface(cityjson_lib::SurfaceDraft(
+        cityjson_lib::RingDraft{}
+            .push_vertex_index(v0)
+            .push_vertex_index(v1)
+            .push_vertex_index(v2)
+            .push_vertex_index(v3)));
+
+    auto building = cityjson_lib::CityObjectDraft("building-1", "Building");
+    building.set_attribute("height", cityjson_lib::Value::number(12.5));
+
+    const auto geometry_id = model.add_geometry(std::move(draft));
+    const auto building_id = model.add_cityobject(std::move(building));
+    model.add_cityobject_geometry(building_id, geometry_id);
     ```
 
 ## Append Or Merge

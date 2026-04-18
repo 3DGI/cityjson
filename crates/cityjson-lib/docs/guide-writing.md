@@ -3,9 +3,7 @@
 The shared FFI write path now centers on typed values, typed resource ids, and
 draft objects for nested geometry authoring.
 
-The published C++ surface exposes that model directly. The Python binding keeps
-the stable parse/inspect/stream workflows, but its write-side API is still
-catching up to the new draft-based authoring layer.
+The published C++ and Python surfaces expose that authoring model directly.
 
 ## Create A Model
 
@@ -22,6 +20,13 @@ catching up to the new draft-based authoring layer.
     #include <cityjson_lib/cityjson_lib.hpp>
 
     auto model = cityjson_lib::Model::create(CJ_MODEL_TYPE_CITY_JSON);
+    ```
+
+=== "Python"
+    ```python
+    from cityjson_lib import CityModel, ModelType
+
+    model = CityModel.create(model_type=ModelType.CITY_JSON)
     ```
 
 ## Set Metadata
@@ -54,6 +59,23 @@ catching up to the new draft-based authoring layer.
             .set_role(CJ_CONTACT_ROLE_AUTHOR));
     ```
 
+=== "Python"
+    ```python
+    from cityjson_lib import BBox, Contact, ContactRole
+
+    model.set_metadata_title("My Dataset")
+    model.set_metadata_identifier("my-dataset-001")
+    model.set_metadata_geographical_extent(
+        BBox(min_x=0.0, min_y=0.0, min_z=0.0, max_x=1.0, max_y=1.0, max_z=1.0)
+    )
+    model.set_metadata_contact(
+        Contact()
+        .set_name("Author")
+        .set_email("author@example.com")
+        .set_role(ContactRole.AUTHOR)
+    )
+    ```
+
 ## Add Geometry Through Drafts
 
 === "C++"
@@ -80,11 +102,32 @@ catching up to the new draft-based authoring layer.
     model.add_cityobject_geometry(building_id, geometry_id);
     ```
 
+=== "Python"
+    ```python
+    from cityjson_lib import CityObjectDraft, GeometryDraft, RingDraft, SurfaceDraft, Value, Vertex
+
+    v0 = model.add_vertex(Vertex(10.0, 20.0, 0.0))
+    v1 = model.add_vertex(Vertex(11.0, 20.0, 0.0))
+    v2 = model.add_vertex(Vertex(11.0, 21.0, 0.0))
+    v3 = model.add_vertex(Vertex(10.0, 21.0, 0.0))
+
+    ring = RingDraft().push_vertex_index(v0).push_vertex_index(v1).push_vertex_index(v2).push_vertex_index(v3)
+    draft = GeometryDraft.multi_surface("2.2").add_surface(SurfaceDraft(ring))
+
+    building = CityObjectDraft("building-1", "Building")
+    building.set_attribute("height", Value.number(12.5))
+
+    geometry_id = model.add_geometry(draft)
+    building_id = model.add_cityobject(building)
+    model.add_cityobject_geometry(building_id, geometry_id)
+    ```
+
 ## Full Fixture Example
 
-The full reference example lives in `ffi/cpp/examples/fake_complete.cpp`. It
-builds the equivalent of the complete fake CityJSON fixture through the
-typed C++ API and is exercised in the automated test suite.
+The full reference examples live in `ffi/cpp/examples/fake_complete.cpp` and
+`ffi/python/examples/fake_complete.py`. Both build the equivalent of the
+complete fake CityJSON fixture through the typed authoring API and are
+exercised in the automated test suite.
 
 ## Serialize A Document
 

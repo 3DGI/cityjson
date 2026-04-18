@@ -11,8 +11,11 @@ from ctypes import (
     c_double,
     c_float,
     c_int,
+    c_int64,
     c_size_t,
     c_ubyte,
+    c_uint16,
+    c_uint32,
     c_void_p,
     pointer,
     string_at,
@@ -72,6 +75,48 @@ class GeometryType(IntEnum):
     MULTI_SOLID = 5
     COMPOSITE_SOLID = 6
     GEOMETRY_INSTANCE = 7
+
+
+class ContactRole(IntEnum):
+    AUTHOR = 0
+    CO_AUTHOR = 1
+    PROCESSOR = 2
+    POINT_OF_CONTACT = 3
+    OWNER = 4
+    USER = 5
+    DISTRIBUTOR = 6
+    ORIGINATOR = 7
+    CUSTODIAN = 8
+    RESOURCE_PROVIDER = 9
+    RIGHTS_HOLDER = 10
+    SPONSOR = 11
+    PRINCIPAL_INVESTIGATOR = 12
+    STAKEHOLDER = 13
+    PUBLISHER = 14
+
+
+class ContactType(IntEnum):
+    INDIVIDUAL = 0
+    ORGANIZATION = 1
+
+
+class ImageType(IntEnum):
+    PNG = 0
+    JPG = 1
+
+
+class WrapMode(IntEnum):
+    WRAP = 0
+    MIRROR = 1
+    CLAMP = 2
+    BORDER = 3
+    NONE = 4
+
+
+class TextureType(IntEnum):
+    UNKNOWN = 0
+    SPECIFIC = 1
+    TYPICAL = 2
 
 
 class CjlibError(RuntimeError):
@@ -209,6 +254,53 @@ class ModelCapacitiesStruct(Structure):
     ]
 
 
+class BBoxStruct(Structure):
+    _fields_ = [
+        ("min_x", c_double),
+        ("min_y", c_double),
+        ("min_z", c_double),
+        ("max_x", c_double),
+        ("max_y", c_double),
+        ("max_z", c_double),
+    ]
+
+
+class RGBStruct(Structure):
+    _fields_ = [("r", c_float), ("g", c_float), ("b", c_float)]
+
+
+class RGBAStruct(Structure):
+    _fields_ = [("r", c_float), ("g", c_float), ("b", c_float), ("a", c_float)]
+
+
+class AffineTransform4x4Struct(Structure):
+    _fields_ = [("elements", c_double * 16)]
+
+
+class GeometryIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
+class SemanticIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
+class MaterialIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
+class TextureIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
+class CityObjectIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
+class GeometryTemplateIdStruct(Structure):
+    _fields_ = [("slot", c_uint32), ("generation", c_uint16), ("reserved", c_uint16)]
+
+
 @dataclass(frozen=True)
 class GeometryBoundaryPayload:
     geometry_type: GeometryType
@@ -309,15 +401,52 @@ class FfiLibrary:
         self._lib.cj_model_parse_feature_with_base_bytes.restype = c_int
         self._lib.cj_model_create.argtypes = [c_int, POINTER(c_void_p)]
         self._lib.cj_model_create.restype = c_int
+
         self._lib.cj_model_free.argtypes = [c_void_p]
         self._lib.cj_model_free.restype = c_int
+        self._lib.cj_bytes_free.argtypes = [BytesStruct]
+        self._lib.cj_bytes_free.restype = c_int
+        self._lib.cj_vertices_free.argtypes = [VerticesStruct]
+        self._lib.cj_vertices_free.restype = c_int
+        self._lib.cj_uvs_free.argtypes = [UVsStruct]
+        self._lib.cj_uvs_free.restype = c_int
+        self._lib.cj_indices_free.argtypes = [IndicesStruct]
+        self._lib.cj_indices_free.restype = c_int
+        self._lib.cj_geometry_boundary_free.argtypes = [GeometryBoundaryStruct]
+        self._lib.cj_geometry_boundary_free.restype = c_int
+        self._lib.cj_value_free.argtypes = [c_void_p]
+        self._lib.cj_value_free.restype = c_int
+        self._lib.cj_contact_free.argtypes = [c_void_p]
+        self._lib.cj_contact_free.restype = c_int
+        self._lib.cj_cityobject_draft_free.argtypes = [c_void_p]
+        self._lib.cj_cityobject_draft_free.restype = c_int
+        self._lib.cj_ring_draft_free.argtypes = [c_void_p]
+        self._lib.cj_ring_draft_free.restype = c_int
+        self._lib.cj_surface_draft_free.argtypes = [c_void_p]
+        self._lib.cj_surface_draft_free.restype = c_int
+        self._lib.cj_shell_draft_free.argtypes = [c_void_p]
+        self._lib.cj_shell_draft_free.restype = c_int
+        self._lib.cj_solid_draft_free.argtypes = [c_void_p]
+        self._lib.cj_solid_draft_free.restype = c_int
+        self._lib.cj_geometry_draft_free.argtypes = [c_void_p]
+        self._lib.cj_geometry_draft_free.restype = c_int
 
         self._lib.cj_model_serialize_document.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_serialize_document.restype = c_int
         self._lib.cj_model_serialize_feature.argtypes = [c_void_p, POINTER(BytesStruct)]
         self._lib.cj_model_serialize_feature.restype = c_int
-        self._lib.cj_bytes_free.argtypes = [BytesStruct]
-        self._lib.cj_bytes_free.restype = c_int
+        self._lib.cj_model_serialize_document_with_options.argtypes = [
+            c_void_p,
+            WriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_document_with_options.restype = c_int
+        self._lib.cj_model_serialize_feature_with_options.argtypes = [
+            c_void_p,
+            WriteOptionsStruct,
+            POINTER(BytesStruct),
+        ]
+        self._lib.cj_model_serialize_feature_with_options.restype = c_int
 
         self._lib.cj_model_get_summary.argtypes = [c_void_p, POINTER(ModelSummaryStruct)]
         self._lib.cj_model_get_summary.restype = c_int
@@ -329,7 +458,6 @@ class FfiLibrary:
         self._lib.cj_model_get_cityobject_id.restype = c_int
         self._lib.cj_model_get_geometry_type.argtypes = [c_void_p, c_size_t, POINTER(c_int)]
         self._lib.cj_model_get_geometry_type.restype = c_int
-
         self._lib.cj_model_copy_geometry_boundary.argtypes = [
             c_void_p,
             c_size_t,
@@ -342,18 +470,8 @@ class FfiLibrary:
             POINTER(VerticesStruct),
         ]
         self._lib.cj_model_copy_geometry_boundary_coordinates.restype = c_int
-        self._lib.cj_vertices_free.argtypes = [VerticesStruct]
-        self._lib.cj_vertices_free.restype = c_int
-
         self._lib.cj_model_copy_uv_coordinates.argtypes = [c_void_p, POINTER(UVsStruct)]
         self._lib.cj_model_copy_uv_coordinates.restype = c_int
-        self._lib.cj_uvs_free.argtypes = [UVsStruct]
-        self._lib.cj_uvs_free.restype = c_int
-
-        self._lib.cj_indices_free.argtypes = [IndicesStruct]
-        self._lib.cj_indices_free.restype = c_int
-        self._lib.cj_geometry_boundary_free.argtypes = [GeometryBoundaryStruct]
-        self._lib.cj_geometry_boundary_free.restype = c_int
 
         self._lib.cj_model_reserve_import.argtypes = [c_void_p, ModelCapacitiesStruct]
         self._lib.cj_model_reserve_import.restype = c_int
@@ -372,7 +490,6 @@ class FfiLibrary:
         self._lib.cj_model_set_transform.restype = c_int
         self._lib.cj_model_clear_transform.argtypes = [c_void_p]
         self._lib.cj_model_clear_transform.restype = c_int
-
         self._lib.cj_model_remove_cityobject.argtypes = [c_void_p, StringViewStruct]
         self._lib.cj_model_remove_cityobject.restype = c_int
         self._lib.cj_model_cleanup.argtypes = [c_void_p]
@@ -387,18 +504,6 @@ class FfiLibrary:
         ]
         self._lib.cj_model_extract_cityobjects.restype = c_int
 
-        self._lib.cj_model_serialize_document_with_options.argtypes = [
-            c_void_p,
-            WriteOptionsStruct,
-            POINTER(BytesStruct),
-        ]
-        self._lib.cj_model_serialize_document_with_options.restype = c_int
-        self._lib.cj_model_serialize_feature_with_options.argtypes = [
-            c_void_p,
-            WriteOptionsStruct,
-            POINTER(BytesStruct),
-        ]
-        self._lib.cj_model_serialize_feature_with_options.restype = c_int
         self._lib.cj_model_parse_feature_stream_merge_bytes.argtypes = [
             POINTER(c_ubyte),
             c_size_t,
@@ -430,6 +535,190 @@ class FfiLibrary:
         ]
         self._lib.cj_model_serialize_cityjsonseq_auto_transform.restype = c_int
 
+        self._lib.cj_value_new_null.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_value_new_null.restype = c_int
+        self._lib.cj_value_new_bool.argtypes = [c_bool, POINTER(c_void_p)]
+        self._lib.cj_value_new_bool.restype = c_int
+        self._lib.cj_value_new_int64.argtypes = [c_int64, POINTER(c_void_p)]
+        self._lib.cj_value_new_int64.restype = c_int
+        self._lib.cj_value_new_float64.argtypes = [c_double, POINTER(c_void_p)]
+        self._lib.cj_value_new_float64.restype = c_int
+        self._lib.cj_value_new_string.argtypes = [StringViewStruct, POINTER(c_void_p)]
+        self._lib.cj_value_new_string.restype = c_int
+        self._lib.cj_value_new_array.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_value_new_array.restype = c_int
+        self._lib.cj_value_new_object.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_value_new_object.restype = c_int
+        self._lib.cj_value_new_geometry_ref.argtypes = [GeometryIdStruct, POINTER(c_void_p)]
+        self._lib.cj_value_new_geometry_ref.restype = c_int
+        self._lib.cj_value_array_push.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_value_array_push.restype = c_int
+        self._lib.cj_value_object_insert.argtypes = [c_void_p, StringViewStruct, c_void_p]
+        self._lib.cj_value_object_insert.restype = c_int
+
+        self._lib.cj_contact_new.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_contact_new.restype = c_int
+        self._lib.cj_contact_set_name.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_contact_set_name.restype = c_int
+        self._lib.cj_contact_set_email.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_contact_set_email.restype = c_int
+        self._lib.cj_contact_set_role.argtypes = [c_void_p, c_int]
+        self._lib.cj_contact_set_role.restype = c_int
+        self._lib.cj_contact_set_website.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_contact_set_website.restype = c_int
+        self._lib.cj_contact_set_type.argtypes = [c_void_p, c_int]
+        self._lib.cj_contact_set_type.restype = c_int
+        self._lib.cj_contact_set_phone.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_contact_set_phone.restype = c_int
+        self._lib.cj_contact_set_organization.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_contact_set_organization.restype = c_int
+        self._lib.cj_contact_set_address.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_contact_set_address.restype = c_int
+
+        self._lib.cj_model_set_metadata_geographical_extent.argtypes = [c_void_p, BBoxStruct]
+        self._lib.cj_model_set_metadata_geographical_extent.restype = c_int
+        self._lib.cj_model_set_metadata_reference_date.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_metadata_reference_date.restype = c_int
+        self._lib.cj_model_set_metadata_reference_system.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_metadata_reference_system.restype = c_int
+        self._lib.cj_model_set_metadata_contact.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_model_set_metadata_contact.restype = c_int
+        self._lib.cj_model_set_metadata_extra.argtypes = [c_void_p, StringViewStruct, c_void_p]
+        self._lib.cj_model_set_metadata_extra.restype = c_int
+        self._lib.cj_model_set_root_extra.argtypes = [c_void_p, StringViewStruct, c_void_p]
+        self._lib.cj_model_set_root_extra.restype = c_int
+        self._lib.cj_model_add_extension.argtypes = [c_void_p, StringViewStruct, StringViewStruct, StringViewStruct]
+        self._lib.cj_model_add_extension.restype = c_int
+
+        self._lib.cj_model_add_semantic.argtypes = [c_void_p, StringViewStruct, POINTER(SemanticIdStruct)]
+        self._lib.cj_model_add_semantic.restype = c_int
+        self._lib.cj_model_set_semantic_parent.argtypes = [c_void_p, SemanticIdStruct, SemanticIdStruct]
+        self._lib.cj_model_set_semantic_parent.restype = c_int
+        self._lib.cj_model_semantic_set_extra.argtypes = [c_void_p, SemanticIdStruct, StringViewStruct, c_void_p]
+        self._lib.cj_model_semantic_set_extra.restype = c_int
+
+        self._lib.cj_model_add_material.argtypes = [c_void_p, StringViewStruct, POINTER(MaterialIdStruct)]
+        self._lib.cj_model_add_material.restype = c_int
+        self._lib.cj_model_material_set_ambient_intensity.argtypes = [c_void_p, MaterialIdStruct, c_float]
+        self._lib.cj_model_material_set_ambient_intensity.restype = c_int
+        self._lib.cj_model_material_set_diffuse_color.argtypes = [c_void_p, MaterialIdStruct, RGBStruct]
+        self._lib.cj_model_material_set_diffuse_color.restype = c_int
+        self._lib.cj_model_material_set_emissive_color.argtypes = [c_void_p, MaterialIdStruct, RGBStruct]
+        self._lib.cj_model_material_set_emissive_color.restype = c_int
+        self._lib.cj_model_material_set_specular_color.argtypes = [c_void_p, MaterialIdStruct, RGBStruct]
+        self._lib.cj_model_material_set_specular_color.restype = c_int
+        self._lib.cj_model_material_set_shininess.argtypes = [c_void_p, MaterialIdStruct, c_float]
+        self._lib.cj_model_material_set_shininess.restype = c_int
+        self._lib.cj_model_material_set_transparency.argtypes = [c_void_p, MaterialIdStruct, c_float]
+        self._lib.cj_model_material_set_transparency.restype = c_int
+        self._lib.cj_model_material_set_is_smooth.argtypes = [c_void_p, MaterialIdStruct, c_bool]
+        self._lib.cj_model_material_set_is_smooth.restype = c_int
+
+        self._lib.cj_model_add_texture.argtypes = [c_void_p, StringViewStruct, c_int, POINTER(TextureIdStruct)]
+        self._lib.cj_model_add_texture.restype = c_int
+        self._lib.cj_model_texture_set_wrap_mode.argtypes = [c_void_p, TextureIdStruct, c_int]
+        self._lib.cj_model_texture_set_wrap_mode.restype = c_int
+        self._lib.cj_model_texture_set_texture_type.argtypes = [c_void_p, TextureIdStruct, c_int]
+        self._lib.cj_model_texture_set_texture_type.restype = c_int
+        self._lib.cj_model_texture_set_border_color.argtypes = [c_void_p, TextureIdStruct, RGBAStruct]
+        self._lib.cj_model_texture_set_border_color.restype = c_int
+        self._lib.cj_model_set_default_material_theme.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_default_material_theme.restype = c_int
+        self._lib.cj_model_set_default_texture_theme.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_set_default_texture_theme.restype = c_int
+
+        self._lib.cj_cityobject_draft_new.argtypes = [StringViewStruct, StringViewStruct, POINTER(c_void_p)]
+        self._lib.cj_cityobject_draft_new.restype = c_int
+        self._lib.cj_cityobject_draft_set_geographical_extent.argtypes = [c_void_p, BBoxStruct]
+        self._lib.cj_cityobject_draft_set_geographical_extent.restype = c_int
+        self._lib.cj_cityobject_draft_set_attribute.argtypes = [c_void_p, StringViewStruct, c_void_p]
+        self._lib.cj_cityobject_draft_set_attribute.restype = c_int
+        self._lib.cj_cityobject_draft_set_extra.argtypes = [c_void_p, StringViewStruct, c_void_p]
+        self._lib.cj_cityobject_draft_set_extra.restype = c_int
+        self._lib.cj_model_add_cityobject.argtypes = [c_void_p, c_void_p, POINTER(CityObjectIdStruct)]
+        self._lib.cj_model_add_cityobject.restype = c_int
+        self._lib.cj_model_cityobject_add_geometry.argtypes = [c_void_p, CityObjectIdStruct, GeometryIdStruct]
+        self._lib.cj_model_cityobject_add_geometry.restype = c_int
+        self._lib.cj_model_cityobject_add_parent.argtypes = [c_void_p, CityObjectIdStruct, CityObjectIdStruct]
+        self._lib.cj_model_cityobject_add_parent.restype = c_int
+
+        self._lib.cj_ring_draft_new.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_ring_draft_new.restype = c_int
+        self._lib.cj_ring_draft_push_vertex_index.argtypes = [c_void_p, c_uint32]
+        self._lib.cj_ring_draft_push_vertex_index.restype = c_int
+        self._lib.cj_ring_draft_push_vertex.argtypes = [c_void_p, VertexStruct]
+        self._lib.cj_ring_draft_push_vertex.restype = c_int
+        self._lib.cj_ring_draft_add_texture.argtypes = [
+            c_void_p,
+            StringViewStruct,
+            TextureIdStruct,
+            POINTER(c_uint32),
+            c_size_t,
+        ]
+        self._lib.cj_ring_draft_add_texture.restype = c_int
+        self._lib.cj_ring_draft_add_texture_uvs.argtypes = [
+            c_void_p,
+            StringViewStruct,
+            TextureIdStruct,
+            POINTER(UVStruct),
+            c_size_t,
+        ]
+        self._lib.cj_ring_draft_add_texture_uvs.restype = c_int
+
+        self._lib.cj_surface_draft_new.argtypes = [c_void_p, POINTER(c_void_p)]
+        self._lib.cj_surface_draft_new.restype = c_int
+        self._lib.cj_surface_draft_add_inner_ring.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_surface_draft_add_inner_ring.restype = c_int
+        self._lib.cj_surface_draft_set_semantic.argtypes = [c_void_p, SemanticIdStruct]
+        self._lib.cj_surface_draft_set_semantic.restype = c_int
+        self._lib.cj_surface_draft_add_material.argtypes = [c_void_p, StringViewStruct, MaterialIdStruct]
+        self._lib.cj_surface_draft_add_material.restype = c_int
+
+        self._lib.cj_shell_draft_new.argtypes = [POINTER(c_void_p)]
+        self._lib.cj_shell_draft_new.restype = c_int
+        self._lib.cj_shell_draft_add_surface.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_shell_draft_add_surface.restype = c_int
+
+        self._lib.cj_solid_draft_new.argtypes = [c_void_p, POINTER(c_void_p)]
+        self._lib.cj_solid_draft_new.restype = c_int
+        self._lib.cj_solid_draft_add_inner_shell.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_solid_draft_add_inner_shell.restype = c_int
+
+        self._lib.cj_geometry_draft_new.argtypes = [c_int, StringViewStruct, POINTER(c_void_p)]
+        self._lib.cj_geometry_draft_new.restype = c_int
+        self._lib.cj_geometry_draft_new_instance.argtypes = [
+            GeometryTemplateIdStruct,
+            c_uint32,
+            AffineTransform4x4Struct,
+            POINTER(c_void_p),
+        ]
+        self._lib.cj_geometry_draft_new_instance.restype = c_int
+        self._lib.cj_geometry_draft_add_point_vertex_index.argtypes = [
+            c_void_p,
+            c_uint32,
+            POINTER(SemanticIdStruct),
+        ]
+        self._lib.cj_geometry_draft_add_point_vertex_index.restype = c_int
+        self._lib.cj_geometry_draft_add_linestring.argtypes = [
+            c_void_p,
+            POINTER(c_uint32),
+            c_size_t,
+            POINTER(SemanticIdStruct),
+        ]
+        self._lib.cj_geometry_draft_add_linestring.restype = c_int
+        self._lib.cj_geometry_draft_add_surface.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_geometry_draft_add_surface.restype = c_int
+        self._lib.cj_geometry_draft_add_solid.argtypes = [c_void_p, c_void_p]
+        self._lib.cj_geometry_draft_add_solid.restype = c_int
+        self._lib.cj_model_add_geometry.argtypes = [c_void_p, c_void_p, POINTER(GeometryIdStruct)]
+        self._lib.cj_model_add_geometry.restype = c_int
+        self._lib.cj_model_add_geometry_template.argtypes = [
+            c_void_p,
+            c_void_p,
+            POINTER(GeometryTemplateIdStruct),
+        ]
+        self._lib.cj_model_add_geometry_template.restype = c_int
+
     def _raise_if_error(self, raw_status: int) -> None:
         status = Status(raw_status)
         if status is Status.SUCCESS:
@@ -453,10 +742,12 @@ class FfiLibrary:
             return POINTER(c_ubyte)()
 
         array_type = c_ubyte * len(data)
-        buffer = array_type.from_buffer_copy(data)
-        return buffer
+        return array_type.from_buffer_copy(data)
 
-    def _string_view(self, data: str) -> tuple[StringViewStruct, object]:
+    def _string_view(self, data: str | None) -> tuple[StringViewStruct, object]:
+        if data is None:
+            return StringViewStruct(), b""
+
         encoded = data.encode("utf-8")
         if not encoded:
             return StringViewStruct(), b""
@@ -492,6 +783,31 @@ class FfiLibrary:
             ),
             [vertex_buffer, ring_buffer, surface_buffer, shell_buffer, solid_buffer],
         )
+
+    def _uint32_array(self, values: list[int]) -> tuple[POINTER(c_uint32), object]:
+        if not values:
+            return POINTER(c_uint32)(), ()
+
+        array_type = c_uint32 * len(values)
+        buffer = array_type(*values)
+        return buffer, buffer
+
+    def _uv_array(self, values: list[UVStruct]) -> tuple[POINTER(UVStruct), object]:
+        if not values:
+            return POINTER(UVStruct)(), ()
+
+        array_type = UVStruct * len(values)
+        buffer = array_type(*values)
+        return buffer, buffer
+
+    def _optional_semantic_pointer(
+        self, semantic: SemanticIdStruct | None
+    ) -> tuple[POINTER(SemanticIdStruct), object | None]:
+        if semantic is None:
+            return POINTER(SemanticIdStruct)(), None
+
+        holder = semantic
+        return pointer(holder), holder
 
     def _write_options(self, options: WriteOptionsPayload) -> WriteOptionsStruct:
         return WriteOptionsStruct(
@@ -558,8 +874,7 @@ class FfiLibrary:
         return values
 
     def _copy_indices(self, payload: IndicesStruct) -> list[int]:
-        values = [payload.data[index] for index in range(payload.len)]
-        return values
+        return [payload.data[index] for index in range(payload.len)]
 
     def _take_geometry_boundary(self, payload: GeometryBoundaryStruct) -> GeometryBoundaryPayload:
         boundary = GeometryBoundaryPayload(
@@ -573,6 +888,17 @@ class FfiLibrary:
         )
         self._raise_if_error(self._lib.cj_geometry_boundary_free(payload))
         return boundary
+
+    def _string_handles(self, values: list[str]) -> tuple[object, list[object]]:
+        buffers: list[object] = []
+        views: list[StringViewStruct] = []
+        for value in values:
+            view, buffer = self._string_view(value)
+            views.append(view)
+            buffers.append(buffer)
+
+        array_type = StringViewStruct * len(views)
+        return array_type(*views), buffers
 
     def probe(self, data: bytes) -> ProbeStruct:
         probe = ProbeStruct()
@@ -619,6 +945,30 @@ class FfiLibrary:
     def free_model(self, handle: int) -> None:
         self._raise_if_error(self._lib.cj_model_free(c_void_p(handle)))
 
+    def free_value(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_value_free(c_void_p(handle)))
+
+    def free_contact(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_contact_free(c_void_p(handle)))
+
+    def free_cityobject_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_cityobject_draft_free(c_void_p(handle)))
+
+    def free_ring_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_ring_draft_free(c_void_p(handle)))
+
+    def free_surface_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_surface_draft_free(c_void_p(handle)))
+
+    def free_shell_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_shell_draft_free(c_void_p(handle)))
+
+    def free_solid_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_solid_draft_free(c_void_p(handle)))
+
+    def free_geometry_draft(self, handle: int) -> None:
+        self._raise_if_error(self._lib.cj_geometry_draft_free(c_void_p(handle)))
+
     def serialize_document(self, handle: int) -> bytes:
         payload = BytesStruct()
         self._raise_if_error(self._lib.cj_model_serialize_document(c_void_p(handle), pointer(payload)))
@@ -660,7 +1010,7 @@ class FfiLibrary:
         )
         return GeometryType(geometry_type.value)
 
-    def geometry_boundary(self, handle: int, index: int) -> dict[str, object]:
+    def geometry_boundary(self, handle: int, index: int) -> GeometryBoundaryPayload:
         payload = GeometryBoundaryStruct()
         self._raise_if_error(
             self._lib.cj_model_copy_geometry_boundary(c_void_p(handle), index, pointer(payload))
@@ -737,6 +1087,21 @@ class FfiLibrary:
         view, _buffer = self._string_view(identifier)
         self._raise_if_error(self._lib.cj_model_set_metadata_identifier(c_void_p(handle), view))
 
+    def set_metadata_geographical_extent(self, handle: int, bbox: BBoxStruct) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_set_metadata_geographical_extent(c_void_p(handle), bbox)
+        )
+
+    def set_metadata_reference_date(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_model_set_metadata_reference_date(c_void_p(handle), view))
+
+    def set_metadata_reference_system(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(
+            self._lib.cj_model_set_metadata_reference_system(c_void_p(handle), view)
+        )
+
     def set_transform(self, handle: int, transform: TransformStruct) -> None:
         self._raise_if_error(self._lib.cj_model_set_transform(c_void_p(handle), transform))
 
@@ -759,19 +1124,11 @@ class FfiLibrary:
         if not cityobject_ids:
             raise ValueError("cityobject_ids must not be empty")
 
-        buffers: list[object] = []
-        views = []
-        for cityobject_id in cityobject_ids:
-            view, buffer = self._string_view(cityobject_id)
-            views.append(view)
-            buffers.append(buffer)
-
-        array_type = StringViewStruct * len(views)
-        array = array_type(*views)
+        array, _buffers = self._string_handles(cityobject_ids)
         extracted = c_void_p()
         self._raise_if_error(
             self._lib.cj_model_extract_cityobjects(
-                c_void_p(handle), array, len(views), pointer(extracted)
+                c_void_p(handle), array, len(cityobject_ids), pointer(extracted)
             )
         )
         return int(extracted.value)
@@ -804,11 +1161,13 @@ class FfiLibrary:
         )
         return int(handle.value)
 
-    def serialize_feature_stream(
-        self, handles: list[int], options: WriteOptionsStruct
-    ) -> bytes:
+    def _handle_array(self, handles: list[int]) -> object:
+        array_type = c_void_p * len(handles)
+        return array_type(*[c_void_p(handle) for handle in handles])
+
+    def serialize_feature_stream(self, handles: list[int], options: WriteOptionsStruct) -> bytes:
+        payload = BytesStruct()
         if not handles:
-            payload = BytesStruct()
             self._raise_if_error(
                 self._lib.cj_model_serialize_feature_stream(
                     POINTER(c_void_p)(), 0, options, pointer(payload)
@@ -816,13 +1175,9 @@ class FfiLibrary:
             )
             return self._take_bytes(payload)
 
-        array_type = c_void_p * len(handles)
-        array = array_type(*[c_void_p(handle) for handle in handles])
-        payload = BytesStruct()
+        array = self._handle_array(handles)
         self._raise_if_error(
-            self._lib.cj_model_serialize_feature_stream(
-                array, len(handles), options, pointer(payload)
-            )
+            self._lib.cj_model_serialize_feature_stream(array, len(handles), options, pointer(payload))
         )
         return self._take_bytes(payload)
 
@@ -833,9 +1188,8 @@ class FfiLibrary:
         transform: TransformStruct,
         options: CityJSONSeqWriteOptionsStruct,
     ) -> bytes:
-        array_type = c_void_p * len(feature_handles)
-        array = array_type(*[c_void_p(handle) for handle in feature_handles])
         payload = BytesStruct()
+        array = self._handle_array(feature_handles)
         self._raise_if_error(
             self._lib.cj_model_serialize_cityjsonseq_with_transform(
                 c_void_p(base_root_handle),
@@ -854,9 +1208,8 @@ class FfiLibrary:
         feature_handles: list[int],
         options: CityJSONSeqAutoTransformOptionsStruct,
     ) -> bytes:
-        array_type = c_void_p * len(feature_handles)
-        array = array_type(*[c_void_p(handle) for handle in feature_handles])
         payload = BytesStruct()
+        array = self._handle_array(feature_handles)
         self._raise_if_error(
             self._lib.cj_model_serialize_cityjsonseq_auto_transform(
                 c_void_p(base_root_handle),
@@ -867,3 +1220,439 @@ class FfiLibrary:
             )
         )
         return self._take_bytes(payload)
+
+    def value_new_null(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_null(pointer(handle)))
+        return int(handle.value)
+
+    def value_new_bool(self, value: bool) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_bool(value, pointer(handle)))
+        return int(handle.value)
+
+    def value_new_int64(self, value: int) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_int64(value, pointer(handle)))
+        return int(handle.value)
+
+    def value_new_float64(self, value: float) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_float64(value, pointer(handle)))
+        return int(handle.value)
+
+    def value_new_string(self, value: str) -> int:
+        handle = c_void_p()
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_value_new_string(view, pointer(handle)))
+        return int(handle.value)
+
+    def value_new_array(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_array(pointer(handle)))
+        return int(handle.value)
+
+    def value_new_object(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_object(pointer(handle)))
+        return int(handle.value)
+
+    def value_new_geometry_ref(self, geometry: GeometryIdStruct) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_value_new_geometry_ref(geometry, pointer(handle)))
+        return int(handle.value)
+
+    def value_array_push(self, array_handle: int, element_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_value_array_push(c_void_p(array_handle), c_void_p(element_handle))
+        )
+
+    def value_object_insert(self, object_handle: int, key: str, member_handle: int) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_value_object_insert(c_void_p(object_handle), view, c_void_p(member_handle))
+        )
+
+    def contact_new(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_contact_new(pointer(handle)))
+        return int(handle.value)
+
+    def contact_set_name(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_contact_set_name(c_void_p(handle), view))
+
+    def contact_set_email(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_contact_set_email(c_void_p(handle), view))
+
+    def contact_set_role(self, handle: int, value: ContactRole) -> None:
+        self._raise_if_error(self._lib.cj_contact_set_role(c_void_p(handle), int(value)))
+
+    def contact_set_website(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_contact_set_website(c_void_p(handle), view))
+
+    def contact_set_type(self, handle: int, value: ContactType) -> None:
+        self._raise_if_error(self._lib.cj_contact_set_type(c_void_p(handle), int(value)))
+
+    def contact_set_phone(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_contact_set_phone(c_void_p(handle), view))
+
+    def contact_set_organization(self, handle: int, value: str) -> None:
+        view, _buffer = self._string_view(value)
+        self._raise_if_error(self._lib.cj_contact_set_organization(c_void_p(handle), view))
+
+    def contact_set_address(self, handle: int, object_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_contact_set_address(c_void_p(handle), c_void_p(object_handle))
+        )
+
+    def model_set_metadata_contact(self, model_handle: int, contact_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_set_metadata_contact(c_void_p(model_handle), c_void_p(contact_handle))
+        )
+
+    def model_set_metadata_extra(self, model_handle: int, key: str, value_handle: int) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_model_set_metadata_extra(c_void_p(model_handle), view, c_void_p(value_handle))
+        )
+
+    def model_set_root_extra(self, model_handle: int, key: str, value_handle: int) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_model_set_root_extra(c_void_p(model_handle), view, c_void_p(value_handle))
+        )
+
+    def model_add_extension(self, model_handle: int, name: str, url: str, version: str) -> None:
+        name_view, _name = self._string_view(name)
+        url_view, _url = self._string_view(url)
+        version_view, _version = self._string_view(version)
+        self._raise_if_error(
+            self._lib.cj_model_add_extension(c_void_p(model_handle), name_view, url_view, version_view)
+        )
+
+    def model_add_semantic(self, model_handle: int, semantic_type: str) -> SemanticIdStruct:
+        semantic = SemanticIdStruct()
+        view, _buffer = self._string_view(semantic_type)
+        self._raise_if_error(
+            self._lib.cj_model_add_semantic(c_void_p(model_handle), view, pointer(semantic))
+        )
+        return semantic
+
+    def model_set_semantic_parent(
+        self, model_handle: int, semantic: SemanticIdStruct, parent: SemanticIdStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_set_semantic_parent(c_void_p(model_handle), semantic, parent)
+        )
+
+    def model_semantic_set_extra(
+        self, model_handle: int, semantic: SemanticIdStruct, key: str, value_handle: int
+    ) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_model_semantic_set_extra(
+                c_void_p(model_handle), semantic, view, c_void_p(value_handle)
+            )
+        )
+
+    def model_add_material(self, model_handle: int, name: str) -> MaterialIdStruct:
+        material = MaterialIdStruct()
+        view, _buffer = self._string_view(name)
+        self._raise_if_error(
+            self._lib.cj_model_add_material(c_void_p(model_handle), view, pointer(material))
+        )
+        return material
+
+    def model_material_set_ambient_intensity(
+        self, model_handle: int, material: MaterialIdStruct, value: float
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_ambient_intensity(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_diffuse_color(
+        self, model_handle: int, material: MaterialIdStruct, value: RGBStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_diffuse_color(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_emissive_color(
+        self, model_handle: int, material: MaterialIdStruct, value: RGBStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_emissive_color(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_specular_color(
+        self, model_handle: int, material: MaterialIdStruct, value: RGBStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_specular_color(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_shininess(
+        self, model_handle: int, material: MaterialIdStruct, value: float
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_shininess(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_transparency(
+        self, model_handle: int, material: MaterialIdStruct, value: float
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_transparency(c_void_p(model_handle), material, value)
+        )
+
+    def model_material_set_is_smooth(
+        self, model_handle: int, material: MaterialIdStruct, value: bool
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_material_set_is_smooth(c_void_p(model_handle), material, value)
+        )
+
+    def model_add_texture(
+        self, model_handle: int, image: str, image_type: ImageType
+    ) -> TextureIdStruct:
+        texture = TextureIdStruct()
+        view, _buffer = self._string_view(image)
+        self._raise_if_error(
+            self._lib.cj_model_add_texture(
+                c_void_p(model_handle), view, int(image_type), pointer(texture)
+            )
+        )
+        return texture
+
+    def model_texture_set_wrap_mode(
+        self, model_handle: int, texture: TextureIdStruct, value: WrapMode
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_texture_set_wrap_mode(c_void_p(model_handle), texture, int(value))
+        )
+
+    def model_texture_set_texture_type(
+        self, model_handle: int, texture: TextureIdStruct, value: TextureType
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_texture_set_texture_type(c_void_p(model_handle), texture, int(value))
+        )
+
+    def model_texture_set_border_color(
+        self, model_handle: int, texture: TextureIdStruct, value: RGBAStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_texture_set_border_color(c_void_p(model_handle), texture, value)
+        )
+
+    def model_set_default_material_theme(self, model_handle: int, theme: str) -> None:
+        view, _buffer = self._string_view(theme)
+        self._raise_if_error(
+            self._lib.cj_model_set_default_material_theme(c_void_p(model_handle), view)
+        )
+
+    def model_set_default_texture_theme(self, model_handle: int, theme: str) -> None:
+        view, _buffer = self._string_view(theme)
+        self._raise_if_error(
+            self._lib.cj_model_set_default_texture_theme(c_void_p(model_handle), view)
+        )
+
+    def cityobject_draft_new(self, cityobject_id: str, cityobject_type: str) -> int:
+        handle = c_void_p()
+        id_view, _id_buffer = self._string_view(cityobject_id)
+        type_view, _type_buffer = self._string_view(cityobject_type)
+        self._raise_if_error(
+            self._lib.cj_cityobject_draft_new(id_view, type_view, pointer(handle))
+        )
+        return int(handle.value)
+
+    def cityobject_draft_set_geographical_extent(self, handle: int, bbox: BBoxStruct) -> None:
+        self._raise_if_error(
+            self._lib.cj_cityobject_draft_set_geographical_extent(c_void_p(handle), bbox)
+        )
+
+    def cityobject_draft_set_attribute(self, handle: int, key: str, value_handle: int) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_cityobject_draft_set_attribute(c_void_p(handle), view, c_void_p(value_handle))
+        )
+
+    def cityobject_draft_set_extra(self, handle: int, key: str, value_handle: int) -> None:
+        view, _buffer = self._string_view(key)
+        self._raise_if_error(
+            self._lib.cj_cityobject_draft_set_extra(c_void_p(handle), view, c_void_p(value_handle))
+        )
+
+    def model_add_cityobject(self, model_handle: int, draft_handle: int) -> CityObjectIdStruct:
+        cityobject = CityObjectIdStruct()
+        self._raise_if_error(
+            self._lib.cj_model_add_cityobject(
+                c_void_p(model_handle), c_void_p(draft_handle), pointer(cityobject)
+            )
+        )
+        return cityobject
+
+    def model_cityobject_add_geometry(
+        self, model_handle: int, cityobject: CityObjectIdStruct, geometry: GeometryIdStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_cityobject_add_geometry(c_void_p(model_handle), cityobject, geometry)
+        )
+
+    def model_cityobject_add_parent(
+        self, model_handle: int, child: CityObjectIdStruct, parent: CityObjectIdStruct
+    ) -> None:
+        self._raise_if_error(
+            self._lib.cj_model_cityobject_add_parent(c_void_p(model_handle), child, parent)
+        )
+
+    def ring_draft_new(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_ring_draft_new(pointer(handle)))
+        return int(handle.value)
+
+    def ring_draft_push_vertex_index(self, handle: int, index: int) -> None:
+        self._raise_if_error(self._lib.cj_ring_draft_push_vertex_index(c_void_p(handle), index))
+
+    def ring_draft_push_vertex(self, handle: int, vertex: VertexStruct) -> None:
+        self._raise_if_error(self._lib.cj_ring_draft_push_vertex(c_void_p(handle), vertex))
+
+    def ring_draft_add_texture(
+        self, handle: int, theme: str, texture: TextureIdStruct, uv_indices: list[int]
+    ) -> None:
+        theme_view, _buffer = self._string_view(theme)
+        uv_values, _uv_buffer = self._uint32_array(uv_indices)
+        self._raise_if_error(
+            self._lib.cj_ring_draft_add_texture(
+                c_void_p(handle), theme_view, texture, uv_values, len(uv_indices)
+            )
+        )
+
+    def ring_draft_add_texture_uvs(
+        self, handle: int, theme: str, texture: TextureIdStruct, uvs: list[UVStruct]
+    ) -> None:
+        theme_view, _buffer = self._string_view(theme)
+        uv_values, _uv_buffer = self._uv_array(uvs)
+        self._raise_if_error(
+            self._lib.cj_ring_draft_add_texture_uvs(
+                c_void_p(handle), theme_view, texture, uv_values, len(uvs)
+            )
+        )
+
+    def surface_draft_new(self, outer_ring_handle: int) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_surface_draft_new(c_void_p(outer_ring_handle), pointer(handle)))
+        return int(handle.value)
+
+    def surface_draft_add_inner_ring(self, handle: int, inner_ring_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_surface_draft_add_inner_ring(c_void_p(handle), c_void_p(inner_ring_handle))
+        )
+
+    def surface_draft_set_semantic(self, handle: int, semantic: SemanticIdStruct) -> None:
+        self._raise_if_error(self._lib.cj_surface_draft_set_semantic(c_void_p(handle), semantic))
+
+    def surface_draft_add_material(
+        self, handle: int, theme: str, material: MaterialIdStruct
+    ) -> None:
+        view, _buffer = self._string_view(theme)
+        self._raise_if_error(
+            self._lib.cj_surface_draft_add_material(c_void_p(handle), view, material)
+        )
+
+    def shell_draft_new(self) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_shell_draft_new(pointer(handle)))
+        return int(handle.value)
+
+    def shell_draft_add_surface(self, handle: int, surface_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_shell_draft_add_surface(c_void_p(handle), c_void_p(surface_handle))
+        )
+
+    def solid_draft_new(self, outer_shell_handle: int) -> int:
+        handle = c_void_p()
+        self._raise_if_error(self._lib.cj_solid_draft_new(c_void_p(outer_shell_handle), pointer(handle)))
+        return int(handle.value)
+
+    def solid_draft_add_inner_shell(self, handle: int, inner_shell_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_solid_draft_add_inner_shell(c_void_p(handle), c_void_p(inner_shell_handle))
+        )
+
+    def geometry_draft_new(self, geometry_type: GeometryType, lod: str | None) -> int:
+        handle = c_void_p()
+        view, _buffer = self._string_view(lod)
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_new(int(geometry_type), view, pointer(handle))
+        )
+        return int(handle.value)
+
+    def geometry_draft_new_instance(
+        self,
+        template_id: GeometryTemplateIdStruct,
+        reference_vertex_index: int,
+        transform: AffineTransform4x4Struct,
+    ) -> int:
+        handle = c_void_p()
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_new_instance(
+                template_id, reference_vertex_index, transform, pointer(handle)
+            )
+        )
+        return int(handle.value)
+
+    def geometry_draft_add_point_vertex_index(
+        self, handle: int, vertex_index: int, semantic: SemanticIdStruct | None
+    ) -> None:
+        semantic_pointer, _holder = self._optional_semantic_pointer(semantic)
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_add_point_vertex_index(
+                c_void_p(handle), vertex_index, semantic_pointer
+            )
+        )
+
+    def geometry_draft_add_linestring(
+        self, handle: int, vertex_indices: list[int], semantic: SemanticIdStruct | None
+    ) -> None:
+        indices_pointer, _buffer = self._uint32_array(vertex_indices)
+        semantic_pointer, _holder = self._optional_semantic_pointer(semantic)
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_add_linestring(
+                c_void_p(handle), indices_pointer, len(vertex_indices), semantic_pointer
+            )
+        )
+
+    def geometry_draft_add_surface(self, handle: int, surface_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_add_surface(c_void_p(handle), c_void_p(surface_handle))
+        )
+
+    def geometry_draft_add_solid(self, handle: int, solid_handle: int) -> None:
+        self._raise_if_error(
+            self._lib.cj_geometry_draft_add_solid(c_void_p(handle), c_void_p(solid_handle))
+        )
+
+    def model_add_geometry(self, model_handle: int, draft_handle: int) -> GeometryIdStruct:
+        geometry = GeometryIdStruct()
+        self._raise_if_error(
+            self._lib.cj_model_add_geometry(
+                c_void_p(model_handle), c_void_p(draft_handle), pointer(geometry)
+            )
+        )
+        return geometry
+
+    def model_add_geometry_template(
+        self, model_handle: int, draft_handle: int
+    ) -> GeometryTemplateIdStruct:
+        geometry = GeometryTemplateIdStruct()
+        self._raise_if_error(
+            self._lib.cj_model_add_geometry_template(
+                c_void_p(model_handle), c_void_p(draft_handle), pointer(geometry)
+            )
+        )
+        return geometry

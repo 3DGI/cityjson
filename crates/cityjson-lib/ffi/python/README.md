@@ -7,10 +7,15 @@ The binding stays intentionally small:
 
 - `ctypes` loading of the shared library
 - `CityModel` wrappers over native handles
-- probe, parse, serialize, create, and summary helpers
-- metadata, cityobject ID, geometry-type, and geometry access
+- typed authoring classes for `Value`, `Contact`, `CityObjectDraft`, `RingDraft`, `SurfaceDraft`, `ShellDraft`, and `GeometryDraft`
+- typed resource IDs for semantics, materials, textures, geometries, templates, and cityobjects
+- probe, parse, serialize, create, summary, and stream helpers
 - smoke tests that exercise the published surface
 
 The package is publishable to PyPI as `cityjson-lib`. The build step compiles
 the shared Rust FFI core and bundles the native library into the wheel and
 source distribution.
+
+The main end-to-end Python reference is
+[`examples/fake_complete.py`](examples/fake_complete.py), which builds the full
+`cityjson_fake_complete.city.json` fixture through the public Python API.
