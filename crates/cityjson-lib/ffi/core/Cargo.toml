@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-lib-ffi-core"
-version = "0.2.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.93"
 description = "C-compatible FFI core for cityjson-lib — stable ABI for embedding and WASM"

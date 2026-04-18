@@ -4,10 +4,11 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 
 ## Rust Crate
 
-1. Run `cargo test -p cityjson-lib`.
-2. Run `cargo publish --dry-run --allow-dirty`.
-3. Confirm that required sibling crates such as `cityjson-json` are already on crates.io.
+1. Run `cargo test --locked --workspace --all-targets --all-features`.
+2. Run `cargo publish --dry-run --locked -p cityjson-lib`.
+3. Confirm that required sibling crates such as `cityjson-rs` and `cityjson-json` are already on crates.io.
 4. Publish `cityjson-lib` to crates.io.
+5. Publish `cityjson-lib-ffi-core` to crates.io once `cityjson-lib` is visible in the registry index.
 
 ## Python Package
 
