@@ -8,3 +8,4 @@ Cargo.lock
 tests/output/*
 /site/
 coverage/
+.worktrees/
