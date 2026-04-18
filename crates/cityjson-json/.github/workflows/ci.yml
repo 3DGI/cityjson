@@ -89,6 +89,12 @@ jobs:
             artifacts
             cases
           sparse-checkout-cone-mode: true
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-fake
+          path: cityjson-fake
+      - run: python scripts/render_correctness_index.py
+        working-directory: cityjson-corpus
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
@@ -183,6 +189,12 @@ jobs:
             artifacts
             cases
           sparse-checkout-cone-mode: true
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-fake
+          path: cityjson-fake
+      - run: python scripts/render_correctness_index.py
+        working-directory: cityjson-corpus
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-tarpaulin
       - run: |
@@ -217,6 +229,13 @@ jobs:
             artifacts
             cases
           sparse-checkout-cone-mode: true
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-fake
+          path: cityjson-fake
+      - uses: astral-sh/setup-uv@v6
+      - run: bash scripts/generate_data.sh
+        working-directory: cityjson-corpus
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: |
