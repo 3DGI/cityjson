@@ -43,6 +43,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -78,6 +83,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -117,6 +127,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -158,6 +173,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -193,6 +213,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -228,6 +253,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
@@ -267,6 +297,11 @@ jobs:
           repository: 3DGI/cityjson-arrow
           path: cityjson-arrow
           token: ${{ secrets.GH_PAT }}
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests/support
+          sparse-checkout-cone-mode: false
       - uses: actions/checkout@v6
         with:
           repository: 3DGI/cityjson-parquet
