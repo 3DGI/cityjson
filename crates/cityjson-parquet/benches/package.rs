@@ -36,7 +36,7 @@ fn bench_read(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(prepared.package_bytes));
         group.bench_function(READ_BENCH_PACKAGE, |b| {
             b.iter_with_large_drop(|| {
-                PackageReader::default()
+                PackageReader
                     .read_file(black_box(&prepared.package_path))
                     .unwrap()
             });
@@ -85,7 +85,7 @@ fn bench_write(c: &mut Criterion) {
         group.bench_function(WRITE_BENCH_PACKAGE, |b| {
             b.iter(|| {
                 let tmp = NamedTempFile::new().unwrap();
-                PackageWriter::default()
+                PackageWriter
                     .write_file(tmp.path(), black_box(&prepared.model))
                     .unwrap();
             });
@@ -107,7 +107,9 @@ fn bench_write(c: &mut Criterion) {
             });
         });
 
-        group.throughput(Throughput::Bytes(prepared.benchmark_bytes(WRITE_BENCH_JSON)));
+        group.throughput(Throughput::Bytes(
+            prepared.benchmark_bytes(WRITE_BENCH_JSON),
+        ));
         group.bench_function(WRITE_BENCH_JSON, |b| {
             b.iter_with_large_drop(|| {
                 to_vec(black_box(&prepared.model), &WriteOptions::default()).unwrap()
