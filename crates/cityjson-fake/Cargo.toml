@@ -37,8 +37,8 @@ jsonschema = { version = "0.46.0", optional = true }
 
 [dev-dependencies]
 cjval = "0.9.0"
-proptest = "1.9.0"
-serde_json = "1.0.145"
+proptest = "1.11.0"
+serde_json = "1.0"
 
 [package.metadata.docs.rs]
 all-features = true
