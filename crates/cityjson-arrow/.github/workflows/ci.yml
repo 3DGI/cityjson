@@ -103,6 +103,8 @@ jobs:
             artifacts
             cases
           sparse-checkout-cone-mode: true
+      - run: python scripts/render_correctness_index.py
+        working-directory: cityjson-corpus
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
       - run: just test
