@@ -148,7 +148,7 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
 
 fn corpus_root() -> PathBuf {
     env::var_os("CITYJSON_PARQUET_SHARED_CORPUS_ROOT").map_or_else(
-        || panic!("set CITYJSON_PARQUET_SHARED_CORPUS_ROOT to your cityjson-corpus checkout"),
+        workspace_corpus_root,
         PathBuf::from,
     )
 }
@@ -160,4 +160,8 @@ fn load_correctness_cases() -> BTreeMap<String, CorrectnessEntry> {
     let index: CorrectnessIndex = serde_json::from_str(&manifest)
         .unwrap_or_else(|err| panic!("failed to parse correctness index: {err}"));
     index.cases.into_iter().map(|c| (c.id.clone(), c)).collect()
+}
+
+fn workspace_corpus_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-corpus")
 }
