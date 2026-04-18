@@ -5,6 +5,7 @@ authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 categories = ["development-tools::testing", "simulation"]
 keywords = ["cityjson", "testing", "faker"]
 edition = "2024"
+rust-version = "1.93"
 description = "Generate fake CityJSON data for testing purposes"
 repository = "https://github.com/3DGI/cityjson-fake"
 license = "Apache-2.0"
