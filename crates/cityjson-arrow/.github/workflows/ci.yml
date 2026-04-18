@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+# Sibling checkout layout under $GITHUB_WORKSPACE:
+#   cityjson-arrow/  ← this repo
+#   cityjson-rs/     ← path dep ../cityjson-rs
+#   cityjson-json/   ← path dep ../cityjson-json (dev-dep)
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: extractions/setup-just@v4
+      - run: cargo fmt --all --check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: extractions/setup-just@v4
+      - run: just lint
+
+  test:
+    name: Test (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: extractions/setup-just@v4
+      - run: just test
+
+  build:
+    name: Build (MSRV ${{matrix.rust}})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [ 1.93.0 ]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{matrix.rust}}
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  nightly:
+    name: Build (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: extractions/setup-just@v4
+      - run: just build
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUSTDOCFLAGS: --cfg docsrs -Dwarnings
+    defaults:
+      run:
+        working-directory: cityjson-arrow
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: cityjson-arrow
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-rs
+          path: cityjson-rs
+      - uses: actions/checkout@v6
+        with:
+          repository: 3DGI/cityjson-json
+          path: cityjson-json
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: extractions/setup-just@v4
+      - run: just rustdoc

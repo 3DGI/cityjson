@@ -2,6 +2,7 @@
 name = "cityjson-arrow"
 version = "0.6.0"
 edition = "2024"
+rust-version = "1.93"
 description = "Arrow IPC and Parquet transport for CityJSON 2.0 city models"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-arrow"

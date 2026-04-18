@@ -379,7 +379,9 @@ pub(super) fn projected_json_array(values: &[Option<&OwnedAttributeValue>]) -> R
                 None | Some(AttributeValue::Null) => Ok(None),
                 Some(value) => serde_json::to_string(&attribute_value_to_json(value))
                     .map(Some)
-                    .map_err(|err| Error::Conversion(format!("JSON fallback serialization failed: {err}"))),
+                    .map_err(|err| {
+                        Error::Conversion(format!("JSON fallback serialization failed: {err}"))
+                    }),
             })
             .collect::<Result<Vec<_>>>()?,
     )) as ArrayRef)
@@ -591,8 +593,7 @@ pub(super) fn projected_value_from_array(
                 .to_string(),
         ),
         ProjectedValueSpec::Json => {
-            let s = required_downcast::<LargeStringArray>(array, "large_utf8 (json)")?
-                .value(row);
+            let s = required_downcast::<LargeStringArray>(array, "large_utf8 (json)")?.value(row);
             let json: serde_json::Value = serde_json::from_str(s).map_err(|err| {
                 Error::Conversion(format!("JSON fallback deserialization failed: {err}"))
             })?;

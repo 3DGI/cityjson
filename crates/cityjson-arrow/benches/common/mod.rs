@@ -168,14 +168,11 @@ impl BenchmarkCase {
 impl CaseSpec {
     pub(crate) fn prepare_read(&self) -> PreparedReadCase {
         let json_bytes = read_file(&self.source);
-        let model =
-            read_model(json_bytes.as_bytes(), &ReadOptions::default()).unwrap_or_else(|err| {
-                panic!("failed to parse {}: {err}", self.source.display())
-            });
+        let model = read_model(json_bytes.as_bytes(), &ReadOptions::default())
+            .unwrap_or_else(|err| panic!("failed to parse {}: {err}", self.source.display()));
         let mut stream_bytes = Vec::new();
-        write_stream(&mut stream_bytes, &model, &ExportOptions::default()).unwrap_or_else(|err| {
-            panic!("failed to encode Arrow IPC for {}: {err}", self.name)
-        });
+        write_stream(&mut stream_bytes, &model, &ExportOptions::default())
+            .unwrap_or_else(|err| panic!("failed to encode Arrow IPC for {}: {err}", self.name));
         let stream_input_bytes = stream_bytes.len() as u64;
         let json_input_bytes = json_bytes.len() as u64;
         PreparedReadCase {
@@ -190,19 +187,15 @@ impl CaseSpec {
 
     pub(crate) fn prepare_write(&self) -> PreparedWriteCase {
         let json_bytes = read_file(&self.source);
-        let model =
-            read_model(json_bytes.as_bytes(), &ReadOptions::default()).unwrap_or_else(|err| {
-                panic!("failed to parse {}: {err}", self.source.display())
-            });
+        let model = read_model(json_bytes.as_bytes(), &ReadOptions::default())
+            .unwrap_or_else(|err| panic!("failed to parse {}: {err}", self.source.display()));
 
         let mut stream_output = Vec::new();
-        write_stream(&mut stream_output, &model, &ExportOptions::default()).unwrap_or_else(
-            |err| panic!("failed to encode Arrow IPC for {}: {err}", self.name),
-        );
+        write_stream(&mut stream_output, &model, &ExportOptions::default())
+            .unwrap_or_else(|err| panic!("failed to encode Arrow IPC for {}: {err}", self.name));
 
-        let json_output = to_vec(&model, &WriteOptions::default()).unwrap_or_else(|err| {
-            panic!("failed to encode JSON for {}: {err}", self.name)
-        });
+        let json_output = to_vec(&model, &WriteOptions::default())
+            .unwrap_or_else(|err| panic!("failed to encode JSON for {}: {err}", self.name));
 
         let benchmark_bytes = BTreeMap::from([
             (WRITE_BENCH_STREAM.to_owned(), stream_output.len() as u64),

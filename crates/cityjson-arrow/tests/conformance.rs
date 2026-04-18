@@ -1,7 +1,9 @@
 #[path = "support/shared_corpus.rs"]
 mod shared_corpus;
 
-use cityjson_arrow::{ExportOptions, ImportOptions, export_reader, import_batches, read_stream, write_stream};
+use cityjson_arrow::{
+    ExportOptions, ImportOptions, export_reader, import_batches, read_stream, write_stream,
+};
 
 macro_rules! conformance_roundtrip_tests {
     ($($case_id:ident),+ $(,)?) => {
