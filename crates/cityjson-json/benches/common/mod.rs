@@ -214,10 +214,8 @@ fn benchmark_index_path() -> PathBuf {
 }
 
 fn shared_corpus_root() -> PathBuf {
-    std::env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
-        workspace_corpus_root,
-        PathBuf::from,
-    )
+    std::env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT")
+        .map_or_else(workspace_corpus_root, PathBuf::from)
 }
 
 fn resolve_shared_path(path: PathBuf) -> PathBuf {
