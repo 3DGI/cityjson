@@ -134,12 +134,7 @@ fn correctness_index_path() -> PathBuf {
 
 fn shared_corpus_root() -> PathBuf {
     env::var_os("CITYJSON_JSON_SHARED_CORPUS_ROOT").map_or_else(
-        || {
-            panic!(
-                "set CITYJSON_JSON_SHARED_CORPUS_ROOT to your cityjson-corpus checkout, \
-or set CITYJSON_JSON_CORRECTNESS_INDEX to the correctness index path"
-            )
-        },
+        workspace_corpus_root,
         PathBuf::from,
     )
 }
@@ -150,6 +145,10 @@ fn resolve_shared_path(path: PathBuf) -> PathBuf {
     } else {
         shared_corpus_root().join(path)
     }
+}
+
+fn workspace_corpus_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cityjson-corpus")
 }
 
 fn generated_temp_path(case_id: &str) -> PathBuf {
