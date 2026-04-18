@@ -28,9 +28,9 @@ lint:
 fmt:
     cargo fmt --all
 
-# Run the full test suite with all features enabled.
+# Run the library and integration tests with all features enabled.
 test:
-    cargo test --all-targets --all-features
+    cargo test --lib --tests --all-features
 
 # Build API docs for all features without pulling in dependencies.
 doc:

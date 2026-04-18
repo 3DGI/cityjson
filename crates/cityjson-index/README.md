@@ -1,6 +1,27 @@
 # cityjson-index
 
-`cityjson-index` is a Rust crate for indexing CityJSON datasets with a persistent SQLite sidecar. It also ships `cjindex`, a command-line tool for inspecting, indexing, and querying supported datasets.
+Index CityJSON datasets with a persistent SQLite sidecar. `cityjson-index` is the Rust crate; `cjindex` is the CLI.
+
+## Problem
+
+CityJSON datasets are often large, awkward to scan repeatedly, and split across storage layouts that make ad hoc testing expensive.
+
+This crate gives you a consistent indexing layer so you can:
+
+- inspect dataset layout and freshness
+- reindex changed data
+- fetch features by identifier
+- query features by bounding box
+- read regular CityJSON, CityJSONSeq / NDJSON, and feature-file datasets through the same API
+
+## What It Does
+
+`cityjson-index` aims to be a small, predictable indexing layer for CityJSON data:
+
+- builds or refreshes a `.cityjson-index.sqlite` sidecar
+- tracks indexed source and feature metadata
+- reconstructs CityJSON feature payloads on read
+- exposes a CLI for dataset inspection, querying, and retrieval
 
 ## Install
 
@@ -23,23 +44,33 @@ Or run it from a checkout:
 cargo run --bin cjindex -- --help
 ```
 
-## What It Does
+## Usage
 
-- Detects the supported storage layout under a dataset directory
-- Builds or refreshes a `.cityjson-index.sqlite` sidecar
-- Retrieves features by identifier
-- Streams features that intersect a bounding box
-- Prints dataset metadata and index health information
+### As a Library
 
-The supported layouts are:
+The main entry points are:
 
-- CityJSONSeq / NDJSON
-- regular CityJSON
-- individual CityJSONFeature files
+- `cityjson_index::CityIndex`
+- `cityjson_index::resolve_dataset`
+- `cityjson_index::StorageLayout`
 
-## CLI
+Example:
 
-The default workflow is dataset-oriented:
+```rust
+use std::path::Path;
+
+use cityjson_index::{CityIndex, resolve_dataset};
+
+let resolved = resolve_dataset(Path::new("/data/3dbag"), None)?;
+let index = CityIndex::open(resolved.storage_layout(), &resolved.index_path)?;
+let status = index.status()?;
+assert!(status.exists);
+# Ok::<(), cityjson_lib::Error>(())
+```
+
+### As a CLI
+
+The CLI is dataset-oriented:
 
 ```bash
 cjindex inspect /data/3dbag
@@ -51,15 +82,13 @@ cjindex query /data/3dbag --min-x 4.4 --max-x 4.5 --min-y 51.8 --max-y 51.9
 cjindex metadata /data/3dbag
 ```
 
-`inspect` reports the detected layout, counts, freshness, and coverage.
-`validate` performs the same checks but exits non-zero when the index is missing, stale, or out of sync.
+Useful patterns:
 
-`get` and `query` emit a line-oriented CityJSON stream:
+- `inspect` reports detected layout, freshness, and coverage
+- `validate` exits non-zero when the index is missing, stale, or out of sync
+- `get` and `query` emit a line-oriented CityJSON stream
 
-- the first record is a `CityJSON` document containing metadata and an empty `CityObjects` object
-- each following record is a `CityJSONFeature`
-
-The explicit low-level mode is still available when you want to specify the layout directly:
+Explicit low-level mode is still available when you want to specify the layout directly:
 
 ```bash
 cjindex get \
@@ -108,3 +137,8 @@ Licensed under either of:
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
+
+## Contributing
+
+Contributions are welcome.
+Please keep changes focused, add tests when behavior changes, and run `just ci` before opening a pull request.

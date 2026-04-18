@@ -1,15 +1,16 @@
 [package]
 name = "cityjson-index"
 version = "0.3.0"
+authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 edition = "2024"
 rust-version = "1.93"
 autobins = false
 default-run = "cjindex"
-description = "An indexing extension for cityjson-lib."
+description = "Index CityJSON datasets with a persistent SQLite sidecar"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-index"
 keywords = ["cityjson", "index", "geospatial", "3d", "gis"]
-categories = ["data-structures", "science::geo"]
+categories = ["command-line-utilities", "data-structures", "science::geo"]
 readme = "README.md"
 exclude = [
     "Cargo.lock",
@@ -17,6 +18,7 @@ exclude = [
     "docs/",
     ".github/",
     "python/",
+    "src/bin/",
     "tests/",
     "justfile",
     "PERF_TEST_GUIDE.md",
@@ -28,6 +30,7 @@ dev-binaries = []
 
 [package.metadata.docs.rs]
 all-features = true
+no-deps = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
