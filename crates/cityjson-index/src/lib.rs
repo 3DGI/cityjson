@@ -14,6 +14,7 @@ use globset::GlobMatcher;
 use ignore::WalkBuilder;
 use lru::LruCache;
 use rusqlite::{OptionalExtension, params};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{Map, Number, Value};
@@ -359,8 +360,7 @@ fn inspect_resolved_dataset(resolved: &ResolvedDataset) -> Result<DatasetInspect
         }
         if status.needs_reindex {
             status.issues.push(
-                "index is missing persisted freshness metadata; run cjindex reindex"
-                    .to_owned(),
+                "index is missing persisted freshness metadata; run cjindex reindex".to_owned(),
             );
         }
 
@@ -1244,7 +1244,7 @@ impl Index {
                     member_ranges_json: feature
                         .member_ranges
                         .as_ref()
-                        .map(serde_json::to_string)
+                        .map(json_string)
                         .transpose()?,
                 });
             }
@@ -1462,7 +1462,7 @@ impl Index {
             params![source_id],
             |row| row.get(0),
         ))?;
-        let metadata: Meta = serde_json::from_str(&metadata_json)?;
+        let metadata: Meta = parse_json_str(&metadata_json)?;
         let metadata = CachedMetadata {
             value: Arc::new(metadata),
             bytes: Arc::from(metadata_json.into_bytes()),
@@ -1639,7 +1639,7 @@ impl Index {
         source_size: u64,
         source_mtime_ns: i64,
     ) -> Result<i64> {
-        let metadata_json = serde_json::to_string(meta)?;
+        let metadata_json = json_string(meta)?;
         let vertices_offset = sqlite_result(vertices_offset.map(u64_to_i64).transpose())?;
         let vertices_length = sqlite_result(vertices_length.map(u64_to_i64).transpose())?;
         let source_size = sqlite_result(u64_to_i64(source_size))?;
@@ -1943,7 +1943,7 @@ impl StorageBackend for CityJsonBackend {
         let member_ranges = loc
             .member_ranges_json
             .as_deref()
-            .map(serde_json::from_str::<Vec<IndexedObjectRange>>)
+            .map(parse_json_str::<Vec<IndexedObjectRange>>)
             .transpose()?
             .unwrap_or_else(|| {
                 vec![IndexedObjectRange {
@@ -2154,7 +2154,7 @@ fn parse_feature_file_bounds(
         .get("vertices")
         .cloned()
         .ok_or_else(|| import_error("feature file is missing vertices"))?;
-    let vertices: Vec<[i64; 3]> = serde_json::from_value(vertices)?;
+    let vertices: Vec<[i64; 3]> = parse_json_value(vertices)?;
 
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
     let (scale, translate) = parse_ndjson_transform(metadata)?;
@@ -2188,7 +2188,7 @@ fn parse_cityobject_entry(fragment: &[u8]) -> Result<(String, Value)> {
     wrapped.extend_from_slice(fragment);
     wrapped.push(b'}');
 
-    let entry: Map<String, Value> = serde_json::from_slice(&wrapped)?;
+    let entry: Map<String, Value> = parse_json_slice(&wrapped)?;
     if entry.len() != 1 {
         return Err(import_error(
             "CityObject entry fragment must contain exactly one object entry",
@@ -2211,7 +2211,7 @@ fn parse_vertices_fragment(fragment: &[u8]) -> Result<Vec<[i64; 3]>> {
     if fragment.is_empty() {
         return Err(import_error("shared vertices fragment is empty"));
     }
-    Ok(serde_json::from_slice(fragment)?)
+    parse_json_slice(fragment)
 }
 
 fn build_feature_parts(
@@ -2257,10 +2257,9 @@ fn build_feature_parts(
     let cityobjects = object_entries
         .into_iter()
         .map(|(id, object_value)| {
-            Ok(LocalizedFeatureObject {
-                id,
-                object_json: RawValue::from_string(serde_json::to_string(&object_value)?)?,
-            })
+            let object_json = RawValue::from_string(json_string(&object_value)?)
+                .map_err(|error| import_error(error.to_string()))?;
+            Ok(LocalizedFeatureObject { id, object_json })
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -2393,6 +2392,26 @@ fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
 }
 
+fn serde_json_error(error: serde_json::Error) -> Error {
+    import_error(error.to_string())
+}
+
+fn parse_json_slice<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    serde_json::from_slice(bytes).map_err(serde_json_error)
+}
+
+fn parse_json_str<T: DeserializeOwned>(value: &str) -> Result<T> {
+    serde_json::from_str(value).map_err(serde_json_error)
+}
+
+fn parse_json_value<T: DeserializeOwned>(value: Value) -> Result<T> {
+    serde_json::from_value(value).map_err(serde_json_error)
+}
+
+fn json_string<T: Serialize + ?Sized>(value: &T) -> Result<String> {
+    serde_json::to_string(value).map_err(serde_json_error)
+}
+
 fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>> {
     let mut file = fs::File::open(path)
         .map_err(|error| import_error(format!("failed to open {}: {error}", path.display())))?;
@@ -2453,7 +2472,7 @@ fn read_exact_range_from_file(
 
 fn read_json(path: impl AsRef<Path>) -> Result<Value> {
     let bytes = fs::read(path.as_ref())?;
-    Ok(serde_json::from_slice(&bytes)?)
+    parse_json_slice(&bytes)
 }
 
 fn file_status(path: &Path) -> Result<(u64, i64)> {
@@ -2495,7 +2514,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
         )));
     };
 
-    let metadata: Meta = serde_json::from_slice(metadata_bytes)?;
+    let metadata: Meta = parse_json_slice(metadata_bytes)?;
     let (scale, translate) = parse_ndjson_transform(&metadata)?;
     let mut features = Vec::new();
 
@@ -2504,7 +2523,7 @@ fn scan_ndjson_source(path: &Path) -> Result<SourceScan> {
             continue;
         }
 
-        let feature: Value = serde_json::from_slice(line_bytes)?;
+        let feature: Value = parse_json_slice(line_bytes)?;
         let (id, bounds) = parse_ndjson_feature_bounds(&feature, scale, translate)?;
         let cityobject_count = feature_cityobject_count(&feature, "ndjson feature")?;
         features.push(ScannedFeature {
@@ -2567,7 +2586,7 @@ fn collect_layout_files(paths: &[PathBuf], suffix: &str) -> Result<Vec<PathBuf>>
 fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
     let bytes = fs::read(path)?;
     let (source_size, source_mtime_ns) = file_status(path)?;
-    let document: Value = serde_json::from_slice(&bytes)?;
+    let document: Value = parse_json_slice(&bytes)?;
     let metadata = cityjson_base_metadata(&document)?;
     let (scale, translate) = parse_ndjson_transform(&metadata)?;
 
@@ -2586,7 +2605,7 @@ fn scan_cityjson_source(path: &Path) -> Result<SourceScan> {
             path.display()
         ))
     })?;
-    let vertices: Vec<[i64; 3]> = serde_json::from_value(vertices_value.clone())?;
+    let vertices: Vec<[i64; 3]> = parse_json_value(vertices_value.clone())?;
     let (vertices_offset, vertices_length) = top_level_value_range(&bytes, "vertices")?;
     let cityobject_ranges = cityobject_entry_ranges(&bytes)?
         .into_iter()
@@ -2885,7 +2904,7 @@ fn parse_json_string(bytes: &[u8], start: usize) -> Result<(String, usize)> {
             escaped = true;
         } else if *byte == b'"' {
             let end = index + 1;
-            return Ok((serde_json::from_slice(&bytes[start..end])?, end));
+            return Ok((parse_json_slice(&bytes[start..end])?, end));
         }
         index += 1;
     }
@@ -3026,7 +3045,7 @@ fn parse_ndjson_feature_bounds(
     let vertices = feature
         .get("vertices")
         .ok_or_else(|| import_error("NDJSON feature is missing vertices"))?;
-    let vertices: Vec<[i64; 3]> = serde_json::from_value(vertices.clone())?;
+    let vertices: Vec<[i64; 3]> = parse_json_value(vertices.clone())?;
     let referenced_vertices = collect_feature_vertex_indices(feature, vertices.len())?;
     let bounds = feature_bounds_from_vertices(&vertices, &referenced_vertices, scale, translate)?;
     Ok((id, bounds))

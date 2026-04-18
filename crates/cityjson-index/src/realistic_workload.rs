@@ -355,7 +355,7 @@ fn value_as_f64(value: &Value) -> Result<f64> {
 
 fn read_json(path: &Path) -> Result<Value> {
     let bytes = fs::read(path).map_err(|error| Error::Import(error.to_string()))?;
-    Ok(serde_json::from_slice(&bytes)?)
+    serde_json::from_slice(&bytes).map_err(|error| Error::Import(error.to_string()))
 }
 
 fn resolve_feature_metadata_path(

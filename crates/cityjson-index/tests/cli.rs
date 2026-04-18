@@ -472,8 +472,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
 {
-    let binary =
-        std::env::var_os("CARGO_BIN_EXE_cjindex").expect("cjindex binary path");
+    let binary = std::env::var_os("CARGO_BIN_EXE_cjindex").expect("cjindex binary path");
     let output = Command::new(binary)
         .args(args)
         .output()

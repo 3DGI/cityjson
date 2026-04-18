@@ -293,10 +293,7 @@ fn prepare_layout(
     get_ids: &[String],
     query_bboxes: &[BBox],
 ) -> Result<PreparedLayout> {
-    let index_path = unique_temp_file(
-        &format!("cjindex-investigate-{}", kind.label()),
-        "sqlite",
-    );
+    let index_path = unique_temp_file(&format!("cjindex-investigate-{}", kind.label()), "sqlite");
     let mut index = CityIndex::open(kind.storage_layout(&root), &index_path)?;
     index.reindex()?;
     drop(index);

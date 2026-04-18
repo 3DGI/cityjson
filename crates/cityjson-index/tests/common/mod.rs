@@ -135,7 +135,7 @@ pub fn bbox_for_model(model: &CityModel) -> Result<BBox> {
 
 fn model_json(model: &CityModel) -> Result<Value> {
     let text = cityjson_lib::json::to_string(model)?;
-    Ok(serde_json::from_str(&text)?)
+    serde_json::from_str(&text).map_err(|error| cityjson_lib::Error::Import(error.to_string()))
 }
 
 fn parse_transform_component(

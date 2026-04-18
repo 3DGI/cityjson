@@ -633,7 +633,7 @@ fn convert_cityjson_to_seq(cityjson_path: &Path, ndjson_path: &Path) -> Result<(
 
 fn read_json(path: impl AsRef<Path>) -> Result<Value> {
     let bytes = fs::read(path.as_ref())?;
-    Ok(serde_json::from_slice(&bytes)?)
+    serde_json::from_slice(&bytes).map_err(|error| Error::Import(error.to_string()))
 }
 
 fn write_json(path: &Path, value: &Value) -> Result<()> {

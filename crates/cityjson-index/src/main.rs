@@ -309,7 +309,8 @@ fn run_metadata(args: IndexCommand) -> Result<()> {
         .map(std::convert::AsRef::as_ref)
         .collect::<Vec<_>>();
     let mut writer = BufWriter::new(io::stdout());
-    serde_json::to_writer(&mut writer, &borrowed_metadata)?;
+    serde_json::to_writer(&mut writer, &borrowed_metadata)
+        .map_err(|error| Error::Import(error.to_string()))?;
     writer.write_all(b"\n")?;
     writer.flush()?;
     Ok(())
@@ -439,7 +440,8 @@ fn print_validation_report(report: &ValidationReport) -> Result<()> {
 
 fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
     let mut writer = BufWriter::new(io::stdout());
-    serde_json::to_writer_pretty(&mut writer, value)?;
+    serde_json::to_writer_pretty(&mut writer, value)
+        .map_err(|error| Error::Import(error.to_string()))?;
     writer.write_all(b"\n")?;
     writer.flush()?;
     Ok(())
@@ -504,7 +506,8 @@ where
     W: Write,
 {
     let header = stream_header(metadata)?;
-    serde_json::to_writer(&mut *writer, &header)?;
+    serde_json::to_writer(&mut *writer, &header)
+        .map_err(|error| Error::Import(error.to_string()))?;
     writer.write_all(b"\n")?;
     Ok(())
 }
