@@ -126,6 +126,8 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
         .arg("--quiet")
         .arg("--manifest-path")
         .arg(&cargo_manifest)
+        .arg("--features")
+        .arg("cli")
         .arg("--")
         .arg("--manifest")
         .arg(profile)
