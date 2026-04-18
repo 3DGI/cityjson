@@ -13,7 +13,7 @@ version range stays compatible.
 Use this dependency line in [python/pyproject.toml](../python/pyproject.toml):
 
 ```toml
-dependencies = ["cityjson-lib~=0.4.0"]
+dependencies = ["cityjson-lib~=0.5.0"]
 ```
 
 That means:

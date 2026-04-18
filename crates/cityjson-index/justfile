@@ -1,6 +1,6 @@
 #!/usr/bin/env just --justfile
 
-default:
+_default:
     just --list
 
 # Prepare the local bootstrap corpus from the pinned 3DBAG data set.
@@ -31,6 +31,11 @@ fmt:
 # Run the library and integration tests with all features enabled.
 test:
     cargo test --lib --tests --all-features
+
+# Build the shared library and run the Python smoke tests from the source checkout.
+test-python:
+    cargo build --lib
+    cd python && uv run -m unittest tests.test_api
 
 # Build API docs for all features without pulling in dependencies.
 doc:
@@ -64,4 +69,5 @@ ci:
     just check
     just lint
     just test
+    just test-python
     just doc

@@ -84,6 +84,11 @@ class OpenedIndex:
         self._index_path_override = index_path_override
         self._handle = None
 
+    def _require_handle(self):
+        if self._handle is None:
+            raise RuntimeError("OpenedIndex has already been closed or was not opened")
+        return self._handle
+
     @classmethod
     def open(
         cls,
@@ -91,8 +96,7 @@ class OpenedIndex:
         index_path: str | os.PathLike[str] | None = None,
     ) -> Self:
         instance = cls(str(dataset_dir), None if index_path is None else str(index_path))
-        if _native.LIB is not None:
-            instance._handle = _native.open_index(instance._dataset_dir, instance._index_path_override)
+        instance._handle = _native.open_index(instance._dataset_dir, instance._index_path_override)
         return instance
 
     def close(self) -> None:
@@ -114,36 +118,22 @@ class OpenedIndex:
             pass
 
     def status(self) -> IndexStatus:
-        if self._handle is None:
-            return IndexStatus()
-        if _native.LIB is None:
-            return IndexStatus()
-        return IndexStatus.from_native(_native.index_status(self._handle))
+        return IndexStatus.from_native(_native.index_status(self._require_handle()))
 
     def reindex(self) -> None:
-        if self._handle is None:
-            return
-        _native.reindex(self._handle)
+        _native.reindex(self._require_handle())
 
     def feature_ref_count(self) -> int:
-        if self._handle is None:
-            return 0
-        return _native.feature_ref_count(self._handle)
+        return _native.feature_ref_count(self._require_handle())
 
     def feature_ref_page(self, offset: int, limit: int) -> list[FeatureRef]:
-        if self._handle is None:
-            return []
-        return _native.feature_ref_page(self._handle, offset, limit)
+        return _native.feature_ref_page(self._require_handle(), offset, limit)
 
     def get_bytes(self, feature_id: str) -> bytes | None:
-        if self._handle is None:
-            return None
-        return _native.get_bytes(self._handle, feature_id)
+        return _native.get_bytes(self._require_handle(), feature_id)
 
     def get_model_bytes(self, feature_id: str) -> bytes | None:
-        if self._handle is None:
-            return None
-        return _native.get_model_bytes(self._handle, feature_id)
+        return _native.get_model_bytes(self._require_handle(), feature_id)
 
     def get(self, feature_id: str) -> "CityModel | None":
         payload = self.get_model_bytes(feature_id)
@@ -158,15 +148,11 @@ class OpenedIndex:
         return json.loads(payload)
 
     def read_feature_bytes(self, ref: FeatureRef) -> bytes:
-        if self._handle is None:
-            return b"{}"
-        return _native.read_feature_bytes(self._handle, ref.source_path, ref.offset, ref.length)
+        return _native.read_feature_bytes(self._require_handle(), ref.source_path, ref.offset, ref.length)
 
     def read_feature_model_bytes(self, ref: FeatureRef) -> bytes:
-        if self._handle is None:
-            return b"{}"
         return _native.read_feature_model_bytes(
-            self._handle,
+            self._require_handle(),
             ref.feature_id,
             ref.source_path,
             ref.offset,
