@@ -11,6 +11,12 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 authors = [{ name = "Balázs Dukai" }]
 
+[dependency-groups]
+dev = ["tox>=4", "tox-uv>=1"]
+
+[tool.uv]
+default-groups = ["dev"]
+
 [project.urls]
 Repository = "https://github.com/3DGI/cityjson-lib"
 

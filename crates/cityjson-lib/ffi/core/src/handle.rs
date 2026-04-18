@@ -1,13 +1,13 @@
 use std::ptr;
 
-use crate::authoring::{
-    GeometryAuthoring, OwnedCityObject, OwnedContact, OwnedValue, RingAuthoring, ShellAuthoring,
-    SolidAuthoring, SurfaceAuthoring,
-};
 use crate::abi::{
     cj_bytes_t, cj_cityobject_draft_t, cj_contact_t, cj_geometry_boundary_t, cj_geometry_draft_t,
     cj_indices_t, cj_model_t, cj_ring_draft_t, cj_shell_draft_t, cj_solid_draft_t,
     cj_surface_draft_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t,
+};
+use crate::authoring::{
+    GeometryAuthoring, OwnedCityObject, OwnedContact, OwnedValue, RingAuthoring, ShellAuthoring,
+    SolidAuthoring, SurfaceAuthoring,
 };
 
 pub fn model_into_handle(model: cityjson_lib::CityModel) -> *mut cj_model_t {

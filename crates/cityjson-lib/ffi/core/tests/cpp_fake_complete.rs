@@ -28,8 +28,9 @@ fn cpp_fake_complete_example_matches_fixture_structurally() {
 
     let actual: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("example output should be valid json");
-    let fixture_bytes = fs::read(repo_root.join("tests/data/v2_0/cityjson_fake_complete.city.json"))
-        .expect("fixture should be readable");
+    let fixture_bytes =
+        fs::read(repo_root.join("tests/data/v2_0/cityjson_fake_complete.city.json"))
+            .expect("fixture should be readable");
     let expected: serde_json::Value =
         serde_json::from_slice(&fixture_bytes).expect("fixture should be valid json");
 

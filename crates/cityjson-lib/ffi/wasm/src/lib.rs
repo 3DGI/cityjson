@@ -12,23 +12,23 @@ use std::slice;
 pub use cityjson_lib_ffi_core as core;
 
 use cityjson_lib_ffi_core::exports::{
-    cj_bytes_free, cj_cityobject_draft_new, cj_geometry_boundary_free, cj_geometry_draft_add_surface,
-    cj_geometry_draft_new, cj_last_error_message_copy, cj_last_error_message_len,
-    cj_model_add_cityobject, cj_model_add_geometry, cj_model_add_vertex, cj_model_cityobject_add_geometry,
-    cj_model_cleanup, cj_model_copy_geometry_boundary, cj_model_copy_geometry_boundary_coordinates,
-    cj_model_copy_template_vertices, cj_model_copy_uv_coordinates, cj_model_copy_vertices,
-    cj_model_create, cj_model_free, cj_model_get_cityobject_id, cj_model_get_geometry_type,
-    cj_model_get_summary, cj_model_parse_document_bytes, cj_model_parse_feature_bytes,
+    cj_bytes_free, cj_cityobject_draft_new, cj_geometry_boundary_free,
+    cj_geometry_draft_add_surface, cj_geometry_draft_new, cj_last_error_message_copy,
+    cj_last_error_message_len, cj_model_add_cityobject, cj_model_add_geometry, cj_model_add_vertex,
+    cj_model_cityobject_add_geometry, cj_model_cleanup, cj_model_copy_geometry_boundary,
+    cj_model_copy_geometry_boundary_coordinates, cj_model_copy_template_vertices,
+    cj_model_copy_uv_coordinates, cj_model_copy_vertices, cj_model_create, cj_model_free,
+    cj_model_get_cityobject_id, cj_model_get_geometry_type, cj_model_get_summary,
+    cj_model_parse_document_bytes, cj_model_parse_feature_bytes,
     cj_model_parse_feature_stream_merge_bytes, cj_model_serialize_document_with_options,
     cj_model_serialize_feature_with_options, cj_model_set_metadata_identifier,
     cj_model_set_metadata_title, cj_model_set_transform, cj_probe_bytes, cj_ring_draft_new,
     cj_ring_draft_push_vertex_index, cj_surface_draft_new, cj_uvs_free, cj_vertices_free,
 };
 use cityjson_lib_ffi_core::{
-    cj_bytes_t, cj_cityobject_id_t, cj_geometry_boundary_t, cj_geometry_id_t,
-    cj_geometry_type_t, cj_json_write_options_t, cj_model_summary_t, cj_model_t,
-    cj_model_type_t, cj_probe_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t,
-    cj_uvs_t, cj_vertex_t, cj_vertices_t,
+    cj_bytes_t, cj_cityobject_id_t, cj_geometry_boundary_t, cj_geometry_id_t, cj_geometry_type_t,
+    cj_json_write_options_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
+    cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_vertex_t, cj_vertices_t,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

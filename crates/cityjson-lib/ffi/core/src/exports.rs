@@ -8,29 +8,28 @@ use std::str::FromStr;
 use cityjson_lib::cityjson::v2_0::{
     Boundary, BoundaryNestedMultiLineString, BoundaryNestedMultiOrCompositeSolid,
     BoundaryNestedMultiOrCompositeSurface, BoundaryNestedMultiPoint, BoundaryNestedSolid,
-    CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Contact,
-    ContactRole, ContactType, Extension, Geometry, GeometryType, ImageType, LoD, Material, RGB,
-    RGBA, Semantic, SemanticType, StoredGeometryParts, Texture, TextureType, Transform, WrapMode,
+    CityModelIdentifier, CityObject, CityObjectIdentifier, CityObjectType, Contact, ContactRole,
+    ContactType, Extension, Geometry, GeometryType, ImageType, LoD, Material, RGB, RGBA, Semantic,
+    SemanticType, StoredGeometryParts, Texture, TextureType, Transform, WrapMode,
 };
 use cityjson_lib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_t,
-    cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t, cj_contact_role_t,
+    cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_t, cj_cityjsonseq_auto_transform_options_t,
+    cj_cityjsonseq_write_options_t, cj_cityobject_draft_t, cj_cityobject_id_t, cj_contact_role_t,
     cj_contact_t, cj_contact_type_t, cj_error_kind_t, cj_geometry_boundary_t,
-    cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_type_t, cj_image_type_t,
-    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_material_id_t,
-    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_rgb_t,
-    cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t, cj_solid_draft_t,
-    cj_status_t, cj_string_view_t, cj_surface_draft_t, cj_texture_id_t, cj_texture_type_t,
-    cj_transform_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t, cj_wrap_mode_t,
-    cj_cityobject_draft_t, cj_cityobject_id_t, cj_geometry_id_t, cj_geometry_template_id_t,
+    cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_id_t, cj_geometry_template_id_t,
+    cj_geometry_type_t, cj_image_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
+    cj_material_id_t, cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t,
+    cj_probe_t, cj_rgb_t, cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t,
+    cj_solid_draft_t, cj_status_t, cj_string_view_t, cj_surface_draft_t, cj_texture_id_t,
+    cj_texture_type_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t,
+    cj_wrap_mode_t,
 };
 use crate::authoring::{
     GeometryAuthoring, LineStringAuthoring, OwnedCityObject, OwnedContact, OwnedMaterial,
-    OwnedSemantic, OwnedTexture, OwnedValue, PointAuthoring, RingAuthoring,
-    RingTextureAuthoring, ShellAuthoring, SolidAuthoring, SurfaceAuthoring, UvAuthoring,
-    VertexAuthoring,
+    OwnedSemantic, OwnedTexture, OwnedValue, PointAuthoring, RingAuthoring, RingTextureAuthoring,
+    ShellAuthoring, SolidAuthoring, SurfaceAuthoring, UvAuthoring, VertexAuthoring,
 };
 use crate::error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,
@@ -337,23 +336,33 @@ fn bbox_from_abi(bbox: cj_bbox_t) -> cityjson_lib::cityjson::v2_0::BBox {
     )
 }
 
-fn affine_transform_from_abi(value: cj_affine_transform_4x4_t) -> cityjson_lib::cityjson::v2_0::AffineTransform3D {
+fn affine_transform_from_abi(
+    value: cj_affine_transform_4x4_t,
+) -> cityjson_lib::cityjson::v2_0::AffineTransform3D {
     cityjson_lib::cityjson::v2_0::AffineTransform3D::new(value.elements)
 }
 
-fn semantic_from_abi(value: cj_semantic_id_t) -> cityjson_lib::cityjson::resources::handles::SemanticHandle {
+fn semantic_from_abi(
+    value: cj_semantic_id_t,
+) -> cityjson_lib::cityjson::resources::handles::SemanticHandle {
     value.into()
 }
 
-fn material_from_abi(value: cj_material_id_t) -> cityjson_lib::cityjson::resources::handles::MaterialHandle {
+fn material_from_abi(
+    value: cj_material_id_t,
+) -> cityjson_lib::cityjson::resources::handles::MaterialHandle {
     value.into()
 }
 
-fn texture_from_abi(value: cj_texture_id_t) -> cityjson_lib::cityjson::resources::handles::TextureHandle {
+fn texture_from_abi(
+    value: cj_texture_id_t,
+) -> cityjson_lib::cityjson::resources::handles::TextureHandle {
     value.into()
 }
 
-fn geometry_from_abi(value: cj_geometry_id_t) -> cityjson_lib::cityjson::resources::handles::GeometryHandle {
+fn geometry_from_abi(
+    value: cj_geometry_id_t,
+) -> cityjson_lib::cityjson::resources::handles::GeometryHandle {
     value.into()
 }
 
@@ -423,7 +432,9 @@ fn texture_type_from_abi(value: cj_texture_type_t) -> TextureType {
     }
 }
 
-fn semantic_type_from_string(value: String) -> SemanticType<cityjson_lib::cityjson::resources::storage::OwnedStringStorage> {
+fn semantic_type_from_string(
+    value: String,
+) -> SemanticType<cityjson_lib::cityjson::resources::storage::OwnedStringStorage> {
     match value.as_str() {
         "Default" => SemanticType::Default,
         "RoofSurface" => SemanticType::RoofSurface,
@@ -613,7 +624,8 @@ fn parse_lod(value: Option<String>) -> Result<Option<LoD>, AbiError> {
 
 fn take_value_handle(handle: *mut cj_value_t) -> Result<OwnedValue, AbiError> {
     // SAFETY: null is rejected here; valid handles originate from Rust.
-    let value = unsafe { value_take(handle) }.ok_or_else(|| invalid_argument("value must not be null"))?;
+    let value =
+        unsafe { value_take(handle) }.ok_or_else(|| invalid_argument("value must not be null"))?;
     Ok(*value)
 }
 
@@ -624,7 +636,9 @@ fn take_contact_handle(handle: *mut cj_contact_t) -> Result<OwnedContact, AbiErr
     Ok(*contact)
 }
 
-fn take_cityobject_draft_handle(handle: *mut cj_cityobject_draft_t) -> Result<OwnedCityObject, AbiError> {
+fn take_cityobject_draft_handle(
+    handle: *mut cj_cityobject_draft_t,
+) -> Result<OwnedCityObject, AbiError> {
     // SAFETY: null is rejected here; valid handles originate from Rust.
     let draft = unsafe { cityobject_draft_take(handle) }
         .ok_or_else(|| invalid_argument("draft must not be null"))?;
@@ -1906,10 +1920,7 @@ pub extern "C" fn cj_value_new_int64(value: i64, out_value: *mut *mut cj_value_t
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn cj_value_new_float64(
-    value: f64,
-    out_value: *mut *mut cj_value_t,
-) -> cj_status_t {
+pub extern "C" fn cj_value_new_float64(value: f64, out_value: *mut *mut cj_value_t) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         let out = required_out(out_value, "out_value")?;
         // SAFETY: `out` is validated to be non-null and points to writable storage.
@@ -2144,7 +2155,9 @@ pub extern "C" fn cj_model_set_metadata_reference_date(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?
             .metadata_mut()
-            .set_reference_date(cityjson_lib::cityjson::v2_0::Date::new(view_utf8(value, "value")?));
+            .set_reference_date(cityjson_lib::cityjson::v2_0::Date::new(view_utf8(
+                value, "value",
+            )?));
         Ok(())
     }))
 }
@@ -2157,7 +2170,9 @@ pub extern "C" fn cj_model_set_metadata_reference_system(
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         required_model_mut(model)?
             .metadata_mut()
-            .set_reference_system(cityjson_lib::cityjson::v2_0::CRS::new(view_utf8(value, "value")?));
+            .set_reference_system(cityjson_lib::cityjson::v2_0::CRS::new(view_utf8(
+                value, "value",
+            )?));
         Ok(())
     }))
 }
@@ -2212,11 +2227,13 @@ pub extern "C" fn cj_model_add_extension(
     version: cj_string_view_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        required_model_mut(model)?.extensions_mut().add(Extension::new(
-            view_utf8(name, "name")?,
-            view_utf8(url, "url")?,
-            view_utf8(version, "version")?,
-        ));
+        required_model_mut(model)?
+            .extensions_mut()
+            .add(Extension::new(
+                view_utf8(name, "name")?,
+                view_utf8(url, "url")?,
+                view_utf8(version, "version")?,
+            ));
         Ok(())
     }))
 }
@@ -2258,7 +2275,10 @@ pub extern "C" fn cj_model_set_semantic_parent(
             let parent_mut = model
                 .get_semantic_mut(parent_handle)
                 .ok_or_else(|| invalid_argument("parent id is invalid for this model"))?;
-            if !parent_mut.children().is_some_and(|children| children.contains(&semantic_handle)) {
+            if !parent_mut
+                .children()
+                .is_some_and(|children| children.contains(&semantic_handle))
+            {
                 parent_mut.children_mut().push(semantic_handle);
             }
         }
@@ -2446,10 +2466,9 @@ pub extern "C" fn cj_model_set_default_material_theme(
     theme: cj_string_view_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        required_model_mut(model)?
-            .set_default_material_theme(Some(cityjson_lib::cityjson::v2_0::ThemeName::new(
-                view_utf8(theme, "theme")?,
-            )));
+        required_model_mut(model)?.set_default_material_theme(Some(
+            cityjson_lib::cityjson::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
+        ));
         Ok(())
     }))
 }
@@ -2460,10 +2479,9 @@ pub extern "C" fn cj_model_set_default_texture_theme(
     theme: cj_string_view_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        required_model_mut(model)?
-            .set_default_texture_theme(Some(cityjson_lib::cityjson::v2_0::ThemeName::new(
-                view_utf8(theme, "theme")?,
-            )));
+        required_model_mut(model)?.set_default_texture_theme(Some(
+            cityjson_lib::cityjson::v2_0::ThemeName::new(view_utf8(theme, "theme")?),
+        ));
         Ok(())
     }))
 }
@@ -2578,9 +2596,12 @@ pub extern "C" fn cj_model_cityobject_add_parent(
             child.add_parent(parent_handle);
         }
         {
-            let parent = model.cityobjects_mut().get_mut(parent_handle).ok_or_else(|| {
-                invalid_argument("parent cityobject id is invalid for this model")
-            })?;
+            let parent = model
+                .cityobjects_mut()
+                .get_mut(parent_handle)
+                .ok_or_else(|| {
+                    invalid_argument("parent cityobject id is invalid for this model")
+                })?;
             parent.add_child(child_handle);
         }
         Ok(())
@@ -2593,7 +2614,10 @@ pub extern "C" fn cj_ring_draft_new(out_ring: *mut *mut cj_ring_draft_t) -> cj_s
         let out = required_out(out_ring, "out_ring")?;
         // SAFETY: `out` is validated to be non-null and points to writable storage.
         unsafe {
-            ptr::write(out.as_ptr(), ring_draft_into_handle(RingAuthoring::default()));
+            ptr::write(
+                out.as_ptr(),
+                ring_draft_into_handle(RingAuthoring::default()),
+            );
         }
         Ok(())
     }))
@@ -2761,7 +2785,10 @@ pub extern "C" fn cj_shell_draft_new(out_shell: *mut *mut cj_shell_draft_t) -> c
         let out = required_out(out_shell, "out_shell")?;
         // SAFETY: `out` is validated to be non-null and points to writable storage.
         unsafe {
-            ptr::write(out.as_ptr(), shell_draft_into_handle(ShellAuthoring::default()));
+            ptr::write(
+                out.as_ptr(),
+                shell_draft_into_handle(ShellAuthoring::default()),
+            );
         }
         Ok(())
     }))

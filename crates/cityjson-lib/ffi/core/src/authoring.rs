@@ -1,8 +1,8 @@
 use cityjson_lib::cityjson::resources::handles::{
     GeometryTemplateHandle, MaterialHandle, SemanticHandle, TextureHandle,
 };
-use cityjson_lib::cityjson::v2_0::ThemeName;
 use cityjson_lib::cityjson::resources::storage::OwnedStringStorage;
+use cityjson_lib::cityjson::v2_0::ThemeName;
 use cityjson_lib::cityjson::v2_0::appearance::material::Material;
 use cityjson_lib::cityjson::v2_0::appearance::texture::Texture;
 use cityjson_lib::cityjson::v2_0::attributes::AttributeValue;
@@ -254,9 +254,7 @@ impl GeometryAuthoring {
             }
             Self::MultiLineString { lod, linestrings } => GeometryDraft::multi_line_string(
                 lod,
-                linestrings
-                    .into_iter()
-                    .map(LineStringAuthoring::into_draft),
+                linestrings.into_iter().map(LineStringAuthoring::into_draft),
             ),
             Self::MultiSurface { lod, surfaces } => GeometryDraft::multi_surface(
                 lod,
@@ -274,10 +272,9 @@ impl GeometryAuthoring {
                     solid.inners.into_iter().map(ShellAuthoring::into_draft),
                 )
             }
-            Self::MultiSolid { lod, solids } => GeometryDraft::multi_solid(
-                lod,
-                solids.into_iter().map(SolidAuthoring::into_draft),
-            ),
+            Self::MultiSolid { lod, solids } => {
+                GeometryDraft::multi_solid(lod, solids.into_iter().map(SolidAuthoring::into_draft))
+            }
             Self::CompositeSolid { lod, solids } => GeometryDraft::composite_solid(
                 lod,
                 solids.into_iter().map(SolidAuthoring::into_draft),
