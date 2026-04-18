@@ -3,7 +3,6 @@ name = "cityjson-lib-ffi-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.93"
-publish = false
 description = "C-compatible FFI core for cityjson-lib — stable ABI for embedding and WASM"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-lib"
