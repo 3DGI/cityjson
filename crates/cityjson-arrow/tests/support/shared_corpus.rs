@@ -147,10 +147,8 @@ fn generate_profile_artifact(profile: &Path, output: &Path) {
 }
 
 fn corpus_root() -> PathBuf {
-    env::var_os("CITYJSON_PARQUET_SHARED_CORPUS_ROOT").map_or_else(
-        workspace_corpus_root,
-        PathBuf::from,
-    )
+    env::var_os("CITYJSON_PARQUET_SHARED_CORPUS_ROOT")
+        .map_or_else(workspace_corpus_root, PathBuf::from)
 }
 
 fn load_correctness_cases() -> BTreeMap<String, CorrectnessEntry> {
