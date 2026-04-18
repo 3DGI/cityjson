@@ -215,7 +215,7 @@ def render_suite_table(suite: str, results: dict[str, dict[str, float]], case_me
         main = suite_case.get(main_bench)
         if baseline is None or main is None:
             continue
-        factor = main / baseline
+        factor = baseline / main
         summaries: list[str] = []
         for bench_id in BENCHMARK_IDS[suite]:
             if bench_id == baseline_bench:
