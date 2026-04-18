@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-lib-ffi-core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.93"
 description = "C-compatible FFI core for cityjson-lib — stable ABI for embedding and WASM"
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
-cityjson_lib = { package = "cityjson-lib", path = "../..", version = "0.4.0", default-features = false, features = ["json"] }
+cityjson_lib = { package = "cityjson-lib", path = "../..", version = "0.5.0", default-features = false, features = ["json"] }
 # Note: path = "../.." is an intra-workspace path dep, intentional — ffi/core is a
 # workspace member of cityjson-lib and resolves within that workspace.
 serde_json = { version = "1.0", features = ["raw_value"] }
