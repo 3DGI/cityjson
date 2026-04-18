@@ -21,13 +21,13 @@ Generated from Criterion results.
 
 | Case | Description | cityjson-parquet/write_file | cityjson-arrow/stream_write | cityjson-json/to_vec | Factor |
 | --- | --- | --- | --- | --- | --- |
-| io_3dbag_cityjson |  | 51.249 ms (110.3 MiB/s) | 30.632 ms (184.0 MiB/s) | 13.536 ms (416.3 MiB/s) | 3.79x |
+| io_3dbag_cityjson |  | 22.927 ms (246.5 MiB/s) | 22.026 ms (255.9 MiB/s) | 13.536 ms (416.3 MiB/s) | 1.69x |
 | io_3dbag_cityjson_cluster_4x |  | 128.362 ms (157.9 MiB/s) | 116.513 ms (173.8 MiB/s) | 49.370 ms (395.6 MiB/s) | 2.60x |
 | io_basisvoorziening_3d_cityjson |  | 1.043 s (165.0 MiB/s) | 885.699 ms (194.3 MiB/s) | 266.128 ms (633.7 MiB/s) | 3.92x |
 | stress_attribute_heavy_heterogenous |  | 26.649 ms (90.0 MiB/s) | 22.076 ms (107.3 MiB/s) | 2.525 ms (535.9 MiB/s) | 10.56x |
 | stress_attribute_heavy_homogenous |  | 6.323 ms (112.2 MiB/s) | 7.672 ms (90.9 MiB/s) | 1.885 ms (544.0 MiB/s) | 3.35x |
 | stress_boundary_heavy |  | 3.372 ms (654.8 MiB/s) | 803.390 us (2742.9 MiB/s) | 2.909 ms (472.7 MiB/s) | 1.16x |
-| stress_geometry_heavy |  | 2.558 ms (620.2 MiB/s) | 1.024 ms (1544.9 MiB/s) | 2.094 ms (495.9 MiB/s) | 1.22x |
-| stress_hierarchy_heavy |  | 3.379 ms (431.0 MiB/s) | 1.173 ms (1236.1 MiB/s) | 2.593 ms (482.4 MiB/s) | 1.30x |
-| stress_resource_heavy |  | 2.113 ms (582.0 MiB/s) | 1.035 ms (1179.7 MiB/s) | 2.008 ms (467.0 MiB/s) | 1.05x |
-| stress_vertex_heavy |  | 12.022 ms (572.2 MiB/s) | 2.500 ms (2749.4 MiB/s) | 9.900 ms (418.3 MiB/s) | 1.21x |
+| stress_geometry_heavy |  | 2.558 ms (620.2 MiB/s) | 1.024 ms (1544.9 MiB/s) | 2.116 ms (490.7 MiB/s) | 1.21x |
+| stress_hierarchy_heavy |  | 2.897 ms (502.8 MiB/s) | 1.159 ms (1251.4 MiB/s) | 2.448 ms (511.1 MiB/s) | 1.18x |
+| stress_resource_heavy |  | 2.737 ms (449.3 MiB/s) | 976.575 us (1249.7 MiB/s) | 1.908 ms (491.5 MiB/s) | 1.43x |
+| stress_vertex_heavy |  | 10.865 ms (633.2 MiB/s) | 2.080 ms (3304.7 MiB/s) | 9.094 ms (455.4 MiB/s) | 1.19x |
