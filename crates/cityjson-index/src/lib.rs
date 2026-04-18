@@ -2392,24 +2392,24 @@ fn import_error(message: impl Into<String>) -> Error {
     Error::Import(message.into())
 }
 
-fn serde_json_error(error: serde_json::Error) -> Error {
+fn serde_json_error(error: &serde_json::Error) -> Error {
     import_error(error.to_string())
 }
 
 fn parse_json_slice<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
-    serde_json::from_slice(bytes).map_err(serde_json_error)
+    serde_json::from_slice(bytes).map_err(|error| serde_json_error(&error))
 }
 
 fn parse_json_str<T: DeserializeOwned>(value: &str) -> Result<T> {
-    serde_json::from_str(value).map_err(serde_json_error)
+    serde_json::from_str(value).map_err(|error| serde_json_error(&error))
 }
 
 fn parse_json_value<T: DeserializeOwned>(value: Value) -> Result<T> {
-    serde_json::from_value(value).map_err(serde_json_error)
+    serde_json::from_value(value).map_err(|error| serde_json_error(&error))
 }
 
 fn json_string<T: Serialize + ?Sized>(value: &T) -> Result<String> {
-    serde_json::to_string(value).map_err(serde_json_error)
+    serde_json::to_string(value).map_err(|error| serde_json_error(&error))
 }
 
 fn read_exact_range(path: &Path, offset: u64, length: u64) -> Result<Vec<u8>> {
