@@ -186,6 +186,7 @@ def plot_suite(suite: str, results: dict[str, dict[str, float]]) -> None:
     ax.set_yticks(y_positions, order)
     ax.set_xlim(left=0.0)
     ax.grid(visible=True, which="major", axis="x")
+    ax.grid(visible=True, which="major", axis="y", linewidth=0.5, alpha=0.5)
     ax.set_title(f"Relative execution time compared to {baseline_label} ({suite})")
     ax.set_xlabel(f"Factor of execution time relative to {baseline_label} (>1 = slower)")
     plt.tight_layout()
