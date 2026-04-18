@@ -195,8 +195,12 @@ jobs:
       - run: just doc
 
   test-python:
-    name: Python bindings
-    runs-on: ubuntu-latest
+    name: Python bindings (${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
     timeout-minutes: 30
     defaults:
       run:

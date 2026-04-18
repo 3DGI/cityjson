@@ -32,10 +32,10 @@ fmt:
 test:
     cargo test --lib --tests --all-features
 
-# Build the shared library and run the Python smoke tests from the source checkout.
+# Build the shared library and run the Python install smoke tests through tox and tox-uv.
 test-python:
     cargo build --lib
-    cd python && uv run -m unittest tests.test_api
+    cd python && uv run tox run
 
 # Build API docs for all features without pulling in dependencies.
 doc:

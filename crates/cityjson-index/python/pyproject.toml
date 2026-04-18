@@ -9,6 +9,12 @@ description = "Python bindings for cityjson-index"
 requires-python = ">=3.11"
 dependencies = ["cityjson-lib~=0.5.0"]
 
+[dependency-groups]
+dev = ["tox>=4", "tox-uv>=1"]
+
+[tool.uv]
+default-groups = ["dev"]
+
 [tool.uv.sources]
 cityjson-lib = { path = "../../cityjson-lib/ffi/python", editable = true }
 
