@@ -127,7 +127,10 @@ jobs:
           path: cityjson-corpus
           sparse-checkout: |
             artifacts
+            catalog
             cases
+            schemas
+            scripts
           sparse-checkout-cone-mode: true
       - run: python scripts/render_correctness_index.py
         working-directory: cityjson-corpus
