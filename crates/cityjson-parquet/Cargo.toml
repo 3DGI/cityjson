@@ -2,6 +2,7 @@
 name = "cityjson-parquet"
 version = "0.5.2"
 edition = "2024"
+rust-version = "1.93"
 description = "Parquet read/write for CityJSON 2.0 city models via cityjson-arrow"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/3DGI/cityjson-arrow"
