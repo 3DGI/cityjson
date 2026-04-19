@@ -1,5 +1,7 @@
 site_name: cityjson-arrow
 site_description: User-facing documentation for cityjson-arrow and cityjson-parquet
+repo_url: https://github.com/3DGI/cityjson-arrow
+repo_name: 3DGI/cityjson-arrow
 docs_dir: docs
 strict: true
 
@@ -19,7 +21,15 @@ nav:
       - ADR 3: adr/003-separate-live-arrow-ipc-from-persistent-package-io.md
 
 theme:
-  name: material
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
   features:
     - navigation.tabs
     - navigation.sections
@@ -30,6 +40,9 @@ theme:
     - content.code.annotate
     - search.suggest
     - search.highlight
+
+plugins:
+  - search
 
 markdown_extensions:
   - admonition
