@@ -1,5 +1,7 @@
-site_name: cityjson_lib
+site_name: cityjson-lib
 site_description: Minimal release-facing docs for cityjson_lib
+repo_url: https://github.com/3DGI/cityjson-lib
+repo_name: 3DGI/cityjson-lib
 docs_dir: docs
 strict: true
 nav:
@@ -18,10 +20,25 @@ nav:
       - Binding API: ffi/api.md
       - Authoring API Proposal: ffi/authoring-api-proposal.md
 theme:
-  name: material
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
 plugins:
   - search
 markdown_extensions:
