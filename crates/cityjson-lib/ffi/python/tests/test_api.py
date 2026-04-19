@@ -44,6 +44,7 @@ from cityjson_lib import (
     write_cityjsonseq_with_transform_bytes,
 )
 from cityjson_lib._fake_complete import build_fake_complete_model
+from cityjson_lib._ffi import CjlibError, Status
 
 
 FIXTURE_PATH = Path(__file__).resolve().parents[3] / "tests" / "data" / "v2_0" / "minimal.city.json"
@@ -169,6 +170,10 @@ class PythonBindingSmokeTest(unittest.TestCase):
 
         model.append_model(other)
         model.cleanup()
+
+        with self.assertRaises(CjlibError) as error:
+            model.append_model(model)
+        self.assertEqual(error.exception.status, Status.INVALID_ARGUMENT)
 
         summary = model.summary()
         self.assertEqual(summary.model_type, ModelType.CITY_JSON_FEATURE)

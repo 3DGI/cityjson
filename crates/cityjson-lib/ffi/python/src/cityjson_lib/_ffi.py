@@ -130,6 +130,10 @@ class BytesStruct(Structure):
     _fields_ = [("data", POINTER(c_ubyte)), ("len", c_size_t)]
 
 
+class BytesListStruct(Structure):
+    _fields_ = [("data", POINTER(BytesStruct)), ("len", c_size_t)]
+
+
 class VertexStruct(Structure):
     _fields_ = [("x", c_double), ("y", c_double), ("z", c_double)]
 
@@ -160,6 +164,10 @@ class GeometryBoundaryStruct(Structure):
         ("shell_offsets", IndicesStruct),
         ("solid_offsets", IndicesStruct),
     ]
+
+
+class GeometryTypesStruct(Structure):
+    _fields_ = [("data", POINTER(c_int)), ("len", c_size_t)]
 
 
 class StringViewStruct(Structure):
@@ -345,8 +353,8 @@ def _candidate_library_paths() -> list[Path]:
         candidates.append(package_dir / name)
         if len(package_dir.parents) > 3:
             repo_root = package_dir.parents[3]
-            candidates.append(repo_root / "target" / "release" / name)
             candidates.append(repo_root / "target" / "debug" / name)
+            candidates.append(repo_root / "target" / "release" / name)
 
     unique_candidates: list[Path] = []
     for candidate in candidates:
@@ -406,12 +414,16 @@ class FfiLibrary:
         self._lib.cj_model_free.restype = c_int
         self._lib.cj_bytes_free.argtypes = [BytesStruct]
         self._lib.cj_bytes_free.restype = c_int
+        self._lib.cj_bytes_list_free.argtypes = [BytesListStruct]
+        self._lib.cj_bytes_list_free.restype = c_int
         self._lib.cj_vertices_free.argtypes = [VerticesStruct]
         self._lib.cj_vertices_free.restype = c_int
         self._lib.cj_uvs_free.argtypes = [UVsStruct]
         self._lib.cj_uvs_free.restype = c_int
         self._lib.cj_indices_free.argtypes = [IndicesStruct]
         self._lib.cj_indices_free.restype = c_int
+        self._lib.cj_geometry_types_free.argtypes = [GeometryTypesStruct]
+        self._lib.cj_geometry_types_free.restype = c_int
         self._lib.cj_geometry_boundary_free.argtypes = [GeometryBoundaryStruct]
         self._lib.cj_geometry_boundary_free.restype = c_int
         self._lib.cj_value_free.argtypes = [c_void_p]
@@ -456,8 +468,12 @@ class FfiLibrary:
         self._lib.cj_model_get_metadata_identifier.restype = c_int
         self._lib.cj_model_get_cityobject_id.argtypes = [c_void_p, c_size_t, POINTER(BytesStruct)]
         self._lib.cj_model_get_cityobject_id.restype = c_int
+        self._lib.cj_model_copy_cityobject_ids.argtypes = [c_void_p, POINTER(BytesListStruct)]
+        self._lib.cj_model_copy_cityobject_ids.restype = c_int
         self._lib.cj_model_get_geometry_type.argtypes = [c_void_p, c_size_t, POINTER(c_int)]
         self._lib.cj_model_get_geometry_type.restype = c_int
+        self._lib.cj_model_copy_geometry_types.argtypes = [c_void_p, POINTER(GeometryTypesStruct)]
+        self._lib.cj_model_copy_geometry_types.restype = c_int
         self._lib.cj_model_copy_geometry_boundary.argtypes = [
             c_void_p,
             c_size_t,
@@ -845,6 +861,31 @@ class FfiLibrary:
         self._raise_if_error(self._lib.cj_bytes_free(payload))
         return data
 
+    def _take_bytes_list(self, payload: BytesListStruct) -> list[str]:
+        if payload.len == 0:
+            self._raise_if_error(self._lib.cj_bytes_list_free(payload))
+            return []
+
+        values = []
+        for index in range(payload.len):
+            item = payload.data[index]
+            if item.len == 0:
+                values.append("")
+                continue
+            values.append(string_at(item.data, item.len).decode("utf-8"))
+
+        self._raise_if_error(self._lib.cj_bytes_list_free(payload))
+        return values
+
+    def _take_geometry_types(self, payload: GeometryTypesStruct) -> list[GeometryType]:
+        if payload.len == 0:
+            self._raise_if_error(self._lib.cj_geometry_types_free(payload))
+            return []
+
+        values = [GeometryType(payload.data[index]) for index in range(payload.len)]
+        self._raise_if_error(self._lib.cj_geometry_types_free(payload))
+        return values
+
     def _take_vertices(self, payload: VerticesStruct) -> list[VertexStruct]:
         if payload.len == 0:
             self._raise_if_error(self._lib.cj_vertices_free(payload))
@@ -1003,12 +1044,24 @@ class FfiLibrary:
         )
         return self._take_bytes(payload).decode("utf-8")
 
+    def cityobject_ids(self, handle: int) -> list[str]:
+        payload = BytesListStruct()
+        self._raise_if_error(self._lib.cj_model_copy_cityobject_ids(c_void_p(handle), pointer(payload)))
+        return self._take_bytes_list(payload)
+
     def geometry_type(self, handle: int, index: int) -> GeometryType:
         geometry_type = c_int()
         self._raise_if_error(
             self._lib.cj_model_get_geometry_type(c_void_p(handle), index, pointer(geometry_type))
         )
         return GeometryType(geometry_type.value)
+
+    def geometry_types(self, handle: int) -> list[GeometryType]:
+        payload = GeometryTypesStruct()
+        self._raise_if_error(
+            self._lib.cj_model_copy_geometry_types(c_void_p(handle), pointer(payload))
+        )
+        return self._take_geometry_types(payload)
 
     def geometry_boundary(self, handle: int, index: int) -> GeometryBoundaryPayload:
         payload = GeometryBoundaryStruct()

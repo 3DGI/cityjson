@@ -3,11 +3,11 @@ use std::slice;
 
 use cityjson_lib_ffi_core::exports::*;
 use cityjson_lib_ffi_core::{
-    AbiError, cj_bytes_t, cj_cityobject_id_t, cj_error_kind_t, cj_geometry_boundary_t,
-    cj_geometry_id_t, cj_geometry_type_t, cj_indices_t, cj_json_write_options_t,
-    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t,
-    cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_version_t,
-    cj_vertex_t, cj_vertices_t, run_ffi,
+    AbiError, cj_bytes_list_t, cj_bytes_t, cj_cityobject_id_t, cj_error_kind_t,
+    cj_geometry_boundary_t, cj_geometry_id_t, cj_geometry_type_t, cj_geometry_types_t,
+    cj_indices_t, cj_json_write_options_t, cj_model_capacities_t, cj_model_summary_t, cj_model_t,
+    cj_model_type_t, cj_probe_t, cj_root_kind_t, cj_status_t, cj_string_view_t, cj_transform_t,
+    cj_uv_t, cj_uvs_t, cj_version_t, cj_vertex_t, cj_vertices_t, run_ffi,
 };
 
 fn v2_document() -> &'static [u8] {
@@ -35,6 +35,46 @@ fn bytes_to_string(bytes: cj_bytes_t) -> String {
         .to_owned();
     assert_eq!(cj_bytes_free(bytes), cj_status_t::CJ_STATUS_SUCCESS);
     string
+}
+
+fn bytes_list_to_vec(bytes: cj_bytes_list_t) -> Vec<String> {
+    if bytes.len == 0 {
+        let _ = cj_bytes_list_free(bytes);
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable owned strings.
+    let values = unsafe { slice::from_raw_parts(bytes.data.cast_const(), bytes.len) }
+        .iter()
+        .map(|item| {
+            if item.len == 0 {
+                String::new()
+            } else {
+                // SAFETY: the ABI returned `len` readable UTF-8 bytes.
+                let value = unsafe { slice::from_raw_parts(item.data.cast_const(), item.len) };
+                std::str::from_utf8(value)
+                    .expect("ffi bytes should be valid utf-8 in this test")
+                    .to_owned()
+            }
+        })
+        .collect();
+    assert_eq!(cj_bytes_list_free(bytes), cj_status_t::CJ_STATUS_SUCCESS);
+    values
+}
+
+fn geometry_types_to_vec(types: cj_geometry_types_t) -> Vec<cj_geometry_type_t> {
+    if types.len == 0 {
+        let _ = cj_geometry_types_free(types);
+        return Vec::new();
+    }
+
+    // SAFETY: the ABI returned `len` readable geometry types.
+    let values = unsafe { slice::from_raw_parts(types.data.cast_const(), types.len) }.to_vec();
+    assert_eq!(
+        cj_geometry_types_free(types),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    values
 }
 
 fn string_view(value: &str) -> cj_string_view_t {
@@ -115,6 +155,10 @@ fn free_functions_accept_null_handles_and_buffers() {
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_eq!(
+        cj_bytes_list_free(cj_bytes_list_t::default()),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
         cj_vertices_free(cj_vertices_t::default()),
         cj_status_t::CJ_STATUS_SUCCESS
     );
@@ -124,6 +168,10 @@ fn free_functions_accept_null_handles_and_buffers() {
     );
     assert_eq!(
         cj_indices_free(cj_indices_t::default()),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        cj_geometry_types_free(cj_geometry_types_t::default()),
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_eq!(
@@ -286,6 +334,29 @@ fn summary_and_indexed_inspection_cover_basic_model_state() {
         cj_status_t::CJ_STATUS_SUCCESS
     );
     assert_eq!(geometry1, cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT);
+
+    let mut cityobject_ids = cj_bytes_list_t::default();
+    assert_eq!(
+        cj_model_copy_cityobject_ids(handle, &raw mut cityobject_ids),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        bytes_list_to_vec(cityobject_ids),
+        vec!["building-1".to_owned(), "building-part-1".to_owned()]
+    );
+
+    let mut geometry_types = cj_geometry_types_t::default();
+    assert_eq!(
+        cj_model_copy_geometry_types(handle, &raw mut geometry_types),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+    assert_eq!(
+        geometry_types_to_vec(geometry_types),
+        vec![
+            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_SURFACE,
+            cj_geometry_type_t::CJ_GEOMETRY_TYPE_MULTI_POINT,
+        ]
+    );
 
     assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
 }
@@ -795,6 +866,26 @@ fn append_extract_and_feature_stream_exports_work() {
 }
 
 #[test]
+fn append_rejects_self_aliasing_handles() {
+    let mut handle = ptr::null_mut();
+    assert_eq!(
+        cj_model_parse_document_bytes(v2_document().as_ptr(), v2_document().len(), &raw mut handle),
+        cj_status_t::CJ_STATUS_SUCCESS
+    );
+
+    assert_eq!(
+        cj_model_append_model(handle, handle.cast_const()),
+        cj_status_t::CJ_STATUS_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        cj_last_error_kind(),
+        cj_error_kind_t::CJ_ERROR_KIND_INVALID_ARGUMENT
+    );
+
+    assert_eq!(cj_model_free(handle), cj_status_t::CJ_STATUS_SUCCESS);
+}
+
+#[test]
 fn unsupported_version_is_reported_without_panicking() {
     let mut handle = ptr::null_mut();
     let status =
@@ -871,6 +962,14 @@ fn null_arguments_are_rejected_and_reported() {
 
     let mut summary = cj_model_summary_t::default();
     let status = cj_model_get_summary(ptr::null(), &raw mut summary);
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let mut cityobject_ids = cj_bytes_list_t::default();
+    let status = cj_model_copy_cityobject_ids(ptr::null(), &raw mut cityobject_ids);
+    assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
+
+    let mut geometry_types = cj_geometry_types_t::default();
+    let status = cj_model_copy_geometry_types(ptr::null(), &raw mut geometry_types);
     assert_eq!(status, cj_status_t::CJ_STATUS_INVALID_ARGUMENT);
 
     let mut handle = ptr::null_mut();

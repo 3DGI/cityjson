@@ -39,6 +39,10 @@ build_header() {
     --output "${header_path}"
 }
 
+verify_header_clean() {
+  git diff --exit-code -- "${header_path}"
+}
+
 build_cpp() {
   require_header
   cargo build --manifest-path "${repo_dir}/Cargo.toml" \
@@ -46,7 +50,8 @@ build_cpp() {
     -p cityjson-lib-wasm \
     --all-targets \
     --all-features
-  cmake -S "${repo_dir}/ffi/cpp" -B "${cpp_build_dir}"
+  cmake -S "${repo_dir}/ffi/cpp" -B "${cpp_build_dir}" \
+    -DCITYJSON_LIB_FFI_CORE_SHARED_LIB="${repo_dir}/target/debug/libcityjson_lib_ffi_core.so"
   cmake --build "${cpp_build_dir}" "$@"
 }
 
@@ -88,6 +93,7 @@ doc() {
 
 test() {
   build_header
+  verify_header_clean
   build_cpp
   cargo test --manifest-path "${repo_dir}/Cargo.toml" \
     -p cityjson-lib-ffi-core \
@@ -106,6 +112,7 @@ clean() {
 ci() {
   check
   build_header
+  verify_header_clean
   build_cpp
   build_python
   build_wasm

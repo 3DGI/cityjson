@@ -703,12 +703,10 @@ class CityModel(_OwnedHandle):
         return _ffi.metadata_identifier(self._require_handle())
 
     def cityobject_ids(self) -> list[str]:
-        count = self.summary().cityobject_count
-        return [_ffi.cityobject_id(self._require_handle(), index) for index in range(count)]
+        return _ffi.cityobject_ids(self._require_handle())
 
     def geometry_types(self) -> list[GeometryType]:
-        count = self.summary().geometry_count
-        return [_ffi.geometry_type(self._require_handle(), index) for index in range(count)]
+        return _ffi.geometry_types(self._require_handle())
 
     def geometry_boundary(self, index: int) -> GeometryBoundary:
         payload = _ffi.geometry_boundary(self._require_handle(), index)

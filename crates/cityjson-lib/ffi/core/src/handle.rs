@@ -1,9 +1,10 @@
 use std::ptr;
 
 use crate::abi::{
-    cj_bytes_t, cj_cityobject_draft_t, cj_contact_t, cj_geometry_boundary_t, cj_geometry_draft_t,
-    cj_indices_t, cj_model_t, cj_ring_draft_t, cj_shell_draft_t, cj_solid_draft_t,
-    cj_surface_draft_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t,
+    cj_bytes_list_t, cj_bytes_t, cj_cityobject_draft_t, cj_contact_t, cj_geometry_boundary_t,
+    cj_geometry_draft_t, cj_geometry_types_t, cj_indices_t, cj_model_t, cj_ring_draft_t,
+    cj_shell_draft_t, cj_solid_draft_t, cj_surface_draft_t, cj_uv_t, cj_uvs_t, cj_value_t,
+    cj_vertex_t, cj_vertices_t,
 };
 use crate::authoring::{
     GeometryAuthoring, OwnedCityObject, OwnedContact, OwnedValue, RingAuthoring, ShellAuthoring,
@@ -134,11 +135,25 @@ pub fn bytes_from_string(bytes: String) -> cj_bytes_t {
     bytes_from_vec(bytes.into_bytes())
 }
 
+pub fn bytes_list_from_vec(bytes: Vec<cj_bytes_t>) -> cj_bytes_list_t {
+    let boxed = bytes.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<cj_bytes_t>();
+    cj_bytes_list_t { data, len }
+}
+
 pub fn vertices_from_vec(vertices: Vec<cj_vertex_t>) -> cj_vertices_t {
     let boxed = vertices.into_boxed_slice();
     let len = boxed.len();
     let data = Box::into_raw(boxed).cast::<cj_vertex_t>();
     cj_vertices_t { data, len }
+}
+
+pub fn geometry_types_from_vec(types: Vec<crate::abi::cj_geometry_type_t>) -> cj_geometry_types_t {
+    let boxed = types.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed).cast::<crate::abi::cj_geometry_type_t>();
+    cj_geometry_types_t { data, len }
 }
 
 pub fn uvs_from_vec(uvs: Vec<cj_uv_t>) -> cj_uvs_t {
@@ -162,6 +177,21 @@ pub unsafe fn bytes_free(bytes: cj_bytes_t) {
 
     let slice = ptr::slice_from_raw_parts_mut(bytes.data, bytes.len);
     unsafe {
+        drop(Box::from_raw(slice));
+    }
+}
+
+pub unsafe fn bytes_list_free(bytes: cj_bytes_list_t) {
+    if bytes.data.is_null() {
+        return;
+    }
+
+    let slice = ptr::slice_from_raw_parts_mut(bytes.data, bytes.len);
+    // SAFETY: each element was allocated through `bytes_from_string`/`bytes_from_vec`.
+    unsafe {
+        for item in &*slice {
+            bytes_free(*item);
+        }
         drop(Box::from_raw(slice));
     }
 }
@@ -194,6 +224,17 @@ pub unsafe fn indices_free(indices: cj_indices_t) {
     }
 
     let slice = ptr::slice_from_raw_parts_mut(indices.data, indices.len);
+    unsafe {
+        drop(Box::from_raw(slice));
+    }
+}
+
+pub unsafe fn geometry_types_free(types: cj_geometry_types_t) {
+    if types.data.is_null() {
+        return;
+    }
+
+    let slice = ptr::slice_from_raw_parts_mut(types.data, types.len);
     unsafe {
         drop(Box::from_raw(slice));
     }

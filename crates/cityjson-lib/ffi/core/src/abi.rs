@@ -377,6 +377,28 @@ impl cj_bytes_t {
     }
 }
 
+/// Owned byte-buffer list returned across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_bytes_list_t {
+    pub data: *mut cj_bytes_t,
+    pub len: usize,
+}
+
+impl cj_bytes_list_t {
+    pub const fn null() -> Self {
+        Self {
+            data: core::ptr::null_mut(),
+            len: 0,
+        }
+    }
+
+    pub const fn is_null(self) -> bool {
+        self.data.is_null()
+    }
+}
+
 /// Packed 3D coordinate copied across the ABI.
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -406,6 +428,28 @@ pub struct cj_vertices_t {
 }
 
 impl cj_vertices_t {
+    pub const fn null() -> Self {
+        Self {
+            data: core::ptr::null_mut(),
+            len: 0,
+        }
+    }
+
+    pub const fn is_null(self) -> bool {
+        self.data.is_null()
+    }
+}
+
+/// Owned geometry-type list returned across the ABI.
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct cj_geometry_types_t {
+    pub data: *mut cj_geometry_type_t,
+    pub len: usize,
+}
+
+impl cj_geometry_types_t {
     pub const fn null() -> Self {
         Self {
             data: core::ptr::null_mut(),

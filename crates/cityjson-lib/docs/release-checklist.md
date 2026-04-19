@@ -9,6 +9,7 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 3. Confirm that required sibling crates such as `cityjson-rs` and `cityjson-json` are already on crates.io.
 4. Publish `cityjson-lib` to crates.io.
 5. Publish `cityjson-lib-ffi-core` to crates.io once `cityjson-lib` is visible in the registry index.
+6. Run `just ffi test` and confirm the generated C header is clean.
 
 ## Python Package
 
@@ -16,6 +17,7 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 2. Run the Python unit tests from `ffi/python`.
 3. Verify the wheel and sdist artifacts.
 4. Publish `cityjson-lib` to PyPI.
+5. Confirm the Python FFI smoke tests passed through `just ffi test`.
 
 ## C++ Wrapper
 
@@ -23,6 +25,7 @@ Use this checklist to cut a release of the publishable surfaces in this repo.
 2. Configure, build, and test `ffi/cpp` with CMake.
 3. Install the wrapper to a staging prefix.
 4. Build a downstream consumer with `find_package(cityjson_lib_cpp CONFIG REQUIRED)`.
+5. Confirm the wrapper passes the self-append and bulk-inspection smoke cases.
 
 ## Final Steps
 

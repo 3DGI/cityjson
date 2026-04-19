@@ -235,6 +235,13 @@ int main() {
   assert(appended_summary.geometry_count == 2U);
   assert(appended_summary.vertex_count == 2U);
 
+  try {
+    left.append_model(left);
+    assert(false && "self-append should throw");
+  } catch (const cityjson_lib::StatusError& error) {
+    assert(error.status() == CJ_STATUS_INVALID_ARGUMENT);
+  }
+
   const auto extracted = left.extract_cityobjects(std::array{std::string_view{"right"}});
   const auto extracted_summary = extracted.summary();
   assert(extracted_summary.cityobject_count == 1U);

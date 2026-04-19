@@ -156,6 +156,14 @@ typedef struct cj_bytes_t {
 } cj_bytes_t;
 
 /**
+ * Owned byte-buffer list returned across the ABI.
+ */
+typedef struct cj_bytes_list_t {
+  struct cj_bytes_t *data;
+  uintptr_t len;
+} cj_bytes_list_t;
+
+/**
  * Packed 3D coordinate copied across the ABI.
  */
 typedef struct cj_vertex_t {
@@ -171,6 +179,14 @@ typedef struct cj_vertices_t {
   struct cj_vertex_t *data;
   uintptr_t len;
 } cj_vertices_t;
+
+/**
+ * Owned geometry-type list returned across the ABI.
+ */
+typedef struct cj_geometry_types_t {
+  enum cj_geometry_type_t *data;
+  uintptr_t len;
+} cj_geometry_types_t;
 
 /**
  * Packed UV coordinate copied across the ABI.
@@ -480,7 +496,11 @@ enum cj_status_t cj_model_free(struct cj_model_t *handle);
 
 enum cj_status_t cj_bytes_free(struct cj_bytes_t bytes);
 
+enum cj_status_t cj_bytes_list_free(struct cj_bytes_list_t bytes);
+
 enum cj_status_t cj_vertices_free(struct cj_vertices_t vertices);
+
+enum cj_status_t cj_geometry_types_free(struct cj_geometry_types_t types);
 
 enum cj_status_t cj_uvs_free(struct cj_uvs_t uvs);
 
@@ -549,9 +569,15 @@ enum cj_status_t cj_model_get_cityobject_id(const struct cj_model_t *model,
                                             uintptr_t index,
                                             struct cj_bytes_t *out_bytes);
 
+enum cj_status_t cj_model_copy_cityobject_ids(const struct cj_model_t *model,
+                                              struct cj_bytes_list_t *out_ids);
+
 enum cj_status_t cj_model_get_geometry_type(const struct cj_model_t *model,
                                             uintptr_t index,
                                             enum cj_geometry_type_t *out_type);
+
+enum cj_status_t cj_model_copy_geometry_types(const struct cj_model_t *model,
+                                              struct cj_geometry_types_t *out_types);
 
 enum cj_status_t cj_model_copy_geometry_boundary(const struct cj_model_t *model,
                                                  uintptr_t index,

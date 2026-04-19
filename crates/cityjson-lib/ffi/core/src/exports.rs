@@ -15,16 +15,16 @@ use cityjson_lib::cityjson::v2_0::{
 use cityjson_lib::{CityJSONVersion, CityModel, Error, cityjson::CityModelType, json::RootKind};
 
 use crate::abi::{
-    cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_t, cj_cityjsonseq_auto_transform_options_t,
-    cj_cityjsonseq_write_options_t, cj_cityobject_draft_t, cj_cityobject_id_t, cj_contact_role_t,
-    cj_contact_t, cj_contact_type_t, cj_error_kind_t, cj_geometry_boundary_t,
-    cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_id_t, cj_geometry_template_id_t,
-    cj_geometry_type_t, cj_image_type_t, cj_indices_t, cj_indices_view_t, cj_json_write_options_t,
-    cj_material_id_t, cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t,
-    cj_probe_t, cj_rgb_t, cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t,
-    cj_solid_draft_t, cj_status_t, cj_string_view_t, cj_surface_draft_t, cj_texture_id_t,
-    cj_texture_type_t, cj_transform_t, cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t,
-    cj_wrap_mode_t,
+    cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_list_t, cj_bytes_t,
+    cj_cityjsonseq_auto_transform_options_t, cj_cityjsonseq_write_options_t, cj_cityobject_draft_t,
+    cj_cityobject_id_t, cj_contact_role_t, cj_contact_t, cj_contact_type_t, cj_error_kind_t,
+    cj_geometry_boundary_t, cj_geometry_boundary_view_t, cj_geometry_draft_t, cj_geometry_id_t,
+    cj_geometry_template_id_t, cj_geometry_type_t, cj_geometry_types_t, cj_image_type_t,
+    cj_indices_t, cj_indices_view_t, cj_json_write_options_t, cj_material_id_t,
+    cj_model_capacities_t, cj_model_summary_t, cj_model_t, cj_model_type_t, cj_probe_t, cj_rgb_t,
+    cj_rgba_t, cj_ring_draft_t, cj_semantic_id_t, cj_shell_draft_t, cj_solid_draft_t, cj_status_t,
+    cj_string_view_t, cj_surface_draft_t, cj_texture_id_t, cj_texture_type_t, cj_transform_t,
+    cj_uv_t, cj_uvs_t, cj_value_t, cj_vertex_t, cj_vertices_t, cj_wrap_mode_t,
 };
 use crate::authoring::{
     GeometryAuthoring, LineStringAuthoring, OwnedCityObject, OwnedContact, OwnedMaterial,
@@ -36,17 +36,20 @@ use crate::error::{
     run_ffi,
 };
 use crate::handle::{
-    bytes_free as free_bytes, bytes_from_vec, cityobject_draft_as_mut, cityobject_draft_free,
-    cityobject_draft_into_handle, cityobject_draft_take, contact_as_mut, contact_free,
-    contact_into_handle, contact_take, geometry_boundary_free as free_geometry_boundary,
-    geometry_draft_as_mut, geometry_draft_free, geometry_draft_into_handle, geometry_draft_take,
-    indices_free as free_indices, indices_from_vec, model_as_mut, model_as_ref, model_free,
-    model_into_handle, ring_draft_as_mut, ring_draft_free, ring_draft_into_handle, ring_draft_take,
-    shell_draft_as_mut, shell_draft_free, shell_draft_into_handle, shell_draft_take,
-    solid_draft_as_mut, solid_draft_free, solid_draft_into_handle, solid_draft_take,
-    surface_draft_as_mut, surface_draft_free, surface_draft_into_handle, surface_draft_take,
-    uvs_free as free_uvs, uvs_from_vec, value_as_mut, value_free, value_into_handle, value_take,
-    vertices_free as free_vertices, vertices_from_vec,
+    bytes_free as free_bytes, bytes_from_string, bytes_from_vec,
+    bytes_list_free as free_bytes_list, bytes_list_from_vec, cityobject_draft_as_mut,
+    cityobject_draft_free, cityobject_draft_into_handle, cityobject_draft_take, contact_as_mut,
+    contact_free, contact_into_handle, contact_take,
+    geometry_boundary_free as free_geometry_boundary, geometry_draft_as_mut, geometry_draft_free,
+    geometry_draft_into_handle, geometry_draft_take, geometry_types_free as free_geometry_types,
+    geometry_types_from_vec, indices_free as free_indices, indices_from_vec, model_as_mut,
+    model_as_ref, model_free, model_into_handle, ring_draft_as_mut, ring_draft_free,
+    ring_draft_into_handle, ring_draft_take, shell_draft_as_mut, shell_draft_free,
+    shell_draft_into_handle, shell_draft_take, solid_draft_as_mut, solid_draft_free,
+    solid_draft_into_handle, solid_draft_take, surface_draft_as_mut, surface_draft_free,
+    surface_draft_into_handle, surface_draft_take, uvs_free as free_uvs, uvs_from_vec,
+    value_as_mut, value_free, value_into_handle, value_take, vertices_free as free_vertices,
+    vertices_from_vec,
 };
 
 type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
@@ -470,6 +473,21 @@ fn rgba_from_abi(value: cj_rgba_t) -> RGBA {
 
 fn copy_string_bytes(value: Option<&str>) -> Vec<u8> {
     value.unwrap_or_default().as_bytes().to_vec()
+}
+
+fn cityobject_ids_from_model(model: &CityModel) -> Vec<cj_bytes_t> {
+    model
+        .cityobjects()
+        .iter()
+        .map(|(_, cityobject)| bytes_from_string(cityobject.id().to_owned()))
+        .collect()
+}
+
+fn geometry_types_from_model(model: &CityModel) -> Vec<cj_geometry_type_t> {
+    model
+        .iter_geometries()
+        .map(|(_, geometry)| (*geometry.type_geometry()).into())
+        .collect()
 }
 
 fn index_values(indices: &[cityjson_lib::cityjson::v2_0::VertexIndex<u32>]) -> Vec<usize> {
@@ -960,6 +978,28 @@ pub extern "C" fn cj_bytes_free(bytes: cj_bytes_t) -> cj_status_t {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_bytes_list_free(bytes: cj_bytes_list_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if bytes.data.is_null() {
+            if bytes.len == 0 {
+                return Ok(());
+            }
+
+            return Err(invalid_argument(
+                "bytes list data must not be null when len is non-zero",
+            ));
+        }
+
+        // SAFETY: the ABI only frees lists allocated by `bytes_list_from_vec`.
+        unsafe {
+            free_bytes_list(bytes);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_vertices_free(vertices: cj_vertices_t) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
         if vertices.data.is_null() {
@@ -975,6 +1015,28 @@ pub extern "C" fn cj_vertices_free(vertices: cj_vertices_t) -> cj_status_t {
         // SAFETY: the ABI only frees buffers allocated by `vertices_from_vec`.
         unsafe {
             free_vertices(vertices);
+        }
+
+        Ok(())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_geometry_types_free(types: cj_geometry_types_t) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        if types.data.is_null() {
+            if types.len == 0 {
+                return Ok(());
+            }
+
+            return Err(invalid_argument(
+                "geometry types data must not be null when len is non-zero",
+            ));
+        }
+
+        // SAFETY: the ABI only frees lists allocated by `geometry_types_from_vec`.
+        unsafe {
+            free_geometry_types(types);
         }
 
         Ok(())
@@ -1370,6 +1432,21 @@ pub extern "C" fn cj_model_get_cityobject_id(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn cj_model_copy_cityobject_ids(
+    model: *const cj_model_t,
+    out_ids: *mut cj_bytes_list_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        write_value(
+            out_ids,
+            "out_ids",
+            bytes_list_from_vec(cityobject_ids_from_model(model)),
+        )
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn cj_model_get_geometry_type(
     model: *const cj_model_t,
     index: usize,
@@ -1383,6 +1460,21 @@ pub extern "C" fn cj_model_get_geometry_type(
             .map(|(_, geometry)| *geometry.type_geometry())
             .ok_or_else(|| invalid_argument(format!("geometry index {index} is out of range")))?;
         write_value(out_type, "out_type", geometry_type.into())
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn cj_model_copy_geometry_types(
+    model: *const cj_model_t,
+    out_types: *mut cj_geometry_types_t,
+) -> cj_status_t {
+    ffi_status(run_ffi::<(), AbiError, _>(|| {
+        let model = required_model_ref(model)?;
+        write_value(
+            out_types,
+            "out_types",
+            geometry_types_from_vec(geometry_types_from_model(model)),
+        )
     }))
 }
 
@@ -1689,8 +1781,22 @@ pub extern "C" fn cj_model_append_model(
     source_model: *const cj_model_t,
 ) -> cj_status_t {
     ffi_status(run_ffi::<(), AbiError, _>(|| {
-        let source = required_model_ref(source_model)?.clone();
-        cityjson_lib::ops::append(required_model_mut(target_model)?, &source)?;
+        if target_model.is_null() {
+            return Err(invalid_argument("target_model must not be null"));
+        }
+
+        if source_model.is_null() {
+            return Err(invalid_argument("source_model must not be null"));
+        }
+
+        if ptr::eq(target_model.cast_const(), source_model) {
+            return Err(invalid_argument(
+                "target_model and source_model must not alias",
+            ));
+        }
+
+        let source = required_model_ref(source_model)?;
+        cityjson_lib::ops::append(required_model_mut(target_model)?, source)?;
         Ok(())
     }))
 }

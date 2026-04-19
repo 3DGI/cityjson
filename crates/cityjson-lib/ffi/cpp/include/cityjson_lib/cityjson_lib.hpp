@@ -140,6 +140,25 @@ inline std::string take_string(cj_bytes_t bytes) {
   return value;
 }
 
+inline std::vector<std::string> take_string_list(cj_bytes_list_t bytes) {
+  struct FreeGuard {
+    cj_bytes_list_t bytes;
+    ~FreeGuard() { static_cast<void>(cj_bytes_list_free(bytes)); }
+  } guard{bytes};
+
+  std::vector<std::string> value;
+  value.reserve(bytes.len);
+  for (std::size_t index = 0U; index < bytes.len; ++index) {
+    const auto item = bytes.data[index];
+    if (item.len > 0U) {
+      value.emplace_back(reinterpret_cast<const char*>(item.data), item.len);
+    } else {
+      value.emplace_back();
+    }
+  }
+  return value;
+}
+
 inline std::vector<std::uint8_t> take_bytes(cj_bytes_t bytes) {
   std::vector<std::uint8_t> value;
   if (bytes.len > 0U) {
@@ -164,6 +183,15 @@ inline std::vector<UV> take_uvs(cj_uvs_t uvs) {
     value.assign(uvs.data, uvs.data + uvs.len);
   }
   check_status(cj_uvs_free(uvs));
+  return value;
+}
+
+inline std::vector<GeometryType> take_geometry_types(cj_geometry_types_t types) {
+  std::vector<GeometryType> value;
+  if (types.len > 0U) {
+    value.assign(types.data, types.data + types.len);
+  }
+  check_status(cj_geometry_types_free(types));
   return value;
 }
 
@@ -980,17 +1008,9 @@ class Model final {
   }
 
   [[nodiscard]] std::vector<std::string> cityobject_ids() const {
-    const auto model_summary = summary();
-    std::vector<std::string> ids;
-    ids.reserve(model_summary.cityobject_count);
-
-    for (std::size_t index = 0; index < model_summary.cityobject_count; ++index) {
-      cj_bytes_t bytes{};
-      check_status(cj_model_get_cityobject_id(handle_, index, &bytes));
-      ids.push_back(take_string(bytes));
-    }
-
-    return ids;
+    cj_bytes_list_t ids{};
+    check_status(cj_model_copy_cityobject_ids(handle_, &ids));
+    return take_string_list(ids);
   }
 
   void remove_cityobject(std::string_view id) {
@@ -998,17 +1018,9 @@ class Model final {
   }
 
   [[nodiscard]] std::vector<GeometryType> geometry_types() const {
-    const auto model_summary = summary();
-    std::vector<GeometryType> types;
-    types.reserve(model_summary.geometry_count);
-
-    for (std::size_t index = 0; index < model_summary.geometry_count; ++index) {
-      GeometryType type{};
-      check_status(cj_model_get_geometry_type(handle_, index, &type));
-      types.push_back(type);
-    }
-
-    return types;
+    cj_geometry_types_t types{};
+    check_status(cj_model_copy_geometry_types(handle_, &types));
+    return take_geometry_types(types);
   }
 
   [[nodiscard]] std::vector<UV> uv_coordinates() const {
