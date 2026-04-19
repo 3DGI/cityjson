@@ -128,6 +128,7 @@ fn read_feature_rejects_cityjson_roots() {
     let input = json!({
         "type": "CityJSON",
         "version": "2.0",
+        "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
         "CityObjects": {},
         "vertices": []
     })
@@ -284,7 +285,7 @@ fn read_feature_stream_materializes_models_from_header_and_features() {
 #[test]
 fn read_feature_stream_rejects_duplicate_cityobject_ids() {
     let input = concat!(
-        r#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#,
+        r#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},"CityObjects":{},"vertices":[]}"#,
         "\n",
         r#"{"type":"CityJSONFeature","id":"building-1","CityObjects":{"building-1":{"type":"Building"}},"vertices":[]}"#,
         "\n",
@@ -305,6 +306,7 @@ fn write_feature_stream_writes_header_and_features() {
         &json!({
             "type": "CityJSON",
             "version": "2.0",
+            "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
             "metadata": {
                 "title": "base-root"
             },
@@ -351,6 +353,7 @@ fn write_feature_stream_rejects_incompatible_root_state() {
         &json!({
             "type": "CityJSON",
             "version": "2.0",
+            "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
             "metadata": {
                 "title": "base-a"
             },
@@ -363,6 +366,7 @@ fn write_feature_stream_rejects_incompatible_root_state() {
         &json!({
             "type": "CityJSON",
             "version": "2.0",
+            "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
             "metadata": {
                 "title": "base-b"
             },
@@ -420,6 +424,7 @@ fn write_feature_stream_preserves_feature_local_ids() {
         &json!({
             "type": "CityJSON",
             "version": "2.0",
+            "transform":{"scale":[0.5,0.5,1.0],"translate":[10.0,20.0,30.0]},
             "metadata": {
                 "title": "base-root"
             },

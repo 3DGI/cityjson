@@ -104,7 +104,7 @@ use cityjson_json::v2_0::{
 };
 use cityjson::v2_0::Transform;
 
-let base_input = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[]}"#;
+let base_input = br#"{"type":"CityJSON","version":"2.0","transform":{"scale":[0.001,0.001,0.001],"translate":[0.0,0.0,0.0]},"CityObjects":{},"vertices":[]}"#;
 let base = read_model(base_input, &ReadOptions::default())?;
 let feature = read_feature_with_base(
     br#"{"type":"CityJSONFeature","id":"f1","CityObjects":{"f1":{"type":"Building","geometry":[{"type":"MultiPoint","boundaries":[0]}]}},"vertices":[[10,20,30]]}"#,
