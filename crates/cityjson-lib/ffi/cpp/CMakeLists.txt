@@ -78,6 +78,20 @@ if(BUILD_TESTING)
   set_target_properties(cityjson_lib_cpp_smoke PROPERTIES BUILD_RPATH "${CITYJSON_LIB_FFI_CORE_LIB_DIR}")
   add_test(NAME cityjson_lib_cpp_smoke COMMAND cityjson_lib_cpp_smoke)
 
+  add_executable(cityjson_lib_cpp_ffi_visibility benchmarks/ffi_visibility.cpp)
+  target_link_libraries(cityjson_lib_cpp_ffi_visibility PRIVATE cityjson_lib_cpp)
+  target_compile_definitions(
+    cityjson_lib_cpp_ffi_visibility
+    PRIVATE
+      CITYJSON_LIB_SMALL_FIXTURE_PATH="${CITYJSON_LIB_ROOT_DIR}/tests/data/v2_0/minimal.city.json"
+      CITYJSON_LIB_LARGE_FIXTURE_PATH="${CITYJSON_LIB_ROOT_DIR}/tests/data/v2_0/cityjson_fake_complete.city.json"
+  )
+  set_target_properties(
+    cityjson_lib_cpp_ffi_visibility
+    PROPERTIES
+      BUILD_RPATH "${CITYJSON_LIB_FFI_CORE_LIB_DIR}"
+  )
+
   add_executable(cityjson_lib_cpp_fake_complete examples/fake_complete.cpp)
   target_link_libraries(cityjson_lib_cpp_fake_complete PRIVATE cityjson_lib_cpp)
   set_target_properties(

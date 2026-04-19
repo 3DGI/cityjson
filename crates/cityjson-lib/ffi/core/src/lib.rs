@@ -8,13 +8,12 @@
 //! bytes-in/bytes-out entry points on top.
 
 pub mod abi;
-pub mod authoring;
+/// cbindgen:ignore
+mod authoring;
 pub mod error;
 pub mod exports;
 pub mod handle;
 pub mod ids;
-
-pub use cityjson_lib;
 
 pub use abi::{
     cj_affine_transform_4x4_t, cj_bbox_t, cj_bytes_list_t, cj_bytes_t,
@@ -27,12 +26,6 @@ pub use abi::{
     cj_semantic_id_t, cj_shell_draft_t, cj_solid_draft_t, cj_status_t, cj_string_view_t,
     cj_surface_draft_t, cj_texture_id_t, cj_texture_type_t, cj_transform_t, cj_uv_t, cj_uvs_t,
     cj_value_kind_t, cj_value_t, cj_version_t, cj_vertex_t, cj_vertices_t, cj_wrap_mode_t,
-};
-pub use authoring::{
-    GeometryAuthoring, LineStringAuthoring, OwnedCityObject, OwnedContact, OwnedGeometryDraft,
-    OwnedMaterial, OwnedSemantic, OwnedTexture, OwnedValue, PointAuthoring, RingAuthoring,
-    RingTextureAuthoring, ShellAuthoring, SolidAuthoring, SurfaceAuthoring, UvAuthoring,
-    VertexAuthoring,
 };
 pub use error::{
     AbiError, clear_last_error, copy_last_error_message, last_error_kind, last_error_message_len,

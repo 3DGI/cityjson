@@ -7,6 +7,8 @@ the shared low-level FFI core.
 
 - [Binding API](api.md)
   Tabbed Rust, Python, and C++ examples for the public surface.
+- [FFI Performance Visibility](performance.md)
+  Local benchmark runner for wrapper-vs-ABI overhead checks.
 - [Writing Data](../guide-writing.md)
   The current typed authoring flow, with the C++ fake-complete example as the full reference.
 - [FFI Authoring API Proposal](authoring-api-proposal.md)

@@ -17,12 +17,19 @@ use cityjson_lib::cityjson::v2_0::metadata::Contact;
 use cityjson_lib::cityjson::v2_0::vertex::VertexIndex;
 use cityjson_lib::cityjson::v2_0::{CityObject, GeometryType};
 
+/// cbindgen:ignore
 pub type OwnedValue = AttributeValue<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedContact = Contact<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedMaterial = Material<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedTexture = Texture<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedSemantic = Semantic<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedCityObject = CityObject<OwnedStringStorage>;
+/// cbindgen:ignore
 pub type OwnedGeometryDraft = GeometryDraft<u32, OwnedStringStorage>;
 
 #[derive(Debug, Clone, PartialEq)]

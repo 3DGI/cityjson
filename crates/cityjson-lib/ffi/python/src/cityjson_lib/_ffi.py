@@ -508,6 +508,8 @@ class FfiLibrary:
         self._lib.cj_model_clear_transform.restype = c_int
         self._lib.cj_model_remove_cityobject.argtypes = [c_void_p, StringViewStruct]
         self._lib.cj_model_remove_cityobject.restype = c_int
+        self._lib.cj_model_clear_cityobject_geometry.argtypes = [c_void_p, StringViewStruct]
+        self._lib.cj_model_clear_cityobject_geometry.restype = c_int
         self._lib.cj_model_cleanup.argtypes = [c_void_p]
         self._lib.cj_model_cleanup.restype = c_int
         self._lib.cj_model_append_model.argtypes = [c_void_p, c_void_p]
@@ -1048,6 +1050,14 @@ class FfiLibrary:
         payload = BytesListStruct()
         self._raise_if_error(self._lib.cj_model_copy_cityobject_ids(c_void_p(handle), pointer(payload)))
         return self._take_bytes_list(payload)
+
+    def clear_cityobject_geometry(self, handle: int, cityobject_id: str) -> None:
+        cityobject_id_view, _ = self._string_view(cityobject_id)
+        self._raise_if_error(
+            self._lib.cj_model_clear_cityobject_geometry(
+                c_void_p(handle), cityobject_id_view
+            )
+        )
 
     def geometry_type(self, handle: int, index: int) -> GeometryType:
         geometry_type = c_int()

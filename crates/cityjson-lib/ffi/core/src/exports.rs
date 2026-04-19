@@ -52,6 +52,7 @@ use crate::handle::{
     vertices_from_vec,
 };
 
+/// cbindgen:ignore
 type OwnedGeometry = cityjson_lib::cityjson::v2_0::Geometry<
     u32,
     cityjson_lib::cityjson::resources::storage::OwnedStringStorage,
@@ -435,6 +436,7 @@ fn texture_type_from_abi(value: cj_texture_type_t) -> TextureType {
     }
 }
 
+/// cbindgen:ignore
 fn semantic_type_from_string(
     value: String,
 ) -> SemanticType<cityjson_lib::cityjson::resources::storage::OwnedStringStorage> {
@@ -544,6 +546,7 @@ fn geometry_boundary_coordinates(
         }))
 }
 
+/// cbindgen:ignore
 fn find_cityobject_mut<'a>(
     model: &'a mut CityModel,
     id: &str,
@@ -869,6 +872,7 @@ fn boundary_from_view(
     Ok(boundary)
 }
 
+/// cbindgen:ignore
 fn geometry_from_boundary_view(
     view: cj_geometry_boundary_view_t,
     lod: Option<LoD>,

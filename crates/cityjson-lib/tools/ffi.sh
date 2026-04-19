@@ -17,6 +17,7 @@ Usage:
   ./tools/ffi.sh clean
   ./tools/ffi.sh test
   ./tools/ffi.sh ci
+  ./tools/ffi.sh bench [quick|full]
   ./tools/ffi.sh build header
   ./tools/ffi.sh build cpp [cmake-build-args...]
   ./tools/ffi.sh build python [uv-build-args...]
@@ -109,6 +110,10 @@ clean() {
     "${cpp_build_dir}"
 }
 
+bench() {
+  bash "${repo_dir}/tools/ffi_bench.sh" "$@"
+}
+
 ci() {
   check
   build_header
@@ -165,6 +170,10 @@ case "${1:-}" in
     shift
     [[ $# -eq 0 ]] || usage
     test
+    ;;
+  bench)
+    shift
+    bench "$@"
     ;;
   clean)
     shift
