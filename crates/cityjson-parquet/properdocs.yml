@@ -1,5 +1,7 @@
 site_name: cityjson-parquet
 site_description: User-facing documentation for the cityjson-parquet crate
+repo_url: https://github.com/3DGI/cityjson-parquet
+repo_name: 3DGI/cityjson-parquet
 docs_dir: docs
 strict: true
 
@@ -13,7 +15,15 @@ nav:
       - Transport design: design.md
 
 theme:
-  name: material
+  name: materialx
+  topbar_style: primary
+  palette:
+    primary: orange
+  font:
+    text: Roboto
+  language: en
+  icon:
+    repo: fontawesome/brands/github
   features:
     - navigation.tabs
     - navigation.sections
@@ -24,6 +34,9 @@ theme:
     - content.code.annotate
     - search.suggest
     - search.highlight
+
+plugins:
+  - search
 
 markdown_extensions:
   - admonition
