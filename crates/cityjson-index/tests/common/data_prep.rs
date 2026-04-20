@@ -197,7 +197,10 @@ pub fn prepare_3dbag_benchmark_datasets(config: &PrepConfig) -> Result<PreparedD
         });
         processed_tiles = processed_tiles.saturating_add(1);
 
-        if config.max_tiles.is_some_and(|limit| processed_tiles >= limit) {
+        if config
+            .max_tiles
+            .is_some_and(|limit| processed_tiles >= limit)
+        {
             break;
         }
         if total_cityobjects >= DEFAULT_TARGET_CITYOBJECTS_MAX {
