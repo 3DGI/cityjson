@@ -17,15 +17,15 @@ use cityjson_lib_ffi_core::{
 
 const SMALL_FIXTURE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tests/data/v2_0/minimal.city.json"
+    "/tests/data/v2_0/minimal.city.json"
 ));
 const LARGE_FIXTURE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tests/data/v2_0/cityjson_fake_complete.city.json"
+    "/tests/data/v2_0/cityjson_fake_complete.city.json"
 ));
 const APPEND_SOURCE_FIXTURE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tests/data/v2_0/minimal.city.json"
+    "/tests/data/v2_0/minimal.city.json"
 ));
 
 #[derive(Clone, Copy)]
