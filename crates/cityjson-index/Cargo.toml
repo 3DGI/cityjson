@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-index"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Balázs Dukai <balazs.dukai@3dgi.nl>"]
 edition = "2024"
 rust-version = "1.93"

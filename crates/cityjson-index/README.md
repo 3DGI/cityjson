@@ -29,7 +29,7 @@ This crate gives you a consistent indexing layer so you can:
 
 ```toml
 [dependencies]
-cityjson-index = "0.3.1"
+cityjson-index = "0.4.0"
 ```
 
 ### CLI

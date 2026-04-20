@@ -9,12 +9,14 @@ restore() {
     cp "$backup_dir/cityjson-lib.Cargo.toml" "$lib_root/Cargo.toml"
     cp "$backup_dir/cityjson-lib-ffi-core.Cargo.toml" "$lib_root/ffi/core/Cargo.toml"
     cp "$backup_dir/cityjson-lib-python-ffi.py" "$lib_root/ffi/python/src/cityjson_lib/_ffi.py"
+    cp "$backup_dir/cityjson-lib-python-setup.py" "$lib_root/ffi/python/setup.py"
     rm -rf "$backup_dir"
 }
 
 cp "$lib_root/Cargo.toml" "$backup_dir/cityjson-lib.Cargo.toml"
 cp "$lib_root/ffi/core/Cargo.toml" "$backup_dir/cityjson-lib-ffi-core.Cargo.toml"
 cp "$lib_root/ffi/python/src/cityjson_lib/_ffi.py" "$backup_dir/cityjson-lib-python-ffi.py"
+cp "$lib_root/ffi/python/setup.py" "$backup_dir/cityjson-lib-python-setup.py"
 trap restore EXIT INT TERM
 
 if command -v python3 >/dev/null 2>&1; then
@@ -65,6 +67,16 @@ text = ffi_manifest.read_text(encoding="utf-8")
 text = text.replace('default = ["native-formats"]', "default = []")
 text = text.replace('native-formats = ["cityjson_lib/arrow", "cityjson_lib/parquet"]', "native-formats = []")
 ffi_manifest.write_text(text, encoding="utf-8")
+
+setup_py = root / "ffi" / "python" / "setup.py"
+text = setup_py.read_text(encoding="utf-8")
+text = text.replace(
+    """                "--features",
+                "native-formats",
+""",
+    "",
+)
+setup_py.write_text(text, encoding="utf-8")
 
 ffi_py = root / "ffi" / "python" / "src" / "cityjson_lib" / "_ffi.py"
 text = ffi_py.read_text(encoding="utf-8")

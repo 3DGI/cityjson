@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "cityjson-index"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "cityjson-lib",
  "clap",
@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "cityjson-index-ffi-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "cityjson-index",
  "cityjson-lib",
