@@ -20,6 +20,10 @@ ffi:
 prep-test-data:
     cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval
 
+# Prepare the minimal corpus needed for CI and release validation.
+prep-test-data-ci:
+    cargo run --release --features dev-binaries --bin prep-test-data -- --skip-cjval --max-tiles 1
+
 # Fast compile-time validation across all targets and features.
 check:
     cargo check --all-targets --all-features
@@ -81,6 +85,7 @@ ci:
     just fmt
     just check
     just lint
+    just prep-test-data-ci
     just test
     just ffi
     just test-python

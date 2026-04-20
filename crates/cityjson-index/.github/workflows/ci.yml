@@ -132,6 +132,7 @@ jobs:
           path: cityjson-json
       - uses: dtolnay/rust-toolchain@stable
       - uses: extractions/setup-just@v4
+      - run: just prep-test-data-ci
       - run: just test
 
   build:

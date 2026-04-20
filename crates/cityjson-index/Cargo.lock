@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "cityjson-lib"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "cityjson",
  "cityjson-json",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "cityjson-lib-ffi-core"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "cityjson-lib",
  "serde_json",
