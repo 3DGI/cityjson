@@ -12,6 +12,11 @@ The current published surface is intentionally small:
 
 Arrow, Parquet, and wasm are not part of the current release-facing surface.
 
+## Use of AI in this project
+
+This crate was written with AI assistance and human guidance.
+Development used an iterative process of testing, benchmarking, and optimization controlled and verified by me.
+
 ## License
 
 This repository is dual-licensed under MIT or Apache-2.0.

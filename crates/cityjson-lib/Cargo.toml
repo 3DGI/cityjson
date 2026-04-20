@@ -1,6 +1,6 @@
 [package]
 name = "cityjson-lib"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 rust-version = "1.93"
 description = "High-level CityJSON 2.0 read/write facade integrating JSON I/O"
@@ -45,8 +45,8 @@ name = "cityjson_lib"
 path = "src/lib.rs"
 
 [dependencies]
-cityjson = { path = "../cityjson-rs", version = "0.7.0" }
-cityjson-json = { path = "../cityjson-json", version = "0.7.1", optional = true }
+cityjson = { path = "../cityjson-rs", version = "0.7.1" }
+cityjson-json = { path = "../cityjson-json", version = "0.7.2", optional = true }
 
 [dev-dependencies]
 criterion = "0.7"
